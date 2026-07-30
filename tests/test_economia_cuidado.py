@@ -1,4 +1,6 @@
 import asyncio
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -130,3 +132,40 @@ def test_evolucion_topada_con_otra_criatura_del_plantel():
     assert segunda.evoluciono and segunda.delta_evolucion == 0
     assert segunda.evolucion_usadas == 1
     assert segunda.delta_asciicoins == 1
+
+
+def test_dos_cuidados_compiten_por_el_ultimo_cupo_sin_sobrepasarlo():
+    nacer()
+    for i in range(11):
+        assert limpiar(f"previo-{i}", T0 + timedelta(minutes=54 * i)).delta_asciicoins == 1
+    criatura = db.criatura_activa("u1", "g1")
+    db.guardar(replace(criatura, limpieza=0.0))
+    ahora = T0 + timedelta(hours=11)
+
+    def cuidar(datos):
+        evento, accion = datos
+        return economia.ejecutar_cuidado(evento, "u1", "g1", accion, ahora)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        resultados = list(pool.map(
+            cuidar,
+            (("ultimo-jugar", sim.JUGAR), ("ultimo-limpiar", sim.LIMPIAR)),
+        ))
+    assert sorted(r.delta_asciicoins for r in resultados) == [0, 1]
+    assert sum(r.topada for r in resultados) == 1
+    assert economia.saldos("u1", "g1").asciicoins == 62
+
+
+def test_fallo_del_ledger_revierte_criatura_cooldown_y_saldo():
+    original = nacer()
+    with db.conectar() as con:
+        con.execute(
+            "CREATE TRIGGER rompe_cuidado BEFORE INSERT ON operaciones_economia "
+            "BEGIN SELECT RAISE(ABORT, 'fallo ledger'); END"
+        )
+    with pytest.raises(sqlite3.IntegrityError, match="fallo ledger"):
+        economia.ejecutar_cuidado("evento", "u1", "g1", sim.JUGAR, T0)
+
+    assert db.criatura_activa("u1", "g1") == original
+    assert db.espera_de(original.id, sim.JUGAR, T0) == timedelta(0)
+    assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)
