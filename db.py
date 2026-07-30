@@ -19,6 +19,7 @@ from pathlib import Path
 
 import config
 import especies as esp
+import objetos as obj
 import personalidad as per
 import simulacion as sim
 
@@ -86,6 +87,36 @@ CREATE TABLE IF NOT EXISTS uso_ia (
     id INTEGER PRIMARY KEY,
     usuario_id TEXT NOT NULL,
     cuando TEXT NOT NULL
+);
+
+-- El monedero y los objetos son de la PERSONA, no de la criatura: así lo
+-- comprado sobrevive a la muerte de una mascota y al nacimiento de la
+-- siguiente. Por servidor, como todo lo demás.
+CREATE TABLE IF NOT EXISTS monederos (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    gemas INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (usuario_id, guild_id)
+);
+
+CREATE TABLE IF NOT EXISTS inventario (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    objeto TEXT NOT NULL,
+    cantidad INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (usuario_id, guild_id, objeto)
+);
+
+-- Los efectos sí van atados a la criatura: es ella la que se envalentona, y
+-- cuando muere se los lleva. La clave primaria (criatura_id, stat) **es** la
+-- regla de «una poción activa por estadística»: al beber otra, el ON CONFLICT
+-- sustituye a la anterior sin que haya que vigilarlo desde el código.
+CREATE TABLE IF NOT EXISTS efectos (
+    criatura_id INTEGER NOT NULL REFERENCES criaturas(id),
+    stat TEXT NOT NULL,          -- 'fuerza' | 'velocidad'
+    bonus INTEGER NOT NULL,
+    hasta TEXT NOT NULL,
+    PRIMARY KEY (criatura_id, stat)
 );
 """
 
@@ -373,6 +404,155 @@ def poner_cooldown(criatura_id: int, accion: str, ahora: datetime) -> None:
             "ON CONFLICT(criatura_id, accion) DO UPDATE SET hasta = excluded.hasta",
             (criatura_id, accion, (ahora + duracion).isoformat()),
         )
+
+
+def quitar_cooldown(criatura_id: int, accion: str) -> None:
+    """Borra la espera de una acción. Lo que hacen los objetos de reinicio."""
+    with conectar() as con:
+        con.execute(
+            "DELETE FROM cooldowns WHERE criatura_id = ? AND accion = ?",
+            (criatura_id, accion),
+        )
+
+
+# --- Monedero e inventario -------------------------------------------------
+
+def gemas(usuario_id: str, guild_id: str) -> int:
+    """El saldo. La primera consulta crea el monedero con el regalo de bienvenida.
+
+    Se reparte así y no con una migración para que lo reciban tanto quienes ya
+    jugaban como quienes empiecen mañana, sin tocar la base de datos que está en
+    producción. El `INSERT OR IGNORE` es lo que impide que consultar el saldo
+    tres veces regale trescientas gemas.
+    """
+    with conectar() as con:
+        con.execute(
+            "INSERT OR IGNORE INTO monederos (usuario_id, guild_id, gemas) "
+            "VALUES (?, ?, ?)",
+            (usuario_id, guild_id, obj.GEMAS_DE_BIENVENIDA),
+        )
+        fila = con.execute(
+            "SELECT gemas FROM monederos WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchone()
+    return fila["gemas"]
+
+
+def dar_gemas(usuario_id: str, guild_id: str, cuantas: int) -> int:
+    """Ingresa gemas y devuelve el saldo nuevo. Para eventos y regalos."""
+    gemas(usuario_id, guild_id)  # asegura que el monedero existe
+    with conectar() as con:
+        con.execute(
+            "UPDATE monederos SET gemas = gemas + ? "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (cuantas, usuario_id, guild_id),
+        )
+    return gemas(usuario_id, guild_id)
+
+
+def cobrar(usuario_id: str, guild_id: str, cuantas: int) -> bool:
+    """Descuenta si hay saldo. Devuelve si se pudo.
+
+    El `AND gemas >= ?` va dentro del UPDATE a propósito: es la base de datos la
+    que decide, en una sola sentencia, así que dos compras a la vez no pueden
+    dejar el monedero en números rojos.
+    """
+    gemas(usuario_id, guild_id)
+    with conectar() as con:
+        cursor = con.execute(
+            "UPDATE monederos SET gemas = gemas - ? "
+            "WHERE usuario_id = ? AND guild_id = ? AND gemas >= ?",
+            (cuantas, usuario_id, guild_id, cuantas),
+        )
+    return cursor.rowcount > 0
+
+
+def inventario(usuario_id: str, guild_id: str) -> dict[str, int]:
+    """Qué tiene y cuánto. Lo que se ha gastado del todo no sale."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT objeto, cantidad FROM inventario "
+            "WHERE usuario_id = ? AND guild_id = ? AND cantidad > 0",
+            (usuario_id, guild_id),
+        ).fetchall()
+    return {f["objeto"]: f["cantidad"] for f in filas}
+
+
+def comprar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> bool:
+    """Cobra y entrega. Si no llega el dinero no hace ninguna de las dos cosas."""
+    if not cobrar(usuario_id, guild_id, objeto.precio):
+        return False
+    with conectar() as con:
+        con.execute(
+            "INSERT INTO inventario (usuario_id, guild_id, objeto, cantidad) "
+            "VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(usuario_id, guild_id, objeto) "
+            "DO UPDATE SET cantidad = cantidad + 1",
+            (usuario_id, guild_id, objeto.clave),
+        )
+    return True
+
+
+def gastar(usuario_id: str, guild_id: str, clave: str) -> bool:
+    """Descuenta una unidad. Devuelve si la había.
+
+    Igual que `cobrar`: la condición viaja dentro del UPDATE para que dos clics
+    seguidos no puedan gastar dos veces la última unidad.
+    """
+    with conectar() as con:
+        cursor = con.execute(
+            "UPDATE inventario SET cantidad = cantidad - 1 "
+            "WHERE usuario_id = ? AND guild_id = ? AND objeto = ? AND cantidad > 0",
+            (usuario_id, guild_id, clave),
+        )
+        con.execute(
+            "DELETE FROM inventario WHERE usuario_id = ? AND guild_id = ? "
+            "AND objeto = ? AND cantidad <= 0",
+            (usuario_id, guild_id, clave),
+        )
+    return cursor.rowcount > 0
+
+
+# --- Efectos de las pociones -----------------------------------------------
+
+def poner_efecto(criatura_id: int, stat: str, bonus: int, ahora: datetime) -> None:
+    """Activa una poción. Si ya había otra en esa estadística, la sustituye."""
+    hasta = ahora + timedelta(minutes=obj.MINUTOS_DE_EFECTO)
+    with conectar() as con:
+        con.execute(
+            "INSERT INTO efectos (criatura_id, stat, bonus, hasta) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(criatura_id, stat) DO UPDATE SET "
+            "bonus = excluded.bonus, hasta = excluded.hasta",
+            (criatura_id, stat, bonus, hasta.isoformat()),
+        )
+
+
+def efecto_activo(criatura_id: int, stat: str, ahora: datetime) -> int:
+    """Lo que suma la poción en curso, o 0 si no hay o ya caducó."""
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT bonus, hasta FROM efectos WHERE criatura_id = ? AND stat = ?",
+            (criatura_id, stat),
+        ).fetchone()
+    if not fila or datetime.fromisoformat(fila["hasta"]) <= ahora:
+        return 0
+    return fila["bonus"]
+
+
+def efectos_activos(criatura_id: int, ahora: datetime) -> dict[str, tuple[int, timedelta]]:
+    """Las pociones en curso: `{stat: (bonus, lo que le queda)}`, para pintarlas."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT stat, bonus, hasta FROM efectos WHERE criatura_id = ?",
+            (criatura_id,),
+        ).fetchall()
+    activos = {}
+    for fila in filas:
+        restante = datetime.fromisoformat(fila["hasta"]) - ahora
+        if restante.total_seconds() > 0:
+            activos[fila["stat"]] = (fila["bonus"], restante)
+    return activos
 
 
 # --- Listados --------------------------------------------------------------

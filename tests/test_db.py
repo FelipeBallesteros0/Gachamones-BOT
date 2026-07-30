@@ -413,3 +413,156 @@ def test_el_cementerio_solo_tiene_muertas():
     nombres = [c.nombre for c in db.cementerio("g1")]
     assert nombres == ["Finada"]
     assert viva.nombre not in nombres
+
+
+# --- Monedero, inventario y efectos ---------------------------------------
+
+def test_las_gemas_de_bienvenida_se_dan_una_sola_vez():
+    """El monedero se crea al consultarlo. Si el regalo se repitiera en cada
+    consulta, mirar el saldo sería una forma de hacerse rico."""
+    import objetos as obj
+
+    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA
+    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA
+    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA
+
+    db.cobrar("u1", "g1", 30)
+    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA - 30
+
+
+def test_cada_servidor_lleva_su_monedero():
+    """Como las criaturas y el ranking: lo de un servidor no se mezcla."""
+    db.cobrar("u1", "g1", 40)
+    assert db.gemas("u1", "g1") != db.gemas("u1", "otro")
+
+
+def test_no_se_puede_gastar_lo_que_no_hay():
+    import objetos as obj
+
+    assert not db.cobrar("u1", "g1", obj.GEMAS_DE_BIENVENIDA + 1)
+    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA, "no debe descontar nada"
+
+    assert db.cobrar("u1", "g1", obj.GEMAS_DE_BIENVENIDA)
+    assert db.gemas("u1", "g1") == 0
+
+
+def test_comprar_descuenta_y_entrega():
+    import objetos as obj
+
+    pocion = obj.CATALOGO["fuerza_1d8"]
+    antes = db.gemas("u1", "g1")
+
+    assert db.comprar("u1", "g1", pocion)
+    assert db.gemas("u1", "g1") == antes - pocion.precio
+    assert db.inventario("u1", "g1") == {pocion.clave: 1}
+
+    db.comprar("u1", "g1", pocion)
+    assert db.inventario("u1", "g1") == {pocion.clave: 2}
+
+
+def test_si_no_llega_el_dinero_no_se_compra_ni_se_descuenta():
+    import objetos as obj
+
+    caro = obj.CATALOGO["fuerza_1d12"]
+    db.cobrar("u1", "g1", db.gemas("u1", "g1"))  # a cero
+
+    assert not db.comprar("u1", "g1", caro)
+    assert db.gemas("u1", "g1") == 0
+    assert db.inventario("u1", "g1") == {}
+
+
+def test_usar_gasta_una_unidad_y_solo_una():
+    import objetos as obj
+
+    pocion = obj.CATALOGO["pocion_comida"]
+    db.comprar("u1", "g1", pocion)
+    db.comprar("u1", "g1", pocion)
+
+    assert db.gastar("u1", "g1", pocion.clave)
+    assert db.inventario("u1", "g1") == {pocion.clave: 1}
+
+    assert db.gastar("u1", "g1", pocion.clave)
+    assert db.inventario("u1", "g1") == {}, "al llegar a cero desaparece"
+
+    assert not db.gastar("u1", "g1", pocion.clave), "no se puede usar lo que no hay"
+
+
+def test_las_gemas_y_los_objetos_sobreviven_a_la_criatura():
+    """Son de la persona, no de la criatura: al morir una y nacer otra sigues
+    teniendo lo que compraste."""
+    import objetos as obj
+
+    nacer(usuario="u1", nombre="Primera")
+    db.comprar("u1", "g1", obj.CATALOGO["silbato"])
+    saldo = db.gemas("u1", "g1")
+
+    muerta = sim.avanzar(db.criatura_viva("u1", "g1"), T0 + timedelta(days=10))
+    db.guardar(muerta)
+    assert db.criatura_viva("u1", "g1") is None
+
+    db.crear("u1", "g1", "pulpo", "Segunda", STATS, T0 + timedelta(days=10))
+    assert db.gemas("u1", "g1") == saldo
+    assert db.inventario("u1", "g1") == {"silbato": 1}
+
+
+def test_una_pocion_sustituye_a_la_anterior():
+    """El invariante que sostiene el equilibrio: si se acumularan, cinco
+    pociones de 1d12 serían +60 y el dado de 20 caras dejaría de mandar."""
+    criatura = nacer()
+
+    db.poner_efecto(criatura.id, "fuerza", 5, T0)
+    db.poner_efecto(criatura.id, "fuerza", 11, T0)
+
+    assert db.efecto_activo(criatura.id, "fuerza", T0) == 11
+    with db.conectar() as con:
+        filas = con.execute(
+            "SELECT * FROM efectos WHERE criatura_id = ?", (criatura.id,)
+        ).fetchall()
+    assert len(filas) == 1
+
+
+def test_fuerza_y_velocidad_corren_por_separado():
+    criatura = nacer()
+    db.poner_efecto(criatura.id, "fuerza", 5, T0)
+    db.poner_efecto(criatura.id, "velocidad", 9, T0)
+
+    assert db.efecto_activo(criatura.id, "fuerza", T0) == 5
+    assert db.efecto_activo(criatura.id, "velocidad", T0) == 9
+
+
+def test_un_efecto_caducado_no_se_aplica():
+    import objetos as obj
+
+    criatura = nacer()
+    db.poner_efecto(criatura.id, "fuerza", 7, T0)
+    dura = timedelta(minutes=obj.MINUTOS_DE_EFECTO)
+
+    assert db.efecto_activo(criatura.id, "fuerza", T0 + dura - timedelta(seconds=1)) == 7
+    assert db.efecto_activo(criatura.id, "fuerza", T0 + dura) == 0
+    assert db.efecto_activo(criatura.id, "fuerza", T0 + timedelta(hours=1)) == 0
+
+
+def test_sin_pocion_el_bonus_es_cero():
+    criatura = nacer()
+    assert db.efecto_activo(criatura.id, "fuerza", T0) == 0
+
+
+def test_reiniciar_borra_el_enfriamiento():
+    criatura = nacer()
+    db.poner_cooldown(criatura.id, sim.ENTRENAR, T0)
+    assert db.espera_de(criatura.id, sim.ENTRENAR, T0).total_seconds() > 0
+
+    db.quitar_cooldown(criatura.id, sim.ENTRENAR)
+    assert db.espera_de(criatura.id, sim.ENTRENAR, T0) == timedelta(0)
+
+
+def test_reiniciar_uno_no_toca_los_demas():
+    criatura = nacer()
+    for accion in (sim.ENTRENAR, sim.COMPETIR, sim.ALIMENTAR):
+        db.poner_cooldown(criatura.id, accion, T0)
+
+    db.quitar_cooldown(criatura.id, sim.ENTRENAR)
+
+    assert db.espera_de(criatura.id, sim.ENTRENAR, T0) == timedelta(0)
+    assert db.espera_de(criatura.id, sim.COMPETIR, T0).total_seconds() > 0
+    assert db.espera_de(criatura.id, sim.ALIMENTAR, T0).total_seconds() > 0

@@ -56,16 +56,31 @@ def test_los_botones_de_la_pantalla_son_persistentes():
     """Sin timeout y con custom_id fijo siguen funcionando tras un reinicio."""
     vista = PantallaView()
     assert vista.timeout is None
-    assert len(vista.children) == 5
+    assert len(vista.children) == 7  # cinco acciones + mochila y tienda
 
     ids = [hijo.custom_id for hijo in vista.children]
     assert all(i and i.startswith("tama:") for i in ids)
     assert len(set(ids)) == len(ids)
 
 
+def test_los_botones_caben_en_las_filas_de_discord():
+    """Discord no admite más de cinco por fila ni más de cinco filas. Con siete
+    hacen falta dos, y las de mochila y tienda van abajo a propósito, separadas
+    de las de cuidar."""
+    from collections import Counter
+
+    hijos = PantallaView().children
+    assert len(hijos) <= 25
+    filas = Counter(hijo.row or 0 for hijo in hijos)
+    assert all(cuantos <= 5 for cuantos in filas.values()), filas
+    assert len(filas) == 2, filas
+
+
 def test_hay_un_boton_por_accion():
     acciones = {i.custom_id.split(":", 1)[1] for i in PantallaView().children}
-    assert acciones == set(sim.ACCIONES_DE_CUIDADO) | {sim.ACTUALIZAR}
+    assert acciones == (
+        set(sim.ACCIONES_DE_CUIDADO) | {sim.ACTUALIZAR, "inventario", "tienda"}
+    )
 
 
 def test_no_se_procesan_comandos_de_texto():

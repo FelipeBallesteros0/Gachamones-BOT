@@ -142,9 +142,13 @@ class Mascota(commands.Cog):
             db.guardar(criatura)
 
         if not propia:
-            # Sin botones: no es tuya, no la puedes cuidar.
+            # Sin botones: no es tuya, no la puedes cuidar. Los efectos sí se
+            # ven: saber que el rival va dopado es parte de la gracia.
             await interaccion.response.send_message(
-                pantalla.render(criatura, ahora)
+                pantalla.render(
+                    criatura, ahora,
+                    efectos=db.efectos_activos(criatura.id, ahora),
+                )
             )
             return
 

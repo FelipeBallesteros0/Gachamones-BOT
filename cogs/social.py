@@ -12,6 +12,7 @@ import comun
 import competir as comp
 import config
 import db
+import objetos as obj
 import especies as esp
 import ia
 import jardin
@@ -93,6 +94,16 @@ pasan juegan la final. De dos o de cuatro; con tres no hay forma de emparejar.
 poco; el hambre resta. Sólo el primero suma victoria, y el torneo cuenta como \
 una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
 reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
+
+**Mochila y tienda**
+Los dos botones de abajo. En la **tienda** se compra con {obj.EMOJI_MONEDA} \
+{obj.MONEDA}; en la **mochila** eliges qué usar. Empiezas con \
+**{obj.GEMAS_DE_BIENVENIDA}** de regalo.
+Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
+{obj.MINUTOS_DE_EFECTO} minutos, una que llena el hambre de golpe y dos que \
+borran un enfriamiento.
+-# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
+El bonus sale en la ficha mientras dure.
 
 **Hablarle**
 Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.

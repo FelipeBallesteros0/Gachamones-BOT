@@ -123,6 +123,35 @@ def test_la_carrera_usa_velocidad_y_el_sumo_fuerza():
     assert comp.competidor_de(criatura, comp.SUMO).stat == 30
 
 
+def test_el_bonus_de_una_pocion_llega_al_competidor():
+    """La poción no cambia la estadística de la criatura: entra por el mismo
+    sitio que el modificador de estado, que es lo que hace que siga topada por
+    el dado y no por lo que uno gaste en la tienda."""
+    criatura = sim.Criatura(
+        id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
+        nacida_en=None, actualizada_en=None,
+        base_fuerza=10, base_velocidad=10, base_salud=10,
+        hambre=50.0, animo=50.0,
+    )
+    sin = comp.competidor_de(criatura, comp.CARRERA)
+    con = comp.competidor_de(criatura, comp.CARRERA, bonus_objetos=7)
+
+    assert con.modificador == sin.modificador + 7
+    assert con.base == sin.base + 7
+    assert con.stat == sin.stat, "la estadística de la criatura no se toca"
+
+
+def test_sin_pocion_el_competidor_sale_igual_que_siempre():
+    criatura = sim.Criatura(
+        id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
+        nacida_en=None, actualizada_en=None,
+        base_fuerza=10, base_velocidad=10, base_salud=10,
+        hambre=50.0, animo=50.0,
+    )
+    assert comp.competidor_de(criatura, comp.SUMO) == \
+        comp.competidor_de(criatura, comp.SUMO, bonus_objetos=0)
+
+
 def test_el_competidor_se_lleva_la_cara_que_tiene_puesta():
     """La necesita el podio: sin ella habría que volver a la criatura, y este
     módulo es puro a propósito."""

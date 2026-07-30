@@ -346,3 +346,54 @@ def test_la_revelacion_usa_el_articulo_de_la_especie():
     assert "una Chispa" in chispa
     pulpo = pantalla.render_revelacion(criatura(especie="pulpo"), T0)
     assert "un Pulpo" in pulpo
+
+
+# --- Las pociones activas --------------------------------------------------
+
+def test_el_efecto_de_una_pocion_sale_en_el_subtexto():
+    """Si no se viera, no habría forma de saber que la poción está haciendo
+    algo, ni cuánto le queda."""
+    from datetime import timedelta
+
+    texto = pantalla.render(
+        criatura(), T0,
+        efectos={"fuerza": (7, timedelta(minutes=4))},
+    )
+    subtexto = [ln for ln in texto.split("\n") if ln.startswith("-#")]
+    assert any("+7" in ln and "fuerza" in ln for ln in subtexto), subtexto
+
+
+def test_el_efecto_va_fuera_del_marco():
+    """Lleva emoji, y dentro de un bloque ```ansi Discord lo sustituye por una
+    imagen de ancho variable y descuadra el marco. Cuatro descuadres han salido
+    ya de meter cosas dentro que no debían."""
+    from datetime import timedelta
+
+    texto = pantalla.render(
+        criatura(), T0,
+        efectos={"fuerza": (12, timedelta(minutes=5)),
+                 "velocidad": (9, timedelta(minutes=1))},
+    )
+    dentro = texto.split("```ansi\n")[1].split("\n```")[0]
+    assert "⚗" not in dentro and "+12" not in dentro
+
+    for linea in ANSI.sub("", dentro).split("\n"):
+        assert len(linea) == pantalla.ANCHO + 2, repr(linea)
+
+
+def test_sin_pociones_no_se_aniade_ninguna_linea():
+    """La ficha de siempre no puede cambiar por esto."""
+    assert pantalla.render(criatura(), T0) == \
+        pantalla.render(criatura(), T0, efectos={})
+
+
+def test_se_ven_las_dos_pociones_a_la_vez():
+    from datetime import timedelta
+
+    texto = pantalla.render(
+        criatura(), T0,
+        efectos={"fuerza": (3, timedelta(minutes=2)),
+                 "velocidad": (5, timedelta(minutes=1))},
+    )
+    assert "+3" in texto and "+5" in texto
+    assert "fuerza" in texto and "velocidad" in texto

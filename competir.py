@@ -160,13 +160,25 @@ def modificador_por_estado(hambre: float, animo: float) -> int:
     return modificador
 
 
-def competidor_de(criatura: sim.Criatura, tipo: str) -> Competidor:
+def competidor_de(
+    criatura: sim.Criatura, tipo: str, bonus_objetos: int = 0
+) -> Competidor:
+    """La criatura vista como competidor.
+
+    El bonus de las pociones entra como argumento y no se consulta aquí porque
+    este módulo es puro a propósito —el generador de dados se pasa por fuera por
+    lo mismo—, y buscarlo dentro obligaría a montar una base de datos para cada
+    test de dados. Va al modificador y no a la estadística: así una poción se
+    suma donde ya se suman el hambre y el ánimo, y sigue mandando el 1d20.
+    """
     stat = criatura.velocidad if tipo == CARRERA else criatura.fuerza
     return Competidor(
         nombre=criatura.nombre,
         especie=criatura.especie,
         stat=stat,
-        modificador=modificador_por_estado(criatura.hambre, criatura.animo),
+        modificador=(
+            modificador_por_estado(criatura.hambre, criatura.animo) + bonus_objetos
+        ),
         animo=criatura.animo_visual,
     )
 

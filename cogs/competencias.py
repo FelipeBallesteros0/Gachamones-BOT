@@ -365,8 +365,18 @@ class Competencias(commands.Cog):
             return
 
         rng = random.Random()
+        # Las pociones se leen aquí, al resolver, no al retar: si alguien se la
+        # bebe mientras espera a que le acepten, cuenta igual.
+        stat = comp.STATS[tipo]
         encuentro = comp.enfrentar(
-            [comp.competidor_de(c, tipo) for c in criaturas], tipo, rng
+            [
+                comp.competidor_de(
+                    criatura, tipo, db.efecto_activo(criatura.id, stat, ahora)
+                )
+                for criatura in criaturas
+            ],
+            tipo,
+            rng,
         )
 
         # Un mensaje por combate: uno en una carrera, tres en un torneo.
@@ -375,7 +385,6 @@ class Competencias(commands.Cog):
 
         await canal.send(comp.resumen(encuentro))
 
-        stat = comp.STATS[tipo]
         # El encuentro cuenta una vez por criatura aunque los finalistas de un
         # torneo hayan peleado dos veces: en `orden` cada dorsal sale una sola vez.
         primero = encuentro.orden[0]

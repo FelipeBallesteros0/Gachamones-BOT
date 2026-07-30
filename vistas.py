@@ -20,6 +20,7 @@ import discord
 import db
 import pantalla
 import simulacion as sim
+import tienda
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,12 @@ ESTILOS = {
 
 
 class PantallaView(discord.ui.View):
-    """Los cinco botones bajo la pantalla."""
+    """Los botones bajo la pantalla: cinco de cuidado, más mochila y tienda.
+
+    Son siete, así que Discord los reparte en dos filas —admite cinco por fila—
+    y los dos últimos quedan abajo, separados de los de cuidar, que es donde se
+    leen mejor.
+    """
 
     def __init__(self, congelada: bool = False):
         super().__init__(timeout=None)
@@ -65,6 +71,19 @@ class PantallaView(discord.ui.View):
                        style=discord.ButtonStyle.secondary, custom_id="tama:actualizar")
     async def actualizar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.ACTUALIZAR)
+
+    # Estos dos no gastan enfriamiento ni tocan a la criatura por sí solos:
+    # abren un menú que sólo ve quien pulsa, así que ni congelan la pantalla ni
+    # publican una nueva.
+    @discord.ui.button(label="Mochila", emoji="🎒", row=1,
+                       style=discord.ButtonStyle.secondary, custom_id="tama:inventario")
+    async def abrir_mochila(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        await tienda.abrir_inventario(interaccion)
+
+    @discord.ui.button(label="Tienda", emoji="🛒", row=1,
+                       style=discord.ButtonStyle.success, custom_id="tama:tienda")
+    async def abrir_tienda(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        await tienda.abrir_tienda(interaccion)
 
 
 LARGO_MAXIMO_NOMBRE = 24
@@ -256,7 +275,9 @@ async def responder_pantalla(
                        criatura.pantalla_msg_id)
 
     contenido = pantalla.render(
-        criatura, ahora, esperas=db.esperas(criatura.id, ahora)
+        criatura, ahora,
+        esperas=db.esperas(criatura.id, ahora),
+        efectos=db.efectos_activos(criatura.id, ahora),
     )
     vista = PantallaView() if criatura.viva else None
     await interaccion.response.send_message(contenido, view=vista)
@@ -276,7 +297,10 @@ async def publicar_pantalla(
         await congelar(_canal_anterior(canal, criatura), criatura.pantalla_msg_id)
 
     contenido = pantalla.render(
-        criatura, ahora, esperas=db.esperas(criatura.id, ahora), aviso=aviso
+        criatura, ahora,
+        esperas=db.esperas(criatura.id, ahora),
+        aviso=aviso,
+        efectos=db.efectos_activos(criatura.id, ahora),
     )
     vista = PantallaView() if criatura.viva else None
     mensaje = await canal.send(contenido, view=vista)

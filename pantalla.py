@@ -29,6 +29,9 @@ import simulacion as sim
 # en `/jardin`, `/ranking` ni `/cementerio`, que se dibujan enteros dentro.
 EMOJI_GENERO = {esp.MACHO: "♂️", esp.HEMBRA: "♀️"}
 
+# Por lo mismo, la poción activa se anuncia en el subtexto y nunca en el marco.
+EMOJI_POCION = "⚗️"
+
 ANCHO = 26          # espacio interior del marco
 ANCHO_BARRA = 12
 ANCHO_BARRA_XP = 10  # más corta: el número «524/525» ocupa siete caracteres
@@ -180,6 +183,7 @@ def render(
     ahora: datetime,
     esperas: dict[str, timedelta] | None = None,
     aviso: str = "",
+    efectos: dict[str, tuple[int, timedelta]] | None = None,
 ) -> str:
     """Pantalla completa de una criatura viva o muerta."""
     if not criatura.viva:
@@ -228,6 +232,15 @@ def render(
             trozos.append(f"{ICONOS_ACCION[accion]} {texto}")
         if trozos:
             partes.append("-# " + " · ".join(trozos))
+
+    # Las pociones activas van FUERA del bloque. Dentro, Discord cambia el emoji
+    # por una imagen de ancho variable y descuadra el marco; aquí además no hay
+    # que medir nada, que es de donde han salido todos los descuadres.
+    if efectos:
+        partes.append("-# " + " · ".join(
+            f"{EMOJI_POCION} +{bonus} {stat} · {formato_espera(restante)}"
+            for stat, (bonus, restante) in sorted(efectos.items())
+        ))
 
     return "\n".join(partes)
 

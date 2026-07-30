@@ -162,7 +162,11 @@ charla, más dos minutos de enfriamiento por servidor.
 
 **Competir.** Tres tramos, cada uno `estadística + 1d20`, gana quien sume más.
 El dado mueve 19 puntos y las diferencias entre criaturas cuidadas rondan los
-5-10, así que nadie se despega del resto por muchas victorias que acumule.
+5-10, así que nadie se despega del resto por muchas victorias que acumule. Lo
+que más puede inclinar una pelea es una **poción**: la mayor da hasta +12, más
+que el estado (de −5 a +2) y comparable al propio dado. Por eso sólo puede haber
+una activa por estadística; si se acumularan, las carreras las decidiría quién
+tiene más gemas y no la tirada.
 
 Una **carrera** admite de dos a cinco corredores, todos a la vez. Con tres o
 más acaba en un **podio dibujado**: los tres primeros subidos a su cajón con la
@@ -183,6 +187,19 @@ Al terminar, la pantalla sólo se republica a quien **suba de nivel o
 evolucione**. Al resto le queda la de antes con los números viejos, pero con los
 botones vivos: actúan sobre la base de datos, no sobre lo que se ve, y la
 pantalla se pone al día en cuanto se pulsa cualquiera.
+
+**Consumibles.** Los botones 🎒 **Mochila** y 🛒 **Tienda** abren menús que sólo
+ve quien los pulsa. Se compra con **asciigemas**: cada persona empieza con 100
+—provisional, la idea es que salgan de eventos— y el monedero es **suyo, no de
+la criatura**, así que lo comprado sobrevive a la muerte de una mascota. Hay
+pociones de fuerza y de velocidad de 1d4 a 1d12 que duran cinco minutos, una que
+llena el hambre saltándose el empacho, y dos que borran un enfriamiento.
+
+Los cinco minutos no son un capricho: quien acepta un reto tiene 120 segundos
+para pulsar, y la estadística se lee **al resolver** la pelea, no al retar. Con
+un minuto la poción habría caducado en la mayoría de las carreras y no habría
+forma de saber por qué no hizo nada. El dado de la poción se tira **al beberla**,
+para que el mensaje pueda decir cuánto ha tocado.
 
 **Quién le ha tocado ser.** Además de la especie se sortean al nacer el
 **género** (♂️ o ♀️, mitad y mitad) y la **personalidad**, una de diez: alegre,
@@ -218,9 +235,11 @@ testean sin conexión. Los cogs son capas finas encima.
 | `ia.py` | Cliente de NVIDIA cloud. Async, con transporte inyectable. |
 | `simulacion.py` | Decaimiento, muerte, acciones de cuidado, estadísticas y niveles. |
 | `competir.py` | Resolución y narración de carreras y sumo. |
+| `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
 | `pantalla.py` | Dibuja la pantalla como texto de Discord. |
 | `db.py` | SQLite. |
 | `vistas.py` | Los botones y el ciclo publicar-nueva/congelar-la-vieja. |
+| `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
 | `cogs/` | Los slash commands. |
 
 **Cómo se guarda el arte.** Cinco etapas por diez especies, con tres estados de
