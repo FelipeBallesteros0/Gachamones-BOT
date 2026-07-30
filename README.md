@@ -1,7 +1,7 @@
-# Mascotas ASCII — bot de Discord
+# Gachamones BOT
 
-Un tamagotchi que vive en un canal de texto. Sale de un huevo, es una de 10
-criaturas al azar, se cuida con los botones bajo el mensaje y compite contra las
+Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
+gachamones al azar, se cuida con los botones bajo el mensaje y compite contra los
 de otras personas en carreras y peleas de sumo. Todo el arte es ASCII dentro de
 bloques de código: ni una sola imagen.
 

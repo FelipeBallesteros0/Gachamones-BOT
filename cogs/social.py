@@ -48,7 +48,7 @@ def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
     caracteres_txt = ", ".join(c.masculino for c in per.CARACTERES.values())
     limite = config.LIMITE_CHARLA_POR_HORA
 
-    tu_criatura = f"""## 🥚 Mascotas ASCII
+    tu_criatura = f"""## 🥚 Gachamones BOT
 
 **Empezar**
 `/huevo` — te da un huevo. Al romperlo ves cuál de las {len(esp.ESPECIES)} \

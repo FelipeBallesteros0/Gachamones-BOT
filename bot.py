@@ -18,7 +18,7 @@ import config
 import db
 from vistas import NombrarView, PantallaView
 
-log = logging.getLogger("tamagotchi")
+log = logging.getLogger("gachamones")
 
 EXTENSIONES = ("cogs.mascota", "cogs.competencias", "cogs.social", "cogs.charla")
 
