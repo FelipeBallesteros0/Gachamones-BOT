@@ -123,9 +123,10 @@ que no se te mueren mientras juegas con otro.
 que ganárselos por ahí.
 
 **Mochila y tienda**
-Los dos botones de abajo. En la **tienda** se compra con {obj.EMOJI_MONEDA} \
-{obj.MONEDA}; en la **mochila** eliges qué usar. Empiezas con \
-**{obj.GEMAS_DE_BIENVENIDA}** de regalo.
+Los dos botones de abajo. En la **tienda** se compra con \
+{obj.EMOJI_MONEDA_TIENDA} {obj.MONEDA_TIENDA}; en la **mochila** eliges qué usar. \
+Empiezas con **{obj.ASCIICOINS_INICIALES} asciicoins** para gastar y \
+**{obj.ASCIIGEMS_INICIALES} asciigems** en reserva.
 Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
 {obj.MINUTOS_DE_EFECTO} minutos, una que llena el hambre de golpe, dos que \
 borran un enfriamiento y una placa para cambiarle el nombre.

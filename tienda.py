@@ -17,6 +17,7 @@ from dataclasses import replace
 import discord
 
 import db
+import economia
 import objetos as obj
 import simulacion as sim
 
@@ -25,14 +26,22 @@ log = logging.getLogger(__name__)
 SEGUNDOS_DE_MENU = 120
 
 
-def _saldo(usuario_id: str, guild_id: str) -> str:
-    return f"{obj.EMOJI_MONEDA} **{db.gemas(usuario_id, guild_id)}** {obj.MONEDA}"
+def _saldos(usuario_id: str, guild_id: str) -> str:
+    saldos = economia.saldos(usuario_id, guild_id)
+    return (
+        f"🪙 asciicoins para comprar: **{saldos.asciicoins}**\n"
+        f"💎 asciigems en reserva: **{saldos.asciigems}**"
+    )
+
+
+def _saldo_de_compra(saldos: economia.Saldos) -> str:
+    return f"🪙 **{saldos.asciicoins}** asciicoins"
 
 
 def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
     return (
-        f"## {obj.EMOJI_MONEDA} Tienda\n"
-        f"Tienes {_saldo(usuario_id, guild_id)}.\n"
+        f"## {obj.EMOJI_MONEDA_TIENDA} Tienda\n"
+        f"{_saldos(usuario_id, guild_id)}\n"
         "-# Elige abajo lo que quieras comprar."
     )
 
@@ -57,7 +66,7 @@ def texto_del_inventario(usuario_id: str, guild_id: str) -> str:
         return (
             "## 🎒 Mochila\n"
             "No tienes nada todavía. Pulsa 🛒 **Tienda** para comprar.\n"
-            f"-# Tienes {_saldo(usuario_id, guild_id)}."
+            f"-# {_saldos(usuario_id, guild_id)}"
         )
     lineas = "\n".join(
         f"{obj.CATALOGO[clave].emoji} **{obj.CATALOGO[clave].nombre}** ×{cuantos}"
@@ -65,7 +74,25 @@ def texto_del_inventario(usuario_id: str, guild_id: str) -> str:
     )
     return (
         f"## 🎒 Mochila\n{lineas}\n"
-        f"-# Tienes {_saldo(usuario_id, guild_id)}. Elige abajo para usar."
+        f"-# {_saldos(usuario_id, guild_id)}\n-# Elige abajo para usar."
+    )
+
+
+def texto_resultado_compra(
+    resultado: economia.ResultadoCompra, objeto: obj.Objeto
+) -> str:
+    if resultado.replay:
+        estado = "comprada" if resultado.comprada else "rechazada por saldo insuficiente"
+        return f"{objeto.emoji} Compra ya procesada: **{objeto.nombre}** ({estado})."
+    if not resultado:
+        return (
+            f"No te llega: **{objeto.nombre}** cuesta 🪙 {objeto.precio} "
+            f"asciicoins y tienes {_saldo_de_compra(resultado.saldos)}."
+        )
+    return (
+        f"{objeto.emoji} Comprado: **{objeto.nombre}**.\n"
+        f"-# Te quedan {_saldo_de_compra(resultado.saldos)}. "
+        "Úsalo desde 🎒 Mochila."
     )
 
 
@@ -208,7 +235,7 @@ class MenuTienda(discord.ui.Select):
     def __init__(self):
         opciones = [
             discord.SelectOption(
-                label=f"{objeto.nombre} — {objeto.precio}",
+                label=f"{objeto.nombre} — 🪙 {objeto.precio}",
                 value=clave,
                 description=objeto.descripcion[:100],
                 emoji=objeto.emoji,
@@ -222,23 +249,11 @@ class MenuTienda(discord.ui.Select):
         guild_id = str(interaccion.guild_id)
         objeto = obj.CATALOGO[self.values[0]]
 
-        if not db.comprar(usuario_id, guild_id, objeto):
-            await interaccion.response.edit_message(
-                content=(
-                    f"No te llega: **{objeto.nombre}** cuesta "
-                    f"{obj.EMOJI_MONEDA} {objeto.precio} y tienes "
-                    f"{_saldo(usuario_id, guild_id)}."
-                ),
-                view=None,
-            )
-            return
-
+        resultado = economia.comprar(
+            str(interaccion.id), usuario_id, guild_id, objeto
+        )
         await interaccion.response.edit_message(
-            content=(
-                f"{objeto.emoji} Comprado: **{objeto.nombre}**.\n"
-                f"-# Te quedan {_saldo(usuario_id, guild_id)}. "
-                "Úsalo desde 🎒 Mochila."
-            ),
+            content=texto_resultado_compra(resultado, objeto),
             view=None,
         )
 

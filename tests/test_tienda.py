@@ -6,6 +6,7 @@ import pytest
 
 import competir as comp
 import db
+import economia
 import objetos as obj
 import simulacion as sim
 import tienda
@@ -24,6 +25,15 @@ def nacer(usuario="u1"):
     return db.crear(usuario, "g1", "pulpo", "Prueba", STATS, T0)
 
 
+_evento = 0
+
+
+def comprar(objeto):
+    global _evento
+    _evento += 1
+    return economia.comprar(f"tienda-{_evento}", "u1", "g1", objeto, T0)
+
+
 class DadoFijo(random.Random):
     def __init__(self, valor):
         super().__init__()
@@ -40,7 +50,7 @@ def test_comprar_beber_y_que_se_note_en_la_carrera():
     criatura = nacer()
     pocion = obj.CATALOGO["velocidad_1d10"]
 
-    assert db.comprar("u1", "g1", pocion)
+    assert comprar(pocion)
     assert db.gastar("u1", "g1", pocion.clave)
     aviso = tienda.usar(criatura, pocion, T0, DadoFijo(6))
     assert "+6" in aviso and "velocidad" in aviso
@@ -110,22 +120,22 @@ def test_el_descanso_solo_toca_el_de_competir():
 
 def test_la_mochila_vacia_manda_a_la_tienda():
     texto = tienda.texto_del_inventario("u1", "g1")
-    assert "Tienda" in texto and str(obj.GEMAS_DE_BIENVENIDA) in texto
+    assert "Tienda" in texto and "50" in texto and "asciigems" in texto
 
 
 def test_la_mochila_cuenta_lo_que_hay():
-    db.comprar("u1", "g1", obj.CATALOGO["silbato"])
-    db.comprar("u1", "g1", obj.CATALOGO["silbato"])
-    db.comprar("u1", "g1", obj.CATALOGO["pocion_comida"])
+    comprar(obj.CATALOGO["silbato"])
+    comprar(obj.CATALOGO["silbato"])
+    comprar(obj.CATALOGO["pocion_comida"])
 
     texto = tienda.texto_del_inventario("u1", "g1")
     assert "×2" in texto and "Silbato del entrenador" in texto
     assert "Poción de comida" in texto
 
 
-def test_la_tienda_dice_el_saldo():
-    db.cobrar("u1", "g1", 40)
-    assert str(obj.GEMAS_DE_BIENVENIDA - 40) in tienda.texto_de_la_tienda("u1", "g1")
+def test_la_tienda_dice_los_dos_saldos():
+    texto = tienda.texto_de_la_tienda("u1", "g1")
+    assert "50" in texto and "asciicoins" in texto and "asciigems" in texto
 
 
 def test_un_objeto_que_ya_no_existiera_no_rompe_la_mochila():
@@ -145,7 +155,7 @@ def test_un_objeto_que_ya_no_existiera_no_rompe_la_mochila():
 def test_renombrar_gasta_la_placa_y_cambia_el_nombre():
     nacer()
     placa = obj.CATALOGO["placa"]
-    db.comprar("u1", "g1", placa)
+    comprar(placa)
 
     aviso = tienda.renombrar("u1", "g1", placa, "  Pelusa  ")
 
@@ -159,7 +169,7 @@ def test_un_nombre_invalido_no_gasta_la_placa():
     te costaría el objeto sin cambiar nada."""
     nacer()
     placa = obj.CATALOGO["placa"]
-    db.comprar("u1", "g1", placa)
+    comprar(placa)
 
     for malo in ("", "   ", "a" * 40, "Pelusa <@everyone>", "```ansi"):
         try:
@@ -186,7 +196,7 @@ def test_sin_placa_no_se_renombra():
 def test_renombrar_al_mismo_nombre_no_gasta_nada():
     nacer()
     placa = obj.CATALOGO["placa"]
-    db.comprar("u1", "g1", placa)
+    comprar(placa)
 
     try:
         tienda.renombrar("u1", "g1", placa, "Prueba")
