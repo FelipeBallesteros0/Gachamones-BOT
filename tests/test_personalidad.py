@@ -222,6 +222,30 @@ def todos_los_textos(genero: str) -> list[str]:
                 textos.append(per.describir_estado(c, T0))
                 textos.extend(per.prompt_jardin([c], T0))
                 textos.extend(per.frase_de_respaldo(c, i) for i in range(3))
+                textos.extend(_textos_de_aventura(c, genero))
+    return textos
+
+
+def _textos_de_aventura(c, genero: str) -> list[str]:
+    """Los prompts de la aventura, con todos los finales y los dos géneros.
+
+    Entran en el barrido por lo mismo que los demás: una marca «{o/a}» olvidada
+    llega tal cual al modelo y nadie se entera hasta que la lee alguien.
+    """
+    import aventura as av
+
+    textos = []
+    for bioma in av.BIOMAS.values():
+        salida = av.explorar(c, bioma, random.Random(1))
+        for final in (av.SALVAJE, av.OBJETO, av.NADA):
+            textos.extend(
+                per.prompt_aventura(c, bioma.adonde, list(salida.pruebas), final)
+            )
+        salvaje = av.Salvaje(
+            bioma.especies[0], "Salvaje", genero, "gruñón", (10, 10, 10)
+        )
+        textos.extend(per.prompt_salvaje(salvaje, c, "hola"))
+        textos.extend(per.respaldo_salvaje(i) for i in range(3))
     return textos
 
 

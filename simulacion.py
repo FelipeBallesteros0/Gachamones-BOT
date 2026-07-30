@@ -63,6 +63,7 @@ ENTRENAR = "entrenar"
 LIMPIAR = "limpiar"
 ACTUALIZAR = "actualizar"
 COMPETIR = "competir"
+AVENTURA = "aventura"
 
 # La regla es que **ninguno sea múltiplo de otro**, y hay un test que la vigila.
 # No es un capricho: antes eran 30, 30, 60, 120 y 10 —todos múltiplos de 10, dos
@@ -86,6 +87,9 @@ COOLDOWNS = {
     # Es a propósito: con los 3 minutos de antes ataba el hambre y el objeto que
     # reinicia esta espera no servía para nada.
     COMPETIR: timedelta(minutes=10),
+    # Salir al campo es más lento que una pelea. 37 es primo, así que cumple la
+    # regla de arriba sin tener que comprobar nada a mano.
+    AVENTURA: timedelta(minutes=37),
 }
 
 # Sólo estas cuatro salen en el subtexto de la pantalla.
@@ -157,6 +161,12 @@ XP_DERROTA = 4
 HAMBRE_MINIMA_COMPETIR = 20.0
 COSTE_HAMBRE_COMPETIR = 10.0
 COSTE_ANIMO_COMPETIR = 5.0
+
+# Salir de aventura cansa más que una pelea: es un viaje, no un asalto. El
+# mínimo es el mismo que para competir, para no tener dos umbrales que explicar.
+HAMBRE_MINIMA_AVENTURA = HAMBRE_MINIMA_COMPETIR
+COSTE_HAMBRE_AVENTURA = 15.0
+COSTE_ANIMO_AVENTURA = 5.0
 
 # Competir también entrena, aunque menos que una sesión dedicada.
 ENTRENAMIENTO_POR_COMPETIR = 1

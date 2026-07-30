@@ -95,6 +95,16 @@ poco; el hambre resta. Sólo el primero suma victoria, y el torneo cuenta como \
 una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
 reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 
+**Aventura**
+`/aventura` saca a tu gachamon activo a un bioma al azar. Dos pruebas de fuerza \
+o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o \
+cruzándote con un **gachamon salvaje**.
+Convencerlo va por turnos: hablarle, darle **golosinas** (de la tienda), \
+presumir o esperar quieto. **Cada carácter reacciona distinto**, y lo que le \
+molesta le gasta el doble de paciencia; si se le acaba, se larga.
+-# Es la única forma de tener un segundo o un tercer gachamon. Se puede salir \
+con el equipo lleno: entonces sólo se encuentran objetos.
+
 **Hablarle**
 Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo la tengas: una \

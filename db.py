@@ -390,8 +390,12 @@ def crear(
     genero: str = esp.MACHO,
     caracter: str = esp.CARACTER_POR_DEFECTO,
     canal_id: str | None = None,
+    activa: bool = True,
 ) -> sim.Criatura:
-    """Registra una criatura recién nacida, activa.
+    """Registra una criatura recién nacida.
+
+    `activa=False` la mete directa a la incubadora. Lo usa el reclutamiento: uno
+    que se une en una aventura no puede desbancar sin avisar al que llevabas.
 
     Dos defensas distintas y las dos hacen falta:
 
@@ -406,7 +410,7 @@ def crear(
         nombre=nombre, genero=genero, caracter=caracter,
         nacida_en=ahora, actualizada_en=ahora,
         base_fuerza=fuerza, base_velocidad=velocidad, base_salud=salud,
-        canal_id=canal_id,
+        canal_id=canal_id, activa=activa,
     )
     valores = _a_valores(nueva)
     columnas = list(valores)
@@ -672,6 +676,18 @@ def comprar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> bool:
             (usuario_id, guild_id, objeto.clave),
         )
     return True
+
+
+def regalar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> None:
+    """Mete un objeto en la mochila sin cobrar. Lo que se encuentra por ahí."""
+    with conectar() as con:
+        con.execute(
+            "INSERT INTO inventario (usuario_id, guild_id, objeto, cantidad) "
+            "VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(usuario_id, guild_id, objeto) "
+            "DO UPDATE SET cantidad = cantidad + 1",
+            (usuario_id, guild_id, objeto.clave),
+        )
 
 
 def gastar(usuario_id: str, guild_id: str, clave: str) -> bool:

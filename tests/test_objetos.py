@@ -21,8 +21,8 @@ class DadoFijo(random.Random):
 
 def test_estan_los_objetos_pedidos():
     """Una poción de comida, cinco tamaños por cada estadística, los dos
-    reinicios de enfriamiento y la placa con nombre."""
-    assert len(obj.CATALOGO) == 14
+    reinicios de enfriamiento, la placa con nombre y las golosinas."""
+    assert len(obj.CATALOGO) == 15
 
     caras = sorted(o.caras for o in obj.CATALOGO.values() if o.stat == "fuerza")
     assert caras == [4, 6, 8, 10, 12]
@@ -135,5 +135,5 @@ def test_cada_objeto_hace_exactamente_una_cosa():
     reinicio— y la tienda vendería algo que no hace nada."""
     for clave, objeto in obj.CATALOGO.items():
         efectos = [objeto.stat is not None, objeto.reinicia is not None,
-                   objeto.llena_el_hambre, objeto.renombra]
+                   objeto.llena_el_hambre, objeto.renombra, objeto.ceba]
         assert sum(efectos) == 1, (clave, efectos)

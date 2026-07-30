@@ -20,7 +20,10 @@ from vistas import NombrarView, PantallaView
 
 log = logging.getLogger("gachamones")
 
-EXTENSIONES = ("cogs.mascota", "cogs.competencias", "cogs.social", "cogs.charla")
+EXTENSIONES = (
+    "cogs.mascota", "cogs.competencias", "cogs.aventura", "cogs.social",
+    "cogs.charla",
+)
 
 
 class Tamagotchi(commands.Bot):

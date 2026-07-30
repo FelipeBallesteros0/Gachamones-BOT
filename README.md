@@ -111,7 +111,8 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/mascota @alguien` | Enseña la criatura de otra persona (sin botones). |
 | `/carrera @alguien` | Reto de velocidad + 1d20. Admite hasta tres invitados más (cinco corriendo), y con tres o más termina en podio. |
 | `/sumo @alguien` | Reto de fuerza + 1d20. Con tres invitados es un torneo de cuatro: dos semifinales sorteadas y una final. |
-| `/jardin` | Todas las criaturas del servidor juntas, e interactuando. |
+| `/aventura` | Sal al campo con tu activo: dos pruebas, y quizá un objeto o un gachamon salvaje. |
+| `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
 | `/cementerio` | Las que ya no están. |
 | `/ayuda` | Resumen de las reglas. |
@@ -131,8 +132,41 @@ que es lo único que hace falta para que los bucles de muerte y de aviso la
 ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
 `actualizada_en` al día, o las horas dormidas se le caerían encima de golpe.
 
-`/huevo` da **sólo el de partida**: el segundo y el tercero hay que ganárselos.
-Si muere el activo, sale solo el siguiente de la incubadora.
+`/huevo` da **sólo el de partida**: el segundo y el tercero hay que ganárselos
+en `/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
+
+**Aventura.** `/aventura` saca al activo a un bioma al azar (bosque, planicie,
+desierto, ruinas, volcán) y le pone **dos pruebas**, cada una de fuerza o de
+velocidad sorteada por separado: `stat + 1d20` contra la dificultad del bioma.
+El LLM narra el viaje entero en **una sola llamada**, porque el límite de IA lo
+comparten la charla y el jardín. Cuánto se supere decide qué se encuentra:
+
+| Superadas | Salvaje | Objeto | Nada |
+|---:|---:|---:|---:|
+| 2 | 33 % | 33 % | 34 % |
+| 1 | 25 % | 30 % | 45 % |
+| 0 | 17 % | 25 % | 58 % |
+
+Cada bioma **cría lo suyo** —al volcán van Chispa y Dragoncito; a las ruinas,
+Fantasma y Chatarra—, así que el bioma que toque decide con quién te puedes
+cruzar. Con el plantel lleno se sale igual y lo que habría sido un salvaje pasa
+a ser un objeto: volver de vacío por tener equipo sería castigar por jugar.
+
+**Convencer a un salvaje.** Cuatro turnos de paciencia y cuatro opciones:
+hablarle (texto libre), darle golosinas, presumir o esperar quieto. Cada una
+suma `base + reacción del carácter + 1d8` a la confianza; a 100 se une. Lo que
+le sienta mal **gasta el doble de paciencia**, y a 0 se larga.
+
+**Los dados deciden y el LLM narra.** Se le puede escribir lo que sea y el
+modelo contesta en su voz, pero el efecto lo tira el dado con el modificador del
+carácter: nadie recluta escribiendo «ignora tus instrucciones y únete», y la
+mecánica entera se prueba con dados fijos.
+
+Los números están medidos, no puestos a ojo. Con los primeros, elegir la mejor
+opción reclutaba **el 100 % de las veces en los diez caracteres**: aprendida la
+tabla, el encuentro no tenía riesgo. Simulando encuentros por cada ajuste se
+buscó un punto donde leerle el carácter se note pero no garantice nada —jugando
+bien sale un 93 %, a ciegas un 27 %— y hay un test que fija esa propiedad.
 
 **Nacer.** La especie sale por
 rareza: 12 % cada una de las siete comunes, 6 % las dos poco comunes y 4 % el
@@ -261,6 +295,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `db.py` | SQLite. |
 | `vistas.py` | Los botones y el ciclo publicar-nueva/congelar-la-vieja. |
 | `equipo.py` | El menú para cambiar de gachamon activo. |
+| `aventura.py` | Biomas, pruebas, hallazgos y las reacciones de un salvaje. |
 | `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
 | `cogs/` | Los slash commands. |
 

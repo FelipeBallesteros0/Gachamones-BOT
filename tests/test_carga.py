@@ -18,7 +18,7 @@ from vistas import NombrarView, PantallaView
 
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
-    "jardin",
+    "jardin", "aventura",
 }
 
 
@@ -467,3 +467,62 @@ def test_ningun_texto_lleva_ya_el_femenino_fijo():
         for literal in literales_de(ruta):
             for palabra in sospechosas:
                 assert palabra not in literal, (ruta.name, palabra, literal)
+
+
+# --- Ningún botón actúa sobre la ficha de otro -----------------------------
+
+class RespuestaFalsa:
+    """Anota lo que el botón habría contestado, sin hablar con Discord."""
+
+    def __init__(self):
+        self.avisos = []
+
+    def is_done(self):
+        return bool(self.avisos)
+
+    async def send_message(self, contenido="", **kw):
+        self.avisos.append(str(contenido))
+
+    async def edit_message(self, content="", **kw):
+        self.avisos.append(str(content))
+
+    async def send_modal(self, modal):
+        self.avisos.append(f"MODAL {type(modal).__name__}")
+
+
+def interaccion_falsa(usuario_id: int, mensaje_id: int, guild_id: str):
+    respuesta = RespuestaFalsa()
+    return type("Interaccion", (), {
+        "response": respuesta,
+        "message": type("M", (), {"id": mensaje_id})(),
+        "user": type("U", (), {"id": usuario_id, "mention": f"<@{usuario_id}>"})(),
+        "guild_id": guild_id,
+        "channel": None,
+    })(), respuesta
+
+
+def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
+    """Regresión: Mochila, Tienda y Cambiar se añadieron sin la comprobación
+    que sí tenían los cinco de cuidado, así que pulsarlos bajo la ficha de otra
+    persona abría tus menús igual. No se filtraba nada —abren lo tuyo— pero
+    actuabas sobre un gachamon que no era el que estabas viendo.
+
+    Se recorre la vista ENTERA y no los tres de entonces, para que el próximo
+    botón que se añada tampoco pueda olvidarse.
+    """
+    from vistas import PantallaView
+
+    ahora = db.ahora_utc()
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
+    suya = db.crear("2", "g1", "pulpo", "Suya", (15, 15, 15), ahora)
+    db.guardar_pantalla(suya.id, "555", "999")  # la ficha publicada es de «2»
+
+    for boton in PantallaView().children:
+        interaccion, respuesta = interaccion_falsa(1, 555, "g1")
+        asyncio.run(boton.callback(interaccion))
+
+        assert respuesta.avisos, f"{boton.custom_id} no contestó nada"
+        assert any("<@2>" in aviso for aviso in respuesta.avisos), (
+            f"{boton.custom_id} deja actuar sobre la ficha de otra persona: "
+            f"contestó {respuesta.avisos}"
+        )

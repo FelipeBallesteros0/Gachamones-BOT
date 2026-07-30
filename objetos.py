@@ -45,6 +45,9 @@ class Objeto:
     llena_el_hambre: bool = False
     # Abre un formulario para cambiarle el nombre al gachamon activo.
     renombra: bool = False
+    # Sólo sirve en una aventura, para ganarse a un salvaje. No se usa desde la
+    # mochila: se gasta al ofrecérselo.
+    ceba: bool = False
 
 
 CATALOGO: dict[str, Objeto] = {}
@@ -108,6 +111,15 @@ _registrar(Objeto(
     precio=20,
     descripcion="Deja entrenar otra vez ya. La espera normal es de casi dos horas.",
     reinicia=sim.ENTRENAR,
+))
+
+_registrar(Objeto(
+    clave="golosinas",
+    nombre="Golosinas de campo",
+    emoji="🍬",
+    precio=8,
+    descripcion="Para ganarte a un gachamon salvaje en una aventura.",
+    ceba=True,
 ))
 
 _registrar(Objeto(

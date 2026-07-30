@@ -34,6 +34,24 @@ ESTILOS = {
 }
 
 
+async def _es_de_otro(interaccion: discord.Interaction) -> bool:
+    """Si la ficha pulsada es de otra persona, avisa y devuelve True.
+
+    Los botones abren o cambian **tus** cosas, así que dejarlos funcionar bajo
+    la ficha de otro haría que actuaras sobre un gachamon distinto del que estás
+    mirando. Vive suelta para que todos los botones usen la misma.
+    """
+    dueño = db.criatura_por_pantalla(str(interaccion.message.id))
+    if dueño is None or dueño.usuario_id == str(interaccion.user.id):
+        return False
+    await interaccion.response.send_message(
+        f"Esa es la mascota de <@{dueño.usuario_id}>. "
+        "Saca la tuya con `/mascota`.",
+        ephemeral=True,
+    )
+    return True
+
+
 class PantallaView(discord.ui.View):
     """Los botones bajo la pantalla.
 
@@ -73,22 +91,30 @@ class PantallaView(discord.ui.View):
     async def actualizar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.ACTUALIZAR)
 
-    # Estos dos no gastan enfriamiento ni tocan a la criatura por sí solos:
+    # Estos tres no gastan enfriamiento ni tocan a la criatura por sí solos:
     # abren un menú que sólo ve quien pulsa, así que ni congelan la pantalla ni
-    # publican una nueva.
+    # publican una nueva. Pero sí piden que la ficha sea tuya, como los demás:
+    # abren tus cosas, y usarlas desde la ficha de otro te haría beberte una
+    # poción o cambiar de plantel mirando a un gachamon que no es el tuyo.
     @discord.ui.button(label="Mochila", emoji="🎒", row=1,
                        style=discord.ButtonStyle.secondary, custom_id="tama:inventario")
     async def abrir_mochila(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        if await _es_de_otro(interaccion):
+            return
         await tienda.abrir_inventario(interaccion)
 
     @discord.ui.button(label="Tienda", emoji="🛒", row=1,
                        style=discord.ButtonStyle.success, custom_id="tama:tienda")
     async def abrir_tienda(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        if await _es_de_otro(interaccion):
+            return
         await tienda.abrir_tienda(interaccion)
 
     @discord.ui.button(label="Cambiar", emoji="🧬", row=1,
                        style=discord.ButtonStyle.primary, custom_id="tama:plantel")
     async def cambiar_activo(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        if await _es_de_otro(interaccion):
+            return
         await equipo.abrir_plantel(interaccion)
 
 
