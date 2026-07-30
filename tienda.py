@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import random
+from dataclasses import replace
 
 import discord
 
@@ -98,6 +99,58 @@ def usar(
     return f"{objeto.emoji} **{criatura.nombre}** se lo bebe de un trago. Hambre al 100."
 
 
+def renombrar(
+    usuario_id: str, guild_id: str, objeto: obj.Objeto, propuesto: str
+) -> str:
+    """Valida el nombre, gasta la placa y renombra. Devuelve qué contar.
+
+    El orden importa y es el único que no deja agujeros: primero se valida, y
+    sólo si el nombre vale se gasta el objeto. Al revés, un nombre con caracteres
+    raros te costaría la placa sin cambiar nada.
+
+    Levanta `ValueError` si el nombre no vale o si ya no queda ninguna placa.
+    """
+    nombre = sim.normalizar_nombre(propuesto)  # levanta ValueError si no vale
+
+    criatura = db.criatura_activa(usuario_id, guild_id)
+    if criatura is None:
+        raise ValueError("Ya no tienes ningún gachamon activo.")
+    if nombre == criatura.nombre:
+        raise ValueError(f"Ya se llama **{nombre}**.")
+    if not db.gastar(usuario_id, guild_id, objeto.clave):
+        raise ValueError("Ya no te queda ninguna placa.")
+
+    antes = criatura.nombre
+    db.guardar(replace(criatura, nombre=nombre))
+    return f"{objeto.emoji} **{antes}** pasa a llamarse **{nombre}**."
+
+
+class RenombrarModal(discord.ui.Modal, title="Ponle otro nombre"):
+    def __init__(self, objeto: obj.Objeto, nombre_actual: str):
+        super().__init__()
+        self.objeto = objeto
+        self.nombre = discord.ui.TextInput(
+            label="¿Cómo se va a llamar?",
+            default=nombre_actual,
+            placeholder="Pelusa",
+            min_length=1,
+        )
+        self.add_item(self.nombre)
+
+    async def on_submit(self, interaccion: discord.Interaction) -> None:
+        try:
+            aviso = renombrar(
+                str(interaccion.user.id), str(interaccion.guild_id),
+                self.objeto, str(self.nombre),
+            )
+        except ValueError as error:
+            await interaccion.response.send_message(
+                f"No se ha podido. {error}", ephemeral=True
+            )
+            return
+        await interaccion.response.send_message(aviso, ephemeral=True)
+
+
 # --- Los desplegables ------------------------------------------------------
 
 class MenuInventario(discord.ui.Select):
@@ -119,11 +172,19 @@ class MenuInventario(discord.ui.Select):
         guild_id = str(interaccion.guild_id)
         objeto = obj.CATALOGO[self.values[0]]
 
-        criatura = db.criatura_viva(usuario_id, guild_id)
+        criatura = db.criatura_activa(usuario_id, guild_id)
         if criatura is None:
             await interaccion.response.edit_message(
                 content="No tienes ninguna criatura viva. Empieza con `/huevo`.",
                 view=None,
+            )
+            return
+
+        if objeto.renombra:
+            # La placa se gasta al CONFIRMAR el nombre, no aquí: cerrar el
+            # formulario sin escribir nada no puede costarte el objeto.
+            await interaccion.response.send_modal(
+                RenombrarModal(objeto, criatura.nombre)
             )
             return
 

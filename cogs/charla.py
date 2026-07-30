@@ -42,7 +42,7 @@ class Charla(commands.Cog):
         ahora = db.ahora_utc()
         texto = MENCION.sub("", mensaje.content).strip()[:LARGO_MAXIMO_ENTRADA]
 
-        criatura = db.criatura_viva(str(mensaje.author.id), str(mensaje.guild.id))
+        criatura = db.criatura_activa(str(mensaje.author.id), str(mensaje.guild.id))
         if criatura is None:
             await mensaje.reply(
                 "No tienes ninguna criatura con quien hablar. Saca un huevo "

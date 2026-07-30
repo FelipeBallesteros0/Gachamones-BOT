@@ -63,10 +63,14 @@ class HuevoView(discord.ui.View):
                 ahora=ahora,
                 canal_id=str(interaccion.channel_id),
             )
-        except sqlite3.IntegrityError:
-            # El índice único ha hecho su trabajo: dos huevos a la vez.
+        except (sqlite3.IntegrityError, ValueError):
+            # `IntegrityError`: el índice único ha hecho su trabajo, dos huevos a
+            # la vez. `ValueError`: el plantel está lleno. Los dos significan lo
+            # mismo de cara a quien pulsa.
             await interaccion.response.send_message(
-                "Ya tienes una criatura viva. Mírala con `/mascota`.", ephemeral=True
+                "Ya tienes un gachamon. El huevo es sólo el de partida: los "
+                "demás hay que ganárselos por ahí.",
+                ephemeral=True,
             )
             return
 
@@ -95,23 +99,31 @@ class Mascota(commands.Cog):
     @comun.solo_en_el_canal()
     async def huevo(self, interaccion: discord.Interaction) -> None:
         ahora = db.ahora_utc()
-        actual = db.criatura_viva(str(interaccion.user.id), str(interaccion.guild_id))
+        usuario_id = str(interaccion.user.id)
+        guild_id = str(interaccion.guild_id)
 
+        # Se mira el plantel entero y no sólo la activa: el huevo es el de
+        # partida y sólo sale si no tienes ninguno, esté donde esté. El segundo y
+        # el tercero se ganan reclutándolos.
+        actual = db.criatura_activa(usuario_id, guild_id)
         if actual is not None:
             actual = sim.avanzar(actual, ahora)
-            if actual.viva:
-                await interaccion.response.send_message(
-                    esp.concordar(
-                        f"Ya tienes a **{actual.nombre}**. Sólo se puede cuidar "
-                        "una a la vez: mír{alo/ala} con `/mascota`.",
-                        actual.genero,
-                    ),
-                    ephemeral=True,
-                )
-                return
-            # Se murió mientras nadie miraba: se registra ahora y sigue adelante.
-            db.guardar(actual)
-            await vistas.congelar(interaccion.channel, actual.pantalla_msg_id)
+            if not actual.viva:
+                # Se murió mientras nadie miraba: se registra y, si queda alguna
+                # en la incubadora, sale ella en vez de un huevo nuevo.
+                db.guardar(actual)
+                await vistas.congelar(interaccion.channel, actual.pantalla_msg_id)
+                db.ascender_de_la_incubadora(usuario_id, guild_id, ahora)
+
+        vivos = db.plantel(usuario_id, guild_id)
+        if vivos:
+            nombres = ", ".join(f"**{c.nombre}**" for c in vivos)
+            await interaccion.response.send_message(
+                f"Ya tienes a {nombres}. El huevo es sólo el de partida: los "
+                "demás hay que ganárselos por ahí.",
+                ephemeral=True,
+            )
+            return
 
         await interaccion.response.send_message(
             pantalla.render_huevo(), view=HuevoView(interaccion.user.id)
@@ -127,7 +139,7 @@ class Mascota(commands.Cog):
         objetivo = usuario or interaccion.user
         propia = objetivo.id == interaccion.user.id
 
-        criatura = db.criatura_viva(str(objetivo.id), str(interaccion.guild_id))
+        criatura = db.criatura_activa(str(objetivo.id), str(interaccion.guild_id))
         if criatura is None:
             texto = (
                 "No tienes ninguna criatura viva. Empieza con `/huevo`."
@@ -178,6 +190,11 @@ class Mascota(commands.Cog):
                 continue
 
             db.guardar(muerta)
+            # Si tenía compañeros esperando, sale uno: quedarse sin activo
+            # teniendo dos en la incubadora sería desconcertante.
+            releva = db.ascender_de_la_incubadora(
+                muerta.usuario_id, muerta.guild_id, ahora
+            )
             canal = self._canal_de(muerta)
             if canal is None:
                 continue
@@ -189,6 +206,13 @@ class Mascota(commands.Cog):
                     "de hambre."
                 )
                 await canal.send(pantalla.render(muerta, ahora))
+                if releva is not None:
+                    await canal.send(esp.concordar(
+                        f"🧬 Sale de la incubadora **{releva.nombre}**, que "
+                        "pasa a ser tu gachamon activ{o/a}.",
+                        releva.genero,
+                    ))
+                    await vistas.publicar_pantalla(canal, releva, ahora)
             except discord.HTTPException:
                 log.warning("No se pudo anunciar la muerte de %s", muerta.id,
                             exc_info=True)

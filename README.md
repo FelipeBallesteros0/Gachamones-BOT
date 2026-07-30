@@ -65,9 +65,9 @@ registro y sigue funcionando en los demás.
 CANAL_ID=123456789012345678,987654321098765432
 ```
 
-Los comandos funcionan en todos ellos, y cada persona sigue teniendo **una sola
-criatura por servidor** — los canales son salas distintas para la misma
-mascota, no mascotas distintas. Cada criatura recuerda el canal donde se la
+Los comandos funcionan en todos ellos, y cada persona sigue teniendo **un solo
+plantel por servidor** — los canales son salas distintas para las mismas
+mascotas, no mascotas distintas. Cada criatura recuerda el canal donde se la
 atendió por última vez, y ahí es donde le llegan los avisos de hambre y el
 anuncio de su muerte; si cambias de canal, los avisos te siguen. El primero de
 la lista es el principal: se usa como respaldo para criaturas sin canal
@@ -106,7 +106,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 
 | Comando | Qué hace |
 |---|---|
-| `/huevo` | Te da un huevo. Al romperlo ves qué criatura ha salido y luego la bautizas. |
+| `/huevo` | Te da un huevo, sólo si no tienes ningún gachamon. Al romperlo ves cuál ha salido y luego lo bautizas. |
 | `/mascota` | Publica tu pantalla con los botones. |
 | `/mascota @alguien` | Enseña la criatura de otra persona (sin botones). |
 | `/carrera @alguien` | Reto de velocidad + 1d20. Admite hasta tres invitados más (cinco corriendo), y con tres o más termina en podio. |
@@ -119,7 +119,22 @@ ssh $PI 'journalctl -u tamagotchi -f'
 
 ## Reglas
 
-**Nacer.** Una criatura viva por persona y servidor. La especie sale por
+**El plantel.** Hasta **3 gachamones** por persona y servidor, con **uno
+activo**: el que recibe los botones y los comandos. Los demás esperan en la
+**incubadora**, y ahí **no les pasa el tiempo** — ni hambre, ni ánimo, ni aseo,
+y no pueden morir. No es un adorno: los cuidados sólo llegan al activo, así que
+si la reserva decayera se moriría de hambre hiciera lo que hiciera su dueño.
+
+Encaja en dos sitios y ninguno es una regla nueva: `avanzar()` devuelve intacta
+a la que no está activa, y al guardarla se dejan a NULL `muere_en` y `avisa_en`,
+que es lo único que hace falta para que los bucles de muerte y de aviso la
+ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
+`actualizada_en` al día, o las horas dormidas se le caerían encima de golpe.
+
+`/huevo` da **sólo el de partida**: el segundo y el tercero hay que ganárselos.
+Si muere el activo, sale solo el siguiente de la incubadora.
+
+**Nacer.** La especie sale por
 rareza: 12 % cada una de las siete comunes, 6 % las dos poco comunes y 4 % el
 dragón. Las estadísticas al nacer son **la base de la especie + 2d6** tirado por
 separado en cada una.
@@ -132,8 +147,9 @@ sigue siendo tuya, y el botón de nombrar aguanta reinicios del bot.
 respuesta inmediata a una interacción, así que no cabe enseñar la criatura y
 pedir el nombre a la vez.)
 
-**Cuidar.** Tres barras bajan con el tiempo. Si **COMIDA** llega a 0, la
-criatura muere y hay que sacar otro huevo. Una criatura típica aguanta unas
+**Cuidar.** Tres barras bajan con el tiempo, y sólo las del gachamon activo. Si
+**COMIDA** llega a 0, la criatura muere: sale el siguiente de la incubadora si
+lo hay, y si no, a empezar con otro huevo. Una criatura típica aguanta unas
 73 h; la salud alarga ese margen (un Brote sano llega a ~86 h, una Chispa frágil
 baja a ~62 h). El ánimo y el aseo no matan: el aseo bajo amarga el ánimo, y el
 ánimo bajo penaliza en las competencias.
@@ -244,6 +260,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `pantalla.py` | Dibuja la pantalla como texto de Discord. |
 | `db.py` | SQLite. |
 | `vistas.py` | Los botones y el ciclo publicar-nueva/congelar-la-vieja. |
+| `equipo.py` | El menú para cambiar de gachamon activo. |
 | `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
 | `cogs/` | Los slash commands. |
 

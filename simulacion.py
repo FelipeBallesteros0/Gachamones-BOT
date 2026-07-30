@@ -203,6 +203,10 @@ class Criatura:
     # para que el aviso no se repita cada cuarto de hora ni se pierda si la
     # criatura vuelve a caer al mismo punto días después.
     avisada: bool = False
+    # La que recibe los comandos y los botones. Sólo puede haber una por persona
+    # y servidor —lo impone un índice único—; las demás esperan en la incubadora,
+    # donde no les pasa el tiempo. Ver `avanzar`.
+    activa: bool = True
 
     # -- accesos derivados --------------------------------------------------
 
@@ -371,8 +375,15 @@ def momento_de_muerte(criatura: Criatura) -> datetime:
 
 
 def avanzar(criatura: Criatura, ahora: datetime) -> Criatura:
-    """Aplica el paso del tiempo hasta `ahora`. Idempotente y sin efectos."""
-    if not criatura.viva:
+    """Aplica el paso del tiempo hasta `ahora`. Idempotente y sin efectos.
+
+    A las de la incubadora no les pasa el tiempo. Es lo que hace viable tener
+    tres: los cuidados sólo llegan a la activa, así que si las otras decayeran se
+    morirían de hambre hiciera lo que hiciera su dueño. Al sacarlas, `db.activar`
+    les pone `actualizada_en` al día para que las horas dormidas no se les caigan
+    encima de golpe.
+    """
+    if not criatura.viva or not criatura.activa:
         return criatura
 
     horas = (ahora - criatura.actualizada_en).total_seconds() / 3600.0

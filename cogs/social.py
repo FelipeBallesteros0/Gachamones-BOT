@@ -95,28 +95,38 @@ poco; el hambre resta. Sólo el primero suma victoria, y el torneo cuenta como \
 una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
 reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 
-**Mochila y tienda**
-Los dos botones de abajo. En la **tienda** se compra con {obj.EMOJI_MONEDA} \
-{obj.MONEDA}; en la **mochila** eliges qué usar. Empiezas con \
-**{obj.GEMAS_DE_BIENVENIDA}** de regalo.
-Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
-{obj.MINUTOS_DE_EFECTO} minutos, una que llena el hambre de golpe y dos que \
-borran un enfriamiento.
--# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
-El bonus sale en la ficha mientras dure.
-
 **Hablarle**
 Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo la tengas: una \
 criatura hambrienta contesta de mal humor. Se acuerda de lo último que hayáis \
 hablado.
--# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia.
+-# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia."""
+
+    tus_cosas = f"""## 🧬 Tu plantel y tus cosas
+
+**El plantel**
+Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**: \
+es el que recibe los botones y los comandos. Los demás esperan en la \
+**incubadora**, donde no les pasa el tiempo —ni hambre, ni ánimo, ni aseo—, así \
+que no se te mueren mientras juegas con otro.
+-# Se cambia con 🧬 **Cambiar**. `/huevo` sólo da el de partida: los demás hay \
+que ganárselos por ahí.
+
+**Mochila y tienda**
+Los dos botones de abajo. En la **tienda** se compra con {obj.EMOJI_MONEDA} \
+{obj.MONEDA}; en la **mochila** eliges qué usar. Empiezas con \
+**{obj.GEMAS_DE_BIENVENIDA}** de regalo.
+Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
+{obj.MINUTOS_DE_EFECTO} minutos, una que llena el hambre de golpe, dos que \
+borran un enfriamiento y una placa para cambiarle el nombre.
+-# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
+El bonus sale en la ficha mientras dure.
 
 **Otros**
 `/jardin` todas juntas · `/mascota` la tuya · `/mascota @alguien` la de otro
 `/ranking` · `/cementerio`"""
 
-    return (tu_criatura, que_hacer)
+    return (tu_criatura, que_hacer, tus_cosas)
 
 
 class Social(commands.Cog):

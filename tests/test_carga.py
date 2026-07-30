@@ -56,7 +56,7 @@ def test_los_botones_de_la_pantalla_son_persistentes():
     """Sin timeout y con custom_id fijo siguen funcionando tras un reinicio."""
     vista = PantallaView()
     assert vista.timeout is None
-    assert len(vista.children) == 7  # cinco acciones + mochila y tienda
+    assert len(vista.children) == 8  # cinco acciones + mochila, tienda y plantel
 
     ids = [hijo.custom_id for hijo in vista.children]
     assert all(i and i.startswith("tama:") for i in ids)
@@ -79,7 +79,7 @@ def test_los_botones_caben_en_las_filas_de_discord():
 def test_hay_un_boton_por_accion():
     acciones = {i.custom_id.split(":", 1)[1] for i in PantallaView().children}
     assert acciones == (
-        set(sim.ACCIONES_DE_CUIDADO) | {sim.ACTUALIZAR, "inventario", "tienda"}
+        set(sim.ACCIONES_DE_CUIDADO) | {sim.ACTUALIZAR, "inventario", "tienda", "plantel"}
     )
 
 
@@ -407,7 +407,10 @@ def test_la_ayuda_se_manda_en_varios_mensajes():
     cog = social.Social.__new__(social.Social)
     asyncio.run(social.Social.ayuda.callback(cog, Interaccion()))
 
-    assert [d for d, _, _ in enviados] == ["respuesta", "seguimiento"]
+    destinos = [d for d, _, _ in enviados]
+    assert destinos[0] == "respuesta", "la primera va como respuesta a la interacción"
+    assert set(destinos[1:]) == {"seguimiento"}, destinos
+    assert len(destinos) == len(social.paginas_de_ayuda("Gachamon"))
     # Las dos en privado: si la segunda se colara pública, la ayuda de uno
     # aparecería en el canal de todos.
     assert all(kw.get("ephemeral") for _, _, kw in enviados), enviados

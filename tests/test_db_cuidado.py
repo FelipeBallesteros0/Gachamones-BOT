@@ -77,7 +77,7 @@ def test_dos_cuidados_simultaneos_solo_aplican_un_efecto_y_un_cooldown(monkeypat
     bloqueado = next(resultado for resultado in resultados if not resultado.ok)
     assert bloqueado.espera == sim.COOLDOWNS[sim.JUGAR]
 
-    guardada = db.criatura_viva("u1", "g1")
+    guardada = db.criatura_activa("u1", "g1")
     assert guardada.hambre == 95.0
     assert guardada.ent_velocidad == 1
     assert guardada.xp == 2
@@ -98,7 +98,7 @@ def test_fallo_al_guardar_cooldown_revierte_tambien_el_efecto():
     with pytest.raises(sqlite3.IntegrityError, match="fallo de cooldown"):
         db.ejecutar_cuidado("u1", "g1", sim.JUGAR, T0)
 
-    guardada = db.criatura_viva("u1", "g1")
+    guardada = db.criatura_activa("u1", "g1")
     assert guardada == original
     assert db.espera_de(original.id, sim.JUGAR, T0) == timedelta(0)
 
@@ -116,7 +116,7 @@ def test_cuidado_registra_la_muerte_al_avanzar():
 
     assert resultado is not None and not resultado.criatura.viva
     assert not resultado.ok and resultado.espera is None
-    assert db.criatura_viva("u1", "g1") is None
+    assert db.criatura_activa("u1", "g1") is None
     guardada = db.obtener(criatura.id)
     assert guardada is not None
     assert guardada.muerta_en == resultado.criatura.muerta_en

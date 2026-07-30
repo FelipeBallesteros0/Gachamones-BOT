@@ -397,3 +397,26 @@ def test_se_ven_las_dos_pociones_a_la_vez():
     )
     assert "+3" in texto and "+5" in texto
     assert "fuerza" in texto and "velocidad" in texto
+
+
+# --- La incubadora ---------------------------------------------------------
+
+def test_la_incubadora_sale_en_el_subtexto_y_fuera_del_marco():
+    texto = pantalla.render(criatura(), T0, en_la_incubadora=2)
+
+    assert "2 esperan" in texto
+    dentro = texto.split("```ansi\n")[1].split("\n```")[0]
+    assert "🥚" not in dentro
+    for linea in ANSI.sub("", dentro).split("\n"):
+        assert len(linea) == pantalla.ANCHO + 2, repr(linea)
+
+
+def test_con_uno_solo_la_incubadora_no_se_menciona():
+    """La ficha de quien tiene un único gachamon no puede cambiar por esto."""
+    assert pantalla.render(criatura(), T0) == \
+        pantalla.render(criatura(), T0, en_la_incubadora=0)
+
+
+def test_el_singular_de_la_incubadora_esta_bien():
+    texto = pantalla.render(criatura(), T0, en_la_incubadora=1)
+    assert "1 espera" in texto and "esperan" not in texto

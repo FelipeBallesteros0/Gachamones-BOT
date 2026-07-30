@@ -18,6 +18,7 @@ from dataclasses import replace
 import discord
 
 import db
+import equipo
 import pantalla
 import simulacion as sim
 import tienda
@@ -34,11 +35,11 @@ ESTILOS = {
 
 
 class PantallaView(discord.ui.View):
-    """Los botones bajo la pantalla: cinco de cuidado, más mochila y tienda.
+    """Los botones bajo la pantalla.
 
-    Son siete, así que Discord los reparte en dos filas —admite cinco por fila—
-    y los dos últimos quedan abajo, separados de los de cuidar, que es donde se
-    leen mejor.
+    Cinco de cuidado arriba, y abajo mochila, tienda y cambio de gachamon. Son
+    ocho y Discord admite cinco por fila, así que van en dos: los de cuidar
+    actúan sobre la criatura, los de abajo abren menús y no la tocan.
     """
 
     def __init__(self, congelada: bool = False):
@@ -85,6 +86,11 @@ class PantallaView(discord.ui.View):
     async def abrir_tienda(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await tienda.abrir_tienda(interaccion)
 
+    @discord.ui.button(label="Cambiar", emoji="🧬", row=1,
+                       style=discord.ButtonStyle.primary, custom_id="tama:plantel")
+    async def cambiar_activo(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        await equipo.abrir_plantel(interaccion)
+
 
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):
     """Bautizo. La criatura ya existe: esto sólo le cambia el nombre."""
@@ -110,7 +116,7 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
 
         ahora = db.ahora_utc()
 
-        criatura = db.criatura_viva(str(interaccion.user.id), str(interaccion.guild_id))
+        criatura = db.criatura_activa(str(interaccion.user.id), str(interaccion.guild_id))
         if criatura is None:
             await interaccion.response.send_message(
                 "Ya no tienes ninguna criatura viva.", ephemeral=True
@@ -149,7 +155,7 @@ class NombrarView(discord.ui.View):
     @discord.ui.button(label="Ponerle nombre", emoji="✏️",
                        style=discord.ButtonStyle.primary, custom_id="tama:nombrar")
     async def nombrar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        criatura = db.criatura_viva(str(interaccion.user.id), str(interaccion.guild_id))
+        criatura = db.criatura_activa(str(interaccion.user.id), str(interaccion.guild_id))
         if criatura is None:
             await interaccion.response.send_message(
                 "No tienes ninguna criatura viva. Empieza con `/huevo`.", ephemeral=True
@@ -272,6 +278,9 @@ async def responder_pantalla(
         criatura, ahora,
         esperas=db.esperas(criatura.id, ahora),
         efectos=db.efectos_activos(criatura.id, ahora),
+        en_la_incubadora=max(
+            0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
+        ),
     )
     vista = PantallaView() if criatura.viva else None
     await interaccion.response.send_message(contenido, view=vista)
@@ -295,6 +304,9 @@ async def publicar_pantalla(
         esperas=db.esperas(criatura.id, ahora),
         aviso=aviso,
         efectos=db.efectos_activos(criatura.id, ahora),
+        en_la_incubadora=max(
+            0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
+        ),
     )
     vista = PantallaView() if criatura.viva else None
     mensaje = await canal.send(contenido, view=vista)

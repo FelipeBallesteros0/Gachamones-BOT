@@ -80,7 +80,7 @@ def test_el_modal_invalido_responde_en_privado_y_no_muta_la_bd(
 
     asyncio.run(vistas.NombreModal.on_submit(modal, interaccion))
 
-    assert db.criatura_viva("u1", "g1").nombre == "Prueba"
+    assert db.criatura_activa("u1", "g1").nombre == "Prueba"
     assert len(enviados) == 1
     assert "letras, números" in enviados[0][0]
     assert enviados[0][1].get("ephemeral") is True

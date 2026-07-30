@@ -43,6 +43,8 @@ class Objeto:
     reinicia: str | None = None
     # Poción de comida.
     llena_el_hambre: bool = False
+    # Abre un formulario para cambiarle el nombre al gachamon activo.
+    renombra: bool = False
 
 
 CATALOGO: dict[str, Objeto] = {}
@@ -106,6 +108,15 @@ _registrar(Objeto(
     precio=20,
     descripcion="Deja entrenar otra vez ya. La espera normal es de casi dos horas.",
     reinicia=sim.ENTRENAR,
+))
+
+_registrar(Objeto(
+    clave="placa",
+    nombre="Placa con nombre",
+    emoji="🏷️",
+    precio=15,
+    descripcion="Le cambia el nombre a tu gachamon activo.",
+    renombra=True,
 ))
 
 

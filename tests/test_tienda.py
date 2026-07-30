@@ -76,13 +76,13 @@ def test_al_caducar_deja_de_ayudar():
 def test_la_pocion_de_comida_llena_y_se_guarda():
     criatura = db.guardar(sim.avanzar(nacer(), T0))
     from dataclasses import replace
-    db.guardar(replace(db.criatura_viva("u1", "g1"), hambre=12.0))
-    hambrienta = db.criatura_viva("u1", "g1")
+    db.guardar(replace(db.criatura_activa("u1", "g1"), hambre=12.0))
+    hambrienta = db.criatura_activa("u1", "g1")
     assert hambrienta.hambre == 12.0
 
     tienda.usar(hambrienta, obj.CATALOGO["pocion_comida"], T0)
 
-    assert db.criatura_viva("u1", "g1").hambre == 100.0
+    assert db.criatura_activa("u1", "g1").hambre == 100.0
 
 
 def test_el_silbato_deja_entrenar_otra_vez():
@@ -138,3 +138,59 @@ def test_un_objeto_que_ya_no_existiera_no_rompe_la_mochila():
         )
     texto = tienda.texto_del_inventario("u1", "g1")
     assert "objeto_retirado" not in texto
+
+
+# --- La placa con nombre ---------------------------------------------------
+
+def test_renombrar_gasta_la_placa_y_cambia_el_nombre():
+    nacer()
+    placa = obj.CATALOGO["placa"]
+    db.comprar("u1", "g1", placa)
+
+    aviso = tienda.renombrar("u1", "g1", placa, "  Pelusa  ")
+
+    assert "Pelusa" in aviso
+    assert db.criatura_activa("u1", "g1").nombre == "Pelusa"
+    assert db.inventario("u1", "g1") == {}
+
+
+def test_un_nombre_invalido_no_gasta_la_placa():
+    """Si se gastara antes de validar, escribir un nombre con caracteres raros
+    te costaría el objeto sin cambiar nada."""
+    nacer()
+    placa = obj.CATALOGO["placa"]
+    db.comprar("u1", "g1", placa)
+
+    for malo in ("", "   ", "a" * 40, "Pelusa <@everyone>", "```ansi"):
+        try:
+            tienda.renombrar("u1", "g1", placa, malo)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"«{malo}» no debería valer")
+
+    assert db.inventario("u1", "g1") == {"placa": 1}, "la placa sigue ahí"
+    assert db.criatura_activa("u1", "g1").nombre == "Prueba"
+
+
+def test_sin_placa_no_se_renombra():
+    nacer()
+    try:
+        tienda.renombrar("u1", "g1", obj.CATALOGO["placa"], "Pelusa")
+    except ValueError:
+        assert db.criatura_activa("u1", "g1").nombre == "Prueba"
+        return
+    raise AssertionError("no debería dejar renombrar sin la placa")
+
+
+def test_renombrar_al_mismo_nombre_no_gasta_nada():
+    nacer()
+    placa = obj.CATALOGO["placa"]
+    db.comprar("u1", "g1", placa)
+
+    try:
+        tienda.renombrar("u1", "g1", placa, "Prueba")
+    except ValueError:
+        assert db.inventario("u1", "g1") == {"placa": 1}
+        return
+    raise AssertionError("cambiar por el mismo nombre no debería gastar la placa")

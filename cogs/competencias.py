@@ -303,7 +303,7 @@ class Competencias(commands.Cog):
         # Todos los participantes, empezando por quien reta.
         criaturas = []
         for usuario in (retador, *invitados):
-            criatura = db.criatura_viva(str(usuario.id), guild_id)
+            criatura = db.criatura_activa(str(usuario.id), guild_id)
             if criatura is not None:
                 criatura = sim.avanzar(criatura, ahora)
                 db.guardar(criatura)
@@ -349,7 +349,7 @@ class Competencias(commands.Cog):
 
         criaturas = []
         for usuario in participantes:
-            criatura = db.criatura_viva(str(usuario.id), guild_id)
+            criatura = db.criatura_activa(str(usuario.id), guild_id)
             criatura = sim.avanzar(criatura, ahora) if criatura else None
             # Se guarda antes de decidir si se compite: el rato que ha pasado
             # desde el reto cuenta aunque la carrera se cancele.

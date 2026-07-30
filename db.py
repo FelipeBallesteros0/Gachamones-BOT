@@ -25,6 +25,10 @@ import simulacion as sim
 
 RUTA: Path = config.RUTA_BD
 
+# Cuántos gachamones puede tener una persona por servidor. Uno activo y el resto
+# en la incubadora. El primero sale de `/huevo`; los demás sólo reclutándolos.
+MAXIMO_PLANTEL = 3
+
 # El esquema va en dos trozos porque el orden importa: primero las tablas,
 # después las migraciones que añaden columnas nuevas, y sólo entonces los
 # índices — que referencian esas columnas y fallarían si se crearan antes.
@@ -61,7 +65,8 @@ CREATE TABLE IF NOT EXISTS criaturas (
     victorias INTEGER NOT NULL DEFAULT 0,
     derrotas INTEGER NOT NULL DEFAULT 0,
     pantalla_msg_id TEXT,
-    canal_id TEXT
+    canal_id TEXT,
+    activa INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS cooldowns (
@@ -121,10 +126,14 @@ CREATE TABLE IF NOT EXISTS efectos (
 """
 
 SCHEMA_INDICES = """
--- Una sola criatura viva por persona y servidor. Lo garantiza la base de
--- datos, no el código: así dos clics simultáneos en /huevo no pueden colar dos.
-CREATE UNIQUE INDEX IF NOT EXISTS una_viva
-    ON criaturas(usuario_id, guild_id) WHERE muerta_en IS NULL;
+-- Una sola criatura ACTIVA por persona y servidor. Antes era «una sola viva»;
+-- desde que se puede tener un plantel de tres, lo que hay que garantizar es que
+-- no haya dos recibiendo los comandos a la vez. Lo sigue garantizando la base de
+-- datos y no el código, que era el motivo original: dos clics simultáneos no
+-- pueden dejar dos activas. El tope de tres no cabe en un índice y se comprueba
+-- en `crear()`.
+CREATE UNIQUE INDEX IF NOT EXISTS una_activa
+    ON criaturas(usuario_id, guild_id) WHERE muerta_en IS NULL AND activa = 1;
 
 CREATE INDEX IF NOT EXISTS idx_muere
     ON criaturas(muere_en) WHERE muerta_en IS NULL;
@@ -147,6 +156,7 @@ CAMPOS = (
     "ent_fuerza", "ent_velocidad", "ent_salud",
     "niv_fuerza", "niv_velocidad", "niv_salud",
     "xp", "nivel", "victorias", "derrotas", "pantalla_msg_id", "canal_id",
+    "activa",
 )
 
 
@@ -169,6 +179,9 @@ MIGRACIONES = (
     ("genero",
      f"ALTER TABLE criaturas ADD COLUMN genero TEXT NOT NULL DEFAULT '{esp.MACHO}'"),
     ("caracter", "ALTER TABLE criaturas ADD COLUMN caracter TEXT NOT NULL DEFAULT ''"),
+    # Las que ya existían son la única de su dueño, así que el DEFAULT 1 las deja
+    # activas y no hace falta rellenar nada fila a fila.
+    ("activa", "ALTER TABLE criaturas ADD COLUMN activa INTEGER NOT NULL DEFAULT 1"),
 )
 
 
@@ -184,6 +197,12 @@ def _migrar(con: sqlite3.Connection) -> None:
     for columna, sentencia in MIGRACIONES:
         if columna not in existentes:
             con.execute(sentencia)
+
+    # El índice viejo prohibía una segunda criatura viva; el nuevo sólo prohíbe
+    # una segunda ACTIVA. Se tira aquí y no en el script de índices porque
+    # `executescript` no borra: hay que quitarlo antes de crear el que lo
+    # sustituye, y este paso corre justo entre las tablas y los índices.
+    con.execute("DROP INDEX IF EXISTS una_viva")
 
     # Las criaturas anteriores a esta versión no tienen calculado su avisa_en.
     for fila in con.execute(
@@ -223,6 +242,7 @@ def _a_criatura(fila: sqlite3.Row) -> sim.Criatura:
     for campo in ("nacida_en", "actualizada_en", "muerta_en"):
         datos[campo] = _fecha(datos[campo])
     datos["avisada"] = bool(datos["avisada"])
+    datos["activa"] = bool(datos["activa"])
     return sim.Criatura(id=fila["id"], **datos)
 
 
@@ -232,27 +252,110 @@ def _a_valores(criatura: sim.Criatura) -> dict:
         valor = datos[campo]
         datos[campo] = valor.isoformat() if valor else None
     datos["avisada"] = int(criatura.avisada)
+    datos["activa"] = int(criatura.activa)
     # Los dos instantes se recalculan en cada guardado: dependen de la comida
     # actual y de la salud, que cambian con cada acción.
+    #
+    # A las de la incubadora se les dejan a NULL, y eso es lo único que hace
+    # falta para que los bucles de muerte y de aviso las ignoren: los dos piden
+    # `IS NOT NULL`, así que no hay que tocar ninguna de las dos consultas.
+    corre_el_tiempo = criatura.viva and criatura.activa
     datos["muere_en"] = (
-        sim.momento_de_muerte(criatura).isoformat() if criatura.viva else None
+        sim.momento_de_muerte(criatura).isoformat() if corre_el_tiempo else None
     )
     datos["avisa_en"] = (
-        sim.momento_de_aviso(criatura).isoformat() if criatura.viva else None
+        sim.momento_de_aviso(criatura).isoformat() if corre_el_tiempo else None
     )
     return datos
 
 
 # --- Criaturas -------------------------------------------------------------
 
-def criatura_viva(usuario_id: str, guild_id: str) -> sim.Criatura | None:
+def criatura_activa(usuario_id: str, guild_id: str) -> sim.Criatura | None:
+    """La que recibe los comandos y los botones. Puede haber otras esperando."""
     with conectar() as con:
         fila = con.execute(
-            "SELECT * FROM criaturas "
-            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
+            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+            "AND muerta_en IS NULL AND activa = 1",
             (usuario_id, guild_id),
         ).fetchone()
     return _a_criatura(fila) if fila else None
+
+
+def por_id(criatura_id: int) -> sim.Criatura | None:
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT * FROM criaturas WHERE id = ?", (criatura_id,)
+        ).fetchone()
+    return _a_criatura(fila) if fila else None
+
+
+def ascender_de_la_incubadora(
+    usuario_id: str, guild_id: str, ahora: datetime
+) -> sim.Criatura | None:
+    """Saca a la primera de la incubadora si no queda ninguna activa.
+
+    Se llama al morir la activa. Sin esto te quedarías con dos gachamones
+    esperando y el bot diciéndote que no tienes ninguno.
+    """
+    if criatura_activa(usuario_id, guild_id) is not None:
+        return None
+    vivas = plantel(usuario_id, guild_id)
+    if not vivas:
+        return None
+    activar(vivas[0].id, usuario_id, guild_id, ahora)
+    return criatura_activa(usuario_id, guild_id)
+
+
+def plantel(usuario_id: str, guild_id: str) -> list[sim.Criatura]:
+    """Las criaturas vivas de una persona, la activa primero."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+            "AND muerta_en IS NULL ORDER BY activa DESC, id",
+            (usuario_id, guild_id),
+        ).fetchall()
+    return [_a_criatura(f) for f in filas]
+
+
+def activar(
+    criatura_id: int, usuario_id: str, guild_id: str, ahora: datetime
+) -> bool:
+    """Saca una criatura de la incubadora y mete dentro a la que estaba.
+
+    Devuelve si se pudo: pide que la criatura sea de quien la reclama, para que
+    un identificador copiado de otro mensaje no active la mascota de otro.
+
+    **`actualizada_en` se pone al día aquí**, y este es el único sitio por el que
+    se sale de la incubadora. Sin eso, las horas que pasó dormida se le
+    aplicarían de golpe en el primer `avanzar` y saldría muerta de hambre.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        fila = con.execute(
+            "SELECT id FROM criaturas WHERE id = ? AND usuario_id = ? "
+            "AND guild_id = ? AND muerta_en IS NULL",
+            (criatura_id, usuario_id, guild_id),
+        ).fetchone()
+        if fila is None:
+            return False
+
+        con.execute(
+            "UPDATE criaturas SET activa = 0, muere_en = NULL, avisa_en = NULL "
+            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
+            (usuario_id, guild_id),
+        )
+        con.execute(
+            "UPDATE criaturas SET activa = 1, actualizada_en = ? WHERE id = ?",
+            (ahora.isoformat(), criatura_id),
+        )
+
+    # Un guardado normal recalcula `muere_en` y `avisa_en` de la que acaba de
+    # despertar, que el UPDATE de arriba dejó en blanco junto a las demás.
+    despierta = por_id(criatura_id)
+    if despierta is not None:
+        guardar(despierta)
+    return True
 
 
 def criatura_por_pantalla(mensaje_id: str) -> sim.Criatura | None:
@@ -288,10 +391,14 @@ def crear(
     caracter: str = esp.CARACTER_POR_DEFECTO,
     canal_id: str | None = None,
 ) -> sim.Criatura:
-    """Registra una criatura recién nacida.
+    """Registra una criatura recién nacida, activa.
 
-    Si ya hay una viva, el índice único hace saltar `sqlite3.IntegrityError`:
-    es la defensa contra dos `/huevo` a la vez.
+    Dos defensas distintas y las dos hacen falta:
+
+    - **El tope de tres** se comprueba aquí dentro con `BEGIN IMMEDIATE`, porque
+      no cabe en un índice. Levanta `ValueError`.
+    - **Una sola activa** lo sigue imponiendo el índice único, que hace saltar
+      `sqlite3.IntegrityError`: es la defensa contra dos `/huevo` a la vez.
     """
     fuerza, velocidad, salud = stats
     nueva = sim.Criatura(
@@ -306,6 +413,19 @@ def crear(
     marcadores = ", ".join(f":{c}" for c in columnas)
 
     with conectar() as con:
+        # El turno de escritura se toma antes de contar: si no, dos peticiones a
+        # la vez podrían contar dos y colar una cuarta criatura entre las dos.
+        con.execute("BEGIN IMMEDIATE")
+        cuantas = con.execute(
+            "SELECT COUNT(*) c FROM criaturas "
+            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
+            (usuario_id, guild_id),
+        ).fetchone()["c"]
+        if cuantas >= MAXIMO_PLANTEL:
+            raise ValueError(
+                f"{usuario_id} ya tiene {cuantas} gachamones vivos en {guild_id}"
+            )
+
         cursor = con.execute(
             f"INSERT INTO criaturas ({', '.join(columnas)}) VALUES ({marcadores})",
             valores,
@@ -619,11 +739,16 @@ def efectos_activos(criatura_id: int, ahora: datetime) -> dict[str, tuple[int, t
 # --- Listados --------------------------------------------------------------
 
 def vivas_del_servidor(guild_id: str) -> list[sim.Criatura]:
-    """Todas las criaturas vivas de un servidor, para la escena del jardín."""
+    """Las criaturas **activas** de un servidor, para la escena del jardín.
+
+    Sólo las activas: las de la incubadora están dormidas y con el tiempo
+    parado, así que dibujarlas paseando por el jardín no se sostiene. En
+    `/ranking` y `/cementerio` sí salen todas, porque eso es historial.
+    """
     with conectar() as con:
         filas = con.execute(
             "SELECT * FROM criaturas WHERE guild_id = ? AND muerta_en IS NULL "
-            "ORDER BY nacida_en",
+            "AND activa = 1 ORDER BY nacida_en",
             (guild_id,),
         ).fetchall()
     return [_a_criatura(f) for f in filas]
