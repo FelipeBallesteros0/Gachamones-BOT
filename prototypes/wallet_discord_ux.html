@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Prototipo desechable · Monedero Discord</title>
+  <style>
+    :root {
+      --discord-bg: #313338;
+      --discord-side: #2b2d31;
+      --discord-rail: #1e1f22;
+      --discord-input: #383a40;
+      --discord-code: #2b2d31;
+      --text: #f2f3f5;
+      --muted: #b5bac1;
+      --faint: #949ba4;
+      --link: #00a8fc;
+      --brand: #5865f2;
+      --green: #248046;
+      --green-hover: #1a6334;
+      --button: #4e5058;
+      --button-hover: #6d6f78;
+      --line: #3f4147;
+      --coin: #f0c45c;
+      --gem: #8cd9ff;
+      --danger: #fa777c;
+      --focus: #fff;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background: #111214;
+      font: 15px/1.375 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, a { font: inherit; }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+    .prototype-head {
+      width: min(1180px, calc(100% - 32px));
+      margin: 28px auto 18px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: #d7d9ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .prototype-head h1 {
+      margin: 0;
+      max-width: 780px;
+      font-size: clamp(24px, 4vw, 38px);
+      line-height: 1.08;
+      letter-spacing: -.025em;
+    }
+    .prototype-head p {
+      margin: 10px 0 0;
+      max-width: 760px;
+      color: var(--muted);
+    }
+    .throwaway {
+      flex: 0 0 auto;
+      border: 1px solid #7b5d29;
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: #ffd98a;
+      background: #332a1d;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .variant { display: none; }
+    body[data-active-variant="A"] .variant-a,
+    body[data-active-variant="B"] .variant-b,
+    body[data-active-variant="C"] .variant-c { display: block; }
+
+    .variant-intro {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+      gap: 12px;
+    }
+    .rationale, .pattern-note {
+      border: 1px solid #2c3036;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #191b1f;
+    }
+    .rationale h2 { margin: 0 0 4px; font-size: 18px; }
+    .rationale p, .pattern-note p { margin: 4px 0; color: var(--muted); }
+    .rationale strong, .pattern-note strong { color: var(--text); }
+    .pattern-note { font-size: 13px; }
+    .pattern-note .mini-rule { margin-top: 8px; color: #d8dbdf; }
+
+    .discord-shell {
+      width: min(1180px, calc(100% - 32px));
+      height: min(760px, calc(100vh - 240px));
+      min-height: 560px;
+      margin: 0 auto 104px;
+      display: grid;
+      grid-template-columns: 72px 230px minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid #26282c;
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.38);
+      background: var(--discord-bg);
+    }
+    .guild-rail {
+      padding: 12px 0;
+      background: var(--discord-rail);
+      text-align: center;
+    }
+    .guild-dot {
+      width: 48px; height: 48px;
+      margin: 0 auto 10px;
+      display: grid; place-items: center;
+      border-radius: 16px;
+      background: var(--brand);
+      font-size: 23px;
+    }
+    .guild-dot.dim { background: #313338; filter: saturate(.6); }
+    .channel-side { background: var(--discord-side); color: var(--muted); }
+    .server-title {
+      height: 48px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #24262a;
+      color: var(--text);
+      font-weight: 700;
+      box-shadow: 0 1px rgba(0,0,0,.2);
+    }
+    .channel-list { padding: 16px 8px; }
+    .channel-group {
+      padding: 0 8px 5px;
+      color: var(--faint);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .channel {
+      margin: 2px 0;
+      padding: 7px 9px;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    .channel::before { content: "#"; margin-right: 7px; color: #80848e; font-size: 20px; }
+    .channel.active { color: var(--text); background: #404249; }
+    .channel .badge {
+      float: right;
+      min-width: 18px;
+      padding: 1px 5px;
+      border-radius: 9px;
+      background: #da373c;
+      color: white;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .chat { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--discord-bg); }
+    .chat-head {
+      height: 48px;
+      flex: 0 0 48px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #26282c;
+      box-shadow: 0 1px rgba(0,0,0,.2);
+      font-weight: 700;
+    }
+    .hash { color: #80848e; font-size: 24px; }
+    .chat-head small { color: var(--muted); font-weight: 400; }
+    .messages { overflow: auto; padding: 22px 0 36px; scrollbar-color: #1a1b1e transparent; }
+    .scene-label {
+      margin: 18px 16px 8px 72px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #c6cad1;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .scene-label:first-child { margin-top: 0; }
+    .scene-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+
+    .message {
+      position: relative;
+      padding: 2px 24px 16px 72px;
+      min-height: 52px;
+    }
+    .message:hover { background: rgba(4,4,5,.08); }
+    .avatar {
+      position: absolute;
+      left: 16px; top: 3px;
+      width: 40px; height: 40px;
+      display: grid; place-items: center;
+      border-radius: 50%;
+      background: #1e1f22;
+      font-size: 22px;
+    }
+    .message-head { margin-bottom: 3px; }
+    .author { color: #c9cdfb; font-weight: 700; }
+    .bot-tag {
+      margin-left: 4px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: white;
+      background: var(--brand);
+      font-size: 10px;
+      font-weight: 800;
+      vertical-align: 1px;
+    }
+    time { margin-left: 5px; color: var(--faint); font-size: 11px; }
+    .message-body { max-width: 760px; overflow-wrap: anywhere; }
+    .message-body h3 { margin: 4px 0 1px; font-size: 20px; line-height: 1.2; }
+    .message-body p { margin: 2px 0; }
+    .subtext { color: var(--faint); font-size: 12px; }
+    .quote {
+      margin: 8px 0;
+      padding-left: 10px;
+      border-left: 4px solid #4e5058;
+      color: #dbdee1;
+    }
+    .mention { padding: 0 2px; border-radius: 3px; color: #c9cdfb; background: rgba(88,101,242,.3); }
+    .coin { color: var(--coin); }
+    .gem { color: var(--gem); }
+    .zero { color: #ffc2c5; }
+    .nowrap { white-space: nowrap; }
+
+    pre.ascii {
+      width: max-content;
+      max-width: 100%;
+      margin: 8px 0 6px;
+      padding: 8px;
+      overflow: auto;
+      border: 1px solid #202225;
+      border-radius: 4px;
+      color: #dbdee1;
+      background: var(--discord-code);
+      font: 12px/1.18 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      scrollbar-width: thin;
+    }
+    .ascii .cyan { color: #59d8e6; }
+    .ascii .green { color: #57f287; }
+    .ascii .yellow { color: #fee75c; }
+
+    .components { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .discord-btn, .select-like {
+      min-height: 32px;
+      border: 0;
+      border-radius: 3px;
+      padding: 6px 12px;
+      color: var(--text);
+      background: var(--button);
+      font-weight: 600;
+    }
+    .discord-btn.green { background: var(--green); }
+    .discord-btn.blue { background: var(--brand); }
+    .discord-btn:hover { background: var(--button-hover); }
+    .discord-btn.green:hover { background: var(--green-hover); }
+    .discord-btn.blue:hover { background: #4752c4; }
+
+    .ephemeral {
+      margin: 4px 16px 16px 64px;
+      padding: 12px 12px 10px;
+      border-left: 4px solid var(--brand);
+      border-radius: 4px;
+      background: rgba(43,45,49,.58);
+    }
+    .ephemeral-label { margin-bottom: 7px; color: var(--faint); font-size: 12px; }
+    .select-like {
+      width: min(100%, 520px);
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #1e1f22;
+      background: #1e1f22;
+      color: var(--muted);
+      text-align: left;
+    }
+    .menu-open {
+      width: min(100%, 520px);
+      margin-top: 3px;
+      overflow: hidden;
+      border: 1px solid #1e1f22;
+      border-radius: 4px;
+      background: #2b2d31;
+      box-shadow: 0 8px 18px rgba(0,0,0,.4);
+    }
+    .option {
+      padding: 9px 11px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 3px 14px;
+      border-bottom: 1px solid #36383d;
+    }
+    .option:last-child { border-bottom: 0; }
+    .option:hover { background: #404249; }
+    .option strong { font-size: 14px; }
+    .option small { grid-column: 1 / -1; color: var(--faint); }
+    .price { color: #fff4cf; font-weight: 800; white-space: nowrap; }
+
+    .reward-receipt {
+      width: fit-content;
+      max-width: 100%;
+      margin: 7px 0 4px;
+      padding: 6px 9px;
+      border: 1px solid #4b4d54;
+      border-radius: 5px;
+      background: #2b2d31;
+      color: #e3e5e8;
+      font-size: 13px;
+    }
+    .ledger-lines { margin: 8px 0 2px; }
+    .ledger-line { margin: 2px 0; color: #d9dcdf; }
+
+    /* Variant B: a deliberately balance-first hierarchy. */
+    .wallet-banner {
+      width: min(100%, 650px);
+      margin: 7px 0 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      overflow: hidden;
+      border: 1px solid #4b4d54;
+      border-radius: 6px;
+      background: #2b2d31;
+    }
+    .wallet-cell { padding: 9px 10px; border-right: 1px solid #4b4d54; }
+    .wallet-cell:last-child { border-right: 0; }
+    .wallet-cell span { display: block; color: var(--faint); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .wallet-cell strong { display: block; margin-top: 2px; font-size: 15px; }
+    .wallet-cell.today { min-width: 120px; }
+    .reward-panel {
+      width: min(100%, 650px);
+      margin: 8px 0;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: #24262a;
+    }
+    .reward-panel-title { margin-bottom: 5px; color: var(--faint); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .reward-grid { display: grid; grid-template-columns: 1fr auto auto; gap: 5px 14px; align-items: baseline; }
+    .reward-grid .cap { color: #ffb0b4; font-size: 12px; }
+
+    /* Variant C: totals only in private economy surfaces. */
+    .earning-line {
+      margin-top: 6px;
+      color: var(--faint);
+      font-size: 12px;
+    }
+    .spend-balance {
+      width: min(100%, 520px);
+      margin: 8px 0 2px;
+      padding: 9px 11px;
+      border: 1px solid #5d5332;
+      border-radius: 5px;
+      background: #34301f;
+    }
+    .spend-balance strong { color: #fff3c7; }
+    .reserve-line { margin-top: 5px; color: var(--faint); font-size: 12px; }
+    .competition-receipt {
+      margin-top: 7px;
+      color: var(--faint);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .switcher-wrap {
+      position: relative;
+      z-index: 20;
+      width: min(680px, calc(100% - 24px));
+      margin: -86px auto 18px;
+      padding: 7px;
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) 48px;
+      gap: 6px;
+      border: 1px solid #4a4d54;
+      border-radius: 12px;
+      background: rgba(24,25,28,.96);
+      box-shadow: 0 12px 42px rgba(0,0,0,.58);
+      backdrop-filter: blur(12px);
+    }
+    .switcher-wrap button {
+      border: 0;
+      padding: 9px 10px;
+      border-radius: 7px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 13px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .switcher-wrap button:hover { color: white; background: #35373c; }
+    .variant-label {
+      min-width: 0;
+      padding: 8px 10px;
+      border-radius: 7px;
+      color: white;
+      background: var(--brand);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .switcher-wrap small { display: block; margin-top: 1px; font-size: 10px; font-weight: 500; opacity: .8; }
+
+    @media (max-width: 820px) {
+      .prototype-head { display: block; }
+      .throwaway { display: inline-block; margin-top: 14px; }
+      .variant-intro { grid-template-columns: 1fr; }
+      .discord-shell { grid-template-columns: 64px minmax(0, 1fr); height: 720px; }
+      .channel-side { display: none; }
+      .wallet-banner { grid-template-columns: 1fr 1fr; }
+      .wallet-cell:nth-child(2) { border-right: 0; }
+      .wallet-cell.today { grid-column: 1 / -1; border-top: 1px solid #4b4d54; border-right: 0; }
+    }
+    @media (max-width: 560px) {
+      .prototype-head, .variant-intro, .discord-shell { width: calc(100% - 16px); }
+      .discord-shell { grid-template-columns: 1fr; border-radius: 8px; }
+      .guild-rail { display: none; }
+      .message { padding-right: 12px; padding-left: 62px; }
+      .avatar { left: 10px; }
+      .scene-label { margin-left: 62px; }
+      .ephemeral { margin-left: 54px; margin-right: 10px; }
+      .reward-grid { grid-template-columns: 1fr auto; }
+      .reward-grid .cap { grid-column: 1 / -1; }
+      .switcher-wrap small { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body data-active-variant="A">
+  <header class="prototype-head">
+    <div>
+      <p class="eyebrow">Gachamones BOT · exploración de UX en Discord</p>
+      <h1>Dos monedas sin dos significados posibles</h1>
+      <p>Mockups estáticos de mensajes existentes. Sin comandos, pantallas, mensajes nuevos ni mutaciones reales.</p>
+    </div>
+    <span class="throwaway">DESECHABLE · NO PRODUCCIÓN</span>
+  </header>
+
+  <!-- VARIANTE A -->
+  <main class="variant variant-a" aria-labelledby="title-a">
+    <section class="variant-intro">
+      <div class="rationale">
+        <h2 id="title-a">A · Recibo contextual</h2>
+        <p>La acción o el resultado sigue mandando. Un recibo compacto reúne <strong>ganancia, progreso del límite y ambos saldos</strong> justo debajo. Es inequívoco, pero repite el monedero en cada evento público.</p>
+      </div>
+      <div class="pattern-note">
+        <p><strong>Patrón:</strong> emoji + cantidad + nombre completo; nunca un número sin unidad.</p>
+        <p class="mini-rule">Evolución: <span class="coin">🪙 +10 asciicoins</span> · 1/1 hoy. Después: <span class="zero">🪙 +0</span> · límite 1/1.</p>
+      </div>
+    </section>
+
+    <section class="discord-shell" aria-label="Mockup de Discord, variante A">
+      <aside class="guild-rail" aria-hidden="true"><div class="guild-dot">🐣</div><div class="guild-dot dim">🎲</div><div class="guild-dot dim">🌿</div></aside>
+      <aside class="channel-side" aria-hidden="true"><div class="server-title">Gachamones</div><div class="channel-list"><div class="channel-group">Criaturas</div><div class="channel active">gachamones</div><div class="channel">charla</div><div class="channel">resultados <span class="badge">2</span></div></div></aside>
+      <div class="chat">
+        <div class="chat-head"><span class="hash">#</span> gachamones <small>Cuida, compite y evoluciona</small></div>
+        <div class="messages">
+          <div class="scene-label">Cuidado · recompensa</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div>
+            <div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 18:42</time></div>
+            <div class="message-body">
+              <h3>🐥 Pelusa ♀️</h3>
+              <p class="subtext">Pollito · alegre · adulta · nivel 3 · 4V-1D · 2 días de vida</p>
+              <p class="quote">🎮 <strong>Pelusa</strong> se lo pasa en grande contigo.</p>
+              <pre class="ascii" aria-label="Pantalla ASCII de Pelusa">╭──────────────────────────╮
+│            _             │
+│           (,)            │
+│          (^v^)           │
+│         &lt;(   )&gt;          │
+│           ^ ^            │
+├──────────────────────────┤
+│ COMIDA  <span class="green">███████████░</span>  88 │
+│ ANIMO   <span class="green">████████████</span> 100 │
+│ ASEO    <span class="green">████████░░░░</span>  70 │
+├──────────────────────────┤
+│ FUE 11   VEL 21   SAL 11 │
+├──────────────────────────┤
+│ EXP  <span class="cyan">█████░░░░░</span>    53/100 │
+╰──────────────────────────╯</pre>
+              <div class="reward-receipt"><strong class="coin">🪙 +1 asciicoin</strong> · saldo <strong>51 asciicoins</strong> · <span class="gem">💎 50 asciigems</span><br><span class="subtext">Cuidados premiados: 1/12 hoy</span></div>
+              <div class="components" aria-label="Botones persistentes"><button class="discord-btn green">🍖 Alimentar</button><button class="discord-btn blue">🎮 Jugar</button><button class="discord-btn blue">🏋️ Entrenar</button><button class="discord-btn">🧼 Limpiar</button><button class="discord-btn">🔄 Actualizar</button><button class="discord-btn">🎒 Mochila</button><button class="discord-btn green">🛒 Tienda</button></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Cuidado · límite alcanzado</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 22:08</time></div>
+            <div class="message-body">
+              <h3>🐥 Pelusa ♀️</h3><p class="subtext">Pollito · alegre · adulta · nivel 3</p>
+              <p class="quote">🍖 <strong>Pelusa</strong> come con ganas. La acción se ha realizado.</p>
+              <pre class="ascii" aria-label="Pantalla ASCII resumida">╭──────────────────────────╮
+│          (^v^)           │
+├──────────────────────────┤
+│ COMIDA  <span class="green">████████████</span> 100 │
+│ ANIMO   <span class="green">██████████░░</span>  84 │
+│ ASEO    <span class="green">████████░░░░</span>  70 │
+╰──────────────────────────╯</pre>
+              <div class="reward-receipt"><strong class="zero">🪙 +0 asciicoins</strong> · límite diario de cuidados <strong>12/12</strong> · saldo <strong>62 asciicoins</strong> · <span class="gem">💎 50 asciigems</span></div>
+              <div class="components"><button class="discord-btn green">🍖 Alimentar</button><button class="discord-btn blue">🎮 Jugar</button><button class="discord-btn blue">🏋️ Entrenar</button><button class="discord-btn">🧼 Limpiar</button><button class="discord-btn">🔄 Actualizar</button><button class="discord-btn">🎒 Mochila</button><button class="discord-btn green">🛒 Tienda</button></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Competencia · recompensas del grupo</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 22:20</time></div>
+            <div class="message-body">
+              <h3>🏁 Podio</h3><p>🥇 <strong>Pelusa</strong> · 🥈 <strong>Chispa</strong> · 🥉 <strong>Brote</strong></p>
+              <pre class="ascii" aria-label="Podio ASCII">╭──────────────────────────╮
+│ PODIO             CARRERA │
+├──────────────────────────┤
+│          (^v^)           │
+│   (*_*)  ┌───┐    (o.o)  │
+│   ┌───┐  │ 1 │    ┌───┐  │
+│   │ 2 │  │···│    │ 3 │  │
+╰──────────────────────────╯</pre>
+              <div class="ledger-lines" aria-label="Recompensas de la competencia">
+                <p class="ledger-line"><span class="mention">@Luna</span> <strong class="coin">🪙 +6 asciicoins</strong> <span class="subtext">(+4 participar · +2 ganar) · 2/3 premiadas · saldo 57</span></p>
+                <p class="ledger-line"><span class="mention">@Nico</span> <strong class="coin">🪙 +4 asciicoins</strong> <span class="subtext">por participar · 1/3 premiadas · saldo 54</span></p>
+                <p class="ledger-line"><span class="mention">@Sol</span> <strong class="zero">🪙 +0 asciicoins</strong> <span class="subtext">límite diario 3/3 · saldo 66</span></p>
+              </div>
+            </div>
+          </article>
+
+          <div class="scene-label">Tienda · efímero</div>
+          <article class="ephemeral">
+            <div class="ephemeral-label">Solo tú puedes ver esto · <strong>Descartar mensaje</strong></div>
+            <h3>🛒 Tienda</h3>
+            <p>Tienes <strong class="coin">🪙 62 asciicoins</strong> · <span class="gem">💎 50 asciigems</span>.</p>
+            <p class="subtext">La tienda cobra solo asciicoins. Elige abajo lo que quieras comprar.</p>
+            <button class="select-like" aria-haspopup="listbox">¿Qué compras? <span>⌄</span></button>
+            <div class="menu-open" role="listbox" aria-label="Opciones de tienda">
+              <div class="option" role="option"><strong>💪 Poción de fuerza 1d4</strong><span class="price">🪙 8</span><small>+1d4 de fuerza durante 5 min.</small></div>
+              <div class="option" role="option"><strong>💨 Poción de velocidad 1d6</strong><span class="price">🪙 12</span><small>+1d6 de velocidad durante 5 min.</small></div>
+              <div class="option" role="option"><strong>🧃 Poción de comida</strong><span class="price">🪙 10</span><small>Deja el hambre a 100.</small></div>
+              <div class="option" role="option"><strong>📣 Silbato del entrenador</strong><span class="price">🪙 20</span><small>Deja entrenar otra vez ya.</small></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Mochila · efímero</div>
+          <article class="ephemeral">
+            <div class="ephemeral-label">Solo tú puedes ver esto · <strong>Descartar mensaje</strong></div>
+            <h3>🎒 Mochila</h3><p>🧃 <strong>Poción de comida</strong> ×2<br>📣 <strong>Silbato del entrenador</strong> ×1</p>
+            <p class="subtext">Monedero: <span class="coin">🪙 62 asciicoins</span> · <span class="gem">💎 50 asciigems</span>. Elige abajo para usar.</p>
+            <button class="select-like">¿Qué usas? <span>⌄</span></button>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- VARIANTE B -->
+  <main class="variant variant-b" aria-labelledby="title-b">
+    <section class="variant-intro">
+      <div class="rationale">
+        <h2 id="title-b">B · Monedero primero</h2>
+        <p>Una franja estable pone <strong>los dos saldos y el contador diario antes del resultado</strong>. Maximiza aprendizaje y comparación, a costa de convertir cada acción en una consulta de economía.</p>
+      </div>
+      <div class="pattern-note">
+        <p><strong>Patrón:</strong> columnas fijas con títulos semánticos: «para gastar», «reserva» y «premios de hoy».</p>
+        <p class="mini-rule">Evolución actualiza la franja a 🪙 +10 · 1/1; una segunda muestra 🪙 +0 · 1/1.</p>
+      </div>
+    </section>
+
+    <section class="discord-shell" aria-label="Mockup de Discord, variante B">
+      <aside class="guild-rail" aria-hidden="true"><div class="guild-dot">🐣</div><div class="guild-dot dim">🎲</div><div class="guild-dot dim">🌿</div></aside>
+      <aside class="channel-side" aria-hidden="true"><div class="server-title">Gachamones</div><div class="channel-list"><div class="channel-group">Criaturas</div><div class="channel active">gachamones</div><div class="channel">charla</div><div class="channel">resultados <span class="badge">2</span></div></div></aside>
+      <div class="chat">
+        <div class="chat-head"><span class="hash">#</span> gachamones <small>Cuida, compite y evoluciona</small></div>
+        <div class="messages">
+          <div class="scene-label">Cuidado · recompensa</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 18:42</time></div>
+            <div class="message-body">
+              <h3>🐥 Pelusa ♀️</h3>
+              <div class="wallet-banner" aria-label="Monedero y progreso diario">
+                <div class="wallet-cell"><span>Para gastar</span><strong class="coin">🪙 51 asciicoins</strong></div>
+                <div class="wallet-cell"><span>Reserva</span><strong class="gem">💎 50 asciigems</strong></div>
+                <div class="wallet-cell today"><span>Cuidados hoy</span><strong>1/12 · <b class="coin">+1</b></strong></div>
+              </div>
+              <p class="quote">🎮 <strong>Pelusa</strong> se lo pasa en grande contigo.</p>
+              <pre class="ascii" aria-label="Pantalla ASCII de Pelusa">╭──────────────────────────╮
+│            _             │
+│           (,)            │
+│          (^v^)           │
+│         &lt;(   )&gt;          │
+│           ^ ^            │
+├──────────────────────────┤
+│ COMIDA  <span class="green">███████████░</span>  88 │
+│ ANIMO   <span class="green">████████████</span> 100 │
+│ ASEO    <span class="green">████████░░░░</span>  70 │
+├──────────────────────────┤
+│ FUE 11   VEL 21   SAL 11 │
+╰──────────────────────────╯</pre>
+              <div class="components"><button class="discord-btn green">🍖 Alimentar</button><button class="discord-btn blue">🎮 Jugar</button><button class="discord-btn blue">🏋️ Entrenar</button><button class="discord-btn">🧼 Limpiar</button><button class="discord-btn">🔄 Actualizar</button><button class="discord-btn">🎒 Mochila</button><button class="discord-btn green">🛒 Tienda</button></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Cuidado · límite alcanzado</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 22:08</time></div>
+            <div class="message-body">
+              <h3>🐥 Pelusa ♀️</h3>
+              <div class="wallet-banner"><div class="wallet-cell"><span>Para gastar</span><strong class="coin">🪙 62 asciicoins</strong></div><div class="wallet-cell"><span>Reserva</span><strong class="gem">💎 50 asciigems</strong></div><div class="wallet-cell today"><span>Cuidados hoy</span><strong class="zero">12/12 · +0</strong></div></div>
+              <p class="quote">🍖 <strong>Pelusa</strong> come con ganas. <span class="zero">El límite solo detiene la recompensa.</span></p>
+              <pre class="ascii" aria-label="Pantalla ASCII resumida">╭──────────────────────────╮
+│          (^v^)           │
+├──────────────────────────┤
+│ COMIDA  <span class="green">████████████</span> 100 │
+│ ANIMO   <span class="green">██████████░░</span>  84 │
+│ ASEO    <span class="green">████████░░░░</span>  70 │
+╰──────────────────────────╯</pre>
+              <div class="components"><button class="discord-btn green">🍖 Alimentar</button><button class="discord-btn blue">🎮 Jugar</button><button class="discord-btn blue">🏋️ Entrenar</button><button class="discord-btn">🧼 Limpiar</button><button class="discord-btn">🔄 Actualizar</button><button class="discord-btn">🎒 Mochila</button><button class="discord-btn green">🛒 Tienda</button></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Competencia · recompensas antes del podio</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 22:20</time></div>
+            <div class="message-body">
+              <div class="reward-panel">
+                <div class="reward-panel-title">Asciicoins repartidos · máximo 3 competencias al día</div>
+                <div class="reward-grid"><span><span class="mention">@Luna</span> · participación + victoria</span><strong class="coin">🪙 +6</strong><span>2/3</span><span><span class="mention">@Nico</span> · participación</span><strong class="coin">🪙 +4</strong><span>1/3</span><span><span class="mention">@Sol</span> · participación</span><strong class="zero">🪙 +0</strong><span class="cap">límite 3/3</span></div>
+              </div>
+              <h3>🏁 Podio</h3><p>🥇 <strong>Pelusa</strong> · 🥈 <strong>Chispa</strong> · 🥉 <strong>Brote</strong></p>
+              <pre class="ascii" aria-label="Podio ASCII">╭──────────────────────────╮
+│ PODIO             CARRERA │
+├──────────────────────────┤
+│          (^v^)           │
+│   (*_*)  ┌───┐    (o.o)  │
+│   ┌───┐  │ 1 │    ┌───┐  │
+│   │ 2 │  │···│    │ 3 │  │
+╰──────────────────────────╯</pre>
+            </div>
+          </article>
+
+          <div class="scene-label">Tienda · efímero</div>
+          <article class="ephemeral">
+            <div class="ephemeral-label">Solo tú puedes ver esto · <strong>Descartar mensaje</strong></div>
+            <h3>🛒 Tienda</h3>
+            <div class="wallet-banner"><div class="wallet-cell"><span>Se cobra de</span><strong class="coin">🪙 62 asciicoins</strong></div><div class="wallet-cell"><span>No se usa aquí</span><strong class="gem">💎 50 asciigems</strong></div><div class="wallet-cell today"><span>Conversión</span><strong>No disponible</strong></div></div>
+            <button class="select-like">¿Qué compras con asciicoins? <span>⌄</span></button>
+            <div class="menu-open" role="listbox" aria-label="Opciones de tienda"><div class="option" role="option"><strong>💪 Poción de fuerza 1d4</strong><span class="price">🪙 8 asciicoins</span><small>+1d4 de fuerza durante 5 min.</small></div><div class="option" role="option"><strong>💨 Poción de velocidad 1d6</strong><span class="price">🪙 12 asciicoins</span><small>+1d6 de velocidad durante 5 min.</small></div><div class="option" role="option"><strong>🧃 Poción de comida</strong><span class="price">🪙 10 asciicoins</span><small>Deja el hambre a 100.</small></div></div>
+          </article>
+
+          <div class="scene-label">Mochila · efímero</div>
+          <article class="ephemeral">
+            <div class="ephemeral-label">Solo tú puedes ver esto · <strong>Descartar mensaje</strong></div><h3>🎒 Mochila</h3>
+            <div class="wallet-banner"><div class="wallet-cell"><span>Para gastar</span><strong class="coin">🪙 62 asciicoins</strong></div><div class="wallet-cell"><span>Reserva</span><strong class="gem">💎 50 asciigems</strong></div><div class="wallet-cell today"><span>Objetos</span><strong>3 unidades</strong></div></div>
+            <p>🧃 <strong>Poción de comida</strong> ×2<br>📣 <strong>Silbato del entrenador</strong> ×1</p><button class="select-like">¿Qué usas? <span>⌄</span></button>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- VARIANTE C -->
+  <main class="variant variant-c" aria-labelledby="title-c">
+    <section class="variant-intro">
+      <div class="rationale">
+        <h2 id="title-c">C · Divulgación por contexto</h2>
+        <p>Lo público muestra solo <strong>lo que acaba de ganarse en asciicoins</strong> y el límite relevante. Los dos saldos aparecen juntos únicamente en Tienda y Mochila, con sus roles: <strong>«para comprar»</strong> y <strong>«reserva»</strong>. Máxima claridad con mínima repetición.</p>
+      </div>
+      <div class="pattern-note">
+        <p><strong>Patrón:</strong> en resultados, 🪙 siempre significa ingreso; en Tienda, 🪙 siempre significa saldo o coste. 💎 nunca aparece junto a un verbo de compra.</p>
+        <p class="mini-rule">Evolución: <span class="coin">🪙 +10 asciicoins · 1/1 hoy</span>; tras el límite: <span class="zero">🪙 +0 · evolución 1/1</span>.</p>
+      </div>
+    </section>
+
+    <section class="discord-shell" aria-label="Mockup de Discord, variante C">
+      <aside class="guild-rail" aria-hidden="true"><div class="guild-dot">🐣</div><div class="guild-dot dim">🎲</div><div class="guild-dot dim">🌿</div></aside>
+      <aside class="channel-side" aria-hidden="true"><div class="server-title">Gachamones</div><div class="channel-list"><div class="channel-group">Criaturas</div><div class="channel active">gachamones</div><div class="channel">charla</div><div class="channel">resultados <span class="badge">2</span></div></div></aside>
+      <div class="chat">
+        <div class="chat-head"><span class="hash">#</span> gachamones <small>Cuida, compite y evoluciona</small></div>
+        <div class="messages">
+          <div class="scene-label">Cuidado · recompensa</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 18:42</time></div>
+            <div class="message-body">
+              <h3>🐥 Pelusa ♀️</h3><p class="subtext">Pollito · alegre · adulta · nivel 3 · 4V-1D · 2 días de vida</p>
+              <p class="quote">🎮 <strong>Pelusa</strong> se lo pasa en grande contigo.</p>
+              <pre class="ascii" aria-label="Pantalla ASCII de Pelusa">╭──────────────────────────╮
+│            _             │
+│           (,)            │
+│          (^v^)           │
+│         &lt;(   )&gt;          │
+│           ^ ^            │
+├──────────────────────────┤
+│ COMIDA  <span class="green">███████████░</span>  88 │
+│ ANIMO   <span class="green">████████████</span> 100 │
+│ ASEO    <span class="green">████████░░░░</span>  70 │
+├──────────────────────────┤
+│ FUE 11   VEL 21   SAL 11 │
+├──────────────────────────┤
+│ EXP  <span class="cyan">█████░░░░░</span>    53/100 │
+╰──────────────────────────╯</pre>
+              <p class="earning-line"><strong class="coin">🪙 +1 asciicoin</strong> · cuidado premiado 1/12 hoy</p>
+              <div class="components"><button class="discord-btn green">🍖 Alimentar</button><button class="discord-btn blue">🎮 Jugar</button><button class="discord-btn blue">🏋️ Entrenar</button><button class="discord-btn">🧼 Limpiar</button><button class="discord-btn">🔄 Actualizar</button><button class="discord-btn">🎒 Mochila</button><button class="discord-btn green">🛒 Tienda</button></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Cuidado · límite alcanzado</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 22:08</time></div>
+            <div class="message-body">
+              <h3>🐥 Pelusa ♀️</h3><p class="subtext">Pollito · alegre · adulta · nivel 3</p>
+              <p class="quote">🍖 <strong>Pelusa</strong> come con ganas.</p>
+              <pre class="ascii" aria-label="Pantalla ASCII resumida">╭──────────────────────────╮
+│          (^v^)           │
+├──────────────────────────┤
+│ COMIDA  <span class="green">████████████</span> 100 │
+│ ANIMO   <span class="green">██████████░░</span>  84 │
+│ ASEO    <span class="green">████████░░░░</span>  70 │
+╰──────────────────────────╯</pre>
+              <p class="earning-line"><strong class="zero">🪙 +0 asciicoins</strong> · límite de cuidados 12/12 por hoy · la acción sí se realizó</p>
+              <div class="components"><button class="discord-btn green">🍖 Alimentar</button><button class="discord-btn blue">🎮 Jugar</button><button class="discord-btn blue">🏋️ Entrenar</button><button class="discord-btn">🧼 Limpiar</button><button class="discord-btn">🔄 Actualizar</button><button class="discord-btn">🎒 Mochila</button><button class="discord-btn green">🛒 Tienda</button></div>
+            </div>
+          </article>
+
+          <div class="scene-label">Competencia · resultado primero</div>
+          <article class="message">
+            <div class="avatar" aria-hidden="true">🤖</div><div class="message-head"><span class="author">Gachamon</span><span class="bot-tag">APP</span><time>hoy a las 22:20</time></div>
+            <div class="message-body">
+              <h3>🏁 Podio</h3><p>🥇 <strong>Pelusa</strong> · 🥈 <strong>Chispa</strong> · 🥉 <strong>Brote</strong></p>
+              <pre class="ascii" aria-label="Podio ASCII">╭──────────────────────────╮
+│ PODIO             CARRERA │
+├──────────────────────────┤
+│          (^v^)           │
+│   (*_*)  ┌───┐    (o.o)  │
+│   ┌───┐  │ 1 │    ┌───┐  │
+│   │ 2 │  │···│    │ 3 │  │
+╰──────────────────────────╯</pre>
+              <p class="competition-receipt"><strong>Recompensas:</strong> <span class="mention">@Luna</span> <b class="coin">🪙 +6</b> (participar +4 · ganar +2 · 2/3) · <span class="mention">@Nico</span> <b class="coin">🪙 +4</b> (1/3)<br><span class="mention">@Sol</span> <b class="zero">🪙 +0</b> · límite de competencias 3/3 por hoy</p>
+            </div>
+          </article>
+
+          <div class="scene-label">Tienda · efímero</div>
+          <article class="ephemeral">
+            <div class="ephemeral-label">Solo tú puedes ver esto · <strong>Descartar mensaje</strong></div>
+            <h3>🛒 Tienda</h3>
+            <div class="spend-balance"><span>Disponible para comprar</span><br><strong>🪙 62 asciicoins</strong></div>
+            <p class="reserve-line">💎 50 asciigems en reserva · no se usan en la Tienda</p>
+            <button class="select-like">¿Qué compras? <span>⌄</span></button>
+            <div class="menu-open" role="listbox" aria-label="Opciones de tienda"><div class="option" role="option"><strong>💪 Poción de fuerza 1d4</strong><span class="price">🪙 8 asciicoins</span><small>+1d4 de fuerza durante 5 min.</small></div><div class="option" role="option"><strong>💨 Poción de velocidad 1d6</strong><span class="price">🪙 12 asciicoins</span><small>+1d6 de velocidad durante 5 min.</small></div><div class="option" role="option"><strong>🧃 Poción de comida</strong><span class="price">🪙 10 asciicoins</span><small>Deja el hambre a 100.</small></div><div class="option" role="option"><strong>📣 Silbato del entrenador</strong><span class="price">🪙 20 asciicoins</span><small>Deja entrenar otra vez ya.</small></div></div>
+          </article>
+
+          <div class="scene-label">Mochila · efímero</div>
+          <article class="ephemeral">
+            <div class="ephemeral-label">Solo tú puedes ver esto · <strong>Descartar mensaje</strong></div><h3>🎒 Mochila</h3>
+            <p>🧃 <strong>Poción de comida</strong> ×2<br>📣 <strong>Silbato del entrenador</strong> ×1</p>
+            <p class="subtext"><span class="coin">🪙 62 asciicoins para la Tienda</span> · <span class="gem">💎 50 asciigems en reserva</span></p>
+            <button class="select-like">¿Qué usas? <span>⌄</span></button>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="switcher-wrap" aria-label="Cambiar variante">
+    <button type="button" data-cycle="-1" aria-label="Variante anterior">←</button>
+    <div class="variant-label" aria-live="polite"><span data-current-label></span><small data-current-detail></small></div>
+    <button type="button" data-cycle="1" aria-label="Variante siguiente">→</button>
+  </nav>
+
+  <script>
+    (() => {
+      const variants = [
+        { key: 'A', label: 'A · Recibo contextual', detail: 'evento + monedero' },
+        { key: 'B', label: 'B · Monedero primero', detail: 'saldos primero' },
+        { key: 'C', label: 'C · Divulgación por contexto', detail: 'mínima repetición' },
+      ];
+      const initial = new URLSearchParams(window.location.search).get('variant');
+      let index = Math.max(0, variants.findIndex(({ key }) => key === initial));
+
+      function show(nextIndex) {
+        index = (nextIndex + variants.length) % variants.length;
+        const variant = variants[index];
+        document.body.dataset.activeVariant = variant.key;
+        document.querySelector('[data-current-label]').textContent = variant.label;
+        document.querySelector('[data-current-detail]').textContent = variant.detail;
+        const url = new URL(window.location.href);
+        url.searchParams.set('variant', variant.key);
+        history.replaceState(null, '', url);
+        document.title = `Variante ${variant.key} · Monedero Discord · Prototipo desechable`;
+      }
+
+      document.querySelectorAll('[data-cycle]').forEach((button) => {
+        button.addEventListener('click', () => show(index + Number(button.dataset.cycle)));
+      });
+      document.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        if (event.target.closest('input, textarea, [contenteditable]')) return;
+        show(index + (event.key === 'ArrowLeft' ? -1 : 1));
+      });
+      show(index);
+    })();
+  </script>
+</body>
+</html>
