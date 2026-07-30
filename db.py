@@ -334,11 +334,17 @@ def _a_valores(criatura: sim.Criatura) -> dict:
 def criatura_activa(usuario_id: str, guild_id: str) -> sim.Criatura | None:
     """La que recibe los comandos y los botones. Puede haber otras esperando."""
     with conectar() as con:
-        fila = con.execute(
-            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
-            "AND muerta_en IS NULL AND activa = 1",
-            (usuario_id, guild_id),
-        ).fetchone()
+        return criatura_activa_en(con, usuario_id, guild_id)
+
+
+def criatura_activa_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> sim.Criatura | None:
+    fila = con.execute(
+        "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+        "AND muerta_en IS NULL AND activa = 1",
+        (usuario_id, guild_id),
+    ).fetchone()
     return _a_criatura(fila) if fila else None
 
 
@@ -557,72 +563,30 @@ def pendientes_de_aviso(ahora: datetime) -> list[sim.Criatura]:
 
 # --- Cooldowns -------------------------------------------------------------
 
-def ejecutar_cuidado(
-    usuario_id: str, guild_id: str, accion: str, ahora: datetime
-) -> sim.ResultadoAccion | None:
-    """Ejecuta un cuidado completo contra el estado vivo de SQLite.
-
-    ``BEGIN IMMEDIATE`` toma el turno de escritura antes de leer. De ese modo
-    dos clics concurrentes no pueden calcular efectos desde la misma criatura:
-    el segundo ve el estado y el cooldown que dejó el primero. Toda la operación
-    es síncrona y termina antes de que la vista vuelva a hacer ``await``.
-
-    Devuelve ``None`` si la persona ya no tiene criatura viva. Los demás estados
-    (muerte al avanzar, cooldown, rechazo de dominio y éxito) usan el resultado
-    público de la simulación; ``espera`` distingue el cooldown.
-    """
-    with conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        fila = con.execute(
-            "SELECT * FROM criaturas "
-            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
-            (usuario_id, guild_id),
-        ).fetchone()
-        if fila is None:
-            return None
-
-        criatura = sim.avanzar(_a_criatura(fila), ahora)
-        if not criatura.viva:
-            _guardar(con, criatura)
-            return sim.ResultadoAccion(
-                criatura, "Tu criatura ya no está entre nosotros.", ok=False
-            )
-
-        fila_cooldown = con.execute(
-            "SELECT hasta FROM cooldowns WHERE criatura_id = ? AND accion = ?",
-            (criatura.id, accion),
-        ).fetchone()
-        espera = timedelta(0)
-        if fila_cooldown:
-            espera = max(
-                timedelta(0), datetime.fromisoformat(fila_cooldown["hasta"]) - ahora
-            )
-        if espera and not sim.puede_saltarse_espera(criatura, accion):
-            _guardar(con, criatura)
-            return sim.ResultadoAccion(criatura, "", ok=False, espera=espera)
-
-        resultado = sim.aplicar_accion(criatura, accion, ahora)
-        _guardar(con, resultado.criatura)
-        if resultado.ok:
-            duracion = sim.COOLDOWNS.get(accion, timedelta(0))
-            if duracion:
-                con.execute(
-                    "INSERT INTO cooldowns (criatura_id, accion, hasta) "
-                    "VALUES (?, ?, ?) ON CONFLICT(criatura_id, accion) "
-                    "DO UPDATE SET hasta = excluded.hasta",
-                    (criatura.id, accion, (ahora + duracion).isoformat()),
-                )
-        return resultado
-
-def espera_de(criatura_id: int, accion: str, ahora: datetime) -> timedelta:
-    with conectar() as con:
-        fila = con.execute(
-            "SELECT hasta FROM cooldowns WHERE criatura_id = ? AND accion = ?",
-            (criatura_id, accion),
-        ).fetchone()
+def espera_en(
+    con: sqlite3.Connection, criatura_id: int, accion: str, ahora: datetime
+) -> timedelta:
+    fila = con.execute(
+        "SELECT hasta FROM cooldowns WHERE criatura_id = ? AND accion = ?",
+        (criatura_id, accion),
+    ).fetchone()
     if not fila:
         return timedelta(0)
     return max(timedelta(0), datetime.fromisoformat(fila["hasta"]) - ahora)
+
+
+def poner_cooldown_en(
+    con: sqlite3.Connection, criatura_id: int, accion: str, hasta: datetime
+) -> None:
+    con.execute(
+        "INSERT INTO cooldowns (criatura_id, accion, hasta) VALUES (?, ?, ?) "
+        "ON CONFLICT(criatura_id, accion) DO UPDATE SET hasta = excluded.hasta",
+        (criatura_id, accion, hasta.isoformat()),
+    )
+
+def espera_de(criatura_id: int, accion: str, ahora: datetime) -> timedelta:
+    with conectar() as con:
+        return espera_en(con, criatura_id, accion, ahora)
 
 
 def esperas(criatura_id: int, ahora: datetime) -> dict[str, timedelta]:
@@ -644,11 +608,7 @@ def poner_cooldown(criatura_id: int, accion: str, ahora: datetime) -> None:
     if not duracion:
         return
     with conectar() as con:
-        con.execute(
-            "INSERT INTO cooldowns (criatura_id, accion, hasta) VALUES (?, ?, ?) "
-            "ON CONFLICT(criatura_id, accion) DO UPDATE SET hasta = excluded.hasta",
-            (criatura_id, accion, (ahora + duracion).isoformat()),
-        )
+        poner_cooldown_en(con, criatura_id, accion, ahora + duracion)
 
 
 def quitar_cooldown(criatura_id: int, accion: str) -> None:
