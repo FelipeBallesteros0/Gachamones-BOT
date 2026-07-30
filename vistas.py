@@ -67,9 +67,6 @@ class PantallaView(discord.ui.View):
         await _ejecutar(interaccion, sim.ACTUALIZAR)
 
 
-LARGO_MAXIMO_NOMBRE = 24
-
-
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):
     """Bautizo. La criatura ya existe: esto sólo le cambia el nombre."""
 
@@ -80,13 +77,19 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
             default=nombre_actual,
             placeholder="Pelusa",
             min_length=1,
-            max_length=LARGO_MAXIMO_NOMBRE,
         )
         self.add_item(self.nombre)
 
     async def on_submit(self, interaccion: discord.Interaction) -> None:
+        try:
+            nombre = sim.normalizar_nombre(str(self.nombre))
+        except ValueError as error:
+            await interaccion.response.send_message(
+                f"Nombre no válido. {error}", ephemeral=True
+            )
+            return
+
         ahora = db.ahora_utc()
-        nombre = str(self.nombre).strip()
 
         criatura = db.criatura_viva(str(interaccion.user.id), str(interaccion.guild_id))
         if criatura is None:
@@ -94,12 +97,6 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
                 "Ya no tienes ninguna criatura viva.", ephemeral=True
             )
             return
-        if not nombre:
-            await interaccion.response.send_message(
-                "Ese nombre está vacío. Prueba otra vez.", ephemeral=True
-            )
-            return
-
         criatura = replace(sim.avanzar(criatura, ahora), nombre=nombre)
         db.guardar(criatura)
 
@@ -166,34 +163,31 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         )
         return
 
-    criatura = db.criatura_viva(usuario_id, guild_id)
-    if criatura is None:
+    # Esta llamada síncrona es la frontera autoritativa: lee el estado vivo,
+    # avanza el tiempo, decide el cooldown y guarda efecto + cooldown en una sola
+    # transacción. No se hace ningún await hasta que SQLite ha terminado.
+    resultado = db.ejecutar_cuidado(usuario_id, guild_id, accion, ahora)
+    if resultado is None:
         await interaccion.response.send_message(
             "No tienes ninguna criatura viva. Empieza con `/huevo`.", ephemeral=True
         )
         return
 
-    criatura = sim.avanzar(criatura, ahora)
-    if not criatura.viva:
-        db.guardar(criatura)
+    if not resultado.criatura.viva:
         await _congelar_pulsada(interaccion)
-        await interaccion.channel.send(pantalla.render(criatura, ahora))
+        await interaccion.channel.send(pantalla.render(resultado.criatura, ahora))
         return
 
-    espera = db.espera_de(criatura.id, accion, ahora)
-    if espera.total_seconds() > 0 and not sim.puede_saltarse_espera(criatura, accion):
+    if resultado.espera:
         await interaccion.response.send_message(
-            f"Todavía no. Vuelve en {pantalla.formato_espera(espera)}.", ephemeral=True
+            f"Todavía no. Vuelve en {pantalla.formato_espera(resultado.espera)}.",
+            ephemeral=True,
         )
         return
 
-    resultado = sim.aplicar_accion(criatura, accion, ahora)
     if not resultado.ok:
         await interaccion.response.send_message(resultado.mensaje, ephemeral=True)
         return
-
-    db.guardar(resultado.criatura)
-    db.poner_cooldown(resultado.criatura.id, accion, ahora)
 
     await _congelar_pulsada(interaccion)
 

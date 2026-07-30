@@ -76,10 +76,15 @@ guardado o cuyo canal ya no existe.
 ### 3. Arrancar en local
 
 ```bash
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+python3.12 -m venv venv              # Python 3.14 también está soportado
+./venv/bin/python -m pip install -r requirements.txt
 ./venv/bin/python bot.py
 ```
+
+`requirements.txt` contiene sólo las dependencias directas de producción con
+versiones exactas; `requirements-dev.txt` añade pytest para desarrollo y CI. Las
+dependencias transitivas siguen bajo el resolvedor de pip: este primer paso hace
+reproducibles las dependencias directas, pero no es un lock transitivo con hashes.
 
 ### 4. Desplegar en la Raspberry
 
@@ -274,8 +279,12 @@ Dos decisiones más que explican el resto del diseño:
 ## Tests
 
 ```bash
+./venv/bin/python -m pip install -r requirements-dev.txt
 ./venv/bin/python -m pytest tests/ -q
 ```
+
+GitHub Actions ejecuta la suite completa con las dos versiones soportadas de
+Python, 3.12 y 3.14, en cada `push` y `pull_request`.
 
 Cubren la distribución de rarezas y del 2d6, la curva de decaimiento y el
 momento exacto de la muerte, las estadísticas, la resolución de competencias con

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import random
+import unicodedata
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
@@ -88,6 +89,31 @@ COOLDOWNS = {
 
 # Sólo estas cuatro salen en el subtexto de la pantalla.
 ACCIONES_DE_CUIDADO = (ALIMENTAR, JUGAR, ENTRENAR, LIMPIAR)
+
+LARGO_MAXIMO_NOMBRE = 24
+
+
+def normalizar_nombre(nombre: str) -> str:
+    """Valida y normaliza un nombre antes de mostrarlo en Discord.
+
+    Los nombres son Unicode y no se restringen a un alfabeto concreto. Sólo se
+    excluyen caracteres que puedan controlar o suplantar la salida del bot.
+    """
+    if any(unicodedata.category(caracter).startswith("C") for caracter in nombre):
+        raise ValueError("El nombre no puede contener caracteres de control.")
+
+    normalizado = " ".join(nombre.split())
+    if not normalizado:
+        raise ValueError("El nombre está vacío.")
+    if len(normalizado) > LARGO_MAXIMO_NOMBRE:
+        raise ValueError(
+            f"El nombre no puede tener más de {LARGO_MAXIMO_NOMBRE} caracteres."
+        )
+    if "@" in normalizado:
+        raise ValueError("El nombre no puede contener menciones ni el signo @.")
+    if "`" in normalizado or "*" in normalizado:
+        raise ValueError("El nombre no puede contener delimitadores de Markdown (* o `).")
+    return normalizado
 
 # Cuidar también hace crecer, para que quien no quiera competir pueda ver
 # evolucionar a su criatura igualmente. Los enfriamientos de arriba topan la
