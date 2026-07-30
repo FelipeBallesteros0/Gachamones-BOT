@@ -1,0 +1,10 @@
+# El token vive aquí. Nunca se sube.
+.env
+
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Las mascotas de cada servidor.
+*.db

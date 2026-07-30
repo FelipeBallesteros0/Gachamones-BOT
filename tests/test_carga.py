@@ -1,0 +1,451 @@
+"""Smoke test de la capa de Discord: los cogs cargan y los comandos existen.
+
+No se conecta a ninguna parte. Sirve para cazar lo que los tests de lógica no
+ven: un decorador mal puesto, dos comandos con el mismo nombre, un custom_id
+repetido o un import roto en un cog.
+"""
+import asyncio
+from datetime import datetime, timedelta, timezone
+
+import discord
+import pytest
+from discord.ext import commands
+
+import bot as modulo_bot
+import db
+import simulacion as sim
+from vistas import NombrarView, PantallaView
+
+COMANDOS_ESPERADOS = {
+    "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
+    "jardin",
+}
+
+
+@pytest.fixture
+def bd_temporal(tmp_path, monkeypatch):
+    """Para los tests de este fichero que sí consultan enfriamientos. No es
+    `autouse` porque el resto son smoke tests que no tocan la base de datos."""
+    monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
+    db.inicializar()
+
+
+def _cargar_todo():
+    async def arrancar():
+        cliente = commands.Bot(
+            command_prefix="!", intents=discord.Intents.none(), help_command=None
+        )
+        for extension in modulo_bot.EXTENSIONES:
+            await cliente.load_extension(extension)
+        cliente.add_view(PantallaView())
+        cliente.add_view(NombrarView())
+        nombres = {c.name for c in cliente.tree.get_commands()}
+        # Descargar para que el bucle de muerte no quede suelto.
+        for extension in reversed(modulo_bot.EXTENSIONES):
+            await cliente.unload_extension(extension)
+        return nombres
+
+    return asyncio.run(arrancar())
+
+
+def test_todos_los_cogs_cargan_y_registran_sus_comandos():
+    assert _cargar_todo() == COMANDOS_ESPERADOS
+
+
+def test_los_botones_de_la_pantalla_son_persistentes():
+    """Sin timeout y con custom_id fijo siguen funcionando tras un reinicio."""
+    vista = PantallaView()
+    assert vista.timeout is None
+    assert len(vista.children) == 5
+
+    ids = [hijo.custom_id for hijo in vista.children]
+    assert all(i and i.startswith("tama:") for i in ids)
+    assert len(set(ids)) == len(ids)
+
+
+def test_hay_un_boton_por_accion():
+    acciones = {i.custom_id.split(":", 1)[1] for i in PantallaView().children}
+    assert acciones == set(sim.ACCIONES_DE_CUIDADO) | {sim.ACTUALIZAR}
+
+
+def test_no_se_procesan_comandos_de_texto():
+    """Regresión: con la mención como prefijo, `@Gachamon cómo estás` se
+    interpretaba también como el comando «cómo» y llenaba el registro de
+    CommandNotFound. El bot sólo tiene slash commands."""
+    import inspect
+
+    fuente = inspect.getsource(modulo_bot.Tamagotchi.on_message)
+    assert "process_commands" not in fuente
+
+
+def test_la_charla_sigue_recibiendo_mensajes():
+    """El listener del cog va por `extra_events`, no por `Bot.on_message`, así
+    que anular el procesado de comandos no lo desactiva."""
+    async def comprobar():
+        cliente = commands.Bot(
+            command_prefix="!", intents=discord.Intents.none(), help_command=None
+        )
+        await cliente.load_extension("cogs.charla")
+        # Hay que contar ANTES de descargar: `extra_events` guarda la lista y
+        # `unload_extension` la vacía en el sitio.
+        cuantos = len(cliente.extra_events.get("on_message", []))
+        await cliente.unload_extension("cogs.charla")
+        return cuantos
+
+    assert asyncio.run(comprobar()) == 1
+
+
+def test_la_charla_no_necesita_el_intent_privilegiado():
+    """Se va por menciones justamente para no tener que activar Message
+    Content: Discord entrega el texto de los mensajes que mencionan al bot
+    aunque ese intent esté apagado."""
+    import discord
+
+    intents = discord.Intents.default()
+    assert not intents.message_content
+    assert intents.guild_messages  # hace falta para recibir el evento
+
+
+def test_no_queda_ningun_comando_de_depuracion():
+    """`/debug_tiempo` se quitó a propósito: manipulaba el reloj de la criatura
+    y no debe volver a colarse en producción."""
+    assert not any("debug" in nombre for nombre in _cargar_todo())
+
+
+def test_el_boton_de_nombrar_tambien_es_persistente():
+    """Entre salir del huevo y bautizarla puede reiniciarse el bot: el botón
+    tiene que seguir respondiendo."""
+    vista = NombrarView()
+    assert vista.timeout is None
+    assert len(vista.children) == 1
+    assert vista.children[0].custom_id == "tama:nombrar"
+
+
+def test_los_custom_id_no_chocan_entre_vistas():
+    todos = [h.custom_id for h in PantallaView().children]
+    todos += [h.custom_id for h in NombrarView().children]
+    assert len(set(todos)) == len(todos)
+
+
+def test_la_vista_congelada_no_acepta_clics():
+    for hijo in PantallaView(congelada=True).children:
+        assert hijo.disabled
+    for hijo in PantallaView().children:
+        assert not hijo.disabled
+
+
+# --- Concordancia de los mensajes de los cogs ------------------------------
+
+def criatura_de_prueba(**cambios) -> sim.Criatura:
+    base = dict(
+        id=1, usuario_id="u1", guild_id="g1", especie="chispa", nombre="Juan III",
+        nacida_en=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        actualizada_en=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        base_fuerza=15, base_velocidad=15, base_salud=15,
+    )
+    base.update(cambios)
+    return sim.Criatura(**base)
+
+
+def test_el_aviso_de_hambre_para_competir_concuerda():
+    """Vive en un cog, fuera del alcance del constructor de `ResultadoAccion`,
+    así que lleva su propia llamada a `concordar` y hay que vigilarla."""
+    import especies as esp
+    from cogs.competencias import _problema_para_competir
+
+    # Sin enfriamiento pendiente: así queda fijado que el hambre se avisa antes,
+    # que es lo accionable de las dos cosas.
+    el = _problema_para_competir(
+        criatura_de_prueba(hambre=5.0), "felipe", timedelta(0))
+    ella = _problema_para_competir(
+        criatura_de_prueba(hambre=5.0, genero=esp.HEMBRA), "felipe", timedelta(0))
+
+    assert "hambriento" in el and "{" not in el
+    assert "hambrienta" in ella and "{" not in ella
+
+
+# --- Competir frena a los dos ----------------------------------------------
+
+def test_el_aviso_de_recuperacion_dice_cuanto_falta():
+    from cogs.competencias import _problema_para_competir
+
+    aviso = _problema_para_competir(
+        criatura_de_prueba(), "felipe", timedelta(minutes=2))
+
+    assert aviso is not None
+    assert "Juan III" in aviso and "2 min" in aviso and "{" not in aviso
+
+
+def test_el_enfriamiento_de_competir_frena_a_todos(bd_temporal):
+    """Regresión: el enfriamiento se guardaba para las dos criaturas, pero sólo
+    se comprobaba el de quien retaba. Quien aceptaba podía pelear recién salido
+    de otra pelea, y por fuera parecía que no tenía enfriamiento ninguno.
+
+    Con carreras de hasta cinco esto cuenta más: basta con que **uno cualquiera**
+    del grupo esté recuperándose para que la carrera no salga."""
+    import db
+    from cogs.competencias import _problema_del_grupo
+
+    ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    criaturas = [
+        db.crear(f"u{i}", "g1", "pulpo", f"C{i}", (15, 15, 15), ahora)
+        for i in range(3)
+    ]
+    grupo = tuple((c, f"dueño de {c.nombre}") for c in criaturas)
+
+    assert _problema_del_grupo(grupo, ahora) is None
+
+    # El del último invitado cuenta igual que el de quien reta.
+    db.poner_cooldown(criaturas[-1].id, sim.COMPETIR, ahora)
+    problema = _problema_del_grupo(grupo, ahora)
+    assert problema is not None and "C2" in problema
+
+    # Y cuando caduca, los tres vuelven a poder.
+    assert _problema_del_grupo(
+        grupo, ahora + sim.COOLDOWNS[sim.COMPETIR]) is None
+
+
+class UsuarioFalso:
+    """Lo justo que le pide el cog a un `discord.User`."""
+
+    def __init__(self, id, bot=False):
+        self.id = id
+        self.bot = bot
+        self.display_name = f"u{id}"
+        self.mention = f"<@{id}>"
+
+
+def test_no_se_puede_invitar_al_mismo_dos_veces():
+    """Con cuatro huecos es fácil repetir sin darse cuenta, y una carrera con la
+    misma criatura dos veces no tiene sentido."""
+    from cogs.competencias import _invitados_validos
+
+    yo, ana, luis = UsuarioFalso(1), UsuarioFalso(2), UsuarioFalso(3)
+
+    invitados, problema = _invitados_validos(yo, (ana, luis, None, None))
+    assert problema is None
+    assert [u.id for u in invitados] == [2, 3]
+
+    assert _invitados_validos(yo, (ana, ana, None, None))[1] is not None
+    assert _invitados_validos(yo, (ana, yo, None, None))[1] is not None
+    assert _invitados_validos(yo, (ana, UsuarioFalso(9, bot=True), None, None))[1]
+    assert _invitados_validos(yo, (None, None, None, None))[1] is not None
+
+
+def test_solo_se_republica_la_ficha_de_quien_cambia():
+    """Una carrera de cinco publicaba cinco pantallas y eso llenaba el canal.
+    Competir siempre gasta hambre y ánimo, así que eso no puede contar: sólo
+    cuenta lo que se nota en la ficha, subir de nivel o evolucionar."""
+    from dataclasses import replace
+
+    from cogs.competencias import _ha_cambiado_la_ficha
+
+    antes = criatura_de_prueba(hambre=80.0, animo=80.0, nivel=2, xp=10)
+
+    gastada = replace(antes, hambre=70.0, animo=75.0, xp=14)
+    assert not _ha_cambiado_la_ficha(antes, gastada), "sólo ha competido"
+
+    subida = replace(antes, nivel=3, xp=0)
+    assert _ha_cambiado_la_ficha(antes, subida)
+
+    # Cambiar de etapa sin cambiar de número de nivel no pasa hoy, pero la regla
+    # no debería depender de eso.
+    evolucionada = replace(antes, nivel=antes.nivel, base_salud=99)
+    assert antes.etapa == evolucionada.etapa
+    assert not _ha_cambiado_la_ficha(antes, evolucionada)
+
+
+def reto_de(cuantos_invitados, tipo="carrera"):
+    from cogs.competencias import RetoView
+
+    yo = UsuarioFalso(1)
+    invitados = [UsuarioFalso(2 + i) for i in range(cuantos_invitados)]
+    vista = RetoView(None, yo, invitados, tipo, "g1", "cabecera")
+    return vista, yo, invitados
+
+
+def test_si_una_baja_deja_al_sumo_en_tres_no_se_juega():
+    """El sumo es de 2 o de 4, así que en un torneo la regla de «quien rechaza se
+    cae» choca con los números: quedarían tres y no hay forma de emparejar.
+
+    Sin esto, `enfrentar` levantaba un ValueError dentro del botón y el torneo se
+    moría con un traceback en el registro y ningún mensaje en el canal."""
+    vista, _, (ana, luis, sara) = reto_de(3, tipo="sumo")
+
+    vista.dentro += [ana, luis]
+    vista.fuera.append(sara)
+
+    assert vista.pendientes == []
+    assert len(vista.dentro) == 3
+    assert not vista.pueden_competir()
+    assert "2 o 4" in vista._cierre()
+
+
+def test_un_torneo_al_que_faltan_dos_se_juega_como_un_sumo_normal():
+    """Quedarse en dos sí vale: es un sumo de los de siempre."""
+    vista, _, (ana, luis, sara) = reto_de(3, tipo="sumo")
+
+    vista.dentro.append(ana)
+    vista.fuera += [luis, sara]
+
+    assert len(vista.dentro) == 2
+    assert vista.pueden_competir()
+    assert "vs" in vista._cierre()
+
+
+def test_en_la_carrera_cualquier_numero_entre_dos_y_cinco_vale():
+    for bajas in range(0, 3):
+        vista, _, invitados = reto_de(4)
+        vista.dentro += invitados[bajas:]
+        vista.fuera += invitados[:bajas]
+        assert vista.pueden_competir(), (bajas, len(vista.dentro))
+
+
+def test_quien_rechaza_se_cae_pero_la_carrera_sigue():
+    """La decisión de diseño: con hasta cuatro invitados, exigir el sí de todos
+    dejaría que uno solo bloqueara la carrera. Se corre con quien haya aceptado
+    mientras queden dos."""
+    vista, yo, (ana, luis) = reto_de(2)
+
+    assert [u.id for u in vista.pendientes] == [ana.id, luis.id]
+    assert vista.dentro == [yo], "quien reta corre de oficio"
+
+    vista.fuera.append(ana)
+    vista.dentro.append(luis)
+
+    assert vista.pendientes == []
+    assert [u.id for u in vista.dentro] == [yo.id, luis.id]
+    marcador = vista.marcador()
+    assert "❌ u2" in marcador and "✅ u3" in marcador
+    assert "vs" in vista._cierre()
+
+
+def test_si_no_llegan_a_dos_no_hay_carrera():
+    vista, _, (ana,) = reto_de(1)
+    vista.fuera.append(ana)
+
+    assert vista.pendientes == []
+    assert len(vista.dentro) < 2
+    assert "rechazado" in vista._cierre()
+
+
+# --- Lo que se manda tiene que caber ---------------------------------------
+
+LARGO_MAXIMO_MENSAJE = 2000  # tope de `content` en la API de Discord
+
+
+def test_cada_pagina_de_la_ayuda_cabe_en_un_mensaje():
+    """Regresión: `/ayuda` había crecido hasta 2046 caracteres y Discord la
+    rechazaba con un 400, así que el comando estaba roto sin que nadie lo notara.
+    Por eso va repartida en páginas, y el tope aplica a **cada mensaje**.
+
+    Se deja margen: los nombres de las personalidades y el del bot cambian, y
+    apurar el tope hasta el último carácter lo volvería a romper al añadir algo.
+    Si una página se queda sin sitio, la salida es partirla en otra más, no subir
+    el margen.
+    """
+    from cogs.social import paginas_de_ayuda
+
+    paginas = paginas_de_ayuda("Gachamon")
+    assert len(paginas) >= 2
+    for numero, pagina in enumerate(paginas, start=1):
+        assert len(pagina) <= LARGO_MAXIMO_MENSAJE * 0.95, (
+            f"la página {numero} mide {len(pagina)} caracteres y el tope de un "
+            f"mensaje es {LARGO_MAXIMO_MENSAJE}"
+        )
+
+
+def test_la_ayuda_habla_de_lo_que_hay():
+    """Que no se quede contando reglas viejas al repartirla en páginas."""
+    import competir as comp
+    from cogs.social import paginas_de_ayuda
+
+    texto = "\n".join(paginas_de_ayuda("Gachamon"))
+    for esperado in ("/huevo", "/carrera", "/sumo", "/jardin", "/ranking",
+                     "/cementerio", "podio", str(comp.MAX_CORREDORES)):
+        assert esperado in texto, esperado
+
+
+def test_la_ayuda_se_manda_en_varios_mensajes():
+    """La primera va en la respuesta a la interacción y el resto de seguimiento:
+    si alguien vuelve a juntarlas en una sola, Discord la rechazaría."""
+    import cogs.social as social
+
+    enviados = []
+
+    class Respuesta:
+        async def send_message(self, contenido, **kw):
+            enviados.append(("respuesta", contenido, kw))
+
+    class Seguimiento:
+        async def send(self, contenido, **kw):
+            enviados.append(("seguimiento", contenido, kw))
+
+    class Interaccion:
+        response = Respuesta()
+        followup = Seguimiento()
+
+        class client:
+            class user:
+                display_name = "Gachamon"
+
+    cog = social.Social.__new__(social.Social)
+    asyncio.run(social.Social.ayuda.callback(cog, Interaccion()))
+
+    assert [d for d, _, _ in enviados] == ["respuesta", "seguimiento"]
+    # Las dos en privado: si la segunda se colara pública, la ayuda de uno
+    # aparecería en el canal de todos.
+    assert all(kw.get("ephemeral") for _, _, kw in enviados), enviados
+    assert [c for _, c, _ in enviados] == list(
+        social.paginas_de_ayuda("Gachamon")
+    )
+
+
+def test_mientras_falte_gente_se_sigue_esperando():
+    vista, _, (ana, luis, sara) = reto_de(3)
+    vista.dentro.append(ana)
+
+    assert [u.id for u in vista.pendientes] == [luis.id, sara.id]
+    marcador = vista.marcador()
+    assert marcador.count("⌛") == 2 and marcador.count("✅") == 2
+
+
+def literales_de(ruta) -> list[str]:
+    """Las cadenas del fichero que son texto de verdad, sin docstrings.
+
+    Se mira el árbol y no el fuente en crudo porque los comentarios y las
+    docstrings citan a propósito las frases mal escritas, como ejemplo de lo que
+    no debe volver a pasar. Un `in texto` daría falsos positivos justo ahí.
+    """
+    import ast
+    arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+    docstrings = set()
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, (ast.Module, ast.ClassDef,
+                             ast.FunctionDef, ast.AsyncFunctionDef)):
+            cuerpo = getattr(nodo, "body", None)
+            if cuerpo and isinstance(cuerpo[0], ast.Expr) \
+                    and isinstance(cuerpo[0].value, ast.Constant) \
+                    and isinstance(cuerpo[0].value.value, str):
+                docstrings.add(id(cuerpo[0].value))
+    return [n.value for n in ast.walk(arbol)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and id(n) not in docstrings]
+
+
+def test_ningun_texto_lleva_ya_el_femenino_fijo():
+    """Barrido del fuente. El constructor de `ResultadoAccion` cubre los avisos
+    de las acciones, pero los cogs escriben texto a mano y ahí no hay nada que
+    los cubra: esto vigila que no reaparezca un adjetivo clavado en femenino
+    hablando de una criatura concreta."""
+    import pathlib
+    # Sólo frases sin sustantivo al lado. «una criatura hambrienta» no entra en
+    # la lista: ahí el femenino concuerda con «criatura» y es correcto.
+    sospechosas = ("encantada", "molida", "Como nueva", "mírala")
+    raiz = pathlib.Path(__file__).parent.parent
+    for ruta in raiz.glob("**/*.py"):
+        if "tests" in ruta.parts or "venv" in ruta.parts:
+            continue
+        for literal in literales_de(ruta):
+            for palabra in sospechosas:
+                assert palabra not in literal, (ruta.name, palabra, literal)

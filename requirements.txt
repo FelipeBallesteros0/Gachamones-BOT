@@ -1,0 +1,6 @@
+# Producción. Verificado en Python 3.14 (WSL) y 3.12 (Raspberry Pi).
+discord.py>=2.7.1
+python-dotenv>=1.2
+
+# Desarrollo (no hace falta en la Pi, pero no estorba):
+pytest>=9.0
