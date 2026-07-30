@@ -18,6 +18,7 @@ from dataclasses import replace
 import discord
 
 import db
+import economia
 import equipo
 import pantalla
 import simulacion as sim
@@ -213,14 +214,28 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
             ephemeral=True,
         )
         return
+    if dueño and dueño.viva and not dueño.activa:
+        await interaccion.response.send_message(
+            "Ese gachamon está en la incubadora. Cambia el activo para cuidarlo.",
+            ephemeral=True,
+        )
+        return
 
     # Esta llamada síncrona es la frontera autoritativa: lee el estado vivo,
     # avanza el tiempo, decide el cooldown y guarda efecto + cooldown en una sola
     # transacción. No se hace ningún await hasta que SQLite ha terminado.
-    resultado = db.ejecutar_cuidado(usuario_id, guild_id, accion, ahora)
+    resultado = economia.ejecutar_cuidado(
+        str(interaccion.id), usuario_id, guild_id, accion, ahora
+    )
     if resultado is None:
         await interaccion.response.send_message(
             "No tienes ninguna criatura viva. Empieza con `/huevo`.", ephemeral=True
+        )
+        return
+
+    if resultado.replay:
+        await interaccion.response.send_message(
+            "Esta interacción ya estaba procesada.", ephemeral=True
         )
         return
 
@@ -247,10 +262,32 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
             resultado.criatura, resultado.etapa_anterior, resultado.subidas
         ))
 
+    aviso = resultado.mensaje
+    if resultado.usados or resultado.topada or resultado.evoluciono:
+        aviso += f"\n{texto_recibo_cuidado(resultado)}"
     await publicar_pantalla(
         interaccion.channel, resultado.criatura, ahora,
-        aviso=resultado.mensaje, ya_congelada=str(interaccion.message.id),
+        aviso=aviso, ya_congelada=str(interaccion.message.id),
     )
+
+
+def texto_recibo_cuidado(resultado: economia.ResultadoCuidado) -> str:
+    cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
+    if resultado.topada:
+        partes = [
+            f"🪙 +0 asciicoins · cuidado {resultado.usados}/{resultado.limite} UTC (tope)"
+        ]
+    else:
+        partes = [
+            f"🪙 +{cuidado} asciicoins · cuidado "
+            f"{resultado.usados}/{resultado.limite} UTC"
+        ]
+    if resultado.evoluciono:
+        partes.append(
+            f"evolución +{resultado.delta_evolucion} · "
+            f"{resultado.evolucion_usadas}/{economia.TOPE_EVOLUCIONES} UTC"
+        )
+    return "-# " + " · ".join(partes)
 
 
 async def _congelar_pulsada(interaccion: discord.Interaction) -> None:

@@ -97,13 +97,6 @@ CREATE TABLE IF NOT EXISTS uso_ia (
 -- El monedero y los objetos son de la PERSONA, no de la criatura: así lo
 -- comprado sobrevive a la muerte de una mascota y al nacimiento de la
 -- siguiente. Por servidor, como todo lo demás.
-CREATE TABLE IF NOT EXISTS monederos (
-    usuario_id TEXT NOT NULL,
-    guild_id TEXT NOT NULL,
-    gemas INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (usuario_id, guild_id)
-);
-
 CREATE TABLE IF NOT EXISTS inventario (
     usuario_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
@@ -122,6 +115,24 @@ CREATE TABLE IF NOT EXISTS efectos (
     bonus INTEGER NOT NULL,
     hasta TEXT NOT NULL,
     PRIMARY KEY (criatura_id, stat)
+);
+
+CREATE TABLE IF NOT EXISTS operaciones_economia (
+    evento_id        TEXT NOT NULL,
+    usuario_id       TEXT NOT NULL,
+    guild_id         TEXT NOT NULL,
+    tipo             TEXT NOT NULL CHECK (tipo IN ('cuidado','evolucion','competencia','compra')),
+    fecha_utc        TEXT NOT NULL,
+    resultado        TEXT NOT NULL CHECK (resultado IN ('acreditada','topada','comprada','saldo_insuficiente')),
+    delta_asciicoins INTEGER NOT NULL,
+    solicitud        TEXT NOT NULL CHECK (length(solicitud) > 0),
+    CHECK (
+        (resultado = 'acreditada' AND tipo IN ('cuidado','evolucion','competencia') AND delta_asciicoins > 0) OR
+        (resultado = 'topada' AND tipo IN ('cuidado','evolucion','competencia') AND delta_asciicoins = 0) OR
+        (resultado = 'comprada' AND tipo = 'compra' AND delta_asciicoins < 0) OR
+        (resultado = 'saldo_insuficiente' AND tipo = 'compra' AND delta_asciicoins = 0)
+    ),
+    PRIMARY KEY (evento_id, usuario_id, guild_id, tipo)
 );
 """
 
@@ -146,7 +157,23 @@ CREATE INDEX IF NOT EXISTS idx_conversacion
 
 CREATE INDEX IF NOT EXISTS idx_uso_ia
     ON uso_ia(usuario_id, cuando);
+
+CREATE INDEX IF NOT EXISTS idx_cupo
+    ON operaciones_economia(usuario_id, guild_id, fecha_utc, tipo);
 """
+
+DDL_MONEDEROS = """
+CREATE TABLE monederos (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    asciicoins INTEGER NOT NULL DEFAULT 50 CHECK (asciicoins >= 0),
+    asciigems INTEGER NOT NULL DEFAULT 50 CHECK (asciigems >= 0),
+    PRIMARY KEY (usuario_id, guild_id)
+)
+"""
+
+COLUMNAS_MONEDERO = ("usuario_id", "guild_id", "asciicoins", "asciigems")
+COLUMNAS_MONEDERO_LEGACY = ("usuario_id", "guild_id", "gemas")
 
 CAMPOS = (
     "usuario_id", "guild_id", "especie", "nombre", "genero", "caracter",
@@ -161,7 +188,7 @@ CAMPOS = (
 
 
 def conectar() -> sqlite3.Connection:
-    con = sqlite3.connect(RUTA)
+    con = sqlite3.connect(RUTA, timeout=30)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con
@@ -189,7 +216,40 @@ def inicializar() -> None:
     with conectar() as con:
         con.executescript(SCHEMA_TABLAS)
         _migrar(con)
+        con.commit()
+        _migrar_monederos(con)
         con.executescript(SCHEMA_INDICES)
+
+
+def _columnas(con: sqlite3.Connection, tabla: str) -> tuple[str, ...]:
+    return tuple(f["name"] for f in con.execute(f"PRAGMA table_info({tabla})"))
+
+
+def _migrar_monederos(con: sqlite3.Connection) -> None:
+    """Publica el monedero dual y reinicia saldos legacy a 50/50, una sola vez."""
+    con.execute("BEGIN IMMEDIATE")
+    columnas = _columnas(con, "monederos")
+    if not columnas:
+        con.execute(DDL_MONEDEROS)
+    elif columnas == COLUMNAS_MONEDERO_LEGACY:
+        con.execute("ALTER TABLE monederos RENAME TO monederos_legacy")
+        con.execute(DDL_MONEDEROS)
+        con.execute(
+            "INSERT INTO monederos "
+            "(usuario_id, guild_id, asciicoins, asciigems) "
+            "SELECT usuario_id, guild_id, 50, 50 FROM monederos_legacy"
+        )
+        con.execute("DROP TABLE monederos_legacy")
+    elif columnas != COLUMNAS_MONEDERO:
+        raise RuntimeError(f"forma de monederos desconocida: {columnas!r}")
+
+    for tabla in ("criaturas", "inventario"):
+        con.execute(
+            "INSERT OR IGNORE INTO monederos "
+            "(usuario_id, guild_id, asciicoins, asciigems) "
+            f"SELECT DISTINCT usuario_id, guild_id, 50, 50 FROM {tabla}"
+        )
+    con.commit()
 
 
 def _migrar(con: sqlite3.Connection) -> None:
@@ -274,11 +334,17 @@ def _a_valores(criatura: sim.Criatura) -> dict:
 def criatura_activa(usuario_id: str, guild_id: str) -> sim.Criatura | None:
     """La que recibe los comandos y los botones. Puede haber otras esperando."""
     with conectar() as con:
-        fila = con.execute(
-            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
-            "AND muerta_en IS NULL AND activa = 1",
-            (usuario_id, guild_id),
-        ).fetchone()
+        return criatura_activa_en(con, usuario_id, guild_id)
+
+
+def criatura_activa_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> sim.Criatura | None:
+    fila = con.execute(
+        "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+        "AND muerta_en IS NULL AND activa = 1",
+        (usuario_id, guild_id),
+    ).fetchone()
     return _a_criatura(fila) if fila else None
 
 
@@ -497,72 +563,30 @@ def pendientes_de_aviso(ahora: datetime) -> list[sim.Criatura]:
 
 # --- Cooldowns -------------------------------------------------------------
 
-def ejecutar_cuidado(
-    usuario_id: str, guild_id: str, accion: str, ahora: datetime
-) -> sim.ResultadoAccion | None:
-    """Ejecuta un cuidado completo contra el estado vivo de SQLite.
-
-    ``BEGIN IMMEDIATE`` toma el turno de escritura antes de leer. De ese modo
-    dos clics concurrentes no pueden calcular efectos desde la misma criatura:
-    el segundo ve el estado y el cooldown que dejó el primero. Toda la operación
-    es síncrona y termina antes de que la vista vuelva a hacer ``await``.
-
-    Devuelve ``None`` si la persona ya no tiene criatura viva. Los demás estados
-    (muerte al avanzar, cooldown, rechazo de dominio y éxito) usan el resultado
-    público de la simulación; ``espera`` distingue el cooldown.
-    """
-    with conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        fila = con.execute(
-            "SELECT * FROM criaturas "
-            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
-            (usuario_id, guild_id),
-        ).fetchone()
-        if fila is None:
-            return None
-
-        criatura = sim.avanzar(_a_criatura(fila), ahora)
-        if not criatura.viva:
-            _guardar(con, criatura)
-            return sim.ResultadoAccion(
-                criatura, "Tu criatura ya no está entre nosotros.", ok=False
-            )
-
-        fila_cooldown = con.execute(
-            "SELECT hasta FROM cooldowns WHERE criatura_id = ? AND accion = ?",
-            (criatura.id, accion),
-        ).fetchone()
-        espera = timedelta(0)
-        if fila_cooldown:
-            espera = max(
-                timedelta(0), datetime.fromisoformat(fila_cooldown["hasta"]) - ahora
-            )
-        if espera and not sim.puede_saltarse_espera(criatura, accion):
-            _guardar(con, criatura)
-            return sim.ResultadoAccion(criatura, "", ok=False, espera=espera)
-
-        resultado = sim.aplicar_accion(criatura, accion, ahora)
-        _guardar(con, resultado.criatura)
-        if resultado.ok:
-            duracion = sim.COOLDOWNS.get(accion, timedelta(0))
-            if duracion:
-                con.execute(
-                    "INSERT INTO cooldowns (criatura_id, accion, hasta) "
-                    "VALUES (?, ?, ?) ON CONFLICT(criatura_id, accion) "
-                    "DO UPDATE SET hasta = excluded.hasta",
-                    (criatura.id, accion, (ahora + duracion).isoformat()),
-                )
-        return resultado
-
-def espera_de(criatura_id: int, accion: str, ahora: datetime) -> timedelta:
-    with conectar() as con:
-        fila = con.execute(
-            "SELECT hasta FROM cooldowns WHERE criatura_id = ? AND accion = ?",
-            (criatura_id, accion),
-        ).fetchone()
+def espera_en(
+    con: sqlite3.Connection, criatura_id: int, accion: str, ahora: datetime
+) -> timedelta:
+    fila = con.execute(
+        "SELECT hasta FROM cooldowns WHERE criatura_id = ? AND accion = ?",
+        (criatura_id, accion),
+    ).fetchone()
     if not fila:
         return timedelta(0)
     return max(timedelta(0), datetime.fromisoformat(fila["hasta"]) - ahora)
+
+
+def poner_cooldown_en(
+    con: sqlite3.Connection, criatura_id: int, accion: str, hasta: datetime
+) -> None:
+    con.execute(
+        "INSERT INTO cooldowns (criatura_id, accion, hasta) VALUES (?, ?, ?) "
+        "ON CONFLICT(criatura_id, accion) DO UPDATE SET hasta = excluded.hasta",
+        (criatura_id, accion, hasta.isoformat()),
+    )
+
+def espera_de(criatura_id: int, accion: str, ahora: datetime) -> timedelta:
+    with conectar() as con:
+        return espera_en(con, criatura_id, accion, ahora)
 
 
 def esperas(criatura_id: int, ahora: datetime) -> dict[str, timedelta]:
@@ -584,11 +608,7 @@ def poner_cooldown(criatura_id: int, accion: str, ahora: datetime) -> None:
     if not duracion:
         return
     with conectar() as con:
-        con.execute(
-            "INSERT INTO cooldowns (criatura_id, accion, hasta) VALUES (?, ?, ?) "
-            "ON CONFLICT(criatura_id, accion) DO UPDATE SET hasta = excluded.hasta",
-            (criatura_id, accion, (ahora + duracion).isoformat()),
-        )
+        poner_cooldown_en(con, criatura_id, accion, ahora + duracion)
 
 
 def quitar_cooldown(criatura_id: int, accion: str) -> None:
@@ -600,57 +620,7 @@ def quitar_cooldown(criatura_id: int, accion: str) -> None:
         )
 
 
-# --- Monedero e inventario -------------------------------------------------
-
-def gemas(usuario_id: str, guild_id: str) -> int:
-    """El saldo. La primera consulta crea el monedero con el regalo de bienvenida.
-
-    Se reparte así y no con una migración para que lo reciban tanto quienes ya
-    jugaban como quienes empiecen mañana, sin tocar la base de datos que está en
-    producción. El `INSERT OR IGNORE` es lo que impide que consultar el saldo
-    tres veces regale trescientas gemas.
-    """
-    with conectar() as con:
-        con.execute(
-            "INSERT OR IGNORE INTO monederos (usuario_id, guild_id, gemas) "
-            "VALUES (?, ?, ?)",
-            (usuario_id, guild_id, obj.GEMAS_DE_BIENVENIDA),
-        )
-        fila = con.execute(
-            "SELECT gemas FROM monederos WHERE usuario_id = ? AND guild_id = ?",
-            (usuario_id, guild_id),
-        ).fetchone()
-    return fila["gemas"]
-
-
-def dar_gemas(usuario_id: str, guild_id: str, cuantas: int) -> int:
-    """Ingresa gemas y devuelve el saldo nuevo. Para eventos y regalos."""
-    gemas(usuario_id, guild_id)  # asegura que el monedero existe
-    with conectar() as con:
-        con.execute(
-            "UPDATE monederos SET gemas = gemas + ? "
-            "WHERE usuario_id = ? AND guild_id = ?",
-            (cuantas, usuario_id, guild_id),
-        )
-    return gemas(usuario_id, guild_id)
-
-
-def cobrar(usuario_id: str, guild_id: str, cuantas: int) -> bool:
-    """Descuenta si hay saldo. Devuelve si se pudo.
-
-    El `AND gemas >= ?` va dentro del UPDATE a propósito: es la base de datos la
-    que decide, en una sola sentencia, así que dos compras a la vez no pueden
-    dejar el monedero en números rojos.
-    """
-    gemas(usuario_id, guild_id)
-    with conectar() as con:
-        cursor = con.execute(
-            "UPDATE monederos SET gemas = gemas - ? "
-            "WHERE usuario_id = ? AND guild_id = ? AND gemas >= ?",
-            (cuantas, usuario_id, guild_id, cuantas),
-        )
-    return cursor.rowcount > 0
-
+# --- Inventario ------------------------------------------------------------
 
 def inventario(usuario_id: str, guild_id: str) -> dict[str, int]:
     """Qué tiene y cuánto. Lo que se ha gastado del todo no sale."""
@@ -661,21 +631,6 @@ def inventario(usuario_id: str, guild_id: str) -> dict[str, int]:
             (usuario_id, guild_id),
         ).fetchall()
     return {f["objeto"]: f["cantidad"] for f in filas}
-
-
-def comprar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> bool:
-    """Cobra y entrega. Si no llega el dinero no hace ninguna de las dos cosas."""
-    if not cobrar(usuario_id, guild_id, objeto.precio):
-        return False
-    with conectar() as con:
-        con.execute(
-            "INSERT INTO inventario (usuario_id, guild_id, objeto, cantidad) "
-            "VALUES (?, ?, ?, 1) "
-            "ON CONFLICT(usuario_id, guild_id, objeto) "
-            "DO UPDATE SET cantidad = cantidad + 1",
-            (usuario_id, guild_id, objeto.clave),
-        )
-    return True
 
 
 def regalar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> None:
@@ -725,16 +680,22 @@ def poner_efecto(criatura_id: int, stat: str, bonus: int, ahora: datetime) -> No
         )
 
 
-def efecto_activo(criatura_id: int, stat: str, ahora: datetime) -> int:
-    """Lo que suma la poción en curso, o 0 si no hay o ya caducó."""
-    with conectar() as con:
-        fila = con.execute(
-            "SELECT bonus, hasta FROM efectos WHERE criatura_id = ? AND stat = ?",
-            (criatura_id, stat),
-        ).fetchone()
+def efecto_activo_en(
+    con: sqlite3.Connection, criatura_id: int, stat: str, ahora: datetime
+) -> int:
+    fila = con.execute(
+        "SELECT bonus, hasta FROM efectos WHERE criatura_id = ? AND stat = ?",
+        (criatura_id, stat),
+    ).fetchone()
     if not fila or datetime.fromisoformat(fila["hasta"]) <= ahora:
         return 0
     return fila["bonus"]
+
+
+def efecto_activo(criatura_id: int, stat: str, ahora: datetime) -> int:
+    """Lo que suma la poción en curso, o 0 si no hay o ya caducó."""
+    with conectar() as con:
+        return efecto_activo_en(con, criatura_id, stat, ahora)
 
 
 def efectos_activos(criatura_id: int, ahora: datetime) -> dict[str, tuple[int, timedelta]]:

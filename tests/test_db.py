@@ -421,91 +421,73 @@ def test_el_cementerio_solo_tiene_muertas():
 
 # --- Monedero, inventario y efectos ---------------------------------------
 
-def test_las_gemas_de_bienvenida_se_dan_una_sola_vez():
-    """El monedero se crea al consultarlo. Si el regalo se repitiera en cada
-    consulta, mirar el saldo sería una forma de hacerse rico."""
-    import objetos as obj
+def test_el_monedero_dual_nace_50_50_y_es_idempotente():
+    import economia
 
-    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA
-    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA
-    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA
-
-    db.cobrar("u1", "g1", 30)
-    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA - 30
+    assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)
+    assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)
 
 
 def test_cada_servidor_lleva_su_monedero():
-    """Como las criaturas y el ranking: lo de un servidor no se mezcla."""
-    db.cobrar("u1", "g1", 40)
-    assert db.gemas("u1", "g1") != db.gemas("u1", "otro")
-
-
-def test_no_se_puede_gastar_lo_que_no_hay():
+    import economia
     import objetos as obj
 
-    assert not db.cobrar("u1", "g1", obj.GEMAS_DE_BIENVENIDA + 1)
-    assert db.gemas("u1", "g1") == obj.GEMAS_DE_BIENVENIDA, "no debe descontar nada"
-
-    assert db.cobrar("u1", "g1", obj.GEMAS_DE_BIENVENIDA)
-    assert db.gemas("u1", "g1") == 0
+    economia.comprar("compra-g1", "u1", "g1", obj.CATALOGO["fuerza_1d12"])
+    assert economia.saldos("u1", "g1") != economia.saldos("u1", "otro")
 
 
 def test_comprar_descuenta_y_entrega():
+    import economia
     import objetos as obj
 
     pocion = obj.CATALOGO["fuerza_1d8"]
-    antes = db.gemas("u1", "g1")
-
-    assert db.comprar("u1", "g1", pocion)
-    assert db.gemas("u1", "g1") == antes - pocion.precio
+    assert economia.comprar("compra-1", "u1", "g1", pocion)
+    assert economia.saldos("u1", "g1").asciicoins == 50 - pocion.precio
     assert db.inventario("u1", "g1") == {pocion.clave: 1}
 
-    db.comprar("u1", "g1", pocion)
+    economia.comprar("compra-2", "u1", "g1", pocion)
     assert db.inventario("u1", "g1") == {pocion.clave: 2}
 
 
 def test_si_no_llega_el_dinero_no_se_compra_ni_se_descuenta():
+    import economia
     import objetos as obj
 
-    caro = obj.CATALOGO["fuerza_1d12"]
-    db.cobrar("u1", "g1", db.gemas("u1", "g1"))  # a cero
-
-    assert not db.comprar("u1", "g1", caro)
-    assert db.gemas("u1", "g1") == 0
-    assert db.inventario("u1", "g1") == {}
+    cara = obj.CATALOGO["fuerza_1d12"]
+    assert economia.comprar("compra-1", "u1", "g1", cara)
+    rechazada = economia.comprar("compra-2", "u1", "g1", cara)
+    assert not rechazada
+    assert economia.saldos("u1", "g1").asciicoins == 50 - cara.precio
+    assert db.inventario("u1", "g1") == {cara.clave: 1}
 
 
 def test_usar_gasta_una_unidad_y_solo_una():
+    import economia
     import objetos as obj
 
     pocion = obj.CATALOGO["pocion_comida"]
-    db.comprar("u1", "g1", pocion)
-    db.comprar("u1", "g1", pocion)
+    economia.comprar("compra-1", "u1", "g1", pocion)
+    economia.comprar("compra-2", "u1", "g1", pocion)
 
     assert db.gastar("u1", "g1", pocion.clave)
     assert db.inventario("u1", "g1") == {pocion.clave: 1}
-
     assert db.gastar("u1", "g1", pocion.clave)
-    assert db.inventario("u1", "g1") == {}, "al llegar a cero desaparece"
+    assert db.inventario("u1", "g1") == {}
+    assert not db.gastar("u1", "g1", pocion.clave)
 
-    assert not db.gastar("u1", "g1", pocion.clave), "no se puede usar lo que no hay"
 
-
-def test_las_gemas_y_los_objetos_sobreviven_a_la_criatura():
-    """Son de la persona, no de la criatura: al morir una y nacer otra sigues
-    teniendo lo que compraste."""
+def test_el_monedero_y_los_objetos_sobreviven_a_la_criatura():
+    import economia
     import objetos as obj
 
     nacer(usuario="u1", nombre="Primera")
-    db.comprar("u1", "g1", obj.CATALOGO["silbato"])
-    saldo = db.gemas("u1", "g1")
+    economia.comprar("compra-1", "u1", "g1", obj.CATALOGO["silbato"])
+    saldo = economia.saldos("u1", "g1")
 
     muerta = sim.avanzar(db.criatura_activa("u1", "g1"), T0 + timedelta(days=10))
     db.guardar(muerta)
-    assert db.criatura_activa("u1", "g1") is None
-
     db.crear("u1", "g1", "pulpo", "Segunda", STATS, T0 + timedelta(days=10))
-    assert db.gemas("u1", "g1") == saldo
+    assert economia.saldos("u1", "g1") == saldo
     assert db.inventario("u1", "g1") == {"silbato": 1}
 
 

@@ -344,6 +344,20 @@ def test_si_no_llegan_a_dos_no_hay_carrera():
     assert "rechazado" in vista._cierre()
 
 
+def test_el_id_del_mensaje_del_reto_es_la_clave_idempotente():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    vista, _, (ana,) = reto_de(1)
+    vista.dentro.append(ana)
+    vista.mensaje = SimpleNamespace(id=987654)
+    vista.cog = SimpleNamespace(disputar=AsyncMock())
+
+    asyncio.run(vista._arrancar(SimpleNamespace()))
+
+    assert vista.cog.disputar.await_args.args[-1] == "987654"
+
+
 # --- Lo que se manda tiene que caber ---------------------------------------
 
 LARGO_MAXIMO_MENSAJE = 2000  # tope de `content` en la API de Discord

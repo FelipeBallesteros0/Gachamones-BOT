@@ -21,12 +21,11 @@ import simulacion as sim
 # las carreras y no habría forma de saber por qué no hizo nada.
 MINUTOS_DE_EFECTO = 5
 
-# Lo que se le regala a cada persona la primera vez que abre el monedero.
-# Provisional: la idea es que más adelante salgan de eventos o de comprarlas.
-GEMAS_DE_BIENVENIDA = 100
-
-MONEDA = "asciigemas"
-EMOJI_MONEDA = "💎"
+ASCIICOINS_INICIALES = 50
+ASCIIGEMS_INICIALES = 50
+MONEDA_TIENDA = "asciicoins"
+EMOJI_MONEDA_TIENDA = "🪙"
+EMOJI_GEMA = "💎"
 
 
 @dataclass(frozen=True)

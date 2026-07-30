@@ -221,7 +221,7 @@ El dado mueve 19 puntos y las diferencias entre criaturas cuidadas rondan los
 que más puede inclinar una pelea es una **poción**: la mayor da hasta +12, más
 que el estado (de −5 a +2) y comparable al propio dado. Por eso sólo puede haber
 una activa por estadística; si se acumularan, las carreras las decidiría quién
-tiene más gemas y no la tirada.
+tiene más objetos y no la tirada.
 
 Una **carrera** admite de dos a cinco corredores, todos a la vez. Con tres o
 más acaba en un **podio dibujado**: los tres primeros subidos a su cajón con la
@@ -244,9 +244,10 @@ botones vivos: actúan sobre la base de datos, no sobre lo que se ve, y la
 pantalla se pone al día en cuanto se pulsa cualquiera.
 
 **Consumibles.** Los botones 🎒 **Mochila** y 🛒 **Tienda** abren menús que sólo
-ve quien los pulsa. Se compra con **asciigemas**: cada persona empieza con 100
-—provisional, la idea es que salgan de eventos— y el monedero es **suyo, no de
-la criatura**, así que lo comprado sobrevive a la muerte de una mascota. Hay
+ve quien los pulsa. Cada persona empieza con **50 asciicoins y 50 asciigems**.
+La tienda cobra sólo asciicoins; los asciigems quedan visibles en reserva, sin
+conversión ni gasto. El monedero es **suyo, no de la criatura**, así que lo
+comprado sobrevive a la muerte de una mascota. Hay
 pociones de fuerza y de velocidad de 1d4 a 1d12 que duran cinco minutos, una que
 llena el hambre saltándose el empacho, y dos que borran un enfriamiento.
 
@@ -255,6 +256,21 @@ para pulsar, y la estadística se lee **al resolver** la pelea, no al retar. Con
 un minuto la poción habría caducado en la mayoría de las carreras y no habría
 forma de saber por qué no hizo nada. El dado de la poción se tira **al beberla**,
 para que el mensaje pueda decir cuánto ha tocado.
+
+**Economía.** Un cuidado válido da +1 asciicoin (hasta 12 al día UTC), cada
+competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta
+tres competencias premiadas al día UTC), y evolucionar da +10 una vez al día
+UTC. Los topes pertenecen a la persona y al servidor: cambiar de activo,
+reclutar o ascender desde la incubadora no los reinicia. Agotar un tope no
+detiene el juego, la experiencia ni la evolución; sólo deja el premio en cero.
+
+Las compras y los premios se confirman en SQLite antes de enviar nada a Discord.
+El informe local agregado no expone IDs:
+
+```bash
+./venv/bin/python economia_reporte.py --desde 2026-01-01 --hasta 2026-01-31
+# Añade --json para salida estructurada y --db otra/ruta.db si hace falta.
+```
 
 **Quién le ha tocado ser.** Además de la especie se sortean al nacer el
 **género** (♂️ o ♀️, mitad y mitad) y la **personalidad**, una de diez: alegre,
@@ -293,6 +309,8 @@ testean sin conexión. Los cogs son capas finas encima.
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
 | `pantalla.py` | Dibuja la pantalla como texto de Discord. |
 | `db.py` | SQLite. |
+| `economia.py` | Monederos, topes UTC y operaciones económicas atómicas. |
+| `economia_reporte.py` | Informe local agregado y reconciliación histórica. |
 | `vistas.py` | Los botones y el ciclo publicar-nueva/congelar-la-vieja. |
 | `equipo.py` | El menú para cambiar de gachamon activo. |
 | `aventura.py` | Biomas, pruebas, hallazgos y las reacciones de un salvaje. |
