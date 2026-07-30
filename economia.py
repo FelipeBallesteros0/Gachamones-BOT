@@ -5,9 +5,12 @@ migraciones y los repositorios de dominio; la dependencia va sólo de aquí a db
 """
 from __future__ import annotations
 
+import json
+import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import competir as comp
 import db
 import objetos as obj
 import simulacion as sim
@@ -60,6 +63,34 @@ class ResultadoCuidado:
             self.etapa_anterior is not None
             and self.etapa_anterior != self.criatura.etapa
         )
+
+
+@dataclass(frozen=True)
+class ReciboCompetencia:
+    usuario_id: str
+    delta_asciicoins: int
+    delta_competencia: int
+    delta_evolucion: int
+    usados: int
+    evolucion_usadas: int = 0
+    limite: int = TOPE_COMPETENCIAS
+    topada: bool = False
+    evoluciono: bool = False
+    evolucion_topada: bool = False
+
+
+@dataclass(frozen=True)
+class ResultadoCompetencia:
+    encuentro: comp.Encuentro | None
+    antes: tuple[sim.Criatura, ...] = ()
+    despues: tuple[sim.Criatura, ...] = ()
+    subidas: tuple[tuple[str, ...], ...] = ()
+    recibos: tuple[ReciboCompetencia, ...] = ()
+    replay: bool = False
+    problema: str | None = None
+    problema_usuario_id: str | None = None
+    problema_criatura: sim.Criatura | None = None
+    espera: timedelta | None = None
 
 
 def _fecha_economica(ahora: datetime) -> str:
@@ -241,6 +272,188 @@ def ejecutar_cuidado(
             usados=usados,
             evolucion_usadas=evolucion_usadas,
             topada=topada,
+        )
+
+
+def _replay_competencia(
+    con, evento_id: str, usuarios: tuple[str, ...],
+    guild_id: str, solicitud: str,
+) -> ResultadoCompetencia | None:
+    filas = con.execute(
+        "SELECT * FROM operaciones_economia WHERE evento_id = ? "
+        "AND guild_id = ? AND tipo = 'competencia'",
+        (evento_id, guild_id),
+    ).fetchall()
+    if not filas:
+        return None
+    por_usuario = {fila["usuario_id"]: fila for fila in filas}
+    if set(por_usuario) != set(usuarios):
+        raise RuntimeError("el evento de competencia está incompleto")
+    recibos = []
+    for usuario_id in usuarios:
+        fila = por_usuario[usuario_id]
+        if fila["solicitud"] != solicitud:
+            raise RuntimeError("el evento de competencia pertenece a otro encuentro")
+        evolucion = con.execute(
+            "SELECT resultado, delta_asciicoins FROM operaciones_economia "
+            "WHERE evento_id = ? AND usuario_id = ? AND guild_id = ? "
+            "AND tipo = 'evolucion'",
+            (evento_id, usuario_id, guild_id),
+        ).fetchone()
+        delta_evolucion = evolucion["delta_asciicoins"] if evolucion else 0
+        recibos.append(ReciboCompetencia(
+            usuario_id=usuario_id,
+            delta_asciicoins=fila["delta_asciicoins"] + delta_evolucion,
+            delta_competencia=fila["delta_asciicoins"],
+            delta_evolucion=delta_evolucion,
+            usados=_contar_acreditadas(
+                con, usuario_id, guild_id, fila["fecha_utc"], "competencia"
+            ),
+            evolucion_usadas=(
+                _contar_acreditadas(
+                    con, usuario_id, guild_id, fila["fecha_utc"], "evolucion"
+                ) if evolucion else 0
+            ),
+            topada=fila["resultado"] == "topada",
+            evoluciono=evolucion is not None,
+            evolucion_topada=(
+                evolucion is not None and evolucion["resultado"] == "topada"
+            ),
+        ))
+    return ResultadoCompetencia(None, recibos=tuple(recibos), replay=True)
+
+
+def ejecutar_competencia(
+    evento_id: str,
+    usuario_ids: list[str] | tuple[str, ...],
+    guild_id: str,
+    tipo: str,
+    ahora: datetime,
+    rng: random.Random | None = None,
+) -> ResultadoCompetencia:
+    """Resuelve y confirma el encuentro completo antes de cualquier publicación."""
+    usuarios = tuple(usuario_ids)
+    if len(set(usuarios)) != len(usuarios):
+        raise ValueError("una persona no puede competir dos veces en el mismo encuentro")
+    solicitud = json.dumps(
+        {"participantes": usuarios, "tipo": tipo},
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    rng = rng or random.Random()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        replay = _replay_competencia(
+            con, evento_id, usuarios, guild_id, solicitud
+        )
+        if replay is not None:
+            return replay
+
+        antes_lista = []
+        for usuario_id in usuarios:
+            criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+            if criatura is None:
+                return ResultadoCompetencia(
+                    None,
+                    problema="Falta una criatura activa para competir.",
+                    problema_usuario_id=usuario_id,
+                )
+            antes_lista.append(criatura)
+        antes = tuple(antes_lista)
+        criaturas = tuple(sim.avanzar(criatura, ahora) for criatura in antes)
+        for criatura in criaturas:
+            db._guardar(con, criatura)
+        for usuario_id, criatura in zip(usuarios, criaturas):
+            if not criatura.viva:
+                return ResultadoCompetencia(
+                    None, antes=antes, despues=criaturas,
+                    problema="Una criatura ha muerto antes de competir.",
+                    problema_usuario_id=usuario_id,
+                    problema_criatura=criatura,
+                )
+            if criatura.hambre < sim.HAMBRE_MINIMA_COMPETIR:
+                return ResultadoCompetencia(
+                    None, antes=antes, despues=criaturas,
+                    problema="Una criatura tiene demasiada hambre para competir.",
+                    problema_usuario_id=usuario_id,
+                    problema_criatura=criatura,
+                )
+            espera = db.espera_en(con, criatura.id, sim.COMPETIR, ahora)
+            if espera:
+                return ResultadoCompetencia(
+                    None, antes=antes, despues=criaturas,
+                    problema="Una criatura todavía se está recuperando.",
+                    problema_usuario_id=usuario_id,
+                    problema_criatura=criatura,
+                    espera=espera,
+                )
+
+        stat = comp.STATS[tipo]
+        encuentro = comp.enfrentar(
+            [
+                comp.competidor_de(
+                    criatura, tipo,
+                    db.efecto_activo_en(con, criatura.id, stat, ahora),
+                )
+                for criatura in criaturas
+            ],
+            tipo,
+            rng,
+        )
+        ganador = encuentro.orden[0]
+        aplicadas = tuple(
+            sim.aplicar_competencia(criatura, dorsal == ganador, stat, rng)
+            for dorsal, criatura in enumerate(criaturas)
+        )
+        despues = tuple(criatura for criatura, _ in aplicadas)
+        subidas = tuple(tuple(lista) for _, lista in aplicadas)
+        for criatura in despues:
+            db._guardar(con, criatura)
+            db.poner_cooldown_en(
+                con, criatura.id, sim.COMPETIR,
+                ahora + sim.COOLDOWNS[sim.COMPETIR],
+            )
+
+        fecha = _fecha_economica(ahora)
+        recibos = []
+        for dorsal, (anterior, nueva) in enumerate(zip(criaturas, despues)):
+            delta_comp, usados, topada = _registrar_recompensa(
+                con, evento_id, nueva.usuario_id, guild_id, fecha,
+                "competencia",
+                PREMIO_GANADOR if dorsal == ganador else PREMIO_COMPETENCIA,
+                TOPE_COMPETENCIAS,
+                solicitud,
+            )
+            evoluciono = anterior.etapa != nueva.etapa
+            delta_evolucion = 0
+            evolucion_usadas = 0
+            evolucion_topada = False
+            if evoluciono:
+                delta_evolucion, evolucion_usadas, evolucion_topada = (
+                    _registrar_recompensa(
+                        con, evento_id, nueva.usuario_id, guild_id, fecha,
+                        "evolucion", PREMIO_EVOLUCION,
+                        TOPE_EVOLUCIONES, solicitud,
+                    )
+                )
+            recibos.append(ReciboCompetencia(
+                usuario_id=nueva.usuario_id,
+                delta_asciicoins=delta_comp + delta_evolucion,
+                delta_competencia=delta_comp,
+                delta_evolucion=delta_evolucion,
+                usados=usados,
+                evolucion_usadas=evolucion_usadas,
+                topada=topada,
+                evoluciono=evoluciono,
+                evolucion_topada=evolucion_topada,
+            ))
+        return ResultadoCompetencia(
+            encuentro=encuentro,
+            antes=antes,
+            despues=despues,
+            subidas=subidas,
+            recibos=tuple(recibos),
         )
 
 

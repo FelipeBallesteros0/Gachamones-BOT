@@ -13,6 +13,7 @@ from discord.ext import commands
 import comun
 import competir as comp
 import db
+import economia
 import especies as esp
 import pantalla
 import simulacion as sim
@@ -81,6 +82,21 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
     justo lo que llenaba el canal.
     """
     return antes.nivel != despues.nivel or antes.etapa != despues.etapa
+
+
+def texto_recibo_competencia(
+    recibo: economia.ReciboCompetencia, mencion: str
+) -> str:
+    cap = f"competencia {recibo.usados}/{recibo.limite} UTC"
+    if recibo.topada:
+        cap += " (tope)"
+    texto = f"-# 🪙 {mencion} +{recibo.delta_competencia} asciicoins · {cap}"
+    if recibo.evoluciono:
+        evo_cap = f"{recibo.evolucion_usadas}/{economia.TOPE_EVOLUCIONES} UTC"
+        if recibo.evolucion_topada:
+            evo_cap += ", tope"
+        texto += f" · evolución +{recibo.delta_evolucion} ({evo_cap})"
+    return texto
 
 
 def _invitados_validos(
@@ -173,6 +189,8 @@ class RetoView(discord.ui.View):
         await self._contestado(interaccion)
 
     async def _contestado(self, interaccion: discord.Interaction) -> None:
+        if self.mensaje is None:
+            self.mensaje = interaccion.message
         if self.pendientes:
             # Todavía falta gente: se actualiza el marcador y se sigue esperando.
             await interaccion.response.edit_message(
@@ -225,7 +243,11 @@ class RetoView(discord.ui.View):
         self.stop()
         if not self.pueden_competir():
             return
-        await self.cog.disputar(canal, self.dentro, self.tipo, self.guild_id)
+        if self.mensaje is None:
+            return
+        await self.cog.disputar(
+            canal, self.dentro, self.tipo, self.guild_id, str(self.mensaje.id)
+        )
 
 
 class Competencias(commands.Cog):
@@ -339,71 +361,58 @@ class Competencias(commands.Cog):
         participantes: list[discord.User],
         tipo: str,
         guild_id: str,
+        evento_id: str,
     ) -> None:
-        """Resuelve, narra y aplica las consecuencias.
-
-        Se releen las criaturas: entre el reto y la aceptación han podido comer,
-        entrenar, meterse en otra pelea o incluso morirse.
-        """
+        """Confirma el encuentro completo y sólo entonces lo narra."""
         ahora = db.ahora_utc()
-
-        criaturas = []
-        for usuario in participantes:
-            criatura = db.criatura_activa(str(usuario.id), guild_id)
-            criatura = sim.avanzar(criatura, ahora) if criatura else None
-            # Se guarda antes de decidir si se compite: el rato que ha pasado
-            # desde el reto cuenta aunque la carrera se cancele.
-            if criatura is not None:
-                db.guardar(criatura)
-            criaturas.append(criatura)
-
-        problema = _problema_del_grupo(
-            tuple(zip(criaturas, [u.display_name for u in participantes])), ahora
+        resultado = economia.ejecutar_competencia(
+            evento_id,
+            [str(usuario.id) for usuario in participantes],
+            guild_id,
+            tipo,
+            ahora,
         )
-        if problema:
-            await canal.send(f"❌ Se cancela: {problema}")
+        if resultado.replay:
+            return
+        if resultado.problema:
+            detalle = resultado.problema
+            if resultado.problema_usuario_id is not None:
+                usuario = next(
+                    (
+                        participante for participante in participantes
+                        if str(participante.id) == resultado.problema_usuario_id
+                    ),
+                    None,
+                )
+                if usuario is not None:
+                    detalle = _problema_para_competir(
+                        resultado.problema_criatura,
+                        usuario.display_name,
+                        resultado.espera or timedelta(0),
+                    ) or detalle
+            await canal.send(f"❌ Se cancela: {detalle}")
             return
 
-        rng = random.Random()
-        # Las pociones se leen aquí, al resolver, no al retar: si alguien se la
-        # bebe mientras espera a que le acepten, cuenta igual.
-        stat = comp.STATS[tipo]
-        encuentro = comp.enfrentar(
-            [
-                comp.competidor_de(
-                    criatura, tipo, db.efecto_activo(criatura.id, stat, ahora)
-                )
-                for criatura in criaturas
-            ],
-            tipo,
-            rng,
-        )
-
-        # Un mensaje por combate: uno en una carrera, tres en un torneo.
+        encuentro = resultado.encuentro
+        assert encuentro is not None
+        # La transacción ya confirmó efectos, cooldowns, premios y operaciones.
+        # Ningún fallo de Discord desde aquí puede volver a ejecutar el encuentro.
         for fotogramas in comp.fotogramas_de(encuentro):
             await self._animar(canal, fotogramas)
 
-        await canal.send(comp.resumen(encuentro))
+        recibos = "\n".join(
+            texto_recibo_competencia(recibo, usuario.mention)
+            for recibo, usuario in zip(resultado.recibos, participantes)
+        )
+        await canal.send(f"{comp.resumen(encuentro)}\n{recibos}")
 
-        # El encuentro cuenta una vez por criatura aunque los finalistas de un
-        # torneo hayan peleado dos veces: en `orden` cada dorsal sale una sola vez.
-        primero = encuentro.orden[0]
-        despues = [
-            sim.aplicar_competencia(criatura, dorsal == primero, stat, rng)
-            for dorsal, criatura in enumerate(criaturas)
-        ]
-
-        for criatura, _ in despues:
-            db.guardar(criatura)
-            db.poner_cooldown(criatura.id, sim.COMPETIR, ahora)
-
-        for antes, (nueva, subidas), usuario in zip(
-            criaturas, despues, participantes
+        for antes, nueva, subidas, usuario in zip(
+            resultado.antes, resultado.despues, resultado.subidas, participantes
         ):
             if antes.etapa != nueva.etapa:
                 await canal.send(f"{usuario.mention}")
                 await canal.send(pantalla.render_evolucion(
-                    nueva, antes.etapa, tuple(subidas)
+                    nueva, antes.etapa, subidas
                 ))
             elif subidas:
                 await canal.send(
@@ -411,11 +420,6 @@ class Competencias(commands.Cog):
                     f"{usuario.mention}."
                 )
 
-            # Pantalla nueva sólo a quien le haya cambiado la ficha. Publicarlas
-            # todas llenaba el canal de cinco pantallas por carrera. A quien no se
-            # le publica le queda la de antes, con los números viejos pero con los
-            # botones vivos: no actúan sobre lo que se ve sino sobre la base de
-            # datos, y al pulsar cualquiera se pone al día sola.
             if _ha_cambiado_la_ficha(antes, nueva):
                 await vistas.publicar_pantalla(canal, nueva, ahora)
 

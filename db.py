@@ -680,16 +680,22 @@ def poner_efecto(criatura_id: int, stat: str, bonus: int, ahora: datetime) -> No
         )
 
 
-def efecto_activo(criatura_id: int, stat: str, ahora: datetime) -> int:
-    """Lo que suma la poción en curso, o 0 si no hay o ya caducó."""
-    with conectar() as con:
-        fila = con.execute(
-            "SELECT bonus, hasta FROM efectos WHERE criatura_id = ? AND stat = ?",
-            (criatura_id, stat),
-        ).fetchone()
+def efecto_activo_en(
+    con: sqlite3.Connection, criatura_id: int, stat: str, ahora: datetime
+) -> int:
+    fila = con.execute(
+        "SELECT bonus, hasta FROM efectos WHERE criatura_id = ? AND stat = ?",
+        (criatura_id, stat),
+    ).fetchone()
     if not fila or datetime.fromisoformat(fila["hasta"]) <= ahora:
         return 0
     return fila["bonus"]
+
+
+def efecto_activo(criatura_id: int, stat: str, ahora: datetime) -> int:
+    """Lo que suma la poción en curso, o 0 si no hay o ya caducó."""
+    with conectar() as con:
+        return efecto_activo_en(con, criatura_id, stat, ahora)
 
 
 def efectos_activos(criatura_id: int, ahora: datetime) -> dict[str, tuple[int, timedelta]]:
