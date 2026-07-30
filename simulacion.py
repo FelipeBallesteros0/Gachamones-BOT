@@ -63,27 +63,28 @@ LIMPIAR = "limpiar"
 ACTUALIZAR = "actualizar"
 COMPETIR = "competir"
 
-# Todos primos, y por eso mismo ninguno es múltiplo de otro. No es un capricho:
-# antes eran 30, 30, 60, 120 y 10 —todos múltiplos de 10, dos de ellos iguales—
-# y si un enfriamiento es múltiplo de otro sus ciclos coinciden para siempre.
-# Medido sobre 24 h de juego atento, con aquellos números las acciones se
-# liberaban juntas **las 48 veces**, en bloque, y entre bloque y bloque no había
-# nada que hacer durante media hora. Con éstos se turnan: 3 coincidencias de 147
-# momentos, y la espera más larga baja de 30 a 23 minutos.
+# La regla es que **ninguno sea múltiplo de otro**, y hay un test que la vigila.
+# No es un capricho: antes eran 30, 30, 60, 120 y 10 —todos múltiplos de 10, dos
+# de ellos iguales— y si un enfriamiento es múltiplo de otro sus ciclos coinciden
+# para siempre. Medido sobre 24 h de juego atento, con aquellos números las
+# acciones se liberaban juntas **las 48 veces**, en bloque, y entre bloque y
+# bloque no había nada que hacer durante media hora. Con éstos se turnan: 3
+# coincidencias de 147 momentos, y la espera más larga baja de 30 a 23 minutos.
 #
-# Al tocarlos hay que mantener la propiedad; hay un test que la vigila. Elegir
-# primos es la forma barata de no tener que pensarlo.
+# Los cuatro de cuidado son primos, que es la forma barata de garantizar la
+# propiedad sin pensarla. El de competir no lo es, pero la cumple igual.
 COOLDOWNS = {
     ALIMENTAR: timedelta(minutes=23),
     JUGAR: timedelta(minutes=29),
     ENTRENAR: timedelta(minutes=113),
     LIMPIAR: timedelta(minutes=53),
     ACTUALIZAR: timedelta(0),
-    # Competir lo comparten carrera y sumo. Corto a propósito: el límite real de
-    # cuánto se puede competir no lo pone este número sino el hambre —10 por
-    # pelea, mínimo 20 para entrar, +30 por comida cada 23 min: unas 8 peleas por
-    # hora—, que ya ataba más que los 7 minutos que había antes.
-    COMPETIR: timedelta(minutes=3),
+    # Competir lo comparten carrera y sumo. Diez minutos son 6 peleas por hora,
+    # y el hambre da para 7,8 —10 por pelea, mínimo 20 para entrar, +30 por
+    # comida cada 23 min—, así que **es este número el que ata**, no la comida.
+    # Es a propósito: con los 3 minutos de antes ataba el hambre y el objeto que
+    # reinicia esta espera no servía para nada.
+    COMPETIR: timedelta(minutes=10),
 }
 
 # Sólo estas cuatro salen en el subtexto de la pantalla.

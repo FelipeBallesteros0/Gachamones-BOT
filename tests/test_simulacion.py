@@ -458,6 +458,30 @@ def test_ningun_enfriamiento_es_multiplo_de_otro():
             )
 
 
+def test_el_enfriamiento_de_competir_ata_mas_que_el_hambre():
+    """Lo que le da sentido al objeto que reinicia esta espera.
+
+    Hay dos cosas que topan cuánto se puede competir: este enfriamiento y el
+    hambre. Con los 3 minutos de antes ataba el hambre —7,8 peleas por hora
+    frente a 20—, así que saltarse la espera no servía de nada. A 10 minutos son
+    6 por hora y manda el enfriamiento, que es lo que se buscaba.
+
+    Si alguien vuelve a bajarlo, este test avisa de que además está dejando el
+    «Descanso rápido» sin utilidad.
+    """
+    minutos = sim.COOLDOWNS[sim.COMPETIR].total_seconds() / 60
+    peleas_por_enfriamiento = 60 / minutos
+
+    comidas_por_hora = 60 / (sim.COOLDOWNS[sim.ALIMENTAR].total_seconds() / 60)
+    peleas_por_comida = 30 / sim.COSTE_HAMBRE_COMPETIR  # alimentar da +30
+    peleas_por_hambre = comidas_por_hora * peleas_por_comida
+
+    assert peleas_por_enfriamiento < peleas_por_hambre, (
+        f"{peleas_por_enfriamiento:.1f} peleas/hora por enfriamiento contra "
+        f"{peleas_por_hambre:.1f} por hambre: ata la comida, no la espera"
+    )
+
+
 def test_solo_actualizar_es_gratis():
     gratis = [a for a, c in sim.COOLDOWNS.items() if c == timedelta(0)]
     assert gratis == [sim.ACTUALIZAR]
