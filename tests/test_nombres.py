@@ -14,6 +14,7 @@ def test_normaliza_nombres_unicode_y_espacios_internos():
     assert sim.normalizar_nombre("  Éowyn   del  Río  ") == "Éowyn del Río"
     assert sim.normalizar_nombre("O'Connor-Luz") == "O'Connor-Luz"
     assert sim.normalizar_nombre("星 の 子") == "星 の 子"
+    assert sim.normalizar_nombre("A\u0301ngel D’Artagnan 2") == "A\u0301ngel D’Artagnan 2"
 
 
 @pytest.mark.parametrize(
@@ -21,11 +22,18 @@ def test_normaliza_nombres_unicode_y_espacios_internos():
     [
         ("   ", "vacío"),
         ("a" * 25, "24"),
-        ("Luna\nFalsa", "control"),
-        ("<@123456789>", "menciones"),
-        ("@everyone", "menciones"),
-        ("**Luna**", "Markdown"),
-        ("```Luna```", "Markdown"),
+        ("Luna\nFalsa", "letras, números"),
+        ("<@123456789012345678>", "letras, números"),
+        ("<@!123456789012345678>", "letras, números"),
+        ("<@&123456789012345678>", "letras, números"),
+        ("<#123456789012345678>", "letras, números"),
+        ("@everyone", "letras, números"),
+        ("**Luna**", "letras, números"),
+        ("```Luna```", "letras, números"),
+        ("[Luna](https://x.co)", "letras, números"),
+        ("||Luna||", "letras, números"),
+        ("__Luna__", "letras, números"),
+        ("~~Luna~~", "letras, números"),
     ],
 )
 def test_rechaza_nombres_que_rompen_o_suplantan_la_salida(nombre, motivo):
@@ -74,5 +82,5 @@ def test_el_modal_invalido_responde_en_privado_y_no_muta_la_bd(
 
     assert db.criatura_viva("u1", "g1").nombre == "Prueba"
     assert len(enviados) == 1
-    assert "Markdown" in enviados[0][0]
+    assert "letras, números" in enviados[0][0]
     assert enviados[0][1].get("ephemeral") is True

@@ -96,23 +96,26 @@ LARGO_MAXIMO_NOMBRE = 24
 def normalizar_nombre(nombre: str) -> str:
     """Valida y normaliza un nombre antes de mostrarlo en Discord.
 
-    Los nombres son Unicode y no se restringen a un alfabeto concreto. Sólo se
-    excluyen caracteres que puedan controlar o suplantar la salida del bot.
+    Los nombres son Unicode y no se restringen a un alfabeto concreto, pero su
+    puntuación se limita para que no controle o suplante la salida del bot.
     """
-    if any(unicodedata.category(caracter).startswith("C") for caracter in nombre):
-        raise ValueError("El nombre no puede contener caracteres de control.")
-
-    normalizado = " ".join(nombre.split())
+    normalizado = " ".join(parte for parte in nombre.split(" ") if parte)
     if not normalizado:
         raise ValueError("El nombre está vacío.")
+    permitidos = {" ", "'", "’", "-"}
+    if any(
+        caracter not in permitidos
+        and unicodedata.category(caracter)[0] not in {"L", "M", "N"}
+        for caracter in normalizado
+    ):
+        raise ValueError(
+            "El nombre sólo puede contener letras, números, espacios, "
+            "apóstrofes y guiones."
+        )
     if len(normalizado) > LARGO_MAXIMO_NOMBRE:
         raise ValueError(
             f"El nombre no puede tener más de {LARGO_MAXIMO_NOMBRE} caracteres."
         )
-    if "@" in normalizado:
-        raise ValueError("El nombre no puede contener menciones ni el signo @.")
-    if "`" in normalizado or "*" in normalizado:
-        raise ValueError("El nombre no puede contener delimitadores de Markdown (* o `).")
     return normalizado
 
 # Cuidar también hace crecer, para que quien no quiera competir pueda ver
