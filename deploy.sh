@@ -27,8 +27,7 @@ rsync -av --delete \
 echo "==> Preparando el entorno en la Pi"
 ssh "$PI" "cd '$DEST' && \
     { [ -d venv ] || python3 -m venv venv; } && \
-    ./venv/bin/pip install -q --upgrade pip && \
-    ./venv/bin/pip install -q -r requirements.txt && \
+    ./venv/bin/python -m pip install -q -r requirements.txt && \
     ./venv/bin/python -c 'import discord; print(\"discord.py\", discord.__version__)'"
 
 if ! ssh "$PI" "test -f '$DEST/.env'"; then
