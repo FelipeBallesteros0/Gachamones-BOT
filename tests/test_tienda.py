@@ -1,6 +1,9 @@
 """El camino completo de un consumible: comprarlo, usarlo y notarlo peleando."""
+import asyncio
 import random
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -204,6 +207,98 @@ def test_renombrar_al_mismo_nombre_no_gasta_nada():
         assert db.inventario("u1", "g1") == {"placa": 1}
         return
     raise AssertionError("cambiar por el mismo nombre no debería gastar la placa")
+
+
+def test_usar_objeto_congela_la_ficha_mutada_antes_de_responder(monkeypatch):
+    criatura = con_hambre(12.0)
+    assert criatura is not None
+    db.guardar_pantalla(criatura.id, "ficha-objeto", "canal-viejo")
+    pocion = obj.CATALOGO["pocion_comida"]
+    comprar(pocion)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
+    eventos = []
+
+    async def responder(**_):
+        eventos.append("respuesta")
+
+    async def congelar(canal, mensaje_id):
+        eventos.append(("congelar", canal, mensaje_id))
+
+    menu = tienda.MenuInventario({pocion.clave: 1}, congelar)
+    menu._values = [pocion.clave]
+    canal = SimpleNamespace()
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        response=SimpleNamespace(edit_message=responder),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    assert eventos == [("congelar", canal, "ficha-objeto"), "respuesta"]
+    persistida = db.criatura_activa("u1", "g1")
+    assert persistida is not None
+    assert persistida.hambre == 100.0
+
+
+def test_objeto_agotado_no_congela_la_ficha():
+    criatura = nacer()
+    db.guardar_pantalla(criatura.id, "ficha-agotada", "canal-viejo")
+    silbato = obj.CATALOGO["silbato"]
+    congelar = AsyncMock()
+    menu = tienda.MenuInventario({silbato.clave: 1}, congelar)
+    menu._values = [silbato.clave]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    congelar.assert_not_awaited()
+
+
+def test_renombrar_congela_la_ficha_mutada_antes_de_responder():
+    criatura = nacer()
+    db.guardar_pantalla(criatura.id, "ficha-nombre", "canal-viejo")
+    placa = obj.CATALOGO["placa"]
+    comprar(placa)
+    eventos = []
+
+    async def responder(*_, **__):
+        eventos.append("respuesta")
+
+    async def congelar(canal, mensaje_id):
+        eventos.append(("congelar", canal, mensaje_id))
+
+    modal = tienda.RenombrarModal(placa, criatura.nombre, congelar)
+    modal.nombre._value = "Pelusa"
+    canal = SimpleNamespace()
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        response=SimpleNamespace(send_message=responder),
+    )
+
+    asyncio.run(modal.on_submit(interaccion))
+
+    assert eventos == [("congelar", canal, "ficha-nombre"), "respuesta"]
+
+
+def test_renombrado_fallido_no_congela_la_ficha():
+    criatura = nacer()
+    db.guardar_pantalla(criatura.id, "ficha-sin-cambio", "canal-viejo")
+    placa = obj.CATALOGO["placa"]
+    comprar(placa)
+    congelar = AsyncMock()
+    modal = tienda.RenombrarModal(placa, criatura.nombre, congelar)
+    modal.nombre._value = criatura.nombre
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(send_message=AsyncMock()),
+    )
+
+    asyncio.run(modal.on_submit(interaccion))
+
+    congelar.assert_not_awaited()
 
 
 # --- Que ningún objeto mienta sobre lo que hizo -----------------------------
