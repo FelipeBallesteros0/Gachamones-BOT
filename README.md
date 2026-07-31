@@ -154,12 +154,18 @@ ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
 `/huevo` da **sólo el de partida**: el segundo y el tercero hay que ganárselos
 en `/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
 
-**Aventura.** `/aventura` saca al activo a un bioma al azar (bosque, planicie,
-desierto, ruinas, volcán) y le planta delante una escena con **tres salidas**:
-fuerza, velocidad o volverse. Las dos primeras tiran `stat + 1d20` contra la
-dificultad del bioma y **cuestan lo mismo**: si una fuera más barata, la otra no
-la elegiría nadie y la decisión sería un adorno. Volver no arriesga nada, pero
-tampoco cuenta como nodo superado.
+**Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
+azar (bosque, planicie, desierto, ruinas, volcán) y os planta delante una escena
+con **tres salidas**: fuerza, velocidad o volverse. Las dos primeras tiran
+`stat + 1d20` contra la dificultad del bioma y **cuestan lo mismo**: si una fuera
+más barata, la otra no la elegiría nadie y la decisión sería un adorno. Volver no
+arriesga nada, pero tampoco cuenta como nodo superado.
+
+**La espera de 37 minutos es de la persona, no del gachamon**, y por eso vive en
+`cooldowns_persona` y no en `cooldowns`. Es la única que lo hace: cuidar y
+competir son del gachamon —es él quien come y quien pelea—, pero a la aventura
+vas tú. Atada al gachamon era un agujero: con tres en el plantel se salía tres
+veces seguidas cambiando de activo entre viaje y viaje.
 
 Son **dos decisiones**. Acertar lleva a la escena siguiente; fallar cierra el
 viaje ahí mismo, así que un viaje jugado trae **un fallo como mucho**. Si vuelve
@@ -169,6 +175,15 @@ Las escenas **las inventa el LLM** (JSON validado antes de usarlo: si falta una
 opción o una etiqueta no cabe en un botón de Discord, se descarta) y hay escenas
 escritas por bioma de respaldo, para que la aventura no se quede muda al agotar
 el límite de IA. El viaje se narra al final en **una sola llamada** más.
+
+**Y se narra de los dos**: «Felipe y Pelusa salen al Bosque», con tu nombre
+visible de Discord. Los botones ya te hablaban a ti —«Colarte por la ventana»,
+«Seguir tu camino»—, así que contar que el gachamon iba solo era la ficción
+contradiciendo a la mecánica. Como el plural obliga a conjugar, el guardia de
+`usa_formas_de_vosotros` hubo que ampliarlo: era una lista cerrada de palabras y
+no pillaba «cruzáis» ni «llegaréis», que es lo primero que soltó el modelo. Ahora
+mira también las terminaciones `-áis` y `-éis`, y si se le escapa una, se publica
+el texto escrito en vez de la narración.
 
 Lo hondo que se llegue decide qué se encuentra:
 

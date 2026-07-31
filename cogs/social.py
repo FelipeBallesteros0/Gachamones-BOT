@@ -115,9 +115,10 @@ una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
 reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 
 **Aventura**
-`/aventura` te planta en un bioma al azar ante una escena con **tres salidas**: \
-💪 fuerza, 💨 velocidad o 🚶 seguir camino. Las dos primeras tiran \
-`estadística + 1d20`; seguir camino no arriesga, pero tampoco cuenta.
+`/aventura` te lleva **a ti y a tu gachamon** a un bioma al azar, ante una escena \
+con **tres salidas**: 💪 fuerza, 💨 velocidad o 🚶 seguir camino. Las dos \
+primeras tiran `estadística + 1d20`; seguir camino no arriesga, pero tampoco \
+cuenta.
 Son **{av.NIVELES_DE_AVENTURA} decisiones**: acertar te mete más adentro y \
 fallar cierra el viaje. Cuanto más hondo llegues, mejor lo que encuentras, y \
 sólo al fondo puede aparecer un **gachamon salvaje**. Si vuelve con vida gana \
@@ -127,7 +128,9 @@ Convencerlo va por turnos: hablarle, **golosinas**, presumir o esperar quieto. \
 paciencia. Al unirse **no trae nombre**: se lo pones tú, y hasta entonces no \
 sale de la incubadora.
 -# Es la única forma de tener un segundo o un tercer gachamon. Con el equipo \
-lleno se sale igual, pero sólo se encuentran objetos."""
+lleno se sale igual, pero sólo se encuentran objetos.
+-# 🧭 El descanso entre viajes es **tuyo**, no del gachamon: cambiar de activo \
+no te lo salta, porque el que sale al campo eres tú."""
 
     # «Hablarle» se mudó aquí al crecer la aventura con el árbol de decisiones:
     # la página de qué hacer se pasaba del tope de un mensaje de Discord.

@@ -225,7 +225,7 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
     })
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
     monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
-    monkeypatch.setattr(db, "esperas", esperas)
+    monkeypatch.setattr(db, "esperas_de_ficha", esperas)
     monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
 
     respuesta = AsyncMock()
@@ -240,8 +240,10 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
     callback = cast(Any, cog_mascota.Mascota.mascota.callback)
     asyncio.run(callback(cog, interaccion, rival))
 
+    # Se le pasa la criatura entera y no su id: la espera de aventura es de la
+    # persona, y hacen falta su `usuario_id` y su `guild_id` para encontrarla.
     esperas.assert_called_once_with(
-        criatura.id, ahora,
+        criatura, ahora,
         (
             sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR,
             sim.LIMPIAR, sim.COMPETIR, sim.AVENTURA,

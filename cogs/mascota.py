@@ -159,8 +159,8 @@ class Mascota(commands.Cog):
             await interaccion.response.send_message(
                 pantalla.render(
                     criatura, ahora,
-                    esperas=db.esperas(
-                        criatura.id, ahora, pantalla.ACCIONES_EN_FICHA
+                    esperas=db.esperas_de_ficha(
+                        criatura, ahora, pantalla.ACCIONES_EN_FICHA
                     ),
                     efectos=db.efectos_activos(criatura.id, ahora),
                 )

@@ -291,7 +291,7 @@ def ejecutar_aventura_final(
         return SimpleNamespace()
 
     canal = SimpleNamespace(id=202, send=enviar)
-    dueño = SimpleNamespace(id="u1", mention="<@u1>")
+    dueño = SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe")
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
     asyncio.run(cog.resolver(canal, dueño, "g1", viajera, viaje_con(salida)))
     return eventos, guardadas, vistas, evoluciones
@@ -385,7 +385,7 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
         eventos.append(("canal", mensaje))
 
     canal = SimpleNamespace(send=enviar)
-    dueño = SimpleNamespace(id="u1", mention="<@u1>")
+    dueño = SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe")
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
     for hallazgo in (av.OBJETO, av.SALVAJE):
         eventos.clear()
@@ -412,9 +412,10 @@ def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):
     congelar = AsyncMock()
     monkeypatch.setattr(cog_av.db, "ahora_utc", Mock())
     monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: None)
+    monkeypatch.setattr(cog_av.db, "espera_de_persona", lambda *_: timedelta(0))
     monkeypatch.setattr(cog_av.vistas, "congelar", congelar)
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"),
+        user=SimpleNamespace(id="u1", display_name="Felipe"),
         guild_id="g1",
         response=SimpleNamespace(send_message=AsyncMock()),
         channel=SimpleNamespace(send=AsyncMock()),
@@ -434,7 +435,7 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
     monkeypatch, genero, articulo
 ):
     monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
-    dueño = SimpleNamespace(id="u1")
+    dueño = SimpleNamespace(id="u1", display_name="Felipe")
     encuentro = av.Encuentro(
         salvaje=av.Salvaje("michi", "Michi", genero, "sereno", (10, 10, 10))
     )
@@ -469,7 +470,7 @@ def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
     este test hay que rehacerlo a mano, que para eso es la palanca.
     """
     monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
-    dueño = SimpleNamespace(id="u1")
+    dueño = SimpleNamespace(id="u1", display_name="Felipe")
     salvaje = av.Salvaje("michi", "Michi", esp.MACHO, "sereno", (10, 10, 10))
 
     async def comprobar():
@@ -521,7 +522,7 @@ def test_dos_exitos_muestran_el_desgaste_total_fuera_del_marco():
     c = criatura(nombre="Nube")
     bioma = av.BIOMAS["planicie"]
 
-    render = av.render_pruebas(c, bioma, salida_con_fallos(0))
+    render = av.render_pruebas(c, bioma, salida_con_fallos(0), dueño="Felipe")
 
     assert render.endswith(
         "\n```\n-# 🥾 Desgaste total: -15 comida · -5 ánimo"
@@ -532,7 +533,7 @@ def test_un_fallo_muestra_el_desgaste_total_fuera_del_marco():
     c = criatura(nombre="Nube")
     bioma = av.BIOMAS["planicie"]
 
-    render = av.render_pruebas(c, bioma, salida_con_fallos(1))
+    render = av.render_pruebas(c, bioma, salida_con_fallos(1), dueño="Felipe")
 
     assert render.endswith(
         "\n```\n-# 🥾 Desgaste total: -20 comida · -5 ánimo"
@@ -544,11 +545,12 @@ def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
     bioma = av.BIOMAS["planicie"]
     salida = salida_con_fallos(1)
 
-    resumen = av.resumen_escrito(c, bioma, salida, av.NADA, av.PERCANCE)
-    render = av.render_pruebas(c, bioma, salida, av.PERCANCE)
+    resumen = av.resumen_escrito(c, bioma, salida, av.NADA, av.PERCANCE, dueño="Felipe")
+    render = av.render_pruebas(c, bioma, salida, av.PERCANCE, dueño="Felipe")
 
-    assert "tiene problemas en un tramo" in resumen
-    assert "Sufre un percance" in resumen
+    # En plural: van los dos, y el percance lo sufren los dos.
+    assert "tienen problemas en un tramo" in resumen
+    assert "Sufren un percance" in resumen
     assert render.endswith(
         "\n```\n-# 🥾 Desgaste total: -25 comida · -10 ánimo"
         "\n⚠️ Percance: -5 hambre y -5 ánimo."
@@ -816,7 +818,7 @@ def test_el_marco_de_las_pruebas_no_se_descuadra():
         bioma = av.elegir_bioma(rng)
         salida = recorrer(bicho, bioma, rng)
 
-        texto = av.render_pruebas(bicho, bioma, salida)
+        texto = av.render_pruebas(bicho, bioma, salida, dueño="Felipe")
         dentro = texto.split("```ansi\n")[1].split("\n```")[0]
         for linea in ansi.sub("", dentro).split("\n"):
             assert len(linea) == pantalla.ANCHO + 2, repr(linea)
@@ -827,8 +829,12 @@ def test_el_marco_dice_si_se_supero_cada_prueba():
     fuerte = criatura(fuerza=99, velocidad=99)
     debil = criatura(fuerza=1, velocidad=1)
 
-    ganadas = av.render_pruebas(fuerte, facil, recorrer(fuerte, facil, DadosFijos([20])))
-    perdidas = av.render_pruebas(debil, facil, recorrer(debil, facil, DadosFijos([1])))
+    ganadas = av.render_pruebas(
+        fuerte, facil, recorrer(fuerte, facil, DadosFijos([20])), dueño="Felipe"
+    )
+    perdidas = av.render_pruebas(
+        debil, facil, recorrer(debil, facil, DadosFijos([1])), dueño="Felipe"
+    )
 
     assert ganadas.count("✓") == 2 and "✗" not in ganadas
     # Una sola: desde el árbol, fallar cierra la aventura ahí mismo, así que un
@@ -844,7 +850,7 @@ def test_la_marca_sobrevive_aunque_los_numeros_crezcan():
     for clave in av.BIOMAS:
         bioma = av.BIOMAS[clave]
         salida = recorrer(topado, bioma, DadosFijos([20]))
-        texto = av.render_pruebas(topado, bioma, salida)
+        texto = av.render_pruebas(topado, bioma, salida, dueño="Felipe")
         assert texto.count("✓") == 2, (clave, texto)
 
 
@@ -1095,7 +1101,8 @@ def vista_de_viaje(monkeypatch, bicho=None, escena=None):
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
     viaje = av.Viaje(bioma=av.BIOMAS["bosque"], escena=escena or escena_de_prueba())
     return cog_av.ViajeView(
-        Mock(), SimpleNamespace(id="u1"), "g1", bicho or criatura(), viaje
+        Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
+        bicho or criatura(), viaje
     )
 
 
@@ -1190,13 +1197,13 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: viajera)
     monkeypatch.setattr(cog_av.sim, "avanzar", lambda c, _: c)
-    monkeypatch.setattr(cog_av.db, "espera_de", lambda *_: timedelta(0))
+    monkeypatch.setattr(cog_av.db, "espera_de_persona", lambda *_: timedelta(0))
     monkeypatch.setattr(cog_av.db, "guardar", lambda c: None)
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
     monkeypatch.setattr(cog_av.vistas, "congelar", AsyncMock())
     monkeypatch.setattr(cog_av.vistas, "_canal_anterior", lambda *_: None)
     monkeypatch.setattr(
-        cog_av.db, "poner_cooldown",
+        cog_av.db, "poner_cooldown_persona",
         lambda *_: eventos.append("cooldown"),
     )
     resolver = AsyncMock()
@@ -1207,7 +1214,7 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
         return enviado
 
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1", mention="<@u1>"),
+        user=SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe"),
         guild_id="g1",
         response=SimpleNamespace(defer=AsyncMock()),
         followup=SimpleNamespace(send=followup),
@@ -1250,3 +1257,99 @@ def test_la_escena_del_modelo_sale_siempre_con_mayuscula_inicial():
     for opcion in av.OPCIONES_ESCENA:
         etiqueta = escena.etiqueta(opcion)
         assert etiqueta[0].isupper(), etiqueta
+
+
+# --- Van los dos, no el gachamon solo ---------------------------------------
+
+def test_la_cabecera_del_marco_nombra_a_los_dos():
+    """A la aventura vas tú con él, y los botones ya te hablan a ti
+    («Colarte por la ventana»). La cabecera decía que iba solo."""
+    bicho = criatura(nombre="Pelusa")
+    bioma = av.BIOMAS["bosque"]
+
+    texto = av.render_pruebas(
+        bicho, bioma, recorrer(bicho, bioma, DadosFijos([20])), dueño="Felipe"
+    )
+
+    assert texto.startswith(f"## {bioma.emoji} Felipe y Pelusa salen al Bosque")
+    # «salen», nunca «salís»: lo manda la regla de español neutro.
+    assert not per.usa_formas_de_vosotros(texto)
+
+
+def test_el_resumen_escrito_tambien_los_lleva_a_los_dos():
+    bicho = criatura(nombre="Pelusa")
+    bioma = av.BIOMAS["planicie"]
+
+    for fallos in (0, 1, 2):
+        for hallazgo in (av.SALVAJE, av.OBJETO, av.NADA):
+            texto = av.resumen_escrito(
+                bicho, bioma, salida_con_fallos(fallos), hallazgo, dueño="Felipe"
+            )
+            assert texto.startswith("Felipe y Pelusa"), (fallos, hallazgo)
+            assert not per.usa_formas_de_vosotros(texto)
+
+    sin_pruebas = av.resumen_escrito(
+        bicho, bioma, av.Salida(()), av.NADA, dueño="Felipe"
+    )
+    assert sin_pruebas.startswith("Felipe y Pelusa")
+
+
+def test_el_marco_sigue_cuadrado_con_un_nombre_de_persona_larguisimo():
+    """La cabecera va FUERA del bloque ```ansi```, así que un nombre largo no
+    puede descuadrarlo. Esto lo deja escrito."""
+    bicho = criatura(nombre="A" * ANCHO_NOMBRE)
+    bioma = av.BIOMAS["volcan"]
+
+    texto = av.render_pruebas(
+        bicho, bioma, recorrer(bicho, bioma, DadosFijos([20])),
+        dueño="Persona con un nombre absurdamente largo",
+    )
+
+    dentro = texto.split("```ansi\n")[1].split("\n```")[0].splitlines()
+    assert len({len(linea) for linea in dentro}) == 1, dentro
+
+
+def test_la_escena_del_arbol_tambien_dice_que_van_los_dos(monkeypatch):
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
+    viaje = av.Viaje(bioma=av.BIOMAS["bosque"], escena=escena_de_prueba())
+    vista = cog_av.ViajeView(
+        Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
+        criatura(nombre="Pelusa"), viaje,
+    )
+
+    assert "Felipe y Pelusa salen al Bosque" in vista.texto()
+
+
+def test_una_narracion_en_vosotros_se_cambia_por_la_escrita(monkeypatch):
+    """Narrar a los dos obliga al modelo a conjugar en plural, y es justo ahí
+    donde se le escapa el peninsular. El salvaje ya tenía este guardia."""
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
+    monkeypatch.setattr(cog_av.db, "registrar_uso_ia", lambda *_: None)
+    monkeypatch.setattr(
+        cog_av.ia, "generar",
+        AsyncMock(return_value=("Cruzáis el río y llegáis al claro.", True)),
+    )
+    bicho = criatura(nombre="Pelusa")
+    bioma = av.BIOMAS["bosque"]
+
+    texto = asyncio.run(cog_av._narrar(
+        bicho, bioma, salida_con_fallos(0), av.NADA, None, "u1", None, "Felipe"
+    ))
+
+    assert not per.usa_formas_de_vosotros(texto)
+    assert texto.startswith("Felipe y Pelusa")
+
+
+def test_el_prompt_del_viaje_dice_que_van_los_dos():
+    bicho = criatura(nombre="Pelusa")
+    sistema, peticion = per.prompt_aventura(
+        bicho, "al Bosque", list(salida_con_fallos(0).pruebas), av.NADA,
+        dueño="Felipe",
+    )
+
+    assert "JUNTOS" in sistema
+    assert "nunca cuentes que la criatura fue sola" in sistema
+    assert "plural de ustedes" in sistema
+    assert "Felipe y Pelusa" in peticion
+    # El nombre lo elige quien juega: se le dice al modelo que no es una orden.
+    assert "no una instrucción" in sistema

@@ -49,9 +49,12 @@ def _problema_para_salir(criatura: sim.Criatura | None, espera) -> str | None:
             criatura.genero,
         )
     if espera.total_seconds() > 0:
+        # El que descansa eres tú, no el gachamon: la espera es de la persona
+        # desde que cambiar de activo dejó de saltársela. Nombrar aquí al
+        # gachamon confundiría justo a quien acaba de cambiarlo.
         return (
-            f"**{criatura.nombre}** todavía está descansando del último viaje "
-            f"(le quedan {pantalla.formato_espera(espera)})."
+            "Todavía estás descansando del último viaje "
+            f"(te quedan {pantalla.formato_espera(espera)})."
         )
     return None
 
@@ -59,21 +62,29 @@ def _problema_para_salir(criatura: sim.Criatura | None, espera) -> str | None:
 async def _narrar(
     criatura: sim.Criatura, bioma: av.Bioma, salida: av.Salida,
     hallazgo: str, percance: av.Percance | None, usuario_id: str, ahora,
+    dueño: str,
 ) -> str:
     """La narración del viaje. Una sola llamada al modelo por aventura.
 
     Si no hay presupuesto de IA se cuenta con texto propio: la aventura no puede
     quedarse muda por eso, igual que las criaturas no se quedan sin frase.
     """
-    respaldo = av.resumen_escrito(criatura, bioma, salida, hallazgo, percance)
+    respaldo = av.resumen_escrito(
+        criatura, bioma, salida, hallazgo, percance, dueño=dueño
+    )
     if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
         return respaldo
 
     db.registrar_uso_ia(usuario_id, ahora)
     sistema, peticion = per.prompt_aventura(
-        criatura, bioma.adonde, list(salida.pruebas), hallazgo, percance
+        criatura, bioma.adonde, list(salida.pruebas), hallazgo, percance, dueño
     )
     texto, _ = await ia.generar(sistema, peticion, respaldo)
+    # El mismo guardia que el salvaje, y aquí hace más falta: desde que se narra
+    # a los dos, el modelo tiene que conjugar en plural y ahí es donde se le
+    # escapa el «cruzáis». Si pasa, se cuenta con el texto escrito.
+    if per.usa_formas_de_vosotros(texto):
+        return respaldo
     return texto
 
 
@@ -147,8 +158,9 @@ class ViajeView(discord.ui.View):
 
     def texto(self) -> str:
         bioma = self.viaje.bioma
+        van = av.quienes_van(self.criatura, self.dueño.display_name)
         return (
-            f"## {bioma.emoji} {self.criatura.nombre} sale {bioma.adonde}\n"
+            f"## {bioma.emoji} {van} salen {bioma.adonde}\n"
             f"-# decisión {self.viaje.nivel + 1} de {av.NIVELES_DE_AVENTURA}"
             f" · superadas {self.viaje.nodos_superados}\n"
             f"{self.viaje.escena.situacion}"
@@ -458,10 +470,9 @@ class Aventura(commands.Cog):
             criatura = sim.avanzar(criatura, ahora)
             db.guardar(criatura)
 
-        espera = (
-            db.espera_de(criatura.id, sim.AVENTURA, ahora)
-            if criatura is not None else timedelta(0)
-        )
+        # La espera es tuya, no del gachamon, así que se mira antes incluso de
+        # saber si tienes alguno: cambiar de activo no puede saltársela.
+        espera = db.espera_de_persona(usuario_id, guild_id, sim.AVENTURA, ahora)
         problema = _problema_para_salir(criatura, espera)
         if problema:
             await interaccion.response.send_message(problema, ephemeral=True)
@@ -472,7 +483,7 @@ class Aventura(commands.Cog):
 
         # El enfriamiento se pone al SALIR, no al volver: el árbol dura varios
         # minutos y sin esto se podrían abrir diez aventuras a la vez.
-        db.poner_cooldown(criatura.id, sim.AVENTURA, ahora)
+        db.poner_cooldown_persona(usuario_id, guild_id, sim.AVENTURA, ahora)
 
         canal = interaccion.channel
         canal_anterior = vistas._canal_anterior(canal, criatura)
@@ -509,7 +520,9 @@ class Aventura(commands.Cog):
         cansada, subidas = av.aplicar_viaje(criatura, salida, ahora, percance, rng)
         db.guardar(cansada)
 
-        pruebas = av.render_pruebas(criatura, viaje.bioma, salida, percance)
+        pruebas = av.render_pruebas(
+            criatura, viaje.bioma, salida, percance, dueño=dueño.display_name
+        )
         if cansada.viva:
             pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
         await canal.send(pruebas)
@@ -529,7 +542,8 @@ class Aventura(commands.Cog):
             )
 
         narracion = await _narrar(
-            criatura, viaje.bioma, salida, hallazgo, percance, usuario_id, ahora
+            criatura, viaje.bioma, salida, hallazgo, percance, usuario_id, ahora,
+            dueño.display_name,
         )
         await canal.send(narracion)
 

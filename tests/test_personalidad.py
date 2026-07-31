@@ -487,3 +487,17 @@ def test_el_prompt_de_escena_abre_la_mano_mas_alla_del_obstaculo():
     for forma in ("viajero", "pastor", "tormenta", "criatura"):
         assert forma in sistema, forma
     assert "dos puertas cerradas" in sistema  # la instrucción de variar
+
+
+def test_el_guard_pilla_tambien_los_verbos_que_no_estan_en_la_lista():
+    """La lista es cerrada y el modelo conjuga lo que le da la gana. Desde que
+    la aventura se narra en plural esto pasa de verdad: la primera narración que
+    salió fue «Cruzáis el río y llegáis al claro», y colaba entera."""
+    for frase in ("Cruzáis el río", "Llegaréis tarde", "Si queréis, subís",
+                  "Ya lo veréis", "Cuando lleguéis"):
+        assert per.usa_formas_de_vosotros(frase), frase
+
+    # Y no se lleva por delante palabras normales que acaban parecido.
+    for frase in ("Vuelven al país de origen", "La raíz del árbol",
+                  "Cruzan el río y llegan al claro", "Tenía seis piedras"):
+        assert not per.usa_formas_de_vosotros(frase), frase

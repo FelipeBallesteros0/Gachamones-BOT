@@ -664,28 +664,38 @@ def render_percance(percance: Percance | None) -> str:
     return f"⚠️ Percance: -{percance.hambre} hambre y -{percance.animo} ánimo."
 
 
+def quienes_van(criatura: sim.Criatura, dueño: str) -> str:
+    """«Felipe y Pelusa». A la aventura van los dos, y así se cuenta.
+
+    En plural de **ustedes**, nunca de vosotros: «Felipe y Pelusa salen», que es
+    lo que manda `REGLA_ESPANOL_NEUTRO` en todo el bot.
+    """
+    return f"{dueño} y {criatura.nombre}"
+
+
 def resumen_escrito(
     criatura: sim.Criatura, bioma: Bioma, salida: Salida, hallazgo: str,
-    percance: Percance | None = None,
+    percance: Percance | None = None, *, dueño: str,
 ) -> str:
     """La narración cuando no hay presupuesto de IA.
 
     La aventura no puede quedarse muda porque se haya agotado el límite, igual
     que las criaturas nunca se quedan sin frase.
     """
+    van = quienes_van(criatura, dueño)
     if not salida.pruebas:
         # Con el árbol se puede volver de todo sin haber tirado un solo dado, y
         # decir entonces que «no se le resiste nada» sería contar otro viaje.
-        viaje = f"{criatura.nombre} sale {bioma.adonde} y no se mete en nada."
+        viaje = f"{van} salen {bioma.adonde} y no se meten en nada."
     elif salida.superadas == len(salida.pruebas):
-        viaje = f"{criatura.nombre} sale {bioma.adonde} y no se le resiste nada."
+        viaje = f"{van} salen {bioma.adonde} y no se les resiste nada."
     elif salida.superadas:
-        viaje = f"{criatura.nombre} sale {bioma.adonde} y tiene problemas en un tramo."
+        viaje = f"{van} salen {bioma.adonde} y tienen problemas en un tramo."
     else:
-        viaje = f"{criatura.nombre} sale {bioma.adonde} y vuelve en muy mal estado."
+        viaje = f"{van} salen {bioma.adonde} y vuelven en muy mal estado."
 
     if percance is not None:
-        viaje += " Sufre un percance durante el trayecto."
+        viaje += " Sufren un percance durante el trayecto."
 
     finales = {
         SALVAJE: "Algo se mueve ahí al lado.",
@@ -716,9 +726,13 @@ def _anchos(salida: Salida) -> tuple[int, int]:
 
 def render_pruebas(
     criatura: sim.Criatura, bioma: Bioma, salida: Salida,
-    percance: Percance | None = None,
+    percance: Percance | None = None, *, dueño: str,
 ) -> str:
-    """El marco del viaje. El emoji del bioma va FUERA, como siempre."""
+    """El marco del viaje. El emoji del bioma va FUERA, como siempre.
+
+    La cabecera nombra a los dos y también va fuera del bloque, así que un
+    nombre largo no descuadra nada: dentro del marco no entra ninguno.
+    """
     ancho_base, ancho_total = _anchos(salida)
 
     cuerpo = [
@@ -741,7 +755,7 @@ def render_pruebas(
     cuerpo.append("╰" + "─" * pantalla.ANCHO + "╯")
 
     texto = (
-        f"## {bioma.emoji} {criatura.nombre} sale {bioma.adonde}\n"
+        f"## {bioma.emoji} {quienes_van(criatura, dueño)} salen {bioma.adonde}\n"
         "```ansi\n" + "\n".join(cuerpo) + "\n```"
     )
     hambre, animo = coste_desgaste(salida, percance)

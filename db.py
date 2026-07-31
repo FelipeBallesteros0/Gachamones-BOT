@@ -77,6 +77,18 @@ CREATE TABLE IF NOT EXISTS cooldowns (
     PRIMARY KEY (criatura_id, accion)
 );
 
+-- Las esperas que son de quien juega y no de su gachamon. Hoy sólo la aventura:
+-- ahí vas TÚ con él, así que cambiar de activo no puede saltarse el descanso;
+-- con la tabla de arriba se salía tres veces seguidas teniendo tres gachamones.
+-- Cuidar y competir sí son suyos —es él quien come y quien pelea— y siguen allí.
+CREATE TABLE IF NOT EXISTS cooldowns_persona (
+    usuario_id TEXT NOT NULL,
+    guild_id   TEXT NOT NULL,
+    accion     TEXT NOT NULL,
+    hasta      TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id, accion)
+);
+
 -- Lo que se ha hablado con cada criatura. Va atada a criatura_id, así que
 -- cuando una muere y nace otra la relación empieza de cero sin código extra.
 CREATE TABLE IF NOT EXISTS conversaciones (
@@ -286,6 +298,22 @@ def _migrar(con: sqlite3.Connection) -> None:
             "UPDATE criaturas SET caracter = ? WHERE id = ?",
             (per.tirar_caracter(rng), criatura_id),
         )
+
+    # La espera de aventura dejó de ser del gachamon y pasó a ser de quien juega.
+    # Las que estén corriendo se mudan en vez de tirarse: si no, todo el que
+    # estuviera esperando al desplegar se llevaría una aventura gratis. Se coge
+    # la más lejana de cada persona, que es la que de verdad le queda.
+    con.execute(
+        "INSERT INTO cooldowns_persona (usuario_id, guild_id, accion, hasta) "
+        "SELECT c.usuario_id, c.guild_id, cd.accion, MAX(cd.hasta) "
+        "  FROM cooldowns cd JOIN criaturas c ON c.id = cd.criatura_id "
+        " WHERE cd.accion = ? "
+        " GROUP BY c.usuario_id, c.guild_id, cd.accion "
+        "ON CONFLICT(usuario_id, guild_id, accion) DO UPDATE SET "
+        "  hasta = MAX(hasta, excluded.hasta)",
+        (sim.AVENTURA,),
+    )
+    con.execute("DELETE FROM cooldowns WHERE accion = ?", (sim.AVENTURA,))
 
 
 def ahora_utc() -> datetime:
@@ -628,6 +656,64 @@ def quitar_cooldown(criatura_id: int, accion: str) -> None:
             "DELETE FROM cooldowns WHERE criatura_id = ? AND accion = ?",
             (criatura_id, accion),
         )
+
+
+# --- Cooldowns de la persona ------------------------------------------------
+#
+# Van aparte en vez de con un `criatura_id` inventado porque la clave es otra:
+# persona + servidor, como el inventario. No hay `quitar_cooldown_persona`
+# porque ningún objeto reinicia la aventura; el día que lo haya, se escribe.
+
+def espera_de_persona(
+    usuario_id: str, guild_id: str, accion: str, ahora: datetime
+) -> timedelta:
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT hasta FROM cooldowns_persona "
+            "WHERE usuario_id = ? AND guild_id = ? AND accion = ?",
+            (usuario_id, guild_id, accion),
+        ).fetchone()
+    if not fila:
+        return timedelta(0)
+    return max(timedelta(0), datetime.fromisoformat(fila["hasta"]) - ahora)
+
+
+def poner_cooldown_persona(
+    usuario_id: str, guild_id: str, accion: str, ahora: datetime
+) -> None:
+    duracion = sim.COOLDOWNS.get(accion, timedelta(0))
+    if not duracion:
+        return
+    with conectar() as con:
+        con.execute(
+            "INSERT INTO cooldowns_persona (usuario_id, guild_id, accion, hasta) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(usuario_id, guild_id, accion) "
+            "DO UPDATE SET hasta = excluded.hasta",
+            (usuario_id, guild_id, accion, (ahora + duracion).isoformat()),
+        )
+
+
+def esperas_de_ficha(
+    criatura: sim.Criatura,
+    ahora: datetime,
+    acciones: Collection[str] = sim.ACCIONES_DE_CUIDADO,
+) -> dict[str, timedelta]:
+    """Todas las esperas que salen en la ficha, cada una de su tabla.
+
+    Se junta aquí y no en cada vista porque son cuatro los sitios que pintan la
+    ficha: si cada uno tuviera que acordarse de mirar en los dos lados, el día
+    que se añada un quinto se le olvidaría y el 🧭 saldría siempre a cero.
+
+    `acciones` la pone quien llama —`pantalla.ACCIONES_EN_FICHA`— porque la lista
+    de lo que se enseña es cosa de la presentación, y este módulo no la importa.
+    """
+    todas = esperas(criatura.id, ahora, acciones)
+    if sim.AVENTURA in todas:
+        todas[sim.AVENTURA] = espera_de_persona(
+            criatura.usuario_id, criatura.guild_id, sim.AVENTURA, ahora
+        )
+    return todas
 
 
 # --- Inventario ------------------------------------------------------------

@@ -318,8 +318,8 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     if accion == sim.ACTUALIZAR:
         contenido = pantalla.render(
             resultado.criatura, ahora,
-            esperas=db.esperas(
-                resultado.criatura.id, ahora, pantalla.ACCIONES_EN_FICHA
+            esperas=db.esperas_de_ficha(
+                resultado.criatura, ahora, pantalla.ACCIONES_EN_FICHA
             ),
             efectos=db.efectos_activos(resultado.criatura.id, ahora),
             en_la_incubadora=max(
@@ -489,7 +489,7 @@ async def responder_pantalla(
 
     contenido = pantalla.render(
         criatura, ahora,
-        esperas=db.esperas(criatura.id, ahora, pantalla.ACCIONES_EN_FICHA),
+        esperas=db.esperas_de_ficha(criatura, ahora, pantalla.ACCIONES_EN_FICHA),
         efectos=db.efectos_activos(criatura.id, ahora),
         en_la_incubadora=max(
             0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
@@ -514,7 +514,7 @@ async def publicar_pantalla(
 
     contenido = pantalla.render(
         criatura, ahora,
-        esperas=db.esperas(criatura.id, ahora, pantalla.ACCIONES_EN_FICHA),
+        esperas=db.esperas_de_ficha(criatura, ahora, pantalla.ACCIONES_EN_FICHA),
         aviso=aviso,
         efectos=db.efectos_activos(criatura.id, ahora),
         en_la_incubadora=max(

@@ -7,6 +7,7 @@ import pytest
 
 import db
 import especies as esp
+import pantalla
 import personalidad as per
 import simulacion as sim
 
@@ -777,3 +778,97 @@ def test_al_morir_la_activa_no_asciende_un_recluta_sin_nombre():
 
     assert relevo is not None and relevo.id == con_nombre
     assert relevo.nombre == "Tercera"
+
+
+# --- La espera de aventura es de la persona ---------------------------------
+
+def test_la_espera_de_aventura_es_de_la_persona_no_del_gachamon():
+    """El bug: con tres gachamones se salía tres veces seguidas cambiando de
+    activo entre viaje y viaje. A la aventura vas tú, así que la espera es
+    tuya."""
+    primero = nacer(nombre="Primero")
+    segundo_id = colar_dormida("Segundo")
+
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
+
+    assert db.espera_de_persona("u1", "g1", sim.AVENTURA, T0) == sim.COOLDOWNS[sim.AVENTURA]
+    # Y el gachamon que no salió tampoco puede: la espera no es suya, es tuya.
+    for criatura_id in (primero.id, segundo_id):
+        assert db.espera_de(criatura_id, sim.AVENTURA, T0) == timedelta(0)
+
+
+def test_la_espera_de_aventura_se_acaba_a_su_hora():
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
+    despues = T0 + sim.COOLDOWNS[sim.AVENTURA]
+
+    assert db.espera_de_persona("u1", "g1", sim.AVENTURA, despues) == timedelta(0)
+
+
+def test_la_espera_de_aventura_no_pasa_de_una_persona_a_otra():
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
+
+    assert db.espera_de_persona("u2", "g1", sim.AVENTURA, T0) == timedelta(0)
+
+
+def test_la_espera_de_aventura_no_pasa_de_un_servidor_a_otro():
+    """Todo estado de una persona está aislado por persona + servidor, y la
+    tabla nueva no puede ser la excepción."""
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
+
+    assert db.espera_de_persona("u1", "g2", sim.AVENTURA, T0) == timedelta(0)
+
+
+def test_poner_la_espera_de_aventura_dos_veces_reemplaza():
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0 + timedelta(minutes=10))
+
+    espera = db.espera_de_persona(
+        "u1", "g1", sim.AVENTURA, T0 + timedelta(minutes=10)
+    )
+    assert espera == sim.COOLDOWNS[sim.AVENTURA]
+
+
+def test_competir_sigue_siendo_del_gachamon():
+    """Lo que NO cambia, escrito para que nadie lo mueva por descuido: en un
+    sumo pelea él y es él quien queda cansado."""
+    primero = nacer(nombre="Primero")
+    segundo_id = colar_dormida("Segundo")
+
+    db.poner_cooldown(primero.id, sim.COMPETIR, T0)
+
+    assert db.espera_de(primero.id, sim.COMPETIR, T0) == sim.COOLDOWNS[sim.COMPETIR]
+    assert db.espera_de(segundo_id, sim.COMPETIR, T0) == timedelta(0)
+
+
+def test_la_ficha_junta_lo_del_gachamon_con_lo_de_la_persona():
+    """La ficha enseña las dos clases de espera, y cada una vive en su tabla."""
+    criatura = nacer()
+    db.poner_cooldown(criatura.id, sim.COMPETIR, T0)
+    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
+
+    esperas = db.esperas_de_ficha(criatura, T0, pantalla.ACCIONES_EN_FICHA)
+
+    assert esperas[sim.COMPETIR] == sim.COOLDOWNS[sim.COMPETIR]
+    assert esperas[sim.AVENTURA] == sim.COOLDOWNS[sim.AVENTURA]
+    assert esperas[sim.ALIMENTAR] == timedelta(0)
+
+
+def test_la_migracion_conserva_la_espera_de_aventura_en_curso():
+    """Sin esto, quien estuviera esperando al desplegar se llevaría una
+    aventura gratis."""
+    criatura = nacer()
+    hasta = T0 + timedelta(minutes=20)
+    with db.conectar() as con:
+        con.execute(
+            "INSERT INTO cooldowns (criatura_id, accion, hasta) VALUES (?, ?, ?)",
+            (criatura.id, sim.AVENTURA, hasta.isoformat()),
+        )
+
+    db.inicializar()  # vuelve a migrar, como al arrancar tras el despliegue
+
+    assert db.espera_de_persona("u1", "g1", sim.AVENTURA, T0) == timedelta(minutes=20)
+    with db.conectar() as con:
+        viejas = con.execute(
+            "SELECT COUNT(*) c FROM cooldowns WHERE accion = ?", (sim.AVENTURA,)
+        ).fetchone()["c"]
+    assert viejas == 0, "la fila vieja se queda ahí engañando"
