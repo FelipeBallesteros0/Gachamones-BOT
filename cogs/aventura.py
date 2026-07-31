@@ -104,11 +104,22 @@ class EncuentroView(discord.ui.View):
         salvaje = self.encuentro.salvaje
         definicion = salvaje.def_especie
         caracter = per.CARACTERES[salvaje.caracter]
+        # Lo que se enseña es el camino hasta unirse, no la confianza cruda:
+        # con el umbral en 90, un encuentro ya ganado se veía al 90 %. Se
+        # redondea con `round()` y se recorta a 0..100 porque la confianza
+        # cruda sí llega a 100.
+        porcentaje = max(
+            0,
+            min(
+                100,
+                round(self.encuentro.confianza * 100 / av.CONFIANZA_PARA_UNIRSE),
+            ),
+        )
         cabecera = (
             f"## {definicion.emoji} Un {definicion.nombre} salvaje "
             f"{pantalla.EMOJI_GENERO[salvaje.genero]}\n"
             f"-# {caracter.nombre(salvaje.genero)} · "
-            f"confianza {self.encuentro.confianza}/100 · "
+            f"confianza {porcentaje}% · "
             f"paciencia {'●' * max(0, self.encuentro.paciencia)}"
             f"{'○' * max(0, av.PACIENCIA_INICIAL - self.encuentro.paciencia)}"
         )

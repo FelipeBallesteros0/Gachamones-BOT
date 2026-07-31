@@ -488,6 +488,42 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(monkeypatch):
     asyncio.run(comprobar())
 
 
+def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
+    """La barra que se ve es el camino hasta unirse, no la confianza cruda.
+
+    El umbral vive en `av.CONFIANZA_PARA_UNIRSE`; enseñar `confianza/100`
+    dejaba un encuentro ya ganado en un engañoso 90 %. Se redondea con
+    `round()` a entero: 20 sobre 90 son 22,2 y se ven como 22 %.
+
+    Los valores esperados dan por hecho el umbral actual (90); si se mueve,
+    este test hay que rehacerlo a mano, que para eso es la palanca.
+    """
+    monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
+    dueño = SimpleNamespace(id="u1")
+    salvaje = av.Salvaje("michi", "Michi", esp.MACHO, "sereno", (10, 10, 10))
+
+    async def comprobar():
+        def texto(confianza):
+            encuentro = av.Encuentro(salvaje=salvaje, confianza=confianza)
+            vista = cog_av.EncuentroView(
+                Mock(), dueño, "g1", criatura(), encuentro
+            )
+            return vista.texto()
+
+        assert av.CONFIANZA_PARA_UNIRSE == 90, "el test asume el umbral actual"
+
+        assert "confianza 22%" in texto(av.confianza_inicial(0))
+        assert "confianza 50%" in texto(45)
+        assert "confianza 100%" in texto(av.CONFIANZA_PARA_UNIRSE)
+        # La confianza cruda llega a 100 aunque unirse pida sólo 90.
+        assert "confianza 100%" in texto(100)
+        assert "confianza 0%" in texto(0)
+
+        assert "/100" not in texto(av.confianza_inicial(0))
+
+    asyncio.run(comprobar())
+
+
 def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatch):
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     frase_reportada = "¿Y vosotros quién sois? No me voy con extraños"
