@@ -82,9 +82,10 @@ python3.12 -m venv venv              # Python 3.14 también está soportado
 ```
 
 `requirements.txt` contiene sólo las dependencias directas de producción con
-versiones exactas; `requirements-dev.txt` añade pytest para desarrollo y CI. Las
-dependencias transitivas siguen bajo el resolvedor de pip: este primer paso hace
-reproducibles las dependencias directas, pero no es un lock transitivo con hashes.
+versiones exactas; `requirements-dev.txt` añade pytest para CI y pre-commit para
+desarrollo. Las dependencias transitivas siguen bajo el resolvedor de pip: este
+primer paso hace reproducibles las dependencias directas, pero no es un lock
+transitivo con hashes.
 
 ### 4. Desplegar en la Raspberry
 
@@ -367,9 +368,20 @@ Dos decisiones más que explican el resto del diseño:
 
 ## Tests
 
+### Desarrollo local
+
+Instala las dependencias de desarrollo, ejecuta la suite e instala el hook local:
+
 ```bash
 ./venv/bin/python -m pip install -r requirements-dev.txt
 ./venv/bin/python -m pytest tests/ -q
+./venv/bin/python -m pre_commit install
+```
+
+Para comprobar manualmente los mismos gates del hook sobre todo el repositorio:
+
+```bash
+./venv/bin/python -m pre_commit run --all-files
 ```
 
 GitHub Actions ejecuta la suite completa con las dos versiones soportadas de
