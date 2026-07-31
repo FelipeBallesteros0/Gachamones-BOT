@@ -328,6 +328,12 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
                     resultado.criatura.usuario_id, resultado.criatura.guild_id
                 )) - 1,
             ),
+            asciicoins=(
+                economia.saldos(
+                    resultado.criatura.usuario_id, resultado.criatura.guild_id
+                ).asciicoins
+                if resultado.criatura.viva else None
+            ),
         )
         vista = PantallaView() if resultado.criatura.viva else None
         await interaccion.response.edit_message(content=contenido, view=vista)
@@ -494,9 +500,15 @@ async def responder_pantalla(
         en_la_incubadora=max(
             0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
         ),
+        asciicoins=(
+            economia.saldos(criatura.usuario_id, criatura.guild_id).asciicoins
+            if criatura.viva else None
+        ),
     )
-    vista = PantallaView() if criatura.viva else None
-    await interaccion.response.send_message(contenido, view=vista)
+    if criatura.viva:
+        await interaccion.response.send_message(contenido, view=PantallaView())
+    else:
+        await interaccion.response.send_message(contenido)
     mensaje = await interaccion.original_response()
     db.guardar_pantalla(criatura.id, str(mensaje.id), str(interaccion.channel_id))
 
@@ -520,8 +532,14 @@ async def publicar_pantalla(
         en_la_incubadora=max(
             0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
         ),
+        asciicoins=(
+            economia.saldos(criatura.usuario_id, criatura.guild_id).asciicoins
+            if criatura.viva else None
+        ),
     )
-    vista = PantallaView() if criatura.viva else None
-    mensaje = await canal.send(contenido, view=vista)
-    db.guardar_pantalla(criatura.id, str(mensaje.id), str(canal.id))
+    if criatura.viva:
+        mensaje = await canal.send(contenido, view=PantallaView())
+    else:
+        mensaje = await canal.send(contenido)
+    db.guardar_pantalla(criatura.id, str(mensaje.id), str(getattr(canal, "id")))
     return mensaje

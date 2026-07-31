@@ -196,6 +196,7 @@ def render(
     aviso: str = "",
     efectos: dict[str, tuple[int, timedelta]] | None = None,
     en_la_incubadora: int = 0,
+    asciicoins: int | None = None,
 ) -> str:
     """Pantalla completa de una criatura viva o muerta."""
     if not criatura.viva:
@@ -228,6 +229,9 @@ def render(
         cabecera.append(f"> {aviso}")
 
     partes = cabecera + ["```ansi", "\n".join(cuerpo), "```"]
+
+    if asciicoins is not None:
+        partes.append(f"-# 🪙 {asciicoins} asciicoins · 🎒 Mochila para gastarlos")
 
     if esperas:
         trozos = []

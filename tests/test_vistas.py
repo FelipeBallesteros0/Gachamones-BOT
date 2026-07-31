@@ -3,6 +3,7 @@ import asyncio
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -36,7 +37,7 @@ def bd_temporal(tmp_path, monkeypatch):
 
 def interaccion_de(
     evento_id="evento", mensaje_id="ficha"
-) -> tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]:
+) -> tuple[Any, SimpleNamespace, SimpleNamespace]:
     respuesta = SimpleNamespace(
         edit_message=AsyncMock(),
         send_message=AsyncMock(),
@@ -344,10 +345,13 @@ def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
 def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
     viva = criatura(1, "Mia", True, None)
     esperas = Mock(return_value={})
-    monkeypatch.setattr(db, "esperas", esperas)
+    monkeypatch.setattr(db, "esperas_de_ficha", esperas)
     monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
     monkeypatch.setattr(db, "plantel", Mock(return_value=[viva]))
     monkeypatch.setattr(db, "guardar_pantalla", Mock())
+    monkeypatch.setattr(
+        economia, "saldos", Mock(return_value=economia.Saldos(34, 0))
+    )
     monkeypatch.setattr(pantalla, "render", Mock(return_value="ficha"))
 
     interaccion, _, _ = interaccion_de()
@@ -356,15 +360,15 @@ def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
         return_value=SimpleNamespace(id="respuesta")
     )
     asyncio.run(vistas.responder_pantalla(interaccion, viva, T0))
-    esperas.assert_called_once_with(viva.id, T0, pantalla.ACCIONES_EN_FICHA)
+    esperas.assert_called_once_with(viva, T0, pantalla.ACCIONES_EN_FICHA)
 
     esperas.reset_mock()
     canal = SimpleNamespace(
         id="canal",
         send=AsyncMock(return_value=SimpleNamespace(id="publicada")),
     )
-    asyncio.run(vistas.publicar_pantalla(canal, viva, T0))
-    esperas.assert_called_once_with(viva.id, T0, pantalla.ACCIONES_EN_FICHA)
+    asyncio.run(vistas.publicar_pantalla(cast(Any, canal), viva, T0))
+    esperas.assert_called_once_with(viva, T0, pantalla.ACCIONES_EN_FICHA)
 
     esperas.reset_mock()
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
@@ -376,7 +380,85 @@ def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
     )
     interaccion, _, _ = interaccion_de()
     asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
-    esperas.assert_called_once_with(viva.id, T0, pantalla.ACCIONES_EN_FICHA)
+    esperas.assert_called_once_with(viva, T0, pantalla.ACCIONES_EN_FICHA)
+
+
+def test_responder_y_publicar_pasan_el_saldo_de_la_persona_y_servidor(monkeypatch):
+    viva = replace(
+        criatura(1, "Mia", True, None),
+        usuario_id="persona-correcta",
+        guild_id="servidor-correcto",
+    )
+    saldos = Mock(return_value=economia.Saldos(asciicoins=34, asciigems=0))
+    esperas = {sim.AVENTURA: timedelta(minutes=36)}
+    render = Mock(return_value="ficha")
+    monkeypatch.setattr(economia, "saldos", saldos)
+    monkeypatch.setattr(db, "esperas_de_ficha", Mock(return_value=esperas))
+    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(db, "plantel", Mock(return_value=[viva]))
+    monkeypatch.setattr(db, "guardar_pantalla", Mock())
+    monkeypatch.setattr(pantalla, "render", render)
+
+    interaccion, _, _ = interaccion_de()
+    interaccion.channel_id = "canal"
+    interaccion.original_response = AsyncMock(
+        return_value=SimpleNamespace(id="respuesta")
+    )
+    asyncio.run(vistas.responder_pantalla(interaccion, viva, T0))
+
+    saldos.assert_called_once_with("persona-correcta", "servidor-correcto")
+    assert render.call_args.kwargs["esperas"] == esperas
+    assert render.call_args.kwargs["asciicoins"] == 34
+
+    saldos.reset_mock()
+    render.reset_mock()
+    canal = SimpleNamespace(
+        id="canal",
+        send=AsyncMock(return_value=SimpleNamespace(id="publicada")),
+    )
+    asyncio.run(vistas.publicar_pantalla(cast(Any, canal), viva, T0))
+
+    saldos.assert_called_once_with("persona-correcta", "servidor-correcto")
+    assert render.call_args.kwargs["esperas"] == esperas
+    assert render.call_args.kwargs["asciicoins"] == 34
+
+
+def test_responder_y_publicar_no_consultan_saldo_para_una_lapida(monkeypatch):
+    lapida = replace(
+        criatura(1, "Mia", False, None),
+        nacida_en=T0,
+        actualizada_en=T0,
+        muerta_en=T0,
+    )
+    saldos = Mock(side_effect=AssertionError("una lápida no consulta saldo"))
+    render = Mock(return_value="lápida")
+    monkeypatch.setattr(economia, "saldos", saldos)
+    monkeypatch.setattr(db, "esperas_de_ficha", Mock(return_value={}))
+    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(db, "plantel", Mock(return_value=[]))
+    monkeypatch.setattr(db, "guardar_pantalla", Mock())
+    monkeypatch.setattr(pantalla, "render", render)
+
+    interaccion, respuesta, _ = interaccion_de()
+    interaccion.channel_id = "canal"
+    interaccion.original_response = AsyncMock(
+        return_value=SimpleNamespace(id="respuesta")
+    )
+    asyncio.run(vistas.responder_pantalla(interaccion, lapida, T0))
+
+    canal = SimpleNamespace(
+        id="canal",
+        send=AsyncMock(return_value=SimpleNamespace(id="publicada")),
+    )
+    asyncio.run(vistas.publicar_pantalla(cast(Any, canal), lapida, T0))
+
+    saldos.assert_not_called()
+    respuesta.send_message.assert_awaited_once_with("lápida")
+    canal.send.assert_awaited_once_with("lápida")
+    assert [llamada.kwargs["asciicoins"] for llamada in render.call_args_list] == [
+        None,
+        None,
+    ]
 
 
 def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
@@ -384,9 +466,18 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
 ):
     criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
     db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    economia.saldos("u1", "g1")
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE monederos SET asciicoins = 73 "
+            "WHERE usuario_id = 'u1' AND guild_id = 'g1'"
+        )
     db.guardar_pantalla(criatura.id, "ficha", "canal")
     ahora = T0 + timedelta(hours=6)
     db.poner_cooldown(criatura.id, sim.JUGAR, ahora - timedelta(minutes=1))
+    db.poner_cooldown_persona(
+        "u1", "g1", sim.AVENTURA, ahora - timedelta(minutes=1)
+    )
     db.poner_efecto(criatura.id, "fuerza", 3, ahora - timedelta(minutes=1))
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
     congelar = AsyncMock()
@@ -404,15 +495,22 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
     esperado = pantalla.render(
         guardada,
         ahora,
-        esperas=db.esperas(guardada.id, ahora, pantalla.ACCIONES_EN_FICHA),
+        esperas=db.esperas_de_ficha(
+            guardada, ahora, pantalla.ACCIONES_EN_FICHA
+        ),
         efectos=db.efectos_activos(guardada.id, ahora),
         en_la_incubadora=1,
+        asciicoins=73,
     )
     respuesta.edit_message.assert_awaited_once()
     assert contenido == esperado
+    assert contenido.count(
+        "-# 🪙 73 asciicoins · 🎒 Mochila para gastarlos"
+    ) == 1
     assert contenido != pantalla.render(criatura, ahora)
     assert guardada.actualizada_en == ahora and guardada.hambre < criatura.hambre
     assert pantalla.ICONOS_ACCION[sim.JUGAR] in contenido
+    assert pantalla.ICONOS_ACCION[sim.AVENTURA] in contenido
     assert pantalla.EMOJI_POCION in contenido
     assert pantalla.EMOJI_INCUBADORA in contenido
     assert isinstance(vista, vistas.PantallaView)
@@ -433,6 +531,8 @@ def test_actualizar_que_descubre_muerte_edita_la_misma_ficha_sin_botones(
     publicar = AsyncMock()
     monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
     monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    saldos = Mock(side_effect=AssertionError("una lápida no consulta saldo"))
+    monkeypatch.setattr(economia, "saldos", saldos)
     interaccion, respuesta, canal = interaccion_de()
 
     asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
@@ -442,6 +542,7 @@ def test_actualizar_que_descubre_muerte_edita_la_misma_ficha_sin_botones(
     respuesta.edit_message.assert_awaited_once_with(
         content=pantalla.render(guardada, ahora), view=None
     )
+    saldos.assert_not_called()
     congelar.assert_not_awaited()
     publicar.assert_not_awaited()
     canal.send.assert_not_awaited()

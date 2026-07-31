@@ -215,6 +215,7 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
     from typing import Any, cast
     from unittest.mock import AsyncMock, Mock
 
+    import economia
     import pantalla
     from cogs import mascota as cog_mascota
 
@@ -223,10 +224,14 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
     esperas = Mock(return_value={
         accion: timedelta(minutes=1) for accion in pantalla.ACCIONES_EN_FICHA
     })
+    saldos = Mock(return_value=economia.Saldos(asciicoins=34, asciigems=0))
+    render = Mock(wraps=pantalla.render)
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
     monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
     monkeypatch.setattr(db, "esperas_de_ficha", esperas)
     monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(economia, "saldos", saldos)
+    monkeypatch.setattr(pantalla, "render", render)
 
     respuesta = AsyncMock()
     interaccion = cast(discord.Interaction, SimpleNamespace(
@@ -249,13 +254,66 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
             sim.LIMPIAR, sim.COMPETIR, sim.AVENTURA,
         ),
     )
+    saldos.assert_called_once_with("2", "g1")
+    assert render.call_args.kwargs["esperas"] == esperas.return_value
+    assert render.call_args.kwargs["asciicoins"] == 34
     llamada = respuesta.await_args
     assert llamada is not None
     contenido = llamada.args[0]
     assert all(
         icono in contenido for icono in ("🍖", "🎮", "🏋️", "🧼", "🏁", "🧭")
     )
+    assert "🪙 34 asciicoins" in contenido
     assert "view" not in llamada.kwargs
+
+
+def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch):
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from unittest.mock import AsyncMock, Mock
+
+    import economia
+    import pantalla
+    from cogs import mascota as cog_mascota
+
+    ahora = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    criatura = criatura_de_prueba(
+        usuario_id="2",
+        actualizada_en=ahora - timedelta(days=1),
+        hambre=1.0,
+    )
+    saldos = Mock(side_effect=AssertionError("una lápida no consulta saldo"))
+    guardar = Mock()
+    render = Mock(wraps=pantalla.render)
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
+    monkeypatch.setattr(db, "guardar", guardar)
+    monkeypatch.setattr(db, "esperas_de_ficha", Mock(return_value={}))
+    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(economia, "saldos", saldos)
+    monkeypatch.setattr(pantalla, "render", render)
+
+    respuesta = AsyncMock()
+    interaccion = cast(discord.Interaction, SimpleNamespace(
+        user=SimpleNamespace(id=1),
+        guild_id="g1",
+        response=SimpleNamespace(send_message=respuesta),
+    ))
+    rival = cast(discord.User, UsuarioFalso(2))
+    cog = cog_mascota.Mascota.__new__(cog_mascota.Mascota)
+
+    callback = cast(Any, cog_mascota.Mascota.mascota.callback)
+    asyncio.run(callback(cog, interaccion, rival))
+
+    saldos.assert_not_called()
+    lapida = guardar.call_args.args[0]
+    assert not lapida.viva
+    assert render.call_args.args[0] == lapida
+    assert render.call_args.kwargs["asciicoins"] is None
+    llamada = respuesta.await_args
+    assert llamada is not None
+    contenido = llamada.args[0]
+    assert "asciicoins" not in contenido
 
 
 def test_el_aviso_de_hambre_para_competir_concuerda():
