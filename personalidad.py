@@ -24,6 +24,7 @@ barra a lenguaje natural y las reglas prohíben expresamente decir números.
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -147,7 +148,7 @@ VOCES: dict[str, Voz] = {
         ),
     ),
     "chatarra": Voz(
-        tono="Literal y servicial. Te tomas todo al pie de la letra y no pillas "
+        tono="Literal y servicial. Te tomas todo al pie de la letra y no entiendes "
              "las bromas. Anuncias lo que vas a hacer antes de hacerlo.",
         tic="Hablas entrecortado y sueltas pitidos: «bip».",
         contacto="Eres metal frío y das pequeños calambres de estática. No lo "
@@ -229,7 +230,7 @@ CARACTERES: dict[str, Caracter] = {
     ),
     "cariñoso": Caracter(
         "cariñoso", "cariñosa",
-        "Buscas contacto todo el rato y echas mucho de menos a tu dueño cuando "
+        "Buscas contacto constantemente y extrañas mucho a tu dueño cuando "
         "no está.",
     ),
     "orgulloso": Caracter(
@@ -316,7 +317,7 @@ def describir_estado(criatura: sim.Criatura, ahora: datetime) -> str:
             criatura.limpieza,
             "{Limpio/Limpia}.",
             "Un poco suci{o/a}.",
-            "Suci{o/a} y con picores.",
+            "Suci{o/a} y con picazón.",
             "Asqueros{o/a}, y algo {avergonzado/avergonzada} por ello.",
         ),
     ]
@@ -327,7 +328,7 @@ def describir_estado(criatura: sim.Criatura, ahora: datetime) -> str:
                 "Más victorias que derrotas, y muy {orgulloso/orgullosa} de ello."
             )
         elif criatura.derrotas > criatura.victorias:
-            partes.append("Más derrotas que victorias, y le fastidia bastante.")
+            partes.append("Más derrotas que victorias, y le molesta bastante.")
 
     return esp.concordar(" ".join(partes), criatura.genero)
 
@@ -336,6 +337,19 @@ REGLA_ESPANOL_NEUTRO = (
     "Usa español neutro latinoamericano, con tuteo o ustedes; "
     "nunca uses vosotros ni regionalismos peninsulares."
 )
+
+
+FORMAS_DE_VOSOTROS = frozenset({
+    "vosotros", "vosotras", "vuestro", "vuestra", "vuestros", "vuestras",
+    "os", "sois", "estáis", "tenéis", "podéis", "queréis", "habéis",
+    "hacéis", "vais", "venís", "decís", "dais", "sabéis", "veis",
+})
+
+
+def usa_formas_de_vosotros(texto: str) -> bool:
+    """Si el texto contiene formas inequívocas del plural peninsular."""
+    palabras = re.findall(r"[^\W\d_]+", texto.casefold())
+    return not FORMAS_DE_VOSOTROS.isdisjoint(palabras)
 
 
 REGLAS = f"""CÓMO RESPONDER
@@ -542,6 +556,7 @@ QUIÉN ERES
 
 CÓMO RESPONDER
 - {REGLA_ESPANOL_NEUTRO}
+- Si hablas a varias personas, di «ustedes son»; nunca «vosotros sois».
 - En primera persona y muy corto: 20 palabras como máximo.
 - Eres salvaje y desconfías: no te vas con cualquiera y no lo prometes.
 - **Nunca digas que te unes ni que te vas**: eso no lo decides tú aquí.

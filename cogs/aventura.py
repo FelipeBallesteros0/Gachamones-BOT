@@ -279,6 +279,8 @@ class Aventura(commands.Cog):
         db.registrar_uso_ia(usuario_id, ahora)
         sistema, peticion = per.prompt_salvaje(salvaje, criatura, dicho)
         texto, _ = await ia.generar(sistema, peticion, respaldo)
+        if per.usa_formas_de_vosotros(texto):
+            texto = respaldo
         return f"> {texto}\n{reaccion}"
 
     @app_commands.command(

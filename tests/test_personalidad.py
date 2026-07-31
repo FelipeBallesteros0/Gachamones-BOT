@@ -135,8 +135,8 @@ def test_el_historial_de_competencias_se_refleja():
     novata = per.describir_estado(criatura(), T0)
 
     assert "orgulloso" in ganadora
-    assert "fastidia" in perdedora
-    assert "orgullos" not in novata and "fastidia" not in novata
+    assert "molesta" in perdedora
+    assert "orgullos" not in novata and "molesta" not in novata
 
     ella = per.describir_estado(criatura(victorias=5, derrotas=1,
                                          genero=esp.HEMBRA), T0)
@@ -194,6 +194,52 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
         assert per.REGLA_ESPANOL_NEUTRO in prompt
         assert "tuteo o ustedes" in prompt
         assert "nunca uses vosotros" in prompt
+
+
+def test_el_prompt_salvaje_contrasta_ustedes_con_vosotros():
+    import aventura as av
+
+    c = criatura()
+    salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10))
+    sistema, _ = per.prompt_salvaje(salvaje, c, "hola")
+
+    assert "ustedes son" in sistema
+    assert "vosotros sois" in sistema
+
+
+def test_el_guard_rechaza_la_frase_reportada_y_admite_su_equivalente_neutro():
+    assert per.usa_formas_de_vosotros(
+        "¿Y vosotros quién sois? No me voy con extraños"
+    )
+    assert not per.usa_formas_de_vosotros(
+        "¿Y ustedes quiénes son? No me voy con extraños"
+    )
+
+
+def test_el_guard_detecta_formas_de_vosotros_solo_como_palabras_completas():
+    formas = (
+        "vosotros", "vosotras", "vuestro", "vuestra", "vuestros", "vuestras",
+        "os", "sois", "estáis", "tenéis", "podéis", "queréis", "habéis",
+        "hacéis", "vais", "venís", "decís", "dais", "sabéis", "veis",
+    )
+    for forma in formas:
+        assert per.usa_formas_de_vosotros(f"Aquí {forma} ahora"), forma
+
+    assert not per.usa_formas_de_vosotros("La famosa postal muestra dos cosas")
+
+
+def test_las_fichas_no_alimentan_regionalismos_peninsulares_al_prompt():
+    c = criatura(limpieza=20.0, victorias=1, derrotas=2)
+    fichas = " ".join(
+        [voz.tono for voz in per.VOCES.values()]
+        + [caracter.rasgo for caracter in per.CARACTERES.values()]
+        + [per.describir_estado(c, T0)]
+    )
+
+    for regionalismo in (
+        "no pillas", "todo el rato", "echas de menos", "le fastidia", "picores",
+    ):
+        assert regionalismo not in fichas
 
 
 def test_el_prompt_de_aventura_recibe_el_percance_ya_decidido():

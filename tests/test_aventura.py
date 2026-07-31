@@ -257,6 +257,29 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(monkeypatch):
     asyncio.run(comprobar())
 
 
+def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatch):
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    frase_reportada = "¿Y vosotros quién sois? No me voy con extraños"
+    generar = AsyncMock(return_value=(frase_reportada, True))
+    salvaje = av.Salvaje(
+        "michi", "Michi", esp.MACHO, "sereno", (10, 10, 10)
+    )
+
+    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
+    monkeypatch.setattr(cog_av.db, "registrar_uso_ia", Mock())
+    monkeypatch.setattr(cog_av.ia, "generar", generar)
+
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    respuesta = asyncio.run(
+        cog.contestar(salvaje, criatura(), "hola", "u1", "Reacción mecánica.")
+    )
+
+    assert frase_reportada not in respuesta
+    assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
+    generar.assert_awaited_once()
+
+
 def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
     c = criatura(nombre="Nube")
     bioma = av.BIOMAS["planicie"]
