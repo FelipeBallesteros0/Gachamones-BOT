@@ -90,14 +90,32 @@ transitivo con hashes.
 ### 4. Desplegar en la Raspberry
 
 ```bash
-PI=usuario@ip-de-tu-pi                        # o edita el valor por defecto en deploy.sh
+PI=usuario@ip-de-tu-pi                        # o edita el valor por defecto
 scp .env $PI:/home/usuario/tamagotchi-bot/.env   # sólo la primera vez
-PI=$PI ./deploy.sh
+./actualizar-pi.sh
 ```
 
-`deploy.sh` sincroniza el código, prepara el venv, instala el servicio systemd y
-lo reinicia. Admite `PI` y `DEST` como variables de entorno, así que no hace falta
-tocar el script para apuntar a otra máquina o a otra ruta. Para ver el registro:
+Hay **dos scripts y no hacen lo mismo**:
+
+| | De dónde saca el código | Cuándo usarlo |
+|---|---|---|
+| `actualizar-pi.sh` | **De GitHub**, con un `git pull` en la propia Pi | Lo normal |
+| `deploy.sh` | De la carpeta desde la que lo lanzas | Probar en la Pi algo sin commitear |
+
+`actualizar-pi.sh` es el que evita el desfase de desplegar una copia local que no
+está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
+datos antes de tocar nada (guarda las 5 últimas), pone la Pi en el commit de
+`main`, corre la suite allí y **sólo reinicia si pasa**. La primera vez convierte
+el directorio en un clon de git; el `.env`, la base y el `venv` están en
+`.gitignore`, así que no los toca.
+
+```bash
+./actualizar-pi.sh              # lo normal
+SIN_TESTS=1 ./actualizar-pi.sh  # sin correr la suite en la Pi (~50 s)
+RAMA=otra ./actualizar-pi.sh    # otra rama
+```
+
+Los dos admiten `PI` y `DEST` como variables de entorno. Para ver el registro:
 
 ```bash
 ssh $PI 'journalctl -u tamagotchi -f'

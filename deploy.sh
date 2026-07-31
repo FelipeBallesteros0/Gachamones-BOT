@@ -1,5 +1,9 @@
 #!/bin/bash
-# Despliega el bot en una Raspberry por SSH.
+# Despliega ESTA carpeta en una Raspberry por SSH.
+#
+# ¿Cuál de los dos scripts? Para lo normal, `actualizar-pi.sh`: baja de GitHub y
+# la Pi queda en lo que hay en `main`. Éste sube tu copia local tal cual, y sirve
+# para probar en la Pi algo que todavía no has commiteado.
 #
 #   ./deploy.sh
 #   PI=usuario@192.168.1.50 DEST=/opt/tamagotchi ./deploy.sh
