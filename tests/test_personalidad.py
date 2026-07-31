@@ -501,3 +501,35 @@ def test_el_guard_pilla_tambien_los_verbos_que_no_estan_en_la_lista():
     for frase in ("Vuelven al país de origen", "La raíz del árbol",
                   "Cruzan el río y llegan al claro", "Tenía seis piedras"):
         assert not per.usa_formas_de_vosotros(frase), frase
+
+
+def test_el_prompt_del_viaje_prohibe_recitar_la_ficha():
+    """Reportado jugando: «Juan III, ese chispa macho y perezoso, se burla de
+    los que cavan tesoros». El modelo copiaba tal cual la línea de QUIÉN VA.
+
+    Es el mismo fallo que el jardín ya tenía resuelto con «empieza por lo que
+    hacen, no por describir cómo son», y la aventura se lo había saltado."""
+    import aventura as av
+
+    c = criatura(nombre="Juan III", caracter="perezoso")
+    sistema, _ = per.prompt_aventura(c, "al desierto", [], av.NADA, dueño="Felipe")
+
+    assert "no para escribirlo" in sistema
+    assert "Empieza por lo que hacen, no por describir cómo son" in sistema
+    # Y el dato deja de estar servido como una frase copiable.
+    assert "chispa macho y perezoso" not in sistema.lower()
+
+
+def test_el_prompt_del_viaje_sigue_diciendole_quien_es():
+    """Prohibir recitarlo no puede ser quitárselo: sin la especie ni el carácter
+    no puede comportarse como quien es."""
+    import aventura as av
+
+    c = criatura(nombre="Juan III", caracter="perezoso", genero=esp.HEMBRA)
+    sistema, _ = per.prompt_aventura(c, "al desierto", [], av.NADA, dueño="Felipe")
+
+    assert "Juan III" in sistema
+    assert "Chispa" in sistema
+    assert "perezosa" in sistema           # concordado con su género
+    assert per.CARACTERES["perezoso"].rasgo in sistema
+    assert "{" not in sistema and "}" not in sistema  # sin marcas sin resolver
