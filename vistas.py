@@ -116,14 +116,21 @@ class PantallaView(discord.ui.View):
     async def cambiar_activo(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         if await _es_de_otro(interaccion):
             return
-        await equipo.abrir_plantel(interaccion, congelar)
+        await equipo.abrir_plantel(interaccion, congelar, bautizar)
 
 
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):
-    """Bautizo. La criatura ya existe: esto sólo le cambia el nombre."""
+    """Bautizo. La criatura ya existe: esto sólo le cambia el nombre.
 
-    def __init__(self, nombre_actual: str):
+    Con `criatura_id` bautiza a esa criatura concreta; sin él, a la activa. La
+    diferencia la trajo el reclutamiento: quien se une en una `/aventura` entra
+    en la incubadora y **no puede activarse hasta tener nombre**, así que buscar
+    «la activa» le habría cambiado el nombre a la mascota equivocada.
+    """
+
+    def __init__(self, nombre_actual: str, criatura_id: int | None = None):
         super().__init__()
+        self.criatura_id = criatura_id
         self.nombre = discord.ui.TextInput(
             label="¿Cómo se va a llamar?",
             default=nombre_actual,
@@ -143,13 +150,28 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
 
         ahora = db.ahora_utc()
 
-        criatura = db.criatura_activa(str(interaccion.user.id), str(interaccion.guild_id))
+        if self.criatura_id is None:
+            criatura = db.criatura_activa(
+                str(interaccion.user.id), str(interaccion.guild_id)
+            )
+        else:
+            criatura = db.por_id(self.criatura_id)
+            if criatura is not None and (
+                criatura.usuario_id != str(interaccion.user.id)
+                or criatura.guild_id != str(interaccion.guild_id)
+            ):
+                criatura = None
         if criatura is None:
             await interaccion.response.send_message(
                 "Ya no tienes ninguna criatura viva.", ephemeral=True
             )
             return
-        criatura = replace(sim.avanzar(criatura, ahora), nombre=nombre)
+
+        # A la que duerme en la incubadora no se le adelanta el reloj: sólo la
+        # activa decae, y `avanzar` le comería el hambre por estar guardada.
+        if criatura.activa:
+            criatura = sim.avanzar(criatura, ahora)
+        criatura = replace(criatura, nombre=nombre)
         db.guardar(criatura)
 
         # La revelación pierde el botón: ya está bautizada.
@@ -157,7 +179,8 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
         await interaccion.channel.send(
             f"✨ {interaccion.user.mention} la ha llamado **{nombre}**."
         )
-        await publicar_pantalla(interaccion.channel, criatura, ahora)
+        if criatura.activa:
+            await publicar_pantalla(interaccion.channel, criatura, ahora)
 
     async def on_error(self, interaccion: discord.Interaction, error: Exception) -> None:
         log.exception("Fallo al poner nombre", exc_info=error)
@@ -197,6 +220,51 @@ class NombrarView(discord.ui.View):
             return
 
         await interaccion.response.send_modal(NombreModal(criatura.nombre))
+
+
+def sin_nombrar_de(usuario_id: str, guild_id: str) -> sim.Criatura | None:
+    """El recluta que espera nombre, el más antiguo si hay más de uno."""
+    for criatura in db.plantel(usuario_id, guild_id):
+        if sim.esta_sin_nombrar(criatura):
+            return criatura
+    return None
+
+
+class NombrarReclutaView(discord.ui.View):
+    """Botón de bautizo bajo el gachamon que se acaba de unir.
+
+    Persistente como el del huevo, y por el mismo motivo elevado a necesidad:
+    hasta que no tenga nombre no puede salir de la incubadora, así que si un
+    reinicio dejara el botón muerto te quedarías con un gachamon inservible.
+    Por eso busca al que espera nombre en vez de llevar su identificador dentro:
+    un `custom_id` con el id de la criatura no puede ser persistente.
+    """
+
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Ponerle nombre", emoji="✏️",
+                       style=discord.ButtonStyle.success,
+                       custom_id="tama:nombrar_recluta")
+    async def nombrar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        recluta = sin_nombrar_de(str(interaccion.user.id), str(interaccion.guild_id))
+        if recluta is None:
+            await interaccion.response.send_message(
+                "No tienes ningún gachamon esperando nombre.", ephemeral=True
+            )
+            return
+        await interaccion.response.send_modal(NombreModal("", recluta.id))
+
+
+async def bautizar(interaccion: discord.Interaction, criatura: sim.Criatura) -> None:
+    """Abre el bautizo de una criatura concreta.
+
+    Se le pasa a `equipo.abrir_plantel` igual que `congelar`, para que el menú
+    del plantel pueda mandar a poner nombre sin que `equipo` importe este módulo
+    —que ya lo importa a él— y sin que el bautizo dependa de que siga existiendo
+    el mensaje de la aventura.
+    """
+    await interaccion.response.send_modal(NombreModal("", criatura.id))
 
 
 async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:

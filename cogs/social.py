@@ -8,6 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import aventura as av
 import comun
 import competir as comp
 import config
@@ -111,23 +112,29 @@ una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
 reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 
 **Aventura**
-`/aventura` saca a tu gachamon activo a un bioma al azar. Dos pruebas de fuerza \
-o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o \
-cruzándote con un **gachamon salvaje**.
-Si vuelve con vida, gana **+{sim.XP_AVENTURA} XP**; si muere por el desgaste, no.
-Convencerlo va por turnos: hablarle, darle **golosinas**, presumir o esperar \
-quieto. **Cada carácter reacciona distinto**, y lo que le molesta le gasta el \
-doble de paciencia; si se le acaba, se va.
--# Es la única forma de tener un segundo o un tercer gachamon. Se puede salir \
-con el equipo lleno: entonces sólo se encuentran objetos.
+`/aventura` te planta en un bioma al azar ante una escena con **tres salidas**: \
+💪 fuerza, 💨 velocidad o 🚶 seguir camino. Las dos primeras tiran \
+`estadística + 1d20`; seguir camino no arriesga, pero tampoco cuenta.
+Son **{av.NIVELES_DE_AVENTURA} decisiones**: acertar te mete más adentro y \
+fallar cierra el viaje. Cuanto más hondo llegues, mejor lo que encuentras, y \
+sólo al fondo puede aparecer un **gachamon salvaje**. Si vuelve con vida gana \
+**+{sim.XP_AVENTURA} XP**; si muere por el desgaste, no.
+Convencerlo va por turnos: hablarle, **golosinas**, presumir o esperar quieto. \
+**Cada carácter reacciona distinto**, y lo que le molesta le gasta el doble de \
+paciencia. Al unirse **no trae nombre**: se lo pones tú, y hasta entonces no \
+sale de la incubadora.
+-# Es la única forma de tener un segundo o un tercer gachamon. Con el equipo \
+lleno se sale igual, pero sólo se encuentran objetos."""
+
+    # «Hablarle» se mudó aquí al crecer la aventura con el árbol de decisiones:
+    # la página de qué hacer se pasaba del tope de un mensaje de Discord.
+    tus_cosas = f"""## 🧬 Tu plantel y tus cosas
 
 **Hablarle**
 Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo la tengas: una \
 criatura hambrienta contesta de mal humor. Se acuerda de la última conversación.
--# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia."""
-
-    tus_cosas = f"""## 🧬 Tu plantel y tus cosas
+-# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia.
 
 **El plantel**
 Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**: \

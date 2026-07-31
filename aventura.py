@@ -11,6 +11,7 @@ entera se puede probar sin llamar a ninguna API.
 """
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -22,8 +23,6 @@ import personalidad as per
 import simulacion as sim
 
 CARA_DADO = 20
-PRUEBAS_POR_AVENTURA = 2
-STATS = ("fuerza", "velocidad")
 
 # Lo que cuesta fallar, además del coste fijo de salir. Llegar entero es llegar
 # en buena forma, y se nota en lo que te encuentras.
@@ -58,8 +57,6 @@ class Bioma:
     # A quién puedes cruzarte aquí. Es lo que da sentido a que haya biomas.
     especies: tuple[str, ...]
     dificultad: int
-    # Los obstáculos que se narran, uno por prueba.
-    obstaculos: tuple[str, ...]
     # Cómo se dice «sale ___ Bosque». Va escrito y no deducido por la misma
     # razón que el artículo de las especies: en castellano no hay regla que lo
     # saque del nombre, y «sale al Ruinas» canta mucho.
@@ -78,34 +75,16 @@ def _registrar(bioma: Bioma) -> Bioma:
     return bioma
 
 
-_registrar(Bioma(
-    "bosque", "Bosque", "🌲",
-    ("brote", "michi", "pollito"), 24,
-    ("Un río crecido", "Un tronco caído", "Una cuesta de raíces",
-     "Un zarzal cerrado"),
-))
+_registrar(Bioma("bosque", "Bosque", "🌲", ("brote", "michi", "pollito"), 24))
 _registrar(Bioma(
     "planicie", "Planicie", "🌾", ("pollito", "pulpo", "michi"), 22,
-    ("Un vendaval", "Una zanja ancha", "Un rebaño asustado",
-     "Hierba hasta el pecho"),
     articulo="a la",
 ))
+_registrar(Bioma("desierto", "Desierto", "🏜️", ("pedrusco", "chatarra"), 26))
 _registrar(Bioma(
-    "desierto", "Desierto", "🏜️", ("pedrusco", "chatarra"), 26,
-    ("Una duna suelta", "El sol de plomo", "Un socavón de arena",
-     "Un viento con arenilla"),
+    "ruinas", "Ruinas", "🌑", ("fantasma", "chatarra"), 28, articulo="a las",
 ))
-_registrar(Bioma(
-    "ruinas", "Ruinas", "🌑", ("fantasma", "chatarra"), 28,
-    ("Un suelo que cede", "Una puerta atrancada", "Un pasillo a oscuras",
-     "Escombros hasta arriba"),
-    articulo="a las",
-))
-_registrar(Bioma(
-    "volcan", "Volcán", "🌋", ("chispa", "dragoncito"), 30,
-    ("Una colada de lava", "Una pared de ceniza", "Una grieta humeante",
-     "Roca que quema"),
-))
+_registrar(Bioma("volcan", "Volcán", "🌋", ("chispa", "dragoncito"), 30))
 
 
 def elegir_bioma(rng: random.Random | None = None) -> Bioma:
@@ -150,7 +129,13 @@ class Salida:
 def tirar_percance(
     salida: Salida, rng: random.Random | None = None
 ) -> Percance | None:
-    """Sortea un percance sólo si hubo fallos: 25 % por fallo, hasta 50 %."""
+    """Sortea un percance sólo si hubo fallos: 25 % por fallo, hasta 50 %.
+
+    Desde el árbol de decisiones **un viaje jugado trae un fallo como mucho**,
+    porque fallar lo cierra ahí mismo: en la práctica el percance es un 25 % fijo
+    y el tope del 50 % no llega a tocarse. La cuenta se deja como está porque
+    sigue siendo la regla correcta para cualquier salida que se le pase.
+    """
     fallos = len(salida.pruebas) - salida.superadas
     if not fallos:
         return None
@@ -162,31 +147,237 @@ def tirar_percance(
     return PERCANCE if (rng or random.Random()).randint(1, 100) <= probabilidad else None
 
 
-def explorar(
-    criatura: sim.Criatura, bioma: Bioma, rng: random.Random | None = None
-) -> Salida:
-    """Las dos pruebas del viaje.
+# --- El árbol de decisiones ------------------------------------------------
 
-    Cada una **sortea su estadística por separado**: pueden salir una de fuerza
-    y otra de velocidad, dos de fuerza o dos de velocidad. Es suerte del camino,
-    no un reparto justo, así que a un gachamon especializado le puede tocar un
-    viaje regalado o uno cuesta arriba.
+# Cada escena ofrece las tres, siempre. Fuerza y velocidad tiran contra la misma
+# dificultad a propósito: si una fuera más barata, nadie elegiría la otra y la
+# decisión sería un adorno.
+FUERZA = "fuerza"
+VELOCIDAD = "velocidad"
+VOLVER = "volver"
+OPCIONES_ESCENA = (FUERZA, VELOCIDAD, VOLVER)
+
+# Cuántas decisiones dura una aventura. Volver también gasta una: es la salida
+# sin riesgo, no una forma de seguir mirando escenas hasta que salga una fácil.
+NIVELES_DE_AVENTURA = 2
+
+
+@dataclass(frozen=True)
+class Escena:
+    """La ficción de un nodo: qué pasa y cómo se llaman las tres salidas.
+
+    La escribe el modelo, pero **no decide nada**: quién pasa y quién no sale de
+    `stat + 1d20` contra la dificultad del bioma, igual que antes. Por eso el
+    texto puede venir de fuera sin que el juego deje de ser probable con dados
+    fijos.
     """
-    rng = rng or random.Random()
-    obstaculos = rng.sample(bioma.obstaculos, PRUEBAS_POR_AVENTURA)
 
-    pruebas = []
-    for obstaculo in obstaculos:
-        stat = rng.choice(STATS)
-        base = criatura.fuerza if stat == "fuerza" else criatura.velocidad
-        pruebas.append(Prueba(
-            obstaculo=obstaculo,
-            stat=stat,
-            base=base,
-            dado=rng.randint(1, CARA_DADO),
-            dificultad=bioma.dificultad,
-        ))
-    return Salida(tuple(pruebas))
+    situacion: str
+    fuerza: str
+    velocidad: str
+    volver: str
+
+    def etiqueta(self, opcion: str) -> str:
+        return getattr(self, opcion)
+
+
+# Lo que cabe. Discord corta las etiquetas de botón en 80 caracteres y no avisa;
+# la situación va dentro del marco ASCII, que es más estrecho todavía.
+LARGO_ETIQUETA = 60
+LARGO_SITUACION = 160
+
+
+def escena_desde_json(crudo: str) -> Escena | None:
+    """La escena que propuso el modelo, o `None` si no vale.
+
+    Se valida entera antes de usarla porque el texto viene de fuera: si falta
+    una opción, la escena tendría dos salidas en vez de tres, y si una etiqueta
+    se pasa de largo, Discord rechaza el botón y la aventura se queda colgada.
+    Devolver `None` es la señal para tirar de las escritas.
+    """
+    # Se busca el objeto en vez de exigir que la respuesta sea JSON a secas: el
+    # modelo lo envuelve en un bloque de código o le pone una frase delante más
+    # veces de las que uno querría, y eso no es motivo para quedarse sin escena.
+    abre, cierra = crudo.find("{"), crudo.rfind("}")
+    if abre < 0 or cierra < abre:
+        return None
+
+    try:
+        datos = json.loads(crudo[abre:cierra + 1])
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(datos, dict):
+        return None
+
+    campos = {}
+    for clave, tope in (("situacion", LARGO_SITUACION), ("fuerza", LARGO_ETIQUETA),
+                        ("velocidad", LARGO_ETIQUETA), ("volver", LARGO_ETIQUETA)):
+        valor = datos.get(clave)
+        if not isinstance(valor, str):
+            return None
+        valor = " ".join(valor.split())
+        if not valor or len(valor) > tope:
+            return None
+        campos[clave] = valor
+    return Escena(**campos)
+
+
+# Las escenas escritas a mano. Aunque las invente el modelo, hacen falta: es lo
+# que se juega cuando la IA no está o se agotó el límite, igual que las criaturas
+# nunca se quedan sin frase. Una aventura muda no es una aventura.
+ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
+    "bosque": (
+        Escena("Una cabaña con la puerta hinchada por la humedad.",
+               "Empujar la puerta", "Colarte por la ventana rota",
+               "Seguir el sendero"),
+        Escena("Un tronco enorme cruzado sobre el barranco.",
+               "Apartar el tronco", "Cruzar por encima corriendo",
+               "Bajar al barranco"),
+        Escena("Un panal zumbando justo encima del camino.",
+               "Bajar la rama despacio", "Pasar por debajo de un tirón",
+               "Dar un rodeo"),
+    ),
+    "planicie": (
+        Escena("Un pozo de piedra tapado con una losa.",
+               "Levantar la losa", "Descolgarte por la cuerda",
+               "Dejarlo estar"),
+        Escena("Un rebaño se ha asustado y viene de frente.",
+               "Plantarte y aguantar", "Esquivarlo por el flanco",
+               "Tumbarte en la hierba"),
+        Escena("Una carreta volcada, con las ruedas al aire.",
+               "Enderezar la carreta", "Meterte por debajo",
+               "Rodearla y seguir"),
+    ),
+    "desierto": (
+        Escena("Media columna asoma de la arena, y algo brilla debajo.",
+               "Empujar la columna", "Escarbar antes de que se hunda",
+               "Buscar sombra"),
+        Escena("Un cañón estrecho con las paredes calientes.",
+               "Abrirte paso a la fuerza", "Cruzarlo a la carrera",
+               "Esperar a que refresque"),
+        Escena("Un pozo seco con un cubo atascado en el brocal.",
+               "Tirar de la cadena", "Bajar por el brocal",
+               "Seguir la duna"),
+    ),
+    "ruinas": (
+        Escena("Un portón de bronce, cerrado desde dentro.",
+               "Reventar el portón", "Trepar por la hiedra",
+               "Rodear la muralla"),
+        Escena("El suelo del pasillo cede a cada paso.",
+               "Apuntalarlo con una viga", "Cruzarlo sin parar",
+               "Volver por donde viniste"),
+        Escena("Una losa con una argolla, en mitad de la sala.",
+               "Levantar la losa", "Colarte por la rendija",
+               "Dejar la losa quieta"),
+    ),
+    "volcan": (
+        Escena("Una colada de lava con costra encima.",
+               "Romper la costra y saltar", "Cruzar corriendo por encima",
+               "Bordear la colada"),
+        Escena("Una grieta escupe vapor cada pocos segundos.",
+               "Tapar la grieta con roca", "Pasar entre dos bocanadas",
+               "Buscar otro camino"),
+        Escena("Una puerta de obsidiana, tibia al tacto.",
+               "Forzar la obsidiana", "Colarte por la grieta del marco",
+               "Alejarte del calor"),
+    ),
+}
+
+
+def escena_escrita(
+    bioma: Bioma, evitar: Escena | None = None, rng: random.Random | None = None
+) -> Escena:
+    """Una escena de las escritas, saltándose la que ya se enseñó.
+
+    `evitar` está para que el segundo nodo no repita el primero, que es lo que
+    delataría el respaldo en cuanto la IA se cae dos veces seguidas.
+    """
+    posibles = [e for e in ESCENAS_ESCRITAS[bioma.clave] if e != evitar]
+    return (rng or random.Random()).choice(posibles)
+
+
+def resolver_opcion(
+    criatura: sim.Criatura,
+    bioma: Bioma,
+    opcion: str,
+    rng: random.Random | None = None,
+    obstaculo: str = "",
+) -> Prueba | None:
+    """La tirada de una opción, o `None` si es la de volver, que nunca falla."""
+    if opcion == VOLVER:
+        return None
+    if opcion not in (FUERZA, VELOCIDAD):
+        raise ValueError(f"opción desconocida: {opcion!r}")
+
+    base = criatura.fuerza if opcion == FUERZA else criatura.velocidad
+    return Prueba(
+        obstaculo=obstaculo,
+        stat=opcion,
+        base=base,
+        dado=(rng or random.Random()).randint(1, CARA_DADO),
+        dificultad=bioma.dificultad,
+    )
+
+
+@dataclass(frozen=True)
+class Viaje:
+    """El estado del árbol entre pulsación y pulsación.
+
+    Es inmutable y no guarda nada de Discord, así que el cog puede sostenerlo en
+    la vista y los tests recorrer el árbol entero con dados fijos.
+    """
+
+    bioma: Bioma
+    escena: Escena
+    pruebas: tuple[Prueba, ...] = ()
+    nivel: int = 0
+    fallo: bool = False
+
+    @property
+    def nodos_superados(self) -> int:
+        return sum(1 for p in self.pruebas if p.superada)
+
+    @property
+    def sigue(self) -> bool:
+        return not self.fallo and self.nivel < NIVELES_DE_AVENTURA
+
+    @property
+    def salida(self) -> Salida:
+        """El viaje visto como lo ve el resto del módulo.
+
+        El coste de hambre, el percance y la XP siguen calculándose sobre las
+        pruebas, que es lo que ya existía; el árbol sólo cambia quién las elige.
+        """
+        return Salida(self.pruebas)
+
+    @property
+    def coste_hambre(self) -> float:
+        return self.salida.coste_hambre
+
+
+def avanzar(
+    viaje: Viaje,
+    criatura: sim.Criatura,
+    opcion: str,
+    siguiente: Escena | None,
+    rng: random.Random | None = None,
+) -> Viaje:
+    """Aplica una decisión y devuelve el viaje resultante.
+
+    Acertar y volver llevan a `siguiente`; fallar cierra la aventura ahí mismo,
+    y por eso `siguiente` puede venir vacío.
+    """
+    prueba = resolver_opcion(
+        criatura, viaje.bioma, opcion, rng, viaje.escena.etiqueta(opcion)
+    )
+    fallo = prueba is not None and not prueba.superada
+    return Viaje(
+        bioma=viaje.bioma,
+        escena=siguiente or viaje.escena,
+        pruebas=viaje.pruebas + ((prueba,) if prueba else ()),
+        nivel=viaje.nivel + 1,
+        fallo=fallo,
+    )
 
 
 # --- Qué te encuentras -----------------------------------------------------
@@ -195,12 +386,19 @@ NADA = "nada"
 OBJETO = "objeto"
 SALVAJE = "salvaje"
 
-# Probabilidad de cada final según cuántas pruebas se superaron. Encontrarse un
-# salvaje es la excepción a propósito: con las dos superadas, una de cada tres.
+# Probabilidad de cada final según cuántos nodos del árbol se superaron.
+#
+# El salvaje sólo aparece llegando al fondo: es el gachamon dormido dentro del
+# cofre, y quedarse a medias no puede pagar lo mismo que llegar. El 55 no es un
+# número redondo por casualidad: midiendo 40 000 aventuras con criaturas recién
+# nacidas, el árbol termina con los dos nodos el 46 % de las veces, y 55 deja el
+# reclutamiento en el 25 % de las aventuras, exactamente donde estaba antes del
+# árbol. Concentrar el premio al fondo no podía salir por la puerta de atrás
+# como una subida de dificultad.
 HALLAZGOS = {
-    2: {SALVAJE: 33, OBJETO: 33, NADA: 34},
-    1: {SALVAJE: 25, OBJETO: 30, NADA: 45},
-    0: {SALVAJE: 17, OBJETO: 25, NADA: 58},
+    2: {SALVAJE: 55, OBJETO: 25, NADA: 20},
+    1: {SALVAJE: 0, OBJETO: 55, NADA: 45},
+    0: {SALVAJE: 0, OBJETO: 30, NADA: 70},
 }
 
 
@@ -452,7 +650,11 @@ def resumen_escrito(
     La aventura no puede quedarse muda porque se haya agotado el límite, igual
     que las criaturas nunca se quedan sin frase.
     """
-    if salida.superadas == len(salida.pruebas):
+    if not salida.pruebas:
+        # Con el árbol se puede volver de todo sin haber tirado un solo dado, y
+        # decir entonces que «no se le resiste nada» sería contar otro viaje.
+        viaje = f"{criatura.nombre} sale {bioma.adonde} y no se mete en nada."
+    elif salida.superadas == len(salida.pruebas):
         viaje = f"{criatura.nombre} sale {bioma.adonde} y no se le resiste nada."
     elif salida.superadas:
         viaje = f"{criatura.nombre} sale {bioma.adonde} y tiene problemas en un tramo."

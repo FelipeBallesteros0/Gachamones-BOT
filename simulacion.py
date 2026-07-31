@@ -123,6 +123,27 @@ def normalizar_nombre(nombre: str) -> str:
         )
     return normalizado
 
+
+# Un recluta se guarda sin nombre y no puede salir de la incubadora hasta que se
+# lo pongan. El nombre vacío es la marca: no hace falta una columna nueva porque
+# `normalizar_nombre` ya impide que nadie llegue aquí por las buenas, y así la
+# regla se lee en el propio dato en vez de en una bandera aparte.
+NOMBRE_PENDIENTE = ""
+SIN_NOMBRE = "sin nombrar"
+
+
+def esta_sin_nombrar(criatura: Criatura) -> bool:
+    return not criatura.nombre
+
+
+def nombre_visible(criatura: Criatura) -> str:
+    """Cómo se le llama mientras no tenga nombre propio.
+
+    Existe porque Discord rechaza una etiqueta vacía en un desplegable: sin
+    esto, el menú del plantel reventaría al listar a un recién reclutado.
+    """
+    return criatura.nombre or SIN_NOMBRE
+
 # Cuidar también hace crecer, para que quien no quiera competir pueda ver
 # evolucionar a su criatura igualmente. Los enfriamientos de arriba topan la
 # ganancia en unos 8 XP/hora sin necesidad de ninguna regla nueva. Ese tope sólo

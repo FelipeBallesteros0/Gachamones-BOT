@@ -653,3 +653,24 @@ def test_no_se_toca_una_acotacion_del_personaje():
 def test_si_la_nota_era_todo_lo_que_habia_no_queda_texto():
     """Y entonces `generar()` cae en la frase de respaldo, que es lo correcto."""
     assert ia.limpiar("(Palabras: 40).", "") == ""
+
+
+# --- Generación en crudo (la usan las escenas de la aventura) ---------------
+
+def test_generar_crudo_no_limpia_el_json():
+    """`limpiar` está hecho para frases: quita bloques de código y marcas, y con
+    un objeto JSON haría destrozos. Por eso las escenas no pasan por ahí."""
+    json = '{"situacion": "Un muro **viejo**", "fuerza": "Empujar"}'
+
+    devuelto = correr(ia.generar_crudo("sistema", "peticion",
+                                       transporte=respuesta_de(json)))
+
+    assert devuelto == json
+
+
+def test_generar_crudo_devuelve_nada_si_falla_el_modelo():
+    """`None` es la señal de tirar del respaldo escrito; no lanza, como todo el
+    módulo."""
+    assert correr(ia.generar_crudo(
+        "sistema", "peticion", transporte=transporte_roto
+    )) is None

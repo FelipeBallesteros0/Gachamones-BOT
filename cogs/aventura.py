@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 import random
+from dataclasses import replace
 from datetime import timedelta
+from functools import partial
 
 import discord
 from discord import app_commands
@@ -73,6 +75,150 @@ async def _narrar(
     )
     texto, _ = await ia.generar(sistema, peticion, respaldo)
     return texto
+
+
+EMOJI_OPCION = {av.FUERZA: "💪", av.VELOCIDAD: "💨", av.VOLVER: "🚶"}
+ESTILO_OPCION = {
+    av.FUERZA: discord.ButtonStyle.danger,
+    av.VELOCIDAD: discord.ButtonStyle.primary,
+    av.VOLVER: discord.ButtonStyle.secondary,
+}
+LARGO_BOTON = 80  # lo que admite Discord en una etiqueta
+
+
+async def _pedir_escena(
+    bioma: av.Bioma, nivel: int, antes: str, usuario_id: str, ahora,
+    rng: random.Random, evitar: av.Escena | None = None,
+) -> av.Escena:
+    """La escena del nodo: la inventa el modelo y, si no puede, va una escrita.
+
+    El respaldo se calcula siempre, antes de pedir nada: si el modelo devuelve
+    algo que no cuadra, la aventura tiene que seguir igualmente. Un árbol que se
+    queda sin escena deja a alguien con tres botones vacíos.
+    """
+    escrita = av.escena_escrita(bioma, evitar, rng)
+    if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
+        return escrita
+
+    db.registrar_uso_ia(usuario_id, ahora)
+    sistema, peticion = per.prompt_escena(bioma.adonde, nivel, antes)
+    crudo = await ia.generar_crudo(sistema, peticion)
+    if not crudo:
+        return escrita
+    return av.escena_desde_json(crudo) or escrita
+
+
+class ViajeView(discord.ui.View):
+    """El árbol de decisiones: tres botones por escena, dos escenas por viaje.
+
+    El estado va en memoria como en `EncuentroView`. Si el bot se reinicia a
+    media aventura se pierde, y es aceptable por lo mismo que allí: el viaje no
+    ha cobrado nada todavía salvo el enfriamiento, que se pone al empezar
+    justamente para que nadie tenga diez árboles abiertos a la vez.
+    """
+
+    def __init__(self, cog: "Aventura", dueño: discord.User, guild_id: str,
+                 criatura: sim.Criatura, viaje: av.Viaje):
+        super().__init__(timeout=SEGUNDOS_PARA_DECIDIR)
+        self.cog = cog
+        self.dueño = dueño
+        self.guild_id = guild_id
+        self.criatura = criatura
+        self.viaje = viaje
+        self.mensaje: discord.Message | None = None
+        self._resuelto = False
+        self._poner_botones()
+
+    def _poner_botones(self) -> None:
+        """Las etiquetas cambian con cada escena, así que los botones se rehacen.
+
+        Por eso no se declaran con `@discord.ui.button`: ese decorador fija la
+        etiqueta al escribir la clase, y aquí la escribe el modelo en marcha.
+        """
+        self.clear_items()
+        for opcion in av.OPCIONES_ESCENA:
+            boton = discord.ui.Button(
+                label=self.viaje.escena.etiqueta(opcion)[:LARGO_BOTON],
+                emoji=EMOJI_OPCION[opcion],
+                style=ESTILO_OPCION[opcion],
+            )
+            boton.callback = partial(self._elegir, opcion)
+            self.add_item(boton)
+
+    def texto(self) -> str:
+        bioma = self.viaje.bioma
+        return (
+            f"## {bioma.emoji} {self.criatura.nombre} sale {bioma.adonde}\n"
+            f"-# decisión {self.viaje.nivel + 1} de {av.NIVELES_DE_AVENTURA}"
+            f" · superadas {self.viaje.nodos_superados}\n"
+            f"{self.viaje.escena.situacion}"
+        )
+
+    async def interaction_check(self, interaccion: discord.Interaction) -> bool:
+        if interaccion.user.id != self.dueño.id:
+            await interaccion.response.send_message(
+                "Esa aventura no es tuya.", ephemeral=True
+            )
+            return False
+        return True
+
+    async def _elegir(self, opcion: str, interaccion: discord.Interaction) -> None:
+        await interaccion.response.defer()
+        rng = random.Random()
+        anterior = self.viaje
+
+        # Se tira PRIMERO y se pide la escena después. Al revés se gastaría una
+        # llamada al modelo en la mitad de los viajes que terminan aquí mismo.
+        self.viaje = av.avanzar(anterior, self.criatura, opcion, None, rng)
+
+        if self.viaje.sigue:
+            escena = await _pedir_escena(
+                self.viaje.bioma, self.viaje.nivel + 1,
+                _continuacion(anterior.escena, opcion),
+                str(self.dueño.id), db.ahora_utc(), rng, anterior.escena,
+            )
+            self.viaje = replace(self.viaje, escena=escena)
+            self._poner_botones()
+            await self._editar(self.texto(), self)
+            return
+
+        self.stop()
+        await self._editar(self.texto(), None)
+        await self.cog.resolver(
+            interaccion.channel, self.dueño, self.guild_id,
+            self.criatura, self.viaje,
+        )
+        self._resuelto = True
+
+    async def _editar(self, cuerpo: str, vista) -> None:
+        if self.mensaje is None:
+            return
+        try:
+            await self.mensaje.edit(content=cuerpo, view=vista)
+        except discord.HTTPException:
+            log.warning("No se pudo actualizar la aventura", exc_info=True)
+
+    async def on_timeout(self) -> None:
+        """Dejarlo a medias cuenta como volverse: el viaje se cobra igual.
+
+        Si no se resolviera, quien se distrae se quedaría con el enfriamiento
+        puesto y sin nada a cambio, que es peor que volver con las manos vacías.
+        """
+        if self._resuelto or self.mensaje is None:
+            return
+        self._resuelto = True
+        await self._editar(f"{self.texto()}\n\n⌛ Se hizo tarde y volvió.", None)
+        await self.cog.resolver(
+            self.mensaje.channel, self.dueño, self.guild_id,
+            self.criatura, self.viaje,
+        )
+
+
+def _continuacion(escena: av.Escena, opcion: str) -> str:
+    """Qué contarle al modelo de lo que acaba de pasar, para que encadene."""
+    if opcion == av.VOLVER:
+        return f"Ante «{escena.situacion}» prefirió no meterse y siguió camino."
+    return f"Ante «{escena.situacion}» eligió {escena.etiqueta(opcion).lower()}, y lo logró."
 
 
 class EncuentroView(discord.ui.View):
@@ -197,7 +343,11 @@ class EncuentroView(discord.ui.View):
         try:
             nuevo = db.crear(
                 usuario_id=str(self.dueño.id), guild_id=self.guild_id,
-                especie=salvaje.especie, nombre=salvaje.nombre,
+                especie=salvaje.especie,
+                # Sin nombre a propósito: se guarda ya, para que no se pierda si
+                # se cierra el formulario o se cae la conexión, pero no sale de
+                # la incubadora hasta que lo bauticen.
+                nombre=sim.NOMBRE_PENDIENTE,
                 stats=salvaje.stats, ahora=ahora,
                 genero=salvaje.genero, caracter=salvaje.caracter,
                 canal_id=str(interaccion.channel_id),
@@ -217,12 +367,11 @@ class EncuentroView(discord.ui.View):
         await self._editar(
             interaccion,
             esp.concordar(
-                f"{reaccion}\n\n🧬 **¡Se une a tu equipo!** Espera en la "
-                "incubadora; sácal{o/a} con 🧬 **Cambiar** y ponle nombre con "
-                "una placa de la tienda.",
+                f"{reaccion}\n\n🧬 **¡Se une a tu equipo!** Todavía no tiene "
+                "nombre, y hasta que se lo pongas no sale de la incubadora.",
                 nuevo.genero,
             ),
-            None,
+            vistas.NombrarReclutaView(),
         )
 
     async def _editar(self, interaccion, cuerpo: str, vista) -> None:
@@ -309,27 +458,50 @@ class Aventura(commands.Cog):
 
         rng = random.Random()
         bioma = av.elegir_bioma(rng)
-        salida = av.explorar(criatura, bioma, rng)
 
-        hueco = len(db.plantel(usuario_id, guild_id)) < db.MAXIMO_PLANTEL
-        hallazgo = av.tirar_hallazgo(salida.superadas, hueco, rng)
-        percance = av.tirar_percance(salida, rng)
-
-        # El desgaste y el enfriamiento se aplican pase lo que pase: el viaje ya
-        # se ha hecho. La XP sólo llega si vuelve con vida.
-        cansada, subidas = av.aplicar_viaje(
-            criatura, salida, ahora, percance, rng
-        )
-        db.guardar(cansada)
+        # El enfriamiento se pone al SALIR, no al volver: el árbol dura varios
+        # minutos y sin esto se podrían abrir diez aventuras a la vez.
         db.poner_cooldown(criatura.id, sim.AVENTURA, ahora)
 
-        pruebas = av.render_pruebas(criatura, bioma, salida, percance)
-        if cansada.viva:
-            pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
         canal = interaccion.channel
         canal_anterior = vistas._canal_anterior(canal, criatura)
         await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
-        await interaccion.response.send_message(pruebas)
+        await interaccion.response.defer()
+
+        escena = await _pedir_escena(bioma, 1, "", usuario_id, ahora, rng)
+        viaje = av.Viaje(bioma=bioma, escena=escena)
+        vista = ViajeView(self, interaccion.user, guild_id, criatura, viaje)
+        vista.mensaje = await interaccion.followup.send(
+            vista.texto(), view=vista, wait=True
+        )
+
+    async def resolver(
+        self, canal, dueño: discord.User, guild_id: str,
+        criatura: sim.Criatura, viaje: av.Viaje,
+    ) -> None:
+        """Lo que cuesta y lo que da el viaje, una vez cerrado el árbol.
+
+        Vive aparte del comando porque hay dos formas de terminar —decidiendo o
+        dejándolo caducar— y las dos tienen que cobrar y premiar igual.
+        """
+        ahora = db.ahora_utc()
+        usuario_id = str(dueño.id)
+        rng = random.Random()
+        salida = viaje.salida
+
+        hueco = len(db.plantel(usuario_id, guild_id)) < db.MAXIMO_PLANTEL
+        hallazgo = av.tirar_hallazgo(viaje.nodos_superados, hueco, rng)
+        percance = av.tirar_percance(salida, rng)
+
+        # El desgaste se aplica pase lo que pase: el viaje ya se ha hecho. La XP
+        # sólo llega si vuelve con vida.
+        cansada, subidas = av.aplicar_viaje(criatura, salida, ahora, percance, rng)
+        db.guardar(cansada)
+
+        pruebas = av.render_pruebas(criatura, viaje.bioma, salida, percance)
+        if cansada.viva:
+            pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
+        await canal.send(pruebas)
 
         if not cansada.viva:
             await canal.send(f"💀 **{cansada.nombre}** no sobrevivió al viaje.")
@@ -342,11 +514,11 @@ class Aventura(commands.Cog):
         elif subidas:
             await canal.send(
                 f"✨ **{cansada.nombre}** sube a nivel {cansada.nivel}, "
-                f"{interaccion.user.mention}."
+                f"{dueño.mention}."
             )
 
         narracion = await _narrar(
-            criatura, bioma, salida, hallazgo, percance, usuario_id, ahora
+            criatura, viaje.bioma, salida, hallazgo, percance, usuario_id, ahora
         )
         await canal.send(narracion)
 
@@ -362,11 +534,11 @@ class Aventura(commands.Cog):
         if hallazgo == av.NADA:
             return
 
-        salvaje = av.tirar_salvaje(bioma, rng)
+        salvaje = av.tirar_salvaje(viaje.bioma, rng)
         encuentro = av.Encuentro(
-            salvaje=salvaje, confianza=av.confianza_inicial(salida.superadas)
+            salvaje=salvaje, confianza=av.confianza_inicial(viaje.nodos_superados)
         )
-        vista = EncuentroView(self, interaccion.user, guild_id, cansada, encuentro)
+        vista = EncuentroView(self, dueño, guild_id, cansada, encuentro)
         vista.mensaje = await canal.send(vista.texto(), view=vista)
 
 

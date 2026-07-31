@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 import aventura as av
 import cogs.aventura as cog_av
 import especies as esp
@@ -76,8 +78,21 @@ def test_el_bioma_se_sortea_y_salen_todos():
 
 # --- Las pruebas -----------------------------------------------------------
 
-def test_son_dos_pruebas_de_stat_mas_1d20():
-    salida = av.explorar(criatura(), av.BIOMAS["bosque"], DadosFijos([20]))
+def recorrer(bicho, bioma, rng, opciones=(av.FUERZA, av.VELOCIDAD)):
+    """Juega el árbol entero eligiendo esas opciones y devuelve lo que rindió.
+
+    Es lo que antes hacía `explorar` de una tirada; desde el árbol lo decide
+    quien juega, así que los tests también tienen que elegir."""
+    viaje = av.Viaje(bioma=bioma, escena=escena_de_prueba())
+    for opcion in opciones:
+        if not viaje.sigue:
+            break
+        viaje = av.avanzar(viaje, bicho, opcion, escena_de_prueba(), rng)
+    return viaje.salida
+
+
+def test_cada_prueba_es_stat_mas_1d20_contra_la_dificultad_del_bioma():
+    salida = recorrer(criatura(), av.BIOMAS["bosque"], DadosFijos([20]))
 
     assert len(salida.pruebas) == 2
     for prueba in salida.pruebas:
@@ -87,37 +102,13 @@ def test_son_dos_pruebas_de_stat_mas_1d20():
         assert prueba.superada == (prueba.total >= prueba.dificultad)
 
 
-def test_cada_prueba_sortea_su_estadistica():
-    """Totalmente al azar: tienen que salir las TRES combinaciones. Si sólo
-    saliera la mixta, el sorteo no sería tal."""
-    rng = random.Random(7)
-    vistas = Counter()
-    for _ in range(400):
-        salida = av.explorar(criatura(), av.BIOMAS["bosque"], rng)
-        vistas[tuple(p.stat for p in salida.pruebas)] += 1
-
-    assert ("fuerza", "fuerza") in vistas
-    assert ("velocidad", "velocidad") in vistas
-    assert {("fuerza", "velocidad"), ("velocidad", "fuerza")} & set(vistas)
-
-
-def test_la_prueba_usa_la_estadistica_que_toca():
-    """Un gachamon rapidísimo y flojo tiene que notar cuál le ha tocado."""
-    rapido = criatura(fuerza=1, velocidad=99)
-    for _ in range(50):
-        salida = av.explorar(rapido, av.BIOMAS["bosque"], random.Random())
-        for prueba in salida.pruebas:
-            esperado = 99 if prueba.stat == "velocidad" else 1
-            assert prueba.base == esperado, prueba
-
-
 def test_fallar_cuesta_hambre_extra():
     facil = av.BIOMAS["planicie"]
     fuerte = criatura(fuerza=99, velocidad=99)
     debil = criatura(fuerza=1, velocidad=1)
 
-    entera = av.explorar(fuerte, facil, DadosFijos([20]))
-    reventada = av.explorar(debil, facil, DadosFijos([1]))
+    entera = recorrer(fuerte, facil, DadosFijos([20]))
+    reventada = recorrer(debil, facil, DadosFijos([1]))
 
     assert entera.superadas == 2 and reventada.superadas == 0
     assert reventada.coste_hambre > entera.coste_hambre
@@ -129,7 +120,7 @@ def salida_con_fallos(cuantos: int) -> av.Salida:
             obstaculo=f"tramo {i}", stat="fuerza", base=10,
             dado=10 if i >= cuantos else 1, dificultad=20,
         )
-        for i in range(av.PRUEBAS_POR_AVENTURA)
+        for i in range(av.NIVELES_DE_AVENTURA)
     )
     return av.Salida(pruebas)
 
@@ -175,7 +166,7 @@ def test_el_desgaste_que_agota_el_hambre_mata_en_ese_instante():
 def test_el_viaje_sobrevivido_siempre_da_cuatro_xp_sin_cambiar_el_desgaste():
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
 
-    for fallos in range(av.PRUEBAS_POR_AVENTURA + 1):
+    for fallos in range(av.NIVELES_DE_AVENTURA + 1):
         for percance in (None, av.PERCANCE):
             viajera = criatura(xp=7)
             salida = salida_con_fallos(fallos)
@@ -224,6 +215,20 @@ def test_el_viaje_puede_evolucionar_con_el_rng_inyectado():
     assert elegir_stat.call_count == 2
 
 
+def viaje_con(salida, bioma="planicie"):
+    """Un viaje ya cerrado que rindió esas pruebas.
+
+    El árbol se recorre en `ViajeView`; lo que se prueba aquí es lo que pasa al
+    volver, que es donde se cobra y se reparte.
+    """
+    return av.Viaje(
+        bioma=av.BIOMAS[bioma],
+        escena=escena_de_prueba(),
+        pruebas=salida.pruebas,
+        nivel=av.NIVELES_DE_AVENTURA,
+    )
+
+
 def ejecutar_aventura_final(
     monkeypatch, viajera, salida, hallazgo=av.NADA, percance=None
 ):
@@ -236,12 +241,7 @@ def ejecutar_aventura_final(
     rng = SimpleNamespace(choices=lambda *_, **__: ["salud"])
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
-    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: viajera)
-    monkeypatch.setattr(cog_av.sim, "avanzar", lambda criatura, _: criatura)
-    monkeypatch.setattr(cog_av.db, "espera_de", lambda *_: timedelta(0))
     monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
-    monkeypatch.setattr(cog_av.av, "elegir_bioma", lambda _: av.BIOMAS["planicie"])
-    monkeypatch.setattr(cog_av.av, "explorar", lambda *_: salida)
     monkeypatch.setattr(cog_av.av, "tirar_hallazgo", lambda *_: hallazgo)
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: percance)
     monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
@@ -251,11 +251,6 @@ def ejecutar_aventura_final(
         eventos.append(("guardar", actualizada, None))
 
     monkeypatch.setattr(cog_av.db, "guardar", guardar)
-    monkeypatch.setattr(
-        cog_av.db,
-        "poner_cooldown",
-        lambda *_: eventos.append(("cooldown", None, None)),
-    )
 
     async def narrar(*_):
         return "NARRACIÓN"
@@ -279,6 +274,7 @@ def ejecutar_aventura_final(
         ),
     )
 
+
     class VistaFalsa:
         def __init__(self, _cog, _usuario, _guild_id, actualizada, _encuentro):
             self.criatura = actualizada
@@ -290,25 +286,14 @@ def ejecutar_aventura_final(
 
     monkeypatch.setattr(cog_av, "EncuentroView", VistaFalsa)
 
-    async def responder(mensaje, **_):
-        eventos.append(("respuesta", mensaje, None))
-
     async def enviar(mensaje, **kwargs):
         eventos.append(("canal", mensaje, kwargs.get("view")))
         return SimpleNamespace()
 
-    canal_anterior = SimpleNamespace(id=101)
-    guild = SimpleNamespace(
-        get_channel=lambda canal_id: canal_anterior if canal_id == 101 else None
-    )
-    interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1", mention="<@u1>"),
-        guild_id="g1",
-        response=SimpleNamespace(send_message=responder),
-        channel=SimpleNamespace(id=202, guild=guild, send=enviar),
-    )
+    canal = SimpleNamespace(id=202, send=enviar)
+    dueño = SimpleNamespace(id="u1", mention="<@u1>")
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+    asyncio.run(cog.resolver(canal, dueño, "g1", viajera, viaje_con(salida)))
     return eventos, guardadas, vistas, evoluciones
 
 
@@ -325,15 +310,13 @@ def test_la_aventura_sobrevivida_anuncia_y_persiste_cuatro_xp(monkeypatch):
     )
 
     persistida = guardadas[-1]
-    respuesta = next(mensaje for tipo, mensaje, _ in eventos if tipo == "respuesta")
+    pruebas = next(mensaje for tipo, mensaje, _ in eventos if tipo == "canal")
     assert persistida.xp == viajera.xp + 4
     assert (persistida.hambre, persistida.animo) == (60.0, 75.0)
-    assert f"✨ +{sim.XP_AVENTURA} XP por el viaje." in respuesta
-    assert [tipo for tipo, _, _ in eventos[:5]] == [
-        "guardar", "guardar", "cooldown", "congelar", "respuesta"
-    ]
-    assert eventos[3][1].id == 101
-    assert eventos[3][2] == "ficha-aventura"
+    assert f"✨ +{sim.XP_AVENTURA} XP por el viaje." in pruebas
+    # Primero se persiste y después se cuenta: no se anuncia una mutación hasta
+    # que está guardada.
+    assert [tipo for tipo, _, _ in eventos[:2]] == ["guardar", "canal"]
 
 
 def test_la_evolucion_se_anuncia_antes_de_narrar_y_el_salvaje_queda_ultimo(
@@ -348,7 +331,9 @@ def test_la_evolucion_se_anuncia_antes_de_narrar_y_el_salvaje_queda_ultimo(
         monkeypatch, viajera, salida_con_fallos(0), hallazgo=av.SALVAJE
     )
 
-    mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"]
+    # El primero es siempre el marco de las pruebas; lo que se mira aquí es el
+    # orden de lo que viene detrás.
+    mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"][1:]
     assert mensajes == ["EVOLUCIÓN", "NARRACIÓN", "ENCUENTRO"]
     assert (guardadas[-1].nivel, guardadas[-1].xp) == (2, 3)
     assert evoluciones[0][1] == viajera.etapa
@@ -367,7 +352,7 @@ def test_la_subida_sin_cambio_de_etapa_se_anuncia_como_en_competencias(monkeypat
         monkeypatch, viajera, salida_con_fallos(0)
     )
 
-    mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"]
+    mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"][1:]
     assert mensajes == [
         f"✨ **{viajera.nombre}** sube a nivel {len(esp.ETAPAS) + 1}, <@u1>.",
         "NARRACIÓN",
@@ -386,34 +371,21 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
     eventos = []
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
-    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: viajera)
-    monkeypatch.setattr(cog_av.sim, "avanzar", lambda criatura, _: criatura)
-    monkeypatch.setattr(cog_av.db, "espera_de", lambda *_: timedelta(0))
     monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
-    monkeypatch.setattr(cog_av.av, "elegir_bioma", lambda _: av.BIOMAS["planicie"])
-    monkeypatch.setattr(cog_av.av, "explorar", lambda *_: salida)
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: av.PERCANCE)
     monkeypatch.setattr(cog_av.db, "guardar", lambda criatura: eventos.append(("guardar", criatura)))
-    monkeypatch.setattr(
-        cog_av.db,
-        "poner_cooldown",
-        lambda *_: eventos.append(("cooldown", None)),
-    )
     narrar = AsyncMock(return_value="narración que no debe salir")
     regalar = Mock()
     abrir_encuentro = Mock()
     monkeypatch.setattr(cog_av, "_narrar", narrar)
     monkeypatch.setattr(cog_av.db, "regalar", regalar)
     monkeypatch.setattr(cog_av, "EncuentroView", abrir_encuentro)
-    congelar = AsyncMock()
-    monkeypatch.setattr(cog_av.vistas, "congelar", congelar)
-
-    async def responder(mensaje, **_):
-        eventos.append(("pruebas", mensaje))
 
     async def enviar(mensaje, **_):
         eventos.append(("canal", mensaje))
 
+    canal = SimpleNamespace(send=enviar)
+    dueño = SimpleNamespace(id="u1", mention="<@u1>")
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
     for hallazgo in (av.OBJETO, av.SALVAJE):
         eventos.clear()
@@ -421,25 +393,15 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
         regalar.reset_mock()
         abrir_encuentro.reset_mock()
         monkeypatch.setattr(cog_av.av, "tirar_hallazgo", lambda *_: hallazgo)
-        interaccion = SimpleNamespace(
-            user=SimpleNamespace(id="u1"),
-            guild_id="g1",
-            response=SimpleNamespace(send_message=responder),
-            channel=SimpleNamespace(send=enviar),
-        )
 
-        asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+        asyncio.run(cog.resolver(canal, dueño, "g1", viajera, viaje_con(salida)))
 
-        assert [tipo for tipo, _ in eventos] == [
-            "guardar", "guardar", "cooldown", "pruebas", "canal"
-        ]
-        congelar.assert_awaited_once_with(interaccion.channel, "ficha-fatal")
-        congelar.reset_mock()
-        persistida = eventos[1][1]
+        assert [tipo for tipo, _ in eventos] == ["guardar", "canal", "canal"]
+        persistida = eventos[0][1]
         assert persistida.muerta_en == ahora
         assert persistida.causa_muerte == "hambre"
         assert persistida.xp == viajera.xp
-        assert "XP por el viaje" not in eventos[3][1]
+        assert "XP por el viaje" not in eventos[1][1]
         assert "no sobrevivió al viaje" in eventos[-1][1]
         narrar.assert_not_awaited()
         regalar.assert_not_called()
@@ -567,10 +529,28 @@ def test_superar_las_pruebas_mejora_lo_que_encuentras():
 
 
 def test_lo_mas_probable_es_no_encontrar_salvaje():
-    """Lo pedido: encontrarse uno tiene que ser la excepción."""
-    for superadas in (0, 1, 2):
-        cuenta = cuenta_hallazgos(superadas)
-        assert cuenta[av.SALVAJE] < sum(cuenta.values()) / 2, superadas
+    """Lo pedido: encontrarse uno tiene que ser la excepción.
+
+    Se mide sobre la aventura entera y no sobre una fila de la tabla, porque
+    desde que el salvaje sólo sale llegando al fondo, esa fila pesa lo que pese
+    llegar hasta ella. Mirar sólo la fila diría que el salvaje es lo normal, y
+    jugando no lo es.
+    """
+    rng = random.Random(7)
+    bicho = criatura()
+    salvajes = 0
+    intentos = 3000
+
+    for _ in range(intentos):
+        viaje = av.Viaje(bioma=av.elegir_bioma(rng), escena=escena_de_prueba())
+        while viaje.sigue:
+            # Jugando lo mejor posible: siempre la estadística más alta.
+            mejor = av.FUERZA if bicho.fuerza >= bicho.velocidad else av.VELOCIDAD
+            viaje = av.avanzar(viaje, bicho, mejor, escena_de_prueba(), rng)
+        if av.tirar_hallazgo(viaje.nodos_superados, True, rng) == av.SALVAJE:
+            salvajes += 1
+
+    assert salvajes < intentos / 2, salvajes
 
 
 def test_con_el_plantel_lleno_nunca_sale_un_salvaje():
@@ -785,7 +765,7 @@ def test_el_marco_de_las_pruebas_no_se_descuadra():
             especie=rng.choice(list(esp.ESPECIES)),
         )
         bioma = av.elegir_bioma(rng)
-        salida = av.explorar(bicho, bioma, rng)
+        salida = recorrer(bicho, bioma, rng)
 
         texto = av.render_pruebas(bicho, bioma, salida)
         dentro = texto.split("```ansi\n")[1].split("\n```")[0]
@@ -798,11 +778,13 @@ def test_el_marco_dice_si_se_supero_cada_prueba():
     fuerte = criatura(fuerza=99, velocidad=99)
     debil = criatura(fuerza=1, velocidad=1)
 
-    ganadas = av.render_pruebas(fuerte, facil, av.explorar(fuerte, facil, DadosFijos([20])))
-    perdidas = av.render_pruebas(debil, facil, av.explorar(debil, facil, DadosFijos([1])))
+    ganadas = av.render_pruebas(fuerte, facil, recorrer(fuerte, facil, DadosFijos([20])))
+    perdidas = av.render_pruebas(debil, facil, recorrer(debil, facil, DadosFijos([1])))
 
     assert ganadas.count("✓") == 2 and "✗" not in ganadas
-    assert perdidas.count("✗") == 2 and "✓" not in perdidas
+    # Una sola: desde el árbol, fallar cierra la aventura ahí mismo, así que un
+    # viaje jugado no puede traer dos cruces.
+    assert perdidas.count("✗") == 1 and "✓" not in perdidas
 
 
 def test_la_marca_sobrevive_aunque_los_numeros_crezcan():
@@ -812,6 +794,382 @@ def test_la_marca_sobrevive_aunque_los_numeros_crezcan():
     topado = criatura(fuerza=sim.MAXIMO_STAT, velocidad=sim.MAXIMO_STAT)
     for clave in av.BIOMAS:
         bioma = av.BIOMAS[clave]
-        salida = av.explorar(topado, bioma, DadosFijos([20]))
+        salida = recorrer(topado, bioma, DadosFijos([20]))
         texto = av.render_pruebas(topado, bioma, salida)
         assert texto.count("✓") == 2, (clave, texto)
+
+
+# --- El árbol de decisiones ------------------------------------------------
+
+def escena_de_prueba(**cambios):
+    base = dict(
+        situacion="Una casa abandonada, la puerta trancada.",
+        fuerza="Forzar la puerta",
+        velocidad="Colarte por la ventana",
+        volver="Seguir tu camino",
+    )
+    base.update(cambios)
+    return av.Escena(**base)
+
+
+def test_cada_escena_ofrece_las_tres_opciones():
+    """Fuerza, velocidad y volver. Sin las tres no hay decisión que tomar."""
+    assert av.OPCIONES_ESCENA == (av.FUERZA, av.VELOCIDAD, av.VOLVER)
+    escena = escena_de_prueba()
+    for opcion in av.OPCIONES_ESCENA:
+        assert escena.etiqueta(opcion).strip(), opcion
+
+
+def test_fuerza_y_velocidad_cuestan_lo_mismo():
+    """El 50/50 que se pidió. Si una fuera más fácil, la otra no la elegiría
+    nadie y la decisión sería de mentira."""
+    bioma = av.BIOMAS["bosque"]
+    fuerte = criatura(fuerza=99, velocidad=1)
+    rapido = criatura(fuerza=1, velocidad=99)
+
+    con_fuerza = av.resolver_opcion(fuerte, bioma, av.FUERZA, DadosFijos([10]))
+    con_velocidad = av.resolver_opcion(rapido, bioma, av.VELOCIDAD, DadosFijos([10]))
+
+    assert con_fuerza.dificultad == con_velocidad.dificultad == bioma.dificultad
+    assert con_fuerza.base == 99 and con_velocidad.base == 99
+    assert con_fuerza.superada and con_velocidad.superada
+
+
+def test_la_opcion_elegida_usa_su_estadistica():
+    bioma = av.BIOMAS["planicie"]
+    bicho = criatura(fuerza=99, velocidad=1)
+
+    assert av.resolver_opcion(bicho, bioma, av.FUERZA, DadosFijos([10])).superada
+    assert not av.resolver_opcion(bicho, bioma, av.VELOCIDAD, DadosFijos([10])).superada
+
+
+def test_volver_no_tira_ningun_dado():
+    """Es la salida sin riesgo: no puede fallar."""
+    assert av.resolver_opcion(
+        criatura(), av.BIOMAS["volcan"], av.VOLVER, DadosFijos([1])
+    ) is None
+
+
+# --- Cómo avanza el viaje --------------------------------------------------
+
+def viaje_nuevo(bioma="bosque"):
+    return av.Viaje(bioma=av.BIOMAS[bioma], escena=escena_de_prueba())
+
+
+def test_acertar_lleva_al_siguiente_nivel():
+    viaje = viaje_nuevo()
+    despues = av.avanzar(viaje, criatura(fuerza=99), av.FUERZA,
+                         escena_de_prueba(situacion="Un cofre cerrado."),
+                         DadosFijos([20]))
+
+    assert despues.nodos_superados == 1
+    assert despues.sigue, "acertar en el nivel 1 no puede cerrar la aventura"
+    assert despues.escena.situacion == "Un cofre cerrado."
+
+
+def test_volver_lleva_a_otra_escena_y_no_cierra_la_aventura():
+    """Lo que se pidió: lo seguro no te echa, te lleva a otra parte."""
+    viaje = viaje_nuevo()
+    otra = escena_de_prueba(situacion="Un claro tranquilo.")
+    despues = av.avanzar(viaje, criatura(), av.VOLVER, otra, DadosFijos([1]))
+
+    assert despues.sigue
+    assert despues.escena.situacion == "Un claro tranquilo."
+    assert despues.nodos_superados == 0, "volver no cuenta como nodo superado"
+    # Y no puede castigar: sin pruebas falladas, el percance no se dispara ni
+    # con el peor dado posible.
+    assert av.tirar_percance(despues.salida, DadosFijos([1])) is None
+
+
+def test_fallar_cierra_la_aventura():
+    viaje = viaje_nuevo()
+    despues = av.avanzar(viaje, criatura(fuerza=1), av.FUERZA, None,
+                         DadosFijos([1]))
+
+    assert not despues.sigue
+    assert despues.nodos_superados == 0
+
+
+def test_la_aventura_dura_dos_niveles():
+    """Dos decisiones y se acaba: si no, se podría encadenar sin fin."""
+    viaje = viaje_nuevo()
+    for _ in range(av.NIVELES_DE_AVENTURA):
+        assert viaje.sigue
+        viaje = av.avanzar(viaje, criatura(fuerza=99), av.FUERZA,
+                           escena_de_prueba(), DadosFijos([20]))
+
+    assert not viaje.sigue
+    assert viaje.nodos_superados == av.NIVELES_DE_AVENTURA
+
+
+def test_el_coste_de_hambre_crece_con_los_fallos():
+    entero = viaje_nuevo()
+    entero = av.avanzar(entero, criatura(fuerza=99), av.FUERZA,
+                        escena_de_prueba(), DadosFijos([20]))
+    fallado = av.avanzar(viaje_nuevo(), criatura(fuerza=1), av.FUERZA, None,
+                         DadosFijos([1]))
+
+    assert fallado.coste_hambre > entero.coste_hambre
+
+
+# --- El premio -------------------------------------------------------------
+
+def test_el_premio_sale_de_los_nodos_superados():
+    """Es lo que distingue el árbol de un decorado: llegar hondo tiene que
+    pagar más."""
+    rng = random.Random(11)
+    con_dos = Counter(av.tirar_hallazgo(2, True, rng) for _ in range(3000))
+    con_cero = Counter(av.tirar_hallazgo(0, True, rng) for _ in range(3000))
+
+    assert con_dos[av.SALVAJE] > con_cero[av.SALVAJE]
+    assert con_dos[av.NADA] < con_cero[av.NADA]
+
+
+def test_el_gachamon_dormido_solo_aparece_llegando_al_fondo():
+    """Se pidió que el gachamon estuviera dentro del cofre, o sea al final del
+    árbol. Quedarse a medias da objeto o nada, nunca compañía."""
+    rng = random.Random(5)
+    for nodos in (0, 1):
+        salieron = {av.tirar_hallazgo(nodos, True, rng) for _ in range(3000)}
+        assert av.SALVAJE not in salieron, nodos
+
+    assert av.SALVAJE in {av.tirar_hallazgo(2, True, rng) for _ in range(3000)}
+
+
+# --- Las escenas: las inventa el modelo, pero pueden venir mal --------------
+
+def test_una_escena_bien_formada_del_modelo_se_usa_tal_cual():
+    escena = av.escena_desde_json(
+        '{"situacion": "Un puente de cuerda.", "fuerza": "Tensar la cuerda",'
+        ' "velocidad": "Cruzar de un tirón", "volver": "Buscar un vado"}'
+    )
+
+    assert escena == av.Escena(
+        "Un puente de cuerda.", "Tensar la cuerda", "Cruzar de un tirón",
+        "Buscar un vado",
+    )
+
+
+def test_el_modelo_puede_envolver_el_json_en_un_bloque_de_codigo():
+    """Lo hace más veces de las que uno querría, y no es motivo para quedarse
+    sin escena."""
+    escena = av.escena_desde_json(
+        'Claro:\n```json\n{"situacion": "Un muro.", "fuerza": "Empujar",'
+        ' "velocidad": "Trepar", "volver": "Rodear"}\n```'
+    )
+
+    assert escena is not None and escena.situacion == "Un muro."
+
+
+@pytest.mark.parametrize("crudo", [
+    "no soy json",
+    "",
+    '["situacion", "fuerza"]',
+    '{"situacion": "Un muro.", "fuerza": "Empujar", "velocidad": "Trepar"}',
+    '{"situacion": "Un muro.", "fuerza": "", "velocidad": "Trepar",'
+    ' "volver": "Rodear"}',
+    '{"situacion": "Un muro.", "fuerza": 7, "velocidad": "Trepar",'
+    ' "volver": "Rodear"}',
+])
+def test_una_escena_mal_formada_no_pasa_el_filtro(crudo):
+    assert av.escena_desde_json(crudo) is None
+
+
+def test_una_etiqueta_larguisima_no_pasa_el_filtro():
+    """Discord rechaza el botón y la aventura se quedaría con tres opciones que
+    no se pueden pulsar."""
+    largo = "Empujar " * 30
+    crudo = (
+        '{"situacion": "Un muro.", "fuerza": "%s", "velocidad": "Trepar",'
+        ' "volver": "Rodear"}' % largo.strip()
+    )
+
+    assert av.escena_desde_json(crudo) is None
+
+
+def test_toda_escena_escrita_cabe_en_un_boton_de_discord():
+    """El respaldo no puede fallar por lo mismo que falla el modelo."""
+    for clave, escenas in av.ESCENAS_ESCRITAS.items():
+        assert escenas, clave
+        for escena in escenas:
+            for opcion in av.OPCIONES_ESCENA:
+                etiqueta = escena.etiqueta(opcion)
+                assert etiqueta.strip(), (clave, opcion)
+                assert len(etiqueta) <= cog_av.LARGO_BOTON, (clave, etiqueta)
+            assert len(escena.situacion) <= av.LARGO_SITUACION, clave
+
+
+def test_hay_escenas_escritas_para_todos_los_biomas():
+    assert set(av.ESCENAS_ESCRITAS) == set(av.BIOMAS)
+
+
+def test_la_escena_escrita_no_repite_la_que_acaba_de_verse():
+    bioma = av.BIOMAS["bosque"]
+    ya_vista = av.ESCENAS_ESCRITAS["bosque"][0]
+
+    for semilla in range(20):
+        assert av.escena_escrita(bioma, ya_vista, random.Random(semilla)) != ya_vista
+
+
+def test_si_el_modelo_devuelve_basura_la_aventura_sigue_con_una_escrita(monkeypatch):
+    """El riesgo de fiarle el contenido al modelo: si esto no cayera de pie, la
+    aventura se quedaría sin escena y con tres botones vacíos."""
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
+    monkeypatch.setattr(cog_av.db, "registrar_uso_ia", lambda *_: None)
+    monkeypatch.setattr(cog_av.ia, "generar_crudo", AsyncMock(return_value="ni JSON ni nada"))
+    bioma = av.BIOMAS["volcan"]
+
+    escena = asyncio.run(
+        cog_av._pedir_escena(bioma, 1, "", "u1", None, random.Random(3))
+    )
+
+    assert escena in av.ESCENAS_ESCRITAS["volcan"]
+
+
+def test_sin_presupuesto_de_ia_no_se_llama_al_modelo(monkeypatch):
+    llamadas = AsyncMock()
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora",
+                        lambda *_: cog_av.config.LIMITE_CHARLA_POR_HORA)
+    monkeypatch.setattr(cog_av.ia, "generar_crudo", llamadas)
+
+    escena = asyncio.run(
+        cog_av._pedir_escena(av.BIOMAS["ruinas"], 1, "", "u1", None, random.Random(1))
+    )
+
+    llamadas.assert_not_awaited()
+    assert escena in av.ESCENAS_ESCRITAS["ruinas"]
+
+
+# --- El árbol tal como se juega --------------------------------------------
+
+def vista_de_viaje(monkeypatch, bicho=None, escena=None):
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
+    viaje = av.Viaje(bioma=av.BIOMAS["bosque"], escena=escena or escena_de_prueba())
+    return cog_av.ViajeView(
+        Mock(), SimpleNamespace(id="u1"), "g1", bicho or criatura(), viaje
+    )
+
+
+def test_la_escena_pone_sus_tres_etiquetas_en_los_botones(monkeypatch):
+    vista = vista_de_viaje(monkeypatch)
+
+    assert [boton.label for boton in vista.children] == [
+        "Forzar la puerta", "Colarte por la ventana", "Seguir tu camino"
+    ]
+
+
+def test_una_aventura_ajena_no_se_puede_pulsar(monkeypatch):
+    """El mismo agujero que ya tuvieron Mochila, Tienda y Cambiar."""
+    vista = vista_de_viaje(monkeypatch)
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="otra"),
+        response=SimpleNamespace(send_message=AsyncMock()),
+    )
+
+    assert asyncio.run(vista.interaction_check(interaccion)) is False
+    interaccion.response.send_message.assert_awaited_once()
+    # Y quien la abrió sí pasa, que es la otra mitad de la comprobación.
+    assert asyncio.run(
+        vista.interaction_check(SimpleNamespace(user=SimpleNamespace(id="u1")))
+    ) is True
+
+
+def test_acertar_cambia_de_escena_sin_resolver_todavia(monkeypatch):
+    vista = vista_de_viaje(monkeypatch, bicho=criatura(fuerza=99))
+    monkeypatch.setattr(cog_av.random, "Random", lambda: DadosFijos([20]))
+    vista.mensaje = SimpleNamespace(edit=AsyncMock())
+    resolver = AsyncMock()
+    vista.cog.resolver = resolver
+
+    asyncio.run(vista.children[0].callback(SimpleNamespace(
+        response=SimpleNamespace(defer=AsyncMock()), channel=None,
+    )))
+
+    resolver.assert_not_awaited()
+    assert vista.viaje.nodos_superados == 1
+    assert vista.viaje.escena in av.ESCENAS_ESCRITAS["bosque"]
+
+
+def test_fallar_resuelve_la_aventura_ahi_mismo(monkeypatch):
+    vista = vista_de_viaje(monkeypatch, bicho=criatura(fuerza=1, velocidad=1))
+    monkeypatch.setattr(cog_av.random, "Random", lambda: DadosFijos([1]))
+    vista.mensaje = SimpleNamespace(edit=AsyncMock())
+    resolver = AsyncMock()
+    vista.cog.resolver = resolver
+
+    asyncio.run(vista.children[0].callback(SimpleNamespace(
+        response=SimpleNamespace(defer=AsyncMock()), channel="canal",
+    )))
+
+    resolver.assert_awaited_once()
+    assert resolver.await_args.args[4].nodos_superados == 0
+    assert not vista.viaje.sigue
+
+
+def test_dejarlo_caducar_cobra_el_viaje_igual(monkeypatch):
+    """Quien se distrae ya ha pagado el enfriamiento: dejarlo sin resolver sería
+    cobrarle el viaje y no darle nada."""
+    vista = vista_de_viaje(monkeypatch)
+    resolver = AsyncMock()
+    vista.cog.resolver = resolver
+    vista.mensaje = SimpleNamespace(edit=AsyncMock(), channel="canal")
+
+    asyncio.run(vista.on_timeout())
+
+    resolver.assert_awaited_once()
+    assert resolver.await_args.args[0] == "canal"
+
+
+def test_lo_ya_resuelto_no_se_cobra_dos_veces_al_caducar(monkeypatch):
+    vista = vista_de_viaje(monkeypatch)
+    vista.cog.resolver = AsyncMock()
+    vista.mensaje = SimpleNamespace(edit=AsyncMock(), channel="canal")
+    vista._resuelto = True
+
+    asyncio.run(vista.on_timeout())
+
+    vista.cog.resolver.assert_not_awaited()
+
+
+def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
+    """Al salir y no al volver: el árbol dura minutos, y sin esto se podrían
+    tener diez aventuras abiertas a la vez."""
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    viajera = criatura()
+    eventos = []
+
+    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
+    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: viajera)
+    monkeypatch.setattr(cog_av.sim, "avanzar", lambda c, _: c)
+    monkeypatch.setattr(cog_av.db, "espera_de", lambda *_: timedelta(0))
+    monkeypatch.setattr(cog_av.db, "guardar", lambda c: None)
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
+    monkeypatch.setattr(cog_av.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_av.vistas, "_canal_anterior", lambda *_: None)
+    monkeypatch.setattr(
+        cog_av.db, "poner_cooldown",
+        lambda *_: eventos.append("cooldown"),
+    )
+    resolver = AsyncMock()
+    enviado = SimpleNamespace()
+
+    async def followup(*_, **kwargs):
+        eventos.append(("abre", kwargs.get("view")))
+        return enviado
+
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1", mention="<@u1>"),
+        guild_id="g1",
+        response=SimpleNamespace(defer=AsyncMock()),
+        followup=SimpleNamespace(send=followup),
+        channel=SimpleNamespace(send=AsyncMock()),
+    )
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    cog.resolver = resolver
+
+    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+
+    assert eventos[0] == "cooldown"
+    assert isinstance(eventos[1][1], cog_av.ViajeView)
+    # Nada se cobra ni se sortea hasta que se decide algo.
+    resolver.assert_not_awaited()

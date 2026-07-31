@@ -64,7 +64,11 @@ def test_pantalla_inyecta_el_congelador_en_mochila_y_plantel(monkeypatch):
     asyncio.run(botones["tama:plantel"].callback(interaccion))
 
     abrir_inventario.assert_awaited_once_with(interaccion, vistas.congelar)
-    abrir_plantel.assert_awaited_once_with(interaccion, vistas.congelar)
+    # El plantel recibe además el bautizo: es lo que le deja mandar a poner
+    # nombre al recluta sin importar este módulo, que ya lo importa a él.
+    abrir_plantel.assert_awaited_once_with(
+        interaccion, vistas.congelar, vistas.bautizar
+    )
 
 
 def test_cambiar_activo_congela_la_ficha_anterior_antes_de_responder(monkeypatch):
@@ -132,6 +136,63 @@ def test_cambio_de_activo_invalido_no_congela(monkeypatch):
     asyncio.run(menu.callback(interaccion))
 
     congelar.assert_not_awaited()
+
+
+# --- El recluta que todavía no tiene nombre ---------------------------------
+
+def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):
+    """Elegirlo no es un error del que quejarse: es el momento de nombrarlo."""
+    activa = criatura(1, "Activa", True, "ficha-activa")
+    recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
+    monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
+    monkeypatch.setattr(equipo.db, "activar", Mock())
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
+    bautizar = AsyncMock()
+    menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), bautizar)
+    menu._values = [str(recluta.id)]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    bautizar.assert_awaited_once_with(interaccion, recluta)
+    # Y no se activa: eso es justo lo que no puede pasar sin nombre.
+    equipo.db.activar.assert_not_called()
+
+
+def test_sin_bautizo_inyectado_se_explica_en_vez_de_activar(monkeypatch):
+    activa = criatura(1, "Activa", True, "ficha-activa")
+    recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
+    monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
+    monkeypatch.setattr(equipo.db, "activar", Mock())
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
+    menu = equipo.MenuPlantel([activa, recluta], AsyncMock())
+    menu._values = [str(recluta.id)]
+    editar = AsyncMock()
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(edit_message=editar),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    equipo.db.activar.assert_not_called()
+    assert "nombre" in editar.await_args.kwargs["content"]
+
+
+def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
+    """Discord rechaza una etiqueta vacía: sin esto el menú entero fallaría."""
+    activa = criatura(1, "Activa", True, "ficha-activa")
+    recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
+
+    menu = equipo.MenuPlantel([activa, recluta])
+    texto = equipo.texto_del_plantel([activa, recluta])
+
+    assert [opcion.label for opcion in menu.options] == ["Activa", sim.SIN_NOMBRE]
+    assert sim.SIN_NOMBRE in texto
+    assert "esperando nombre" in texto
 
 
 def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(

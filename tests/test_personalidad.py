@@ -1,4 +1,5 @@
 """Personalidades: que estén completas y que el prompt diga lo que debe."""
+import inspect
 import random
 import re
 from datetime import datetime, timedelta, timezone
@@ -188,6 +189,7 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
         per.prompt_jardin([c], T0)[0],
         per.prompt_aventura(c, "al bosque", [], av.NADA)[0],
         per.prompt_salvaje(salvaje, c, "hola")[0],
+        per.prompt_escena("al bosque", 1)[0],
     )
 
     for prompt in prompts:
@@ -313,7 +315,15 @@ def _textos_de_aventura(c, genero: str) -> list[str]:
 
     textos = []
     for bioma in av.BIOMAS.values():
-        salida = av.explorar(c, bioma, random.Random(1))
+        viaje = av.Viaje(
+            bioma=bioma,
+            escena=av.escena_escrita(bioma, rng=random.Random(1)),
+        )
+        for opcion in (av.FUERZA, av.VELOCIDAD):
+            viaje = av.avanzar(viaje, c, opcion,
+                               av.escena_escrita(bioma, rng=random.Random(2)),
+                               random.Random(1))
+        salida = viaje.salida
         for final in (av.SALVAJE, av.OBJETO, av.NADA):
             textos.extend(
                 per.prompt_aventura(c, bioma.adonde, list(salida.pruebas), final)
@@ -430,3 +440,36 @@ def test_la_semilla_vieja_es_justo_la_que_fallaba():
     assert vieja("hola") % 3 == vieja("qué te gustaría comer?") % 3
     assert per.frase_de_respaldo(c, vieja("hola")) == \
         per.frase_de_respaldo(c, vieja("qué te gustaría comer?"))
+
+
+def test_el_prompt_de_escena_pide_las_cuatro_claves_y_sitúa_el_bioma():
+    sistema, peticion = per.prompt_escena("al Volcán", 1)
+
+    for clave in ("situacion", "fuerza", "velocidad", "volver"):
+        assert f'"{clave}"' in sistema
+    assert "al Volcán" in sistema
+    assert "JSON" in sistema
+    assert "Es lo primero" in peticion
+
+
+def test_el_prompt_de_escena_no_le_cuenta_al_modelo_quién_va():
+    """Los dados deciden y el modelo narra.
+
+    A la escena no se le pasa la criatura: si el modelo supiera si es fuerte o
+    rápida, escribiría la opción que le conviene, y quien decide es quien juega.
+    Además se le prohíbe expresamente adelantar el resultado."""
+    sistema, _ = per.prompt_escena("al Bosque", 2)
+
+    assert "no digas cuál es la buena" in sistema.lower()
+    assert "no menciones a la criatura" in sistema.lower()
+    # El nombre y las cifras de nadie caben aquí: la función no recibe criatura.
+    assert "criatura" not in inspect.signature(per.prompt_escena).parameters
+
+
+def test_el_segundo_nodo_le_pide_al_modelo_que_esconda_algo():
+    """Es donde va el gachamon dormido: el cofre del final del árbol."""
+    _, primera = per.prompt_escena("al Bosque", 1)
+    _, segunda = per.prompt_escena("al Bosque", 2, "Forzó la puerta.")
+
+    assert "cofre" in segunda and "cofre" not in primera
+    assert "Forzó la puerta." in segunda

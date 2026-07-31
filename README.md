@@ -130,7 +130,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/mascota @alguien` | Enseña la criatura de otra persona (sin botones). |
 | `/carrera @alguien` | Reto de velocidad + 1d20. Admite hasta tres invitados más (cinco corriendo), y con tres o más termina en podio. |
 | `/sumo @alguien` | Reto de fuerza + 1d20. Con tres invitados es un torneo de cuatro: dos semifinales sorteadas y una final. |
-| `/aventura` | Sal al campo con tu activo: dos pruebas, y quizá un objeto o un gachamon salvaje. |
+| `/aventura` | Sal al campo con tu activo: dos decisiones —fuerza, velocidad o volverse— y quizá un objeto o un gachamon salvaje. |
 | `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
 | `/cementerio` | Las que ya no están. |
@@ -155,17 +155,35 @@ ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
 en `/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
 
 **Aventura.** `/aventura` saca al activo a un bioma al azar (bosque, planicie,
-desierto, ruinas, volcán) y le pone **dos pruebas**, cada una de fuerza o de
-velocidad sorteada por separado: `stat + 1d20` contra la dificultad del bioma.
-Si vuelve con vida gana **+4 XP por el viaje**; morir por el desgaste no da XP.
-El LLM narra el viaje entero en **una sola llamada**, porque el límite de IA lo
-comparten la charla y el jardín. Cuánto se supere decide qué se encuentra:
+desierto, ruinas, volcán) y le planta delante una escena con **tres salidas**:
+fuerza, velocidad o volverse. Las dos primeras tiran `stat + 1d20` contra la
+dificultad del bioma y **cuestan lo mismo**: si una fuera más barata, la otra no
+la elegiría nadie y la decisión sería un adorno. Volver no arriesga nada, pero
+tampoco cuenta como nodo superado.
 
-| Superadas | Salvaje | Objeto | Nada |
+Son **dos decisiones**. Acertar lleva a la escena siguiente; fallar cierra el
+viaje ahí mismo, así que un viaje jugado trae **un fallo como mucho**. Si vuelve
+con vida gana **+4 XP por el viaje**; morir por el desgaste no da XP.
+
+Las escenas **las inventa el LLM** (JSON validado antes de usarlo: si falta una
+opción o una etiqueta no cabe en un botón de Discord, se descarta) y hay escenas
+escritas por bioma de respaldo, para que la aventura no se quede muda al agotar
+el límite de IA. El viaje se narra al final en **una sola llamada** más.
+
+Lo hondo que se llegue decide qué se encuentra:
+
+| Nodos superados | Salvaje | Objeto | Nada |
 |---:|---:|---:|---:|
-| 2 | 33 % | 33 % | 34 % |
-| 1 | 25 % | 30 % | 45 % |
-| 0 | 17 % | 25 % | 58 % |
+| 2 | 55 % | 25 % | 20 % |
+| 1 | — | 55 % | 45 % |
+| 0 | — | 30 % | 70 % |
+
+El salvaje **sólo aparece llegando al fondo**: es el gachamon dormido dentro del
+cofre, y quedarse a medias no puede pagar lo mismo. El 55 está medido, no puesto
+a ojo: sobre 40 000 aventuras con criaturas recién nacidas, el árbol termina con
+los dos nodos el 46 % de las veces, así que deja el encuentro en el **25 % de las
+aventuras**, exactamente donde estaba antes del árbol. Concentrar el premio al
+fondo no podía colarse como una subida de dificultad.
 
 Cada bioma **cría lo suyo** —al volcán van Chispa y Dragoncito; a las ruinas,
 Fantasma y Chatarra—, así que el bioma que toque decide con quién te puedes
@@ -195,6 +213,26 @@ caracteres. Se aceptó ese coste a cambio de que unirse fuera más fácil.
 Lo que no puede perderse es que **leerle el carácter se note**, y eso sí lo fija
 un test: si alguien toca las reacciones y a ciegas empieza a salir tan bien como
 jugando bien, la mecánica se habrá quedado en una tirada disfrazada.
+
+Medido de punta a punta —viaje y encuentro, 40 000 aventuras—, el árbol acaba
+reclutando **más** que las dos tiradas de antes, porque llegar al fondo sube
+también la confianza de partida:
+
+| | Encuentro | Recluta |
+|---|---:|---:|
+| antes, estadística sorteada | 25,3 % | 3,5 % |
+| árbol, eligiendo bien | 25,0 % | 5,5 % |
+| árbol, pulsando a lo loco | 11,3 % | 2,7 % |
+
+La última fila es la que justifica el árbol: quien se vuelve a la primera se
+encuentra la mitad de cosas. Ahí es donde la decisión pesa.
+
+**Al unirse no trae nombre.** Se guarda ya en la incubadora —para que un
+formulario cerrado o una conexión caída no cuesten el gachamon recién
+convencido—, pero con el nombre vacío no puede activarse: `db.activar` lo
+rechaza, el menú del plantel lo lista como «sin nombrar» y pulsarlo abre el
+bautizo. Es lo que se pidió, «no entra al equipo hasta nombrarlo», sin que un
+despiste te lo cueste.
 
 **Nacer.** La especie sale por
 rareza: 12 % cada una de las siete comunes, 6 % las dos poco comunes y 4 % el
@@ -342,7 +380,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `economia_reporte.py` | Informe local agregado y reconciliación histórica. |
 | `vistas.py` | Los botones y el ciclo publicar-nueva/congelar-la-vieja. |
 | `equipo.py` | El menú para cambiar de gachamon activo. |
-| `aventura.py` | Biomas, pruebas, hallazgos y las reacciones de un salvaje. |
+| `aventura.py` | Biomas, el árbol de decisiones, hallazgos y las reacciones de un salvaje. |
 | `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
 | `cogs/` | Los slash commands. |
 

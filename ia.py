@@ -396,6 +396,24 @@ async def responder(
     return respaldo, False
 
 
+async def generar_crudo(sistema: str, peticion: str, transporte=None) -> str | None:
+    """Una generación **sin limpiar**, para cuando se pide JSON y no prosa.
+
+    `limpiar` está hecho para frases: quita bloques de código, marcas y notas
+    finales, y con un objeto JSON haría destrozos. Devuelve `None` si no hay IA
+    o si falla, que es la señal de tirar del respaldo escrito.
+
+    Como el resto del módulo, nunca lanza.
+    """
+    if not config.IA_ACTIVA and transporte is None:
+        return None
+    return await _intentar(
+        [{"role": "system", "content": sistema},
+         {"role": "user", "content": peticion}],
+        transporte,
+    )
+
+
 async def generar(
     sistema: str,
     peticion: str,

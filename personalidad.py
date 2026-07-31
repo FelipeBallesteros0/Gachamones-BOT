@@ -535,6 +535,53 @@ CÓMO NARRAR
     return sistema, peticion
 
 
+def prompt_escena(adonde: str, nivel: int, antes: str = "") -> tuple[str, str]:
+    """El prompt para que el modelo invente el nodo del árbol.
+
+    Pide JSON con una forma fija porque las tres etiquetas van a parar a tres
+    botones: si el modelo contesta prosa, no hay dónde ponerla. Quien llame
+    valida la forma y se queda con las escenas escritas si no cuadra.
+
+    **El modelo pone el decorado y nada más.** No se le dice si la criatura es
+    fuerte o rápida, ni cuánto le costará: si lo supiera, escribiría la opción
+    que le conviene, y quien decide aquí es quien juega. Los dados hacen el
+    resto, como en el viaje entero.
+    """
+    continuacion = (
+        f"Esto es lo que acaba de pasar: {antes} Encadena con ello."
+        if antes
+        else "Es lo primero que se encuentra al llegar."
+    )
+    dentro = (
+        "Estás en el segundo y último obstáculo, así que puede esconder algo: "
+        "un cofre, una puerta cerrada, un hueco tapado."
+        if nivel > 1
+        else ""
+    )
+
+    sistema = f"""Inventas obstáculos para la excursión de una criatura virtual que ha salido {adonde}.
+
+QUÉ TIENES QUE DEVOLVER
+Un único objeto JSON, sin nada más alrededor, con estas cuatro claves:
+- "situacion": qué se encuentra. Una o dos frases, 25 palabras como máximo.
+- "fuerza": la salida que pide empujar, romper, cargar o levantar.
+- "velocidad": la salida que pide correr, saltar, colarse o trepar.
+- "volver": la salida prudente, la de no meterse.
+Las tres opciones son textos de botón: 6 palabras como máximo cada una,
+en infinitivo y sin punto final.
+
+CÓMO ESCRIBIRLO
+- {REGLA_ESPANOL_NEUTRO}
+- Las tres opciones tienen que ser posibles de verdad ante esa situación.
+- No digas cuál es la buena ni si sale bien: eso lo deciden los dados después.
+- No menciones a la criatura, ni sus estadísticas, ni ninguna cifra.
+- Nada de markdown, emoji ni comentarios. Sólo el JSON.
+- Encaja el obstáculo con el sitio: {adonde} tiene que notarse."""
+
+    peticion = f"{continuacion} {dentro}".strip()
+    return sistema, peticion
+
+
 def prompt_salvaje(salvaje, criatura: sim.Criatura, dicho: str) -> tuple[str, str]:
     """El prompt para que un gachamon salvaje conteste a lo que le escriben.
 

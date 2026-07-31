@@ -366,7 +366,9 @@ def ascender_de_la_incubadora(
     """
     if criatura_activa(usuario_id, guild_id) is not None:
         return None
-    vivas = plantel(usuario_id, guild_id)
+    # Sólo las que tienen nombre: `activar` no deja salir a un recluta sin
+    # bautizar, así que ascender a uno dejaría el plantel sin activa ninguna.
+    vivas = [c for c in plantel(usuario_id, guild_id) if c.nombre]
     if not vivas:
         return None
     activar(vivas[0].id, usuario_id, guild_id, ahora)
@@ -390,7 +392,10 @@ def activar(
     """Saca una criatura de la incubadora y mete dentro a la que estaba.
 
     Devuelve si se pudo: pide que la criatura sea de quien la reclama, para que
-    un identificador copiado de otro mensaje no active la mascota de otro.
+    un identificador copiado de otro mensaje no active la mascota de otro, y que
+    **tenga nombre**. Un recluta se guarda sin nombre y no sale de la incubadora
+    hasta que se lo pongan; la comprobación vive aquí y no en la vista porque es
+    un invariante del plantel, no una regla de un menú.
 
     **`actualizada_en` se pone al día aquí**, y este es el único sitio por el que
     se sale de la incubadora. Sin eso, las horas que pasó dormida se le
@@ -400,7 +405,7 @@ def activar(
         con.execute("BEGIN IMMEDIATE")
         fila = con.execute(
             "SELECT id FROM criaturas WHERE id = ? AND usuario_id = ? "
-            "AND guild_id = ? AND muerta_en IS NULL",
+            "AND guild_id = ? AND muerta_en IS NULL AND nombre != ''",
             (criatura_id, usuario_id, guild_id),
         ).fetchone()
         if fila is None:

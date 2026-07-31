@@ -16,7 +16,7 @@ from discord.ext import commands
 import comun
 import config
 import db
-from vistas import NombrarView, PantallaView
+from vistas import NombrarReclutaView, NombrarView, PantallaView
 
 log = logging.getLogger("gachamones")
 
@@ -47,6 +47,7 @@ class Tamagotchi(commands.Bot):
         # tener que recordar en qué mensajes estaban.
         self.add_view(PantallaView())
         self.add_view(NombrarView())
+        self.add_view(NombrarReclutaView())
 
         self.tree.on_error = comun.manejar_error
 
