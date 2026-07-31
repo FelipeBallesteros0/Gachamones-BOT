@@ -130,10 +130,50 @@ def test_los_reinicios_apuntan_a_acciones_de_verdad():
         assert accion in sim.COOLDOWNS
 
 
-def test_cada_objeto_hace_exactamente_una_cosa():
-    """Sin esto un objeto podría quedarse a medias —ni poción, ni comida, ni
-    reinicio— y la tienda vendería algo que no hace nada."""
+def _efectos(objeto) -> list[bool]:
+    return [objeto.stat is not None, objeto.reinicia is not None,
+            bool(objeto.alimenta), objeto.renombra, objeto.ceba]
+
+
+def test_todo_objeto_hace_al_menos_una_cosa():
+    """Lo que de verdad protegía el invariante viejo: que la tienda no venda
+    algo que no hace nada.
+
+    Antes exigía **exactamente** una cosa, y eso prohibía justo lo que ahora se
+    quiere: las golosinas alimentan y además sirven de cebo. Lo que no puede
+    haber es un objeto sin ningún efecto."""
     for clave, objeto in obj.CATALOGO.items():
-        efectos = [objeto.stat is not None, objeto.reinicia is not None,
-                   objeto.llena_el_hambre, objeto.renombra, objeto.ceba]
-        assert sum(efectos) == 1, (clave, efectos)
+        assert any(_efectos(objeto)), clave
+
+
+def test_un_objeto_de_dos_usos_lo_dice_en_su_descripcion():
+    """Si un objeto sirve en la mochila **y** en una aventura, la descripción
+    tiene que decirlo.
+
+    Es el fallo que hubo: las golosinas se gastaban desde la mochila sin hacer
+    nada y su descripción sólo hablaba del cebo. Así no se puede volver a colar
+    un objeto con un segundo uso escondido.
+    """
+    for clave, objeto in obj.CATALOGO.items():
+        if objeto.ceba and objeto.se_usa_en_mochila:
+            assert "aventura" in objeto.descripcion.lower(), (
+                f"{clave} sirve para dos cosas y su descripción sólo cuenta una"
+            )
+
+
+def test_lo_que_no_se_usa_en_la_mochila_esta_declarado():
+    """`se_usa_en_mochila` es lo que consulta el menú antes de gastar la unidad:
+    tiene que coincidir con lo que el objeto hace de verdad."""
+    for clave, objeto in obj.CATALOGO.items():
+        esperado = bool(objeto.stat or objeto.reinicia or objeto.alimenta
+                        or objeto.renombra)
+        assert objeto.se_usa_en_mochila == esperado, clave
+
+
+def test_las_golosinas_alimentan_menos_que_la_pocion():
+    """Si llenaran igual, la poción —que cuesta más y encima no sirve de cebo—
+    no la compraría nadie."""
+    golosinas = obj.CATALOGO["golosinas"]
+    pocion = obj.CATALOGO["pocion_comida"]
+    assert 0 < golosinas.alimenta < pocion.alimenta
+    assert golosinas.precio < pocion.precio

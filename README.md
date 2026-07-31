@@ -153,7 +153,8 @@ cruzar. Con el plantel lleno se sale igual y lo que habría sido un salvaje pasa
 a ser un objeto: volver de vacío por tener equipo sería castigar por jugar.
 
 **Convencer a un salvaje.** Cuatro turnos de paciencia y cuatro opciones:
-hablarle (texto libre), darle golosinas, presumir o esperar quieto. Cada una
+hablarle (texto libre), darle **golosinas** —el único objeto de dos usos: desde
+la mochila alimentan +25, y aquí sirven de cebo—, presumir o esperar quieto. Cada una
 suma `base + reacción del carácter + 1d8` a la confianza; a 100 se une. Lo que
 le sienta mal **gasta el doble de paciencia**, y a 0 se larga.
 

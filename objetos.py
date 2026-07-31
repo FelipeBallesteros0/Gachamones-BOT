@@ -40,13 +40,33 @@ class Objeto:
     caras: int = 0
     # Objeto que borra el enfriamiento de una acción.
     reinicia: str | None = None
-    # Poción de comida.
-    llena_el_hambre: bool = False
+    # Cuánta hambre devuelve al usarlo desde la mochila. Es un número y no una
+    # bandera para que quepan el tentempié y la comida entera con la misma
+    # regla: sumar 100 y recortar a 100 **es** «déjalo lleno».
+    alimenta: int = 0
     # Abre un formulario para cambiarle el nombre al gachamon activo.
     renombra: bool = False
-    # Sólo sirve en una aventura, para ganarse a un salvaje. No se usa desde la
-    # mochila: se gasta al ofrecérselo.
+    # Sirve además en una aventura, para ganarse a un salvaje. Se gasta al
+    # ofrecérselo, sin pasar por la mochila.
     ceba: bool = False
+
+    @property
+    def se_usa_en_mochila(self) -> bool:
+        """Si elegirlo en la mochila hace algo, con formulario o sin él.
+
+        Lo consulta el menú **antes de gastar la unidad**: sin esto, elegir algo
+        que sólo sirve de cebo te costaría el objeto a cambio de nada.
+        """
+        return bool(self.reinicia or self.stat or self.alimenta or self.renombra)
+
+    @property
+    def se_aplica_al_momento(self) -> bool:
+        """Si `tienda.usar` lo resuelve por sí solo al elegirlo.
+
+        La placa no: necesita que escribas el nombre, así que abre un formulario
+        y se gasta al confirmarlo. Por eso son dos propiedades y no una.
+        """
+        return bool(self.reinicia or self.stat or self.alimenta)
 
 
 CATALOGO: dict[str, Objeto] = {}
@@ -87,7 +107,7 @@ _registrar(Objeto(
     emoji="🧃",
     precio=10,
     descripcion="Deja el hambre a 100. Ni empacha ni gasta el enfriamiento.",
-    llena_el_hambre=True,
+    alimenta=100,  # sumar 100 y recortar a 100: llena desde donde esté
 ))
 
 # Reinicia la espera de diez minutos entre peleas, que es la que de verdad topa
@@ -112,12 +132,19 @@ _registrar(Objeto(
     reinicia=sim.ENTRENAR,
 ))
 
+# El único de dos usos, y por eso su descripción los dice los dos. Alimenta menos
+# que la poción de comida a propósito: si llenara igual, la poción —que cuesta
+# más y encima no sirve de cebo— no la compraría nadie.
 _registrar(Objeto(
     clave="golosinas",
     nombre="Golosinas de campo",
     emoji="🍬",
     precio=8,
-    descripcion="Para ganarte a un gachamon salvaje en una aventura.",
+    descripcion=(
+        "Un tentempié: +25 de hambre. Y en una aventura, para ganarte a un "
+        "gachamon salvaje."
+    ),
+    alimenta=25,
     ceba=True,
 ))
 
@@ -149,6 +176,8 @@ def aplicar_a_la_criatura(objeto: Objeto, criatura: sim.Criatura) -> sim.Criatur
     Las pociones de estadística y los reinicios no tocan la criatura: viven en
     sus propias tablas. Devuelven la misma que entró.
     """
-    if objeto.llena_el_hambre:
-        return replace(criatura, hambre=100.0)
+    if objeto.alimenta:
+        return replace(
+            criatura, hambre=min(100.0, criatura.hambre + objeto.alimenta)
+        )
     return criatura

@@ -114,10 +114,9 @@ reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 `/aventura` saca a tu gachamon activo a un bioma al azar. Dos pruebas de fuerza \
 o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o \
 cruzándote con un **gachamon salvaje**.
-Convencerlo va por turnos: hablarle, darle **golosinas** \
-({obj.CATALOGO['golosinas'].precio} {obj.MONEDA_TIENDA} en la tienda), presumir \
-o esperar quieto. **Cada carácter reacciona distinto**, y lo que le molesta le \
-gasta el doble de paciencia; si se le acaba, se larga.
+Convencerlo va por turnos: hablarle, darle **golosinas**, presumir o esperar \
+quieto. **Cada carácter reacciona distinto**, y lo que le molesta le gasta el \
+doble de paciencia; si se le acaba, se larga.
 -# Es la única forma de tener un segundo o un tercer gachamon. Se puede salir \
 con el equipo lleno: entonces sólo se encuentran objetos.
 
@@ -146,6 +145,10 @@ Empiezas con **{obj.ASCIICOINS_INICIALES} asciicoins** para gastar y \
 Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
 {obj.MINUTOS_DE_EFECTO} minutos, una que llena el hambre de golpe, dos que \
 borran un enfriamiento y una placa para cambiarle el nombre.
+-# 🍬 Las **golosinas** ({obj.CATALOGO['golosinas'].precio} \
+{obj.MONEDA_TIENDA}) valen para dos cosas: dan \
++{obj.CATALOGO['golosinas'].alimenta} de hambre desde la mochila, y sirven de \
+cebo con un salvaje en `/aventura`.
 -# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
 El bonus sale en la ficha mientras dure.
 

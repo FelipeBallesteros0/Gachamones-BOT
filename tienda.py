@@ -121,9 +121,21 @@ def usar(
             f"{objeto.stat}** durante {obj.MINUTOS_DE_EFECTO} minutos."
         )
 
-    nueva = obj.aplicar_a_la_criatura(objeto, criatura)
-    db.guardar(nueva)
-    return f"{objeto.emoji} **{criatura.nombre}** se lo bebe de un trago. Hambre al 100."
+    if objeto.alimenta:
+        nueva = obj.aplicar_a_la_criatura(objeto, criatura)
+        db.guardar(nueva)
+        ganado = round(nueva.hambre - criatura.hambre)
+        return (
+            f"{objeto.emoji} **{criatura.nombre}** se come {objeto.nombre}. "
+            f"Hambre +{ganado} (ahora {round(nueva.hambre)})."
+        )
+
+    # Sin caso por descarte. Antes, todo lo que no era poción ni reinicio caía en
+    # la rama de la comida y devolvía su mensaje escrito a mano: las golosinas se
+    # gastaban, no hacían nada y decían «Hambre al 100». El próximo objeto que no
+    # encajara heredaría la misma mentira, así que aquí se revienta en vez de
+    # inventar. `MenuInventario` lo comprueba antes para no gastar la unidad.
+    raise ValueError(f"{objeto.clave} no se aplica al momento desde la mochila")
 
 
 def renombrar(
@@ -212,6 +224,18 @@ class MenuInventario(discord.ui.Select):
             # formulario sin escribir nada no puede costarte el objeto.
             await interaccion.response.send_modal(
                 RenombrarModal(objeto, criatura.nombre)
+            )
+            return
+
+        if not objeto.se_usa_en_mochila:
+            # Antes de gastar nada: si no hace nada aquí, elegirlo no puede
+            # costarte la unidad. Es lo que pasaba con las golosinas.
+            await interaccion.response.edit_message(
+                content=(
+                    f"{objeto.emoji} **{objeto.nombre}** no se usa desde aquí. "
+                    "Llévalas a una `/aventura`."
+                ),
+                view=None,
             )
             return
 

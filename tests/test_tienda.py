@@ -204,3 +204,109 @@ def test_renombrar_al_mismo_nombre_no_gasta_nada():
         assert db.inventario("u1", "g1") == {"placa": 1}
         return
     raise AssertionError("cambiar por el mismo nombre no debería gastar la placa")
+
+
+# --- Que ningún objeto mienta sobre lo que hizo -----------------------------
+
+def con_hambre(valor: float):
+    """La criatura activa con el hambre puesta. La crea sólo la primera vez:
+    sólo puede haber una activa por persona."""
+    from dataclasses import replace
+
+    criatura = db.criatura_activa("u1", "g1") or nacer()
+    db.guardar(replace(criatura, hambre=valor))
+    return db.criatura_activa("u1", "g1")
+
+
+def test_las_golosinas_alimentan_lo_que_dicen():
+    """El fallo: usarlas desde la mochila las gastaba, no tocaba el hambre y el
+    mensaje decía «Hambre al 100». No es que llenara de más — es que no hacía
+    nada y lo contaba como si sí."""
+    golosinas = obj.CATALOGO["golosinas"]
+    criatura = con_hambre(30.0)
+
+    aviso = tienda.usar(criatura, golosinas, T0)
+
+    assert db.criatura_activa("u1", "g1").hambre == 30.0 + golosinas.alimenta
+    assert f"+{golosinas.alimenta}" in aviso
+    assert "100" not in aviso
+
+
+def test_las_golosinas_no_pasan_de_cien():
+    golosinas = obj.CATALOGO["golosinas"]
+    criatura = con_hambre(90.0)
+    tienda.usar(criatura, golosinas, T0)
+    assert db.criatura_activa("u1", "g1").hambre == 100.0
+
+
+def test_la_pocion_de_comida_sigue_llenando_del_todo():
+    """El cambio de bandera a número no puede tocarle nada."""
+    criatura = con_hambre(12.0)
+    tienda.usar(criatura, obj.CATALOGO["pocion_comida"], T0)
+    assert db.criatura_activa("u1", "g1").hambre == 100.0
+
+
+def test_ningun_objeto_miente_sobre_lo_que_hizo():
+    """El invariante que cubre la clase entera del fallo, no sólo las golosinas.
+
+    Usar cualquier cosa del catálogo desde la mochila **o hace lo que dice, o se
+    niega**. Lo que no puede es devolver un mensaje inventado, que es lo que
+    pasaba por tener un caso por descarte al final de `usar`.
+    """
+    for clave, objeto in obj.CATALOGO.items():
+        criatura = con_hambre(40.0)
+        antes = db.criatura_activa("u1", "g1")
+
+        try:
+            aviso = tienda.usar(criatura, objeto, T0)
+        except ValueError:
+            # La placa entra aquí y es correcto: se usa desde la mochila, pero
+            # abre un formulario y se resuelve en `renombrar`, no en `usar`.
+            assert not objeto.se_aplica_al_momento, (
+                f"{clave} dice aplicarse al momento pero se niega"
+            )
+            continue
+
+        assert objeto.se_aplica_al_momento, f"{clave} no debería poder usarse aquí"
+        despues = db.criatura_activa("u1", "g1")
+
+        if objeto.alimenta:
+            assert despues.hambre > antes.hambre, clave
+            assert str(round(despues.hambre - antes.hambre)) in aviso, clave
+        elif objeto.stat:
+            assert db.efecto_activo(criatura.id, objeto.stat, T0) > 0, clave
+        elif objeto.reinicia:
+            assert db.espera_de(criatura.id, objeto.reinicia, T0) == timedelta(0)
+
+        # Y en ningún caso puede prometer comida quien no la da.
+        if not objeto.alimenta:
+            assert "hambre" not in aviso.lower(), (clave, aviso)
+
+
+def test_un_objeto_sin_uso_en_la_mochila_no_se_gasta():
+    """La comprobación va antes de gastar: hoy `db.gastar` corre primero, así
+    que un objeto sin uso ahí te costaría la unidad a cambio de nada."""
+    from dataclasses import replace
+
+    solo_cebo = replace(
+        obj.CATALOGO["golosinas"], clave="solo_cebo", alimenta=0, ceba=True
+    )
+    assert not solo_cebo.se_usa_en_mochila
+
+    criatura = con_hambre(40.0)
+    try:
+        tienda.usar(criatura, solo_cebo, T0)
+    except ValueError:
+        assert db.criatura_activa("u1", "g1").hambre == 40.0
+        return
+    raise AssertionError("un objeto sin uso en la mochila debería negarse")
+
+
+def test_las_golosinas_siguen_valiendo_de_cebo():
+    """Lo que no se puede romper al arreglar esto."""
+    import aventura as av
+
+    golosinas = obj.CATALOGO["golosinas"]
+    assert golosinas.ceba
+    assert av.GOLOSINAS in av.OPCIONES
+    assert av.BASE[av.GOLOSINAS] > 0
