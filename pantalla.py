@@ -328,9 +328,6 @@ def render_evolucion(
         f" a **{esp.nombre_etapa(etapa, criatura.genero)}**"
         f" · nivel {criatura.nivel}"
     )
-    if ultima:
-        detalle += f" · ahora es un **{definicion.evolucion}**"
-
     partes = [titulo, detalle, "```ansi", "\n".join(cuerpo), "```"]
     if ganado:
         partes.append(f"-# {ganado}")

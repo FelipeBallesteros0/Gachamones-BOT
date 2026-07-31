@@ -94,7 +94,6 @@ class Especie:
     rareza: str
     peso: float
     descripcion: str
-    evolucion: str          # cómo se llama de mayor, para el anuncio
     caras: dict[str, str]   # ánimo -> los caracteres que van en {cara}
     arte: dict[str, str]    # etapa -> plantilla
     # Concuerda con el NOMBRE de la especie, no con el género de la criatura:
@@ -153,10 +152,9 @@ def _registrar(especie: Especie) -> None:
 # --------------------------------------------------------------------------
 
 _registrar(Especie(
-    clave="pollito", nombre="Pollito", emoji="🐥", color=AMARILLO,
+    clave="pollito", nombre="Piollito", emoji="🐥", color=AMARILLO,
     fuerza=4, velocidad=14, salud=6, rareza=COMUN, peso=12.0,
     descripcion="Corre como si le persiguieran. Porque suele ser el caso.",
-    evolucion="Gallo de Bronce",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
     arte={
         BEBE: r"""
@@ -197,10 +195,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="brote", nombre="Brote", emoji="🌱", color=VERDE,
+    clave="brote", articulo="una", nombre="Magora", emoji="🌱", color=VERDE,
     fuerza=7, velocidad=3, salud=14, rareza=COMUN, peso=12.0,
     descripcion="Aguanta lo que le echen. Moverse ya es otro tema.",
-    evolucion="Árbol Anciano",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
@@ -259,10 +256,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="michi", nombre="Michi", emoji="🐱", color=AMARILLO,
+    clave="michi", nombre="Purreon", emoji="🐱", color=AMARILLO,
     fuerza=7, velocidad=12, salud=5, rareza=COMUN, peso=12.0,
     descripcion="Rápido y elegante. Te obedece cuando quiere.",
-    evolucion="Pantera de Salón",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
     arte={
         BEBE: r"""
@@ -301,10 +297,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="slime", nombre="Slime", emoji="🟢", color=CIAN,
+    clave="slime", nombre="Gelatín", emoji="🟢", color=CIAN,
     fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=12.0,
     descripcion="Blando, resistente y sorprendentemente alegre.",
-    evolucion="Slime Rey",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
@@ -344,10 +339,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="pedrusco", nombre="Pedrusco", emoji="🪨", color=BLANCO,
+    clave="pedrusco", nombre="Geo", emoji="🪨", color=BLANCO,
     fuerza=13, velocidad=2, salud=9, rareza=COMUN, peso=12.0,
     descripcion="Inamovible en el sumo. Inamovible en general, la verdad.",
-    evolucion="Golem de Cantera",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
     arte={
         BEBE: r"""
@@ -385,10 +379,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="pulpo", nombre="Pulpo", emoji="🐙", color=ROSA,
+    clave="pulpo", nombre="Octopul", emoji="🐙", color=ROSA,
     fuerza=8, velocidad=8, salud=8, rareza=COMUN, peso=12.0,
     descripcion="Ni el más fuerte ni el más rápido, pero nunca el peor.",
-    evolucion="Kraken de Bolsillo",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
@@ -430,10 +423,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="chispa", nombre="Chispa", emoji="🔥", color=ROJO, articulo="una",
+    clave="chispa", nombre="Pyro", emoji="🔥", color=ROJO, articulo="un",
     fuerza=13, velocidad=8, salud=3, rareza=COMUN, peso=12.0,
     descripcion="Pega fortísimo y se apaga igual de rápido. Dale de comer.",
-    evolucion="Fénix de Ceniza",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
@@ -490,10 +482,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="fantasma", nombre="Fantasma", emoji="👻", color=ROSA,
+    clave="fantasma", nombre="Duskhause", emoji="👻", color=ROSA,
     fuerza=4, velocidad=13, salud=7, rareza=POCO_COMUN, peso=6.0,
     descripcion="Ya estaba muerto antes de nacer. No preguntes.",
-    evolucion="Espectro Mayor",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
     arte={
         BEBE: r"""
@@ -533,10 +524,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="chatarra", nombre="Chatarra", emoji="🤖", color=CIAN, articulo="una",
+    clave="chatarra", nombre="Re-bot", emoji="🤖", color=CIAN, articulo="un",
     fuerza=7, velocidad=4, salud=13, rareza=POCO_COMUN, peso=6.0,
     descripcion="No se cansa, no se queja, no se muere. Casi.",
-    evolucion="Titán de Desguace",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
     arte={
         BEBE: r"""
@@ -578,10 +568,9 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="dragoncito", nombre="Dragoncito", emoji="🐉", color=ROJO,
+    clave="dragoncito", nombre="Tsushimon", emoji="🐉", color=ROJO,
     fuerza=12, velocidad=9, salud=9, rareza=RARA, peso=4.0,
     descripcion="Sale una vez de cada veinticinco huevos. Cuídalo bien.",
-    evolucion="Dragón Ancestral",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""

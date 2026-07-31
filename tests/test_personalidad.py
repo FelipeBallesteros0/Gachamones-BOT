@@ -47,7 +47,7 @@ def test_las_personalidades_son_distintas_entre_si():
 def test_el_prompt_lleva_nombre_especie_y_dueño():
     p = per.construir_prompt(criatura(nombre="Pelusa"), T0, "felipe")
     assert "Pelusa" in p
-    assert "Chispa" in p
+    assert esp.ESPECIES["chispa"].nombre in p
     assert "felipe" in p
 
 
@@ -397,7 +397,7 @@ def test_el_caracter_entra_en_el_prompt_y_en_el_jardin():
 
 
 def test_el_caracter_no_sustituye_a_la_voz_de_la_especie():
-    """Un Pedrusco travieso sigue siendo lento y de pocas palabras."""
+    """Un pedrusco travieso sigue siendo lento y de pocas palabras."""
     p = per.construir_prompt(
         criatura(especie="pedrusco", caracter="travieso"), T0, "felipe")
     assert "pocas palabras" in p      # la especie
@@ -416,11 +416,14 @@ def test_el_sorteo_reparte_los_diez_caracteres_y_los_dos_generos():
 
 
 def test_el_prompt_usa_el_articulo_de_la_especie():
-    """A Juan III, que es una Chispa, el prompt le decía «un Chispa»."""
+    """El artículo concuerda con el nombre de la especie, no con el
+    género de la criatura."""
     p = per.construir_prompt(criatura(especie="chispa", nombre="Juan III"), T0, "f")
-    assert "una Chispa macho" in p
+    ch = esp.ESPECIES["chispa"]
+    assert f"{ch.articulo} {ch.nombre} macho" in p
     p = per.construir_prompt(criatura(especie="pulpo", genero=esp.HEMBRA), T0, "f")
-    assert "un Pulpo hembra" in p
+    pu = esp.ESPECIES["pulpo"]
+    assert f"{pu.articulo} {pu.nombre} hembra" in p
 
 
 def test_dos_respaldos_seguidos_nunca_son_la_misma_frase():
@@ -530,7 +533,7 @@ def test_el_prompt_del_viaje_sigue_diciendole_quien_es():
     sistema, _ = per.prompt_aventura(c, "al desierto", [], av.NADA, dueño="Felipe")
 
     assert "Juan III" in sistema
-    assert "Chispa" in sistema
+    assert esp.ESPECIES["chispa"].nombre in sistema
     assert "perezosa" in sistema           # concordado con su género
     assert per.CARACTERES["perezoso"].rasgo in sistema
     assert "{" not in sistema and "}" not in sistema  # sin marcas sin resolver

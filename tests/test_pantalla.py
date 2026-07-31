@@ -70,12 +70,12 @@ def test_la_revelacion_cuadra_en_todas_las_especies():
 def test_la_revelacion_enseña_especie_y_estadisticas_pero_no_el_nombre():
     """Es lo que se ve ANTES de bautizarla: el nombre provisional no pinta
     nada ahí, pero la tirada de estadísticas sí, que es lo emocionante."""
-    c = criatura(especie="dragoncito", nombre="Dragoncito",
+    c = criatura(especie="dragoncito", nombre="Tsushi",
                  base_fuerza=18, base_velocidad=14, base_salud=12)
     mensaje = pantalla.render_revelacion(c, T0)
     cabecera = mensaje.split("```ansi")[0]
 
-    assert "Dragoncito" in cabecera
+    assert esp.ESPECIES["dragoncito"].nombre in cabecera
     assert "rara" in cabecera  # avisa de que ha tenido suerte
     for stat in ("18", "14", "12"):
         assert stat in mensaje
@@ -402,9 +402,9 @@ def test_la_lapida_no_muestra_esperas():
 
 def test_la_revelacion_usa_el_articulo_de_la_especie():
     chispa = pantalla.render_revelacion(criatura(especie="chispa"), T0)
-    assert "una Chispa" in chispa
+    assert f"{esp.ESPECIES['chispa'].articulo} {esp.ESPECIES['chispa'].nombre}" in chispa
     pulpo = pantalla.render_revelacion(criatura(especie="pulpo"), T0)
-    assert "un Pulpo" in pulpo
+    assert f"{esp.ESPECIES['pulpo'].articulo} {esp.ESPECIES['pulpo'].nombre}" in pulpo
 
 
 # --- Las pociones activas --------------------------------------------------

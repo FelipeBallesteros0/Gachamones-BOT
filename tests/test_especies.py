@@ -96,10 +96,9 @@ def test_toda_especie_tiene_las_cinco_etapas():
         assert set(especie.arte) == set(esp.ETAPAS), especie.clave
 
 
-def test_toda_especie_tiene_sus_tres_caras_y_un_nombre_de_evolucion():
+def test_toda_especie_tiene_sus_tres_caras():
     for especie in esp.ESPECIES.values():
         assert set(especie.caras) == set(esp.ANIMOS), especie.clave
-        assert especie.evolucion.strip(), especie.clave
 
 
 def test_las_tres_caras_de_una_especie_miden_lo_mismo():
@@ -205,12 +204,19 @@ def test_toda_etapa_tiene_nombre_en_castellano():
 
 
 def test_toda_especie_lleva_su_articulo():
-    """«un Chispa» y «un Chatarra» se leían mal: el artículo concuerda con el
-    NOMBRE de la especie, no con el género de la criatura."""
-    femeninas = {"chispa", "chatarra"}
+    """El artículo concuerda con el NOMBRE de la especie, no con el género de la
+    criatura: «una Magora macho» es correcto igual que «una jirafa macho».
+
+    Se comprueba la regla y no una lista escrita a mano, para que rebautizar una
+    especie no obligue a venir aquí: si el nombre acaba en -a, el artículo es
+    «una»; si no, «un». Los nombres inventados que no siguen la regla llevan su
+    artículo puesto a mano y se listan como excepción."""
+    excepciones = {}  # clave -> artículo, para nombres que engañan al oído
     for clave, especie in esp.ESPECIES.items():
-        esperado = "una" if clave in femeninas else "un"
-        assert especie.articulo == esperado, (clave, especie.articulo)
+        esperado = excepciones.get(
+            clave, "una" if especie.nombre.lower().endswith("a") else "un"
+        )
+        assert especie.articulo == esperado, (clave, especie.nombre, especie.articulo)
 
 
 # --- Nada torcido ----------------------------------------------------------
