@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, replace
+from datetime import datetime
 
 import especies as esp
 import objetos as obj
@@ -391,15 +392,19 @@ def narrar_opcion(antes: Encuentro, opcion: str, despues: Encuentro) -> str:
 # --- Lo que cuesta el viaje -------------------------------------------------
 
 def aplicar_desgaste(
-    criatura: sim.Criatura, salida: Salida, percance: Percance | None = None
+    criatura: sim.Criatura, salida: Salida, ahora: datetime,
+    percance: Percance | None = None,
 ) -> sim.Criatura:
     """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho."""
     hambre_perdida = salida.coste_hambre + (percance.hambre if percance else 0)
     animo_perdido = sim.COSTE_ANIMO_AVENTURA + (percance.animo if percance else 0)
+    hambre = max(0.0, min(100.0, criatura.hambre - hambre_perdida))
     return replace(
         criatura,
-        hambre=max(0.0, min(100.0, criatura.hambre - hambre_perdida)),
+        hambre=hambre,
         animo=max(0.0, min(100.0, criatura.animo - animo_perdido)),
+        muerta_en=ahora if hambre == 0.0 else criatura.muerta_en,
+        causa_muerte="hambre" if hambre == 0.0 else criatura.causa_muerte,
     )
 
 

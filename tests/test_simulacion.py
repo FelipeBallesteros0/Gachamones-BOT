@@ -318,6 +318,7 @@ def test_cuidar_puede_disparar_una_evolucion():
 def test_una_accion_normal_no_dice_que_hubo_evolucion():
     r = sim.aplicar_accion(criatura(hambre=50.0), sim.JUGAR, T0, random.Random(1))
     assert not r.evoluciono
+    assert r.mensaje == "Juegan un rato. Está encantado."
 
 
 def test_jugar_y_entrenar_entrenan_lo_suyo():

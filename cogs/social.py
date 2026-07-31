@@ -123,8 +123,7 @@ con el equipo lleno: entonces sólo se encuentran objetos.
 **Hablarle**
 Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo la tengas: una \
-criatura hambrienta contesta de mal humor. Se acuerda de lo último que hayáis \
-hablado.
+criatura hambrienta contesta de mal humor. Se acuerda de la última conversación.
 -# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia."""
 
     tus_cosas = f"""## 🧬 Tu plantel y tus cosas

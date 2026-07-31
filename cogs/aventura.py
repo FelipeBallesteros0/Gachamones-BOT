@@ -153,7 +153,7 @@ class EncuentroView(discord.ui.View):
         self.stop()
         await interaccion.response.edit_message(
             content=self.texto(
-                f"Dejáis {esp.concordar('al {/la }', self.encuentro.salvaje.genero)}"
+                f"Dejas {esp.concordar('al {/la }', self.encuentro.salvaje.genero)}"
                 f"{self.encuentro.salvaje.def_especie.nombre} donde estaba."
             ),
             view=None,
@@ -249,7 +249,7 @@ class HablarModal(discord.ui.Modal, title="¿Qué le dices?"):
         super().__init__()
         self.vista = vista
         self.dicho = discord.ui.TextInput(
-            label="Habláis con él",
+            label="Hablas con él",
             placeholder="Tranquilo, no te vamos a hacer nada...",
             max_length=200,
         )
@@ -315,7 +315,7 @@ class Aventura(commands.Cog):
 
         # El desgaste y el enfriamiento se aplican pase lo que pase: el viaje ya
         # se ha hecho.
-        cansada = av.aplicar_desgaste(criatura, salida, percance)
+        cansada = av.aplicar_desgaste(criatura, salida, ahora, percance)
         db.guardar(cansada)
         db.poner_cooldown(criatura.id, sim.AVENTURA, ahora)
 
@@ -323,6 +323,10 @@ class Aventura(commands.Cog):
             av.render_pruebas(criatura, bioma, salida, percance)
         )
         canal = interaccion.channel
+
+        if not cansada.viva:
+            await canal.send(f"💀 **{cansada.nombre}** no sobrevivió al viaje.")
+            return
 
         narracion = await _narrar(
             criatura, bioma, salida, hallazgo, percance, usuario_id, ahora

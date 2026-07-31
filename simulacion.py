@@ -548,7 +548,7 @@ def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:
             hambre=_limitar(criatura.hambre - 5),
             ent_velocidad=criatura.ent_velocidad + 1,
         )
-        return ResultadoAccion(nueva, "Habéis jugado un rato. Está encantad{o/a}.")
+        return ResultadoAccion(nueva, "Juegan un rato. Está encantad{o/a}.")
 
     if accion == ENTRENAR:
         nueva = replace(

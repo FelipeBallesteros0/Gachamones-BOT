@@ -407,6 +407,8 @@ def test_la_ayuda_habla_de_lo_que_hay():
     )
     for esperado in esperados:
         assert esperado in texto, esperado
+    assert "Se acuerda de la última conversación." in texto
+    assert "hayáis" not in texto
 
 
 def test_la_ayuda_no_dice_que_solo_cabe_una():
