@@ -56,7 +56,7 @@ Instala el hook local cuando prepares el entorno:
 ## Invariantes del dominio
 
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
-- Cada persona puede tener como máximo tres criaturas por servidor.
+- El tamaño máximo del plantel de una persona por servidor lo fija `db.MAXIMO_PLANTEL`.
 - Si el plantel no está vacío, hay exactamente una criatura activa.
 - Sólo la criatura activa decae, recibe cuidados y obtiene recompensas.
 - Las criaturas de reserva no deben avanzar por tiempo ni recibir efectos del activo.

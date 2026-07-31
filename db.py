@@ -28,7 +28,13 @@ RUTA: Path = config.RUTA_BD
 
 # Cuántos gachamones puede tener una persona por servidor. Uno activo y el resto
 # en la incubadora. El primero sale de `/huevo`; los demás sólo reclutándolos.
-MAXIMO_PLANTEL = 3
+#
+# Subió de 3 a 10 para que coleccionar sea un objetivo largo. Lo que de verdad
+# cambia con este número es `/aventura`: con el plantel lleno los salvajes se
+# convierten en objetos, así que el tope decide cuánto dura la fase de reclutar.
+# Medido, se recluta en el 5,5 % de las aventuras y hay 37 minutos entre una y
+# otra: llenar dos huecos son unas 22 horas de juego y llenar nueve, unas 100.
+MAXIMO_PLANTEL = 10
 
 # El esquema va en dos trozos porque el orden importa: primero las tablas,
 # después las migraciones que añaden columnas nuevas, y sólo entonces los

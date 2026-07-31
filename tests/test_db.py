@@ -643,18 +643,29 @@ def test_al_sacarla_de_la_incubadora_no_se_le_cae_el_tiempo_encima():
     assert sim.avanzar(despierta, tres_dias + timedelta(hours=10)).hambre < 50.0
 
 
-def test_caben_tres_pero_no_cuatro():
+def test_el_tope_del_plantel_lo_pone_la_constante():
+    """Sin el número escrito a mano: antes decía «tres pero no cuatro» y al
+    subir el tope habría habido que reescribirlo, que es justo cuando un test
+    con el número dentro se queda mintiendo."""
     incubar(nacer(nombre="C0"))
-    colar_dormida("C1")
-    colar_dormida("C2")
-    assert len(db.plantel("u1", "g1")) == 3
+    for i in range(1, db.MAXIMO_PLANTEL):
+        colar_dormida(f"C{i}")
+    assert len(db.plantel("u1", "g1")) == db.MAXIMO_PLANTEL
 
-    try:
-        db.crear("u1", "g1", "pulpo", "Cuarto", STATS, T0)
-    except ValueError:
-        assert len(db.plantel("u1", "g1")) == 3
-        return
-    raise AssertionError("no deberían caber cuatro")
+    with pytest.raises(ValueError):
+        db.crear("u1", "g1", "pulpo", "ElQueSobra", STATS, T0)
+    assert len(db.plantel("u1", "g1")) == db.MAXIMO_PLANTEL
+
+
+def test_el_tope_es_por_persona_y_por_servidor():
+    """Llenar el plantel en un servidor no te deja sin sitio en el otro, ni le
+    quita hueco a nadie más."""
+    incubar(nacer(nombre="C0"))
+    for i in range(1, db.MAXIMO_PLANTEL):
+        colar_dormida(f"C{i}")
+
+    assert db.crear("u1", "g2", "pulpo", "EnOtroServidor", STATS, T0)
+    assert db.crear("u2", "g1", "pulpo", "DeOtraPersona", STATS, T0)
 
 
 def test_solo_una_activa_a_la_vez_lo_impide_el_indice():

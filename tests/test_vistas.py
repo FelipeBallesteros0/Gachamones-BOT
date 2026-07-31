@@ -726,3 +726,23 @@ def test_cuidado_normal_congela_publica_y_replay_responde_privado(
     respuesta.send_message.assert_awaited_once_with(
         "Esta interacción ya estaba procesada.", ephemeral=True
     )
+
+
+def test_el_menu_del_plantel_aguanta_el_plantel_lleno():
+    """Lo único que podía romperse al subir el tope es la cantidad: Discord no
+    admite más de 25 opciones en un desplegable ni 2000 caracteres de mensaje,
+    y la lista lleva una línea por gachamon."""
+    lleno = [
+        criatura(i, f"Gachamon {i}", i == 1, f"ficha-{i}")
+        for i in range(1, db.MAXIMO_PLANTEL + 1)
+    ]
+
+    menu = equipo.MenuPlantel(lleno)
+    texto = equipo.texto_del_plantel(lleno)
+
+    assert len(menu.options) == db.MAXIMO_PLANTEL <= 25
+    assert all(1 <= len(o.label) <= 100 for o in menu.options)
+    assert all(len(o.description) <= 100 for o in menu.options)
+    assert len(texto) < 2000, len(texto)
+    # Y sale uno por gachamon, no uno de menos.
+    assert texto.count("Gachamon ") == db.MAXIMO_PLANTEL
