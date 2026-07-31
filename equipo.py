@@ -55,7 +55,7 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
         )
     else:
         cola = (
-            "-# En la incubadora no les pasa el tiempo: ni hambre, ni ánimo, "
+            "-# En la incubadora no les pasa el tiempo: ni comida, ni ánimo, "
             "ni aseo. Elige abajo cuál sacas."
         )
     return f"## 🧬 Tu plantel\n{lineas}\n{cola}"

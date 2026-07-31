@@ -243,7 +243,7 @@ def ejecutar_cuidado(
         if not criatura.viva:
             db._guardar(con, criatura)
             return ResultadoCuidado(
-                criatura, "Tu criatura ya no está entre nosotros.", ok=False
+                criatura, "Tu gachamon ya no está entre nosotros.", ok=False
             )
 
         espera = db.espera_en(con, criatura.id, accion, ahora)
@@ -367,7 +367,7 @@ def ejecutar_competencia(
             if criatura is None:
                 return ResultadoCompetencia(
                     None,
-                    problema="Falta una criatura activa para competir.",
+                    problema="Falta un gachamon activo para competir.",
                     problema_usuario_id=usuario_id,
                 )
             antes_lista.append(criatura)
@@ -379,14 +379,14 @@ def ejecutar_competencia(
             if not criatura.viva:
                 return ResultadoCompetencia(
                     None, antes=antes, despues=criaturas,
-                    problema="Una criatura ha muerto antes de competir.",
+                    problema="Un gachamon ha muerto antes de competir.",
                     problema_usuario_id=usuario_id,
                     problema_criatura=criatura,
                 )
             if criatura.hambre < sim.HAMBRE_MINIMA_COMPETIR:
                 return ResultadoCompetencia(
                     None, antes=antes, despues=criaturas,
-                    problema="Una criatura tiene demasiada hambre para competir.",
+                    problema="Un gachamon tiene demasiada hambre para competir.",
                     problema_usuario_id=usuario_id,
                     problema_criatura=criatura,
                 )
@@ -394,7 +394,7 @@ def ejecutar_competencia(
             if espera:
                 return ResultadoCompetencia(
                     None, antes=antes, despues=criaturas,
-                    problema="Una criatura todavía se está recuperando.",
+                    problema="Un gachamon todavía se está recuperando.",
                     problema_usuario_id=usuario_id,
                     problema_criatura=criatura,
                     espera=espera,

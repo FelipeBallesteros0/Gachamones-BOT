@@ -127,7 +127,7 @@ def usar(
         ganado = round(nueva.hambre - criatura.hambre)
         return (
             f"{objeto.emoji} **{criatura.nombre}** se come {objeto.nombre}. "
-            f"Hambre +{ganado} (ahora {round(nueva.hambre)})."
+            f"Comida +{ganado} (ahora {round(nueva.hambre)})."
         )
 
     # Sin caso por descarte. Antes, todo lo que no era poción ni reinicio caía en
@@ -222,7 +222,7 @@ class MenuInventario(discord.ui.Select):
         criatura = db.criatura_activa(usuario_id, guild_id)
         if criatura is None:
             await interaccion.response.edit_message(
-                content="No tienes ninguna criatura viva. Empieza con `/huevo`.",
+                content="No tienes ningún gachamon vivo. Empieza con `/huevo`.",
                 view=None,
             )
             return

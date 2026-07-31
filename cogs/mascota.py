@@ -96,7 +96,7 @@ class Mascota(commands.Cog):
 
     # -- comandos -----------------------------------------------------------
 
-    @app_commands.command(name="huevo", description="Consigue un huevo y haz nacer tu criatura")
+    @app_commands.command(name="huevo", description="Consigue un huevo y haz nacer tu gachamon")
     @comun.solo_en_el_canal()
     async def huevo(self, interaccion: discord.Interaction) -> None:
         ahora = db.ahora_utc()
@@ -130,8 +130,8 @@ class Mascota(commands.Cog):
             pantalla.render_huevo(), view=HuevoView(interaccion.user.id)
         )
 
-    @app_commands.command(name="mascota", description="Enseña tu criatura (o la de otra persona)")
-    @app_commands.describe(usuario="De quién quieres ver la criatura")
+    @app_commands.command(name="mascota", description="Enseña tu gachamon (o el de otra persona)")
+    @app_commands.describe(usuario="De quién quieres ver el gachamon")
     @comun.solo_en_el_canal()
     async def mascota(
         self, interaccion: discord.Interaction, usuario: discord.User | None = None
@@ -143,9 +143,9 @@ class Mascota(commands.Cog):
         criatura = db.criatura_activa(str(objetivo.id), str(interaccion.guild_id))
         if criatura is None:
             texto = (
-                "No tienes ninguna criatura viva. Empieza con `/huevo`."
+                "No tienes ningún gachamon vivo. Empieza con `/huevo`."
                 if propia
-                else f"{objetivo.display_name} no tiene ninguna criatura viva."
+                else f"{objetivo.display_name} no tiene ningún gachamon vivo."
             )
             await interaccion.response.send_message(texto, ephemeral=True)
             return

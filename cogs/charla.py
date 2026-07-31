@@ -45,7 +45,7 @@ class Charla(commands.Cog):
         criatura = db.criatura_activa(str(mensaje.author.id), str(mensaje.guild.id))
         if criatura is None:
             await mensaje.reply(
-                "No tienes ninguna criatura con quien hablar. Saca un huevo "
+                "No tienes ningún gachamon con quien hablar. Saca un huevo "
                 "con `/huevo`.",
                 mention_author=False,
             )
@@ -123,7 +123,7 @@ class Charla(commands.Cog):
 
         if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
             return (
-                f"Tu criatura está agotada de tanto hablar "
+                f"Tu gachamon está agotado de tanto hablar "
                 f"({config.LIMITE_CHARLA_POR_HORA} mensajes por hora). "
                 "Prueba dentro de un rato."
             )

@@ -661,7 +661,7 @@ def render_percance(percance: Percance | None) -> str:
     """Efecto mecánico visible, independiente de lo que escriba el modelo."""
     if percance is None:
         return ""
-    return f"⚠️ Percance: -{percance.hambre} hambre y -{percance.animo} ánimo."
+    return f"⚠️ Percance: -{percance.hambre} comida y -{percance.animo} ánimo."
 
 
 def quienes_van(criatura: sim.Criatura, dueño: str) -> str:

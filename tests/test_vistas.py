@@ -621,7 +621,7 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             "limpiar",
             sim.LIMPIAR,
             {"limpieza": 25.0},
-            "-# 🧼 Limpiar · limpieza 100 · +0 XP · "
+            "-# 🧼 Limpiar · aseo 100 · +0 XP · "
             "🪙 +1 asciicoins · cuidado 1/12 UTC",
         ),
     ],

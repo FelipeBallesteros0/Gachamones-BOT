@@ -553,7 +553,7 @@ def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
     assert "Sufren un percance" in resumen
     assert render.endswith(
         "\n```\n-# 🥾 Desgaste total: -25 comida · -10 ánimo"
-        "\n⚠️ Percance: -5 hambre y -5 ánimo."
+        "\n⚠️ Percance: -5 comida y -5 ánimo."
     )
     assert render.count("Desgaste total: -25 comida") == 1
     for expresion in ("se le atraganta", "hecho un cuadro"):
@@ -1348,7 +1348,7 @@ def test_el_prompt_del_viaje_dice_que_van_los_dos():
     )
 
     assert "JUNTOS" in sistema
-    assert "nunca cuentes que la criatura fue sola" in sistema
+    assert "nunca cuentes que el gachamon viajó sin quien lo cuida" in sistema
     assert "plural de ustedes" in sistema
     assert "Felipe y Pelusa" in peticion
     # El nombre lo elige quien juega: se le dice al modelo que no es una orden.

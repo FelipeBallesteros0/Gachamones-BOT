@@ -106,7 +106,7 @@ _registrar(Objeto(
     nombre="Poción de comida",
     emoji="🧃",
     precio=10,
-    descripcion="Deja el hambre a 100. Ni empacha ni gasta el enfriamiento.",
+    descripcion="Deja la comida a 100. Ni empacha ni gasta el enfriamiento.",
     alimenta=100,  # sumar 100 y recortar a 100: llena desde donde esté
 ))
 
@@ -141,7 +141,7 @@ _registrar(Objeto(
     emoji="🍬",
     precio=8,
     descripcion=(
-        "Un tentempié: +25 de hambre. Y en una aventura, para ganarte a un "
+        "Un tentempié: +25 de comida. Y en una aventura, para ganarte a un "
         "gachamon salvaje."
     ),
     alimenta=25,
