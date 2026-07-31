@@ -13,6 +13,7 @@ import economia
 import objetos as obj
 import simulacion as sim
 import tienda
+import vistas
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15)
@@ -238,6 +239,93 @@ def test_usar_objeto_congela_la_ficha_mutada_antes_de_responder(monkeypatch):
     persistida = db.criatura_activa("u1", "g1")
     assert persistida is not None
     assert persistida.hambre == 100.0
+
+
+def dos_canales(guardado_id, actual_id, en_hilo=False):
+    """El canal donde quedó la ficha y aquel donde se abre la mochila.
+
+    El servidor falso imita a discord.py: `get_channel` no mira en los hilos.
+    """
+    guardado = SimpleNamespace(
+        id=guardado_id,
+        fetch_message=AsyncMock(return_value=SimpleNamespace(edit=AsyncMock())),
+    )
+    actual = SimpleNamespace(
+        id=actual_id,
+        fetch_message=AsyncMock(return_value=SimpleNamespace(edit=AsyncMock())),
+        guild=SimpleNamespace(
+            get_channel=lambda cid: (
+                None if en_hilo or str(cid) != guardado_id else guardado
+            ),
+            get_channel_or_thread=lambda cid: (
+                guardado if str(cid) == guardado_id else None
+            ),
+        ),
+    )
+    return guardado, actual
+
+
+def mochila_de(pocion, canal):
+    """La `/mochila` de verdad: el menú abierto en un canal cualquiera."""
+    menu = tienda.MenuInventario({pocion.clave: 1}, vistas.congelar)
+    menu._values = [pocion.clave]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+    return menu, interaccion
+
+
+def test_usar_un_objeto_desde_otro_canal_congela_la_ficha_donde_quedo(monkeypatch):
+    """`/mochila` se abre en cualquier canal, pero la ficha sigue en el suyo."""
+    criatura = con_hambre(12.0)
+    assert criatura is not None
+    db.guardar_pantalla(criatura.id, "555", "111")
+    pocion = obj.CATALOGO["pocion_comida"]
+    comprar(pocion)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
+    guardado, actual = dos_canales("111", "222")
+
+    menu, interaccion = mochila_de(pocion, actual)
+    asyncio.run(menu.callback(interaccion))
+
+    guardado.fetch_message.assert_awaited_once_with(555)
+    actual.fetch_message.assert_not_awaited()
+
+
+def test_usar_un_objeto_congela_la_ficha_que_quedo_en_un_hilo(monkeypatch):
+    """Un hilo es un canal más donde jugar, y `get_channel` no lo encuentra."""
+    criatura = con_hambre(12.0)
+    assert criatura is not None
+    db.guardar_pantalla(criatura.id, "555", "111")
+    pocion = obj.CATALOGO["pocion_comida"]
+    comprar(pocion)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
+    hilo, actual = dos_canales("111", "222", en_hilo=True)
+
+    menu, interaccion = mochila_de(pocion, actual)
+    asyncio.run(menu.callback(interaccion))
+
+    hilo.fetch_message.assert_awaited_once_with(555)
+    actual.fetch_message.assert_not_awaited()
+
+
+def test_usar_un_objeto_con_un_canal_guardado_ilegible_responde_igual(monkeypatch):
+    """Una ficha vieja con un canal que no es un número no rompe la mochila."""
+    criatura = con_hambre(12.0)
+    assert criatura is not None
+    db.guardar_pantalla(criatura.id, "555", "canal-viejo")
+    pocion = obj.CATALOGO["pocion_comida"]
+    comprar(pocion)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
+    _, actual = dos_canales("111", "222")
+
+    menu, interaccion = mochila_de(pocion, actual)
+    asyncio.run(menu.callback(interaccion))
+
+    actual.fetch_message.assert_awaited_once_with(555)
+    interaccion.response.edit_message.assert_awaited_once()
+    assert db.criatura_activa("u1", "g1").hambre == 100.0
 
 
 def test_objeto_agotado_no_congela_la_ficha():

@@ -432,9 +432,18 @@ async def _congelar_pulsada(interaccion: discord.Interaction) -> None:
 
 
 async def congelar(canal: discord.abc.Messageable, mensaje_id: str | None) -> None:
-    """Apaga los botones de una pantalla concreta por su ID."""
+    """Apaga los botones de una pantalla concreta por su ID.
+
+    El canal que llega es sólo una pista: los menús y los comandos directos
+    únicamente saben desde dónde se les ha abierto, y la ficha puede estar en
+    otro canal del servidor. Manda el canal guardado con la propia pantalla; si
+    no se sabe de quién es, o no se llega a él, se usa el que venga.
+    """
     if not mensaje_id:
         return
+    dueño = db.criatura_por_pantalla(mensaje_id)
+    if dueño is not None:
+        canal = _canal_anterior(canal, dueño)
     try:
         mensaje = await canal.fetch_message(int(mensaje_id))
         await mensaje.edit(view=PantallaView(congelada=True))
@@ -448,14 +457,22 @@ def _canal_anterior(canal: discord.abc.Messageable, criatura: sim.Criatura):
 
     Con el bot en varios canales, la pantalla vieja puede estar en otro sitio
     distinto de donde vamos a publicar la nueva. Si no la buscásemos ahí, se
-    quedaría con los botones activos y habría dos pantallas vivas.
+    quedaría con los botones activos y habría dos pantallas vivas. Un hilo
+    también cuenta: hay que buscar por canales *y* hilos, porque `get_channel`
+    no mira dentro de ellos. Si el canal apuntado no vale o no se llega a él,
+    se sigue con el que venga.
     """
     if not criatura.canal_id or str(getattr(canal, "id", "")) == criatura.canal_id:
         return canal
     guild = getattr(canal, "guild", None)
     if guild is None:
         return canal
-    return guild.get_channel(int(criatura.canal_id)) or canal
+    try:
+        guardado = int(criatura.canal_id)
+    except ValueError:
+        # Fichas antiguas guardaron ahí cosas que no son un identificador.
+        return canal
+    return guild.get_channel_or_thread(guardado) or canal
 
 
 async def responder_pantalla(

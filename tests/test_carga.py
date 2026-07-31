@@ -18,7 +18,7 @@ from vistas import NombrarView, PantallaView
 
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
-    "jardin", "aventura",
+    "jardin", "aventura", "mochila", "tienda", "plantel",
 }
 
 
@@ -39,17 +39,65 @@ def _cargar_todo():
             await cliente.load_extension(extension)
         cliente.add_view(PantallaView())
         cliente.add_view(NombrarView())
-        nombres = {c.name for c in cliente.tree.get_commands()}
+        comandos = list(cliente.tree.get_commands())
         # Descargar para que el bucle de muerte no quede suelto.
         for extension in reversed(modulo_bot.EXTENSIONES):
             await cliente.unload_extension(extension)
-        return nombres
+        return comandos
 
     return asyncio.run(arrancar())
 
 
 def test_todos_los_cogs_cargan_y_registran_sus_comandos():
-    assert _cargar_todo() == COMANDOS_ESPERADOS
+    assert {c.name for c in _cargar_todo()} == COMANDOS_ESPERADOS
+
+
+def test_los_comandos_directos_se_anuncian_como_toca():
+    """`/mochila`, `/tienda` y `/plantel` abren lo que hasta ahora sólo estaba
+    bajo los botones de la ficha. La descripción es lo único que se ve al
+    escribir «/» en Discord, así que si miente el comando no se encuentra."""
+    import objetos as obj
+
+    esperadas = {
+        "mochila": "Abre tu mochila y usa lo que lleves",
+        "tienda": f"Compra objetos con {obj.MONEDA_TIENDA}",
+        "plantel": "Mira tu plantel y cambia de gachamon activo",
+    }
+    directos = {c.name: c.description for c in _cargar_todo() if c.name in esperadas}
+
+    assert directos == esperadas
+
+
+def test_ningun_comando_se_sale_de_su_canal(monkeypatch):
+    """Todos llevan `solo_en_el_canal`, y se comprueba ejecutando el check en un
+    canal ajeno en vez de mirar el decorador: así vale igual si algún día se
+    escribe de otra forma.
+
+    Se recorre el árbol ENTERO y no sólo los tres nuevos, para que al próximo
+    comando tampoco se le olvide."""
+    from types import SimpleNamespace
+
+    import comun
+    import config
+
+    async def pasar_los_checks(comando, interaccion):
+        for check in comando.checks:
+            await check(interaccion)
+
+    monkeypatch.setattr(config, "CANALES", [111])
+    interaccion = SimpleNamespace(channel_id=222)
+    comandos = _cargar_todo()
+    assert comandos, "sin comandos el barrido no comprueba nada"
+
+    sueltos = []
+    for comando in comandos:
+        try:
+            asyncio.run(pasar_los_checks(comando, interaccion))
+        except comun.CanalEquivocado:
+            continue
+        sueltos.append(comando.name)
+
+    assert not sueltos, f"contestan en cualquier canal: {sueltos}"
 
 
 def test_los_botones_de_la_pantalla_son_persistentes():
@@ -124,7 +172,7 @@ def test_la_charla_no_necesita_el_intent_privilegiado():
 def test_no_queda_ningun_comando_de_depuracion():
     """`/debug_tiempo` se quitó a propósito: manipulaba el reloj de la criatura
     y no debe volver a colarse en producción."""
-    assert not any("debug" in nombre for nombre in _cargar_todo())
+    assert not any("debug" in comando.name for comando in _cargar_todo())
 
 
 def test_el_boton_de_nombrar_tambien_es_persistente():
@@ -447,7 +495,7 @@ def test_la_ayuda_habla_de_lo_que_hay():
     texto = "\n".join(paginas_de_ayuda("Gachamon"))
     esperados = (
         "/huevo", "/carrera", "/sumo", "/jardin", "/ranking", "/cementerio",
-        "/aventura", "podio", "incubadora",
+        "/aventura", "/mochila", "/tienda", "/plantel", "podio", "incubadora",
         str(comp.MAX_CORREDORES), str(db.MAXIMO_PLANTEL),
         obj.MONEDA_TIENDA, str(eco.TOPE_CUIDADOS), str(eco.PREMIO_EVOLUCION),
     )
@@ -512,6 +560,46 @@ def test_la_ayuda_se_manda_en_varios_mensajes():
     assert [c for _, c, _ in enviados] == list(
         social.paginas_de_ayuda("Gachamon")
     )
+
+
+def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):
+    """Cada uno delega en su adaptador de siempre, con los mismos ganchos que le
+    pasa `vistas`: si `/mochila` se quedara sin `congelar`, beberse una poción
+    dejaría viva la ficha anterior, y si `/plantel` se quedara sin `bautizar`,
+    elegir a un recluta recién llegado no abriría el modal del nombre.
+
+    Se comprueba la delegación y no lo que sale por pantalla: el texto, la vista
+    y el efímero ya son cosa de `tienda` y `equipo`, y copiarlos aquí sólo sería
+    una segunda versión que se queda vieja.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import cogs.social as social
+
+    abrir_inventario = AsyncMock()
+    abrir_tienda = AsyncMock()
+    abrir_plantel = AsyncMock()
+    monkeypatch.setattr(social.tienda, "abrir_inventario", abrir_inventario)
+    monkeypatch.setattr(social.tienda, "abrir_tienda", abrir_tienda)
+    monkeypatch.setattr(social.equipo, "abrir_plantel", abrir_plantel)
+
+    cog = social.Social.__new__(social.Social)
+    respuesta = AsyncMock()
+    interaccion = SimpleNamespace(response=respuesta, followup=respuesta)
+
+    asyncio.run(social.Social.mochila.callback(cog, interaccion))
+    asyncio.run(social.Social.tienda_cmd.callback(cog, interaccion))
+    asyncio.run(social.Social.plantel.callback(cog, interaccion))
+
+    abrir_inventario.assert_awaited_once_with(interaccion, social.vistas.congelar)
+    abrir_tienda.assert_awaited_once_with(interaccion)
+    abrir_plantel.assert_awaited_once_with(
+        interaccion, social.vistas.congelar, social.vistas.bautizar
+    )
+    # Quien contesta es el adaptador. Si además respondiera el comando, Discord
+    # rechazaría la segunda respuesta de la misma interacción.
+    assert respuesta.mock_calls == [], respuesta.mock_calls
 
 
 def test_mientras_falte_gente_se_sigue_esperando():
