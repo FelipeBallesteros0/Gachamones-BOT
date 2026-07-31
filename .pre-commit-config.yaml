@@ -1,0 +1,14 @@
+repos:
+  - repo: local
+    hooks:
+      - id: python-compile
+        name: staged Python compilation
+        entry: ./venv/bin/python -m py_compile
+        language: system
+        types: [python]
+      - id: tests
+        name: full tests
+        entry: ./venv/bin/python -m pytest tests/ -q
+        language: system
+        pass_filenames: false
+        always_run: true
