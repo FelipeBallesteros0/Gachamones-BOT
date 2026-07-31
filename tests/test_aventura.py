@@ -1173,3 +1173,31 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
     assert isinstance(eventos[1][1], cog_av.ViajeView)
     # Nada se cobra ni se sortea hasta que se decide algo.
     resolver.assert_not_awaited()
+
+
+def test_las_escenas_escritas_no_son_todas_puertas():
+    """Pedido tras jugarlo: que no todo sea forzar algo cerrado. En cada bioma
+    tiene que haber también alguien con quien cruzarse."""
+    con_alguien = ("leñador", "pastora", "caravana", "Alguien", "buscador")
+
+    for clave, escenas in av.ESCENAS_ESCRITAS.items():
+        assert len(escenas) >= 4, clave
+        assert len(set(escenas)) == len(escenas), clave
+        assert any(
+            palabra in escena.situacion
+            for escena in escenas for palabra in con_alguien
+        ), clave
+
+
+def test_la_escena_del_modelo_sale_siempre_con_mayuscula_inicial():
+    """El modelo la pone una vez de cada dos, y un botón en minúscula al lado de
+    otros dos en mayúscula canta."""
+    escena = av.escena_desde_json(
+        '{"situacion": "un saco a tus pies.", "fuerza": "recoger el saco",'
+        ' "velocidad": "alcanzarlo antes del viento", "volver": "seguir"}'
+    )
+
+    assert escena.situacion.startswith("Un saco")
+    for opcion in av.OPCIONES_ESCENA:
+        etiqueta = escena.etiqueta(opcion)
+        assert etiqueta[0].isupper(), etiqueta

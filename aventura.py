@@ -218,24 +218,35 @@ def escena_desde_json(crudo: str) -> Escena | None:
         valor = " ".join(valor.split())
         if not valor or len(valor) > tope:
             return None
-        campos[clave] = valor
+        # La mayúscula inicial se pone aquí y no se le pide al modelo, que la
+        # cumple una vez de cada dos: al lado de las escritas cantaba un botón
+        # en minúscula junto a otros dos en mayúscula.
+        campos[clave] = valor[0].upper() + valor[1:]
     return Escena(**campos)
 
 
 # Las escenas escritas a mano. Aunque las invente el modelo, hacen falta: es lo
 # que se juega cuando la IA no está o se agotó el límite, igual que las criaturas
 # nunca se quedan sin frase. Una aventura muda no es una aventura.
+#
+# Van variadas a propósito, y no sólo puertas y muros: en cada bioma hay algo
+# cerrado, alguien con quien cruzarse y algo que está pasando. Si todas fueran
+# obstáculos, el respaldo cantaría al segundo viaje y el modelo tendería a
+# copiar la única forma que ve.
 ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
     "bosque": (
         Escena("Una cabaña con la puerta hinchada por la humedad.",
                "Empujar la puerta", "Colarte por la ventana rota",
                "Seguir el sendero"),
-        Escena("Un tronco enorme cruzado sobre el barranco.",
-               "Apartar el tronco", "Cruzar por encima corriendo",
-               "Bajar al barranco"),
+        Escena("Un leñador forcejea con su carro atascado en el barro.",
+               "Levantarlo por detrás", "Calzar la rueda antes de que se hunda",
+               "Desearle suerte y seguir"),
         Escena("Un panal zumbando justo encima del camino.",
                "Bajar la rama despacio", "Pasar por debajo de un tirón",
                "Dar un rodeo"),
+        Escena("Cruje arriba: una rama enorme viene abajo sobre el sendero.",
+               "Aguantarla mientras pasas", "Cruzar antes de que caiga",
+               "Refugiarte y esperar"),
     ),
     "planicie": (
         Escena("Un pozo de piedra tapado con una losa.",
@@ -244,17 +255,23 @@ ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
         Escena("Un rebaño se ha asustado y viene de frente.",
                "Plantarte y aguantar", "Esquivarlo por el flanco",
                "Tumbarte en la hierba"),
-        Escena("Una carreta volcada, con las ruedas al aire.",
-               "Enderezar la carreta", "Meterte por debajo",
-               "Rodearla y seguir"),
+        Escena("Una pastora lleva media tarde buscando una oveja perdida.",
+               "Apartar los fardos del corral", "Batir el campo a la carrera",
+               "Decirle que no la has visto"),
+        Escena("El viento arranca la lona de un puesto de feria.",
+               "Sujetar el poste a pulso", "Atrapar la lona antes de que vuele",
+               "Dejar que se la lleve"),
     ),
     "desierto": (
         Escena("Media columna asoma de la arena, y algo brilla debajo.",
                "Empujar la columna", "Escarbar antes de que se hunda",
                "Buscar sombra"),
-        Escena("Un cañón estrecho con las paredes calientes.",
-               "Abrirte paso a la fuerza", "Cruzarlo a la carrera",
-               "Esperar a que refresque"),
+        Escena("Una caravana ha perdido un fardo y lo busca antes del viento.",
+               "Cargar tú con el resto", "Rastrear las huellas que quedan",
+               "Seguir tu camino"),
+        Escena("El suelo cede: debajo se abre una galería antigua.",
+               "Aguantar el borde que se desmorona", "Saltar al otro lado",
+               "Retroceder sobre tus huellas"),
         Escena("Un pozo seco con un cubo atascado en el brocal.",
                "Tirar de la cadena", "Bajar por el brocal",
                "Seguir la duna"),
@@ -263,9 +280,12 @@ ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
         Escena("Un portón de bronce, cerrado desde dentro.",
                "Reventar el portón", "Trepar por la hiedra",
                "Rodear la muralla"),
-        Escena("El suelo del pasillo cede a cada paso.",
-               "Apuntalarlo con una viga", "Cruzarlo sin parar",
-               "Volver por donde viniste"),
+        Escena("Alguien pide ayuda debajo de una viga caída.",
+               "Levantar la viga", "Sacarlo a rastras antes de que ceda",
+               "Ir a buscar ayuda"),
+        Escena("Una bandada sale en tromba y tapa el pasillo entero.",
+               "Abrirte paso a manotazos", "Cruzar mientras dure el hueco",
+               "Esperar a que se calmen"),
         Escena("Una losa con una argolla, en mitad de la sala.",
                "Levantar la losa", "Colarte por la rendija",
                "Dejar la losa quieta"),
@@ -274,9 +294,12 @@ ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
         Escena("Una colada de lava con costra encima.",
                "Romper la costra y saltar", "Cruzar corriendo por encima",
                "Bordear la colada"),
-        Escena("Una grieta escupe vapor cada pocos segundos.",
-               "Tapar la grieta con roca", "Pasar entre dos bocanadas",
-               "Buscar otro camino"),
+        Escena("Un buscador de obsidiana se ha quedado sin agua y no se levanta.",
+               "Cargarlo hasta la sombra", "Correr a por agua fría",
+               "Avisar en el poblado"),
+        Escena("Empieza a caer ceniza y el sendero desaparece a ojos vistas.",
+               "Apartarla a paladas", "Cruzar antes de que lo cubra",
+               "Buscar refugio"),
         Escena("Una puerta de obsidiana, tibia al tacto.",
                "Forzar la obsidiana", "Colarte por la grieta del marco",
                "Alejarte del calor"),

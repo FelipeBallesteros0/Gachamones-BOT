@@ -553,22 +553,34 @@ def prompt_escena(adonde: str, nivel: int, antes: str = "") -> tuple[str, str]:
         else "Es lo primero que se encuentra al llegar."
     )
     dentro = (
-        "Estás en el segundo y último obstáculo, así que puede esconder algo: "
-        "un cofre, una puerta cerrada, un hueco tapado."
+        "Es la segunda y última escena, así que aquí es donde puede aparecer "
+        "algo que se lleve: da igual si es un escondite, alguien que lo "
+        "agradece o un golpe de suerte."
         if nivel > 1
         else ""
     )
 
-    sistema = f"""Inventas obstáculos para la excursión de una criatura virtual que ha salido {adonde}.
+    sistema = f"""Inventas escenas para la excursión de una criatura virtual que ha salido {adonde}.
 
 QUÉ TIENES QUE DEVOLVER
 Un único objeto JSON, sin nada más alrededor, con estas cuatro claves:
 - "situacion": qué se encuentra. Una o dos frases, 25 palabras como máximo.
-- "fuerza": la salida que pide empujar, romper, cargar o levantar.
-- "velocidad": la salida que pide correr, saltar, colarse o trepar.
-- "volver": la salida prudente, la de no meterse.
+- "fuerza": la salida que pide empujar, romper, cargar, aguantar o levantar.
+- "velocidad": la salida que pide correr, saltar, colarse, trepar o alcanzar.
+- "volver": **irse sin meterse**: rodear, esperar, dejarlo estar, seguir camino.
+  Nunca es otra forma de intervenir; si la lee alguien tiene que entender que
+  ahí no pasa nada.
 Las tres opciones son textos de botón: 6 palabras como máximo cada una,
-en infinitivo y sin punto final.
+empezando por un verbo en infinitivo y sin punto final. Cada una tiene que
+entenderse sola, sin haber leído las otras dos.
+
+QUÉ PUEDE SER UNA ESCENA
+No sólo un obstáculo cerrado. Vale cualquier cosa que admita las tres salidas:
+- alguien con quien cruzarse: un viajero con la carreta rota, un pastor
+  buscando una oveja, otra criatura que no deja pasar;
+- algo que ocurre: una tormenta encima, un desprendimiento, un incendio pequeño;
+- un sitio: una construcción, un paso difícil, un escondite.
+Varía: dos escenas seguidas no pueden ser dos puertas cerradas.
 
 CÓMO ESCRIBIRLO
 - {REGLA_ESPANOL_NEUTRO}
@@ -576,7 +588,7 @@ CÓMO ESCRIBIRLO
 - No digas cuál es la buena ni si sale bien: eso lo deciden los dados después.
 - No menciones a la criatura, ni sus estadísticas, ni ninguna cifra.
 - Nada de markdown, emoji ni comentarios. Sólo el JSON.
-- Encaja el obstáculo con el sitio: {adonde} tiene que notarse."""
+- Encaja la escena con el sitio: {adonde} tiene que notarse."""
 
     peticion = f"{continuacion} {dentro}".strip()
     return sistema, peticion

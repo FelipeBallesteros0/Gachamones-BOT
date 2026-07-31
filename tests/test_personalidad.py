@@ -466,10 +466,24 @@ def test_el_prompt_de_escena_no_le_cuenta_al_modelo_quién_va():
     assert "criatura" not in inspect.signature(per.prompt_escena).parameters
 
 
-def test_el_segundo_nodo_le_pide_al_modelo_que_esconda_algo():
-    """Es donde va el gachamon dormido: el cofre del final del árbol."""
+def test_en_el_segundo_nodo_es_donde_puede_aparecer_algo():
+    """Es donde va el hallazgo. Lo que NO se le dice es de qué forma: un cofre
+    era un ejemplo, y si se le nombra sólo eso, todas las escenas acaban siendo
+    cofres."""
     _, primera = per.prompt_escena("al Bosque", 1)
     _, segunda = per.prompt_escena("al Bosque", 2, "Forzó la puerta.")
 
-    assert "cofre" in segunda and "cofre" not in primera
+    assert "algo que se lleve" in segunda and "algo que se lleve" not in primera
+    assert "cofre" not in segunda
     assert "Forzó la puerta." in segunda
+
+
+def test_el_prompt_de_escena_abre_la_mano_mas_alla_del_obstaculo():
+    """Pedido tras jugarlo: cruzarse con alguien que te da algo, o que esté
+    pasando una cosa, no sólo puertas trancadas."""
+    sistema, _ = per.prompt_escena("al Bosque", 1)
+
+    assert "No sólo un obstáculo cerrado" in sistema
+    for forma in ("viajero", "pastor", "tormenta", "criatura"):
+        assert forma in sistema, forma
+    assert "dos puertas cerradas" in sistema  # la instrucción de variar
