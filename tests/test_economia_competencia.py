@@ -290,7 +290,7 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     }
     canal = SimpleNamespace(
         id=999,
-        guild=SimpleNamespace(get_channel=canales_anteriores.get),
+        guild=SimpleNamespace(get_channel_or_thread=canales_anteriores.get),
         send=AsyncMock(),
     )
     participantes = [

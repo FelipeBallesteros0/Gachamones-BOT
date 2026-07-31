@@ -196,16 +196,35 @@ def canal_falso(id_, guild=None):
     )
 
 
-def dos_canales(guardado_id, actual_id):
+def guild_falso(canales=(), hilos=()):
+    """Un servidor como el de discord.py: `get_channel` no mira en los hilos."""
+    por_id = {canal.id: canal for canal in canales}
+    con_hilos = por_id | {hilo.id: hilo for hilo in hilos}
+    return SimpleNamespace(
+        get_channel=lambda cid: por_id.get(str(cid)),
+        get_channel_or_thread=lambda cid: con_hilos.get(str(cid)),
+    )
+
+
+def dos_canales(guardado_id, actual_id, en_hilo=False):
     """El canal donde quedó la ficha y aquel donde se abre el menú."""
     guardado = canal_falso(guardado_id)
-    actual = canal_falso(
-        actual_id,
-        guild=SimpleNamespace(
-            get_channel=lambda cid: guardado if str(cid) == guardado_id else None
-        ),
+    if en_hilo:
+        guild = guild_falso(hilos=(guardado,))
+    else:
+        guild = guild_falso(canales=(guardado,))
+    return guardado, canal_falso(actual_id, guild=guild)
+
+
+def menu_de_plantel(plantel, elegido, canal):
+    """El `/plantel` de verdad: el menú abierto en un canal cualquiera."""
+    menu = equipo.MenuPlantel(plantel, vistas.congelar)
+    menu._values = [str(elegido.id)]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        response=SimpleNamespace(edit_message=AsyncMock()),
     )
-    return guardado, actual
+    return menu, interaccion
 
 
 def test_congelar_va_al_canal_guardado_de_la_ficha_y_no_al_de_la_orden(bd_temporal):
@@ -228,17 +247,41 @@ def test_cambiar_de_activo_desde_otro_canal_congela_la_ficha_donde_esta(bd_tempo
     reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
     guardado, actual = dos_canales("111", "222")
 
-    menu = equipo.MenuPlantel([anterior, reserva], vistas.congelar)
-    menu._values = [str(reserva.id)]
-    interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=actual,
-        response=SimpleNamespace(edit_message=AsyncMock()),
-    )
-
+    menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
     asyncio.run(menu.callback(interaccion))
 
     guardado.fetch_message.assert_awaited_once_with(555)
     actual.fetch_message.assert_not_awaited()
+
+
+def test_cambiar_de_activo_congela_la_ficha_que_quedo_en_un_hilo(bd_temporal):
+    """Un hilo es un canal más donde jugar, y `get_channel` no lo encuentra."""
+    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    db.guardar_pantalla(anterior.id, "555", "111")
+    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    hilo, actual = dos_canales("111", "222", en_hilo=True)
+
+    menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
+    asyncio.run(menu.callback(interaccion))
+
+    hilo.fetch_message.assert_awaited_once_with(555)
+    actual.fetch_message.assert_not_awaited()
+    assert hilo.mensaje.edit.await_args.kwargs["view"].children[0].disabled
+
+
+def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temporal):
+    """Una ficha vieja con un canal que no es un número no rompe el menú."""
+    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0)
+    db.guardar_pantalla(anterior.id, "555", "canal-viejo")
+    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    _, actual = dos_canales("111", "222")
+
+    menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
+    asyncio.run(menu.callback(interaccion))
+
+    actual.fetch_message.assert_awaited_once_with(555)
+    interaccion.response.edit_message.assert_awaited_once()
+    assert db.criatura_activa("u1", "g1").id == reserva.id
 
 
 # --- El recluta que todavía no tiene nombre ---------------------------------
