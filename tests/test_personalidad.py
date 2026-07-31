@@ -533,3 +533,22 @@ def test_el_prompt_del_viaje_sigue_diciendole_quien_es():
     assert "perezosa" in sistema           # concordado con su género
     assert per.CARACTERES["perezoso"].rasgo in sistema
     assert "{" not in sistema and "}" not in sistema  # sin marcas sin resolver
+
+
+def test_el_limite_de_la_narracion_cabe_en_lo_que_publica_el_bot():
+    """Subió de 45 a 90 porque ninguna narración respetaba las 45 —salían entre
+    63 y 93 palabras midiendo diez seguidas— y el texto se leía bien: el límite
+    estaba mal, no el modelo.
+
+    El tope de verdad es el recorte de `ia.limpiar`, y el del prompt tiene que
+    quedar por debajo para que ninguna frase se corte a la mitad."""
+    import ia
+    import aventura as av
+
+    sistema, _ = per.prompt_aventura(criatura(), "al bosque", [], av.NADA)
+
+    assert f"{per.PALABRAS_NARRACION} palabras como máximo" in sistema
+    # ~6,5 caracteres por palabra en castellano, espacios incluidos.
+    assert per.PALABRAS_NARRACION * 6.5 < ia.LARGO_MAXIMO, (
+        "el prompt pide más de lo que el bot deja publicar"
+    )

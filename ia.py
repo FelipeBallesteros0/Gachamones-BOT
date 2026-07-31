@@ -47,7 +47,17 @@ SEGUNDOS_ENTRE_INTENTOS = 1
 # de mil caracteres pensando en inglés antes de abrir la boca. Con 300 devolvía
 # el contenido vacío o un muñón cortado a media frase.
 MAX_TOKENS = 1200
+
+# Lo que se publica como mucho. El de por defecto está pensado para lo que dice
+# una criatura al hablarle: tres líneas cortas y ya.
 LARGO_MAXIMO = 600
+
+# La narración del viaje es otra cosa: un párrafo suelto que se publica solo,
+# no una respuesta de mascota. Con el tope de la charla se recortaban 7 de cada
+# 10 —medido— y lo que se perdía era el final, que es justo donde se cuenta si
+# te encontraste algo. Sigue habiendo tope porque el modelo se estira hasta lo
+# que le dejes, pero éste da margen a las 90 palabras que se le piden.
+LARGO_MAXIMO_NARRACION = 900
 
 # Cuánto se aparta un modelo después de fallar. Nunca se le echa de la lista:
 # se manda al final, así que si fallan todos se siguen probando todos.
@@ -184,12 +194,16 @@ def _cortar_en_frase(texto: str, minimo: int = 0) -> str:
     return texto.rstrip() + "…"
 
 
-def limpiar(texto: str, nombre: str) -> str:
+def limpiar(texto: str, nombre: str, largo_maximo: int = LARGO_MAXIMO) -> str:
     """Deja la respuesta lista para publicar.
 
     El modelo a veces se pone creativo con el formato pese a las instrucciones:
     mete markdown, se antepone el nombre como si fuera un guion de teatro, o se
     enrolla. Aquí se corrige en vez de confiar en que obedezca siempre.
+
+    `largo_maximo` viene con el de la charla puesto porque es lo que usan casi
+    todos: quien necesita otro —la narración del viaje, que es un párrafo y no
+    una respuesta de mascota— lo pide.
     """
     texto = _CERCA_CODIGO.sub("", texto).strip()
 
@@ -218,8 +232,8 @@ def limpiar(texto: str, nombre: str) -> str:
     if re.fullmatch(r"\s*\([^()\n]*\)\s*\.?\s*", texto):
         texto = ""
 
-    if len(texto) > LARGO_MAXIMO:
-        texto = _cortar_en_frase(texto[:LARGO_MAXIMO], minimo=LARGO_MAXIMO // 3)
+    if len(texto) > largo_maximo:
+        texto = _cortar_en_frase(texto[:largo_maximo], minimo=largo_maximo // 3)
 
     return texto.strip()
 
@@ -444,10 +458,12 @@ async def generar(
     peticion: str,
     respaldo: str,
     transporte=None,
+    largo_maximo: int = LARGO_MAXIMO,
 ) -> tuple[str, bool]:
     """Una generación suelta, sin historial ni criatura concreta.
 
-    La usa el jardín. Como `responder`, nunca lanza y siempre devuelve texto.
+    La usan el jardín y la narración de la aventura. Como `responder`, nunca
+    lanza y siempre devuelve texto.
     """
     if not config.IA_ACTIVA and transporte is None:
         return respaldo, False
@@ -458,7 +474,7 @@ async def generar(
         transporte,
     )
     if crudo:
-        limpio = limpiar(crudo, "")
+        limpio = limpiar(crudo, "", largo_maximo)
         if limpio:
             return limpio, True
     return respaldo, False

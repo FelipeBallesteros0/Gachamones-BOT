@@ -478,6 +478,16 @@ def frase_de_respaldo(criatura: sim.Criatura, semilla: int = 0) -> str:
 
 # --- La aventura -----------------------------------------------------------
 
+# Lo largo que puede ser el viaje contado. Empezó en 45 y ninguna narración lo
+# respetaba: midiendo diez seguidas salían entre 63 y 93 palabras, y el texto se
+# leía bien —era el límite el que estaba mal, no el modelo—. Se sube a donde
+# está el tope de verdad: `ia.limpiar` recorta en 600 caracteres, que en
+# castellano son unas 100 palabras, así que 90 deja margen para que ninguna
+# frase se corte por la mitad. No se importa de `ia` porque sería una
+# dependencia circular; si se toca aquel número, hay que mirar éste.
+PALABRAS_NARRACION = 90
+
+
 def prompt_aventura(
     criatura: sim.Criatura, adonde: str, pruebas: list, encuentro: str,
     percance=None, dueño: str = "su dueño",
@@ -536,7 +546,7 @@ CÓMO NARRAR
 - En TERCERA persona, y de los DOS: nunca cuentes que la criatura fue sola.
 - Cuando hables de los dos a la vez, usa el plural de ustedes: «cruzan»,
   «llegan», «se meten». Nunca «cruzáis» ni «llegáis».
-- Muy breve: 45 palabras como máximo en total.
+- Breve: {PALABRAS_NARRACION} palabras como máximo en total.
 - El límite es para ti, no para contarlo: no escribas el recuento de palabras ni
   ninguna otra nota al final.
 - Cuenta los obstáculos en el orden dado y respeta si los superaron o no.

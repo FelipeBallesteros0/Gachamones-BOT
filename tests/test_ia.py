@@ -875,3 +875,33 @@ def test_sin_clave_de_un_proveedor_sus_modelos_se_quedan_fuera(monkeypatch):
     ))
 
     assert ia._modelos_a_probar() == ["nvidia:mistralai/mistral-nemotron"]
+
+
+def test_la_narracion_del_viaje_tiene_mas_sitio_que_una_respuesta_de_mascota():
+    """Medido: con el tope de la charla se recortaban 7 de cada 10 narraciones,
+    y lo que se perdía era el final —donde se cuenta si encontraste algo—."""
+    largo = "Cruzan el río. " * 50  # 750 caracteres
+
+    de_charla = ia.limpiar(largo, "")
+    de_viaje = ia.limpiar(largo, "", ia.LARGO_MAXIMO_NARRACION)
+
+    assert len(de_charla) <= ia.LARGO_MAXIMO
+    assert len(de_charla) < len(de_viaje) <= ia.LARGO_MAXIMO_NARRACION
+
+
+def test_limpiar_sigue_recortando_como_siempre_si_no_le_dicen_otra_cosa():
+    """El parámetro es opcional: los dieciséis sitios que ya la llamaban no
+    cambian de comportamiento."""
+    assert len(ia.limpiar("Pío pío. " * 200, "Pelusa")) <= ia.LARGO_MAXIMO
+
+
+def test_generar_le_pasa_el_tope_que_le_pidan():
+    largo = "Cruzan el río. " * 50
+
+    corto, _ = correr(ia.generar("s", "p", "respaldo",
+                                 transporte=respuesta_de(largo)))
+    ancho, _ = correr(ia.generar("s", "p", "respaldo",
+                                 transporte=respuesta_de(largo),
+                                 largo_maximo=ia.LARGO_MAXIMO_NARRACION))
+
+    assert len(corto) <= ia.LARGO_MAXIMO < len(ancho)

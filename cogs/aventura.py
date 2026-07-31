@@ -79,7 +79,11 @@ async def _narrar(
     sistema, peticion = per.prompt_aventura(
         criatura, bioma.adonde, list(salida.pruebas), hallazgo, percance, dueño
     )
-    texto, _ = await ia.generar(sistema, peticion, respaldo)
+    # Con el tope de la charla se recortaban 7 de cada 10 narraciones, y lo que
+    # se perdía era el final: justo donde se cuenta si encontraste algo.
+    texto, _ = await ia.generar(
+        sistema, peticion, respaldo, largo_maximo=ia.LARGO_MAXIMO_NARRACION
+    )
     # El mismo guardia que el salvaje, y aquí hace más falta: desde que se narra
     # a los dos, el modelo tiene que conjugar en plural y ahí es donde se le
     # escapa el «cruzáis». Si pasa, se cuenta con el texto escrito.
