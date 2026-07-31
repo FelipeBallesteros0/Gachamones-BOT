@@ -92,7 +92,7 @@ COOLDOWNS = {
     AVENTURA: timedelta(minutes=37),
 }
 
-# Sólo estas cuatro salen en el subtexto de la pantalla.
+# Las cuatro acciones de cuidado; son la consulta por defecto de db.esperas.
 ACCIONES_DE_CUIDADO = (ALIMENTAR, JUGAR, ENTRENAR, LIMPIAR)
 
 LARGO_MAXIMO_NOMBRE = 24

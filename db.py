@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import random
 import sqlite3
+from collections.abc import Collection
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -594,8 +595,12 @@ def espera_de(criatura_id: int, accion: str, ahora: datetime) -> timedelta:
         return espera_en(con, criatura_id, accion, ahora)
 
 
-def esperas(criatura_id: int, ahora: datetime) -> dict[str, timedelta]:
-    """Lo que falta para cada acción, para pintarlo en el subtexto."""
+def esperas(
+    criatura_id: int,
+    ahora: datetime,
+    acciones: Collection[str] = sim.ACCIONES_DE_CUIDADO,
+) -> dict[str, timedelta]:
+    """Lo que falta para las acciones pedidas, para pintarlo en el subtexto."""
     with conectar() as con:
         filas = con.execute(
             "SELECT accion, hasta FROM cooldowns WHERE criatura_id = ?",
@@ -604,7 +609,7 @@ def esperas(criatura_id: int, ahora: datetime) -> dict[str, timedelta]:
     guardados = {f["accion"]: datetime.fromisoformat(f["hasta"]) for f in filas}
     return {
         accion: max(timedelta(0), guardados.get(accion, ahora) - ahora)
-        for accion in sim.ACCIONES_DE_CUIDADO
+        for accion in acciones
     }
 
 
