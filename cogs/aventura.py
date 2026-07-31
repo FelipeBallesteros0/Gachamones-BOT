@@ -310,7 +310,7 @@ class EncuentroView(discord.ui.View):
         self.stop()
         await interaccion.response.edit_message(
             content=self.texto(
-                f"Dejas {esp.concordar('al {/la }', self.encuentro.salvaje.genero)}"
+                f"Dejas {esp.concordar('{al /a la }', self.encuentro.salvaje.genero)}"
                 f"{self.encuentro.salvaje.def_especie.nombre} donde estaba."
             ),
             view=None,
@@ -409,7 +409,7 @@ class HablarModal(discord.ui.Modal, title="¿Qué le dices?"):
         super().__init__()
         self.vista = vista
         self.dicho = discord.ui.TextInput(
-            label="Hablas con él",
+            label="¿Qué le dices?",
             placeholder="Tranquilo, no te vamos a hacer nada...",
             max_length=200,
         )

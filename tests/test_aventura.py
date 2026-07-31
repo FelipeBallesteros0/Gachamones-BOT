@@ -426,16 +426,24 @@ def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):
     congelar.assert_not_awaited()
 
 
-def test_los_controles_del_encuentro_usan_espanol_neutro(monkeypatch):
+@pytest.mark.parametrize(
+    ("genero", "articulo"),
+    [(esp.MACHO, "al"), (esp.HEMBRA, "a la")],
+)
+def test_los_controles_del_encuentro_usan_espanol_neutro(
+    monkeypatch, genero, articulo
+):
     monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
     dueño = SimpleNamespace(id="u1")
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", "Michi", esp.MACHO, "sereno", (10, 10, 10))
+        salvaje=av.Salvaje("michi", "Michi", genero, "sereno", (10, 10, 10))
     )
 
     async def comprobar():
         vista = cog_av.EncuentroView(Mock(), dueño, "g1", criatura(), encuentro)
-        assert cog_av.HablarModal(vista).dicho.label == "Hablas con él"
+        etiqueta = cog_av.HablarModal(vista).dicho.label
+        assert etiqueta == "¿Qué le dices?"
+        assert "él" not in etiqueta
 
         interaccion = SimpleNamespace(
             response=SimpleNamespace(edit_message=AsyncMock())
@@ -445,7 +453,7 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(monkeypatch):
         )
         await marcharse.callback(interaccion)
         contenido = interaccion.response.edit_message.await_args.kwargs["content"]
-        assert "Dejas al Michi donde estaba." in contenido
+        assert f"Dejas {articulo} Michi donde estaba." in contenido
 
     asyncio.run(comprobar())
 
