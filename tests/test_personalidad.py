@@ -178,6 +178,37 @@ def test_el_estado_de_cada_una_entra_en_la_escena():
     assert "hambre" in vacia.lower()
 
 
+def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
+    import aventura as av
+
+    c = criatura()
+    salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10))
+    prompts = (
+        per.construir_prompt(c, T0, "Felipe"),
+        per.prompt_jardin([c], T0)[0],
+        per.prompt_aventura(c, "al bosque", [], av.NADA)[0],
+        per.prompt_salvaje(salvaje, c, "hola")[0],
+    )
+
+    for prompt in prompts:
+        assert per.REGLA_ESPANOL_NEUTRO in prompt
+        assert "tuteo o ustedes" in prompt
+        assert "nunca uses vosotros" in prompt
+
+
+def test_el_prompt_de_aventura_recibe_el_percance_ya_decidido():
+    import aventura as av
+
+    sistema, _ = per.prompt_aventura(
+        criatura(), "al bosque", [], av.NADA, av.PERCANCE
+    )
+
+    assert "Sufre un percance" in sistema
+    assert "-5 hambre y -5 ánimo" in sistema
+    assert "ya está decidido" in sistema
+    assert "No decidas" in sistema
+
+
 # --- Respaldo --------------------------------------------------------------
 
 def test_hay_respaldo_para_toda_especie():

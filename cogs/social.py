@@ -116,15 +116,14 @@ o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o 
 cruzándote con un **gachamon salvaje**.
 Convencerlo va por turnos: hablarle, darle **golosinas**, presumir o esperar \
 quieto. **Cada carácter reacciona distinto**, y lo que le molesta le gasta el \
-doble de paciencia; si se le acaba, se larga.
+doble de paciencia; si se le acaba, se va.
 -# Es la única forma de tener un segundo o un tercer gachamon. Se puede salir \
 con el equipo lleno: entonces sólo se encuentran objetos.
 
 **Hablarle**
 Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo la tengas: una \
-criatura hambrienta contesta de mal humor. Se acuerda de lo último que hayáis \
-hablado.
+criatura hambrienta contesta de mal humor. Se acuerda de la última conversación.
 -# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia."""
 
     tus_cosas = f"""## 🧬 Tu plantel y tus cosas

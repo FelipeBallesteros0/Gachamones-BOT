@@ -1,8 +1,13 @@
 """La aventura: biomas, pruebas, qué te encuentras y convencer a un salvaje."""
+import asyncio
 import random
 from collections import Counter
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 import aventura as av
+import cogs.aventura as cog_av
 import especies as esp
 import objetos as obj
 import pantalla
@@ -116,6 +121,155 @@ def test_fallar_cuesta_hambre_extra():
 
     assert entera.superadas == 2 and reventada.superadas == 0
     assert reventada.coste_hambre > entera.coste_hambre
+
+
+def salida_con_fallos(cuantos: int) -> av.Salida:
+    pruebas = tuple(
+        av.Prueba(
+            obstaculo=f"tramo {i}", stat="fuerza", base=10,
+            dado=10 if i >= cuantos else 1, dificultad=20,
+        )
+        for i in range(av.PRUEBAS_POR_AVENTURA)
+    )
+    return av.Salida(pruebas)
+
+
+def test_sin_pruebas_fallidas_nunca_hay_percance():
+    assert av.tirar_percance(salida_con_fallos(0), DadosFijos([1])) is None
+
+
+def test_dos_fallos_tienen_mas_probabilidad_de_percance_que_uno():
+    """40 queda fuera del 25 % de un fallo y dentro del 50 % de dos."""
+    assert av.tirar_percance(salida_con_fallos(1), DadosFijos([40])) is None
+    assert av.tirar_percance(salida_con_fallos(2), DadosFijos([40])) == av.PERCANCE
+
+
+def test_los_umbrales_del_percance_son_inclusivos():
+    assert av.tirar_percance(salida_con_fallos(1), DadosFijos([25])) == av.PERCANCE
+    assert av.tirar_percance(salida_con_fallos(1), DadosFijos([26])) is None
+    assert av.tirar_percance(salida_con_fallos(2), DadosFijos([50])) == av.PERCANCE
+    assert av.tirar_percance(salida_con_fallos(2), DadosFijos([51])) is None
+
+
+def test_el_desgaste_aplica_la_penalizacion_solo_si_hay_percance():
+    salida = salida_con_fallos(1)
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    normal = av.aplicar_desgaste(criatura(), salida, ahora)
+    accidentada = av.aplicar_desgaste(criatura(), salida, ahora, av.PERCANCE)
+
+    assert (normal.hambre, normal.animo) == (60.0, 75.0)
+    assert (accidentada.hambre, accidentada.animo) == (55.0, 70.0)
+
+
+def test_el_desgaste_que_agota_el_hambre_mata_en_ese_instante():
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    gastada = av.aplicar_desgaste(
+        criatura(hambre=2.0, animo=3.0), salida_con_fallos(2), ahora, av.PERCANCE
+    )
+    assert (gastada.hambre, gastada.animo) == (0.0, 0.0)
+    assert gastada.muerta_en == ahora
+    assert gastada.causa_muerte == "hambre"
+    assert not gastada.viva
+
+
+def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypatch):
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    viajera = criatura(hambre=20.0, actualizada_en=ahora)
+    salida = salida_con_fallos(2)
+    eventos = []
+
+    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
+    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: viajera)
+    monkeypatch.setattr(cog_av.sim, "avanzar", lambda criatura, _: criatura)
+    monkeypatch.setattr(cog_av.db, "espera_de", lambda *_: timedelta(0))
+    monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
+    monkeypatch.setattr(cog_av.av, "elegir_bioma", lambda _: av.BIOMAS["planicie"])
+    monkeypatch.setattr(cog_av.av, "explorar", lambda *_: salida)
+    monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: av.PERCANCE)
+    monkeypatch.setattr(cog_av.db, "guardar", lambda criatura: eventos.append(("guardar", criatura)))
+    monkeypatch.setattr(
+        cog_av.db,
+        "poner_cooldown",
+        lambda *_: eventos.append(("cooldown", None)),
+    )
+    narrar = AsyncMock(return_value="narración que no debe salir")
+    regalar = Mock()
+    abrir_encuentro = Mock()
+    monkeypatch.setattr(cog_av, "_narrar", narrar)
+    monkeypatch.setattr(cog_av.db, "regalar", regalar)
+    monkeypatch.setattr(cog_av, "EncuentroView", abrir_encuentro)
+
+    async def responder(mensaje, **_):
+        eventos.append(("pruebas", mensaje))
+
+    async def enviar(mensaje, **_):
+        eventos.append(("canal", mensaje))
+
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    for hallazgo in (av.OBJETO, av.SALVAJE):
+        eventos.clear()
+        narrar.reset_mock()
+        regalar.reset_mock()
+        abrir_encuentro.reset_mock()
+        monkeypatch.setattr(cog_av.av, "tirar_hallazgo", lambda *_: hallazgo)
+        interaccion = SimpleNamespace(
+            user=SimpleNamespace(id="u1"),
+            guild_id="g1",
+            response=SimpleNamespace(send_message=responder),
+            channel=SimpleNamespace(send=enviar),
+        )
+
+        asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+
+        assert [tipo for tipo, _ in eventos] == [
+            "guardar", "guardar", "cooldown", "pruebas", "canal"
+        ]
+        persistida = eventos[1][1]
+        assert persistida.muerta_en == ahora
+        assert persistida.causa_muerte == "hambre"
+        assert "no sobrevivió al viaje" in eventos[-1][1]
+        narrar.assert_not_awaited()
+        regalar.assert_not_called()
+        abrir_encuentro.assert_not_called()
+
+
+def test_los_controles_del_encuentro_usan_espanol_neutro(monkeypatch):
+    monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
+    dueño = SimpleNamespace(id="u1")
+    encuentro = av.Encuentro(
+        salvaje=av.Salvaje("michi", "Michi", esp.MACHO, "sereno", (10, 10, 10))
+    )
+
+    async def comprobar():
+        vista = cog_av.EncuentroView(Mock(), dueño, "g1", criatura(), encuentro)
+        assert cog_av.HablarModal(vista).dicho.label == "Hablas con él"
+
+        interaccion = SimpleNamespace(
+            response=SimpleNamespace(edit_message=AsyncMock())
+        )
+        marcharse = next(
+            boton for boton in vista.children if boton.label == "Marcharse"
+        )
+        await marcharse.callback(interaccion)
+        contenido = interaccion.response.edit_message.await_args.kwargs["content"]
+        assert "Dejas al Michi donde estaba." in contenido
+
+    asyncio.run(comprobar())
+
+
+def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
+    c = criatura(nombre="Nube")
+    bioma = av.BIOMAS["planicie"]
+    salida = salida_con_fallos(1)
+
+    resumen = av.resumen_escrito(c, bioma, salida, av.NADA, av.PERCANCE)
+    render = av.render_pruebas(c, bioma, salida, av.PERCANCE)
+
+    assert "tiene problemas en un tramo" in resumen
+    assert "Sufre un percance" in resumen
+    assert "⚠️ Percance: -5 hambre y -5 ánimo." in render
+    for expresion in ("se le atraganta", "hecho un cuadro"):
+        assert expresion not in resumen
 
 
 # --- Qué te encuentras -----------------------------------------------------

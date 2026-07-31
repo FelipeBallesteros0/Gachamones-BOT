@@ -316,7 +316,7 @@ class Competencias(commands.Cog):
         if len(invitados) + 1 not in caben:
             await interaccion.response.send_message(
                 f"{comp.NOMBRES[tipo]} es de {' o '.join(map(str, caben))}, "
-                f"y sois {len(invitados) + 1}.",
+                f"y son {len(invitados) + 1}.",
                 ephemeral=True,
             )
             return

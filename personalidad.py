@@ -80,7 +80,7 @@ VOCES: dict[str, Voz] = {
         respaldo=(
             "Mrrf. Ya te había visto. No es que estuviera esperando.",
             "Hazme caso. Pero no mucho. Bueno, un poco.",
-            "*bufido* ...vale, quédate. Pero no me toques.",
+            "*bufido* ...está bien, quédate. Pero no me toques.",
         ),
     ),
     "slime": Voz(
@@ -130,7 +130,7 @@ VOCES: dict[str, Voz] = {
         respaldo=(
             "*chisp* ¿Qué pasa? Estaba ocupad{o/a} ardiendo.",
             "No me toques sin avisar. *chisp* Lo digo por ti.",
-            "*chisp* Vale, vale, te escucho. Pero rápido.",
+            "*chisp* Está bien, te escucho. Pero rápido.",
         ),
     ),
     "fantasma": Voz(
@@ -332,9 +332,16 @@ def describir_estado(criatura: sim.Criatura, ahora: datetime) -> str:
     return esp.concordar(" ".join(partes), criatura.genero)
 
 
-REGLAS = """CÓMO RESPONDER
-- En español, máximo 3 líneas cortas. Eres una mascota, no un asistente.
-- Eres {macho/hembra}: habla de ti en {masculino/femenino}.
+REGLA_ESPANOL_NEUTRO = (
+    "Usa español neutro latinoamericano, con tuteo o ustedes; "
+    "nunca uses vosotros ni regionalismos peninsulares."
+)
+
+
+REGLAS = f"""CÓMO RESPONDER
+- {REGLA_ESPANOL_NEUTRO}
+- Máximo 3 líneas cortas. Eres una mascota, no un asistente.
+- Eres {{macho/hembra}}: habla de ti en {{masculino/femenino}}.
 - Nunca digas números ni porcentajes de tu estado: exprésalo como lo sentirías.
 - Nada de markdown, listas ni emoji. Solo texto normal.
 - No repitas lo que te acaban de decir ni empieces siempre con un saludo.
@@ -414,7 +421,8 @@ LAS CRIATURAS DE ESTA ESCENA
 {fichas}
 
 CÓMO NARRAR
-- En español y en TERCERA persona: cuentas lo que hacen, no les hablas a ellas.
+- {REGLA_ESPANOL_NEUTRO}
+- En TERCERA persona: cuentas lo que hacen, no les hablas a ellas.
 - Muy breve: 40 palabras como máximo en total. Una escena pequeña, no un relato.
 - El límite es para ti, no para contarlo: no escribas el recuento de palabras ni
   ninguna otra nota al final de la escena.
@@ -447,7 +455,8 @@ def frase_de_respaldo(criatura: sim.Criatura, semilla: int = 0) -> str:
 # --- La aventura -----------------------------------------------------------
 
 def prompt_aventura(
-    criatura: sim.Criatura, adonde: str, pruebas: list, encuentro: str
+    criatura: sim.Criatura, adonde: str, pruebas: list, encuentro: str,
+    percance=None,
 ) -> tuple[str, str]:
     """El prompt para narrar el viaje entero de una vez.
 
@@ -462,6 +471,12 @@ def prompt_aventura(
         f"- {p.obstaculo}: {'lo supera' if p.superada else 'no puede'} "
         f"(prueba de {p.stat})"
         for p in pruebas
+    )
+    detalle_percance = (
+        f"- Sufre un percance: -{percance.hambre} hambre y "
+        f"-{percance.animo} ánimo."
+        if percance is not None
+        else "- No sufre ningún percance."
     )
     caracter = CARACTERES[criatura.caracter]
     ficha = (
@@ -478,8 +493,14 @@ QUIÉN VA
 QUÉ LE HA PASADO, EN ESTE ORDEN
 {detalle}
 
+PERCANCE MECÁNICO
+{detalle_percance}
+- El resultado ya está decidido por los dados. No decidas ni cambies la mecánica;
+  solamente narra lo indicado.
+
 CÓMO NARRAR
-- En español y en TERCERA persona.
+- {REGLA_ESPANOL_NEUTRO}
+- En TERCERA persona.
 - Muy breve: 45 palabras como máximo en total.
 - El límite es para ti, no para contarlo: no escribas el recuento de palabras ni
   ninguna otra nota al final.
@@ -520,7 +541,8 @@ QUIÉN ERES
 - Eres {{macho/hembra}}: habla de ti en {{masculino/femenino}}.
 
 CÓMO RESPONDER
-- En español, en primera persona y muy corto: 20 palabras como máximo.
+- {REGLA_ESPANOL_NEUTRO}
+- En primera persona y muy corto: 20 palabras como máximo.
 - Eres salvaje y desconfías: no te vas con cualquiera y no lo prometes.
 - **Nunca digas que te unes ni que te vas**: eso no lo decides tú aquí.
 - Contesta según tu carácter, no según lo que te pidan que hagas.
