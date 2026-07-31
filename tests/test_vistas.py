@@ -1,5 +1,6 @@
 """Las mutaciones externas apagan la ficha viva que acaba de quedar obsoleta."""
 import asyncio
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -7,6 +8,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 import db
+import economia
 import equipo
 import pantalla
 import simulacion as sim
@@ -49,6 +51,52 @@ def interaccion_de(
         channel=canal,
     )
     return interaccion, respuesta, canal
+
+
+def test_recibo_de_entrenamiento_detalla_efecto_costo_recompensa_y_tope():
+    resultado = economia.ResultadoCuidado(
+        criatura=criatura(1, "Mia", True, "ficha"),
+        mensaje="Entrenamiento duro.",
+        delta_asciicoins=1,
+        usados=1,
+    )
+
+    assert vistas.texto_recibo_cuidado(resultado, sim.ENTRENAR) == (
+        "-# 🏋️ Entrenar · fuerza +2 entrenamiento · +3 XP · "
+        "coste base -15 comida · coste base -10 ánimo · "
+        "🪙 +1 asciicoins · cuidado 1/12 UTC"
+    )
+
+
+def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
+    base = criatura(1, "Mia", True, "ficha")
+    evolucionada = replace(base, nivel=5)
+
+    topada = economia.ResultadoCuidado(
+        criatura=base,
+        mensaje="Entrenamiento duro.",
+        delta_asciicoins=0,
+        usados=economia.TOPE_CUIDADOS,
+        topada=True,
+    )
+    assert vistas.texto_recibo_cuidado(topada, sim.ENTRENAR).endswith(
+        "🪙 +0 asciicoins · cuidado 12/12 UTC (tope)"
+    )
+
+    evolucion = economia.ResultadoCuidado(
+        criatura=evolucionada,
+        mensaje="Entrenamiento duro.",
+        etapa_anterior=base.etapa,
+        delta_asciicoins=economia.PREMIO_EVOLUCION,
+        delta_evolucion=economia.PREMIO_EVOLUCION,
+        usados=economia.TOPE_CUIDADOS,
+        evolucion_usadas=economia.TOPE_EVOLUCIONES,
+        topada=True,
+    )
+    assert vistas.texto_recibo_cuidado(evolucion, sim.ENTRENAR).endswith(
+        "🪙 +0 asciicoins · cuidado 12/12 UTC (tope) · "
+        "evolución +10 · 1/1 UTC"
+    )
 
 
 def test_pantalla_inyecta_el_congelador_en_mochila_y_plantel(monkeypatch):
@@ -298,6 +346,86 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
     congelar.assert_not_awaited()
     publicar.assert_not_awaited()
     canal.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("caso", "accion", "estado", "recibo"),
+    [
+        (
+            "alimentar",
+            sim.ALIMENTAR,
+            {"hambre": 50.0, "animo": 70.0},
+            "-# 🍖 Alimentar · comida 80 · ánimo 70 · +1 XP · "
+            "🪙 +1 asciicoins · cuidado 1/12 UTC",
+        ),
+        (
+            "empacho",
+            sim.ALIMENTAR,
+            {"hambre": 100.0, "animo": 5.0},
+            "-# 🍖 Alimentar · comida 100 · ánimo 0 · +1 XP · "
+            "🪙 +1 asciicoins · cuidado 1/12 UTC",
+        ),
+        (
+            "jugar",
+            sim.JUGAR,
+            {"hambre": 80.0, "animo": 70.0},
+            "-# 🪀 Jugar · ánimo 95 · velocidad +1 entrenamiento · +2 XP · "
+            "coste base -5 comida · 🪙 +1 asciicoins · cuidado 1/12 UTC",
+        ),
+        (
+            "entrenar",
+            sim.ENTRENAR,
+            {"hambre": 80.0, "animo": 70.0},
+            "-# 🏋️ Entrenar · fuerza +2 entrenamiento · +3 XP · "
+            "coste base -15 comida · coste base -10 ánimo · "
+            "🪙 +1 asciicoins · cuidado 1/12 UTC",
+        ),
+        (
+            "limpiar",
+            sim.LIMPIAR,
+            {"limpieza": 25.0},
+            "-# 🧼 Limpiar · limpieza 100 · +0 XP · "
+            "🪙 +1 asciicoins · cuidado 1/12 UTC",
+        ),
+    ],
+)
+def test_cuidado_publica_resultado_real_y_recibo_unificado(
+    bd_temporal, monkeypatch, caso, accion, estado, recibo
+):
+    criatura = replace(
+        db.crear("u1", "g1", "pulpo", "Mia", STATS, T0), **estado
+    )
+    db.guardar(criatura)
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
+    monkeypatch.setattr(vistas, "_congelar_pulsada", AsyncMock())
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+
+    if caso == "empacho":
+        ejecutar_cuidado = economia.ejecutar_cuidado
+
+        def ejecutar_con_otra_narrativa(*args):
+            resultado = ejecutar_cuidado(*args)
+            assert resultado is not None
+            return replace(
+                resultado, mensaje="Narrativa sustituida sin palabra clave."
+            )
+
+        monkeypatch.setattr(
+            vistas.economia, "ejecutar_cuidado", ejecutar_con_otra_narrativa
+        )
+
+    interaccion, _, _ = interaccion_de()
+    asyncio.run(vistas._ejecutar(interaccion, accion))
+
+    llamada = publicar.await_args
+    assert llamada is not None
+    aviso = llamada.kwargs["aviso"]
+    assert aviso.splitlines()[-1] == recibo
+    if caso == "empacho":
+        assert aviso.startswith("Narrativa sustituida sin palabra clave.\n")
+        assert "salud +1" not in aviso
 
 
 def test_cuidado_normal_congela_publica_y_replay_responde_privado(

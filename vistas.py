@@ -356,30 +356,66 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
 
     aviso = resultado.mensaje
     if resultado.usados or resultado.topada or resultado.evoluciono:
-        aviso += f"\n{texto_recibo_cuidado(resultado)}"
+        aviso += f"\n{texto_recibo_cuidado(resultado, accion)}"
     await publicar_pantalla(
         interaccion.channel, resultado.criatura, ahora,
         aviso=aviso, ya_congelada=str(interaccion.message.id),
     )
 
 
-def texto_recibo_cuidado(resultado: economia.ResultadoCuidado) -> str:
-    cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
-    if resultado.topada:
-        partes = [
-            f"🪙 +0 asciicoins · cuidado {resultado.usados}/{resultado.limite} UTC (tope)"
-        ]
-    else:
-        partes = [
-            f"🪙 +{cuidado} asciicoins · cuidado "
-            f"{resultado.usados}/{resultado.limite} UTC"
-        ]
-    if resultado.evoluciono:
-        partes.append(
-            f"evolución +{resultado.delta_evolucion} · "
-            f"{resultado.evolucion_usadas}/{economia.TOPE_EVOLUCIONES} UTC"
+def _efecto_recibo_cuidado(
+    resultado: economia.ResultadoCuidado, accion: str,
+) -> tuple[str, ...]:
+    xp = f"+{sim.XP_POR_CUIDADO[accion]} XP"
+    if accion == sim.ALIMENTAR:
+        return (
+            "🍖 Alimentar",
+            f"comida {resultado.criatura.hambre:g}",
+            f"ánimo {resultado.criatura.animo:g}",
+            xp,
         )
-    return "-# " + " · ".join(partes)
+
+    efecto = sim.EFECTOS_CUIDADO[accion]
+    if accion == sim.JUGAR:
+        return (
+            "🪀 Jugar",
+            f"ánimo {resultado.criatura.animo:g}",
+            f"velocidad +{efecto['ent_velocidad']:g} entrenamiento",
+            xp,
+            f"coste base {efecto['hambre']:g} comida",
+        )
+    if accion == sim.ENTRENAR:
+        return (
+            "🏋️ Entrenar",
+            f"fuerza +{efecto['ent_fuerza']:g} entrenamiento",
+            xp,
+            f"coste base {efecto['hambre']:g} comida",
+            f"coste base {efecto['animo']:g} ánimo",
+        )
+    if accion == sim.LIMPIAR:
+        return "🧼 Limpiar", f"limpieza {efecto['limpieza']:g}", xp
+    raise ValueError(f"acción de cuidado desconocida: {accion}")
+
+
+def texto_recibo_cuidado(
+    resultado: economia.ResultadoCuidado, accion: str,
+) -> str:
+    cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
+    recompensa = 0 if resultado.topada else cuidado
+    cap = f"cuidado {resultado.usados}/{resultado.limite} UTC"
+    if resultado.topada:
+        cap += " (tope)"
+    partes = [
+        *_efecto_recibo_cuidado(resultado, accion),
+        f"🪙 +{recompensa} asciicoins",
+        cap,
+    ]
+    if resultado.evoluciono:
+        partes.extend((
+            f"evolución +{resultado.delta_evolucion}",
+            f"{resultado.evolucion_usadas}/{economia.TOPE_EVOLUCIONES} UTC",
+        ))
+    return pantalla.recibo(*partes)
 
 
 async def _congelar_pulsada(interaccion: discord.Interaction) -> None:

@@ -84,18 +84,33 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
 
 
 def texto_recibo_competencia(
-    recibo: economia.ReciboCompetencia, mencion: str
+    recibo: economia.ReciboCompetencia,
+    mencion: str,
+    *,
+    gano: bool,
+    stat: str,
 ) -> str:
     cap = f"competencia {recibo.usados}/{recibo.limite} UTC"
     if recibo.topada:
         cap += " (tope)"
-    texto = f"-# 🪙 {mencion} +{recibo.delta_competencia} asciicoins · {cap}"
+    partes = [
+        mencion,
+        f"{stat} +{sim.ENTRENAMIENTO_POR_COMPETIR} entrenamiento",
+        f"+{sim.XP_VICTORIA if gano else sim.XP_DERROTA} XP",
+        f"coste base -{sim.COSTE_HAMBRE_COMPETIR:g} comida",
+        f"coste base -{sim.COSTE_ANIMO_COMPETIR:g} ánimo",
+        f"🪙 +{recibo.delta_competencia} asciicoins",
+        cap,
+    ]
     if recibo.evoluciono:
-        evo_cap = f"{recibo.evolucion_usadas}/{economia.TOPE_EVOLUCIONES} UTC"
+        evo_cap = (
+            f"evolución {recibo.evolucion_usadas}/"
+            f"{economia.TOPE_EVOLUCIONES} UTC"
+        )
         if recibo.evolucion_topada:
-            evo_cap += ", tope"
-        texto += f" · evolución +{recibo.delta_evolucion} ({evo_cap})"
-    return texto
+            evo_cap += " (tope)"
+        partes.extend((f"evolución +{recibo.delta_evolucion}", evo_cap))
+    return pantalla.recibo(*partes)
 
 
 def _invitados_validos(
@@ -402,9 +417,18 @@ class Competencias(commands.Cog):
         for fotogramas in comp.fotogramas_de(encuentro):
             await self._animar(canal, fotogramas)
 
+        ganador = encuentro.orden[0]
+        stat = comp.STATS[tipo]
         recibos = "\n".join(
-            texto_recibo_competencia(recibo, usuario.mention)
-            for recibo, usuario in zip(resultado.recibos, participantes)
+            texto_recibo_competencia(
+                recibo,
+                usuario.mention,
+                gano=dorsal == ganador,
+                stat=stat,
+            )
+            for dorsal, (recibo, usuario) in enumerate(
+                zip(resultado.recibos, participantes)
+            )
         )
         await canal.send(f"{comp.resumen(encuentro)}\n{recibos}")
 

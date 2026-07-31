@@ -42,6 +42,11 @@ ALTO_ARTE = 7       # fijo, para que la caja no cambie de tamaño entre estados
 RESET = "\x1b[0m"
 
 
+def recibo(*partes: str) -> str:
+    """Subtexto compacto con las partes mecánicas no vacías."""
+    return "-# " + " · ".join(parte for parte in partes if parte)
+
+
 def _c(texto: str, color: str) -> str:
     return f"\x1b[0;{color}m{texto}{RESET}"
 

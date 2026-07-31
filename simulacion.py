@@ -158,6 +158,16 @@ XP_POR_CUIDADO = {
     ACTUALIZAR: 0,
 }
 
+# Efectos numéricos de cada cuidado. La simulación los aplica y las capas de
+# presentación los describen sin repetir reglas ni interpretar la narrativa.
+EFECTOS_CUIDADO = {
+    ALIMENTAR: {"hambre": 30, "ent_salud": 1},
+    JUGAR: {"animo": 25, "hambre": -5, "ent_velocidad": 1},
+    ENTRENAR: {"hambre": -15, "animo": -10, "ent_fuerza": 2},
+    LIMPIAR: {"limpieza": 100.0},
+}
+EFECTO_EMPACHO = {"hambre": 10, "animo": -15}
+
 # Dónde cambia de color una barra. Viven aquí, en las reglas, y no en
 # `pantalla.py`, porque además de pintar deciden cuándo se puede alimentar de
 # urgencia. Con el umbral duplicado en los dos sitios, el día que alguien
@@ -548,14 +558,15 @@ def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:
         if criatura.hambre >= UMBRAL_EMPACHO:
             nueva = replace(
                 criatura,
-                hambre=_limitar(criatura.hambre + 10),
-                animo=_limitar(criatura.animo - 15),
+                hambre=_limitar(criatura.hambre + EFECTO_EMPACHO["hambre"]),
+                animo=_limitar(criatura.animo + EFECTO_EMPACHO["animo"]),
             )
             return ResultadoAccion(nueva, "Se ha empachado. No tenía nada de hambre.")
+        efecto = EFECTOS_CUIDADO[ALIMENTAR]
         nueva = replace(
             criatura,
-            hambre=_limitar(criatura.hambre + 30),
-            ent_salud=criatura.ent_salud + 1,
+            hambre=_limitar(criatura.hambre + efecto["hambre"]),
+            ent_salud=criatura.ent_salud + efecto["ent_salud"],
             # Alimentarla rearma el aviso: si vuelve a pasar hambre, se avisa
             # otra vez. Es la única acción que sube la comida, así que es el
             # único sitio donde hace falta reiniciarlo.
@@ -564,25 +575,29 @@ def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:
         return ResultadoAccion(nueva, "Ñam. Se lo ha comido todo.")
 
     if accion == JUGAR:
+        efecto = EFECTOS_CUIDADO[JUGAR]
         nueva = replace(
             criatura,
-            animo=_limitar(criatura.animo + 25),
-            hambre=_limitar(criatura.hambre - 5),
-            ent_velocidad=criatura.ent_velocidad + 1,
+            animo=_limitar(criatura.animo + efecto["animo"]),
+            hambre=_limitar(criatura.hambre + efecto["hambre"]),
+            ent_velocidad=criatura.ent_velocidad + efecto["ent_velocidad"],
         )
         return ResultadoAccion(nueva, "Juegan un rato. Está encantad{o/a}.")
 
     if accion == ENTRENAR:
+        efecto = EFECTOS_CUIDADO[ENTRENAR]
         nueva = replace(
             criatura,
-            hambre=_limitar(criatura.hambre - 15),
-            animo=_limitar(criatura.animo - 10),
-            ent_fuerza=criatura.ent_fuerza + 2,
+            hambre=_limitar(criatura.hambre + efecto["hambre"]),
+            animo=_limitar(criatura.animo + efecto["animo"]),
+            ent_fuerza=criatura.ent_fuerza + efecto["ent_fuerza"],
         )
         return ResultadoAccion(nueva, "Entrenamiento duro. Ha quedado molid{o/a}.")
 
     if accion == LIMPIAR:
-        nueva = replace(criatura, limpieza=100.0)
+        nueva = replace(
+            criatura, limpieza=EFECTOS_CUIDADO[LIMPIAR]["limpieza"]
+        )
         return ResultadoAccion(nueva, "Como nuev{o/a}.")
 
     raise ValueError(f"acción desconocida: {accion}")
