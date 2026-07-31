@@ -1,11 +1,19 @@
 """Las mutaciones externas apagan la ficha viva que acaba de quedar obsoleta."""
 import asyncio
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
+import db
 import equipo
+import pantalla
 import simulacion as sim
 import vistas
+
+T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+STATS = (15, 15, 15)
 
 
 def criatura(id_, nombre, activa, pantalla_msg_id):
@@ -16,6 +24,31 @@ def criatura(id_, nombre, activa, pantalla_msg_id):
         hambre=80.0, animo=80.0, activa=activa,
         pantalla_msg_id=pantalla_msg_id,
     )
+
+
+@pytest.fixture
+def bd_temporal(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "vistas.db")
+    db.inicializar()
+
+
+def interaccion_de(
+    evento_id="evento", mensaje_id="ficha"
+) -> tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]:
+    respuesta = SimpleNamespace(
+        edit_message=AsyncMock(),
+        send_message=AsyncMock(),
+    )
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    interaccion = SimpleNamespace(
+        id=evento_id,
+        user=SimpleNamespace(id="u1"),
+        guild_id="g1",
+        message=SimpleNamespace(id=mensaje_id),
+        response=respuesta,
+        channel=canal,
+    )
+    return interaccion, respuesta, canal
 
 
 def test_pantalla_inyecta_el_congelador_en_mochila_y_plantel(monkeypatch):
@@ -99,3 +132,143 @@ def test_cambio_de_activo_invalido_no_congela(monkeypatch):
     asyncio.run(menu.callback(interaccion))
 
     congelar.assert_not_awaited()
+
+
+def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
+    bd_temporal, monkeypatch
+):
+    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    ahora = T0 + timedelta(hours=6)
+    db.poner_cooldown(criatura.id, sim.JUGAR, ahora - timedelta(minutes=1))
+    db.poner_efecto(criatura.id, "fuerza", 3, ahora - timedelta(minutes=1))
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
+
+    guardada = db.obtener(criatura.id)
+    assert guardada is not None
+    contenido = respuesta.edit_message.await_args.kwargs["content"]
+    vista = respuesta.edit_message.await_args.kwargs["view"]
+    esperado = pantalla.render(
+        guardada,
+        ahora,
+        esperas=db.esperas(guardada.id, ahora),
+        efectos=db.efectos_activos(guardada.id, ahora),
+        en_la_incubadora=1,
+    )
+    respuesta.edit_message.assert_awaited_once()
+    assert contenido == esperado
+    assert contenido != pantalla.render(criatura, ahora)
+    assert guardada.actualizada_en == ahora and guardada.hambre < criatura.hambre
+    assert pantalla.ICONOS_ACCION[sim.JUGAR] in contenido
+    assert pantalla.EMOJI_POCION in contenido
+    assert pantalla.EMOJI_INCUBADORA in contenido
+    assert isinstance(vista, vistas.PantallaView)
+    assert all(not getattr(boton, "disabled") for boton in vista.children)
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+    canal.send.assert_not_awaited()
+
+
+def test_actualizar_que_descubre_muerte_edita_la_misma_ficha_sin_botones(
+    bd_temporal, monkeypatch
+):
+    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    ahora = T0 + timedelta(days=10)
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
+
+    guardada = db.obtener(criatura.id)
+    assert guardada is not None and not guardada.viva
+    respuesta.edit_message.assert_awaited_once_with(
+        content=pantalla.render(guardada, ahora), view=None
+    )
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+    canal.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("caso", ["muerta-tras-ascenso", "sin-mapeo"])
+def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
+    bd_temporal, monkeypatch, caso
+):
+    ahora = T0 + timedelta(days=10)
+    if caso == "muerta-tras-ascenso":
+        antigua = db.crear("u1", "g1", "pulpo", "Antigua", STATS, T0)
+        reserva = db.crear(
+            "u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False
+        )
+        db.guardar_pantalla(antigua.id, "ficha", "canal")
+        db.guardar(sim.avanzar(antigua, ahora))
+        ascendida = db.ascender_de_la_incubadora("u1", "g1", ahora)
+        assert ascendida is not None and ascendida.id == reserva.id
+
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    ejecutar_cuidado = Mock(return_value=None)
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas.economia, "ejecutar_cuidado", ejecutar_cuidado)
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
+
+    ejecutar_cuidado.assert_not_called()
+    respuesta.send_message.assert_awaited_once_with(
+        "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+        ephemeral=True,
+    )
+    respuesta.edit_message.assert_not_awaited()
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+    canal.send.assert_not_awaited()
+
+
+def test_cuidado_normal_congela_publica_y_replay_responde_privado(
+    bd_temporal, monkeypatch
+):
+    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    ahora = T0 + timedelta(hours=6)
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
+
+    congelar.assert_awaited_once_with(interaccion)
+    publicar.assert_awaited_once()
+    llamada = publicar.await_args
+    assert llamada is not None
+    assert llamada.args[0] is canal
+    assert llamada.args[1].id == criatura.id
+    assert llamada.args[2] == ahora
+    respuesta.edit_message.assert_not_awaited()
+    respuesta.send_message.assert_not_awaited()
+    canal.send.assert_not_awaited()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
+
+    congelar.assert_awaited_once()
+    publicar.assert_awaited_once()
+    respuesta.send_message.assert_awaited_once_with(
+        "Esta interacción ya estaba procesada.", ephemeral=True
+    )
