@@ -428,6 +428,34 @@ def test_cuidado_publica_resultado_real_y_recibo_unificado(
         assert "salud +1" not in aviso
 
 
+def test_cuidado_sin_efecto_responde_en_privado_sin_congelar_ni_publicar(
+    bd_temporal, monkeypatch
+):
+    """Limpiar a quien ya está limpia no genera ficha: sólo el aviso privado."""
+    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.LIMPIAR))
+
+    # El texto esperado sale del dominio, no de una copia literal aquí: el
+    # estado no cambió, así que repetir la acción devuelve el mismo resultado.
+    dominio = economia.ejecutar_cuidado("otro", "u1", "g1", sim.LIMPIAR, T0)
+    assert dominio is not None and dominio.sin_efecto
+    respuesta.send_message.assert_awaited_once_with(
+        dominio.mensaje, ephemeral=True
+    )
+    respuesta.edit_message.assert_not_awaited()
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+    canal.send.assert_not_awaited()
+
+
 def test_cuidado_normal_congela_publica_y_replay_responde_privado(
     bd_temporal, monkeypatch
 ):

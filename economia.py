@@ -56,6 +56,10 @@ class ResultadoCuidado:
     evolucion_usadas: int = 0
     replay: bool = False
     topada: bool = False
+    # La acción era válida pero el dominio devolvió la misma criatura: no hay
+    # nada nuevo que enseñar. Sin esto, Discord no distingue este caso de un
+    # cuidado normal y publica otra ficha idéntica.
+    sin_efecto: bool = False
 
     @property
     def evoluciono(self) -> bool:
@@ -171,6 +175,7 @@ def _envolver_cuidado(
     resultado: sim.ResultadoAccion, *, delta: int = 0,
     delta_evolucion: int = 0, usados: int = 0,
     evolucion_usadas: int = 0, topada: bool = False,
+    sin_efecto: bool = False,
 ) -> ResultadoCuidado:
     return ResultadoCuidado(
         criatura=resultado.criatura,
@@ -184,6 +189,7 @@ def _envolver_cuidado(
         usados=usados,
         evolucion_usadas=evolucion_usadas,
         topada=topada,
+        sin_efecto=sin_efecto,
     )
 
 
@@ -247,8 +253,13 @@ def ejecutar_cuidado(
 
         resultado = sim.aplicar_accion(criatura, accion, ahora)
         db._guardar(con, resultado.criatura)
-        if not resultado.ok or accion == sim.ACTUALIZAR or resultado.criatura == criatura:
-            return _envolver_cuidado(resultado)
+        sin_efecto = (
+            resultado.ok
+            and accion != sim.ACTUALIZAR
+            and resultado.criatura == criatura
+        )
+        if not resultado.ok or accion == sim.ACTUALIZAR or sin_efecto:
+            return _envolver_cuidado(resultado, sin_efecto=sin_efecto)
 
         duracion = sim.COOLDOWNS.get(accion, timedelta(0))
         if duracion:

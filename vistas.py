@@ -343,7 +343,10 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         )
         return
 
-    if not resultado.ok:
+    # `sin_efecto` es un cuidado válido que no cambió nada —limpiar a quien ya
+    # está limpia—: publicar otra ficha idéntica y congelar la pulsada sería un
+    # recibo falso. Se cuenta en privado y no se toca la ficha viva.
+    if not resultado.ok or resultado.sin_efecto:
         await interaccion.response.send_message(resultado.mensaje, ephemeral=True)
         return
 

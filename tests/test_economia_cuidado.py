@@ -49,6 +49,30 @@ def test_cuidado_acredita_y_replay_no_muta_dos_veces():
         economia.ejecutar_cuidado("evento", "u1", "g1", sim.LIMPIAR, T0)
 
 
+def test_limpiar_a_una_criatura_limpia_queda_marcado_sin_efecto_y_no_paga():
+    criatura = nacer()
+    assert criatura.limpieza == 100.0
+
+    resultado = economia.ejecutar_cuidado("evento", "u1", "g1", sim.LIMPIAR, T0)
+
+    assert resultado.sin_efecto and resultado.ok and resultado.espera is None
+    assert resultado.mensaje
+    assert resultado.delta_asciicoins == 0 and resultado.usados == 0
+    assert db.espera_de(criatura.id, sim.LIMPIAR, T0) == timedelta(0)
+    assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)
+    with db.conectar() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM operaciones_economia"
+        ).fetchone()[0] == 0
+
+    # Ni un cuidado que sí cambia algo ni `actualizar` se marcan sin efecto:
+    # el primero tiene ficha que publicar y el segundo edita la suya en sitio.
+    assert limpiar("sucia", T0).sin_efecto is False
+    assert economia.ejecutar_cuidado(
+        "refresco", "u1", "g1", sim.ACTUALIZAR, T0
+    ).sin_efecto is False
+
+
 def test_tope_12_rollover_utc_y_aislamiento_por_servidor():
     nacer()
     nacer(nombre="Otro", guild="g2")
