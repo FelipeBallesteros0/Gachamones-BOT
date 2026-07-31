@@ -14,6 +14,7 @@ import competir as comp
 import config
 import db
 import economia as eco
+import equipo
 import objetos as obj
 import especies as esp
 import ia
@@ -21,6 +22,8 @@ import jardin
 import pantalla
 import personalidad as per
 import simulacion as sim
+import tienda
+import vistas
 
 # Enfriamiento por servidor, para que el jardín no se pueda machacar. Se guarda
 # en memoria: con dos minutos no merece la pena tocar la base de datos, y que
@@ -141,11 +144,11 @@ Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**
 es el que recibe los botones y los comandos. Los demás esperan en la \
 **incubadora**, donde no les pasa el tiempo —ni hambre, ni ánimo, ni aseo—, así \
 que no se te mueren mientras juegas con otro.
--# Se cambia con 🧬 **Cambiar**. `/huevo` sólo da el de partida: los demás hay \
-que ganárselos por ahí.
+-# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
+partida: los demás hay que ganárselos por ahí.
 
 **Mochila y tienda**
-Los dos botones de abajo. En la **tienda** se compra con \
+Los dos botones de abajo, o `/mochila` y `/tienda`. En la **tienda** se compra con \
 {obj.EMOJI_MONEDA_TIENDA} {obj.MONEDA_TIENDA}; en la **mochila** eliges qué usar. \
 Empiezas con **{obj.ASCIICOINS_INICIALES} asciicoins** para gastar y \
 **{obj.ASCIIGEMS_INICIALES} asciigems** en reserva.
@@ -285,6 +288,30 @@ class Social(commands.Cog):
             "## 🪦 Cementerio\n"
             + _tabla(lineas, "-# Todavía no ha muerto nadie. Que siga así.")
         )
+
+    # Los mismos menús que abren los botones de abajo de la ficha, para poder
+    # llegar a ellos sin buscarla: la ficha se va canal arriba en cuanto habla
+    # alguien. Abren lo de quien escribe el comando, así que no hace falta la
+    # comprobación de dueño que sí necesitan los botones.
+    #
+    # Se delega en los mismos adaptadores, con los mismos ganchos que les pasa
+    # `vistas`: sin `congelar`, usar un objeto o cambiar de activo dejaría viva
+    # una ficha que ya miente, y sin `bautizar` el plantel no sabría mandar a
+    # poner nombre a un recluta recién llegado de una aventura.
+    @app_commands.command(name="mochila", description="Abre tu mochila y usa lo que lleves")
+    @comun.solo_en_el_canal()
+    async def mochila(self, interaccion: discord.Interaction) -> None:
+        await tienda.abrir_inventario(interaccion, vistas.congelar)
+
+    @app_commands.command(name="tienda", description=f"Compra objetos con {obj.MONEDA_TIENDA}")
+    @comun.solo_en_el_canal()
+    async def tienda_cmd(self, interaccion: discord.Interaction) -> None:
+        await tienda.abrir_tienda(interaccion)
+
+    @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
+    @comun.solo_en_el_canal()
+    async def plantel(self, interaccion: discord.Interaction) -> None:
+        await equipo.abrir_plantel(interaccion, vistas.congelar, vistas.bautizar)
 
     @app_commands.command(name="ayuda", description="Cómo funciona el bot")
     @comun.solo_en_el_canal()
