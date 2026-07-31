@@ -55,9 +55,13 @@ LARGO_MAXIMO = 600
 # La narración del viaje es otra cosa: un párrafo suelto que se publica solo,
 # no una respuesta de mascota. Con el tope de la charla se recortaban 7 de cada
 # 10 —medido— y lo que se perdía era el final, que es justo donde se cuenta si
-# te encontraste algo. Sigue habiendo tope porque el modelo se estira hasta lo
-# que le dejes, pero éste da margen a las 90 palabras que se le piden.
-LARGO_MAXIMO_NARRACION = 900
+# te encontraste algo.
+#
+# Sigue habiendo tope porque el modelo se estira hasta donde le dejes. El número
+# sale de `per.PALABRAS_NARRACION` más el 25 % que se pasa de largo, por 6,5
+# caracteres de palabra, y con holgura: 150 × 1,25 × 6,5 son 1219, y esto deja
+# 1400. Cabe de sobra en un mensaje de Discord, que admite 2000.
+LARGO_MAXIMO_NARRACION = 1400
 
 # Cuánto se aparta un modelo después de fallar. Nunca se le echa de la lista:
 # se manda al final, así que si fallan todos se siguen probando todos.

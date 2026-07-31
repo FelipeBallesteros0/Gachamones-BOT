@@ -536,19 +536,25 @@ def test_el_prompt_del_viaje_sigue_diciendole_quien_es():
 
 
 def test_el_limite_de_la_narracion_cabe_en_lo_que_publica_el_bot():
-    """Subió de 45 a 90 porque ninguna narración respetaba las 45 —salían entre
-    63 y 93 palabras midiendo diez seguidas— y el texto se leía bien: el límite
-    estaba mal, no el modelo.
+    """El fallo que esto vigila ya pasó: se subió el límite de palabras sin
+    subir el recorte y se cortaron 7 de cada 10 narraciones, perdiéndose el
+    final —que es donde se cuenta si encontraste algo—.
 
-    El tope de verdad es el recorte de `ia.limpiar`, y el del prompt tiene que
-    quedar por debajo para que ninguna frase se corte a la mitad."""
+    Y no basta con que quepa el límite: **el modelo se pasa un 25 %**, medido
+    subiendo de 45 a 90. El recorte tiene que dar para el límite más ese 25 %.
+    """
     import ia
     import aventura as av
 
     sistema, _ = per.prompt_aventura(criatura(), "al bosque", [], av.NADA)
 
     assert f"{per.PALABRAS_NARRACION} palabras como máximo" in sistema
-    # ~6,5 caracteres por palabra en castellano, espacios incluidos.
-    assert per.PALABRAS_NARRACION * 6.5 < ia.LARGO_MAXIMO, (
-        "el prompt pide más de lo que el bot deja publicar"
+    # 6,5 caracteres por palabra en castellano, espacios incluidos.
+    con_lo_que_se_pasa = per.PALABRAS_NARRACION * 1.25 * 6.5
+    assert con_lo_que_se_pasa < ia.LARGO_MAXIMO_NARRACION, (
+        f"con {per.PALABRAS_NARRACION} palabras el modelo escribirá unos "
+        f"{con_lo_que_se_pasa:.0f} caracteres y el recorte está en "
+        f"{ia.LARGO_MAXIMO_NARRACION}: se cortarían por el final"
     )
+    # Y lo que se publica sigue cabiendo en un mensaje de Discord.
+    assert ia.LARGO_MAXIMO_NARRACION < 2000

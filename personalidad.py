@@ -479,13 +479,23 @@ def frase_de_respaldo(criatura: sim.Criatura, semilla: int = 0) -> str:
 # --- La aventura -----------------------------------------------------------
 
 # Lo largo que puede ser el viaje contado. Empezó en 45 y ninguna narración lo
-# respetaba: midiendo diez seguidas salían entre 63 y 93 palabras, y el texto se
-# leía bien —era el límite el que estaba mal, no el modelo—. Se sube a donde
-# está el tope de verdad: `ia.limpiar` recorta en 600 caracteres, que en
-# castellano son unas 100 palabras, así que 90 deja margen para que ninguna
-# frase se corte por la mitad. No se importa de `ia` porque sería una
-# dependencia circular; si se toca aquel número, hay que mirar éste.
-PALABRAS_NARRACION = 90
+# respetaba: midiendo diez seguidas salían entre 52 y 94 palabras, y el texto se
+# leía bien, así que el límite estaba mal y no el modelo.
+#
+# **Es un objetivo, no un techo**, y eso está medido: al subirlo de 45 a 90 los
+# tres modelos se estiraron —pro de 76 palabras de media a 113, flash de 47 a 81—
+# así que hay que contar con que se escriba de más. De ahí sale
+# `ia.LARGO_MAXIMO_NARRACION`, que tiene que dar para el límite **más ese
+# exceso** o se cortan las narraciones por el final, que es donde se cuenta si te
+# encontraste algo.
+#
+# Con 150 medidas de verdad: 124-207 palabras, 719-1140 caracteres y ninguna
+# cortada. El exceso se encoge según sube el límite —un 25 % con 90 y un 8 % con
+# 150— pero el test sigue usando el 25 %, que es el peor caso conocido.
+#
+# No se importa de `ia` porque sería una dependencia circular; hay un test que
+# vigila que los dos números sigan cuadrando.
+PALABRAS_NARRACION = 150
 
 
 def prompt_aventura(
