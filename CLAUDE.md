@@ -3,7 +3,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Gachamones-BOT** (1880 symbols, 5225 relationships, 166 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Gachamones-BOT** (1946 symbols, 5461 relationships, 172 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -42,14 +42,5 @@ This project is indexed by GitNexus as **Gachamones-BOT** (1880 symbols, 5225 re
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Tests area (665 symbols) | `.claude/skills/generated/tests/SKILL.md` |
-| Work in the Cogs area (95 symbols) | `.claude/skills/generated/cogs/SKILL.md` |
-| Work in the Cluster_27 area (9 symbols) | `.claude/skills/generated/cluster-27/SKILL.md` |
-| Work in the Cluster_87 area (8 symbols) | `.claude/skills/generated/cluster-87/SKILL.md` |
-| Work in the Cluster_62 area (7 symbols) | `.claude/skills/generated/cluster-62/SKILL.md` |
-| Work in the Cluster_28 area (6 symbols) | `.claude/skills/generated/cluster-28/SKILL.md` |
-| Work in the Cluster_33 area (6 symbols) | `.claude/skills/generated/cluster-33/SKILL.md` |
-| Work in the Cluster_26 area (4 symbols) | `.claude/skills/generated/cluster-26/SKILL.md` |
-| Work in the Cluster_43 area (4 symbols) | `.claude/skills/generated/cluster-43/SKILL.md` |
 
 <!-- gitnexus:end -->
