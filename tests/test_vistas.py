@@ -186,6 +186,61 @@ def test_cambio_de_activo_invalido_no_congela(monkeypatch):
     congelar.assert_not_awaited()
 
 
+# --- La ficha vive en su canal, no en el que se escribe ----------------------
+
+def canal_falso(id_, guild=None):
+    mensaje = SimpleNamespace(edit=AsyncMock())
+    return SimpleNamespace(
+        id=id_, guild=guild, mensaje=mensaje,
+        fetch_message=AsyncMock(return_value=mensaje),
+    )
+
+
+def dos_canales(guardado_id, actual_id):
+    """El canal donde quedó la ficha y aquel donde se abre el menú."""
+    guardado = canal_falso(guardado_id)
+    actual = canal_falso(
+        actual_id,
+        guild=SimpleNamespace(
+            get_channel=lambda cid: guardado if str(cid) == guardado_id else None
+        ),
+    )
+    return guardado, actual
+
+
+def test_congelar_va_al_canal_guardado_de_la_ficha_y_no_al_de_la_orden(bd_temporal):
+    """Los menús sólo saben desde dónde se les abrió; la ficha sabe dónde está."""
+    mia = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar_pantalla(mia.id, "555", "111")
+    guardado, actual = dos_canales("111", "222")
+
+    asyncio.run(vistas.congelar(actual, "555"))
+
+    guardado.fetch_message.assert_awaited_once_with(555)
+    actual.fetch_message.assert_not_awaited()
+    assert guardado.mensaje.edit.await_args.kwargs["view"].children[0].disabled
+
+
+def test_cambiar_de_activo_desde_otro_canal_congela_la_ficha_donde_esta(bd_temporal):
+    """`/plantel` se abre en cualquier canal; la ficha anterior no se mueve."""
+    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    db.guardar_pantalla(anterior.id, "555", "111")
+    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    guardado, actual = dos_canales("111", "222")
+
+    menu = equipo.MenuPlantel([anterior, reserva], vistas.congelar)
+    menu._values = [str(reserva.id)]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=actual,
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    guardado.fetch_message.assert_awaited_once_with(555)
+    actual.fetch_message.assert_not_awaited()
+
+
 # --- El recluta que todavía no tiene nombre ---------------------------------
 
 def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):

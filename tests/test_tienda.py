@@ -13,6 +13,7 @@ import economia
 import objetos as obj
 import simulacion as sim
 import tienda
+import vistas
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15)
@@ -238,6 +239,38 @@ def test_usar_objeto_congela_la_ficha_mutada_antes_de_responder(monkeypatch):
     persistida = db.criatura_activa("u1", "g1")
     assert persistida is not None
     assert persistida.hambre == 100.0
+
+
+def test_usar_un_objeto_desde_otro_canal_congela_la_ficha_donde_quedo(monkeypatch):
+    """`/mochila` se abre en cualquier canal, pero la ficha sigue en el suyo."""
+    criatura = con_hambre(12.0)
+    assert criatura is not None
+    db.guardar_pantalla(criatura.id, "555", "111")
+    pocion = obj.CATALOGO["pocion_comida"]
+    comprar(pocion)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
+
+    mensaje = SimpleNamespace(edit=AsyncMock())
+    guardado = SimpleNamespace(id="111", fetch_message=AsyncMock(return_value=mensaje))
+    actual = SimpleNamespace(
+        id="222",
+        fetch_message=AsyncMock(),
+        guild=SimpleNamespace(
+            get_channel=lambda cid: guardado if str(cid) == "111" else None
+        ),
+    )
+
+    menu = tienda.MenuInventario({pocion.clave: 1}, vistas.congelar)
+    menu._values = [pocion.clave]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=actual,
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    guardado.fetch_message.assert_awaited_once_with(555)
+    actual.fetch_message.assert_not_awaited()
 
 
 def test_objeto_agotado_no_congela_la_ficha():
