@@ -139,6 +139,7 @@ en `/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
 **Aventura.** `/aventura` saca al activo a un bioma al azar (bosque, planicie,
 desierto, ruinas, volcán) y le pone **dos pruebas**, cada una de fuerza o de
 velocidad sorteada por separado: `stat + 1d20` contra la dificultad del bioma.
+Si vuelve con vida gana **+4 XP por el viaje**; morir por el desgaste no da XP.
 El LLM narra el viaje entero en **una sola llamada**, porque el límite de IA lo
 comparten la charla y el jardín. Cuánto se supere decide qué se encuentra:
 
@@ -206,8 +207,9 @@ vuelve a pasar hambre días después.
 **Crecer y evolucionar.** Cada nivel es una etapa, y **el dibujo cambia**:
 cría → niño → adolescente → adulto → adulto grande. La experiencia sale tanto
 de competir (+10 al ganar, +4 al perder) como de cuidar (+1 alimentar,
-+2 jugar, +3 entrenar), para que quien no quiera pelear también vea crecer a su
-criatura. Competir sigue siendo lo más rentable por acción.
++2 jugar, +3 entrenar) y de volver con vida de una aventura (+4), para que quien
+no quiera pelear también vea crecer a su criatura. Competir sigue siendo lo más
+rentable por acción.
 
 La curva está calibrada sobre unos 27 XP diarios, que es lo que saca alguien
 que atiende a su criatura un par de veces al día: **el primer salto cae en un

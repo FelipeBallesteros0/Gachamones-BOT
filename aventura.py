@@ -400,13 +400,21 @@ def narrar_opcion(antes: Encuentro, opcion: str, despues: Encuentro) -> str:
 
 # --- Lo que cuesta el viaje -------------------------------------------------
 
+def coste_desgaste(
+    salida: Salida, percance: Percance | None = None,
+) -> tuple[float, float]:
+    """Costes totales de comida y ánimo que deja el viaje."""
+    hambre = salida.coste_hambre + (percance.hambre if percance else 0)
+    animo = sim.COSTE_ANIMO_AVENTURA + (percance.animo if percance else 0)
+    return hambre, animo
+
+
 def aplicar_desgaste(
     criatura: sim.Criatura, salida: Salida, ahora: datetime,
     percance: Percance | None = None,
 ) -> sim.Criatura:
     """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho."""
-    hambre_perdida = salida.coste_hambre + (percance.hambre if percance else 0)
-    animo_perdido = sim.COSTE_ANIMO_AVENTURA + (percance.animo if percance else 0)
+    hambre_perdida, animo_perdido = coste_desgaste(salida, percance)
     hambre = max(0.0, min(100.0, criatura.hambre - hambre_perdida))
     return replace(
         criatura,
@@ -415,6 +423,17 @@ def aplicar_desgaste(
         muerta_en=ahora if hambre == 0.0 else criatura.muerta_en,
         causa_muerte="hambre" if hambre == 0.0 else criatura.causa_muerte,
     )
+
+
+def aplicar_viaje(
+    criatura: sim.Criatura, salida: Salida, ahora: datetime,
+    percance: Percance | None = None, rng: random.Random | None = None,
+) -> tuple[sim.Criatura, list[str]]:
+    """Cobra el viaje y da experiencia únicamente a quien vuelve con vida."""
+    cansada = aplicar_desgaste(criatura, salida, ahora, percance)
+    if not cansada.viva:
+        return cansada, []
+    return sim.aplicar_xp(cansada, sim.XP_AVENTURA, rng)
 
 
 def render_percance(percance: Percance | None) -> str:
@@ -500,5 +519,7 @@ def render_pruebas(
         f"## {bioma.emoji} {criatura.nombre} sale {bioma.adonde}\n"
         "```ansi\n" + "\n".join(cuerpo) + "\n```"
     )
+    hambre, animo = coste_desgaste(salida, percance)
+    desgaste = f"🥾 Desgaste total: -{hambre:g} comida · -{animo:g} ánimo."
     efecto = render_percance(percance)
-    return f"{texto}\n{efecto}" if efecto else texto
+    return "\n".join(parte for parte in (texto, desgaste, efecto) if parte)

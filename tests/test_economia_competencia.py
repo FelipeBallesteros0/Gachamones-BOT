@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 import competir as comp
+import cogs.competencias as cog_comp
 import db
 import economia
 import simulacion as sim
@@ -132,6 +133,7 @@ def test_fallo_de_discord_ocurre_despues_del_commit_y_retry_no_reenvia(monkeypat
     monkeypatch.setattr(db, "ahora_utc", lambda: T0)
     cog = Competencias.__new__(Competencias)
     cog._animar = AsyncMock(side_effect=RuntimeError("discord caído"))
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
     canal = SimpleNamespace(send=AsyncMock())
     usuarios = [
         SimpleNamespace(id="u1", mention="<@u1>", display_name="u1"),
@@ -149,3 +151,94 @@ def test_fallo_de_discord_ocurre_despues_del_commit_y_retry_no_reenvia(monkeypat
         assert con.execute(
             "SELECT COUNT(*) FROM operaciones_economia WHERE tipo = 'competencia'"
         ).fetchone()[0] == 2
+
+
+def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
+    monkeypatch,
+):
+    antes = (
+        replace(nacer("u1"), pantalla_msg_id="ficha-1", canal_id="101"),
+        replace(nacer("u2"), pantalla_msg_id="ficha-2", canal_id="102"),
+    )
+    despues = (replace(antes[0], nivel=2), antes[1])
+    resultado = SimpleNamespace(
+        replay=False,
+        problema=None,
+        encuentro=object(),
+        antes=antes,
+        despues=despues,
+        subidas=(("fuerza",), ()),
+        recibos=(object(), object()),
+    )
+    eventos = []
+
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.comp, "fotogramas_de", lambda _: [["tramo"]])
+    monkeypatch.setattr(cog_comp.comp, "resumen", lambda _: "resumen")
+    monkeypatch.setattr(cog_comp, "texto_recibo_competencia", lambda *_: "recibo")
+
+    async def congelar(canal, mensaje_id):
+        eventos.append(("congelar", canal, mensaje_id))
+
+    async def animar(canal, fotogramas):
+        eventos.append(("animar", canal, fotogramas))
+
+    async def publicar(canal, criatura, ahora, **kwargs):
+        eventos.append(("publicar", criatura, kwargs))
+
+    monkeypatch.setattr(cog_comp.vistas, "congelar", congelar)
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", publicar)
+    cog = Competencias.__new__(Competencias)
+    cog._animar = animar
+    canales_anteriores = {
+        101: SimpleNamespace(id=101),
+        102: SimpleNamespace(id=102),
+    }
+    canal = SimpleNamespace(
+        id=999,
+        guild=SimpleNamespace(get_channel=canales_anteriores.get),
+        send=AsyncMock(),
+    )
+    participantes = [
+        SimpleNamespace(id="u1", mention="<@u1>", display_name="u1"),
+        SimpleNamespace(id="u2", mention="<@u2>", display_name="u2"),
+    ]
+
+    asyncio.run(cog.disputar(canal, participantes, comp.CARRERA, "g1", "evento"))
+
+    assert eventos[:3] == [
+        ("congelar", canales_anteriores[101], "ficha-1"),
+        ("congelar", canales_anteriores[102], "ficha-2"),
+        ("animar", canal, ["tramo"]),
+    ]
+    assert eventos[-1][0] == "publicar"
+    assert eventos[-1][2] == {"ya_congelada": "ficha-1"}
+
+
+@pytest.mark.parametrize(
+    "resultado",
+    [
+        SimpleNamespace(replay=True, problema=None),
+        SimpleNamespace(
+            replay=False,
+            problema="no puede competir",
+            problema_usuario_id=None,
+        ),
+    ],
+)
+def test_competencia_repetida_o_rechazada_no_congela(monkeypatch, resultado):
+    congelar = AsyncMock()
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.vistas, "congelar", congelar)
+    cog = Competencias.__new__(Competencias)
+    canal = SimpleNamespace(send=AsyncMock())
+
+    asyncio.run(cog.disputar(canal, [], comp.CARRERA, "g1", "evento"))
+
+    congelar.assert_not_awaited()

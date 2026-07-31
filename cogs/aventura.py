@@ -279,6 +279,8 @@ class Aventura(commands.Cog):
         db.registrar_uso_ia(usuario_id, ahora)
         sistema, peticion = per.prompt_salvaje(salvaje, criatura, dicho)
         texto, _ = await ia.generar(sistema, peticion, respaldo)
+        if per.usa_formas_de_vosotros(texto):
+            texto = respaldo
         return f"> {texto}\n{reaccion}"
 
     @app_commands.command(
@@ -314,19 +316,34 @@ class Aventura(commands.Cog):
         percance = av.tirar_percance(salida, rng)
 
         # El desgaste y el enfriamiento se aplican pase lo que pase: el viaje ya
-        # se ha hecho.
-        cansada = av.aplicar_desgaste(criatura, salida, ahora, percance)
+        # se ha hecho. La XP sólo llega si vuelve con vida.
+        cansada, subidas = av.aplicar_viaje(
+            criatura, salida, ahora, percance, rng
+        )
         db.guardar(cansada)
         db.poner_cooldown(criatura.id, sim.AVENTURA, ahora)
 
-        await interaccion.response.send_message(
-            av.render_pruebas(criatura, bioma, salida, percance)
-        )
+        pruebas = av.render_pruebas(criatura, bioma, salida, percance)
+        if cansada.viva:
+            pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
         canal = interaccion.channel
+        canal_anterior = vistas._canal_anterior(canal, criatura)
+        await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
+        await interaccion.response.send_message(pruebas)
 
         if not cansada.viva:
             await canal.send(f"💀 **{cansada.nombre}** no sobrevivió al viaje.")
             return
+
+        if criatura.etapa != cansada.etapa:
+            await canal.send(pantalla.render_evolucion(
+                cansada, criatura.etapa, tuple(subidas)
+            ))
+        elif subidas:
+            await canal.send(
+                f"✨ **{cansada.nombre}** sube a nivel {cansada.nivel}, "
+                f"{interaccion.user.mention}."
+            )
 
         narracion = await _narrar(
             criatura, bioma, salida, hallazgo, percance, usuario_id, ahora

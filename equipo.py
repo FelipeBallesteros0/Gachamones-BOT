@@ -60,7 +60,7 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
 
 
 class MenuPlantel(discord.ui.Select):
-    def __init__(self, plantel: list[sim.Criatura]):
+    def __init__(self, plantel: list[sim.Criatura], congelar=None):
         opciones = [
             discord.SelectOption(
                 label=criatura.nombre[:100],
@@ -72,6 +72,7 @@ class MenuPlantel(discord.ui.Select):
             for criatura in plantel
         ]
         super().__init__(placeholder="¿A cuál sacas?", options=opciones)
+        self.congelar = congelar
 
     async def callback(self, interaccion: discord.Interaction) -> None:
         usuario_id = str(interaccion.user.id)
@@ -95,6 +96,8 @@ class MenuPlantel(discord.ui.Select):
             return
 
         nueva = db.criatura_activa(usuario_id, guild_id)
+        if self.congelar is not None and actual is not None:
+            await self.congelar(interaccion.channel, actual.pantalla_msg_id)
         await interaccion.response.edit_message(
             content=esp.concordar(
                 f"🧬 Sale de la incubadora **{nueva.nombre}**. "
@@ -106,17 +109,17 @@ class MenuPlantel(discord.ui.Select):
 
 
 class VistaPlantel(discord.ui.View):
-    def __init__(self, plantel: list[sim.Criatura]):
+    def __init__(self, plantel: list[sim.Criatura], congelar=None):
         super().__init__(timeout=SEGUNDOS_DE_MENU)
-        self.add_item(MenuPlantel(plantel))
+        self.add_item(MenuPlantel(plantel, congelar))
 
 
-async def abrir_plantel(interaccion: discord.Interaction) -> None:
+async def abrir_plantel(interaccion: discord.Interaction, congelar=None) -> None:
     plantel = db.plantel(str(interaccion.user.id), str(interaccion.guild_id))
     # Con uno solo no hay nada que elegir: se enseña la lista y ya.
     hay_donde_elegir = len(plantel) > 1
     await interaccion.response.send_message(
         texto_del_plantel(plantel),
-        view=VistaPlantel(plantel) if hay_donde_elegir else None,
+        view=VistaPlantel(plantel, congelar) if hay_donde_elegir else None,
         ephemeral=True,
     )
