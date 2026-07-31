@@ -1,7 +1,7 @@
 """Los botones de la pantalla y el ciclo de publicación.
 
-Cada acción publica una pantalla NUEVA al final del canal y congela la anterior
-con los botones en gris, para que quede el registro de la vida de la criatura.
+Cada acción de cuidado publica una pantalla NUEVA al final del canal y congela
+la anterior, salvo «Actualizar», que edita la pantalla actual en su sitio.
 
 Los botones son *persistentes*: `timeout=None` y `custom_id` fijos. Registrados
 con `bot.add_view()` al arrancar, siguen respondiendo aunque el bot se reinicie,
@@ -220,6 +220,14 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
             ephemeral=True,
         )
         return
+    if accion == sim.ACTUALIZAR and (
+        dueño is None or not dueño.viva or not dueño.activa
+    ):
+        await interaccion.response.send_message(
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+            ephemeral=True,
+        )
+        return
 
     # Esta llamada síncrona es la frontera autoritativa: lee el estado vivo,
     # avanza el tiempo, decide el cooldown y guarda efecto + cooldown en una sola
@@ -237,6 +245,22 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         await interaccion.response.send_message(
             "Esta interacción ya estaba procesada.", ephemeral=True
         )
+        return
+
+    if accion == sim.ACTUALIZAR:
+        contenido = pantalla.render(
+            resultado.criatura, ahora,
+            esperas=db.esperas(resultado.criatura.id, ahora),
+            efectos=db.efectos_activos(resultado.criatura.id, ahora),
+            en_la_incubadora=max(
+                0,
+                len(db.plantel(
+                    resultado.criatura.usuario_id, resultado.criatura.guild_id
+                )) - 1,
+            ),
+        )
+        vista = PantallaView() if resultado.criatura.viva else None
+        await interaccion.response.edit_message(content=contenido, view=vista)
         return
 
     if not resultado.criatura.viva:
