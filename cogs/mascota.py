@@ -13,6 +13,7 @@ from discord.ext import commands, tasks
 import comun
 import config
 import db
+import economia
 import especies as esp
 import pantalla
 import personalidad as per
@@ -163,6 +164,10 @@ class Mascota(commands.Cog):
                         criatura, ahora, pantalla.ACCIONES_EN_FICHA
                     ),
                     efectos=db.efectos_activos(criatura.id, ahora),
+                    asciicoins=(
+                        economia.saldos(criatura.usuario_id, criatura.guild_id).asciicoins
+                        if criatura.viva else None
+                    ),
                 )
             )
             return
