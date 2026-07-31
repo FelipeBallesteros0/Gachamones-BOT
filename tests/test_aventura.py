@@ -267,6 +267,10 @@ def ejecutar_aventura_final(
         return "EVOLUCIÓN"
 
     monkeypatch.setattr(cog_av.pantalla, "render_evolucion", render_evolucion)
+    async def congelar(canal, mensaje_id):
+        eventos.append(("congelar", canal, mensaje_id))
+
+    monkeypatch.setattr(cog_av.vistas, "congelar", congelar)
     monkeypatch.setattr(
         cog_av.av,
         "tirar_salvaje",
@@ -293,11 +297,15 @@ def ejecutar_aventura_final(
         eventos.append(("canal", mensaje, kwargs.get("view")))
         return SimpleNamespace()
 
+    canal_anterior = SimpleNamespace(id=101)
+    guild = SimpleNamespace(
+        get_channel=lambda canal_id: canal_anterior if canal_id == 101 else None
+    )
     interaccion = SimpleNamespace(
         user=SimpleNamespace(id="u1", mention="<@u1>"),
         guild_id="g1",
         response=SimpleNamespace(send_message=responder),
-        channel=SimpleNamespace(send=enviar),
+        channel=SimpleNamespace(id=202, guild=guild, send=enviar),
     )
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
     asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
@@ -305,7 +313,12 @@ def ejecutar_aventura_final(
 
 
 def test_la_aventura_sobrevivida_anuncia_y_persiste_cuatro_xp(monkeypatch):
-    viajera = criatura(xp=7, actualizada_en=datetime(2026, 1, 2, tzinfo=timezone.utc))
+    viajera = criatura(
+        xp=7,
+        actualizada_en=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        pantalla_msg_id="ficha-aventura",
+        canal_id="101",
+    )
 
     eventos, guardadas, _, _ = ejecutar_aventura_final(
         monkeypatch, viajera, salida_con_fallos(1)
@@ -316,9 +329,11 @@ def test_la_aventura_sobrevivida_anuncia_y_persiste_cuatro_xp(monkeypatch):
     assert persistida.xp == viajera.xp + 4
     assert (persistida.hambre, persistida.animo) == (60.0, 75.0)
     assert f"✨ +{sim.XP_AVENTURA} XP por el viaje." in respuesta
-    assert [tipo for tipo, _, _ in eventos[:4]] == [
-        "guardar", "guardar", "cooldown", "respuesta"
+    assert [tipo for tipo, _, _ in eventos[:5]] == [
+        "guardar", "guardar", "cooldown", "congelar", "respuesta"
     ]
+    assert eventos[3][1].id == 101
+    assert eventos[3][2] == "ficha-aventura"
 
 
 def test_la_evolucion_se_anuncia_antes_de_narrar_y_el_salvaje_queda_ultimo(
@@ -363,7 +378,10 @@ def test_la_subida_sin_cambio_de_etapa_se_anuncia_como_en_competencias(monkeypat
 
 def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypatch):
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
-    viajera = criatura(hambre=20.0, xp=20, actualizada_en=ahora)
+    viajera = criatura(
+        hambre=20.0, xp=20, actualizada_en=ahora,
+        pantalla_msg_id="ficha-fatal",
+    )
     salida = salida_con_fallos(2)
     eventos = []
 
@@ -387,6 +405,8 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
     monkeypatch.setattr(cog_av, "_narrar", narrar)
     monkeypatch.setattr(cog_av.db, "regalar", regalar)
     monkeypatch.setattr(cog_av, "EncuentroView", abrir_encuentro)
+    congelar = AsyncMock()
+    monkeypatch.setattr(cog_av.vistas, "congelar", congelar)
 
     async def responder(mensaje, **_):
         eventos.append(("pruebas", mensaje))
@@ -413,6 +433,8 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
         assert [tipo for tipo, _ in eventos] == [
             "guardar", "guardar", "cooldown", "pruebas", "canal"
         ]
+        congelar.assert_awaited_once_with(interaccion.channel, "ficha-fatal")
+        congelar.reset_mock()
         persistida = eventos[1][1]
         assert persistida.muerta_en == ahora
         assert persistida.causa_muerte == "hambre"
@@ -422,6 +444,24 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
         narrar.assert_not_awaited()
         regalar.assert_not_called()
         abrir_encuentro.assert_not_called()
+
+
+def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):
+    congelar = AsyncMock()
+    monkeypatch.setattr(cog_av.db, "ahora_utc", Mock())
+    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: None)
+    monkeypatch.setattr(cog_av.vistas, "congelar", congelar)
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"),
+        guild_id="g1",
+        response=SimpleNamespace(send_message=AsyncMock()),
+        channel=SimpleNamespace(send=AsyncMock()),
+    )
+
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+
+    congelar.assert_not_awaited()
 
 
 def test_los_controles_del_encuentro_usan_espanol_neutro(monkeypatch):

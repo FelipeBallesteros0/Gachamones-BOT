@@ -396,6 +396,9 @@ class Competencias(commands.Cog):
         assert encuentro is not None
         # La transacción ya confirmó efectos, cooldowns, premios y operaciones.
         # Ningún fallo de Discord desde aquí puede volver a ejecutar el encuentro.
+        for antes in resultado.antes:
+            canal_anterior = vistas._canal_anterior(canal, antes)
+            await vistas.congelar(canal_anterior, antes.pantalla_msg_id)
         for fotogramas in comp.fotogramas_de(encuentro):
             await self._animar(canal, fotogramas)
 
@@ -420,7 +423,9 @@ class Competencias(commands.Cog):
                 )
 
             if _ha_cambiado_la_ficha(antes, nueva):
-                await vistas.publicar_pantalla(canal, nueva, ahora)
+                await vistas.publicar_pantalla(
+                    canal, nueva, ahora, ya_congelada=antes.pantalla_msg_id
+                )
 
     async def _animar(
         self, canal: discord.abc.Messageable, fotogramas: list[str]

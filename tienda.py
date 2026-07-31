@@ -165,9 +165,10 @@ def renombrar(
 
 
 class RenombrarModal(discord.ui.Modal, title="Ponle otro nombre"):
-    def __init__(self, objeto: obj.Objeto, nombre_actual: str):
+    def __init__(self, objeto: obj.Objeto, nombre_actual: str, congelar=None):
         super().__init__()
         self.objeto = objeto
+        self.congelar = congelar
         self.nombre = discord.ui.TextInput(
             label="¿Cómo se va a llamar?",
             default=nombre_actual,
@@ -187,13 +188,19 @@ class RenombrarModal(discord.ui.Modal, title="Ponle otro nombre"):
                 f"No se ha podido. {error}", ephemeral=True
             )
             return
+        criatura = db.criatura_activa(
+            str(interaccion.user.id), str(interaccion.guild_id)
+        )
+        mensaje_id = criatura.pantalla_msg_id if criatura is not None else None
+        if self.congelar is not None:
+            await self.congelar(interaccion.channel, mensaje_id)
         await interaccion.response.send_message(aviso, ephemeral=True)
 
 
 # --- Los desplegables ------------------------------------------------------
 
 class MenuInventario(discord.ui.Select):
-    def __init__(self, tengo: dict[str, int]):
+    def __init__(self, tengo: dict[str, int], congelar=None):
         opciones = [
             discord.SelectOption(
                 label=f"{obj.CATALOGO[clave].nombre} ×{cuantos}",
@@ -205,6 +212,7 @@ class MenuInventario(discord.ui.Select):
             if clave in obj.CATALOGO
         ]
         super().__init__(placeholder="¿Qué usas?", options=opciones)
+        self.congelar = congelar
 
     async def callback(self, interaccion: discord.Interaction) -> None:
         usuario_id = str(interaccion.user.id)
@@ -223,7 +231,7 @@ class MenuInventario(discord.ui.Select):
             # La placa se gasta al CONFIRMAR el nombre, no aquí: cerrar el
             # formulario sin escribir nada no puede costarte el objeto.
             await interaccion.response.send_modal(
-                RenombrarModal(objeto, criatura.nombre)
+                RenombrarModal(objeto, criatura.nombre, self.congelar)
             )
             return
 
@@ -252,6 +260,8 @@ class MenuInventario(discord.ui.Select):
         db.guardar(criatura)
         aviso = usar(criatura, objeto, ahora)
 
+        if self.congelar is not None:
+            await self.congelar(interaccion.channel, criatura.pantalla_msg_id)
         await interaccion.response.edit_message(content=aviso, view=None)
 
 
@@ -290,14 +300,14 @@ class VistaConMenu(discord.ui.View):
         self.add_item(menu)
 
 
-async def abrir_inventario(interaccion: discord.Interaction) -> None:
+async def abrir_inventario(interaccion: discord.Interaction, congelar=None) -> None:
     usuario_id = str(interaccion.user.id)
     guild_id = str(interaccion.guild_id)
     tengo = lo_que_tiene(usuario_id, guild_id)
 
     await interaccion.response.send_message(
         texto_del_inventario(usuario_id, guild_id),
-        view=VistaConMenu(MenuInventario(tengo)) if tengo else None,
+        view=VistaConMenu(MenuInventario(tengo, congelar)) if tengo else None,
         ephemeral=True,
     )
 

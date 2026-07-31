@@ -326,8 +326,10 @@ class Aventura(commands.Cog):
         pruebas = av.render_pruebas(criatura, bioma, salida, percance)
         if cansada.viva:
             pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
-        await interaccion.response.send_message(pruebas)
         canal = interaccion.channel
+        canal_anterior = vistas._canal_anterior(canal, criatura)
+        await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
+        await interaccion.response.send_message(pruebas)
 
         if not cansada.viva:
             await canal.send(f"💀 **{cansada.nombre}** no sobrevivió al viaje.")

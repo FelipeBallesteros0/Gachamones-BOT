@@ -102,7 +102,7 @@ class PantallaView(discord.ui.View):
     async def abrir_mochila(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         if await _es_de_otro(interaccion):
             return
-        await tienda.abrir_inventario(interaccion)
+        await tienda.abrir_inventario(interaccion, congelar)
 
     @discord.ui.button(label="Tienda", emoji="🛒", row=1,
                        style=discord.ButtonStyle.success, custom_id="tama:tienda")
@@ -116,7 +116,7 @@ class PantallaView(discord.ui.View):
     async def cambiar_activo(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         if await _es_de_otro(interaccion):
             return
-        await equipo.abrir_plantel(interaccion)
+        await equipo.abrir_plantel(interaccion, congelar)
 
 
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):
