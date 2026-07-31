@@ -10,6 +10,12 @@ T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
+def test_recibo_une_solo_las_partes_no_vacias():
+    assert pantalla.recibo("efecto", "", "costo", "tope") == (
+        "-# efecto · costo · tope"
+    )
+
+
 def sin_color(texto: str) -> str:
     return ANSI.sub("", texto)
 
