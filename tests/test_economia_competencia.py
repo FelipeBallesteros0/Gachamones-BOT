@@ -36,6 +36,95 @@ def competir(evento, cuando=T0, usuarios=("u1", "u2"), semilla=1):
     )
 
 
+def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
+    recibo = economia.ReciboCompetencia(
+        usuario_id="u1",
+        delta_asciicoins=economia.PREMIO_GANADOR,
+        delta_competencia=economia.PREMIO_GANADOR,
+        delta_evolucion=0,
+        usados=1,
+    )
+
+    assert cog_comp.texto_recibo_competencia(
+        recibo, "<@u1>", gano=True, stat="velocidad"
+    ) == (
+        "-# <@u1> · velocidad +1 entrenamiento · +10 XP · "
+        "coste base -10 comida · coste base -5 ánimo · "
+        "🪙 +6 asciicoins · competencia 1/3 UTC"
+    )
+
+
+def test_recibo_de_competencia_conserva_topes_de_moneda_y_evolucion():
+    recibo = economia.ReciboCompetencia(
+        usuario_id="u1",
+        delta_asciicoins=0,
+        delta_competencia=0,
+        delta_evolucion=0,
+        usados=economia.TOPE_COMPETENCIAS,
+        evolucion_usadas=economia.TOPE_EVOLUCIONES,
+        topada=True,
+        evoluciono=True,
+        evolucion_topada=True,
+    )
+
+    assert cog_comp.texto_recibo_competencia(
+        recibo, "<@u1>", gano=False, stat="fuerza"
+    ).endswith(
+        "🪙 +0 asciicoins · competencia 3/3 UTC (tope) · "
+        "evolución +0 · evolución 1/1 UTC (tope)"
+    )
+
+
+def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
+    monkeypatch,
+):
+    usuarios = tuple(str(1_000_000_000_000_000_001 + n) for n in range(5))
+    nombres = tuple(f"CriaturaLimite{n:010d}" for n in range(1, 6))
+    assert all(len(nombre) == sim.LARGO_MAXIMO_NOMBRE for nombre in nombres)
+    for usuario, nombre in zip(usuarios, nombres):
+        db.crear(usuario, "g1", "pulpo", nombre, STATS, T0)
+
+    resultado = competir("evento-cinco", usuarios=usuarios, semilla=1)
+    assert resultado.encuentro is not None
+    assert tuple(criatura.nombre for criatura in resultado.antes) == nombres
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
+    cog = Competencias.__new__(Competencias)
+    cog._animar = AsyncMock()
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    participantes = [
+        SimpleNamespace(
+            id=int(usuario), mention=f"<@{usuario}>", display_name=nombre
+        )
+        for usuario, nombre in zip(usuarios, nombres)
+    ]
+
+    asyncio.run(
+        cog.disputar(canal, participantes, comp.CARRERA, "g1", "publicacion")
+    )
+
+    canal.send.assert_awaited_once()
+    resumen = canal.send.await_args.args[0]
+    lineas = [linea for linea in resumen.splitlines() if linea.startswith("-# <@")]
+    assert len(resumen) < 2000
+    assert len(lineas) == 5
+    assert [linea.split(" · ", 1)[0] for linea in lineas] == [
+        f"-# <@{usuario}>" for usuario in usuarios
+    ]
+    ganador = resultado.encuentro.orden[0]
+    assert sum("+10 XP" in linea for linea in lineas) == 1
+    assert sum("+4 XP" in linea for linea in lineas) == 4
+    for dorsal, linea in enumerate(lineas):
+        assert f"+{10 if dorsal == ganador else 4} XP" in linea
+        assert "velocidad +1 entrenamiento" in linea
+        assert "coste base -10 comida" in linea
+        assert "coste base -5 ánimo" in linea
+
+
 def test_competencia_acredita_6_al_ganador_y_4_al_resto_y_replay_no_muta():
     nacer("u1")
     nacer("u2")
@@ -164,7 +253,7 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     resultado = SimpleNamespace(
         replay=False,
         problema=None,
-        encuentro=object(),
+        encuentro=SimpleNamespace(orden=(0, 1)),
         antes=antes,
         despues=despues,
         subidas=(("fuerza",), ()),
@@ -178,7 +267,9 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     )
     monkeypatch.setattr(cog_comp.comp, "fotogramas_de", lambda _: [["tramo"]])
     monkeypatch.setattr(cog_comp.comp, "resumen", lambda _: "resumen")
-    monkeypatch.setattr(cog_comp, "texto_recibo_competencia", lambda *_: "recibo")
+    monkeypatch.setattr(
+        cog_comp, "texto_recibo_competencia", lambda *_, **__: "recibo"
+    )
 
     async def congelar(canal, mensaje_id):
         eventos.append(("congelar", canal, mensaje_id))

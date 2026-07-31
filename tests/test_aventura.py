@@ -517,7 +517,9 @@ def test_dos_exitos_muestran_el_desgaste_total_fuera_del_marco():
 
     render = av.render_pruebas(c, bioma, salida_con_fallos(0))
 
-    assert render.endswith("\n```\n🥾 Desgaste total: -15 comida · -5 ánimo.")
+    assert render.endswith(
+        "\n```\n-# 🥾 Desgaste total: -15 comida · -5 ánimo"
+    )
 
 
 def test_un_fallo_muestra_el_desgaste_total_fuera_del_marco():
@@ -526,7 +528,9 @@ def test_un_fallo_muestra_el_desgaste_total_fuera_del_marco():
 
     render = av.render_pruebas(c, bioma, salida_con_fallos(1))
 
-    assert render.endswith("\n```\n🥾 Desgaste total: -20 comida · -5 ánimo.")
+    assert render.endswith(
+        "\n```\n-# 🥾 Desgaste total: -20 comida · -5 ánimo"
+    )
 
 
 def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
@@ -540,9 +544,10 @@ def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
     assert "tiene problemas en un tramo" in resumen
     assert "Sufre un percance" in resumen
     assert render.endswith(
-        "\n```\n🥾 Desgaste total: -25 comida · -10 ánimo."
+        "\n```\n-# 🥾 Desgaste total: -25 comida · -10 ánimo"
         "\n⚠️ Percance: -5 hambre y -5 ánimo."
     )
+    assert render.count("Desgaste total: -25 comida") == 1
     for expresion in ("se le atraganta", "hecho un cuadro"):
         assert expresion not in resumen
 

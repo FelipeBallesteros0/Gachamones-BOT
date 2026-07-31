@@ -520,6 +520,8 @@ def render_pruebas(
         "```ansi\n" + "\n".join(cuerpo) + "\n```"
     )
     hambre, animo = coste_desgaste(salida, percance)
-    desgaste = f"🥾 Desgaste total: -{hambre:g} comida · -{animo:g} ánimo."
+    desgaste = pantalla.recibo(
+        f"🥾 Desgaste total: -{hambre:g} comida", f"-{animo:g} ánimo"
+    )
     efecto = render_percance(percance)
     return "\n".join(parte for parte in (texto, desgaste, efecto) if parte)
