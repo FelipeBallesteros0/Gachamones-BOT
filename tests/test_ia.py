@@ -18,8 +18,22 @@ T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 @pytest.fixture(autouse=True)
 def sin_esperas(monkeypatch):
     """Los tests del camino de fallo no tienen por qué esperar el reintento,
-    y cada uno arranca con el modelo preferido."""
+    y cada uno arranca con el modelo preferido.
+
+    Se le da clave a todos los proveedores porque los modelos de uno sin clave
+    se saltan solos: sin esto, los tests de rotación y castigos medirían el
+    filtro de claves en vez de lo suyo. Que ese filtro funciona lo comprueba su
+    propio test.
+    """
     monkeypatch.setattr(ia, "SEGUNDOS_ENTRE_INTENTOS", 0)
+    monkeypatch.setattr(ia.config, "PROVEEDORES", {
+        nombre: ia.config.Proveedor(
+            nombre=proveedor.nombre, url=proveedor.url,
+            api_key=proveedor.api_key or "clave-de-prueba",
+            extras=proveedor.extras,
+        )
+        for nombre, proveedor in ia.config.PROVEEDORES.items()
+    })
     ia.reiniciar_modelos()
     yield
     ia.reiniciar_modelos()
@@ -47,6 +61,21 @@ async def transporte_roto(cuerpo):
 
 def correr(corrutina):
     return asyncio.run(corrutina)
+
+
+def identificador(cuerpo) -> str:
+    """El modelo tal como se configura, a partir del nombre pelado del cuerpo.
+
+    En `MODELO_IA` los modelos llevan su proveedor delante —«deepseek:...»— pero
+    ese prefijo es nuestro y no sale a la red: al proveedor se le manda sólo el
+    nombre que él conoce. Los tests razonan en identificadores, así que aquí se
+    traduce de vuelta.
+    """
+    pelado = cuerpo["model"]
+    for configurado in ia.config.MODELOS_IA:
+        if ia.config.resolver_modelo(configurado)[1] == pelado:
+            return configurado
+    return pelado
 
 
 # --- Limpieza --------------------------------------------------------------
@@ -129,7 +158,11 @@ def test_el_prompt_y_el_historial_llegan_en_orden():
 
 
 def test_se_desactiva_el_modo_de_razonamiento():
-    """Pensar aquí sólo añade segundos: son tres líneas en boca de un pollito."""
+    """Pensar aquí sólo añade segundos: son tres líneas en boca de un pollito.
+
+    Cada proveedor lo apaga con su campo, así que se comprueba contra el del
+    modelo que haya tocado en vez de contra uno fijo. En DeepSeek además se
+    cobra, y sin apagarlo se comería los MAX_TOKENS razonando."""
     visto = {}
 
     async def espia(cuerpo):
@@ -137,7 +170,10 @@ def test_se_desactiva_el_modo_de_razonamiento():
         return {"choices": [{"message": {"content": "pío"}}]}
 
     correr(ia.responder(criatura(), T0, "felipe", [], "hola", transporte=espia))
-    assert visto["chat_template_kwargs"] == {"thinking": False}
+    proveedor, _ = ia.config.resolver_modelo(ia._modelos_a_probar()[0])
+    assert proveedor.extras, "algo tiene que apagar el razonamiento"
+    for campo, valor in proveedor.extras.items():
+        assert visto[campo] == valor
     assert visto["max_tokens"] == ia.MAX_TOKENS
 
 
@@ -159,7 +195,7 @@ def test_un_error_permanente_no_se_reintenta():
     intentos = []
 
     async def degradado(cuerpo):
-        intentos.append(cuerpo["model"])
+        intentos.append(identificador(cuerpo))
         raise ia.ErrorPermanente("HTTP 400: DEGRADED function cannot be invoked")
 
     texto, de_la_ia = correr(ia.responder(
@@ -176,7 +212,7 @@ def test_un_modelo_degradado_hace_que_se_pruebe_el_siguiente():
     vistos = []
 
     async def solo_funciona_el_segundo(cuerpo):
-        vistos.append(cuerpo["model"])
+        vistos.append(identificador(cuerpo))
         if len(vistos) == 1:
             raise ia.ErrorPermanente("HTTP 400: DEGRADED")
         return {"choices": [{"message": {"content": "¡Pío!"}}]}
@@ -324,7 +360,7 @@ def transporte_por_modelo(por_modelo):
     llamadas = []
 
     async def transporte(cuerpo):
-        modelo = cuerpo["model"]
+        modelo = identificador(cuerpo)
         llamadas.append(modelo)
         que = por_modelo[modelo]
         if isinstance(que, Exception):
@@ -502,12 +538,12 @@ def test_un_primer_modelo_colgado_no_impide_probar_los_demas():
     intentos del primer modelo (3 x 30 s), así que la cadena de recambio no se
     alcanzaba nunca. En el log salían seis fallos seguidos del mismo modelo
     mientras deepseek contestaba en 1,3 s sin que nadie se lo pidiera."""
-    preferido, segundo, tercero = ia.config.MODELOS_IA
+    preferido, segundo, *_ = ia.config.MODELOS_IA
     probados = []
 
     async def transporte(cuerpo):
-        probados.append(cuerpo["model"])
-        if cuerpo["model"] == preferido:
+        probados.append(identificador(cuerpo))
+        if identificador(cuerpo) == preferido:
             await asyncio.sleep(10)          # se cuelga, como en producción
         return {"choices": [{"message": {"content": "¡Pío! Aquí estoy."}}]}
 
@@ -531,11 +567,12 @@ def test_el_recambio_entra_a_la_primera_ronda_no_a_la_cuarta():
     probados = []
 
     async def transporte(cuerpo):
-        probados.append(cuerpo["model"])
+        probados.append(identificador(cuerpo))
         raise ia.ErrorTransitorio("congestionado")
 
     correr(ia.responder(criatura(), T0, "felipe", [], "hola", transporte=transporte))
-    assert probados[:3] == list(ia.config.MODELOS_IA), probados[:6]
+    assert probados[:len(ia.config.MODELOS_IA)] == list(ia.config.MODELOS_IA), \
+        probados[:len(ia.config.MODELOS_IA) + 2]
     assert probados.count(preferido) == ia.INTENTOS
 
 
@@ -546,7 +583,7 @@ def contador_por_modelo(sanos):
     orden = []
 
     async def transporte(cuerpo):
-        modelo = cuerpo["model"]
+        modelo = identificador(cuerpo)
         orden.append(modelo)
         if modelo not in sanos:
             raise ia.ErrorTransitorio("colgado")
@@ -560,7 +597,7 @@ def test_el_modelo_que_acaba_de_fallar_va_el_ultimo_la_proxima_vez():
     """Los fallos de este endpoint van a rachas: cuando uno se cuelga, se cuelga
     varios minutos seguidos. Sin esto, cada mensaje de la racha vuelve a pagar
     el plazo entero antes de caer en un modelo sano."""
-    preferido, segundo, _ = ia.config.MODELOS_IA
+    preferido, segundo, *_ = ia.config.MODELOS_IA
     transporte = contador_por_modelo({segundo})
 
     correr(ia.responder(criatura(), T0, "felipe", [], "hola", transporte=transporte))
@@ -613,7 +650,7 @@ def test_un_degradado_se_aparta_mucho_mas_que_un_colgado():
     preferido = ia.config.MODELOS_IA[0]
 
     async def degradado(cuerpo):
-        if cuerpo["model"] == preferido:
+        if identificador(cuerpo) == preferido:
             raise ia.ErrorPermanente("HTTP 400: DEGRADED")
         return {"choices": [{"message": {"content": "¡Pío!"}}]}
 
@@ -674,3 +711,167 @@ def test_generar_crudo_devuelve_nada_si_falla_el_modelo():
     assert correr(ia.generar_crudo(
         "sistema", "peticion", transporte=transporte_roto
     )) is None
+
+
+# --- Varios proveedores a la vez -------------------------------------------
+#
+# El motivo: DeepSeek de pago para la prosa y NVIDIA gratis de red. Antes había
+# una sola URL y una sola clave para toda la lista, así que era o uno o el otro.
+
+class SesionFalsa:
+    """Apunta a dónde y con qué credenciales sale cada petición."""
+
+    def __init__(self):
+        self.enviados = []
+
+    def post(self, url, *, headers, json, timeout):
+        self.enviados.append({"url": url, "headers": headers, "cuerpo": json})
+
+        class Respuesta:
+            status = 200
+
+            async def json(self):
+                return {"choices": [{"message": {"content": "hola"}}]}
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+        return Respuesta()
+
+
+@pytest.fixture
+def dos_proveedores(monkeypatch):
+    """Un DeepSeek de pago y un NVIDIA gratuito, como quedará en producción."""
+    deepseek = ia.config.Proveedor(
+        nombre="deepseek",
+        url="https://api.deepseek.com/chat/completions",
+        api_key="clave-deepseek",
+        extras={"thinking": {"type": "disabled"}},
+    )
+    nvidia = ia.config.Proveedor(
+        nombre="nvidia",
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        api_key="clave-nvidia",
+        extras={"chat_template_kwargs": {"thinking": False}},
+    )
+    monkeypatch.setattr(
+        ia.config, "PROVEEDORES", {"deepseek": deepseek, "nvidia": nvidia}
+    )
+    monkeypatch.setattr(ia.config, "MODELOS_IA", (
+        "deepseek:deepseek-v4-pro",
+        "nvidia:mistralai/mistral-nemotron",
+    ))
+    sesion = SesionFalsa()
+
+    async def compartida():
+        return sesion
+
+    monkeypatch.setattr(ia, "_sesion_compartida", compartida)
+    return sesion
+
+
+def test_cada_modelo_va_a_la_url_de_su_proveedor_con_su_clave(dos_proveedores):
+    """Es el motivo entero del cambio: con una sola URL global, mezclar
+    proveedores era imposible."""
+    correr(ia.pedir([{"role": "user", "content": "hola"}],
+                    modelo="deepseek:deepseek-v4-pro"))
+    correr(ia.pedir([{"role": "user", "content": "hola"}],
+                    modelo="nvidia:mistralai/mistral-nemotron"))
+
+    primero, segundo = dos_proveedores.enviados
+    assert primero["url"] == "https://api.deepseek.com/chat/completions"
+    assert primero["headers"]["Authorization"] == "Bearer clave-deepseek"
+    assert segundo["url"].startswith("https://integrate.api.nvidia.com")
+    assert segundo["headers"]["Authorization"] == "Bearer clave-nvidia"
+
+
+def test_el_proveedor_no_viaja_dentro_del_nombre_del_modelo(dos_proveedores):
+    """El prefijo es nuestro, no suyo: DeepSeek no conoce ningún
+    «deepseek:deepseek-v4-pro»."""
+    correr(ia.pedir([{"role": "user", "content": "hola"}],
+                    modelo="deepseek:deepseek-v4-pro"))
+
+    assert dos_proveedores.enviados[0]["cuerpo"]["model"] == "deepseek-v4-pro"
+
+
+def test_a_deepseek_se_le_apaga_el_razonamiento(dos_proveedores):
+    """Sin esto la integración no funciona: `thinking` viene en `high` por
+    defecto, y v4-pro se gastaría los 1200 tokens razonando sin llegar a
+    contestar —el fallo que `pedir` ya sabe describir— pagando por tokens que
+    nadie lee. Cada proveedor lo apaga a su manera."""
+    correr(ia.pedir([{"role": "user", "content": "hola"}],
+                    modelo="deepseek:deepseek-v4-pro"))
+    correr(ia.pedir([{"role": "user", "content": "hola"}],
+                    modelo="nvidia:mistralai/mistral-nemotron"))
+
+    a_deepseek, a_nvidia = (e["cuerpo"] for e in dos_proveedores.enviados)
+    assert a_deepseek["thinking"] == {"type": "disabled"}
+    assert "chat_template_kwargs" not in a_deepseek
+
+    assert a_nvidia["chat_template_kwargs"] == {"thinking": False}
+    assert "thinking" not in a_nvidia
+
+
+def test_un_modelo_sin_prefijo_sigue_siendo_de_nvidia():
+    """Compatibilidad: los `.env` de ahora no llevan prefijo y tienen que
+    seguir funcionando igual."""
+    proveedor, nombre = ia.config.resolver_modelo("mistralai/mistral-nemotron")
+
+    assert proveedor.nombre == "nvidia"
+    assert nombre == "mistralai/mistral-nemotron"
+    # Y el nombre de NVIDIA lleva una barra, que no puede confundirse con el
+    # separador de proveedor.
+    assert ia.config.resolver_modelo("deepseek:deepseek-v4-pro")[1] == "deepseek-v4-pro"
+
+
+def test_un_proveedor_desconocido_no_tumba_el_bot():
+    """Una errata en el `.env` no puede dejar mudas a las criaturas: se trata
+    como un modelo de NVIDIA y, si no existe, la cadena de recambio hace el
+    resto."""
+    proveedor, nombre = ia.config.resolver_modelo("inventado:loquesea")
+
+    assert proveedor.nombre == "nvidia"
+    assert nombre == "inventado:loquesea"
+
+
+def test_si_deepseek_se_cae_contesta_nvidia(monkeypatch, dos_proveedores):
+    """La red de seguridad: se paga por la prosa buena, pero quedarse mudo no es
+    una opción."""
+    vistos = []
+
+    async def transporte(cuerpo):
+        vistos.append(identificador(cuerpo))
+        if identificador(cuerpo) == "deepseek:deepseek-v4-pro":
+            raise ia.ErrorTransitorio("HTTP 503")
+        return {"choices": [{"message": {"content": "Pío pío."}}]}
+
+    texto, de_la_ia = correr(ia.generar(
+        "sistema", "peticion", "respaldo", transporte=transporte
+    ))
+
+    assert de_la_ia and texto == "Pío pío."
+    assert vistos == ["deepseek:deepseek-v4-pro", "nvidia:mistralai/mistral-nemotron"]
+
+
+def test_sin_clave_de_un_proveedor_sus_modelos_se_quedan_fuera(monkeypatch):
+    """Mientras no pagues, la lista con DeepSeek delante no puede hacer perder
+    un intento contra un 401 seguro."""
+    sin_clave = ia.config.Proveedor(
+        nombre="deepseek", url="https://api.deepseek.com/chat/completions",
+        api_key="", extras={},
+    )
+    con_clave = ia.config.Proveedor(
+        nombre="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
+        api_key="clave", extras={},
+    )
+    monkeypatch.setattr(
+        ia.config, "PROVEEDORES", {"deepseek": sin_clave, "nvidia": con_clave}
+    )
+    monkeypatch.setattr(ia.config, "MODELOS_IA", (
+        "deepseek:deepseek-v4-pro", "nvidia:mistralai/mistral-nemotron",
+    ))
+
+    assert ia._modelos_a_probar() == ["nvidia:mistralai/mistral-nemotron"]

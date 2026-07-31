@@ -6,6 +6,7 @@ Raspberry una única vez.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -74,27 +75,89 @@ NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "").strip()
 NVIDIA_URL = os.environ.get(
     "NVIDIA_URL", "https://integrate.api.nvidia.com/v1/chat/completions"
 )
-# Modelos a probar en orden. NVIDIA marca modelos como DEGRADED sin avisar
-# —le pasó a deepseek-v4-flash a las pocas horas de ponerlo en producción— así
-# que el bot se pasa solo al siguiente en vez de quedarse mudo hasta que
-# alguien lo redespliegue.
+# DeepSeek expone la misma API compatible con OpenAI, así que sirve el mismo
+# cliente. Se paga aparte y es opcional: sin esta clave el bot tira de NVIDIA.
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+DEEPSEEK_URL = os.environ.get(
+    "DEEPSEEK_URL", "https://api.deepseek.com/chat/completions"
+)
+
+
+@dataclass(frozen=True)
+class Proveedor:
+    """A dónde va cada modelo, con qué clave y con qué campos propios.
+
+    Existe porque un modelo de pago y otro gratuito no comparten ni URL ni
+    clave: antes había una sola de cada, así que la cadena de recambio —que es
+    lo que evita que el bot se quede mudo— sólo podía saltar entre modelos del
+    mismo proveedor.
+    """
+
+    nombre: str
+    url: str
+    api_key: str
+    # Campos que sólo entiende este proveedor. Hoy los dos sirven para lo mismo:
+    # apagar el razonamiento, que aquí no aporta nada —son tres líneas en boca
+    # de un pollito— y en DeepSeek viene encendido en `high` y se cobra.
+    extras: dict = field(default_factory=dict)
+
+
+PROVEEDOR_POR_DEFECTO = "nvidia"
+
+PROVEEDORES: dict[str, Proveedor] = {
+    "nvidia": Proveedor(
+        nombre="nvidia", url=NVIDIA_URL, api_key=NVIDIA_API_KEY,
+        extras={"chat_template_kwargs": {"thinking": False}},
+    ),
+    "deepseek": Proveedor(
+        nombre="deepseek", url=DEEPSEEK_URL, api_key=DEEPSEEK_API_KEY,
+        extras={"thinking": {"type": "disabled"}},
+    ),
+}
+
+
+def resolver_modelo(entrada: str) -> tuple[Proveedor, str]:
+    """`«deepseek:deepseek-v4-pro»` → (proveedor DeepSeek, «deepseek-v4-pro»).
+
+    Sin prefijo se asume NVIDIA, así que los `.env` anteriores siguen valiendo.
+    Un prefijo desconocido —una errata— se trata como parte del nombre y sale
+    por NVIDIA: fallará ese modelo y la cadena de recambio hará el resto, que es
+    mucho mejor que dejar mudas a las criaturas por una letra de más.
+    """
+    proveedor, separador, modelo = entrada.partition(":")
+    if separador and proveedor in PROVEEDORES:
+        return PROVEEDORES[proveedor], modelo
+    return PROVEEDORES[PROVEEDOR_POR_DEFECTO], entrada
+
+
+# Modelos a probar en orden, cada uno con su proveedor delante. NVIDIA marca
+# modelos como DEGRADED sin avisar —le pasó a deepseek-v4-flash a las pocas
+# horas de ponerlo en producción— así que el bot se pasa solo al siguiente en
+# vez de quedarse mudo hasta que alguien lo redespliegue.
 #
 # El razonador va el último aunque funcione: gasta más de mil caracteres
 # pensando en inglés para soltar tres líneas de pollito, así que es lento y
 # caro para lo que se le pide. Se queda como tercer recambio porque tener uno
 # más ha salvado el día varias veces.
+# DeepSeek va el primero **aunque no todo el mundo pague**: los modelos de un
+# proveedor sin clave se saltan solos, así que sin `DEEPSEEK_API_KEY` esta lista
+# se comporta exactamente igual que antes. Poner la clave es lo único que hace
+# falta para que pase a mandar, sin tocar esta variable en cada máquina.
 MODELOS_IA = tuple(
     m.strip() for m in os.environ.get(
         "MODELO_IA",
+        "deepseek:deepseek-v4-pro,"
         "mistralai/mistral-nemotron,"
         "deepseek-ai/deepseek-v4-flash,"
         "nvidia/llama-3.3-nemotron-super-49b-v1.5",
     ).split(",") if m.strip()
 )
 
-# Sin key el bot arranca igual: las criaturas contestan con sus frases de
-# respaldo escritas a mano. Hablar es un extra, no un requisito.
-IA_ACTIVA = bool(NVIDIA_API_KEY)
+# Sin ninguna clave el bot arranca igual: las criaturas contestan con sus frases
+# de respaldo escritas a mano. Hablar es un extra, no un requisito. Basta con la
+# de un proveedor: se mira sobre los modelos configurados y no sobre todos los
+# proveedores, porque tener clave de uno que no usas no hace hablar a nadie.
+IA_ACTIVA = any(resolver_modelo(m)[0].api_key for m in MODELOS_IA)
 
 # Cuántos mensajes puede mandarle cada persona a su criatura por hora, y cuánto
 # hay que esperar entre uno y otro.

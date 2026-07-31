@@ -57,4 +57,77 @@ def test_el_modelo_razonador_va_el_ultimo_de_la_cadena():
     razonador = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     assert razonador in config.MODELOS_IA
     assert config.MODELOS_IA[-1] == razonador
-    assert len(config.MODELOS_IA) == 3
+    # Cuatro desde que DeepSeek de pago entró delante; sin clave se salta solo.
+    assert len(config.MODELOS_IA) == 4
+
+
+# --- Proveedores de IA ------------------------------------------------------
+
+def proveedores(monkeypatch, **claves):
+    """Sustituye la tabla de proveedores por una con las claves que se pidan."""
+    tabla = {
+        nombre: config.Proveedor(
+            nombre=nombre, url=f"https://{nombre}.example/v1", api_key=clave,
+        )
+        for nombre, clave in claves.items()
+    }
+    monkeypatch.setattr(config, "PROVEEDORES", tabla)
+    return tabla
+
+
+def test_el_prefijo_manda_el_modelo_a_su_proveedor(monkeypatch):
+    proveedores(monkeypatch, nvidia="a", deepseek="b")
+
+    proveedor, nombre = config.resolver_modelo("deepseek:deepseek-v4-pro")
+
+    assert proveedor.nombre == "deepseek"
+    assert nombre == "deepseek-v4-pro"
+
+
+def test_sin_prefijo_va_a_nvidia(monkeypatch):
+    """Los `.env` anteriores no lo llevan y tienen que seguir funcionando."""
+    proveedores(monkeypatch, nvidia="a", deepseek="b")
+
+    proveedor, nombre = config.resolver_modelo("mistralai/mistral-nemotron")
+
+    assert proveedor.nombre == "nvidia"
+    assert nombre == "mistralai/mistral-nemotron"
+
+
+def test_un_prefijo_con_erratas_no_deja_muda_a_la_criatura(monkeypatch):
+    """Se trata como nombre y sale por NVIDIA: fallará ese modelo y la cadena de
+    recambio hará el resto, que es mejor que no hablar por una letra de más."""
+    proveedores(monkeypatch, nvidia="a", deepseek="b")
+
+    proveedor, nombre = config.resolver_modelo("depseek:deepseek-v4-pro")
+
+    assert proveedor.nombre == "nvidia"
+    assert nombre == "depseek:deepseek-v4-pro"
+
+
+def test_la_ia_esta_activa_si_hay_clave_de_algun_modelo_configurado(monkeypatch):
+    def activa(modelos, **claves):
+        proveedores(monkeypatch, **claves)
+        return any(config.resolver_modelo(m)[0].api_key for m in modelos)
+
+    assert not activa(("deepseek:pro", "mistralai/x"), nvidia="", deepseek="")
+    assert activa(("deepseek:pro", "mistralai/x"), nvidia="", deepseek="b")
+    assert activa(("deepseek:pro", "mistralai/x"), nvidia="a", deepseek="")
+    # Tener clave de un proveedor que no usas no hace hablar a nadie.
+    assert not activa(("mistralai/x",), nvidia="", deepseek="b")
+
+
+def test_deepseek_va_delante_pero_sin_clave_no_estorba():
+    """Así basta con poner la clave en el .env para que mande, sin tener que
+    editar MODELO_IA en cada máquina. Sin clave se salta solo y la lista se
+    comporta igual que antes de que existiera DeepSeek."""
+    import ia
+
+    assert config.MODELOS_IA[0] == "deepseek:deepseek-v4-pro"
+    assert config.resolver_modelo(config.MODELOS_IA[0])[0].nombre == "deepseek"
+    # Y los recambios gratuitos siguen ahí detrás.
+    assert any(
+        config.resolver_modelo(m)[0].nombre == "nvidia"
+        for m in config.MODELOS_IA[1:]
+    )
+    assert ia is not None  # importable con esta configuración

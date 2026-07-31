@@ -107,13 +107,27 @@ async def cerrar() -> None:
     _sesion = None
 
 
-async def _transporte_http(cuerpo: dict) -> dict:
+def _transporte_de(proveedor: config.Proveedor):
+    """El transporte HTTP de un proveedor concreto, atado a su URL y su clave.
+
+    Se devuelve una función en vez de recibir el proveedor por parámetro para
+    que siga teniendo la misma forma que los transportes que inyectan los tests:
+    reciben `cuerpo` y nada más. Así este cambio no arrastra media suite.
+    """
+
+    async def enviar(cuerpo: dict) -> dict:
+        return await _pedir_http(proveedor, cuerpo)
+
+    return enviar
+
+
+async def _pedir_http(proveedor: config.Proveedor, cuerpo: dict) -> dict:
     sesion = await _sesion_compartida()
     try:
         async with sesion.post(
-            config.NVIDIA_URL,
+            proveedor.url,
             headers={
-                "Authorization": f"Bearer {config.NVIDIA_API_KEY}",
+                "Authorization": f"Bearer {proveedor.api_key}",
                 "Content-Type": "application/json",
             },
             json=cuerpo,
@@ -223,8 +237,12 @@ def _modelos_a_probar() -> list[str]:
     devuelva el orden bueno: se restaura cuando pasa el rato.
     """
     ahora = time.monotonic()
-    libres = [m for m in config.MODELOS_IA if _penalizado_hasta.get(m, 0) <= ahora]
-    castigados = [m for m in config.MODELOS_IA if _penalizado_hasta.get(m, 0) > ahora]
+    # Los de un proveedor sin clave se quedan fuera: intentarlos sería gastar un
+    # turno de la ronda contra un 401 seguro. Es lo que deja poner DeepSeek de
+    # principal en la lista antes de haber pagado, sin que estorbe.
+    usables = [m for m in config.MODELOS_IA if config.resolver_modelo(m)[0].api_key]
+    libres = [m for m in usables if _penalizado_hasta.get(m, 0) <= ahora]
+    castigados = [m for m in usables if _penalizado_hasta.get(m, 0) > ahora]
     return libres + castigados
 
 
@@ -247,18 +265,25 @@ def reiniciar_modelos() -> None:
 
 
 async def pedir(mensajes: list[dict], transporte=None, modelo: str | None = None) -> str:
-    """Manda la conversación al modelo y devuelve su texto. Puede lanzar ErrorIA."""
-    transporte = transporte or _transporte_http
+    """Manda la conversación al modelo y devuelve su texto. Puede lanzar ErrorIA.
+
+    `modelo` viene con el proveedor delante —«deepseek:deepseek-v4-pro»—, que es
+    cosa nuestra: al proveedor se le manda sólo el nombre que él conoce.
+    """
+    proveedor, nombre = config.resolver_modelo(modelo or config.MODELOS_IA[0])
+    transporte = transporte or _transporte_de(proveedor)
     cuerpo = {
-        "model": modelo or config.MODELOS_IA[0],
+        "model": nombre,
         "messages": mensajes,
         "temperature": 1,
         "top_p": 0.95,
         "max_tokens": MAX_TOKENS,
-        # El modo de razonamiento aquí sólo añadiría segundos de espera: las
-        # respuestas son de tres líneas en boca de un pollito.
-        "chat_template_kwargs": {"thinking": False},
         "stream": False,
+        # Cada proveedor apaga el razonamiento a su manera, y hay que apagarlo:
+        # aquí sólo añadiría segundos de espera —son tres líneas en boca de un
+        # pollito— y en DeepSeek viene encendido en `high`, se cobra como salida
+        # y se comería los MAX_TOKENS antes de contestar.
+        **proveedor.extras,
     }
 
     datos = await transporte(cuerpo)

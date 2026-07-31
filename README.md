@@ -385,7 +385,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `especies.py` | Las 10 especies, su arte ASCII por etapa, estadísticas y rarezas. |
 | `jardin.py` | El reparto de varias criaturas en una sola escena. |
 | `personalidad.py` | La voz de cada especie, los diez caracteres y cómo se le explica todo al modelo. |
-| `ia.py` | Cliente de NVIDIA cloud. Async, con transporte inyectable. |
+| `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. |
 | `simulacion.py` | Decaimiento, muerte, acciones de cuidado, estadísticas y niveles. |
 | `competir.py` | Resolución y narración de carreras y sumo. |
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
@@ -446,6 +446,18 @@ Dos decisiones más que explican el resto del diseño:
   «modelo preferido» que recuperar: el orden de `MODELO_IA` manda salvo que
   alguno esté castigado. Medido, ninguno de los tres es fiablemente mejor —
   el endpoint compartido falla a rachas, no por modelo.
+- **Cada modelo lleva su proveedor delante** (`deepseek:deepseek-v4-pro`), y
+  cada proveedor su URL, su clave y sus campos propios. Antes había una sola URL
+  y una sola clave globales, así que la cadena de recambio sólo podía saltar
+  entre modelos del mismo sitio: o todo gratis o todo de pago. Sin prefijo se
+  asume NVIDIA, y los modelos de un proveedor sin clave se saltan solos, para
+  que dejar DeepSeek escrito antes de pagar no cueste un intento contra un 401.
+- **Hay que apagar el razonamiento, y cada proveedor lo apaga a su manera.**
+  NVIDIA con `chat_template_kwargs`, DeepSeek con un `thinking` de primer nivel.
+  No es un ajuste fino: en DeepSeek viene encendido en `high` por defecto, se
+  cobra como salida, y v4-pro se comería los 1200 tokens de `MAX_TOKENS`
+  razonando sin llegar a contestar. Ese fallo exacto ya lo sabe describir
+  `pedir()` por lo que costó descubrirlo con el razonador de NVIDIA.
 
 ## Tests
 
