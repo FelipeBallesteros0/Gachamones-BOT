@@ -411,6 +411,14 @@ def test_la_ayuda_habla_de_lo_que_hay():
     assert "hayáis" not in texto
 
 
+def test_la_ayuda_condiciona_la_xp_de_aventura_a_volver_con_vida():
+    from cogs.social import paginas_de_ayuda
+
+    texto = "\n".join(paginas_de_ayuda("Gachamon"))
+    assert f"+{sim.XP_AVENTURA} XP" in texto
+    assert "si vuelve con vida" in texto.lower()
+
+
 def test_la_ayuda_no_dice_que_solo_cabe_una():
     """Regresión concreta: al pasar al plantel de tres, la sección «Empezar» se
     quedó diciendo «Sólo puedes tener una viva a la vez». El código estaba bien

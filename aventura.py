@@ -408,6 +408,17 @@ def aplicar_desgaste(
     )
 
 
+def aplicar_viaje(
+    criatura: sim.Criatura, salida: Salida, ahora: datetime,
+    percance: Percance | None = None, rng: random.Random | None = None,
+) -> tuple[sim.Criatura, list[str]]:
+    """Cobra el viaje y da experiencia únicamente a quien vuelve con vida."""
+    cansada = aplicar_desgaste(criatura, salida, ahora, percance)
+    if not cansada.viva:
+        return cansada, []
+    return sim.aplicar_xp(cansada, sim.XP_AVENTURA, rng)
+
+
 def render_percance(percance: Percance | None) -> str:
     """Efecto mecánico visible, independiente de lo que escriba el modelo."""
     if percance is None:
