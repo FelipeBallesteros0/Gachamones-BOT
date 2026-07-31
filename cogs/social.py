@@ -114,6 +114,7 @@ reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 `/aventura` saca a tu gachamon activo a un bioma al azar. Dos pruebas de fuerza \
 o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o \
 cruzándote con un **gachamon salvaje**.
+Si vuelve con vida, gana **+{sim.XP_AVENTURA} XP**; si muere por el desgaste, no.
 Convencerlo va por turnos: hablarle, darle **golosinas**, presumir o esperar \
 quieto. **Cada carácter reacciona distinto**, y lo que le molesta le gasta el \
 doble de paciencia; si se le acaba, se va.

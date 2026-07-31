@@ -164,6 +164,7 @@ COSTE_ANIMO_COMPETIR = 5.0
 
 # Salir de aventura cansa más que una pelea: es un viaje, no un asalto. El
 # mínimo es el mismo que para competir, para no tener dos umbrales que explicar.
+XP_AVENTURA = 4
 HAMBRE_MINIMA_AVENTURA = HAMBRE_MINIMA_COMPETIR
 COSTE_HAMBRE_AVENTURA = 15.0
 COSTE_ANIMO_AVENTURA = 5.0
