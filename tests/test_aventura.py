@@ -1,3 +1,4 @@
+# pyright: reportArgumentType=false, reportCallIssue=false, reportAttributeAccessIssue=false
 """La aventura: biomas, pruebas, qué te encuentras y convencer a un salvaje."""
 import asyncio
 import random
@@ -10,6 +11,7 @@ import pytest
 
 import aventura as av
 import cogs.aventura as cog_av
+import economia
 import especies as esp
 import objetos as obj
 import pantalla
@@ -199,20 +201,19 @@ def test_el_viaje_fatal_no_da_xp():
     assert subidas == []
 
 
-def test_el_viaje_puede_evolucionar_con_el_rng_inyectado():
+def test_el_viaje_puede_evolucionar_sin_usar_el_rng_inyectado():
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     elegir_stat = Mock(return_value=["salud"])
     rng = SimpleNamespace(choices=elegir_stat)
     viajera = criatura(xp=sim.xp_para_subir(1) - 1)
 
-    despues, subidas = av.aplicar_viaje(
+    despues, rupturas = av.aplicar_viaje(
         viajera, salida_con_fallos(0), ahora, rng=rng
     )
 
     assert (despues.nivel, despues.xp) == (2, 3)
-    assert subidas == ["salud", "salud"]
-    assert despues.niv_salud == viajera.niv_salud + 2
-    assert elegir_stat.call_count == 2
+    assert all(isinstance(ruptura, sim.Ruptura) for ruptura in rupturas)
+    elegir_stat.assert_not_called()
 
 
 def viaje_con(salida, bioma="planicie"):
@@ -246,18 +247,24 @@ def ejecutar_aventura_final(
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: percance)
     monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
 
-    def guardar(actualizada):
+    def confirmar(_usuario_id, _guild_id, _criatura_id, salida_real, ahora_real, percance_real):
+        actualizada, rupturas = av.aplicar_viaje(
+            viajera, salida_real, ahora_real, percance_real
+        )
         guardadas.append(actualizada)
         eventos.append(("guardar", actualizada, None))
+        return economia.ResultadoViaje(
+            actualizada, antes=viajera, rupturas=tuple(rupturas)
+        )
 
-    monkeypatch.setattr(cog_av.db, "guardar", guardar)
+    monkeypatch.setattr(cog_av.economia, "ejecutar_viaje", confirmar)
 
     async def narrar(*_):
         return "NARRACIÓN"
 
     monkeypatch.setattr(cog_av, "_narrar", narrar)
 
-    def render_evolucion(actualizada, etapa_anterior, subidas):
+    def render_evolucion(actualizada, etapa_anterior, subidas=()):
         evoluciones.append((actualizada, etapa_anterior, subidas))
         return "EVOLUCIÓN"
 
@@ -373,7 +380,16 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: av.PERCANCE)
-    monkeypatch.setattr(cog_av.db, "guardar", lambda criatura: eventos.append(("guardar", criatura)))
+    def confirmar(*args):
+        actualizada, rupturas = av.aplicar_viaje(
+            viajera, args[3], args[4], args[5]
+        )
+        eventos.append(("guardar", actualizada))
+        return economia.ResultadoViaje(
+            actualizada, antes=viajera, rupturas=tuple(rupturas)
+        )
+
+    monkeypatch.setattr(cog_av.economia, "ejecutar_viaje", confirmar)
     narrar = AsyncMock(return_value="narración que no debe salir")
     regalar = Mock()
     abrir_encuentro = Mock()
@@ -884,6 +900,7 @@ def test_fuerza_y_velocidad_cuestan_lo_mismo():
 
     con_fuerza = av.resolver_opcion(fuerte, bioma, av.FUERZA, DadosFijos([10]))
     con_velocidad = av.resolver_opcion(rapido, bioma, av.VELOCIDAD, DadosFijos([10]))
+    assert con_fuerza is not None and con_velocidad is not None
 
     assert con_fuerza.dificultad == con_velocidad.dificultad == bioma.dificultad
     assert con_fuerza.base == 99 and con_velocidad.base == 99
@@ -894,8 +911,11 @@ def test_la_opcion_elegida_usa_su_estadistica():
     bioma = av.BIOMAS["planicie"]
     bicho = criatura(fuerza=99, velocidad=1)
 
-    assert av.resolver_opcion(bicho, bioma, av.FUERZA, DadosFijos([10])).superada
-    assert not av.resolver_opcion(bicho, bioma, av.VELOCIDAD, DadosFijos([10])).superada
+    fuerza = av.resolver_opcion(bicho, bioma, av.FUERZA, DadosFijos([10]))
+    velocidad = av.resolver_opcion(bicho, bioma, av.VELOCIDAD, DadosFijos([10]))
+    assert fuerza is not None and velocidad is not None
+    assert fuerza.superada
+    assert not velocidad.superada
 
 
 def test_volver_no_tira_ningun_dado():
@@ -1158,7 +1178,8 @@ def test_fallar_resuelve_la_aventura_ahi_mismo(monkeypatch):
     )))
 
     resolver.assert_awaited_once()
-    assert resolver.await_args.args[4].nodos_superados == 0
+    llamada = resolver.await_args
+    assert llamada is not None and llamada.args[4].nodos_superados == 0
     assert not vista.viaje.sigue
 
 
@@ -1173,7 +1194,8 @@ def test_dejarlo_caducar_cobra_el_viaje_igual(monkeypatch):
     asyncio.run(vista.on_timeout())
 
     resolver.assert_awaited_once()
-    assert resolver.await_args.args[0] == "canal"
+    llamada = resolver.await_args
+    assert llamada is not None and llamada.args[0] == "canal"
 
 
 def test_lo_ya_resuelto_no_se_cobra_dos_veces_al_caducar(monkeypatch):
@@ -1185,6 +1207,29 @@ def test_lo_ya_resuelto_no_se_cobra_dos_veces_al_caducar(monkeypatch):
     asyncio.run(vista.on_timeout())
 
     vista.cog.resolver.assert_not_awaited()
+
+
+def test_dos_pulsaciones_terminales_resuelven_el_viaje_una_sola_vez(monkeypatch):
+    vista = vista_de_viaje(monkeypatch, bicho=criatura(fuerza=1, velocidad=1))
+    monkeypatch.setattr(cog_av.random, "Random", lambda: DadosFijos([1]))
+    vista.mensaje = SimpleNamespace(edit=AsyncMock())
+    vista.cog.resolver = AsyncMock()
+
+    async def pulsar_dos_veces():
+        interacciones = [
+            SimpleNamespace(
+                response=SimpleNamespace(defer=AsyncMock()), channel="canal"
+            )
+            for _ in range(2)
+        ]
+        await asyncio.gather(*(
+            vista.children[0].callback(interaccion)
+            for interaccion in interacciones
+        ))
+
+    asyncio.run(pulsar_dos_veces())
+
+    vista.cog.resolver.assert_awaited_once()
 
 
 def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
@@ -1252,6 +1297,7 @@ def test_la_escena_del_modelo_sale_siempre_con_mayuscula_inicial():
         '{"situacion": "un saco a tus pies.", "fuerza": "recoger el saco",'
         ' "velocidad": "alcanzarlo antes del viento", "volver": "seguir"}'
     )
+    assert escena is not None
 
     assert escena.situacion.startswith("Un saco")
     for opcion in av.OPCIONES_ESCENA:

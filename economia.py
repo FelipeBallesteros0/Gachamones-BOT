@@ -10,6 +10,7 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import aventura as av
 import competir as comp
 import db
 import objetos as obj
@@ -47,6 +48,8 @@ class ResultadoCuidado:
     mensaje: str
     ok: bool = True
     espera: timedelta | None = None
+    rupturas: tuple[sim.Ruptura, ...] = ()
+    marca: bool = False
     subidas: tuple[str, ...] = ()
     etapa_anterior: str | None = None
     delta_asciicoins: int = 0
@@ -88,6 +91,7 @@ class ResultadoCompetencia:
     encuentro: comp.Encuentro | None
     antes: tuple[sim.Criatura, ...] = ()
     despues: tuple[sim.Criatura, ...] = ()
+    rupturas: tuple[tuple[sim.Ruptura, ...], ...] = ()
     subidas: tuple[tuple[str, ...], ...] = ()
     recibos: tuple[ReciboCompetencia, ...] = ()
     replay: bool = False
@@ -95,6 +99,47 @@ class ResultadoCompetencia:
     problema_usuario_id: str | None = None
     problema_criatura: sim.Criatura | None = None
     espera: timedelta | None = None
+
+
+@dataclass(frozen=True)
+class ResultadoViaje:
+    criatura: sim.Criatura | None
+    antes: sim.Criatura | None = None
+    rupturas: tuple[sim.Ruptura, ...] = ()
+    problema: str | None = None
+
+
+def ejecutar_viaje(
+    usuario_id: str,
+    guild_id: str,
+    criatura_id: int,
+    salida: av.Salida,
+    ahora: datetime,
+    percance: av.Percance | None = None,
+) -> ResultadoViaje:
+    """Confirma el viaje sobre la criatura activa actual, antes de publicarlo.
+
+    Las aventuras no tienen ledger histórico; esta frontera sólo evita aplicar
+    una vista vieja sobre otra criatura o sobre un estado concurrente.
+    """
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        actual = db.criatura_activa_en(con, usuario_id, guild_id)
+        if actual is None:
+            return ResultadoViaje(None, problema="No hay un gachamon activo.")
+        if actual.id != criatura_id:
+            return ResultadoViaje(
+                actual,
+                problema="La aventura ya no pertenece al gachamon activo.",
+            )
+        avanzado = sim.avanzar(actual, ahora)
+        nueva, rupturas = av.aplicar_viaje(
+            avanzado, salida, ahora, percance
+        )
+        db._guardar(con, nueva)
+        return ResultadoViaje(
+            nueva, antes=avanzado, rupturas=tuple(rupturas)
+        )
 
 
 def _fecha_economica(ahora: datetime) -> str:
@@ -149,7 +194,7 @@ def _resolver_recompensa(
             "WHERE usuario_id = ? AND guild_id = ?",
             (delta, usuario_id, guild_id),
         )
-    return delta, usados + int(acreditada), not acreditada
+    return delta, usados + (1 if acreditada else 0), not acreditada
 
 
 def _registrar_recompensa(
@@ -182,6 +227,8 @@ def _envolver_cuidado(
         mensaje=resultado.mensaje,
         ok=resultado.ok,
         espera=resultado.espera,
+        rupturas=tuple(resultado.rupturas),
+        marca=resultado.marca,
         subidas=tuple(resultado.subidas),
         etapa_anterior=resultado.etapa_anterior,
         delta_asciicoins=delta + delta_evolucion,
@@ -414,11 +461,20 @@ def ejecutar_competencia(
         )
         ganador = encuentro.orden[0]
         aplicadas = tuple(
-            sim.aplicar_competencia(criatura, dorsal == ganador, stat, rng)
+            sim.aplicar_competencia(
+                criatura,
+                dorsal == ganador,
+                stat,
+                rng,
+                comp.margen_de(encuentro, dorsal),
+            )
             for dorsal, criatura in enumerate(criaturas)
         )
         despues = tuple(criatura for criatura, _ in aplicadas)
-        subidas = tuple(tuple(lista) for _, lista in aplicadas)
+        rupturas = tuple(tuple(lista) for _, lista in aplicadas)
+        subidas = tuple(
+            tuple(ruptura.stat for ruptura in lista) for lista in rupturas
+        )
         for criatura in despues:
             db._guardar(con, criatura)
             db.poner_cooldown_en(
@@ -463,6 +519,7 @@ def ejecutar_competencia(
             encuentro=encuentro,
             antes=antes,
             despues=despues,
+            rupturas=rupturas,
             subidas=subidas,
             recibos=tuple(recibos),
         )

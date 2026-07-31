@@ -1,3 +1,4 @@
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
 """Las mutaciones externas apagan la ficha viva que acaba de quedar obsoleta."""
 import asyncio
 from dataclasses import replace
@@ -19,10 +20,10 @@ T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 STATS = (15, 15, 15)
 
 
-def criatura(id_, nombre, activa, pantalla_msg_id):
+def criatura(id_, nombre, activa, pantalla_msg_id) -> sim.Criatura:
     return sim.Criatura(
         id=id_, usuario_id="u1", guild_id="g1", especie="pulpo", nombre=nombre,
-        nacida_en=None, actualizada_en=None,
+        nacida_en=T0, actualizada_en=T0,
         base_fuerza=15, base_velocidad=15, base_salud=15,
         hambre=80.0, animo=80.0, activa=activa,
         pantalla_msg_id=pantalla_msg_id,
@@ -152,7 +153,8 @@ def test_cambiar_activo_congela_la_ficha_anterior_antes_de_responder(monkeypatch
 def test_cambiar_al_mismo_activo_no_congela(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
     monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=anterior))
-    monkeypatch.setattr(equipo.db, "activar", Mock())
+    activar = Mock()
+    monkeypatch.setattr(equipo.db, "activar", activar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     congelar = AsyncMock()
     menu = equipo.MenuPlantel([anterior], congelar)
@@ -165,7 +167,7 @@ def test_cambiar_al_mismo_activo_no_congela(monkeypatch):
     asyncio.run(menu.callback(interaccion))
 
     congelar.assert_not_awaited()
-    equipo.db.activar.assert_not_called()
+    activar.assert_not_called()
 
 
 def test_cambio_de_activo_invalido_no_congela(monkeypatch):
@@ -282,7 +284,8 @@ def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temp
 
     actual.fetch_message.assert_awaited_once_with(555)
     interaccion.response.edit_message.assert_awaited_once()
-    assert db.criatura_activa("u1", "g1").id == reserva.id
+    activa = db.criatura_activa("u1", "g1")
+    assert activa is not None and activa.id == reserva.id
 
 
 # --- El recluta que todavía no tiene nombre ---------------------------------
@@ -292,7 +295,8 @@ def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):
     activa = criatura(1, "Activa", True, "ficha-activa")
     recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
     monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
-    monkeypatch.setattr(equipo.db, "activar", Mock())
+    activar = Mock()
+    monkeypatch.setattr(equipo.db, "activar", activar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     bautizar = AsyncMock()
     menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), bautizar)
@@ -302,18 +306,19 @@ def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):
         response=SimpleNamespace(edit_message=AsyncMock()),
     )
 
-    asyncio.run(menu.callback(interaccion))
+    asyncio.run(menu.callback(cast(Any, interaccion)))
 
     bautizar.assert_awaited_once_with(interaccion, recluta)
     # Y no se activa: eso es justo lo que no puede pasar sin nombre.
-    equipo.db.activar.assert_not_called()
+    activar.assert_not_called()
 
 
 def test_sin_bautizo_inyectado_se_explica_en_vez_de_activar(monkeypatch):
     activa = criatura(1, "Activa", True, "ficha-activa")
     recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
     monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
-    monkeypatch.setattr(equipo.db, "activar", Mock())
+    activar = Mock()
+    monkeypatch.setattr(equipo.db, "activar", activar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     menu = equipo.MenuPlantel([activa, recluta], AsyncMock())
     menu._values = [str(recluta.id)]
@@ -323,9 +328,10 @@ def test_sin_bautizo_inyectado_se_explica_en_vez_de_activar(monkeypatch):
         response=SimpleNamespace(edit_message=editar),
     )
 
-    asyncio.run(menu.callback(interaccion))
+    asyncio.run(menu.callback(cast(Any, interaccion)))
 
-    equipo.db.activar.assert_not_called()
+    activar.assert_not_called()
+    assert editar.await_args is not None
     assert "nombre" in editar.await_args.kwargs["content"]
 
 
@@ -685,12 +691,32 @@ def test_cuidado_sin_efecto_responde_en_privado_sin_congelar_ni_publicar(
     dominio = economia.ejecutar_cuidado("otro", "u1", "g1", sim.LIMPIAR, T0)
     assert dominio is not None and dominio.sin_efecto
     respuesta.send_message.assert_awaited_once_with(
-        dominio.mensaje, ephemeral=True
+        dominio.mensaje + "\n-# No le deja marca.", ephemeral=True
     )
     respuesta.edit_message.assert_not_awaited()
     congelar.assert_not_awaited()
     publicar.assert_not_awaited()
     canal.send.assert_not_awaited()
+
+
+def test_cuidado_con_tension_no_dice_que_no_deja_marca(
+    bd_temporal, monkeypatch
+):
+    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar(replace(criatura, hambre=40.0))
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
+    monkeypatch.setattr(vistas, "_congelar_pulsada", AsyncMock())
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, _, _ = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ENTRENAR))
+
+    llamada = publicar.await_args
+    assert llamada is not None
+    aviso = llamada.kwargs["aviso"]
+    assert "No le deja marca" not in aviso
 
 
 def test_cuidado_normal_congela_publica_y_replay_responde_privado(

@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS criaturas (
     niv_fuerza INTEGER NOT NULL DEFAULT 0,
     niv_velocidad INTEGER NOT NULL DEFAULT 0,
     niv_salud INTEGER NOT NULL DEFAULT 0,
+    ten_fuerza REAL NOT NULL DEFAULT 0,
+    ten_velocidad REAL NOT NULL DEFAULT 0,
+    ten_salud REAL NOT NULL DEFAULT 0,
+    historial_vetas TEXT NOT NULL DEFAULT '',
     xp INTEGER NOT NULL DEFAULT 0,
     nivel INTEGER NOT NULL DEFAULT 1,
     victorias INTEGER NOT NULL DEFAULT 0,
@@ -195,6 +199,7 @@ CAMPOS = (
     "base_fuerza", "base_velocidad", "base_salud",
     "ent_fuerza", "ent_velocidad", "ent_salud",
     "niv_fuerza", "niv_velocidad", "niv_salud",
+    "ten_fuerza", "ten_velocidad", "ten_salud", "historial_vetas",
     "xp", "nivel", "victorias", "derrotas", "pantalla_msg_id", "canal_id",
     "activa",
 )
@@ -222,6 +227,10 @@ MIGRACIONES = (
     # Las que ya existían son la única de su dueño, así que el DEFAULT 1 las deja
     # activas y no hace falta rellenar nada fila a fila.
     ("activa", "ALTER TABLE criaturas ADD COLUMN activa INTEGER NOT NULL DEFAULT 1"),
+    ("ten_fuerza", "ALTER TABLE criaturas ADD COLUMN ten_fuerza REAL NOT NULL DEFAULT 0"),
+    ("ten_velocidad", "ALTER TABLE criaturas ADD COLUMN ten_velocidad REAL NOT NULL DEFAULT 0"),
+    ("ten_salud", "ALTER TABLE criaturas ADD COLUMN ten_salud REAL NOT NULL DEFAULT 0"),
+    ("historial_vetas", "ALTER TABLE criaturas ADD COLUMN historial_vetas TEXT NOT NULL DEFAULT ''"),
 )
 
 

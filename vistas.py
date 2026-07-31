@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
+from typing import cast
 
 import discord
+from discord import Forbidden, HTTPException, NotFound
 
 import db
 import economia
@@ -35,6 +37,16 @@ ESTILOS = {
 }
 
 
+def _mensaje_de(interaccion: discord.Interaction) -> discord.Message:
+    if interaccion.message is None:
+        raise RuntimeError("la interacción no pertenece a un mensaje")
+    return interaccion.message
+
+
+def _canal_de(interaccion: discord.Interaction) -> discord.abc.Messageable:
+    return cast(discord.abc.Messageable, interaccion.channel)
+
+
 async def _es_de_otro(interaccion: discord.Interaction) -> bool:
     """Si la ficha pulsada es de otra persona, avisa y devuelve True.
 
@@ -42,7 +54,7 @@ async def _es_de_otro(interaccion: discord.Interaction) -> bool:
     la ficha de otro haría que actuaras sobre un gachamon distinto del que estás
     mirando. Vive suelta para que todos los botones usen la misma.
     """
-    dueño = db.criatura_por_pantalla(str(interaccion.message.id))
+    dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
     if dueño is None or dueño.usuario_id == str(interaccion.user.id):
         return False
     await interaccion.response.send_message(
@@ -65,7 +77,8 @@ class PantallaView(discord.ui.View):
         super().__init__(timeout=None)
         if congelada:
             for hijo in self.children:
-                hijo.disabled = True
+                if isinstance(hijo, discord.ui.Button):
+                    hijo.disabled = True
 
     @discord.ui.button(label="Alimentar", emoji="🍖",
                        style=discord.ButtonStyle.success, custom_id="tama:alimentar")
@@ -176,11 +189,12 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
 
         # La revelación pierde el botón: ya está bautizada.
         await interaccion.response.edit_message(view=None)
-        await interaccion.channel.send(
+        canal = _canal_de(interaccion)
+        await canal.send(
             f"✨ {interaccion.user.mention} la ha llamado **{nombre}**."
         )
         if criatura.activa:
-            await publicar_pantalla(interaccion.channel, criatura, ahora)
+            await publicar_pantalla(canal, criatura, ahora)
 
     async def on_error(self, interaccion: discord.Interaction, error: Exception) -> None:
         log.exception("Fallo al poner nombre", exc_info=error)
@@ -212,7 +226,7 @@ class NombrarView(discord.ui.View):
             )
             return
 
-        dueño = db.criatura_por_pantalla(str(interaccion.message.id))
+        dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
         if dueño and dueño.usuario_id != str(interaccion.user.id):
             await interaccion.response.send_message(
                 f"Ese gachamon es de <@{dueño.usuario_id}>.", ephemeral=True
@@ -274,7 +288,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
 
     # Si la pantalla pulsada es de otra persona, no dejamos que actúe sobre la
     # suya por error: sería desconcertante ver aparecer otra criatura.
-    dueño = db.criatura_por_pantalla(str(interaccion.message.id))
+    dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
     if dueño and dueño.usuario_id != usuario_id:
         await interaccion.response.send_message(
             f"Ese es el gachamon de <@{dueño.usuario_id}>. "
@@ -341,7 +355,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
 
     if not resultado.criatura.viva:
         await _congelar_pulsada(interaccion)
-        await interaccion.channel.send(pantalla.render(resultado.criatura, ahora))
+        await _canal_de(interaccion).send(pantalla.render(resultado.criatura, ahora))
         return
 
     if resultado.espera:
@@ -355,22 +369,34 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     # está limpia—: publicar otra ficha idéntica y congelar la pulsada sería un
     # recibo falso. Se cuenta en privado y no se toca la ficha viva.
     if not resultado.ok or resultado.sin_efecto:
-        await interaccion.response.send_message(resultado.mensaje, ephemeral=True)
+        mensaje = resultado.mensaje
+        if resultado.ok and not resultado.marca:
+            mensaje += "\n-# No le deja marca."
+        await interaccion.response.send_message(mensaje, ephemeral=True)
         return
 
     await _congelar_pulsada(interaccion)
 
+    canal = _canal_de(interaccion)
     if resultado.evoluciono:
-        await interaccion.channel.send(pantalla.render_evolucion(
-            resultado.criatura, resultado.etapa_anterior, resultado.subidas
+        etapa_anterior = resultado.etapa_anterior
+        assert etapa_anterior is not None
+        await canal.send(pantalla.render_evolucion(
+            resultado.criatura, etapa_anterior
         ))
+    if resultado.rupturas:
+        await canal.send(
+            pantalla.render_rupturas(resultado.criatura, resultado.rupturas)
+        )
 
     aviso = resultado.mensaje
+    if not resultado.marca:
+        aviso += "\n-# No le deja marca."
     if resultado.usados or resultado.topada or resultado.evoluciono:
         aviso += f"\n{texto_recibo_cuidado(resultado, accion)}"
     await publicar_pantalla(
-        interaccion.channel, resultado.criatura, ahora,
-        aviso=aviso, ya_congelada=str(interaccion.message.id),
+        canal, resultado.criatura, ahora,
+        aviso=aviso, ya_congelada=str(_mensaje_de(interaccion).id),
     )
 
 
@@ -433,7 +459,7 @@ async def _congelar_pulsada(interaccion: discord.Interaction) -> None:
     """Apaga los botones del mensaje pulsado, como respuesta a la interacción."""
     try:
         await interaccion.response.edit_message(view=PantallaView(congelada=True))
-    except discord.HTTPException:
+    except HTTPException:
         log.warning("No se pudo congelar la pantalla pulsada", exc_info=True)
 
 
@@ -453,7 +479,7 @@ async def congelar(canal: discord.abc.Messageable, mensaje_id: str | None) -> No
     try:
         mensaje = await canal.fetch_message(int(mensaje_id))
         await mensaje.edit(view=PantallaView(congelada=True))
-    except (discord.NotFound, discord.Forbidden, discord.HTTPException, ValueError):
+    except (NotFound, Forbidden, HTTPException, ValueError):
         # Mensaje borrado o inalcanzable: no es motivo para romper el flujo.
         log.debug("No se pudo congelar la pantalla %s", mensaje_id, exc_info=True)
 
@@ -490,7 +516,7 @@ async def responder_pantalla(
     acusar recibo con un mensaje privado vacío antes de enviarla.
     """
     if criatura.pantalla_msg_id:
-        await congelar(_canal_anterior(interaccion.channel, criatura),
+        await congelar(_canal_anterior(_canal_de(interaccion), criatura),
                        criatura.pantalla_msg_id)
 
     contenido = pantalla.render(

@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -27,21 +28,29 @@ def nacer(nombre="A", activa=True, guild="g1"):
     return db.crear("u1", guild, "pulpo", nombre, STATS, T0, activa=activa)
 
 
-def limpiar(evento, cuando, guild="g1"):
+def cuidar(evento, guild, accion, cuando) -> economia.ResultadoCuidado:
+    resultado = economia.ejecutar_cuidado(evento, "u1", guild, accion, cuando)
+    assert resultado is not None
+    return resultado
+
+
+def limpiar(evento, cuando, guild="g1") -> economia.ResultadoCuidado:
     criatura = db.criatura_activa("u1", guild)
+    assert criatura is not None
     db.guardar(replace(criatura, limpieza=0.0))
-    return economia.ejecutar_cuidado(
-        evento, "u1", guild, sim.LIMPIAR, cuando
-    )
+    return cuidar(evento, guild, sim.LIMPIAR, cuando)
 
 
 def test_cuidado_acredita_y_replay_no_muta_dos_veces():
-    nacer()
-    primero = economia.ejecutar_cuidado("evento", "u1", "g1", sim.JUGAR, T0)
+    activa = replace(nacer(), animo=40.0)
+    db.guardar(activa)
+    primero = cuidar("evento", "g1", sim.JUGAR, T0)
     guardada = db.criatura_activa("u1", "g1")
-    replay = economia.ejecutar_cuidado("evento", "u1", "g1", sim.JUGAR, T0)
+    assert guardada is not None
+    replay = cuidar("evento", "g1", sim.JUGAR, T0)
 
     assert primero.delta_asciicoins == 1 and primero.usados == 1
+    assert guardada.ten_velocidad > 0
     assert replay.replay and replay.delta_asciicoins == 1 and replay.usados == 1
     assert db.criatura_activa("u1", "g1") == guardada
     assert economia.saldos("u1", "g1").asciicoins == 51
@@ -53,7 +62,7 @@ def test_limpiar_a_una_criatura_limpia_queda_marcado_sin_efecto_y_no_paga():
     criatura = nacer()
     assert criatura.limpieza == 100.0
 
-    resultado = economia.ejecutar_cuidado("evento", "u1", "g1", sim.LIMPIAR, T0)
+    resultado = cuidar("evento", "g1", sim.LIMPIAR, T0)
 
     assert resultado.sin_efecto and resultado.ok and resultado.espera is None
     assert resultado.mensaje
@@ -68,9 +77,7 @@ def test_limpiar_a_una_criatura_limpia_queda_marcado_sin_efecto_y_no_paga():
     # Ni un cuidado que sí cambia algo ni `actualizar` se marcan sin efecto:
     # el primero tiene ficha que publicar y el segundo edita la suya en sitio.
     assert limpiar("sucia", T0).sin_efecto is False
-    assert economia.ejecutar_cuidado(
-        "refresco", "u1", "g1", sim.ACTUALIZAR, T0
-    ).sin_efecto is False
+    assert cuidar("refresco", "g1", sim.ACTUALIZAR, T0).sin_efecto is False
 
 
 def test_tope_12_rollover_utc_y_aislamiento_por_servidor():
@@ -96,11 +103,15 @@ def test_el_cupo_continua_al_cambiar_de_activa():
         assert limpiar(f"a-{i}", T0 + timedelta(minutes=54 * i)).delta_asciicoins == 1
 
     assert db.activar(b.id, "u1", "g1", T0 + timedelta(hours=5))
-    for i in range(5, 13):
-        resultado = limpiar(f"b-{i}", T0 + timedelta(minutes=54 * i))
+    resultados = [
+        limpiar(f"b-{i}", T0 + timedelta(minutes=54 * i))
+        for i in range(5, 13)
+    ]
+    resultado = resultados[-1]
     assert resultado.topada and resultado.usados == 12
     assert economia.saldos("u1", "g1").asciicoins == 62
-    assert db.obtener(a.id).activa is False
+    anterior = db.obtener(a.id)
+    assert anterior is not None and anterior.activa is False
 
 
 def test_cuidar_desde_la_ficha_de_una_incubada_no_acredita():
@@ -116,7 +127,7 @@ def test_cuidar_desde_la_ficha_de_una_incubada_no_acredita():
         response=respuesta,
     )
 
-    asyncio.run(vistas._ejecutar(interaccion, sim.JUGAR))
+    asyncio.run(vistas._ejecutar(cast(Any, interaccion), sim.JUGAR))
 
     respuesta.send_message.assert_awaited_once()
     assert "incubadora" in respuesta.send_message.await_args.args[0]
@@ -130,9 +141,11 @@ def test_ascender_tras_muerte_conserva_cupos_del_dia():
     b = nacer(nombre="B", activa=False)
     for i in range(12):
         assert limpiar(f"a-{i}", T0 + timedelta(minutes=54 * i)).delta_asciicoins == 1
-    db.guardar(replace(db.obtener(a.id), muerta_en=T0, causa_muerte="prueba"))
+    guardada = db.obtener(a.id)
+    assert guardada is not None
+    db.guardar(replace(guardada, muerta_en=T0, causa_muerte="prueba"))
     ascendida = db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(hours=12))
-    assert ascendida.id == b.id
+    assert ascendida is not None and ascendida.id == b.id
 
     resultado = limpiar("tras-ascenso", T0 + timedelta(hours=12))
     assert resultado.topada and resultado.delta_asciicoins == 0
@@ -143,15 +156,15 @@ def test_evolucion_topada_con_otra_criatura_del_plantel():
     a = nacer()
     b = nacer(nombre="B", activa=False)
     db.guardar(replace(a, xp=24, hambre=50.0))
-    primera = economia.ejecutar_cuidado(
-        "evo-a", "u1", "g1", sim.ALIMENTAR, T0
-    )
+    primera = cuidar("evo-a", "g1", sim.ALIMENTAR, T0)
     assert primera.evoluciono and primera.delta_evolucion == 10
 
     db.activar(b.id, "u1", "g1", T0 + timedelta(minutes=24))
-    db.guardar(replace(db.obtener(b.id), xp=24, hambre=50.0))
-    segunda = economia.ejecutar_cuidado(
-        "evo-b", "u1", "g1", sim.ALIMENTAR, T0 + timedelta(minutes=24)
+    guardada = db.obtener(b.id)
+    assert guardada is not None
+    db.guardar(replace(guardada, xp=24, hambre=50.0))
+    segunda = cuidar(
+        "evo-b", "g1", sim.ALIMENTAR, T0 + timedelta(minutes=24)
     )
     assert segunda.evoluciono and segunda.delta_evolucion == 0
     assert segunda.evolucion_usadas == 1
@@ -163,16 +176,17 @@ def test_dos_cuidados_compiten_por_el_ultimo_cupo_sin_sobrepasarlo():
     for i in range(11):
         assert limpiar(f"previo-{i}", T0 + timedelta(minutes=54 * i)).delta_asciicoins == 1
     criatura = db.criatura_activa("u1", "g1")
+    assert criatura is not None
     db.guardar(replace(criatura, limpieza=0.0))
     ahora = T0 + timedelta(hours=11)
 
-    def cuidar(datos):
+    def cuidar_concurrente(datos):
         evento, accion = datos
-        return economia.ejecutar_cuidado(evento, "u1", "g1", accion, ahora)
+        return cuidar(evento, "g1", accion, ahora)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         resultados = list(pool.map(
-            cuidar,
+            cuidar_concurrente,
             (("ultimo-jugar", sim.JUGAR), ("ultimo-limpiar", sim.LIMPIAR)),
         ))
     assert sorted(r.delta_asciicoins for r in resultados) == [0, 1]
@@ -181,7 +195,8 @@ def test_dos_cuidados_compiten_por_el_ultimo_cupo_sin_sobrepasarlo():
 
 
 def test_fallo_del_ledger_revierte_criatura_cooldown_y_saldo():
-    original = nacer()
+    original = replace(nacer(), animo=40.0)
+    db.guardar(original)
     with db.conectar() as con:
         con.execute(
             "CREATE TRIGGER rompe_cuidado BEFORE INSERT ON operaciones_economia "
