@@ -56,20 +56,20 @@ def _problema_para_salir(criatura: sim.Criatura | None, espera) -> str | None:
 
 async def _narrar(
     criatura: sim.Criatura, bioma: av.Bioma, salida: av.Salida,
-    hallazgo: str, usuario_id: str, ahora,
+    hallazgo: str, percance: av.Percance | None, usuario_id: str, ahora,
 ) -> str:
     """La narración del viaje. Una sola llamada al modelo por aventura.
 
     Si no hay presupuesto de IA se cuenta con texto propio: la aventura no puede
     quedarse muda por eso, igual que las criaturas no se quedan sin frase.
     """
-    respaldo = av.resumen_escrito(criatura, bioma, salida, hallazgo)
+    respaldo = av.resumen_escrito(criatura, bioma, salida, hallazgo, percance)
     if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
         return respaldo
 
     db.registrar_uso_ia(usuario_id, ahora)
     sistema, peticion = per.prompt_aventura(
-        criatura, bioma.adonde, list(salida.pruebas), hallazgo
+        criatura, bioma.adonde, list(salida.pruebas), hallazgo, percance
     )
     texto, _ = await ia.generar(sistema, peticion, respaldo)
     return texto
@@ -311,20 +311,21 @@ class Aventura(commands.Cog):
 
         hueco = len(db.plantel(usuario_id, guild_id)) < db.MAXIMO_PLANTEL
         hallazgo = av.tirar_hallazgo(salida.superadas, hueco, rng)
+        percance = av.tirar_percance(salida, rng)
 
         # El desgaste y el enfriamiento se aplican pase lo que pase: el viaje ya
         # se ha hecho.
-        cansada = av.aplicar_desgaste(criatura, salida)
+        cansada = av.aplicar_desgaste(criatura, salida, percance)
         db.guardar(cansada)
         db.poner_cooldown(criatura.id, sim.AVENTURA, ahora)
 
         await interaccion.response.send_message(
-            av.render_pruebas(criatura, bioma, salida)
+            av.render_pruebas(criatura, bioma, salida, percance)
         )
         canal = interaccion.channel
 
         narracion = await _narrar(
-            criatura, bioma, salida, hallazgo, usuario_id, ahora
+            criatura, bioma, salida, hallazgo, percance, usuario_id, ahora
         )
         await canal.send(narracion)
 
@@ -332,7 +333,7 @@ class Aventura(commands.Cog):
             encontrado = av.tirar_objeto(rng)
             db.regalar(usuario_id, guild_id, encontrado)
             await canal.send(
-                f"{encontrado.emoji} Encontráis **{encontrado.nombre}** por el "
+                f"{encontrado.emoji} Encuentras **{encontrado.nombre}** por el "
                 "camino. Está en tu 🎒 Mochila."
             )
             return

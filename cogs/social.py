@@ -116,7 +116,7 @@ o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o 
 cruzándote con un **gachamon salvaje**.
 Convencerlo va por turnos: hablarle, darle **golosinas**, presumir o esperar \
 quieto. **Cada carácter reacciona distinto**, y lo que le molesta le gasta el \
-doble de paciencia; si se le acaba, se larga.
+doble de paciencia; si se le acaba, se va.
 -# Es la única forma de tener un segundo o un tercer gachamon. Se puede salir \
 con el equipo lleno: entonces sólo se encuentran objetos.
 

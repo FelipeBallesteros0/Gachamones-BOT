@@ -28,6 +28,26 @@ STATS = ("fuerza", "velocidad")
 # en buena forma, y se nota en lo que te encuentras.
 HAMBRE_POR_FALLO = 5
 
+# Un fallo abre una posibilidad pequeña de que el viaje salga realmente mal.
+# Dos fallos duplican el riesgo, pero nunca pasa del 50 %. El efecto es corto y
+# usa solamente las barras persistidas que ya existen.
+PROBABILIDAD_PERCANCE_POR_FALLO = 25
+MAX_PROBABILIDAD_PERCANCE = 50
+PENALIZACION_HAMBRE_PERCANCE = 5
+PENALIZACION_ANIMO_PERCANCE = 5
+
+
+@dataclass(frozen=True)
+class Percance:
+    hambre: int
+    animo: int
+
+
+PERCANCE = Percance(
+    hambre=PENALIZACION_HAMBRE_PERCANCE,
+    animo=PENALIZACION_ANIMO_PERCANCE,
+)
+
 
 @dataclass(frozen=True)
 class Bioma:
@@ -124,6 +144,21 @@ class Salida:
     def coste_hambre(self) -> float:
         fallos = len(self.pruebas) - self.superadas
         return sim.COSTE_HAMBRE_AVENTURA + fallos * HAMBRE_POR_FALLO
+
+
+def tirar_percance(
+    salida: Salida, rng: random.Random | None = None
+) -> Percance | None:
+    """Sortea un percance sólo si hubo fallos: 25 % por fallo, hasta 50 %."""
+    fallos = len(salida.pruebas) - salida.superadas
+    if not fallos:
+        return None
+
+    probabilidad = min(
+        MAX_PROBABILIDAD_PERCANCE,
+        fallos * PROBABILIDAD_PERCANCE_POR_FALLO,
+    )
+    return PERCANCE if (rng or random.Random()).randint(1, 100) <= probabilidad else None
 
 
 def explorar(
@@ -355,17 +390,29 @@ def narrar_opcion(antes: Encuentro, opcion: str, despues: Encuentro) -> str:
 
 # --- Lo que cuesta el viaje -------------------------------------------------
 
-def aplicar_desgaste(criatura: sim.Criatura, salida: Salida) -> sim.Criatura:
+def aplicar_desgaste(
+    criatura: sim.Criatura, salida: Salida, percance: Percance | None = None
+) -> sim.Criatura:
     """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho."""
+    hambre_perdida = salida.coste_hambre + (percance.hambre if percance else 0)
+    animo_perdido = sim.COSTE_ANIMO_AVENTURA + (percance.animo if percance else 0)
     return replace(
         criatura,
-        hambre=max(0.0, min(100.0, criatura.hambre - salida.coste_hambre)),
-        animo=max(0.0, min(100.0, criatura.animo - sim.COSTE_ANIMO_AVENTURA)),
+        hambre=max(0.0, min(100.0, criatura.hambre - hambre_perdida)),
+        animo=max(0.0, min(100.0, criatura.animo - animo_perdido)),
     )
 
 
+def render_percance(percance: Percance | None) -> str:
+    """Efecto mecánico visible, independiente de lo que escriba el modelo."""
+    if percance is None:
+        return ""
+    return f"⚠️ Percance: -{percance.hambre} hambre y -{percance.animo} ánimo."
+
+
 def resumen_escrito(
-    criatura: sim.Criatura, bioma: Bioma, salida: Salida, hallazgo: str
+    criatura: sim.Criatura, bioma: Bioma, salida: Salida, hallazgo: str,
+    percance: Percance | None = None,
 ) -> str:
     """La narración cuando no hay presupuesto de IA.
 
@@ -375,9 +422,12 @@ def resumen_escrito(
     if salida.superadas == len(salida.pruebas):
         viaje = f"{criatura.nombre} sale {bioma.adonde} y no se le resiste nada."
     elif salida.superadas:
-        viaje = f"{criatura.nombre} sale {bioma.adonde} y se le atraganta un tramo."
+        viaje = f"{criatura.nombre} sale {bioma.adonde} y tiene problemas en un tramo."
     else:
-        viaje = f"{criatura.nombre} sale {bioma.adonde} y vuelve hecho un cuadro."
+        viaje = f"{criatura.nombre} sale {bioma.adonde} y vuelve en muy mal estado."
+
+    if percance is not None:
+        viaje += " Sufre un percance durante el trayecto."
 
     finales = {
         SALVAJE: "Algo se mueve ahí al lado.",
@@ -407,7 +457,8 @@ def _anchos(salida: Salida) -> tuple[int, int]:
 
 
 def render_pruebas(
-    criatura: sim.Criatura, bioma: Bioma, salida: Salida
+    criatura: sim.Criatura, bioma: Bioma, salida: Salida,
+    percance: Percance | None = None,
 ) -> str:
     """El marco del viaje. El emoji del bioma va FUERA, como siempre."""
     ancho_base, ancho_total = _anchos(salida)
@@ -431,7 +482,9 @@ def render_pruebas(
         ))
     cuerpo.append("╰" + "─" * pantalla.ANCHO + "╯")
 
-    return (
+    texto = (
         f"## {bioma.emoji} {criatura.nombre} sale {bioma.adonde}\n"
         "```ansi\n" + "\n".join(cuerpo) + "\n```"
     )
+    efecto = render_percance(percance)
+    return f"{texto}\n{efecto}" if efecto else texto

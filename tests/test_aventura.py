@@ -118,6 +118,65 @@ def test_fallar_cuesta_hambre_extra():
     assert reventada.coste_hambre > entera.coste_hambre
 
 
+def salida_con_fallos(cuantos: int) -> av.Salida:
+    pruebas = tuple(
+        av.Prueba(
+            obstaculo=f"tramo {i}", stat="fuerza", base=10,
+            dado=10 if i >= cuantos else 1, dificultad=20,
+        )
+        for i in range(av.PRUEBAS_POR_AVENTURA)
+    )
+    return av.Salida(pruebas)
+
+
+def test_sin_pruebas_fallidas_nunca_hay_percance():
+    assert av.tirar_percance(salida_con_fallos(0), DadosFijos([1])) is None
+
+
+def test_dos_fallos_tienen_mas_probabilidad_de_percance_que_uno():
+    """40 queda fuera del 25 % de un fallo y dentro del 50 % de dos."""
+    assert av.tirar_percance(salida_con_fallos(1), DadosFijos([40])) is None
+    assert av.tirar_percance(salida_con_fallos(2), DadosFijos([40])) == av.PERCANCE
+
+
+def test_los_umbrales_del_percance_son_inclusivos():
+    assert av.tirar_percance(salida_con_fallos(1), DadosFijos([25])) == av.PERCANCE
+    assert av.tirar_percance(salida_con_fallos(1), DadosFijos([26])) is None
+    assert av.tirar_percance(salida_con_fallos(2), DadosFijos([50])) == av.PERCANCE
+    assert av.tirar_percance(salida_con_fallos(2), DadosFijos([51])) is None
+
+
+def test_el_desgaste_aplica_la_penalizacion_solo_si_hay_percance():
+    salida = salida_con_fallos(1)
+    normal = av.aplicar_desgaste(criatura(), salida)
+    accidentada = av.aplicar_desgaste(criatura(), salida, av.PERCANCE)
+
+    assert (normal.hambre, normal.animo) == (60.0, 75.0)
+    assert (accidentada.hambre, accidentada.animo) == (55.0, 70.0)
+
+
+def test_el_desgaste_con_percance_respeta_el_cero():
+    gastada = av.aplicar_desgaste(
+        criatura(hambre=2.0, animo=3.0), salida_con_fallos(2), av.PERCANCE
+    )
+    assert (gastada.hambre, gastada.animo) == (0.0, 0.0)
+
+
+def test_el_percance_se_cuenta_y_muestra_su_efecto_exacto_en_espanol_neutro():
+    c = criatura(nombre="Nube")
+    bioma = av.BIOMAS["planicie"]
+    salida = salida_con_fallos(1)
+
+    resumen = av.resumen_escrito(c, bioma, salida, av.NADA, av.PERCANCE)
+    render = av.render_pruebas(c, bioma, salida, av.PERCANCE)
+
+    assert "tiene problemas en un tramo" in resumen
+    assert "Sufre un percance" in resumen
+    assert "⚠️ Percance: -5 hambre y -5 ánimo." in render
+    for expresion in ("se le atraganta", "hecho un cuadro"):
+        assert expresion not in resumen
+
+
 # --- Qué te encuentras -----------------------------------------------------
 
 def cuenta_hallazgos(superadas, hueco_en_el_plantel=True, tiradas=3000):

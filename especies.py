@@ -261,7 +261,7 @@ _registrar(Especie(
 _registrar(Especie(
     clave="michi", nombre="Michi", emoji="🐱", color=AMARILLO,
     fuerza=7, velocidad=12, salud=5, rareza=COMUN, peso=12.0,
-    descripcion="Rápido y elegante. Te obedece cuando le apetece.",
+    descripcion="Rápido y elegante. Te obedece cuando quiere.",
     evolucion="Pantera de Salón",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
     arte={

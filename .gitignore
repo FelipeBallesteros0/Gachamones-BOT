@@ -6,6 +6,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# Índices locales de code intelligence.
+.codegraph/
+.gitnexus/
+
 # Preferencias privadas de Claude por worktree.
 CLAUDE.local.md
 
