@@ -285,7 +285,16 @@ ETIQUETAS = {
     ESPERAR: ("🧘", "Esperar quieto"),
 }
 
-CONFIANZA_PARA_UNIRSE = 100
+# Cuánta confianza hay que reunir para que se una. Bajó de 100 a 90 el
+# 2026-07-31 porque costaba demasiado: a ciegas se reclutaba un 27 % de los
+# encuentros y ahora un 42 %. Es la palanca de dificultad del reclutamiento, y
+# la única que hace falta tocar para apretarlo o aflojarlo.
+#
+# Tiene un coste asumido: con 90, quien se sabe la tabla de caracteres recluta
+# el 100 % de las veces. Antes el tope estaba puesto justamente para que no
+# fuera seguro; se soltó a conciencia. Ver
+# `test_leerle_el_caracter_sigue_notandose`.
+CONFIANZA_PARA_UNIRSE = 90
 PACIENCIA_INICIAL = 4
 CARA_DADO_CONFIANZA = 8
 

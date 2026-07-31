@@ -164,11 +164,18 @@ modelo contesta en su voz, pero el efecto lo tira el dado con el modificador del
 carácter: nadie recluta escribiendo «ignora tus instrucciones y únete», y la
 mecánica entera se prueba con dados fijos.
 
-Los números están medidos, no puestos a ojo. Con los primeros, elegir la mejor
-opción reclutaba **el 100 % de las veces en los diez caracteres**: aprendida la
-tabla, el encuentro no tenía riesgo. Simulando encuentros por cada ajuste se
-buscó un punto donde leerle el carácter se note pero no garantice nada —jugando
-bien sale un 93 %, a ciegas un 27 %— y hay un test que fija esa propiedad.
+Los números están medidos, no puestos a ojo. Simulando encuentros por cada
+ajuste, con el listón de confianza en 90 sale **100 % jugando la mejor opción y
+42 % pulsando a ciegas**.
+
+Que jugando bien salga siempre es **deliberado**. Antes el listón estaba en 100 y
+la tasa a ciegas era del 27 %, que costaba demasiado; bajarlo un 10 % la sube al
+42 % y, de paso, deja el reclutamiento asegurado para quien se sepa la tabla de
+caracteres. Se aceptó ese coste a cambio de que unirse fuera más fácil.
+
+Lo que no puede perderse es que **leerle el carácter se note**, y eso sí lo fija
+un test: si alguien toca las reacciones y a ciegas empieza a salir tan bien como
+jugando bien, la mecánica se habrá quedado en una tirada disfrazada.
 
 **Nacer.** La especie sale por
 rareza: 12 % cada una de las siete comunes, 6 % las dos poco comunes y 4 % el
