@@ -91,9 +91,9 @@ _registrar(Objeto(
 ))
 
 # Reinicia la espera de diez minutos entre peleas, que es la que de verdad topa
-# cuánto se puede competir. A cinco gemas —lo que costaba cuando esa espera era
-# de tres minutos— se compraban veinte y la espera dejaba de existir, que es lo
-# contrario de lo que se busca.
+# cuánto se puede competir. A 5 —lo que costaba cuando esa espera era de tres
+# minutos— se compraban veinte con el saldo de partida y la espera dejaba de
+# existir, que es lo contrario de lo que se busca.
 _registrar(Objeto(
     clave="descanso_rapido",
     nombre="Descanso rápido",

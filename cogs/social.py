@@ -12,6 +12,7 @@ import comun
 import competir as comp
 import config
 import db
+import economia as eco
 import objetos as obj
 import especies as esp
 import ia
@@ -30,6 +31,19 @@ def _tabla(lineas: list[str], vacia: str) -> str:
     if not lineas:
         return vacia
     return "```ansi\n" + "\n".join(lineas) + "\n```"
+
+
+def _techo_diario() -> int:
+    """Lo máximo que se puede ganar en un día, aprovechándolo entero.
+
+    Se calcula de los premios y los topes en vez de escribirlo, para que la
+    ayuda no se quede diciendo un número viejo si alguien los retoca.
+    """
+    return (
+        eco.PREMIO_CUIDADO * eco.TOPE_CUIDADOS
+        + eco.PREMIO_EVOLUCION * eco.TOPE_EVOLUCIONES
+        + eco.PREMIO_GANADOR * eco.TOPE_COMPETENCIAS
+    )
 
 
 def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
@@ -53,9 +67,10 @@ def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
 
 **Empezar**
 `/huevo` — te da un huevo. Al romperlo ves cuál de las {len(esp.ESPECIES)} \
-criaturas te ha tocado y con qué estadísticas; después la bautizas. Sólo puedes \
-tener una viva a la vez.
+criaturas te ha tocado y con qué estadísticas; después la bautizas.
 -# {especies_txt}
+-# Es el huevo de partida: sólo sale si no tienes ningún gachamon. Los demás se \
+consiguen en `/aventura`.
 
 **Cuidarla**
 Los botones bajo la pantalla: 🍖 alimentar, 🎮 jugar, 🏋️ entrenar, 🧼 limpiar, \
@@ -99,9 +114,10 @@ reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 `/aventura` saca a tu gachamon activo a un bioma al azar. Dos pruebas de fuerza \
 o velocidad, y según cómo salgan puedes volver de vacío, con un **objeto** o \
 cruzándote con un **gachamon salvaje**.
-Convencerlo va por turnos: hablarle, darle **golosinas** (de la tienda), \
-presumir o esperar quieto. **Cada carácter reacciona distinto**, y lo que le \
-molesta le gasta el doble de paciencia; si se le acaba, se larga.
+Convencerlo va por turnos: hablarle, darle **golosinas** \
+({obj.CATALOGO['golosinas'].precio} {obj.MONEDA_TIENDA} en la tienda), presumir \
+o esperar quieto. **Cada carácter reacciona distinto**, y lo que le molesta le \
+gasta el doble de paciencia; si se le acaba, se larga.
 -# Es la única forma de tener un segundo o un tercer gachamon. Se puede salir \
 con el equipo lleno: entonces sólo se encuentran objetos.
 
@@ -132,6 +148,15 @@ Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
 borran un enfriamiento y una placa para cambiarle el nombre.
 -# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
 El bonus sale en la ficha mientras dure.
+
+**Ganar {obj.MONEDA_TIENDA}**
+Jugando, con tope diario para que no se pueda machacar:
+-# 🍖 cuidarlo **+{eco.PREMIO_CUIDADO}**, hasta {eco.TOPE_CUIDADOS} al día \
+· ✨ evolucionar **+{eco.PREMIO_EVOLUCION}**, {eco.TOPE_EVOLUCIONES} al día \
+· 🏁 competir **+{eco.PREMIO_COMPETENCIA}** y **+{eco.PREMIO_GANADOR}** si ganas, \
+hasta {eco.TOPE_COMPETENCIAS} al día
+Son unos **{_techo_diario()} al día** si lo aprovechas entero. Y en `/aventura` \
+se encuentran objetos por el camino, que salen gratis.
 
 **Otros**
 `/jardin` todas juntas · `/mascota` la tuya · `/mascota @alguien` la de otro

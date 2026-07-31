@@ -385,14 +385,39 @@ def test_cada_pagina_de_la_ayuda_cabe_en_un_mensaje():
 
 
 def test_la_ayuda_habla_de_lo_que_hay():
-    """Que no se quede contando reglas viejas al repartirla en páginas."""
+    """Que no se quede contando reglas viejas al repartirla en páginas.
+
+    Se comprueban los números **sacados de las constantes**, no escritos aquí:
+    si alguien cambia el tope del plantel o los premios, la ayuda tiene que
+    seguirlos o este test lo caza. Ya pasó dos veces —la ayuda siguió diciendo
+    «sólo puedes tener una viva a la vez» después del plantel de tres, y no
+    mencionaba que las monedas se ganan jugando.
+    """
     import competir as comp
+    import economia as eco
+    import objetos as obj
     from cogs.social import paginas_de_ayuda
 
     texto = "\n".join(paginas_de_ayuda("Gachamon"))
-    for esperado in ("/huevo", "/carrera", "/sumo", "/jardin", "/ranking",
-                     "/cementerio", "podio", str(comp.MAX_CORREDORES)):
+    esperados = (
+        "/huevo", "/carrera", "/sumo", "/jardin", "/ranking", "/cementerio",
+        "/aventura", "podio", "incubadora",
+        str(comp.MAX_CORREDORES), str(db.MAXIMO_PLANTEL),
+        obj.MONEDA_TIENDA, str(eco.TOPE_CUIDADOS), str(eco.PREMIO_EVOLUCION),
+    )
+    for esperado in esperados:
         assert esperado in texto, esperado
+
+
+def test_la_ayuda_no_dice_que_solo_cabe_una():
+    """Regresión concreta: al pasar al plantel de tres, la sección «Empezar» se
+    quedó diciendo «Sólo puedes tener una viva a la vez». El código estaba bien
+    y el texto mentía, que es el fallo que nadie ve hasta que alguien lo lee."""
+    from cogs.social import paginas_de_ayuda
+
+    texto = "\n".join(paginas_de_ayuda("Gachamon")).lower()
+    for mentira in ("una viva a la vez", "una sola criatura", "sólo una criatura"):
+        assert mentira not in texto, mentira
 
 
 def test_la_ayuda_se_manda_en_varios_mensajes():
