@@ -209,6 +209,20 @@ def test_esperas_solo_lista_las_acciones_de_cuidado():
     assert set(esperas) == set(sim.ACCIONES_DE_CUIDADO)
 
 
+def test_esperas_admite_acciones_explicitas_en_orden():
+    criatura = nacer()
+    acciones = (*sim.ACCIONES_DE_CUIDADO, sim.COMPETIR, sim.AVENTURA)
+    db.poner_cooldown(criatura.id, sim.COMPETIR, T0)
+    db.poner_cooldown(criatura.id, sim.AVENTURA, T0)
+
+    esperas = db.esperas(criatura.id, T0, acciones)
+
+    assert tuple(esperas) == acciones
+    assert esperas[sim.ALIMENTAR] == timedelta(0)
+    assert esperas[sim.COMPETIR] == timedelta(minutes=10)
+    assert esperas[sim.AVENTURA] == timedelta(minutes=37)
+
+
 def test_la_criatura_recuerda_su_canal():
     criatura = db.crear("u1", "g1", "pulpo", "Prueba", STATS, T0, canal_id="555")
     assert db.criatura_activa("u1", "g1").canal_id == "555"

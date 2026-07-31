@@ -1,6 +1,7 @@
 """El marco no se descuadra jamás: ni con dibujos raros ni con nombres largos."""
 import re
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import especies as esp
 import pantalla
@@ -27,7 +28,7 @@ def lineas_del_marco(mensaje: str) -> list[str]:
 
 
 def criatura(**cambios) -> sim.Criatura:
-    base = dict(
+    base: dict[str, Any] = dict(
         id=1, usuario_id="u1", guild_id="g1", especie="pulpo", nombre="Prueba",
         nacida_en=T0, actualizada_en=T0,
         base_fuerza=15, base_velocidad=15, base_salud=15,
@@ -239,6 +240,23 @@ def test_los_cooldowns_salen_como_subtexto():
     assert "🏋️ 1 h 20 min" in mensaje
 
 
+def test_las_seis_esperas_salen_en_orden_con_iconos_exactos():
+    esperas: dict[str, timedelta] = dict(zip(
+        pantalla.ACCIONES_EN_FICHA,
+        (
+            timedelta(0), timedelta(minutes=2), timedelta(minutes=80),
+            timedelta(0), timedelta(minutes=10), timedelta(minutes=37),
+        ),
+    ))
+
+    linea = pantalla.render(criatura(), T0, esperas=esperas).splitlines()[-1]
+
+    assert linea == (
+        "-# 🍖 listo · 🎮 2 min · 🏋️ 1 h 20 min · 🧼 listo"
+        " · 🏁 10 min · 🧭 37 min"
+    )
+
+
 def test_el_color_de_la_barra_y_la_regla_de_urgencia_no_pueden_separarse():
     """Regresión del error original: el 60 vivía en el código de dibujo y la
     regla de juego no lo consultaba, así que la barra salía naranja y el botón
@@ -273,10 +291,15 @@ def test_el_aviso_de_hambre_no_afecta_a_las_demas_acciones():
     mensaje = pantalla.render(
         criatura(hambre=10.0), T0,
         esperas={sim.JUGAR: timedelta(minutes=12),
-                 sim.ENTRENAR: timedelta(minutes=80)},
+                 sim.ENTRENAR: timedelta(minutes=80),
+                 sim.COMPETIR: timedelta(minutes=10),
+                 sim.AVENTURA: timedelta(minutes=37)},
     )
     assert "🎮 12 min" in mensaje
     assert "🏋️ 1 h 20 min" in mensaje
+    assert "🏁 10 min" in mensaje
+    assert "🧭 37 min" in mensaje
+    assert "tiene hambre" not in mensaje
 
 
 def test_formato_de_espera():
@@ -345,6 +368,17 @@ def test_una_criatura_muerta_siempre_enseña_la_lapida():
     muerta = criatura(muerta_en=T0, causa_muerte="hambre")
     assert "🪦" in pantalla.render(muerta, T0)
     assert "/huevo" in pantalla.render(muerta, T0)
+
+
+def test_la_lapida_no_muestra_esperas():
+    muerta = criatura(muerta_en=T0, causa_muerte="hambre")
+    esperas = {accion: timedelta(minutes=1) for accion in (
+        *sim.ACCIONES_DE_CUIDADO, sim.COMPETIR, sim.AVENTURA
+    )}
+
+    mensaje = pantalla.render(muerta, T0, esperas=esperas)
+
+    assert all(icono not in mensaje for icono in ("🍖", "🎮", "🏋️", "🧼", "🏁", "🧭"))
 
 
 def test_la_revelacion_usa_el_articulo_de_la_especie():
@@ -426,3 +460,26 @@ def test_con_uno_solo_la_incubadora_no_se_menciona():
 def test_el_singular_de_la_incubadora_esta_bien():
     texto = pantalla.render(criatura(), T0, en_la_incubadora=1)
     assert "1 espera" in texto and "esperan" not in texto
+
+
+def test_la_ficha_adversarial_cabe_en_discord():
+    mensaje = pantalla.render(
+        criatura(nombre="N" * sim.LARGO_MAXIMO_NOMBRE),
+        T0,
+        esperas={
+            accion: timedelta(hours=1, minutes=59)
+            for accion in (*sim.ACCIONES_DE_CUIDADO, sim.COMPETIR, sim.AVENTURA)
+        },
+        aviso=(
+            "La aventura terminó sin botín porque la mochila estaba llena; "
+            "se conservaron las recompensas congeladas del evento y el plantel "
+            "activo no cambió. Libera espacio antes de volver a intentarlo."
+        ),
+        efectos={
+            "fuerza": (99, timedelta(hours=23, minutes=59)),
+            "velocidad": (99, timedelta(hours=23, minutes=59)),
+        },
+        en_la_incubadora=2,
+    )
+
+    assert len(mensaje) < 2000

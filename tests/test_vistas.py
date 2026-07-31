@@ -243,6 +243,44 @@ def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
     assert "esperando nombre" in texto
 
 
+def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
+    viva = criatura(1, "Mia", True, None)
+    esperas = Mock(return_value={})
+    monkeypatch.setattr(db, "esperas", esperas)
+    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(db, "plantel", Mock(return_value=[viva]))
+    monkeypatch.setattr(db, "guardar_pantalla", Mock())
+    monkeypatch.setattr(pantalla, "render", Mock(return_value="ficha"))
+
+    interaccion, _, _ = interaccion_de()
+    interaccion.channel_id = "canal"
+    interaccion.original_response = AsyncMock(
+        return_value=SimpleNamespace(id="respuesta")
+    )
+    asyncio.run(vistas.responder_pantalla(interaccion, viva, T0))
+    esperas.assert_called_once_with(viva.id, T0, pantalla.ACCIONES_EN_FICHA)
+
+    esperas.reset_mock()
+    canal = SimpleNamespace(
+        id="canal",
+        send=AsyncMock(return_value=SimpleNamespace(id="publicada")),
+    )
+    asyncio.run(vistas.publicar_pantalla(canal, viva, T0))
+    esperas.assert_called_once_with(viva.id, T0, pantalla.ACCIONES_EN_FICHA)
+
+    esperas.reset_mock()
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
+    monkeypatch.setattr(db, "criatura_por_pantalla", Mock(return_value=viva))
+    monkeypatch.setattr(
+        vistas.economia,
+        "ejecutar_cuidado",
+        Mock(return_value=SimpleNamespace(criatura=viva, replay=False)),
+    )
+    interaccion, _, _ = interaccion_de()
+    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
+    esperas.assert_called_once_with(viva.id, T0, pantalla.ACCIONES_EN_FICHA)
+
+
 def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
     bd_temporal, monkeypatch
 ):
@@ -268,7 +306,7 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
     esperado = pantalla.render(
         guardada,
         ahora,
-        esperas=db.esperas(guardada.id, ahora),
+        esperas=db.esperas(guardada.id, ahora, pantalla.ACCIONES_EN_FICHA),
         efectos=db.efectos_activos(guardada.id, ahora),
         en_la_incubadora=1,
     )

@@ -177,11 +177,15 @@ def _formato_edad(horas: float) -> str:
     return f"{int(dias)} día{'s' if int(dias) != 1 else ''} de vida"
 
 
+ACCIONES_EN_FICHA = (*sim.ACCIONES_DE_CUIDADO, sim.COMPETIR, sim.AVENTURA)
+
 ICONOS_ACCION = {
     sim.ALIMENTAR: "🍖",
     sim.JUGAR: "🎮",
     sim.ENTRENAR: "🏋️",
     sim.LIMPIAR: "🧼",
+    sim.COMPETIR: "🏁",
+    sim.AVENTURA: "🧭",
 }
 
 
