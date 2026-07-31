@@ -1,16 +1,16 @@
 ---
-name: cluster-32
-description: "Skill for the Cluster_32 area of Gachamones-BOT. 6 symbols across 2 files."
+name: cluster-33
+description: "Skill for the Cluster_33 area of Gachamones-BOT. 6 symbols across 2 files."
 ---
 
-# Cluster_32
+# Cluster_33
 
 6 symbols | 2 files | Cohesion: 33%
 
 ## When to Use
 
 - Understanding how criatura_activa_en, espera_en, poner_cooldown_en work
-- Modifying cluster_32-related functionality
+- Modifying cluster_33-related functionality
 
 ## Key Files
 
@@ -61,11 +61,11 @@ Start here when exploring this area:
 |------|-------------|
 | Tests | 4 calls |
 | Cogs | 4 calls |
-| Cluster_42 | 2 calls |
+| Cluster_43 | 2 calls |
 
 ## How to Explore
 
 1. `context({name: "criatura_activa_en"})` — see callers and callees
-2. `query({search_query: "cluster_32"})` — find related execution flows
+2. `query({search_query: "cluster_33"})` — find related execution flows
 3. Read key files listed above for implementation details
 4. `explain({target: "<file or symbol>"})` — persisted taint findings (source→sink data flows), when indexed with `--pdg`

@@ -1,16 +1,16 @@
 ---
-name: cluster-61
-description: "Skill for the Cluster_61 area of Gachamones-BOT. 7 symbols across 1 files."
+name: cluster-62
+description: "Skill for the Cluster_62 area of Gachamones-BOT. 7 symbols across 1 files."
 ---
 
-# Cluster_61
+# Cluster_62
 
 7 symbols | 1 files | Cohesion: 52%
 
 ## When to Use
 
 - Understanding how render_lapida, render_evolucion, render_huevo work
-- Modifying cluster_61-related functionality
+- Modifying cluster_62-related functionality
 
 ## Key Files
 
@@ -54,6 +54,6 @@ Start here when exploring this area:
 ## How to Explore
 
 1. `context({name: "render_lapida"})` — see callers and callees
-2. `query({search_query: "cluster_61"})` — find related execution flows
+2. `query({search_query: "cluster_62"})` — find related execution flows
 3. Read key files listed above for implementation details
 4. `explain({target: "<file or symbol>"})` — persisted taint findings (source→sink data flows), when indexed with `--pdg`

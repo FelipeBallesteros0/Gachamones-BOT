@@ -1,16 +1,16 @@
 ---
-name: cluster-86
-description: "Skill for the Cluster_86 area of Gachamones-BOT. 8 symbols across 1 files."
+name: cluster-87
+description: "Skill for the Cluster_87 area of Gachamones-BOT. 8 symbols across 1 files."
 ---
 
-# Cluster_86
+# Cluster_87
 
 8 symbols | 1 files | Cohesion: 64%
 
 ## When to Use
 
 - Understanding how texto_recibo_cuidado, alimentar, jugar work
-- Modifying cluster_86-related functionality
+- Modifying cluster_87-related functionality
 
 ## Key Files
 
@@ -62,11 +62,11 @@ Start here when exploring this area:
 |------|-------------|
 | Cogs | 3 calls |
 | Tests | 3 calls |
-| Cluster_61 | 1 calls |
+| Cluster_62 | 1 calls |
 
 ## How to Explore
 
 1. `context({name: "texto_recibo_cuidado"})` — see callers and callees
-2. `query({search_query: "cluster_86"})` — find related execution flows
+2. `query({search_query: "cluster_87"})` — find related execution flows
 3. Read key files listed above for implementation details
 4. `explain({target: "<file or symbol>"})` — persisted taint findings (source→sink data flows), when indexed with `--pdg`

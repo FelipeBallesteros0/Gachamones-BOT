@@ -45,7 +45,7 @@ Start here when exploring this area:
 | `Aventura` | Class | `cogs/aventura.py` | 262 |
 | `Competencias` | Class | `cogs/competencias.py` | 251 |
 | `Mascota` | Class | `cogs/mascota.py` | 85 |
-| `Social` | Class | `cogs/social.py` | 170 |
+| `Social` | Class | `cogs/social.py` | 169 |
 | `como_se_llama` | Function | `competir.py` | 473 |
 | `ahora_utc` | Function | `db.py` | 289 |
 | `ascender_de_la_incubadora` | Function | `db.py` | 358 |
@@ -83,8 +83,8 @@ Start here when exploring this area:
 | Area | Connections |
 |------|-------------|
 | Tests | 79 calls |
-| Cluster_61 | 2 calls |
-| Cluster_32 | 1 calls |
+| Cluster_62 | 2 calls |
+| Cluster_33 | 1 calls |
 
 ## How to Explore
 
