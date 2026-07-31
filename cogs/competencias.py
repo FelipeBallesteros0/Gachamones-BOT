@@ -33,9 +33,9 @@ def _problema_para_competir(
     función siga siendo comprobable sin base de datos.
     """
     if criatura is None:
-        return f"{quien} no tiene ninguna criatura viva."
+        return f"{quien} no tiene ningún gachamon vivo."
     if not criatura.viva:
-        return f"La criatura de {quien} ha muerto."
+        return f"El gachamon de {quien} ha muerto."
     if criatura.hambre < sim.HAMBRE_MINIMA_COMPETIR:
         # El hambre va antes que el enfriamiento: de las dos cosas, es la única
         # que quien lea el aviso puede arreglar.
@@ -128,7 +128,7 @@ def _invitados_validos(
         if usuario.id == retador.id:
             return [], "No puedes competir contra ti mismo."
         if usuario.bot:
-            return [], "Los bots no tienen mascota."
+            return [], "Los bots no tienen gachamones."
         if any(u.id == usuario.id for u in invitados):
             return [], f"Has invitado a **{usuario.display_name}** dos veces."
         invitados.append(usuario)

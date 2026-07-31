@@ -46,8 +46,8 @@ async def _es_de_otro(interaccion: discord.Interaction) -> bool:
     if dueño is None or dueño.usuario_id == str(interaccion.user.id):
         return False
     await interaccion.response.send_message(
-        f"Esa es la mascota de <@{dueño.usuario_id}>. "
-        "Saca la tuya con `/mascota`.",
+        f"Ese es el gachamon de <@{dueño.usuario_id}>. "
+        "Saca el tuyo con `/mascota`.",
         ephemeral=True,
     )
     return True
@@ -163,7 +163,7 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
                 criatura = None
         if criatura is None:
             await interaccion.response.send_message(
-                "Ya no tienes ninguna criatura viva.", ephemeral=True
+                "Ya no tienes ningún gachamon vivo.", ephemeral=True
             )
             return
 
@@ -208,14 +208,14 @@ class NombrarView(discord.ui.View):
         criatura = db.criatura_activa(str(interaccion.user.id), str(interaccion.guild_id))
         if criatura is None:
             await interaccion.response.send_message(
-                "No tienes ninguna criatura viva. Empieza con `/huevo`.", ephemeral=True
+                "No tienes ningún gachamon vivo. Empieza con `/huevo`.", ephemeral=True
             )
             return
 
         dueño = db.criatura_por_pantalla(str(interaccion.message.id))
         if dueño and dueño.usuario_id != str(interaccion.user.id):
             await interaccion.response.send_message(
-                f"Esa criatura es de <@{dueño.usuario_id}>.", ephemeral=True
+                f"Ese gachamon es de <@{dueño.usuario_id}>.", ephemeral=True
             )
             return
 
@@ -277,8 +277,8 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     dueño = db.criatura_por_pantalla(str(interaccion.message.id))
     if dueño and dueño.usuario_id != usuario_id:
         await interaccion.response.send_message(
-            f"Esa es la mascota de <@{dueño.usuario_id}>. "
-            "Saca la tuya con `/mascota` o `/huevo`.",
+            f"Ese es el gachamon de <@{dueño.usuario_id}>. "
+            "Saca el tuyo con `/mascota` o `/huevo`.",
             ephemeral=True,
         )
         return
@@ -305,7 +305,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     )
     if resultado is None:
         await interaccion.response.send_message(
-            "No tienes ninguna criatura viva. Empieza con `/huevo`.", ephemeral=True
+            "No tienes ningún gachamon vivo. Empieza con `/huevo`.", ephemeral=True
         )
         return
 
@@ -398,7 +398,7 @@ def _efecto_recibo_cuidado(
             f"coste base {efecto['animo']:g} ánimo",
         )
     if accion == sim.LIMPIAR:
-        return "🧼 Limpiar", f"limpieza {efecto['limpieza']:g}", xp
+        return "🧼 Limpiar", f"aseo {efecto['limpieza']:g}", xp
     raise ValueError(f"acción de cuidado desconocida: {accion}")
 
 

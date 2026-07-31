@@ -549,7 +549,7 @@ def aplicar_accion(
 def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:
     """El efecto de la acción sobre las barras, sin tocar la experiencia."""
     if not criatura.viva:
-        return ResultadoAccion(criatura, "Tu criatura ya no está entre nosotros.", ok=False)
+        return ResultadoAccion(criatura, "Tu gachamon ya no está entre nosotros.", ok=False)
 
     if accion == ACTUALIZAR:
         return ResultadoAccion(criatura, "")

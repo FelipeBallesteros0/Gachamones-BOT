@@ -209,7 +209,7 @@ def render(
     cuerpo += _lineas_arte(arte, definicion.color)
     cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.append(_fila_barra("COMIDA", criatura.hambre))
-    cuerpo.append(_fila_barra("ANIMO", criatura.animo))
+    cuerpo.append(_fila_barra("ÁNIMO", criatura.animo))
     cuerpo.append(_fila_barra("ASEO", criatura.limpieza))
     cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.append(_fila_stats(criatura))

@@ -3,6 +3,7 @@ import inspect
 import random
 import re
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import especies as esp
 import personalidad as per
@@ -12,7 +13,7 @@ T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 
 
 def criatura(**cambios) -> sim.Criatura:
-    base = dict(
+    base: dict[str, Any] = dict(
         id=1, usuario_id="u1", guild_id="g1", especie="chispa", nombre="Prueba",
         nacida_en=T0, actualizada_en=T0,
         base_fuerza=15, base_velocidad=15, base_salud=15,
@@ -252,7 +253,7 @@ def test_el_prompt_de_aventura_recibe_el_percance_ya_decidido():
     )
 
     assert "Sufre un percance" in sistema
-    assert "-5 hambre y -5 ánimo" in sistema
+    assert "-5 comida y -5 ánimo" in sistema
     assert "ya está decidido" in sistema
     assert "No decidas" in sistema
 
@@ -461,7 +462,7 @@ def test_el_prompt_de_escena_no_le_cuenta_al_modelo_quién_va():
     sistema, _ = per.prompt_escena("al Bosque", 2)
 
     assert "no digas cuál es la buena" in sistema.lower()
-    assert "no menciones a la criatura" in sistema.lower()
+    assert "no menciones al gachamon" in sistema.lower()
     # El nombre y las cifras de nadie caben aquí: la función no recibe criatura.
     assert "criatura" not in inspect.signature(per.prompt_escena).parameters
 
@@ -484,7 +485,7 @@ def test_el_prompt_de_escena_abre_la_mano_mas_alla_del_obstaculo():
     sistema, _ = per.prompt_escena("al Bosque", 1)
 
     assert "No sólo un obstáculo cerrado" in sistema
-    for forma in ("viajero", "pastor", "tormenta", "criatura"):
+    for forma in ("viajero", "pastor", "tormenta", "gachamon"):
         assert forma in sistema, forma
     assert "dos puertas cerradas" in sistema  # la instrucción de variar
 

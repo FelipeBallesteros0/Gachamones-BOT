@@ -30,7 +30,7 @@ async def manejar_error(
 ) -> None:
     if isinstance(error, CanalEquivocado):
         canales = ", ".join(f"<#{c}>" for c in config.CANALES)
-        mensaje = f"Las mascotas viven en {canales}. Escríbeme allí."
+        mensaje = f"Los gachamones viven en {canales}. Escríbeme allí."
     elif isinstance(error, app_commands.CommandOnCooldown):
         mensaje = f"Demasiado rápido. Prueba en {error.retry_after:.0f} s."
     else:

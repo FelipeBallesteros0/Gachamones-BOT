@@ -70,13 +70,13 @@ def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
     tu_criatura = f"""## 🥚 Gachamones BOT
 
 **Empezar**
-`/huevo` — te da un huevo. Al romperlo ves cuál de las {len(esp.ESPECIES)} \
-criaturas te ha tocado y con qué estadísticas; después la bautizas.
+`/huevo` — te da un huevo. Al romperlo ves cuál de los {len(esp.ESPECIES)} \
+gachamones te ha tocado y con qué estadísticas; después lo bautizas.
 -# {especies_txt}
 -# Es el huevo de partida: sólo sale si no tienes ningún gachamon. Los demás se \
 consiguen en `/aventura`.
 
-**Cuidarla**
+**Cuidarlo**
 Los botones bajo la pantalla: 🍖 alimentar, 🎮 jugar, 🏋️ entrenar, 🧼 limpiar, \
 🔄 actualizar. Cada acción publica una pantalla nueva abajo y deja la anterior \
 apagada.
@@ -84,7 +84,7 @@ apagada.
 la estadística de salud alarga ese margen.
 
 **Crecer**
-Cuidarla da experiencia: alimentar +1, jugar +2, entrenar +3. Ganar una \
+Cuidarlo da experiencia: alimentar +1, jugar +2, entrenar +3. Ganar una \
 competencia da +10. Cada nivel es una **evolución** y le cambia el dibujo:
 -# cría → niño → adolescente → adulto → adulto grande
 El primer salto cae en un día; llegar a la forma final cuesta cerca de un mes. \
@@ -100,7 +100,7 @@ su **personalidad**, una de diez: {caracteres_txt}.
 -# Las dos salen en la ficha y no cambian nunca. No tocan ninguna estadística: \
 sólo cómo te habla y cómo se porta en el jardín. Ninguna es mejor que otra."""
 
-    que_hacer = f"""## 🏁 Y qué hacer con ella
+    que_hacer = f"""## 🏁 Y qué hacer con él
 
 **Competir**
 `/carrera @alguien` — decide la velocidad + 1d20. Puedes invitar a **tres más** \
@@ -110,7 +110,7 @@ la carrera acaba en **podio**, con los tres primeros subidos a su cajón.
 `/sumo @a @b @c` — **torneo de cuatro**: se sortean dos semifinales y los que \
 pasan juegan la final. De dos o de cuatro; con tres no hay forma de emparejar.
 -# {comp.TRAMOS} tramos por pelea, gana quien sume más. El buen ánimo suma un \
-poco; el hambre resta. Sólo el primero suma victoria, y el torneo cuenta como \
+poco; tener poca comida resta. Sólo el primero suma victoria, y el torneo cuenta como \
 una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
 reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
 
@@ -137,15 +137,15 @@ no te lo salta, porque el que sale al campo eres tú."""
     tus_cosas = f"""## 🧬 Tu plantel y tus cosas
 
 **Hablarle**
-Menciona al bot y tu criatura te contesta: `@{nombre_bot} te acaricio`.
-Cada especie tiene su carácter, y el tono cambia según cómo la tengas: una \
-criatura hambrienta contesta de mal humor. Se acuerda de la última conversación.
+Menciona al bot y tu gachamon te contesta: `@{nombre_bot} te acaricio`.
+Cada especie tiene su carácter, y el tono cambia según cómo lo tengas: un \
+gachamon hambriento contesta de mal humor. Se acuerda de la última conversación.
 -# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia.
 
 **El plantel**
 Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**: \
 es el que recibe los botones y los comandos. Los demás esperan en la \
-**incubadora**, donde no les pasa el tiempo —ni hambre, ni ánimo, ni aseo—, así \
+**incubadora**, donde no les pasa el tiempo —ni comida, ni ánimo, ni aseo—, así \
 que no se te mueren mientras juegas con otro.
 -# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
 partida: los demás hay que ganárselos por ahí.
@@ -156,11 +156,11 @@ Los dos botones de abajo, o `/mochila` y `/tienda`. En la **tienda** se compra c
 Empiezas con **{obj.ASCIICOINS_INICIALES} asciicoins** para gastar y \
 **{obj.ASCIIGEMS_INICIALES} asciigems** en reserva.
 Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
-{obj.MINUTOS_DE_EFECTO} minutos, una que llena el hambre de golpe, dos que \
+{obj.MINUTOS_DE_EFECTO} minutos, una que llena la comida de golpe, dos que \
 borran un enfriamiento y una placa para cambiarle el nombre.
 -# 🍬 Las **golosinas** ({obj.CATALOGO['golosinas'].precio} \
 {obj.MONEDA_TIENDA}) valen para dos cosas: dan \
-+{obj.CATALOGO['golosinas'].alimenta} de hambre desde la mochila, y sirven de \
++{obj.CATALOGO['golosinas'].alimenta} de comida desde la mochila, y sirven de \
 cebo con un salvaje en `/aventura`.
 -# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
 El bonus sale en la ficha mientras dure.
@@ -175,7 +175,7 @@ Son unos **{_techo_diario()} al día** si lo aprovechas entero. Y en `/aventura`
 se encuentran objetos por el camino, que salen gratis.
 
 **Otros**
-`/jardin` todas juntas · `/mascota` la tuya · `/mascota @alguien` la de otro
+`/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
 `/ranking` · `/cementerio`"""
 
     return (tu_criatura, que_hacer, tus_cosas)
@@ -186,7 +186,7 @@ class Social(commands.Cog):
         self.bot = bot
         self._ultimo_jardin: dict[str, object] = {}
 
-    @app_commands.command(name="jardin", description="Mira a todas las criaturas del servidor juntas")
+    @app_commands.command(name="jardin", description="Mira a todos los gachamones del servidor juntos")
     @comun.solo_en_el_canal()
     async def jardin_cmd(self, interaccion: discord.Interaction) -> None:
         ahora = db.ahora_utc()
@@ -221,7 +221,7 @@ class Social(commands.Cog):
 
         citado = "\n".join(f"> {l}" for l in narracion.split("\n"))
         await interaccion.followup.send(
-            f"## 🌳 El jardín · {len(criaturas)} criaturas\n{escena}\n{citado}"
+            f"## 🌳 El jardín · {len(criaturas)} gachamones\n{escena}\n{citado}"
         )
 
     def _espera_del_jardin(self, guild_id: str, ahora) -> str | None:
@@ -252,7 +252,7 @@ class Social(commands.Cog):
         )
         return texto
 
-    @app_commands.command(name="ranking", description="Las criaturas vivas con más victorias")
+    @app_commands.command(name="ranking", description="Los gachamones vivos con más victorias")
     @comun.solo_en_el_canal()
     async def ranking(self, interaccion: discord.Interaction) -> None:
         ahora = db.ahora_utc()
@@ -269,10 +269,10 @@ class Social(commands.Cog):
 
         await interaccion.response.send_message(
             "## 🏆 Ranking\n"
-            + _tabla(lineas, "-# Todavía no hay ninguna criatura viva. Usa `/huevo`.")
+            + _tabla(lineas, "-# Todavía no hay ningún gachamon vivo. Usa `/huevo`.")
         )
 
-    @app_commands.command(name="cementerio", description="Las criaturas que ya no están")
+    @app_commands.command(name="cementerio", description="Los gachamones que ya no están")
     @comun.solo_en_el_canal()
     async def cementerio(self, interaccion: discord.Interaction) -> None:
         criaturas = db.cementerio(str(interaccion.guild_id))
