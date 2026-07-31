@@ -162,6 +162,52 @@ def criatura_de_prueba(**cambios) -> sim.Criatura:
     return sim.Criatura(**base)
 
 
+def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from unittest.mock import AsyncMock, Mock
+
+    import pantalla
+    from cogs import mascota as cog_mascota
+
+    ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    criatura = criatura_de_prueba(usuario_id="2", actualizada_en=ahora)
+    esperas = Mock(return_value={
+        accion: timedelta(minutes=1) for accion in pantalla.ACCIONES_EN_FICHA
+    })
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
+    monkeypatch.setattr(db, "esperas", esperas)
+    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+
+    respuesta = AsyncMock()
+    interaccion = cast(discord.Interaction, SimpleNamespace(
+        user=SimpleNamespace(id=1),
+        guild_id="g1",
+        response=SimpleNamespace(send_message=respuesta),
+    ))
+    rival = cast(discord.User, UsuarioFalso(2))
+    cog = cog_mascota.Mascota.__new__(cog_mascota.Mascota)
+
+    callback = cast(Any, cog_mascota.Mascota.mascota.callback)
+    asyncio.run(callback(cog, interaccion, rival))
+
+    esperas.assert_called_once_with(
+        criatura.id, ahora,
+        (
+            sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR,
+            sim.LIMPIAR, sim.COMPETIR, sim.AVENTURA,
+        ),
+    )
+    llamada = respuesta.await_args
+    assert llamada is not None
+    contenido = llamada.args[0]
+    assert all(
+        icono in contenido for icono in ("🍖", "🎮", "🏋️", "🧼", "🏁", "🧭")
+    )
+    assert "view" not in llamada.kwargs
+
+
 def test_el_aviso_de_hambre_para_competir_concuerda():
     """Vive en un cog, fuera del alcance del constructor de `ResultadoAccion`,
     así que lleva su propia llamada a `concordar` y hay que vigilarla."""

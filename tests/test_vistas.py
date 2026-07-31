@@ -1,7 +1,4 @@
 """Las mutaciones externas apagan la ficha viva que acaba de quedar obsoleta."""
-# Los dobles SimpleNamespace y las funciones monkeypatched son dinámicos.
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
-# pyright: reportFunctionMemberAccess=false, reportOptionalMemberAccess=false
 import asyncio
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
