@@ -426,6 +426,31 @@ def test_identidad_reconocida_aparece_sin_nuevo_descubrimiento():
     assert "Corazón de roble" in texto
 
 
+def test_cada_identidad_se_anuncia_con_su_descripcion():
+    """`pantalla` describe las cinco identidades que `simulacion` reconoce.
+
+    El anuncio busca la descripción por el nombre de la identidad, así que un
+    nombre sin pareja no fallaría en `simulacion`: reventaría al anunciarlo.
+    """
+    casos = {
+        "FFFFVF": ("Corazón de roble", "fuerza"),
+        "VVVVFV": ("Fibra de fresno", "velocidad"),
+        "SSSSFS": ("Savia de olivo", "salud"),
+        "FVSFVS": ("Veta en espiral", "salud"),
+        "FVFVFV": ("Veta trenzada", "velocidad"),
+    }
+
+    for historial, (identidad, stat) in casos.items():
+        assert sim.identidad_de(historial) == identidad
+        texto = pantalla.render_rupturas(
+            criatura(historial_vetas=historial),
+            (sim.Ruptura(stat, 20, 0, 1, causa=sim.ENTRENAR),),
+        )
+        assert texto.count("El pasado toma forma") == 1
+        assert identidad in texto
+        assert pantalla.DESCRIPCIONES_IDENTIDAD[identidad] in texto
+
+
 def test_ruptura_sin_identidad_conserva_el_mensaje():
     texto = pantalla.render_rupturas(
         criatura(historial_vetas="FV", niv_fuerza=1, niv_velocidad=1),
@@ -454,34 +479,50 @@ def _a_una_veta_de_identidad() -> sim.Criatura:
     return replace(base, ten_fuerza=sim.umbral_veta(base) - 0.01)
 
 
+def _sufijo_del_lote(antes: sim.Criatura, despues: sim.Criatura) -> str:
+    """Letras que el suceso añadió al historial, conservando el prefijo.
+
+    `render_rupturas` compara el historial final con el prefijo anterior al
+    lote restando su longitud. Si un camino real dejara de anunciar todas sus
+    rupturas —o tocara el historial por otro sitio— esa resta señalaría al
+    prefijo equivocado y el descubrimiento se anunciaría de más o de menos.
+    """
+    assert despues.historial_vetas.startswith(antes.historial_vetas)
+    return despues.historial_vetas[len(antes.historial_vetas):]
+
+
 def test_cuidado_descubre_identidad_por_el_camino_real():
-    resultado = sim.aplicar_accion(
-        _a_una_veta_de_identidad(), sim.ENTRENAR, T0
-    )
+    antes = _a_una_veta_de_identidad()
+    resultado = sim.aplicar_accion(antes, sim.ENTRENAR, T0)
     texto = pantalla.render_rupturas(resultado.criatura, resultado.rupturas)
 
     assert resultado.rupturas
+    assert len(_sufijo_del_lote(antes, resultado.criatura)) == len(
+        resultado.rupturas
+    )
     assert texto.count("El pasado toma forma") == 1
 
 
 def test_competencia_descubre_identidad_por_el_camino_real():
+    antes = _a_una_veta_de_identidad()
     actualizada, rupturas = sim.aplicar_competencia(
-        _a_una_veta_de_identidad(), True, "fuerza", margen=0
+        antes, True, "fuerza", margen=0
     )
     texto = pantalla.render_rupturas(actualizada, rupturas)
 
     assert rupturas
+    assert len(_sufijo_del_lote(antes, actualizada)) == len(rupturas)
     assert texto.count("El pasado toma forma") == 1
 
 
 def test_aventura_descubre_identidad_por_el_camino_real():
+    antes = _a_una_veta_de_identidad()
     salida = av.Salida((av.Prueba("f", "fuerza", 20, 0, 20),))
-    actualizada, rupturas = av.aplicar_viaje(
-        _a_una_veta_de_identidad(), salida, T0
-    )
+    actualizada, rupturas = av.aplicar_viaje(antes, salida, T0)
     texto = pantalla.render_rupturas(actualizada, rupturas)
 
     assert rupturas
+    assert len(_sufijo_del_lote(antes, actualizada)) == len(rupturas)
     assert texto.count("El pasado toma forma") == 1
 
 
