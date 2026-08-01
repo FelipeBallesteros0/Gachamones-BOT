@@ -62,7 +62,9 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
 
 
 class MenuPlantel(discord.ui.Select):
-    def __init__(self, plantel: list[sim.Criatura], congelar=None, bautizar=None):
+    def __init__(
+        self, plantel: list[sim.Criatura], congelar=None, bautizar=None, publicar=None
+    ):
         opciones = [
             discord.SelectOption(
                 label=sim.nombre_visible(criatura)[:100],
@@ -76,6 +78,7 @@ class MenuPlantel(discord.ui.Select):
         super().__init__(placeholder="¿A cuál sacas?", options=opciones)
         self.congelar = congelar
         self.bautizar = bautizar
+        self.publicar = publicar
         self.plantel = plantel
 
     async def callback(self, interaccion: discord.Interaction) -> None:
@@ -129,22 +132,33 @@ class MenuPlantel(discord.ui.Select):
             ),
             view=None,
         )
+        # La ficha nueva sale *después* de contestar, y como mensaje normal del
+        # canal: una segunda respuesta a la misma interacción la rechazaría
+        # Discord. Si el canal no deja escribir, el cambio ya está hecho y
+        # acusado, y el `/mascota` de arriba sigue siendo el camino de vuelta.
+        if self.publicar is not None:
+            await self.publicar(interaccion.channel, nueva, ahora)
 
 
 class VistaPlantel(discord.ui.View):
-    def __init__(self, plantel: list[sim.Criatura], congelar=None, bautizar=None):
+    def __init__(
+        self, plantel: list[sim.Criatura], congelar=None, bautizar=None, publicar=None
+    ):
         super().__init__(timeout=SEGUNDOS_DE_MENU)
-        self.add_item(MenuPlantel(plantel, congelar, bautizar))
+        self.add_item(MenuPlantel(plantel, congelar, bautizar, publicar))
 
 
 async def abrir_plantel(
-    interaccion: discord.Interaction, congelar=None, bautizar=None
+    interaccion: discord.Interaction, congelar=None, bautizar=None, publicar=None
 ) -> None:
     plantel = db.plantel(str(interaccion.user.id), str(interaccion.guild_id))
     # Con uno solo no hay nada que elegir: se enseña la lista y ya.
     hay_donde_elegir = len(plantel) > 1
     await interaccion.response.send_message(
         texto_del_plantel(plantel),
-        view=VistaPlantel(plantel, congelar, bautizar) if hay_donde_elegir else None,
+        view=(
+            VistaPlantel(plantel, congelar, bautizar, publicar)
+            if hay_donde_elegir else None
+        ),
         ephemeral=True,
     )

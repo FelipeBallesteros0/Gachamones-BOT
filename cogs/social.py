@@ -401,7 +401,9 @@ class Social(commands.Cog):
     @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
     @comun.solo_en_el_canal()
     async def plantel(self, interaccion: discord.Interaction) -> None:
-        await equipo.abrir_plantel(interaccion, vistas.congelar, vistas.bautizar)
+        await equipo.abrir_plantel(
+            interaccion, vistas.congelar, vistas.bautizar, vistas.publicar_pantalla
+        )
 
     @app_commands.command(name="ayuda", description="Cómo funciona el bot")
     @comun.solo_en_el_canal()
