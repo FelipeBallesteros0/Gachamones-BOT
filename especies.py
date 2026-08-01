@@ -574,19 +574,19 @@ _registrar(Especie(
 _registrar(Especie(
     clave="dragoncito", nombre="Tsushimon", emoji="🐉", color=ROJO,
     fuerza=12, velocidad=9, salud=9, rareza=RARA, peso=2.0,
-    descripcion="Sale una vez de cada veinticinco huevos. Cuídalo bien.",
+    descripcion="Sale una vez de cada cincuenta huevos. Cuídalo bien.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
- /\_/\
-({cara})>
- \___/
+  ^^^
+ ({cara})~
+  \_/
 """,
         NINO: r"""
-  /\_/\
- ( {cara} )>
-  \___/
-   ^ ^
+   ^^^^
+  ({cara})~~
+   |   |
+   ^   ^
 """,
         ADOLESCENTE: r"""
  \       /

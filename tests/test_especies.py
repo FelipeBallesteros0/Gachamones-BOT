@@ -1,5 +1,6 @@
 """Las especies: equilibrio, rarezas, tirada de nacimiento y las cinco etapas."""
 import random
+import re
 import statistics
 import textwrap
 from collections import Counter
@@ -294,3 +295,57 @@ def test_el_reflejo_distingue_una_cola_de_un_descuadre():
     assert es_simetrica("<( )>")
     assert not es_simetrica("(  u  )~~")      # cola de gato
     assert not es_simetrica("<(    )>>>")     # cola de pollo
+
+
+# Adornos que varias especies pueden compartir sin que se confundan: son
+# texturas, no rasgos. Una línea de un solo carácter repetido (`_____`, `~~~~~`),
+# un adorno radial (`\|/`, `\\\|///`) o una tapa de caja (`.---.`) no dicen qué
+# bicho eres; una cabeza sí.
+_RAYOS = re.compile(r"^[\\/|]+$")
+_CAJA = re.compile(r"^\.-+\.$")
+
+
+def _es_textura(linea: str) -> bool:
+    nucleo = linea.replace(" ", "")
+    return (
+        len(set(nucleo)) == 1
+        or bool(_RAYOS.match(nucleo))
+        or bool(_CAJA.match(nucleo))
+    )
+
+
+def _corona(plantilla: str) -> str:
+    """La línea justo encima de la cara: la cabeza, lo que identifica al bicho."""
+    ls = [l.strip() for l in lineas(plantilla) if l.strip()]
+    for i, linea in enumerate(ls):
+        if "{cara}" in linea:
+            return ls[i - 1] if i else ""
+    return ""
+
+
+def test_ninguna_especie_copia_la_cabeza_de_otra():
+    r"""Reportado jugando: el Tsushimon bebé llevaba `/\_/\` encima de la cara
+    —la cabeza de gato de ASCII— igual que el Purreon, así que el bicho más raro
+    del juego parecía el gato común al salir del huevo.
+
+    No lo cazaba nada: `test_cada_etapa_se_ve_distinta` compara las etapas
+    DENTRO de una especie, no entre especies.
+
+    **La regla es un apaño y conviene saberlo.** Se probaron cuatro: la primera
+    línea, las dos primeras, cualquier línea compartida y ésta. Las tres
+    primeras o dejaban pasar el fallo —la boca ya difería— o señalaban texturas
+    legítimas como `~~~~~`. La distinción de verdad es semántica, no de texto,
+    así que esto mira **la línea de encima de la cara** y perdona lo que es
+    adorno repetido. Si algún día señala algo que no debe, mira `_es_textura`
+    antes de tocar el dibujo.
+    """
+    coronas: dict[str, set[str]] = {}
+    for clave, especie in esp.ESPECIES.items():
+        for etapa in esp.ETAPAS:
+            corona = _corona(especie.arte[etapa])
+            if corona and not _es_textura(corona):
+                coronas.setdefault(corona, set()).add(clave)
+
+    repetidas = {c: sorted(quienes) for c, quienes in coronas.items()
+                 if len(quienes) > 1}
+    assert not repetidas, repetidas
