@@ -132,6 +132,10 @@ class MenuPlantel(discord.ui.Select):
             ),
             view=None,
         )
+        # La ficha nueva sale *después* de contestar, y como mensaje normal del
+        # canal: una segunda respuesta a la misma interacción la rechazaría
+        # Discord. Si el canal no deja escribir, el cambio ya está hecho y
+        # acusado, y el `/mascota` de arriba sigue siendo el camino de vuelta.
         if self.publicar is not None:
             await self.publicar(interaccion.channel, nueva, ahora)
 

@@ -130,9 +130,7 @@ class PantallaView(discord.ui.View):
     async def cambiar_activo(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         if await _es_de_otro(interaccion):
             return
-        await equipo.abrir_plantel(
-            interaccion, congelar, bautizar, publicar_pantalla
-        )
+        await equipo.abrir_plantel(interaccion, congelar, bautizar, publicar_pantalla)
 
 
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, call
 
+import discord
 import pytest
 
 import db
@@ -362,6 +363,32 @@ def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temp
     interaccion.response.edit_message.assert_awaited_once()
     activa = db.criatura_activa("u1", "g1")
     assert activa is not None and activa.id == reserva.id
+
+
+def test_si_el_canal_no_deja_publicar_el_cambio_sigue_hecho_y_acusado(
+    bd_temporal, monkeypatch
+):
+    """Sin permiso para escribir queda el `/mascota` de la respuesta efímera."""
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
+    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    db.guardar_pantalla(anterior.id, "555", "111")
+    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    guardado, actual = dos_canales("111", "222")
+    actual.send = AsyncMock(side_effect=discord.HTTPException(
+        SimpleNamespace(status=403, reason="Forbidden"), "Missing Permissions"
+    ))
+
+    menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
+    with pytest.raises(discord.HTTPException):
+        asyncio.run(menu.callback(interaccion))
+
+    # Lo que se guardó y lo que se contestó pasó antes de intentar publicar: el
+    # cambio está hecho, la ficha vieja congelada y la persona ya sabe volver.
+    activa = db.criatura_activa("u1", "g1")
+    assert activa is not None and activa.id == reserva.id
+    guardado.fetch_message.assert_awaited_once_with(555)
+    contenido = interaccion.response.edit_message.await_args.kwargs["content"]
+    assert "/mascota" in contenido
 
 
 # --- El recluta que todavía no tiene nombre ---------------------------------
