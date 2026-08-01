@@ -341,6 +341,161 @@ def test_render_rupturas_anuncia_cascada_fuera_del_arte():
     assert "```ansi" not in texto
 
 
+def test_identidad_reconoce_patrones_deterministas_y_respeta_el_umbral():
+    assert sim.UMBRAL_IDENTIDAD == sim.VENTANA_SECUENCIA == 6
+    casos = {
+        "": None,
+        "FFFFF": None,
+        "FFFFVS": "Corazón de roble",
+        "VVVVSV": "Fibra de fresno",
+        "SSSSFS": "Savia de olivo",
+        "FVSFVS": "Veta en espiral",
+        "VSFVSF": "Veta en espiral",
+        "SFVSFV": "Veta en espiral",
+        "FSVFSV": "Veta en espiral",
+        "SVFSVF": "Veta en espiral",
+        "VFSVFS": "Veta en espiral",
+        "FVFVFV": "Veta trenzada",
+        "VSVSVS": "Veta trenzada",
+        "FFVVSS": None,
+        "FFFVVVSSS": None,
+        "FFVVSSV": None,
+    }
+
+    for historial, esperada in casos.items():
+        assert sim.identidad_de(historial) == esperada
+        assert sim.identidad_de(historial) == esperada
+
+
+def test_identidad_prioriza_dominancia_y_conserva_la_primera_reconocida():
+    assert sim.identidad_de("FFFFVFVFVF") == "Corazón de roble"
+    assert sim.identidad_de("FVSFVSF") == "Veta en espiral"
+    assert sim.identidad_de("FVSFVSFFFFFF") == "Veta en espiral"
+
+
+def test_identidad_depende_solo_del_historial_persistido():
+    veterana = criatura(niv_fuerza=20, niv_velocidad=20, niv_salud=20)
+    assert sim.identidad_de(veterana.historial_vetas) is None
+
+
+def test_primera_identidad_se_anuncia_exactamente_una_vez():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="FFFFFF", niv_fuerza=6),
+        (sim.Ruptura("fuerza", 40, 5, 6, causa=sim.ENTRENAR),),
+    )
+
+    assert texto.count("El pasado toma forma") == 1
+    assert "Corazón de roble" in texto
+
+
+def test_cruce_en_segunda_ruptura_de_lote_anuncia_una_sola_vez():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="FFFFFFF", niv_fuerza=7),
+        (
+            sim.Ruptura("fuerza", 36, 4, 5, causa=sim.ENTRENAR),
+            sim.Ruptura("fuerza", 40, 5, 6, causa=sim.ENTRENAR),
+            sim.Ruptura("fuerza", 44, 6, 7, causa=sim.ENTRENAR),
+        ),
+    )
+
+    assert texto.count("El pasado toma forma") == 1
+
+
+def test_cascada_no_duplica_el_descubrimiento():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="FFFFFFF", niv_fuerza=7),
+        (
+            sim.Ruptura("fuerza", 36, 4, 5, causa=sim.ENTRENAR),
+            sim.Ruptura(
+                "fuerza", 40, 5, 6, cascada=True, causa=sim.ENTRENAR
+            ),
+            sim.Ruptura("fuerza", 44, 6, 7, causa=sim.ENTRENAR),
+        ),
+    )
+
+    assert texto.count("El pasado toma forma") == 1
+
+
+def test_identidad_reconocida_aparece_sin_nuevo_descubrimiento():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="FFFFFFF", niv_fuerza=7),
+        (sim.Ruptura("fuerza", 44, 6, 7, causa=sim.ENTRENAR),),
+    )
+
+    assert "El pasado toma forma" not in texto
+    assert "Corazón de roble" in texto
+
+
+def test_ruptura_sin_identidad_conserva_el_mensaje():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="FV", niv_fuerza=1, niv_velocidad=1),
+        (
+            sim.Ruptura("fuerza", 20, 0, 1, causa=sim.ENTRENAR),
+            sim.Ruptura(
+                "velocidad", 24, 0, 1, cascada=True, causa=sim.ENTRENAR
+            ),
+        ),
+    )
+
+    assert texto == (
+        "## 🪵🪵 ¡Cascada en Prueba!\n"
+        "-# FUE 0 → 1 · VEL 0 → 1 · por entrenar · "
+        "ahora FUE en reposo · VEL en reposo · 1 por cascada"
+    )
+
+
+def _a_una_veta_de_identidad() -> sim.Criatura:
+    base = criatura(
+        historial_vetas="FFFFF",
+        niv_fuerza=5,
+        hambre=40.0,
+        animo=100.0,
+    )
+    return replace(base, ten_fuerza=sim.umbral_veta(base) - 0.01)
+
+
+def test_cuidado_descubre_identidad_por_el_camino_real():
+    resultado = sim.aplicar_accion(
+        _a_una_veta_de_identidad(), sim.ENTRENAR, T0
+    )
+    texto = pantalla.render_rupturas(resultado.criatura, resultado.rupturas)
+
+    assert resultado.rupturas
+    assert texto.count("El pasado toma forma") == 1
+
+
+def test_competencia_descubre_identidad_por_el_camino_real():
+    actualizada, rupturas = sim.aplicar_competencia(
+        _a_una_veta_de_identidad(), True, "fuerza", margen=0
+    )
+    texto = pantalla.render_rupturas(actualizada, rupturas)
+
+    assert rupturas
+    assert texto.count("El pasado toma forma") == 1
+
+
+def test_aventura_descubre_identidad_por_el_camino_real():
+    salida = av.Salida((av.Prueba("f", "fuerza", 20, 0, 20),))
+    actualizada, rupturas = av.aplicar_viaje(
+        _a_una_veta_de_identidad(), salida, T0
+    )
+    texto = pantalla.render_rupturas(actualizada, rupturas)
+
+    assert rupturas
+    assert texto.count("El pasado toma forma") == 1
+
+
+def test_evolucion_muestra_identidad_sin_prometer_descubrimiento():
+    con_identidad = pantalla.render_evolucion(
+        criatura(historial_vetas="FFFFFF", niv_fuerza=6, nivel=2), "bebe"
+    )
+    sin_identidad = pantalla.render_evolucion(criatura(nivel=2), "bebe")
+
+    assert "Corazón de roble" in con_identidad
+    assert "El pasado toma forma" not in con_identidad
+    assert "Corazón de roble" not in sin_identidad
+
+
 def test_ficha_acota_historial_y_explica_vetas_anteriores():
     larga = criatura(
         niv_fuerza=500, historial_vetas="F" * 500

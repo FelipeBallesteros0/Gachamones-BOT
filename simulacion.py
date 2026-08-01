@@ -67,6 +67,38 @@ CASCADA = 0.5
 MAX_RUPTURAS_POR_SUCESO = 3
 ESTADISTICAS = ("fuerza", "velocidad", "salud")
 LETRAS_VETA = {"fuerza": "F", "velocidad": "V", "salud": "S"}
+UMBRAL_IDENTIDAD = 6
+VENTANA_SECUENCIA = 6
+IDENTIDADES_DOMINANTES = {
+    "F": "Corazón de roble",
+    "V": "Fibra de fresno",
+    "S": "Savia de olivo",
+}
+
+
+def _identidad_en(historial: str) -> str | None:
+    """Reconoce una identidad en un único prefijo del historial."""
+    longitud = len(historial)
+    for letra, identidad in IDENTIDADES_DOMINANTES.items():
+        if 3 * historial.count(letra) >= 2 * longitud:
+            return identidad
+
+    cola = historial[-VENTANA_SECUENCIA:]
+    if len(set(cola[:3])) == 3 and cola[:3] == cola[3:]:
+        return "Veta en espiral"
+    if len(set(cola)) == 2 and cola[:2] * 3 == cola:
+        return "Veta trenzada"
+    return None
+
+
+def identidad_de(historial: str) -> str | None:
+    """Devuelve la primera identidad reconocida, que no cambia ni desaparece."""
+    for longitud in range(UMBRAL_IDENTIDAD, len(historial) + 1):
+        identidad = _identidad_en(historial[:longitud])
+        if identidad is not None:
+            return identidad
+    return None
+
 
 # --- Acciones --------------------------------------------------------------
 
