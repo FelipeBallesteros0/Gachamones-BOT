@@ -135,6 +135,299 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
     )
 
 
+def test_abrir_entrenamiento_conjunto_filtra_y_captura_reservas_elegibles(
+    bd_temporal, monkeypatch
+):
+    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    elegible = db.crear(
+        "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
+    )
+    db.crear("u1", "g1", "michi", "", STATS, T0, activa=False)
+    muerta = db.crear(
+        "u1", "g1", "michi", "Nube", STATS, T0, activa=False
+    )
+    db.guardar(replace(muerta, muerta_en=T0, causa_muerte="prueba"))
+    db.guardar_pantalla(activa.id, "ficha", "canal")
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(vistas.abrir_entrenamiento_conjunto(interaccion))
+
+    respuesta.send_message.assert_awaited_once()
+    llamada = respuesta.send_message.await_args
+    assert llamada is not None and llamada.kwargs["ephemeral"] is True
+    vista = llamada.kwargs["view"]
+    assert isinstance(vista, vistas.VistaEntrenamientoConjunto)
+    menu = vista.children[0]
+    assert isinstance(menu, vistas.MenuEntrenamientoConjunto)
+    assert [(opcion.value, opcion.label) for opcion in menu.options] == [
+        (str(elegible.id), "Lúa")
+    ]
+    assert menu.activo == (activa.id, "Mia")
+    assert menu.reservas == {str(elegible.id): (elegible.id, "Lúa")}
+
+
+def test_abrir_entrenamiento_conjunto_rechaza_ficha_caduca_o_sin_reservas(
+    bd_temporal
+):
+    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar_pantalla(activa.id, "ficha", "canal")
+    interaccion, respuesta, _ = interaccion_de(mensaje_id="otra")
+
+    asyncio.run(vistas.abrir_entrenamiento_conjunto(interaccion))
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+        ephemeral=True,
+    )
+
+    interaccion, respuesta, _ = interaccion_de()
+    asyncio.run(vistas.abrir_entrenamiento_conjunto(interaccion))
+    respuesta.send_message.assert_awaited_once_with(
+        "No tienes ninguna reserva viva y con nombre para entrenar.",
+        ephemeral=True,
+    )
+
+
+def test_menu_entrenamiento_conjunto_acusa_antes_de_publicar_y_anuncia_ambos(
+    monkeypatch
+):
+    activa = criatura(1, "Mia", True, "ficha")
+    reserva = criatura(2, "Lúa", False, None)
+    participantes = (
+        sim.aplicar_entrenamiento_conjunto(activa),
+        sim.aplicar_entrenamiento_conjunto(reserva),
+    )
+    resultado = economia.ResultadoEntrenamientoConjunto(
+        participantes=participantes, delta_asciicoins=1, usados=1
+    )
+    eventos = []
+
+    def ejecutar(*args):
+        eventos.append(("economia", args))
+        return resultado
+
+    async def responder(**kwargs):
+        eventos.append(("respuesta", kwargs))
+
+    async def publicar(*args, **kwargs):
+        eventos.append(("publicar", args, kwargs))
+
+    async def anunciar(*args):
+        eventos.append(("logro", args))
+
+    monkeypatch.setattr(vistas.economia, "ejecutar_entrenamiento_conjunto", ejecutar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    monkeypatch.setattr(vistas.comun, "anunciar_logros", anunciar)
+    monkeypatch.setattr(vistas.db, "ahora_utc", Mock(return_value=T0))
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu._values = [str(reserva.id)]
+    canal = SimpleNamespace()
+    interaccion = SimpleNamespace(
+        id="selector",
+        user=SimpleNamespace(id="u1"),
+        guild_id="g1",
+        channel=canal,
+        response=SimpleNamespace(edit_message=responder),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    assert [evento[0] for evento in eventos] == [
+        "economia",
+        "respuesta",
+        "publicar",
+        "logro",
+        "logro",
+    ]
+    llamada_economia = eventos[0][1]
+    assert llamada_economia[:3] == ("selector", "u1", "g1")
+    assert llamada_economia[3] == economia.SeleccionEntrenamientoConjunto(
+        1, "Mia", 2, "Lúa"
+    )
+    assert llamada_economia[4] == T0
+    respuesta = eventos[1][1]
+    assert respuesta == {
+        "content": "Entrenamiento conjunto completado.",
+        "view": None,
+    }
+    publicacion = eventos[2]
+    assert publicacion[1][:3] == (canal, participantes[0].criatura, T0)
+    aviso = publicacion[2]["aviso"]
+    assert "**Mia** + **Lúa**" in aviso
+    assert "+2 XP · +1 fuerza · -10 comida · -5 ánimo" in aviso
+    assert aviso.count("cuidado 1/12 UTC") == 1
+    assert [evento[1][1].id for evento in eventos[3:]] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "resultado,texto",
+    [
+        (
+            economia.ResultadoEntrenamientoConjunto(replay=True),
+            "Esta interacción ya estaba procesada.",
+        ),
+        (
+            economia.ResultadoEntrenamientoConjunto(problema="activo_caduco"),
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+        ),
+        (
+            economia.ResultadoEntrenamientoConjunto(problema="reserva_caduca"),
+            "Ese compañero ya no está disponible. "
+            "Abre «Entrenar juntos» otra vez.",
+        ),
+    ],
+)
+def test_menu_entrenamiento_conjunto_cierra_errores_sin_publicar(
+    monkeypatch, resultado, texto
+):
+    activa = criatura(1, "Mia", True, "ficha")
+    reserva = criatura(2, "Lúa", False, None)
+    monkeypatch.setattr(
+        vistas.economia,
+        "ejecutar_entrenamiento_conjunto",
+        Mock(return_value=resultado),
+    )
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu._values = [str(reserva.id)]
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(menu.callback(interaccion))
+
+    respuesta.edit_message.assert_awaited_once_with(content=texto, view=None)
+    publicar.assert_not_awaited()
+
+
+def test_menu_entrenamiento_conjunto_nombra_quien_tiene_el_cooldown(monkeypatch):
+    activa = criatura(1, "Mia", True, "ficha")
+    reserva = criatura(2, "Lúa", False, None)
+    resultado = economia.ResultadoEntrenamientoConjunto(
+        problema="cooldown", bloqueada=reserva, espera=timedelta(minutes=7)
+    )
+    monkeypatch.setattr(
+        vistas.economia,
+        "ejecutar_entrenamiento_conjunto",
+        Mock(return_value=resultado),
+    )
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu._values = [str(reserva.id)]
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(menu.callback(interaccion))
+
+    respuesta.edit_message.assert_awaited_once_with(
+        content="Todavía no. Lúa puede volver a entrenar en 7 min.", view=None
+    )
+
+
+def test_menu_entrenamiento_conjunto_falla_cerrado_si_el_valor_no_fue_capturado():
+    activa = criatura(1, "Mia", True, "ficha")
+    reserva = criatura(2, "Lúa", False, None)
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu._values = ["999"]
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(menu.callback(interaccion))
+
+    respuesta.edit_message.assert_awaited_once_with(
+        content="Ese compañero ya no está disponible. "
+        "Abre «Entrenar juntos» otra vez.",
+        view=None,
+    )
+
+
+def test_boton_persistente_abre_el_selector_de_entrenamiento_conjunto(monkeypatch):
+    abrir = AsyncMock()
+    monkeypatch.setattr(vistas, "abrir_entrenamiento_conjunto", abrir)
+    interaccion = SimpleNamespace()
+    boton = next(
+        hijo
+        for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:entrenar_juntos"
+    )
+
+    asyncio.run(boton.callback(interaccion))
+
+    abrir.assert_awaited_once_with(interaccion)
+
+
+def test_entrenamiento_conjunto_reutiliza_el_rechazo_de_ficha_ajena(bd_temporal):
+    ajena = db.crear("u2", "g1", "pulpo", "Ajena", STATS, T0)
+    db.guardar_pantalla(ajena.id, "ficha", "canal")
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(vistas.abrir_entrenamiento_conjunto(interaccion))
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Ese es el gachamon de <@u2>. "
+        "Saca el tuyo con `/mascota` o `/huevo`.",
+        ephemeral=True,
+    )
+
+
+def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
+    bd_temporal, monkeypatch
+):
+    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    reserva = db.crear(
+        "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
+    )
+    db.guardar_pantalla(activa.id, "ficha", "canal")
+    monkeypatch.setattr(vistas.db, "ahora_utc", Mock(return_value=T0))
+    publicar = AsyncMock(side_effect=RuntimeError("Discord cayó"))
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    monkeypatch.setattr(vistas.comun, "anunciar_logros", AsyncMock())
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu._values = [str(reserva.id)]
+    interaccion, respuesta, _ = interaccion_de(evento_id="selector")
+
+    with pytest.raises(RuntimeError, match="Discord cayó"):
+        asyncio.run(menu.callback(interaccion))
+
+    activa_guardada = db.obtener(activa.id)
+    reserva_guardada = db.obtener(reserva.id)
+    assert activa_guardada is not None and reserva_guardada is not None
+    assert activa_guardada.xp == reserva_guardada.xp == 2
+    asyncio.run(menu.callback(interaccion))
+    assert publicar.await_count == 1
+    assert respuesta.edit_message.await_args_list == [
+        call(content="Entrenamiento conjunto completado.", view=None),
+        call(content="Esta interacción ya estaba procesada.", view=None),
+    ]
+
+
+def test_muerte_lazy_congela_ficha_activa_autoritativa_y_no_toca_reserva(
+    bd_temporal, monkeypatch
+):
+    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    reserva = db.crear(
+        "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
+    )
+    db.guardar(replace(activa, hambre=0.1))
+    db.guardar_pantalla(activa.id, "ficha-b", "canal")
+    monkeypatch.setattr(
+        vistas.db, "ahora_utc", Mock(return_value=T0 + timedelta(hours=1))
+    )
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "congelar", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha-a")
+    menu._values = [str(reserva.id)]
+    interaccion, respuesta, canal = interaccion_de(evento_id="selector")
+
+    asyncio.run(menu.callback(interaccion))
+
+    respuesta.edit_message.assert_awaited_once_with(
+        content="Tu gachamon ya no está entre nosotros.", view=None
+    )
+    congelar.assert_awaited_once_with(canal, "ficha-b")
+    canal.send.assert_awaited_once()
+    publicar.assert_not_awaited()
+    assert db.obtener(reserva.id) == reserva
+
+
 def test_pantalla_inyecta_el_congelador_en_mochila_y_plantel(monkeypatch):
     monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
     abrir_inventario = AsyncMock()

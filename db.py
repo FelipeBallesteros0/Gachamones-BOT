@@ -581,6 +581,15 @@ def criatura_activa_en(
     return _a_criatura(fila) if fila else None
 
 
+def criatura_en(
+    con: sqlite3.Connection, criatura_id: int
+) -> sim.Criatura | None:
+    fila = con.execute(
+        "SELECT * FROM criaturas WHERE id = ?", (criatura_id,)
+    ).fetchone()
+    return _a_criatura(fila) if fila else None
+
+
 def por_id(criatura_id: int) -> sim.Criatura | None:
     with conectar() as con:
         fila = con.execute(
