@@ -77,6 +77,36 @@ def test_esfuerzos_aplican_formula_y_filtro_notable():
     assert not suave.rupturas
 
 
+def test_entrenamiento_conjunto_usa_barras_previas_y_causa_entrenar():
+    c = criatura(hambre=20.0, animo=100.0)
+
+    resultado = sim.aplicar_entrenamiento_conjunto(c)
+
+    esperado = 2.0 * sim.ESCALA * sim.receptividad(c, "fuerza")
+    assert abs(resultado.criatura.ten_fuerza - esperado) < 1e-12
+    assert resultado.criatura.hambre == 10.0
+
+
+def test_cada_participante_resuelve_nivel_evolucion_y_tope_de_vetas_por_separado():
+    base = dict(
+        xp=sim.xp_para_subir(1) - 1,
+        hambre=40.0,
+        ten_fuerza=100.0,
+        ten_velocidad=100.0,
+        ten_salud=100.0,
+    )
+
+    activo = sim.aplicar_entrenamiento_conjunto(criatura(id=7, **base))
+    reserva = sim.aplicar_entrenamiento_conjunto(
+        criatura(id=8, activa=False, **base)
+    )
+
+    assert activo.evoluciono and reserva.evoluciono
+    assert activo.criatura.nivel == reserva.criatura.nivel == 2
+    assert len(activo.rupturas) == len(reserva.rupturas) == 3
+    assert all(r.causa == "nivel" for r in activo.rupturas + reserva.rupturas)
+
+
 def test_emision_profunda_multiplica_y_no_deja_tension_negativa():
     c = criatura(hambre=10)
     esfuerzo = sim.esfuerzo_de_cuidado(c, sim.ALIMENTAR)

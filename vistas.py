@@ -23,6 +23,7 @@ import comun
 import db
 import economia
 import equipo
+import especies as esp
 import pantalla
 import simulacion as sim
 import tienda
@@ -141,6 +142,218 @@ class PantallaView(discord.ui.View):
         if await _es_de_otro(interaccion):
             return
         await tienda.abrir_personalizacion(interaccion, republicar_ficha)
+
+    @discord.ui.button(label="Entrenar juntos", emoji="🤝", row=1,
+                       style=discord.ButtonStyle.primary,
+                       custom_id="tama:entrenar_juntos")
+    async def entrenar_juntos(
+        self, interaccion: discord.Interaction, boton: discord.ui.Button
+    ):
+        await abrir_entrenamiento_conjunto(interaccion)
+
+
+def _resumen_participante(resultado: sim.ResultadoAccion) -> str:
+    partes = []
+    if resultado.evoluciono:
+        partes.append(
+            "evolución a "
+            f"{esp.nombre_etapa(resultado.criatura.etapa, resultado.criatura.genero)}"
+        )
+    if resultado.rupturas:
+        partes.append(
+            "vetas " + ", ".join(ruptura.stat for ruptura in resultado.rupturas)
+        )
+    elif resultado.marca:
+        partes.append("vetas en movimiento")
+    else:
+        partes.append("vetas quietas")
+    return " · ".join(partes)
+
+
+def texto_resultado_entrenamiento_conjunto(
+    resultado: economia.ResultadoEntrenamientoConjunto,
+) -> str:
+    if len(resultado.participantes) != 2:
+        raise ValueError("el resultado conjunto no tiene dos participantes")
+    activo, reserva = resultado.participantes
+    cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
+    cap = f"cuidado {resultado.usados}/{resultado.limite} UTC"
+    if resultado.topada:
+        cap += " (tope)"
+    recibo = [f"🪙 +{cuidado} asciicoins", cap]
+    if activo.evoluciono or reserva.evoluciono:
+        evolucion = (
+            f"evolución +{resultado.delta_evolucion} · "
+            f"{resultado.evolucion_usadas}/{economia.TOPE_EVOLUCIONES} UTC"
+        )
+        if (
+            resultado.delta_evolucion == 0
+            and resultado.evolucion_usadas >= economia.TOPE_EVOLUCIONES
+        ):
+            evolucion += " (tope)"
+        recibo.append(evolucion)
+    return "\n".join((
+        "🏋️ Entrenamiento conjunto: "
+        f"**{activo.criatura.nombre}** + **{reserva.criatura.nombre}**.",
+        "-# Cada participante: +2 XP · +1 fuerza · -10 comida · -5 ánimo",
+        f"-# {activo.criatura.nombre}: {_resumen_participante(activo)} · "
+        f"{reserva.criatura.nombre}: {_resumen_participante(reserva)}",
+        pantalla.recibo(*recibo),
+    ))
+
+
+class MenuEntrenamientoConjunto(discord.ui.Select):
+    def __init__(
+        self,
+        activo: sim.Criatura,
+        reservas: list[sim.Criatura],
+        pantalla_msg_id: str,
+    ):
+        super().__init__(
+            placeholder="¿Con quién entrena?",
+            custom_id="tama:entrenar_juntos:reserva",
+            options=[
+                discord.SelectOption(label=reserva.nombre[:100], value=str(reserva.id))
+                for reserva in reservas
+            ],
+        )
+        self.activo = (activo.id, activo.nombre)
+        self.reservas = {
+            str(reserva.id): (reserva.id, reserva.nombre) for reserva in reservas
+        }
+        self.pantalla_msg_id = pantalla_msg_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        reserva = self.reservas.get(self.values[0] if self.values else "")
+        if reserva is None:
+            await interaction.response.edit_message(
+                content="Ese compañero ya no está disponible. "
+                "Abre «Entrenar juntos» otra vez.",
+                view=None,
+            )
+            return
+
+        ahora = db.ahora_utc()
+        resultado = economia.ejecutar_entrenamiento_conjunto(
+            str(interaction.id),
+            str(interaction.user.id),
+            str(interaction.guild_id),
+            economia.SeleccionEntrenamientoConjunto(
+                self.activo[0], self.activo[1], reserva[0], reserva[1]
+            ),
+            ahora,
+        )
+        if resultado.replay:
+            texto = "Esta interacción ya estaba procesada."
+        elif resultado.problema == "activo_caduco":
+            texto = "Esta ficha ya no está vigente. Abre la actual con `/mascota`."
+        elif resultado.problema == "reserva_caduca":
+            texto = (
+                "Ese compañero ya no está disponible. "
+                "Abre «Entrenar juntos» otra vez."
+            )
+        elif resultado.problema == "cooldown":
+            if resultado.bloqueada is None or resultado.espera is None:
+                raise RuntimeError("resultado de cooldown incompleto")
+            texto = (
+                f"Todavía no. {resultado.bloqueada.nombre} puede volver a "
+                f"entrenar en {pantalla.formato_espera(resultado.espera)}."
+            )
+        elif resultado.problema == "activo_muerto":
+            texto = "Tu gachamon ya no está entre nosotros."
+        else:
+            texto = ""
+
+        if texto:
+            await interaction.response.edit_message(content=texto, view=None)
+            if resultado.problema == "activo_muerto" and resultado.bloqueada:
+                canal = _canal_de(interaction)
+                await congelar(
+                    canal,
+                    resultado.bloqueada.pantalla_msg_id or self.pantalla_msg_id,
+                )
+                await canal.send(pantalla.render(resultado.bloqueada, ahora))
+            return
+
+        if len(resultado.participantes) != 2:
+            raise RuntimeError("resultado conjunto sin dos participantes")
+        await interaction.response.edit_message(
+            content="Entrenamiento conjunto completado.", view=None
+        )
+        canal = _canal_de(interaction)
+        activo, reserva_resultado = resultado.participantes
+        await publicar_pantalla(
+            canal,
+            activo.criatura,
+            ahora,
+            aviso=texto_resultado_entrenamiento_conjunto(resultado),
+        )
+        await comun.anunciar_logros(canal, activo.criatura, ahora)
+        await comun.anunciar_logros(canal, reserva_resultado.criatura, ahora)
+
+
+class VistaEntrenamientoConjunto(discord.ui.View):
+    def __init__(
+        self,
+        activo: sim.Criatura,
+        reservas: list[sim.Criatura],
+        pantalla_msg_id: str,
+    ):
+        super().__init__(timeout=120)
+        self.add_item(
+            MenuEntrenamientoConjunto(activo, reservas, pantalla_msg_id)
+        )
+
+
+async def abrir_entrenamiento_conjunto(
+    interaccion: discord.Interaction,
+) -> None:
+    usuario_id = str(interaccion.user.id)
+    guild_id = str(interaccion.guild_id)
+    mensaje_id = str(_mensaje_de(interaccion).id)
+    ficha = db.criatura_por_pantalla(mensaje_id)
+    if ficha is not None and ficha.usuario_id != usuario_id:
+        await interaccion.response.send_message(
+            f"Ese es el gachamon de <@{ficha.usuario_id}>. "
+            "Saca el tuyo con `/mascota` o `/huevo`.",
+            ephemeral=True,
+        )
+        return
+    activo = db.criatura_activa(usuario_id, guild_id)
+    if (
+        ficha is None
+        or activo is None
+        or ficha.id != activo.id
+        or not ficha.viva
+        or not ficha.activa
+    ):
+        await interaccion.response.send_message(
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+            ephemeral=True,
+        )
+        return
+
+    reservas = [
+        criatura
+        for criatura in db.plantel(usuario_id, guild_id)
+        if (
+            criatura.id != activo.id
+            and criatura.viva
+            and not criatura.activa
+            and not sim.esta_sin_nombrar(criatura)
+        )
+    ]
+    if not reservas:
+        await interaccion.response.send_message(
+            "No tienes ninguna reserva viva y con nombre para entrenar.",
+            ephemeral=True,
+        )
+        return
+    await interaccion.response.send_message(
+        "Elige una reserva para entrenar con tu gachamon activo.",
+        view=VistaEntrenamientoConjunto(activo, reservas, mensaje_id),
+        ephemeral=True,
+    )
 
 
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):

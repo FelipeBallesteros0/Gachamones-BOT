@@ -76,6 +76,29 @@ class ResultadoCuidado:
 
 
 @dataclass(frozen=True)
+class SeleccionEntrenamientoConjunto:
+    activo_id: int
+    activo_nombre: str
+    reserva_id: int
+    reserva_nombre: str
+
+
+@dataclass(frozen=True)
+class ResultadoEntrenamientoConjunto:
+    participantes: tuple[sim.ResultadoAccion, ...] = ()
+    delta_asciicoins: int = 0
+    delta_evolucion: int = 0
+    usados: int = 0
+    limite: int = TOPE_CUIDADOS
+    evolucion_usadas: int = 0
+    topada: bool = False
+    replay: bool = False
+    problema: str | None = None
+    bloqueada: sim.Criatura | None = None
+    espera: timedelta | None = None
+
+
+@dataclass(frozen=True)
 class ReciboCompetencia:
     usuario_id: str
     delta_asciicoins: int
@@ -433,6 +456,166 @@ def ejecutar_cuidado(
         return _envolver_cuidado(
             resultado,
             delta=delta,
+            delta_evolucion=delta_evolucion,
+            usados=usados,
+            evolucion_usadas=evolucion_usadas,
+            topada=topada,
+        )
+
+
+def ejecutar_entrenamiento_conjunto(
+    evento_id: str,
+    usuario_id: str,
+    guild_id: str,
+    seleccion: SeleccionEntrenamientoConjunto,
+    ahora: datetime,
+) -> ResultadoEntrenamientoConjunto:
+    """Entrena activo y reserva bajo una sola transacción serializada."""
+    solicitud = json.dumps(
+        {
+            "accion": "entrenar",
+            "activo": {
+                "id": seleccion.activo_id,
+                "nombre": seleccion.activo_nombre,
+            },
+            "modo": "conjunto",
+            "reserva": {
+                "id": seleccion.reserva_id,
+                "nombre": seleccion.reserva_nombre,
+            },
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        filas = con.execute(
+            "SELECT * FROM operaciones_economia WHERE evento_id = ? "
+            "AND usuario_id = ? AND guild_id = ?",
+            (evento_id, usuario_id, guild_id),
+        ).fetchall()
+        if filas:
+            por_tipo = {fila["tipo"]: fila for fila in filas}
+            if set(por_tipo) not in ({"cuidado"}, {"cuidado", "evolucion"}):
+                raise RuntimeError("el evento de entrenamiento conjunto está incompleto")
+            if any(fila["solicitud"] != solicitud for fila in filas):
+                raise RuntimeError(
+                    "el evento de entrenamiento conjunto pertenece a otra selección"
+                )
+            cuidado = por_tipo["cuidado"]
+            evolucion = por_tipo.get("evolucion")
+            delta_evolucion = (
+                evolucion["delta_asciicoins"] if evolucion is not None else 0
+            )
+            return ResultadoEntrenamientoConjunto(
+                delta_asciicoins=(
+                    cuidado["delta_asciicoins"] + delta_evolucion
+                ),
+                delta_evolucion=delta_evolucion,
+                usados=_contar_acreditadas(
+                    con,
+                    usuario_id,
+                    guild_id,
+                    cuidado["fecha_utc"],
+                    "cuidado",
+                ),
+                evolucion_usadas=(
+                    _contar_acreditadas(
+                        con,
+                        usuario_id,
+                        guild_id,
+                        evolucion["fecha_utc"],
+                        "evolucion",
+                    )
+                    if evolucion is not None
+                    else 0
+                ),
+                topada=cuidado["resultado"] == "topada",
+                replay=True,
+            )
+
+        activo = db.criatura_activa_en(con, usuario_id, guild_id)
+        if (
+            activo is None
+            or activo.id != seleccion.activo_id
+            or activo.nombre != seleccion.activo_nombre
+        ):
+            return ResultadoEntrenamientoConjunto(problema="activo_caduco")
+
+        reserva = db.criatura_en(con, seleccion.reserva_id)
+        if (
+            reserva is None
+            or reserva.id == activo.id
+            or reserva.usuario_id != usuario_id
+            or reserva.guild_id != guild_id
+            or not reserva.viva
+            or reserva.activa
+            or sim.esta_sin_nombrar(reserva)
+            or reserva.nombre != seleccion.reserva_nombre
+        ):
+            return ResultadoEntrenamientoConjunto(problema="reserva_caduca")
+
+        esperas = (
+            (activo, db.espera_en(con, activo.id, sim.ENTRENAR, ahora)),
+            (reserva, db.espera_en(con, reserva.id, sim.ENTRENAR, ahora)),
+        )
+        bloqueada, espera = max(esperas, key=lambda par: par[1])
+        if espera > timedelta(0):
+            return ResultadoEntrenamientoConjunto(
+                problema="cooldown", bloqueada=bloqueada, espera=espera
+            )
+
+        activo_avanzado = sim.avanzar(activo, ahora)
+        if not activo_avanzado.viva:
+            db._guardar(con, activo_avanzado)
+            return ResultadoEntrenamientoConjunto(
+                problema="activo_muerto", bloqueada=activo_avanzado
+            )
+
+        participantes = (
+            sim.aplicar_entrenamiento_conjunto(activo_avanzado),
+            sim.aplicar_entrenamiento_conjunto(reserva),
+        )
+        for participante in participantes:
+            db._guardar(con, participante.criatura)
+
+        hasta = ahora + sim.COOLDOWNS[sim.ENTRENAR]
+        for participante in participantes:
+            db.poner_cooldown_en(
+                con, participante.criatura.id, sim.ENTRENAR, hasta
+            )
+            db.apuntar_en(con, participante.criatura.id, lgr.CUIDADOS)
+
+        fecha = _fecha_economica(ahora)
+        delta, usados, topada = _registrar_recompensa(
+            con,
+            evento_id,
+            usuario_id,
+            guild_id,
+            fecha,
+            "cuidado",
+            PREMIO_CUIDADO,
+            TOPE_CUIDADOS,
+            solicitud,
+        )
+        delta_evolucion = 0
+        evolucion_usadas = 0
+        if any(participante.evoluciono for participante in participantes):
+            delta_evolucion, evolucion_usadas, _ = _registrar_recompensa(
+                con,
+                evento_id,
+                usuario_id,
+                guild_id,
+                fecha,
+                "evolucion",
+                PREMIO_EVOLUCION,
+                TOPE_EVOLUCIONES,
+                solicitud,
+            )
+        return ResultadoEntrenamientoConjunto(
+            participantes=participantes,
+            delta_asciicoins=delta + delta_evolucion,
             delta_evolucion=delta_evolucion,
             usados=usados,
             evolucion_usadas=evolucion_usadas,
