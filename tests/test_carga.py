@@ -102,8 +102,8 @@ def test_los_botones_de_la_pantalla_son_persistentes():
     """Sin timeout y con custom_id fijo siguen funcionando tras un reinicio."""
     vista = PantallaView()
     assert vista.timeout is None
-    # cinco acciones arriba; mochila, tienda, plantel y personalizar abajo
-    assert len(vista.children) == 9
+    # cinco acciones arriba; cinco menús, incluido el entrenamiento conjunto, abajo
+    assert len(vista.children) == 10
 
     ids = [hijo.custom_id for hijo in vista.children]
     assert all(i and i.startswith("tama:") for i in ids)
@@ -113,9 +113,8 @@ def test_los_botones_de_la_pantalla_son_persistentes():
 def test_los_botones_caben_en_las_filas_de_discord():
     """Discord no admite más de cinco por fila ni más de cinco filas.
 
-    La de arriba está llena con los cinco cuidados, y por eso los que abren
-    menús —mochila, tienda, plantel y personalizar— van todos abajo. Es lo que
-    obligó a bajar el de personalizar, y sin este test nadie se acuerda."""
+    La de arriba está llena con los cinco cuidados, y por eso los cinco que
+    abren menús van todos abajo. Sin este test, añadir otro desbordaría Discord."""
     from collections import Counter
 
     hijos = PantallaView().children
@@ -129,7 +128,14 @@ def test_hay_un_boton_por_accion():
     acciones = {i.custom_id.split(":", 1)[1] for i in PantallaView().children}
     assert acciones == (
         set(sim.ACCIONES_DE_CUIDADO)
-        | {sim.ACTUALIZAR, "inventario", "tienda", "plantel", "personalizar"}
+        | {
+            sim.ACTUALIZAR,
+            "inventario",
+            "tienda",
+            "plantel",
+            "personalizar",
+            "entrenar_juntos",
+        }
     )
 
 

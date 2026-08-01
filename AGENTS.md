@@ -58,8 +58,9 @@ Instala el hook local cuando prepares el entorno:
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
 - El tamaño máximo del plantel de una persona por servidor lo fija `db.MAXIMO_PLANTEL`.
 - Si el plantel no está vacío, hay exactamente una criatura activa.
-- Sólo la criatura activa decae, recibe cuidados y obtiene recompensas.
-- Las criaturas de reserva no deben avanzar por tiempo ni recibir efectos del activo.
+- Sólo la criatura activa avanza por tiempo y recibe efectos o recompensas ordinarios del activo.
+- Una reserva viva y con nombre elegida explícitamente para `Entrenar juntos` puede recibir sólo los efectos inmediatos de ese evento: barras, XP, VETAS/evolución, cooldown `ENTRENAR` y marcador de criatura; no se vuelve activa ni avanza por tiempo.
+- Las reservas no decaen, reciben progreso pasivo ni heredan efectos del activo en ningún otro caso.
 - Los topes económicos pertenecen a persona + servidor + día UTC.
 - Cambiar la criatura activa no reinicia ni traslada esos topes.
 - Reclutar, evolucionar o promover desde la incubadora tampoco reinicia los topes.

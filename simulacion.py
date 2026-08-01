@@ -211,6 +211,12 @@ EFECTOS_CUIDADO = {
     ENTRENAR: {"hambre": -15, "animo": -10, "ent_fuerza": 2},
     LIMPIAR: {"limpieza": 100.0},
 }
+EFECTO_ENTRENAMIENTO_CONJUNTO = {
+    "xp": 2,
+    "hambre": -10,
+    "animo": -5,
+    "ent_fuerza": 1,
+}
 EFECTO_EMPACHO = {"hambre": 10, "animo": -15}
 
 # Dónde cambia de color una barra. Viven aquí, en las reglas, y no en
@@ -874,6 +880,42 @@ def aplicar_accion(
         rupturas=rupturas,
         marca=bool(rupturas or _tensiones(crecida) != _tensiones(bruto.criatura)),
         etapa_anterior=criatura.etapa if ganada else None,
+    )
+
+
+def aplicar_entrenamiento_conjunto(criatura: Criatura) -> ResultadoAccion:
+    """Aplica la parte inmediata de una criatura en un entrenamiento compartido."""
+    if not criatura.viva:
+        return ResultadoAccion(
+            criatura, "Tu gachamon ya no está entre nosotros.", ok=False
+        )
+
+    efecto = EFECTO_ENTRENAMIENTO_CONJUNTO
+    entrenada = replace(
+        criatura,
+        hambre=_limitar(criatura.hambre + efecto["hambre"]),
+        animo=_limitar(criatura.animo + efecto["animo"]),
+        ent_fuerza=max(
+            0, min(100, criatura.ent_fuerza + efecto["ent_fuerza"])
+        ),
+    )
+    esfuerzo = Esfuerzo(
+        "fuerza",
+        4.0 * max(
+            10.0 / max(10.0, criatura.hambre),
+            5.0 / max(5.0, criatura.animo),
+        ),
+        causa=ENTRENAR,
+    )
+    crecida, rupturas = aplicar_evento(
+        entrenada, (esfuerzo,), efecto["xp"]
+    )
+    return ResultadoAccion(
+        criatura=crecida,
+        mensaje="Entrenamiento conjunto completado.",
+        rupturas=rupturas,
+        marca=bool(rupturas or _tensiones(crecida) != _tensiones(entrenada)),
+        etapa_anterior=criatura.etapa,
     )
 
 
