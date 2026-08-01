@@ -656,7 +656,10 @@ def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):
     abrir_inventario.assert_awaited_once_with(interaccion, social.vistas.congelar)
     abrir_tienda.assert_awaited_once_with(interaccion)
     abrir_plantel.assert_awaited_once_with(
-        interaccion, social.vistas.congelar, social.vistas.bautizar
+        interaccion,
+        social.vistas.congelar,
+        social.vistas.bautizar,
+        social.vistas.publicar_pantalla,
     )
     # Quien contesta es el adaptador. Si además respondiera el comando, Discord
     # rechazaría la segunda respuesta de la misma interacción.
