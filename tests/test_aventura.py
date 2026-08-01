@@ -486,29 +486,28 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
 
 @pytest.mark.parametrize("genero", (esp.MACHO, esp.HEMBRA))
 @pytest.mark.parametrize(
-    ("opcion", "confianza", "paciencia", "pista"),
+    ("opcion", "paciencia", "gasto", "pista"),
     (
-        (av.HABLAR, 25, 3, "Ahora confía más."),
-        (av.GOLOSINAS, 25, 2, "Se pone a la defensiva."),
-        (av.PRESUMIR, 20, 3, "No termina de decidirse."),
-        (av.ESPERAR, 25, 0, "Su paciencia se agota."),
+        (av.HABLAR, 4, 1, "Ahora confía más."),
+        (av.PRESUMIR, 4, 2, "Se pone a la defensiva."),
+        (av.PRESUMIR, 2, 2, "Su paciencia se agota."),
     ),
 )
-def test_cada_opcion_da_una_pista_del_cambio_mecanico(
-    genero, opcion, confianza, paciencia, pista
+def test_aplicar_opcion_narra_el_cambio_mecanico_real(
+    genero, opcion, paciencia, gasto, pista
 ):
     salvaje = av.Salvaje(
         "michi", "Michi", genero, "sereno", (10, 10, 10)
     )
-    antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=4)
-    despues = av.Encuentro(
-        salvaje=salvaje, confianza=confianza, paciencia=paciencia
-    )
+    antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=paciencia)
+    despues = av.aplicar_opcion(antes, opcion, DadosFijos([1]))
 
     texto = av.narrar_opcion(antes, opcion, despues)
 
+    assert despues.paciencia == paciencia - gasto
     assert pista in texto
     assert "Confianza" not in texto
+    assert str(despues.ultimo_cambio) not in texto
     assert "sereno" not in texto
 
 
