@@ -1,4 +1,4 @@
-# pyright: reportArgumentType=false, reportCallIssue=false, reportAttributeAccessIssue=false
+# pyright: reportArgumentType=false, reportCallIssue=false, reportAttributeAccessIssue=false, reportFunctionMemberAccess=false
 """La aventura: biomas, pruebas, qué te encuentras y convencer a un salvaje."""
 import asyncio
 import random
@@ -484,6 +484,24 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
     asyncio.run(comprobar())
 
 
+def test_prompt_salvaje_oculta_el_caracter_y_conserva_su_conducta():
+    salvaje = av.Salvaje(
+        "michi", "Michi", esp.MACHO, "sereno", (10, 10, 10)
+    )
+
+    sistema, _ = per.prompt_salvaje(salvaje, criatura(), "hola")
+
+    assert "sereno" not in sistema.casefold()
+    assert "serena" not in sistema.casefold()
+    assert "Nada te altera." in sistema
+
+
+def test_detecta_el_caracter_como_palabra_completa():
+    assert per.menciona_nombre_caracter("Soy SERENO.", "sereno")
+    assert per.menciona_nombre_caracter("Estoy serena.", "sereno")
+    assert not per.menciona_nombre_caracter("Empieza la serenata.", "sereno")
+
+
 @pytest.mark.parametrize("genero", (esp.MACHO, esp.HEMBRA))
 @pytest.mark.parametrize(
     ("opcion", "paciencia", "gasto", "pista"),
@@ -566,6 +584,34 @@ def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatc
     )
 
     assert frase_reportada not in respuesta
+    assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
+    generar.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("genero", "frase_reportada"),
+    ((esp.MACHO, "Soy SERENO."), (esp.HEMBRA, "Soy serena.")),
+)
+def test_contestar_no_publica_el_nombre_del_caracter(
+    monkeypatch, genero, frase_reportada
+):
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    generar = AsyncMock(return_value=(frase_reportada, True))
+    salvaje = av.Salvaje(
+        "michi", "Michi", genero, "sereno", (10, 10, 10)
+    )
+
+    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
+    monkeypatch.setattr(cog_av.db, "registrar_uso_ia", Mock())
+    monkeypatch.setattr(cog_av.ia, "generar", generar)
+
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    respuesta = asyncio.run(
+        cog.contestar(salvaje, criatura(), "hola", "u1", "Reacción mecánica.")
+    )
+
+    assert frase_reportada.casefold() not in respuesta.casefold()
     assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
     generar.assert_awaited_once()
 
