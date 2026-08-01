@@ -16,6 +16,7 @@ from dataclasses import replace
 
 import discord
 
+import cosmeticos as cos
 import db
 import economia
 import objetos as obj
@@ -292,6 +293,97 @@ class MenuTienda(discord.ui.Select):
         )
 
 
+# --- El taller: lo que se compra con gemas ----------------------------------
+#
+# Aparte de la tienda porque es otra moneda y otra cosa: allí se compran
+# consumibles para la persona, aquí se le pone algo encima a **un** gachamon y
+# se queda con él. Comparte el patrón —un desplegable efímero— y nada más.
+
+EMOJI_TIPO = {
+    cos.TINTE: "🎨", cos.SOMBRERO: "👑", cos.MARCO: "🖼️", cos.TITULO: "📜",
+}
+NOMBRE_TIPO = {
+    cos.TINTE: "Tinte", cos.SOMBRERO: "Sombrero",
+    cos.MARCO: "Marco", cos.TITULO: "Título",
+}
+
+
+def _lo_que_lleva(criatura: sim.Criatura | None) -> str:
+    if criatura is None:
+        return "-# No tienes ningún gachamon activo."
+    puestos = []
+    for tipo in cos.TIPOS:
+        cosmetico = cos.buscar(getattr(criatura, tipo))
+        if cosmetico:
+            puestos.append(f"{EMOJI_TIPO[tipo]} {cosmetico.nombre}")
+    if not puestos:
+        return f"-# **{sim.nombre_visible(criatura)}** no lleva nada puesto."
+    return (
+        f"-# **{sim.nombre_visible(criatura)}** lleva: " + " · ".join(puestos)
+    )
+
+
+def texto_del_taller(usuario_id: str, guild_id: str) -> str:
+    criatura = db.criatura_activa(usuario_id, guild_id)
+    saldos = economia.saldos(usuario_id, guild_id)
+    return (
+        f"## {obj.EMOJI_GEMA} Taller\n"
+        f"{obj.EMOJI_GEMA} asciigems: **{saldos.asciigems}**\n"
+        f"{_lo_que_lleva(criatura)}\n"
+        "-# Se le pone al gachamon **activo** y se queda con él. Uno de cada "
+        "tipo: el nuevo sustituye al que llevara."
+    )
+
+
+def texto_resultado_cosmetico(
+    resultado: economia.ResultadoCosmetico, cosmetico: cos.Cosmetico
+) -> str:
+    if not resultado.ok:
+        return f"❌ {resultado.problema}"
+
+    nombre = sim.nombre_visible(resultado.criatura)
+    linea = (
+        f"{EMOJI_TIPO[cosmetico.tipo]} **{nombre}** estrena "
+        f"**{cosmetico.nombre}**."
+    )
+    if resultado.sustituido is not None:
+        linea += f"\n-# Se queda sin **{resultado.sustituido.nombre}**."
+    return (
+        f"{linea}\n-# {obj.EMOJI_GEMA} -{cosmetico.precio} · "
+        f"te quedan **{resultado.saldo}**."
+    )
+
+
+class MenuTaller(discord.ui.Select):
+    """Los cosméticos en un solo desplegable.
+
+    Caben los veintitrés en las 25 opciones que admite Discord, así que no hace
+    falta partirlo por tipos y meter un clic de más. Un test vigila el tope: el
+    día que no quepan, hay que partirlo.
+    """
+
+    def __init__(self):
+        opciones = [
+            discord.SelectOption(
+                label=f"{cosmetico.nombre} — 💎 {cosmetico.precio}",
+                value=clave,
+                description=NOMBRE_TIPO[cosmetico.tipo],
+                emoji=EMOJI_TIPO[cosmetico.tipo],
+            )
+            for clave, cosmetico in cos.CATALOGO.items()
+        ]
+        super().__init__(placeholder="¿Qué le pones?", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        cosmetico = cos.CATALOGO[self.values[0]]
+        resultado = economia.comprar_cosmetico(
+            str(interaccion.user.id), str(interaccion.guild_id), cosmetico
+        )
+        await interaccion.response.edit_message(
+            content=texto_resultado_cosmetico(resultado, cosmetico), view=None
+        )
+
+
 class VistaConMenu(discord.ui.View):
     """Un desplegable suelto. Caduca solo: no tiene que sobrevivir a nada."""
 
@@ -316,5 +408,15 @@ async def abrir_tienda(interaccion: discord.Interaction) -> None:
     await interaccion.response.send_message(
         texto_de_la_tienda(str(interaccion.user.id), str(interaccion.guild_id)),
         view=VistaConMenu(MenuTienda()),
+        ephemeral=True,
+    )
+
+
+async def abrir_taller(interaccion: discord.Interaction) -> None:
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    hay_activo = db.criatura_activa(usuario_id, guild_id) is not None
+    await interaccion.response.send_message(
+        texto_del_taller(usuario_id, guild_id),
+        view=VistaConMenu(MenuTaller()) if hay_activo else None,
         ephemeral=True,
     )

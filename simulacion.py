@@ -266,6 +266,14 @@ class Criatura:
     # y servidor —lo impone un índice único—; las demás esperan en la incubadora,
     # donde no les pasa el tiempo. Ver `avanzar`.
     activa: bool = True
+    # Lo que lleva puesto: uno de cada tipo como mucho, y por eso van en cuatro
+    # campos y no en una lista. Guardar la clave y no el cosmético entero deja
+    # el catálogo en `cosmeticos.py`, que este módulo no importa —igual que el
+    # carácter, que se guarda por clave y vive en `personalidad`.
+    tinte: str | None = None
+    sombrero: str | None = None
+    marco: str | None = None
+    titulo: str | None = None
 
     # -- accesos derivados --------------------------------------------------
 

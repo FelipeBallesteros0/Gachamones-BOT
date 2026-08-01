@@ -231,7 +231,7 @@ CAMPOS = (
     "niv_fuerza", "niv_velocidad", "niv_salud",
     "ten_fuerza", "ten_velocidad", "ten_salud", "historial_vetas",
     "xp", "nivel", "victorias", "derrotas", "pantalla_msg_id", "canal_id",
-    "activa",
+    "activa", "tinte", "sombrero", "marco", "titulo",
 )
 
 
@@ -261,6 +261,14 @@ MIGRACIONES = (
     ("ten_velocidad", "ALTER TABLE criaturas ADD COLUMN ten_velocidad REAL NOT NULL DEFAULT 0"),
     ("ten_salud", "ALTER TABLE criaturas ADD COLUMN ten_salud REAL NOT NULL DEFAULT 0"),
     ("historial_vetas", "ALTER TABLE criaturas ADD COLUMN historial_vetas TEXT NOT NULL DEFAULT ''"),
+    # Los cosméticos. Van en columnas y no en tabla justamente porque es uno de
+    # cada tipo: una tabla permitiría llevar dos coronas y habría que prohibirlo
+    # con código. `NULL` es «no lleva», que es con lo que se queda todo el mundo
+    # hasta que compre algo.
+    ("tinte", "ALTER TABLE criaturas ADD COLUMN tinte TEXT"),
+    ("sombrero", "ALTER TABLE criaturas ADD COLUMN sombrero TEXT"),
+    ("marco", "ALTER TABLE criaturas ADD COLUMN marco TEXT"),
+    ("titulo", "ALTER TABLE criaturas ADD COLUMN titulo TEXT"),
 )
 
 
@@ -305,6 +313,12 @@ def _migrar_monederos(con: sqlite3.Connection) -> None:
 
 
 def _migrar(con: sqlite3.Connection) -> None:
+    # El turno de escritura se toma ANTES de mirar qué columnas hay, igual que
+    # en `_migrar_monederos`. Sin esto, dos arranques a la vez pueden leer los
+    # dos que falta la misma columna y lanzar los dos el ALTER: el segundo
+    # revienta con «duplicate column name». Pasaba una vez de cada trece, que es
+    # la peor frecuencia posible — la justa para parecer casualidad.
+    con.execute("BEGIN IMMEDIATE")
     existentes = {f["name"] for f in con.execute("PRAGMA table_info(criaturas)")}
     for columna, sentencia in MIGRACIONES:
         if columna not in existentes:

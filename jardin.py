@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import textwrap
 
+import cosmeticos as cos
 import especies as esp
 import pantalla
 import simulacion as sim
@@ -54,7 +55,9 @@ def bloque_de(criatura: sim.Criatura) -> Bloque:
     arte = esp.arte_de(definicion, criatura.etapa, criatura.animo_visual)
     lineas = [l.rstrip() for l in textwrap.dedent(arte.strip("\n")).split("\n")]
     nombre = criatura.nombre[:ANCHO]
-    return Bloque(lineas, nombre, definicion.color)
+    return Bloque(
+        lineas, nombre, cos.color_del_tinte(criatura.tinte, definicion.color)
+    )
 
 
 def repartir(bloques: list[Bloque], ancho: int = ANCHO) -> list[list[Bloque]]:

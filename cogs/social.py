@@ -12,6 +12,7 @@ import aventura as av
 import comun
 import competir as comp
 import config
+import cosmeticos as cosm
 import db
 import economia as eco
 import equipo
@@ -232,7 +233,16 @@ tu primera competencia hasta pisar los diez biomas o llegar a los 30 días de \
 vida, y se pagan **una sola vez**.
 -# Hay **{sum(l.gemas for l in lgr.LOGROS)}** {obj.EMOJI_GEMA} por gachamon si \
 los consigues todos, y las gemas caen en tu monedero: las de uno sirven para \
-cualquiera de tu plantel."""
+cualquiera de tu plantel.
+
+**Gastar {obj.EMOJI_GEMA} asciigems**
+`/taller` — le pones algo encima al gachamon **activo**, y se queda con él.
+-# 🎨 **tinte** ({cosm.PRECIOS[cosm.TINTE]}) le cambia el color · \
+👑 **sombrero** ({cosm.PRECIOS[cosm.SOMBRERO]}) le pone algo en la cabeza · \
+🖼️ **marco** ({cosm.PRECIOS[cosm.MARCO]}) cambia el borde de la ficha · \
+📜 **título** ({cosm.PRECIOS[cosm.TITULO]}) le añade un mote
+-# Uno de cada tipo: el nuevo **sustituye** al que llevara, y el viejo se \
+pierde. No tocan ninguna estadística — son sólo para presumir."""
 
     return (tu_criatura, que_hacer, tus_cosas, tu_dinero)
 
@@ -317,7 +327,10 @@ class Social(commands.Cog):
         lineas = []
         for puesto, criatura in enumerate(criaturas, start=1):
             definicion = criatura.def_especie
-            nombre = pantalla.pintar(f"{criatura.nombre[:13]:<13}", definicion.color)
+            nombre = pantalla.pintar(
+                f"{criatura.nombre[:13]:<13}",
+                cosm.color_del_tinte(criatura.tinte, definicion.color),
+            )
             lineas.append(
                 f" {puesto:>2}  {nombre} {definicion.nombre[:11]:<11}"
                 f" {criatura.victorias:>2}V-{criatura.derrotas:<2}D  Nv{criatura.nivel}"
@@ -397,6 +410,11 @@ class Social(commands.Cog):
     @comun.solo_en_el_canal()
     async def tienda_cmd(self, interaccion: discord.Interaction) -> None:
         await tienda.abrir_tienda(interaccion)
+
+    @app_commands.command(name="taller", description="Viste a tu gachamon con asciigems")
+    @comun.solo_en_el_canal()
+    async def taller(self, interaccion: discord.Interaction) -> None:
+        await tienda.abrir_taller(interaccion)
 
     @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
     @comun.solo_en_el_canal()

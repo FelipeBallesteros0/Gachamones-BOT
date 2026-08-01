@@ -19,6 +19,7 @@ from vistas import NombrarView, PantallaView
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
+    "taller",
 }
 
 

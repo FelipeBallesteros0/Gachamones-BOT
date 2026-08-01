@@ -20,6 +20,7 @@ from __future__ import annotations
 import textwrap
 from datetime import datetime, timedelta
 
+import cosmeticos as cos
 import especies as esp
 import personalidad as per
 import simulacion as sim
@@ -126,14 +127,18 @@ def _fila_stats(criatura: sim.Criatura) -> str:
     return _fila(" " + hueco.join(piezas) + " ")
 
 
-def _lineas_arte(arte: str, color: str) -> list[str]:
+def _lineas_arte(arte: str, color: str, sombrero: str = "") -> list[str]:
     """Centra el dibujo y lo rellena hasta `ALTO_ARTE` líneas.
 
     El `dedent` quita la sangría que el dibujo arrastra del código fuente. Sin
     él se sumaría al margen de centrado y todo saldría escorado a la derecha.
     Como sólo elimina el prefijo *común*, la forma interna queda intacta.
+
+    El sombrero entra **antes** de rellenar y de centrar, así que va por dentro
+    del mismo cálculo que el dibujo y no puede quedar descuadrado respecto a él.
     """
     lineas = [ln.rstrip() for ln in textwrap.dedent(arte.strip("\n")).split("\n")]
+    lineas = cos.poner_sombrero(lineas, sombrero)
     while len(lineas) < ALTO_ARTE:
         # Repartir el hueco: primero abajo, luego arriba.
         if (ALTO_ARTE - len(lineas)) % 2 == 1:
@@ -154,6 +159,40 @@ def _lineas_arte(arte: str, color: str) -> list[str]:
         relleno = ANCHO - len(cuerpo)
         salida.append(f"│{_c(cuerpo, color)}{' ' * relleno}│")
     return salida
+
+
+def _repintar_marco(cuerpo: list[str], marco: str) -> list[str]:
+    """Cambia las piezas del borde de una caja ya montada con el redondo.
+
+    Se hace al final y no montando la caja pieza a pieza porque las filas las
+    fabrican cinco funciones distintas —y `competir.py` reutiliza `fila()`—:
+    pasarles el marco a todas convertiría un cosmético en un cambio de firma en
+    media docena de sitios.
+
+    Es exacto porque la caja la hemos construido nosotros: la primera y la
+    última línea son las tapas, las que empiezan por `├` son separadores, y en
+    todas las demás el primer y el último carácter son el vertical. Los códigos
+    de color van por dentro y nunca en esas dos posiciones.
+
+    Con el marco de serie devuelve la lista tal cual: quien no ha comprado nada
+    ve **exactamente** lo mismo que antes de que existieran los cosméticos.
+    """
+    if marco == cos.REDONDO:
+        return cuerpo
+    piezas = dict(zip(cos.PIEZAS, marco))
+    barra = piezas["horizontal"] * ANCHO
+    repintadas = []
+    for numero, linea in enumerate(cuerpo):
+        if numero == 0:
+            repintadas.append(piezas["sup_izq"] + barra + piezas["sup_der"])
+        elif numero == len(cuerpo) - 1:
+            repintadas.append(piezas["inf_izq"] + barra + piezas["inf_der"])
+        elif linea.startswith("├"):
+            repintadas.append(piezas["med_izq"] + barra + piezas["med_der"])
+        else:
+            vertical = piezas["vertical"]
+            repintadas.append(vertical + linea[1:-1] + vertical)
+    return repintadas
 
 
 def _entero(valor: float) -> int:
@@ -308,9 +347,12 @@ def render(
     definicion = criatura.def_especie
     etapa = criatura.etapa
     arte = esp.arte_de(definicion, etapa, criatura.animo_visual)
+    # El tinte sustituye al color de la especie: un Pyro azul deja de parecer un
+    # Pyro, y eso es justo lo que se compra.
+    color = cos.color_del_tinte(criatura.tinte, definicion.color)
 
     cuerpo = ["╭" + "─" * ANCHO + "╮"]
-    cuerpo += _lineas_arte(arte, definicion.color)
+    cuerpo += _lineas_arte(arte, color, cos.dibujo_del_sombrero(criatura.sombrero))
     cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.append(_fila_barra("COMIDA", criatura.hambre))
     cuerpo.append(_fila_barra("ÁNIMO", criatura.animo))
@@ -320,10 +362,14 @@ def render(
     cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.append(_fila_experiencia(criatura))
     cuerpo.append("╰" + "─" * ANCHO + "╯")
+    cuerpo = _repintar_marco(cuerpo, cos.marco_de(criatura.marco))
 
+    titulo = cos.texto_del_titulo(criatura.titulo, criatura.genero)
     cabecera = [
         f"## {definicion.emoji} {criatura.nombre} {EMOJI_GENERO[criatura.genero]}",
-        f"-# {definicion.nombre} · {per.nombre_caracter(criatura)}"
+        f"-# {definicion.nombre}"
+        + (f" · {titulo}" if titulo else "")
+        + f" · {per.nombre_caracter(criatura)}"
         f" · {esp.nombre_etapa(etapa, criatura.genero)} · nivel {criatura.nivel}"
         f" · {criatura.victorias}V-{criatura.derrotas}D"
         f" · {_formato_edad(criatura.edad_horas(ahora))}",
