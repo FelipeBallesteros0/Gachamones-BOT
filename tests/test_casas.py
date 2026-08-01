@@ -287,7 +287,7 @@ def test_la_comodidad_se_enseña_sin_porcentaje():
     """Deja de ser un porcentaje al subir los techos por encima de 100: quien
     viera «118 %» pensaría que hay un fallo."""
     texto = social.texto_de_la_casa(cas.Hogar(GRANDE, T0), [], "Felipe", T0)
-    assert f"Comodidad {GRANDE.comodidad}" in texto
+    assert f"**{GRANDE.comodidad}**/{GRANDE.techo}" in texto
     assert "%" not in texto
 
 
@@ -332,3 +332,270 @@ def test_el_desplegable_marca_donde_vives_y_lo_que_se_te_quedo_pequeño():
     assert "se te quedó pequeña" in por_valor["pequena"]
     assert "aquí vives" in por_valor["mediana"]
     assert f"🪙 {GRANDE.precio}" in por_valor["grande"]
+
+
+# --- Los muebles -----------------------------------------------------------
+
+FELPUDO = cas.MUEBLES["felpudo"]
+CHIMENEA = cas.MUEBLES["chimenea"]
+CAMA = cas.MUEBLES["cama"]
+
+
+def con_casa(clave="grande", monedas=9000):
+    con_monedas(monedas)
+    economia.comprar_casa("u1", "g1", cas.CATALOGO[clave], T0)
+
+
+def comprar_m(mueble=CHIMENEA):
+    return economia.comprar_mueble("u1", "g1", mueble, T0)
+
+
+def mejores(cuantos):
+    return sorted(cas.MUEBLES.values(), key=lambda m: -m.comodidad)[:cuantos]
+
+
+def test_cada_casa_alcanza_su_techo_amueblandola_con_lo_mejor():
+    """El invariante de fondo del catálogo: un techo al que no se llega es un
+    número que miente, y unos huecos que sobran son una casa que no compensa.
+
+    Se calcula del catálogo de verdad y no de `MAX_COMODIDAD_POR_MUEBLE`, que es
+    sólo la cota: si alguien abarata un mueble o sube un techo, esto avisa.
+    """
+    for casa in cas.CATALOGO.values():
+        puestos = [m.clave for m in mejores(casa.huecos)]
+        assert cas.comodidad_de(casa, puestos) == casa.techo, casa.clave
+
+
+def test_ningun_mueble_pasa_del_tope():
+    for mueble in cas.MUEBLES.values():
+        assert 0 < mueble.comodidad <= cas.MAX_COMODIDAD_POR_MUEBLE, mueble.clave
+        assert mueble.precio > 0, mueble.clave
+
+
+def test_hay_muebles_de_sobra_para_la_casa_grande():
+    """Uno de cada, así que el catálogo tiene que dar para llenar la mayor."""
+    assert len(cas.MUEBLES) >= max(c.huecos for c in cas.CATALOGO.values())
+
+
+def test_la_comodidad_nunca_pasa_del_techo():
+    todos = [m.clave for m in cas.MUEBLES.values()]
+    for casa in cas.CATALOGO.values():
+        assert cas.comodidad_de(casa, todos) == casa.techo
+
+
+def test_un_mueble_retirado_del_catalogo_no_sigue_sumando():
+    """Si algún día se quita uno, quien lo tuviera puesto no puede quedarse con
+    una comodidad que ya no se puede volver a conseguir."""
+    assert cas.comodidad_de(PEQUENA, ["mueble_fantasma"]) == PEQUENA.comodidad
+
+
+def test_comprar_un_mueble_cobra_y_lo_coloca_si_cabe():
+    con_casa("pequena")
+    saldo = monedas()
+
+    resultado = comprar_m(CHIMENEA)
+
+    assert resultado.ok
+    assert monedas() == saldo - CHIMENEA.precio
+    assert db.mobiliario("u1", "g1") == {"chimenea": True}
+    assert resultado.comodidad == PEQUENA.comodidad + CHIMENEA.comodidad
+    assert resultado.puestos == 1
+
+
+def test_el_mueble_que_no_cabe_se_guarda_en_vez_de_perderse():
+    con_casa("pequena")
+    for mueble in mejores(PEQUENA.huecos):
+        comprar_m(mueble)
+
+    resultado = comprar_m(FELPUDO)
+
+    assert resultado.ok
+    assert db.mobiliario("u1", "g1")["felpudo"] is False
+    assert resultado.puestos == PEQUENA.huecos
+
+
+def test_comprar_el_mismo_mueble_dos_veces_no_cuesta_nada():
+    """Uno de cada, como el ropero: repetir la chimenea no significaría nada, y
+    llegar al techo comprando cuatro veces el mueble más caro dejaría el
+    catálogo sin sentido."""
+    con_casa()
+    comprar_m(CHIMENEA)
+    saldo = monedas()
+
+    repetida = comprar_m(CHIMENEA)
+
+    assert not repetida.ok
+    assert "Ya tienes" in repetida.problema
+    assert monedas() == saldo
+
+
+def test_en_el_refugio_no_se_puede_amueblar():
+    """Es común y no es tuyo. Y no cobra: comprar sin sitio sería una faena."""
+    con_monedas(9000)
+
+    resultado = comprar_m(CHIMENEA)
+
+    assert not resultado.ok
+    assert "refugio no se puede amueblar" in resultado.problema
+    assert monedas() == 9000
+    assert db.mobiliario("u1", "g1") == {}
+
+
+def test_a_la_intemperie_tampoco():
+    con_monedas(9000)
+    fuera = hogar().refugio_hasta + timedelta(days=1)
+
+    resultado = economia.comprar_mueble("u1", "g1", CHIMENEA, fuera)
+
+    assert not resultado.ok
+    assert "intemperie" in resultado.problema
+    assert monedas() == 9000
+
+
+def test_sin_monedas_no_se_compra_mueble():
+    con_casa("pequena", monedas=PEQUENA.precio + CHIMENEA.precio - 1)
+
+    resultado = comprar_m(CHIMENEA)
+
+    assert not resultado.ok
+    assert "faltan 1 asciicoins" in resultado.problema
+    assert db.mobiliario("u1", "g1") == {}
+
+
+def test_retirar_un_mueble_no_lo_pierde_y_baja_la_comodidad():
+    """La misma regla que el ropero: lo que quitas se guarda."""
+    con_casa("pequena")
+    comprar_m(CHIMENEA)
+    saldo = monedas()
+
+    retirado = economia.retirar_mueble("u1", "g1", CHIMENEA, T0)
+
+    assert retirado.ok
+    assert retirado.comodidad == PEQUENA.comodidad
+    assert db.mobiliario("u1", "g1") == {"chimenea": False}
+
+    vuelta = economia.colocar_mueble("u1", "g1", CHIMENEA, T0)
+
+    assert vuelta.ok
+    assert vuelta.comodidad == PEQUENA.comodidad + CHIMENEA.comodidad
+    assert monedas() == saldo          # volver a ponerlo es gratis
+
+
+def test_no_se_puede_colocar_mas_de_lo_que_caben():
+    con_casa("pequena")
+    for mueble in mejores(PEQUENA.huecos):
+        comprar_m(mueble)
+    comprar_m(FELPUDO)                 # se guarda: no cabía
+
+    resultado = economia.colocar_mueble("u1", "g1", FELPUDO, T0)
+
+    assert not resultado.ok
+    assert "No cabe" in resultado.problema and str(PEQUENA.huecos) in resultado.problema
+
+
+def test_al_mudarte_a_una_mayor_caben_los_que_estaban_guardados():
+    """Lo que hace que subir de casa valga para algo más que el número."""
+    con_casa("pequena")
+    for mueble in mejores(PEQUENA.huecos):
+        comprar_m(mueble)
+    comprar_m(FELPUDO)
+    assert not economia.colocar_mueble("u1", "g1", FELPUDO, T0).ok
+
+    economia.comprar_casa("u1", "g1", MEDIANA, T0)
+    resultado = economia.colocar_mueble("u1", "g1", FELPUDO, T0)
+
+    assert resultado.ok
+    assert resultado.puestos == PEQUENA.huecos + 1
+
+
+def test_no_se_coloca_ni_se_retira_lo_que_no_toca():
+    con_casa()
+    comprar_m(CHIMENEA)
+
+    assert "No tienes" in economia.colocar_mueble("u1", "g1", CAMA, T0).problema
+    assert "ya está puesto" in economia.colocar_mueble("u1", "g1", CHIMENEA, T0).problema
+    assert "no está puesto" in economia.retirar_mueble("u1", "g1", CAMA, T0).problema
+
+
+def test_un_mueble_que_no_es_del_catalogo_no_se_cuela():
+    con_casa()
+    falso = cas.Mueble("chimenea", "Chimenea de mentira", "🔥", 0, 99)
+
+    for operacion in (
+        economia.comprar_mueble, economia.colocar_mueble, economia.retirar_mueble
+    ):
+        with pytest.raises(ValueError):
+            operacion("u1", "g1", falso, T0)
+
+
+def test_el_mobiliario_es_de_cada_persona_y_servidor():
+    con_casa()
+    comprar_m(CHIMENEA)
+
+    assert db.mobiliario("u2", "g1") == {}
+    assert db.mobiliario("u1", "g2") == {}
+
+
+# --- Lo que se ve de los muebles -------------------------------------------
+
+def test_la_casa_enseña_la_comodidad_real_y_los_muebles():
+    con_casa("pequena")
+    comprar_m(CHIMENEA)
+
+    texto = social.texto_de_la_casa(
+        hogar(), [], "Felipe", T0, db.puestos("u1", "g1")
+    )
+
+    assert f"**{PEQUENA.comodidad + CHIMENEA.comodidad}**/{PEQUENA.techo}" in texto
+    assert f"1/{PEQUENA.huecos} huecos" in texto
+    assert CHIMENEA.emoji in texto
+
+
+def test_la_casa_con_diez_gachamones_y_diez_muebles_cabe_en_discord():
+    """El peor caso: la casa grande llena de bichos y de muebles."""
+    texto = social.texto_de_la_casa(
+        cas.Hogar(GRANDE, T0), [_criatura(i) for i in range(10)], "Felipe", T0,
+        tuple(m.clave for m in mejores(GRANDE.huecos)),
+    )
+    assert len(texto) < 2000
+
+
+def test_amueblar_en_el_refugio_lo_dice_y_no_ofrece_menu():
+    assert "refugio no se puede amueblar" in tienda.texto_de_amueblar(
+        "u1", "g1", T0
+    )
+
+
+def test_amueblar_cuenta_lo_puesto_y_lo_guardado():
+    con_casa("pequena")
+    for mueble in mejores(PEQUENA.huecos):
+        comprar_m(mueble)
+    comprar_m(FELPUDO)
+
+    texto = tienda.texto_de_amueblar("u1", "g1", T0)
+
+    assert f"{PEQUENA.huecos}/{PEQUENA.huecos} huecos" in texto
+    assert "Guardados: **1**" in texto
+    assert "no se pierde" in texto
+
+
+def test_los_menus_de_amueblar_separan_lo_puesto_de_lo_guardado():
+    mobiliario = {"chimenea": True, "felpudo": False, "cama": False}
+
+    colocar = tienda.MenuColocarMueble(mobiliario)
+    retirar = tienda.MenuRetirarMueble(mobiliario)
+
+    assert {o.value for o in colocar.options} == {"felpudo", "cama"}
+    assert {o.value for o in retirar.options} == {"chimenea"}
+
+
+def test_la_tienda_sigue_cabiendo_con_los_cuatro_desplegables():
+    menus = (
+        tienda.MenuTienda(), tienda.MenuCosmeticos(),
+        tienda.MenuCasas(), tienda.MenuMuebles(),
+    )
+    vista = tienda.VistaConMenu(*menus)
+
+    assert len(vista.children) == 4 <= 5
+    for menu in menus:
+        assert 1 <= len(menu.options) <= 25

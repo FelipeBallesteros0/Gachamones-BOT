@@ -210,6 +210,19 @@ CREATE TABLE IF NOT EXISTS hogar (
     PRIMARY KEY (usuario_id, guild_id)
 );
 
+-- Los muebles que has comprado, y cuáles están puestos. Uno de cada, como el
+-- ropero: tener dos chimeneas no significaría nada y llegar al techo repitiendo
+-- el mueble más caro dejaría el catálogo sin sentido. `colocado` es lo que
+-- distingue lo que está en la casa de lo que está guardado; los huecos los
+-- cuenta quien mira, contra `casa.huecos`.
+CREATE TABLE IF NOT EXISTS mobiliario (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    mueble TEXT NOT NULL,
+    colocado INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (usuario_id, guild_id, mueble)
+);
+
 CREATE TABLE IF NOT EXISTS operaciones_economia (
     evento_id        TEXT NOT NULL,
     usuario_id       TEXT NOT NULL,
@@ -1177,6 +1190,52 @@ def mudar_en(
     con.execute(
         "UPDATE hogar SET casa = ? WHERE usuario_id = ? AND guild_id = ?",
         (clave, usuario_id, guild_id),
+    )
+
+
+# --- El mobiliario ---------------------------------------------------------
+
+def mobiliario(usuario_id: str, guild_id: str) -> dict[str, bool]:
+    """Los muebles que tienes y si están puestos. Los guardados salen a `False`."""
+    with conectar() as con:
+        return _mobiliario(con, usuario_id, guild_id)
+
+
+def _mobiliario(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> dict[str, bool]:
+    filas = con.execute(
+        "SELECT mueble, colocado FROM mobiliario "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchall()
+    return {f["mueble"]: bool(f["colocado"]) for f in filas}
+
+
+def puestos(usuario_id: str, guild_id: str) -> tuple[str, ...]:
+    """Sólo los que están dentro de la casa, que son los que dan comodidad."""
+    return tuple(c for c, dentro in mobiliario(usuario_id, guild_id).items() if dentro)
+
+
+def comprar_mueble_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str,
+    clave: str, colocado: bool,
+) -> None:
+    con.execute(
+        "INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado) "
+        "VALUES (?, ?, ?, ?)",
+        (usuario_id, guild_id, clave, int(colocado)),
+    )
+
+
+def colocar_mueble_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str,
+    clave: str, dentro: bool,
+) -> None:
+    con.execute(
+        "UPDATE mobiliario SET colocado = ? "
+        "WHERE usuario_id = ? AND guild_id = ? AND mueble = ?",
+        (int(dentro), usuario_id, guild_id, clave),
     )
 
 

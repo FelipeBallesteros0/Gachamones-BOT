@@ -13,6 +13,7 @@ porcentaje y pasa a ser una puntuación: se enseña como número y nunca con `%`
 """
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -26,10 +27,10 @@ DIAS_DE_REFUGIO = 7
 
 SUELO = "═"          # tablas, en vez de la tierra del jardín
 
-# Lo máximo que podrá sumar un mueble cuando lleguen, en la entrega 2. Vive aquí
-# y no allí porque es lo que hace que los techos de abajo sean alcanzables: con
-# muebles de +6, la casa pequeña se quedaría a dos puntos de su techo para
-# siempre y el número estaría mintiendo. Hay un test que ata las dos cosas.
+# Lo máximo que puede sumar un mueble. Es lo que hace que los techos de abajo
+# sean alcanzables: con muebles de +6, la casa pequeña se quedaría a dos puntos
+# de su techo para siempre y el número estaría mintiendo. Hay un test que ata las
+# tres cosas —techos, huecos y catálogo— para que no puedan separarse.
 MAX_COMODIDAD_POR_MUEBLE = 7
 
 # Los tres estados posibles. Salen de los datos y no de una columna aparte, que
@@ -114,6 +115,63 @@ def estancia_desde(ahora: datetime) -> datetime:
 def puede_mudarse_a(hogar: Hogar, casa: Casa) -> bool:
     """Sólo se sube de tamaño. Comprar lo que ya tienes no es una mudanza."""
     return casa.tamano > (hogar.casa.tamano if hogar.casa else 0)
+
+
+# --- El mobiliario ---------------------------------------------------------
+#
+# **Todos los muebles suman comodidad**, y ninguno es sólo decorativo. Con los
+# huecos contados —tres en la casa pequeña—, un mueble que no hiciera nada sería
+# una trampa: ocuparía sitio a cambio de nada y quien lo comprara habría perdido
+# el hueco. Lo que cambia entre ellos es cuánto suman y lo que cuestan.
+#
+# Se pagan con asciicoins, como la casa: los asciigems son del aspecto del
+# gachamon y ésta es la otra economía. Una moneda por categoría, que es lo que
+# hace legible la tienda.
+
+
+@dataclass(frozen=True)
+class Mueble:
+    clave: str
+    nombre: str
+    emoji: str
+    precio: int
+    comodidad: int
+
+
+MUEBLES: dict[str, Mueble] = {
+    mueble.clave: mueble
+    for mueble in (
+        Mueble("felpudo", "Felpudo", "🚪", 30, 2),
+        Mueble("maceta", "Maceta", "🪴", 50, 3),
+        Mueble("cuadro", "Cuadro", "🖼️", 50, 3),
+        Mueble("estanteria", "Estantería", "🗄️", 80, 4),
+        Mueble("lampara", "Lámpara", "💡", 80, 4),
+        Mueble("alfombra", "Alfombra", "🧶", 120, 5),
+        Mueble("cortinas", "Cortinas", "🪟", 120, 5),
+        Mueble("cojines", "Cojines", "🛋️", 180, 6),
+        Mueble("fuente", "Fuente", "⛲", 180, 6),
+        Mueble("chimenea", "Chimenea", "🔥", 180, 6),
+        Mueble("calefactor", "Calefactor", "🌡️", 280, 7),
+        Mueble("cama", "Cama grande", "🛏️", 280, 7),
+        Mueble("ventanal", "Ventanal", "🏞️", 280, 7),
+        Mueble("biblioteca", "Biblioteca", "📚", 280, 7),
+    )
+}
+
+
+def comodidad_de(casa: Casa, puestos: Collection[str]) -> int:
+    """La comodidad de una casa con esos muebles dentro, sin pasar del techo.
+
+    Los que no estén en el catálogo no suman: si algún día se retira un mueble,
+    quien lo tuviera puesto no puede quedarse con una comodidad que no se puede
+    volver a conseguir.
+    """
+    suma = sum(MUEBLES[c].comodidad for c in puestos if c in MUEBLES)
+    return min(casa.techo, casa.comodidad + suma)
+
+
+def caben_mas(casa: Casa, puestos: Collection[str]) -> bool:
+    return len(puestos) < casa.huecos
 
 
 # --- El dibujo -------------------------------------------------------------

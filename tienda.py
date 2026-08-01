@@ -44,8 +44,8 @@ def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
     return (
         f"## {obj.EMOJI_MONEDA_TIENDA} Tienda\n"
         f"{_saldos(usuario_id, guild_id)}\n"
-        "-# Los consumibles se usan desde 🎒 **Mochila**; los cosméticos se "
-        "ponen desde 🎨 **Personalizar**; la casa se mira con `/casa`."
+        "-# Los consumibles se usan desde 🎒 **Mochila** y los cosméticos se "
+        "ponen desde 🎨 **Personalizar**. La casa y los muebles, con `/casa`."
     )
 
 
@@ -497,6 +497,153 @@ class MenuCasas(discord.ui.Select):
             )
 
 
+# --- El mobiliario ----------------------------------------------------------
+
+def texto_resultado_mueble(resultado: economia.ResultadoMueble) -> str:
+    if not resultado.ok:
+        return f"❌ {resultado.problema}"
+    mueble, casa = resultado.mueble, resultado.casa
+    return (
+        f"{mueble.emoji} **{mueble.nombre}** · "
+        f"comodidad **{resultado.comodidad}**/{casa.techo} · "
+        f"{resultado.puestos}/{casa.huecos} huecos"
+    )
+
+
+def _lo_que_hay_dentro(mobiliario: dict[str, bool]) -> str:
+    dentro = [cas.MUEBLES[c] for c, puesto in mobiliario.items()
+              if puesto and c in cas.MUEBLES]
+    if not dentro:
+        return "-# La casa está vacía."
+    return "-# Dentro: " + " · ".join(
+        f"{m.emoji} {m.nombre} +{m.comodidad}" for m in dentro
+    )
+
+
+class MenuMuebles(discord.ui.Select):
+    """Los muebles de la tienda. Marca los que ya tienes."""
+
+    def __init__(self, mobiliario: dict[str, bool] | None = None):
+        tengo = mobiliario or {}
+        opciones = [
+            discord.SelectOption(
+                label=(
+                    f"{mueble.nombre} — ya lo tienes" if clave in tengo
+                    else f"{mueble.nombre} — 🪙 {mueble.precio}"
+                ),
+                value=clave,
+                description=f"Comodidad +{mueble.comodidad}",
+                emoji=mueble.emoji,
+            )
+            for clave, mueble in cas.MUEBLES.items()
+        ]
+        super().__init__(placeholder="🪑 Mobiliario", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        mueble = cas.MUEBLES[self.values[0]]
+        resultado = economia.comprar_mueble(
+            str(interaccion.user.id), str(interaccion.guild_id), mueble
+        )
+        aviso = texto_resultado_mueble(resultado)
+        if resultado.ok:
+            sitio = "Puesto ya" if resultado.puestos else "Guardado"
+            aviso = (
+                f"🪙 Comprado. {aviso}\n"
+                f"-# {sitio}. Se coloca y se retira desde 🪑 **Amueblar**, "
+                "en `/casa`."
+            )
+        await interaccion.response.edit_message(content=aviso, view=None)
+
+
+class MenuColocarMueble(discord.ui.Select):
+    """Lo que tienes guardado, para meterlo en la casa."""
+
+    def __init__(self, mobiliario: dict[str, bool]):
+        opciones = [
+            discord.SelectOption(
+                label=f"{cas.MUEBLES[clave].nombre} +{cas.MUEBLES[clave].comodidad}",
+                value=clave,
+                emoji=cas.MUEBLES[clave].emoji,
+            )
+            for clave, puesto in mobiliario.items()
+            if not puesto and clave in cas.MUEBLES
+        ]
+        super().__init__(placeholder="Colocar…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        mueble = cas.MUEBLES[self.values[0]]
+        resultado = economia.colocar_mueble(
+            str(interaccion.user.id), str(interaccion.guild_id), mueble
+        )
+        await interaccion.response.edit_message(
+            content=texto_resultado_mueble(resultado), view=None
+        )
+
+
+class MenuRetirarMueble(discord.ui.Select):
+    """Lo que está puesto, para sacarlo. Se guarda, no se pierde."""
+
+    def __init__(self, mobiliario: dict[str, bool]):
+        opciones = [
+            discord.SelectOption(
+                label=f"Retirar {cas.MUEBLES[clave].nombre}",
+                value=clave,
+                emoji=cas.MUEBLES[clave].emoji,
+            )
+            for clave, puesto in mobiliario.items()
+            if puesto and clave in cas.MUEBLES
+        ]
+        super().__init__(placeholder="Retirar…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        mueble = cas.MUEBLES[self.values[0]]
+        resultado = economia.retirar_mueble(
+            str(interaccion.user.id), str(interaccion.guild_id), mueble
+        )
+        await interaccion.response.edit_message(
+            content=texto_resultado_mueble(resultado), view=None
+        )
+
+
+def texto_de_amueblar(usuario_id: str, guild_id: str, ahora) -> str:
+    hogar = db.hogar_de(usuario_id, guild_id, ahora)
+    mobiliario = db.mobiliario(usuario_id, guild_id)
+    if hogar.casa is None:
+        return (
+            "## 🪑 Amueblar\n-# El refugio no se puede amueblar: es de todos. "
+            "Cómprate una casa en 🛒 **Tienda**."
+        )
+    dentro = [c for c, puesto in mobiliario.items() if puesto]
+    guardados = len(mobiliario) - len(dentro)
+    return (
+        f"## 🪑 Amueblar {hogar.casa.nombre}\n"
+        f"Comodidad **{cas.comodidad_de(hogar.casa, dentro)}**"
+        f"/{hogar.casa.techo} · {len(dentro)}/{hogar.casa.huecos} huecos\n"
+        f"{_lo_que_hay_dentro(mobiliario)}\n"
+        f"-# Guardados: **{guardados}**. Lo que retires se guarda, no se pierde."
+    )
+
+
+async def abrir_amueblar(interaccion: discord.Interaction) -> None:
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    ahora = db.ahora_utc()
+    mobiliario = db.mobiliario(usuario_id, guild_id)
+    hay_casa = db.hogar_de(usuario_id, guild_id, ahora).casa is not None
+
+    menus: list[discord.ui.Select] = []
+    if hay_casa:
+        if any(not puesto for puesto in mobiliario.values()):
+            menus.append(MenuColocarMueble(mobiliario))
+        if any(mobiliario.values()):
+            menus.append(MenuRetirarMueble(mobiliario))
+
+    await interaccion.response.send_message(
+        texto_de_amueblar(usuario_id, guild_id, ahora),
+        view=VistaConMenu(*menus) if menus else None,
+        ephemeral=True,
+    )
+
+
 class MenuPonerCosmetico(discord.ui.Select):
     """Lo que tienes en el ropero, para ponérselo al activo."""
 
@@ -602,6 +749,7 @@ async def abrir_tienda(interaccion: discord.Interaction) -> None:
             MenuTienda(),
             MenuCosmeticos(db.ropero(usuario_id, guild_id)),
             MenuCasas(db.hogar_de(usuario_id, guild_id, db.ahora_utc())),
+            MenuMuebles(db.mobiliario(usuario_id, guild_id)),
         ),
         ephemeral=True,
     )

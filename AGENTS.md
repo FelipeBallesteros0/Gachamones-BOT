@@ -72,6 +72,10 @@ Instala el hook local cuando prepares el entorno:
 - El hogar es de la persona y en él vive todo su plantel vivo.
 - De casa sólo se sube de tamaño, nunca se baja.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`.
+- Todo mueble suma comodidad: ninguno ocupa un hueco a cambio de nada.
+- Se tiene un mueble de cada, y tenerlo no es lo mismo que tenerlo puesto.
+- Retirar un mueble nunca lo destruye: se guarda.
+- El refugio no se amuebla, y a la intemperie no hay dónde poner nada.
 - Casi todos los logros son de la criatura y se pierden con ella.
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
 - Los logros de la persona sobreviven a todo su plantel.

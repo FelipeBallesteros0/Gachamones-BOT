@@ -805,6 +805,186 @@ def comprar_casa(
         )
 
 
+@dataclass(frozen=True)
+class ResultadoMueble:
+    """Cómo salió comprar, colocar o retirar un mueble."""
+
+    ok: bool = False
+    mueble: cas.Mueble | None = None
+    casa: cas.Casa | None = None
+    comodidad: int = 0          # la de la casa después
+    puestos: int = 0            # cuántos huecos van ocupados
+    saldo: int = 0
+    problema: str | None = None
+
+
+def _estado_de_la_casa(
+    con, usuario_id: str, guild_id: str, ahora: datetime
+) -> tuple[cas.Casa | None, dict[str, bool], str | None]:
+    """La casa, lo que hay dentro, y por qué no se puede amueblar si no se puede.
+
+    El refugio no se decora —es común y no es tuyo— y a la intemperie no hay
+    dónde poner nada. Las dos cosas se comprueban aquí, en un solo sitio, porque
+    las tres operaciones necesitan lo mismo.
+    """
+    hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
+    if hogar.casa is None:
+        estorbo = (
+            "El refugio no se puede amueblar: es de todos. Cómprate una casa."
+            if hogar.estado(ahora) == cas.REFUGIO
+            else "Estás a la intemperie. Cómprate una casa para amueblarla."
+        )
+        return None, {}, estorbo
+    return hogar.casa, db._mobiliario(con, usuario_id, guild_id), None
+
+
+def _recibo_mueble(
+    con, usuario_id: str, guild_id: str, casa, mobiliario, mueble=None, ok=False,
+    problema=None,
+) -> ResultadoMueble:
+    dentro = [c for c, puesto in mobiliario.items() if puesto]
+    return ResultadoMueble(
+        ok=ok, mueble=mueble, casa=casa,
+        comodidad=cas.comodidad_de(casa, dentro) if casa else 0,
+        puestos=len(dentro),
+        saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+        problema=problema,
+    )
+
+
+def comprar_mueble(
+    usuario_id: str, guild_id: str, mueble: cas.Mueble,
+    ahora: datetime | None = None,
+) -> ResultadoMueble:
+    """Cobra el mueble y lo coloca si queda hueco; si no, se guarda.
+
+    Uno de cada, como el ropero, y por lo mismo: repetir la chimenea no
+    significaría nada y llegar al techo comprando cuatro veces el mueble más caro
+    dejaría el catálogo sin sentido. Comprar el que ya tienes no cobra.
+    """
+    if cas.MUEBLES.get(mueble.clave) != mueble:
+        raise ValueError("el mueble no coincide con el catálogo actual")
+
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        casa, mobiliario, estorbo = _estado_de_la_casa(
+            con, usuario_id, guild_id, ahora
+        )
+        _asegurar_monedero(con, usuario_id, guild_id)
+        if estorbo:
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=estorbo,
+            )
+        if mueble.clave in mobiliario:
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=f"Ya tienes **{mueble.nombre}**.",
+            )
+
+        pagado = con.execute(
+            "UPDATE monederos SET asciicoins = asciicoins - ? "
+            "WHERE usuario_id = ? AND guild_id = ? AND asciicoins >= ?",
+            (mueble.precio, usuario_id, guild_id, mueble.precio),
+        ).rowcount > 0
+        if not pagado:
+            faltan = mueble.precio - _saldos_en(
+                con, usuario_id, guild_id
+            ).asciicoins
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=f"Te faltan {faltan} asciicoins.",
+            )
+
+        dentro = cas.caben_mas(
+            casa, [c for c, puesto in mobiliario.items() if puesto]
+        )
+        db.comprar_mueble_en(con, usuario_id, guild_id, mueble.clave, dentro)
+        mobiliario[mueble.clave] = dentro
+        return _recibo_mueble(
+            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
+        )
+
+
+def colocar_mueble(
+    usuario_id: str, guild_id: str, mueble: cas.Mueble,
+    ahora: datetime | None = None,
+) -> ResultadoMueble:
+    """Lo mete en la casa. Falla si no queda hueco, y lo dice con el número."""
+    if cas.MUEBLES.get(mueble.clave) != mueble:
+        raise ValueError("el mueble no coincide con el catálogo actual")
+
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        casa, mobiliario, estorbo = _estado_de_la_casa(
+            con, usuario_id, guild_id, ahora
+        )
+        if estorbo:
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=estorbo,
+            )
+        if mueble.clave not in mobiliario:
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=f"No tienes **{mueble.nombre}**.",
+            )
+        if mobiliario[mueble.clave]:
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=f"**{mueble.nombre}** ya está puesto.",
+            )
+        dentro = [c for c, puesto in mobiliario.items() if puesto]
+        if not cas.caben_mas(casa, dentro):
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=(
+                    f"No cabe: {casa.nombre} tiene {casa.huecos} huecos y están "
+                    "todos ocupados. Retira algo primero."
+                ),
+            )
+
+        db.colocar_mueble_en(con, usuario_id, guild_id, mueble.clave, True)
+        mobiliario[mueble.clave] = True
+        return _recibo_mueble(
+            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
+        )
+
+
+def retirar_mueble(
+    usuario_id: str, guild_id: str, mueble: cas.Mueble,
+    ahora: datetime | None = None,
+) -> ResultadoMueble:
+    """Lo saca de la casa. Se guarda: nunca se pierde, como el ropero."""
+    if cas.MUEBLES.get(mueble.clave) != mueble:
+        raise ValueError("el mueble no coincide con el catálogo actual")
+
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        casa, mobiliario, estorbo = _estado_de_la_casa(
+            con, usuario_id, guild_id, ahora
+        )
+        if estorbo:
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=estorbo,
+            )
+        if not mobiliario.get(mueble.clave):
+            return _recibo_mueble(
+                con, usuario_id, guild_id, casa, mobiliario, mueble,
+                problema=f"**{mueble.nombre}** no está puesto.",
+            )
+
+        db.colocar_mueble_en(con, usuario_id, guild_id, mueble.clave, False)
+        mobiliario[mueble.clave] = False
+        return _recibo_mueble(
+            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
+        )
+
+
 def equipar_cosmetico(
     usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico
 ) -> ResultadoCosmetico:

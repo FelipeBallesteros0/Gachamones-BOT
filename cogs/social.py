@@ -33,6 +33,11 @@ import vistas
 # se olvide al reiniciar el bot no tiene ninguna consecuencia.
 SEGUNDOS_ENTRE_JARDINES = 120
 
+# Lo que dura el botón de amueblar en el mensaje de `/casa`. No es persistente
+# como los de la ficha: la casa se vuelve a pedir con el comando y no hay nada
+# que se pierda si caduca.
+SEGUNDOS_DE_CASA = 120
+
 
 def _tabla(lineas: list[str], vacia: str) -> str:
     if not lineas:
@@ -101,16 +106,21 @@ def texto_de_la_casa(
     vivos: list[sim.Criatura],
     persona: str,
     ahora: datetime,
+    puestos: tuple[str, ...] = (),
 ) -> str:
     """El hogar con todos los vivos dentro, sea propio o el refugio."""
     estado = hogar.estado(ahora)
     donde = hogar.donde(ahora)
     if estado == cas.PROPIA:
         titulo = f"## 🏠 {donde.nombre} de {persona}"
+        muebles = [cas.MUEBLES[c] for c in puestos if c in cas.MUEBLES]
         pie = (
-            f"-# Comodidad {donde.comodidad} · {donde.huecos} huecos de "
-            f"mobiliario · {len(vivos)} viviendo aquí."
+            f"-# Comodidad **{cas.comodidad_de(donde, puestos)}**/{donde.techo} · "
+            f"{len(muebles)}/{donde.huecos} huecos · "
+            f"{len(vivos)} viviendo aquí."
         )
+        if muebles:
+            pie += "\n-# " + " ".join(m.emoji for m in muebles)
     elif estado == cas.REFUGIO:
         quedan = max(0, (hogar.refugio_hasta - ahora).days)
         titulo = f"## 🏚️ {persona}, en el refugio"
@@ -126,6 +136,29 @@ def texto_de_la_casa(
             "🛒 **Tienda**."
         )
     return f"{titulo}\n{cas.render(vivos, donde)}\n{pie}"
+
+
+class CasaView(discord.ui.View):
+    """El botón de amueblar, pegado al dibujo de la casa.
+
+    El mensaje de `/casa` es público —es para enseñarlo—, así que el botón
+    comprueba de quién es antes de abrir nada: amueblar la casa de otro desde su
+    propio mensaje sería lo primero que probaría cualquiera.
+    """
+
+    def __init__(self, dueño_id: int):
+        super().__init__(timeout=SEGUNDOS_DE_CASA)
+        self.dueño_id = dueño_id
+
+    @discord.ui.button(label="Amueblar", emoji="🪑",
+                       style=discord.ButtonStyle.secondary)
+    async def amueblar(self, interaccion: discord.Interaction, boton) -> None:
+        if interaccion.user.id != self.dueño_id:
+            await interaccion.response.send_message(
+                "Esa casa no es tuya. Mira la tuya con `/casa`.", ephemeral=True
+            )
+            return
+        await tienda.abrir_amueblar(interaccion)
 
 
 def _techo_diario() -> int:
@@ -251,7 +284,10 @@ Todo tu plantel vive junto, y `/casa` te lo enseña dentro. Se empieza en el \
 quedas a la intemperie hasta que compres casa en 🛒 **Tienda**.
 -# 🏠 {" · ".join(f"**{c.nombre}** 🪙 {c.precio}, comodidad {c.comodidad} y \
 {c.huecos} huecos" for c in cas.CATALOGO.values())}
--# Se sube de tamaño, nunca se baja. Los muebles llegan más adelante.
+-# Se sube de tamaño, nunca se baja. Los **{len(cas.MUEBLES)} muebles** \
+(🪙 {min(m.precio for m in cas.MUEBLES.values())}–\
+{max(m.precio for m in cas.MUEBLES.values())}) suman comodidad hasta el techo de \
+tu casa; se ponen y se quitan con 🪑 **Amueblar**, y lo que retires se guarda.
 
 **Otros**
 `/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
@@ -502,7 +538,9 @@ class Social(commands.Cog):
                 db.plantel(usuario_id, guild_id),
                 interaccion.user.display_name,
                 ahora,
-            )
+                db.puestos(usuario_id, guild_id),
+            ),
+            view=CasaView(interaccion.user.id),
         )
 
     @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
