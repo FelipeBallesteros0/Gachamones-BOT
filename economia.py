@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 
 import aventura as av
+import casas as cas
 import competir as comp
 import cosmeticos as cos
 import db
@@ -731,6 +732,76 @@ def comprar_cosmetico(
         )
         return ResultadoCosmetico(
             ok=True, criatura=vestido, saldo=saldo, sustituido=sustituido
+        )
+
+
+@dataclass(frozen=True)
+class ResultadoMudanza:
+    """Cómo salió comprar casa."""
+
+    ok: bool = False
+    casa: cas.Casa | None = None        # la nueva
+    desde: cas.Casa | None = None       # de dónde viene; None es el refugio
+    saldo: int = 0                      # asciicoins que quedan
+    problema: str | None = None
+
+
+def comprar_casa(
+    usuario_id: str, guild_id: str, casa: cas.Casa,
+    ahora: datetime | None = None,
+) -> ResultadoMudanza:
+    """Cobra los asciicoins y te muda, en una transacción.
+
+    **Sólo se sube de tamaño.** Comprar la que ya tienes, o una menor, no cobra
+    ni cambia nada: es el mismo cerrojo que el del ropero contra el doble clic,
+    y además es lo que quiere quien juega — nadie compra una casa pequeña
+    teniendo la grande.
+
+    Se paga con asciicoins y no con gemas a propósito: las gemas están enteras
+    comprometidas con los cosméticos, y los asciicoins hasta ahora sólo compraban
+    pociones. Esto les da adónde ir.
+
+    No lleva fila en `operaciones_economia` aunque sean asciicoins: allí se
+    congela lo que pagó un evento que puede reprocesarse, y aquí el cerrojo es el
+    tamaño — el segundo intento ya encuentra la casa puesta y no cobra.
+    """
+    if cas.CATALOGO.get(casa.clave) != casa:
+        raise ValueError("la casa no coincide con el catálogo actual")
+
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
+        _asegurar_monedero(con, usuario_id, guild_id)
+        saldo = _saldos_en(con, usuario_id, guild_id).asciicoins
+
+        if not cas.puede_mudarse_a(hogar, casa):
+            return ResultadoMudanza(
+                casa=hogar.casa, desde=hogar.casa, saldo=saldo,
+                problema=(
+                    f"Ya vives en {hogar.casa.nombre}, que no es peor."
+                    if hogar.casa else "Esa casa no existe."
+                ),
+            )
+
+        pagado = con.execute(
+            "UPDATE monederos SET asciicoins = asciicoins - ? "
+            "WHERE usuario_id = ? AND guild_id = ? AND asciicoins >= ?",
+            (casa.precio, usuario_id, guild_id, casa.precio),
+        ).rowcount > 0
+        saldo = _saldos_en(con, usuario_id, guild_id).asciicoins
+        if not pagado:
+            return ResultadoMudanza(
+                casa=casa, desde=hogar.casa, saldo=saldo,
+                problema=(
+                    f"Te faltan {casa.precio - saldo} asciicoins. "
+                    "Se ganan cuidando, evolucionando y compitiendo."
+                ),
+            )
+
+        db.mudar_en(con, usuario_id, guild_id, casa.clave)
+        return ResultadoMudanza(
+            ok=True, casa=casa, desde=hogar.casa, saldo=saldo
         )
 
 

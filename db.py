@@ -18,6 +18,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import casas as cas
 import config
 import cosmeticos as cos
 import especies as esp
@@ -195,6 +196,18 @@ CREATE TABLE IF NOT EXISTS ropero (
     guild_id TEXT NOT NULL,
     cosmetico TEXT NOT NULL,
     PRIMARY KEY (usuario_id, guild_id, cosmetico)
+);
+
+-- Dónde vive el plantel de cada persona. `casa` a NULL es no tener casa propia,
+-- y entonces manda `refugio_hasta`: en el futuro sigue en el refugio y en el
+-- pasado se ha quedado a la intemperie. Los tres estados salen de estos dos
+-- datos y no de una columna aparte, que podría contradecirlos.
+CREATE TABLE IF NOT EXISTS hogar (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    casa TEXT,
+    refugio_hasta TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id)
 );
 
 CREATE TABLE IF NOT EXISTS operaciones_economia (
@@ -1121,6 +1134,50 @@ def guardar_en_el_ropero_en(
         (usuario_id, guild_id, clave),
     )
     return bool(cursor.rowcount)
+
+
+# --- El hogar --------------------------------------------------------------
+#
+# La fila se crea la primera vez que se mira, no al desplegar: así la semana de
+# refugio empieza a contar cuando alguien aparece, y quien no juegue en un mes
+# no llega y se la encuentra gastada. Por eso no hay migración que escribir.
+
+def hogar_de(usuario_id: str, guild_id: str, ahora: datetime) -> cas.Hogar:
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        return _hogar_de(con, usuario_id, guild_id, ahora)
+
+
+def _hogar_de(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
+) -> cas.Hogar:
+    fila = con.execute(
+        "SELECT casa, refugio_hasta FROM hogar "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchone()
+    if fila is None:
+        hasta = cas.estancia_desde(ahora)
+        con.execute(
+            "INSERT INTO hogar (usuario_id, guild_id, casa, refugio_hasta) "
+            "VALUES (?, ?, NULL, ?)",
+            (usuario_id, guild_id, hasta.isoformat()),
+        )
+        return cas.Hogar(casa=None, refugio_hasta=hasta)
+    return cas.Hogar(
+        casa=cas.buscar(fila["casa"]),
+        refugio_hasta=datetime.fromisoformat(fila["refugio_hasta"]),
+    )
+
+
+def mudar_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str
+) -> None:
+    """Le pone la casa. La fila ya existe: la crea `_hogar_de` al mirarla."""
+    con.execute(
+        "UPDATE hogar SET casa = ? WHERE usuario_id = ? AND guild_id = ?",
+        (clave, usuario_id, guild_id),
+    )
 
 
 def especies_de(usuario_id: str, guild_id: str) -> tuple[str, ...]:

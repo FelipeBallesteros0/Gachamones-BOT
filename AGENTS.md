@@ -68,6 +68,10 @@ Instala el hook local cuando prepares el entorno:
 - Los asciigems se ganan sólo con los logros de un gachamon.
 - Los asciigems se gastan sólo en cosméticos, que no tocan ninguna estadística.
 - Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.
+- Nadie empieza en la calle: sin casa propia se vive en el refugio.
+- El hogar es de la persona y en él vive todo su plantel vivo.
+- De casa sólo se sube de tamaño, nunca se baja.
+- La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`.
 - Casi todos los logros son de la criatura y se pierden con ella.
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
 - Los logros de la persona sobreviven a todo su plantel.

@@ -16,6 +16,7 @@ from dataclasses import replace
 
 import discord
 
+import casas as cas
 import cosmeticos as cos
 import db
 import economia
@@ -44,7 +45,7 @@ def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
         f"## {obj.EMOJI_MONEDA_TIENDA} Tienda\n"
         f"{_saldos(usuario_id, guild_id)}\n"
         "-# Los consumibles se usan desde 🎒 **Mochila**; los cosméticos se "
-        "ponen desde 🎨 **Personalizar**."
+        "ponen desde 🎨 **Personalizar**; la casa se mira con `/casa`."
     )
 
 
@@ -432,6 +433,70 @@ class MenuCosmeticos(discord.ui.Select):
         )
 
 
+# --- Las casas --------------------------------------------------------------
+
+def texto_de_la_mudanza(nombre: str, resultado: economia.ResultadoMudanza) -> str:
+    """Lo que se canta en el canal al mudarse. Público a propósito: es la clase
+    de cosa que se presume."""
+    desde = resultado.desde.nombre if resultado.desde else "del refugio"
+    de_donde = f"de {desde}" if resultado.desde else desde
+    return (
+        f"🏠 **{nombre}** se trasladó {de_donde} a su nueva "
+        f"**{resultado.casa.nombre}**.\n"
+        f"-# Comodidad {resultado.casa.comodidad} · "
+        f"{resultado.casa.huecos} huecos de mobiliario · "
+        f"🪙 -{resultado.casa.precio}, le quedan **{resultado.saldo}**."
+    )
+
+
+class MenuCasas(discord.ui.Select):
+    """Las tres casas. Marca la tuya y las que se te han quedado pequeñas."""
+
+    def __init__(self, hogar: cas.Hogar | None = None):
+        tuya = hogar.casa if hogar else None
+        opciones = []
+        for clave, casa in cas.CATALOGO.items():
+            if tuya is not None and casa.tamano < tuya.tamano:
+                etiqueta = f"{casa.nombre} — se te quedó pequeña"
+            elif tuya is not None and casa.tamano == tuya.tamano:
+                etiqueta = f"{casa.nombre} — aquí vives"
+            else:
+                etiqueta = f"{casa.nombre} — 🪙 {casa.precio}"
+            opciones.append(discord.SelectOption(
+                label=etiqueta,
+                value=clave,
+                description=(
+                    f"Comodidad {casa.comodidad}, hasta {casa.techo} · "
+                    f"{casa.huecos} muebles"
+                ),
+                emoji="🏠",
+            ))
+        super().__init__(placeholder="🏠 Casas", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        casa = cas.CATALOGO[self.values[0]]
+        resultado = economia.comprar_casa(
+            str(interaccion.user.id), str(interaccion.guild_id), casa
+        )
+        if not resultado.ok:
+            await interaccion.response.edit_message(
+                content=f"❌ {resultado.problema}", view=None
+            )
+            return
+
+        await interaccion.response.edit_message(
+            content=f"🏠 Te has mudado a **{casa.nombre}**. Míralo con `/casa`.",
+            view=None,
+        )
+        # El anuncio va al canal y después de que cierre la transacción: mudarse
+        # se presume, y una mudanza cantada que luego no estuviera sería peor
+        # que una que tarda un segundo en salir.
+        if interaccion.channel is not None:
+            await interaccion.channel.send(
+                texto_de_la_mudanza(interaccion.user.display_name, resultado)
+            )
+
+
 class MenuPonerCosmetico(discord.ui.Select):
     """Lo que tienes en el ropero, para ponérselo al activo."""
 
@@ -534,7 +599,9 @@ async def abrir_tienda(interaccion: discord.Interaction) -> None:
     await interaccion.response.send_message(
         texto_de_la_tienda(usuario_id, guild_id),
         view=VistaConMenu(
-            MenuTienda(), MenuCosmeticos(db.ropero(usuario_id, guild_id))
+            MenuTienda(),
+            MenuCosmeticos(db.ropero(usuario_id, guild_id)),
+            MenuCasas(db.hogar_de(usuario_id, guild_id, db.ahora_utc())),
         ),
         ephemeral=True,
     )

@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 import aventura as av
+import casas as cas
 import comun
 import competir as comp
 import config
@@ -93,6 +94,38 @@ def panel_de_logros(
         "-# Las de arriba se van con el gachamon si se muere; las tuyas se "
         "quedan. Las gemas van a tu monedero en los dos casos."
     )
+
+
+def texto_de_la_casa(
+    hogar: cas.Hogar,
+    vivos: list[sim.Criatura],
+    persona: str,
+    ahora: datetime,
+) -> str:
+    """El hogar con todos los vivos dentro, sea propio o el refugio."""
+    estado = hogar.estado(ahora)
+    donde = hogar.donde(ahora)
+    if estado == cas.PROPIA:
+        titulo = f"## 🏠 {donde.nombre} de {persona}"
+        pie = (
+            f"-# Comodidad {donde.comodidad} · {donde.huecos} huecos de "
+            f"mobiliario · {len(vivos)} viviendo aquí."
+        )
+    elif estado == cas.REFUGIO:
+        quedan = max(0, (hogar.refugio_hasta - ahora).days)
+        titulo = f"## 🏚️ {persona}, en el refugio"
+        pie = (
+            f"-# Comodidad {donde.comodidad}, y no se puede decorar. "
+            f"Quedan **{quedan}** días de estancia: cómprate una casa en "
+            "🛒 **Tienda**."
+        )
+    else:
+        titulo = f"## 🌧️ {persona}, a la intemperie"
+        pie = (
+            "-# Se acabó la estancia en el refugio. Cómprate una casa en "
+            "🛒 **Tienda**."
+        )
+    return f"{titulo}\n{cas.render(vivos, donde)}\n{pie}"
 
 
 def _techo_diario() -> int:
@@ -211,6 +244,14 @@ es el que recibe los botones y los comandos. Los demás esperan en la \
 que no se te mueren mientras juegas con otro.
 -# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
 partida: los demás hay que ganárselos por ahí.
+
+**El hogar**
+Todo tu plantel vive junto, y `/casa` te lo enseña dentro. Se empieza en el \
+**refugio**, que es de todos y dura **{cas.DIAS_DE_REFUGIO} días**; después te \
+quedas a la intemperie hasta que compres casa en 🛒 **Tienda**.
+-# 🏠 {" · ".join(f"**{c.nombre}** 🪙 {c.precio}, comodidad {c.comodidad} y \
+{c.huecos} huecos" for c in cas.CATALOGO.values())}
+-# Se sube de tamaño, nunca se baja. Los muebles llegan más adelante.
 
 **Otros**
 `/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
@@ -443,10 +484,26 @@ class Social(commands.Cog):
     async def mochila(self, interaccion: discord.Interaction) -> None:
         await tienda.abrir_inventario(interaccion, vistas.congelar)
 
-    @app_commands.command(name="tienda", description="Compra objetos y cosméticos")
+    @app_commands.command(name="tienda", description="Compra objetos, cosméticos y casas")
     @comun.solo_en_el_canal()
     async def tienda_cmd(self, interaccion: discord.Interaction) -> None:
         await tienda.abrir_tienda(interaccion)
+
+    @app_commands.command(name="casa", description="Mira tu hogar y a todos los que viven en él")
+    @comun.solo_en_el_canal()
+    async def casa(self, interaccion: discord.Interaction) -> None:
+        usuario_id, guild_id = (
+            str(interaccion.user.id), str(interaccion.guild_id)
+        )
+        ahora = db.ahora_utc()
+        await interaccion.response.send_message(
+            texto_de_la_casa(
+                db.hogar_de(usuario_id, guild_id, ahora),
+                db.plantel(usuario_id, guild_id),
+                interaccion.user.display_name,
+                ahora,
+            )
+        )
 
     @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
     @comun.solo_en_el_canal()

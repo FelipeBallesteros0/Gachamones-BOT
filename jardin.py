@@ -111,21 +111,33 @@ def _pintar_fila(fila: list[Bloque], ancho: int) -> list[str]:
     return salida
 
 
+def cuerpo_de(
+    criaturas: list[sim.Criatura],
+    ancho: int,
+    suelo: str = SUELO,
+    vacio: str = "El jardín está vacío.",
+) -> list[str]:
+    """Las filas de criaturas ya pintadas, cada una sobre su suelo.
+
+    Sin el marco de fuera: es lo que comparten el jardín y la casa, que sólo se
+    diferencian en qué llevan alrededor y en de qué está hecho el suelo.
+    """
+    if not criaturas:
+        # Nada de pantalla.fila() aquí: está fijada al ancho de la pantalla
+        # individual (26) y dejaría el marco descuadrado.
+        return [_centrado("", ancho), _centrado(vacio, ancho), _centrado("", ancho)]
+
+    cuerpo: list[str] = []
+    for fila in repartir([bloque_de(c) for c in criaturas], ancho):
+        cuerpo += _pintar_fila(fila, ancho)
+        cuerpo.append("│" + suelo * ancho + "│")
+    return cuerpo
+
+
 def render(criaturas: list[sim.Criatura], ancho: int = ANCHO) -> str:
     """El cuadro del jardín con todas las criaturas."""
     cuerpo = ["╭" + "─" * ancho + "╮"]
-
-    if not criaturas:
-        # Nada de pantalla.fila() aquí: está fijada al ancho de la pantalla
-        # individual (26) y dejaría el marco del jardín descuadrado.
-        cuerpo.append(_centrado("", ancho))
-        cuerpo.append(_centrado("El jardín está vacío.", ancho))
-        cuerpo.append(_centrado("", ancho))
-    else:
-        for fila in repartir([bloque_de(c) for c in criaturas], ancho):
-            cuerpo += _pintar_fila(fila, ancho)
-            cuerpo.append("│" + SUELO * ancho + "│")
-
+    cuerpo += cuerpo_de(criaturas, ancho)
     cuerpo.append("╰" + "─" * ancho + "╯")
     return "```ansi\n" + "\n".join(cuerpo) + "\n```"
 

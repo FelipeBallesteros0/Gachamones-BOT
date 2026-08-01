@@ -19,6 +19,7 @@ from vistas import NombrarView, PantallaView
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
+    "casa",
 }
 
 
@@ -58,7 +59,8 @@ def test_los_comandos_directos_se_anuncian_como_toca():
     escribir «/» en Discord, así que si miente el comando no se encuentra."""
     esperadas = {
         "mochila": "Abre tu mochila y usa lo que lleves",
-        "tienda": "Compra objetos y cosméticos",
+        "tienda": "Compra objetos, cosméticos y casas",
+        "casa": "Mira tu hogar y a todos los que viven en él",
         "plantel": "Mira tu plantel y cambia de gachamon activo",
     }
     directos = {c.name: c.description for c in _cargar_todo() if c.name in esperadas}
