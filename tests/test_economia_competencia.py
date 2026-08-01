@@ -112,6 +112,63 @@ def test_testigo_con_cambio_de_activa_conserva_la_protagonista_del_evento():
     ) is None
 
 
+def test_disputar_con_cambio_tardio_usa_protagonista_del_evento(monkeypatch):
+    protagonista = db.crear("1", "g1", "pulpo", "Sol", STATS, T0)
+    luna = db.crear(
+        "1", "g1", "michi", "Luna", STATS, T0, activa=False
+    )
+    bruma = db.crear(
+        "1", "g1", "michi", "Bruma", STATS, T0, activa=False
+    )
+    db.crear("2", "g1", "pulpo", "Rival", STATS, T0)
+    resultado = competir(
+        "evento-testigo-integrado", usuarios=("1", "2"), semilla=6
+    )
+    assert resultado.encuentro is not None
+    assert resultado.encuentro.orden[0] == 0
+    assert resultado.despues[0].id == protagonista.id
+
+    planteles_tardios = {
+        "1": [
+            replace(resultado.despues[0], activa=False),
+            replace(luna, activa=True),
+            bruma,
+        ],
+        "2": [resultado.despues[1]],
+    }
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(
+        cog_comp.db,
+        "plantel",
+        lambda usuario_id, guild_id: planteles_tardios[usuario_id],
+    )
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
+    cog = Competencias.__new__(Competencias)
+    cog._animar = AsyncMock()
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    participantes = [
+        SimpleNamespace(id=1, mention="<@1>", display_name="Dueña de Sol"),
+        SimpleNamespace(id=2, mention="<@2>", display_name="Dueña de Rival"),
+    ]
+
+    asyncio.run(
+        cog.disputar(canal, participantes, comp.CARRERA, "g1", "publicacion")
+    )
+
+    mensajes_testigo = [
+        llamada.args[0]
+        for llamada in canal.send.await_args_list
+        if "👀" in llamada.args[0]
+    ]
+    assert mensajes_testigo == [
+        "-# 👀 Desde la incubadora, **Bruma** celebra a **Sol**."
+    ]
+
+
 def test_recibo_de_competencia_conserva_topes_de_moneda_y_evolucion():
     recibo = economia.ReciboCompetencia(
         usuario_id="u1",
