@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 """`/aventura`: salir al campo, pasar pruebas y cruzarse con alguien.
 
 El reparto es el mismo que en las competencias: `aventura.py` decide con los
@@ -106,7 +107,7 @@ LARGO_BOTON = 80  # lo que admite Discord en una etiqueta
 
 async def _pedir_escena(
     bioma: av.Bioma, nivel: int, antes: str, usuario_id: str, ahora,
-    rng: random.Random, evitar: av.Escena | None = None,
+    rng: random.Random, evitar: av.Escena | None = None, *, favorecida: str,
 ) -> av.Escena:
     """La escena del nodo: la inventa el modelo y, si no puede, va una escrita.
 
@@ -114,13 +115,14 @@ async def _pedir_escena(
     algo que no cuadra, la aventura tiene que seguir igualmente. Un árbol que se
     queda sin escena deja a alguien con tres botones vacíos.
     """
-    escrita = av.escena_escrita(bioma, evitar, rng)
+    escrita = av.escena_escrita(bioma, favorecida, evitar, rng)
     if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
         return escrita
 
     db.registrar_uso_ia(usuario_id, ahora)
     sistema, peticion = per.prompt_escena(
-        bioma.adonde, nivel, antes, especies=bioma.nombres_especies
+        bioma.adonde, nivel, antes, especies=bioma.nombres_especies,
+        favorecida=favorecida,
     )
     crudo = await ia.generar_crudo(sistema, peticion)
     if not crudo:
@@ -158,8 +160,17 @@ class ViajeView(discord.ui.View):
         """
         self.clear_items()
         for opcion in av.OPCIONES_ESCENA:
+            etiqueta = self.viaje.escena.etiqueta(opcion)
+            if opcion != av.VOLVER:
+                stat = (
+                    self.criatura.fuerza if opcion == av.FUERZA
+                    else self.criatura.velocidad
+                )
+                etiqueta += (
+                    f" · {av.banda_opcion(stat, self.viaje.terreno.exigencia(opcion))}"
+                )
             boton = discord.ui.Button(
-                label=self.viaje.escena.etiqueta(opcion)[:LARGO_BOTON],
+                label=etiqueta[:LARGO_BOTON],
                 emoji=EMOJI_OPCION[opcion],
                 style=ESTILO_OPCION[opcion],
             )
@@ -169,14 +180,24 @@ class ViajeView(discord.ui.View):
             boton.callback = callback
             self.add_item(boton)
 
-    def texto(self) -> str:
+    def texto(self, beat: str = "") -> str:
         bioma = self.viaje.bioma
         van = av.quienes_van(self.criatura, self.dueño.display_name)
+        cabecera = f"## {bioma.emoji} {van} salen {bioma.adonde}\n"
+        if beat:
+            cabecera += f"-# {beat}\n"
+        if not self.viaje.sigue:
+            cierre = (
+                "El viaje se corta ahí."
+                if self.viaje.fallo else "El viaje termina ahí."
+            )
+            return f"{cabecera}{cierre}"
         return (
-            f"## {bioma.emoji} {van} salen {bioma.adonde}\n"
+            f"{cabecera}"
             f"-# decisión {self.viaje.nivel + 1} de {av.NIVELES_DE_AVENTURA}"
             f" · superadas {self.viaje.nodos_superados}\n"
-            f"{self.viaje.escena.situacion}"
+            f"{self.viaje.escena.situacion}\n"
+            f"{av.pista_marcas(self.criatura, self.viaje.terreno)}"
         )
 
     async def interaction_check(self, interaccion: discord.Interaction) -> bool:
@@ -197,21 +218,33 @@ class ViajeView(discord.ui.View):
 
             # Se tira PRIMERO y se pide la escena después. Al revés se gastaría una
             # llamada al modelo en la mitad de los viajes que terminan aquí mismo.
-            self.viaje = av.avanzar(anterior, self.criatura, opcion, None, rng)
+            self.viaje = av.avanzar(
+                anterior, self.criatura, opcion, None, None, rng
+            )
+            prueba = (
+                self.viaje.pruebas[-1]
+                if len(self.viaje.pruebas) > len(anterior.pruebas)
+                else None
+            )
+            beat = av.render_beat(prueba)
 
             if self.viaje.sigue:
+                terreno = av.tirar_terreno(self.viaje.bioma, rng)
                 escena = await _pedir_escena(
                     self.viaje.bioma, self.viaje.nivel + 1,
                     _continuacion(anterior.escena, opcion),
                     str(self.dueño.id), db.ahora_utc(), rng, anterior.escena,
+                    favorecida=terreno.favorecida,
                 )
-                self.viaje = replace(self.viaje, escena=escena)
+                self.viaje = replace(
+                    self.viaje, escena=escena, terreno=terreno
+                )
                 self._poner_botones()
-                await self._editar(self.texto(), self)
+                await self._editar(self.texto(beat), self)
                 return
 
             self.stop()
-            await self._editar(self.texto(), None)
+            await self._editar(self.texto(beat), None)
             self._resuelto = True
             await self.cog.resolver(
                 interaccion.channel, self.dueño, self.guild_id,
@@ -261,6 +294,7 @@ class EncuentroView(discord.ui.View):
         self.guild_id = guild_id
         self.criatura = criatura
         self.encuentro = encuentro
+        self.historial: tuple[av.EventoEncuentro, ...] = ()
         self.mensaje: discord.Message | None = None
         self._cerrado = False
         self._refrescar_botones()
@@ -346,28 +380,56 @@ class EncuentroView(discord.ui.View):
     async def _jugar(
         self, interaccion: discord.Interaction, opcion: str, dicho: str = ""
     ) -> None:
-        """Una vuelta: los dados deciden y, si toca, el modelo pone las palabras."""
+        """Una vuelta: el desenlace bifurca antes de cualquier texto libre."""
         antes = self.encuentro
         self.encuentro = av.aplicar_opcion(antes, opcion, random.Random())
-
-        reaccion = av.narrar_opcion(antes, opcion, self.encuentro)
+        reaccion_mecanica = av.narrar_opcion(antes, opcion, self.encuentro)
         if not interaccion.response.is_done():
             await interaccion.response.defer()
 
-        if opcion == av.HABLAR:
-            reaccion = await self.cog.contestar(
-                self.encuentro.salvaje, self.criatura, dicho,
-                str(self.dueño.id), reaccion,
+        if not self.encuentro.sigue:
+            desenlace = "se_une" if self.encuentro.se_une else "se_va"
+            semilla = self.encuentro.confianza + self.encuentro.paciencia
+            voz = per.linea_desenlace(
+                self.encuentro.salvaje, desenlace, semilla
             )
+            reaccion = f"> {voz}\n{reaccion_mecanica}"
+            if self.encuentro.se_une:
+                await self._unirse(interaccion, reaccion)
+            else:
+                self._cerrado = True
+                self.stop()
+                await self._editar(
+                    interaccion, f"{reaccion}\n\n🚪 Se ha ido.", None
+                )
+            return
 
-        if self.encuentro.se_une:
-            await self._unirse(interaccion, reaccion)
-            return
-        if self.encuentro.se_larga:
-            self._cerrado = True
-            self.stop()
-            await self._editar(interaccion, f"{reaccion}\n\n🚪 Se ha ido.", None)
-            return
+        if opcion == av.HABLAR:
+            contexto = av.ContextoSalvaje(
+                salvaje=self.encuentro.salvaje,
+                acompañante=self.criatura,
+                fase=av.fase_de(antes.confianza),
+                fase_ahora=av.fase_de(self.encuentro.confianza),
+                tendencia=av.tendencia_de(antes, self.encuentro),
+                paciencia=self.encuentro.paciencia,
+                dicho=dicho,
+                historial=self.historial,
+            )
+            respuesta = await self.cog.contestar(
+                contexto, str(self.dueño.id)
+            )
+            self.historial = av.recordar(
+                self.historial, av.TurnoHablar(dicho, respuesta)
+            )
+            reaccion = f"> {respuesta}\n{reaccion_mecanica}"
+        else:
+            gesto = av.frase_gesto(
+                opcion, av.le_gusta(self.encuentro.salvaje, opcion)
+            )
+            self.historial = av.recordar(
+                self.historial, av.TurnoGesto(opcion, gesto)
+            )
+            reaccion = reaccion_mecanica
 
         self._refrescar_botones()
         await self._editar(interaccion, reaccion, self)
@@ -418,9 +480,10 @@ class EncuentroView(discord.ui.View):
         # que se acaba de unir era raro. Los del gachamon que iba se revisan
         # igual: la aventura le ha subido sus propios contadores.
         if interaccion.channel is not None:
-            await comun.anunciar_logros(interaccion.channel, self.criatura, ahora)
+            canal = cast(discord.abc.Messageable, interaccion.channel)
+            await comun.anunciar_logros(canal, self.criatura, ahora)
             await comun.anunciar_logros_de_persona(
-                interaccion.channel, str(self.dueño.id), self.guild_id,
+                canal, str(self.dueño.id), self.guild_id,
                 self.dueño.display_name, ahora,
             )
 
@@ -464,25 +527,24 @@ class Aventura(commands.Cog):
         self.bot = bot
 
     async def contestar(
-        self, salvaje: av.Salvaje, criatura: sim.Criatura, dicho: str,
-        usuario_id: str, reaccion: str,
+        self, contexto: av.ContextoSalvaje, usuario_id: str,
     ) -> str:
-        """Lo que dice el salvaje. El modelo pone las palabras, no el resultado."""
+        """Una respuesta no terminal; mecánica e historial ya están decididos."""
         ahora = db.ahora_utc()
         semilla = db.uso_ia_ultima_hora(usuario_id, ahora)
-        respaldo = per.respaldo_salvaje(semilla)
+        respaldo = per.respaldo_salvaje(contexto, semilla)
 
         if semilla >= config.LIMITE_CHARLA_POR_HORA:
-            return f"{respaldo}\n{reaccion}"
+            return respaldo
 
         db.registrar_uso_ia(usuario_id, ahora)
-        sistema, peticion = per.prompt_salvaje(salvaje, criatura, dicho)
+        sistema, peticion = per.prompt_salvaje(contexto)
         texto, _ = await ia.generar(sistema, peticion, respaldo)
         if per.usa_formas_de_vosotros(texto) or per.menciona_nombre_caracter(
-            texto, salvaje.caracter
+            texto, contexto.salvaje.caracter
         ):
             texto = respaldo
-        return f"> {texto}\n{reaccion}"
+        return texto
 
     @app_commands.command(
         name="aventura",
@@ -521,8 +583,12 @@ class Aventura(commands.Cog):
         await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
         await interaccion.response.defer()
 
-        escena = await _pedir_escena(bioma, 1, "", usuario_id, ahora, rng)
-        viaje = av.Viaje(bioma=bioma, escena=escena)
+        terreno = av.tirar_terreno(bioma, rng)
+        escena = await _pedir_escena(
+            bioma, 1, "", usuario_id, ahora, rng,
+            favorecida=terreno.favorecida,
+        )
+        viaje = av.Viaje(bioma=bioma, escena=escena, terreno=terreno)
         vista = ViajeView(
             self, cast(discord.User, interaccion.user), guild_id, criatura, viaje
         )

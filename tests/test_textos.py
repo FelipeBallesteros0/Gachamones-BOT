@@ -35,6 +35,22 @@ def gachamon(**cambios) -> sim.Criatura:
     return sim.Criatura(**datos)
 
 
+def contexto_salvaje(salvaje, acompañante):
+    antes = aventura.Encuentro(salvaje, confianza=40, paciencia=4)
+    despues = aventura.Encuentro(
+        salvaje, confianza=45, paciencia=3, ultimo_cambio=5
+    )
+    return aventura.ContextoSalvaje(
+        salvaje=salvaje,
+        acompañante=acompañante,
+        fase=aventura.fase_de(antes.confianza),
+        fase_ahora=aventura.fase_de(despues.confianza),
+        tendencia=aventura.tendencia_de(antes, despues),
+        paciencia=despues.paciencia,
+        dicho="hola",
+    )
+
+
 def test_prompts_usan_gachamon_y_aventura_nombra_comida():
     c = gachamon()
     salvaje = aventura.Salvaje(
@@ -46,9 +62,10 @@ def test_prompts_usan_gachamon_y_aventura_nombra_comida():
         c, "al bosque", [], aventura.NADA, aventura.PERCANCE
     )[0]
     escena = per.prompt_escena(
-        "al bosque", 1, especies=aventura.BIOMAS["bosque"].nombres_especies
+        "al bosque", 1, especies=aventura.BIOMAS["bosque"].nombres_especies,
+        favorecida=aventura.FUERZA,
     )[0]
-    voz_salvaje = per.prompt_salvaje(salvaje, c, "hola")[0]
+    voz_salvaje = per.prompt_salvaje(contexto_salvaje(salvaje, c))[0]
 
     assert "no les hablas directamente" in jardin
     assert "Respeta el género indicado de cada gachamon" in jardin
@@ -140,7 +157,8 @@ def test_la_escena_solo_puede_nombrar_a_los_del_bioma():
 
     for clave, bioma in aventura.BIOMAS.items():
         sistema, _ = per.prompt_escena(
-            bioma.adonde, 1, especies=bioma.nombres_especies
+            bioma.adonde, 1, especies=bioma.nombres_especies,
+            favorecida=aventura.FUERZA,
         )
         for nombre in bioma.nombres_especies:
             assert nombre in sistema, (clave, nombre)

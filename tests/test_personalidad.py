@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import aventura as av
 import especies as esp
 import personalidad as per
 import simulacion as sim
@@ -24,9 +25,23 @@ def criatura(**cambios) -> sim.Criatura:
 
 def censo(clave: str = "bosque") -> tuple[str, ...]:
     """Quién vive en un bioma, leído del catálogo igual que en producción."""
-    import aventura as av
-
     return av.BIOMAS[clave].nombres_especies
+
+
+def contexto_salvaje(salvaje, acompañante=None, dicho="hola"):
+    antes = av.Encuentro(salvaje, confianza=40, paciencia=4)
+    despues = av.Encuentro(
+        salvaje, confianza=45, paciencia=3, ultimo_cambio=5
+    )
+    return av.ContextoSalvaje(
+        salvaje=salvaje,
+        acompañante=acompañante or criatura(),
+        fase=av.fase_de(antes.confianza),
+        fase_ahora=av.fase_de(despues.confianza),
+        tendencia=av.tendencia_de(antes, despues),
+        paciencia=despues.paciencia,
+        dicho=dicho,
+    )
 
 
 # --- Cobertura -------------------------------------------------------------
@@ -196,8 +211,10 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
         per.construir_prompt(c, T0, "Felipe"),
         per.prompt_jardin([c], T0)[0],
         per.prompt_aventura(c, "al bosque", [], av.NADA)[0],
-        per.prompt_salvaje(salvaje, c, "hola")[0],
-        per.prompt_escena("al bosque", 1, especies=censo())[0],
+        per.prompt_salvaje(contexto_salvaje(salvaje, c))[0],
+        per.prompt_escena(
+            "al bosque", 1, especies=censo(), favorecida=av.FUERZA
+        )[0],
     )
 
     for prompt in prompts:
@@ -211,7 +228,7 @@ def test_el_prompt_salvaje_contrasta_ustedes_con_vosotros():
 
     c = criatura()
     salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10))
-    sistema, _ = per.prompt_salvaje(salvaje, c, "hola")
+    sistema, _ = per.prompt_salvaje(contexto_salvaje(salvaje, c))
 
     assert "ustedes son" in sistema
     assert "vosotros sois" in sistema
@@ -323,14 +340,26 @@ def _textos_de_aventura(c, genero: str) -> list[str]:
 
     textos = []
     for bioma in av.BIOMAS.values():
+        terreno = av.tirar_terreno(bioma, random.Random(1))
         viaje = av.Viaje(
             bioma=bioma,
-            escena=av.escena_escrita(bioma, rng=random.Random(1)),
+            escena=av.escena_escrita(
+                bioma, terreno.favorecida, rng=random.Random(1)
+            ),
+            terreno=terreno,
         )
         for opcion in (av.FUERZA, av.VELOCIDAD):
-            viaje = av.avanzar(viaje, c, opcion,
-                               av.escena_escrita(bioma, rng=random.Random(2)),
-                               random.Random(1))
+            if not viaje.sigue:
+                break
+            siguiente_terreno = av.tirar_terreno(bioma, random.Random(2))
+            viaje = av.avanzar(
+                viaje, c, opcion,
+                av.escena_escrita(
+                    bioma, siguiente_terreno.favorecida,
+                    rng=random.Random(2),
+                ),
+                siguiente_terreno, random.Random(1),
+            )
         salida = viaje.salida
         for final in (av.SALVAJE, av.OBJETO, av.NADA):
             textos.extend(
@@ -339,8 +368,13 @@ def _textos_de_aventura(c, genero: str) -> list[str]:
         salvaje = av.Salvaje(
             bioma.especies[0], "Salvaje", genero, "gruñón", (10, 10, 10)
         )
-        textos.extend(per.prompt_salvaje(salvaje, c, "hola"))
-        textos.extend(per.respaldo_salvaje(i) for i in range(3))
+        contexto = contexto_salvaje(salvaje, c)
+        textos.extend(per.prompt_salvaje(contexto))
+        textos.extend(per.respaldo_salvaje(contexto, i) for i in range(3))
+        for desenlace in ("se_une", "se_va"):
+            textos.extend(
+                per.linea_desenlace(salvaje, desenlace, i) for i in range(2)
+            )
     return textos
 
 
@@ -454,7 +488,9 @@ def test_la_semilla_vieja_es_justo_la_que_fallaba():
 
 
 def test_el_prompt_de_escena_pide_las_cuatro_claves_y_sitúa_el_bioma():
-    sistema, peticion = per.prompt_escena("al Volcán", 1, especies=censo("volcan"))
+    sistema, peticion = per.prompt_escena(
+        "al Volcán", 1, especies=censo("volcan"), favorecida=av.FUERZA
+    )
 
     for clave in ("situacion", "fuerza", "velocidad", "volver"):
         assert f'"{clave}"' in sistema
@@ -469,7 +505,9 @@ def test_el_prompt_de_escena_no_le_cuenta_al_modelo_quién_va():
     A la escena no se le pasa la criatura: si el modelo supiera si es fuerte o
     rápida, escribiría la opción que le conviene, y quien decide es quien juega.
     Además se le prohíbe expresamente adelantar el resultado."""
-    sistema, _ = per.prompt_escena("al Bosque", 2, especies=censo())
+    sistema, _ = per.prompt_escena(
+        "al Bosque", 2, especies=censo(), favorecida=av.FUERZA
+    )
 
     assert "no digas cuál es la buena" in sistema.lower()
     assert "no menciones al gachamon" in sistema.lower()
@@ -481,9 +519,12 @@ def test_en_el_segundo_nodo_es_donde_puede_aparecer_algo():
     """Es donde va el hallazgo. Lo que NO se le dice es de qué forma: un cofre
     era un ejemplo, y si se le nombra sólo eso, todas las escenas acaban siendo
     cofres."""
-    _, primera = per.prompt_escena("al Bosque", 1, especies=censo())
+    _, primera = per.prompt_escena(
+        "al Bosque", 1, especies=censo(), favorecida=av.FUERZA
+    )
     _, segunda = per.prompt_escena(
-        "al Bosque", 2, "Forzó la puerta.", especies=censo()
+        "al Bosque", 2, "Forzó la puerta.", especies=censo(),
+        favorecida=av.VELOCIDAD,
     )
 
     assert "algo que se lleve" in segunda and "algo que se lleve" not in primera
@@ -494,7 +535,9 @@ def test_en_el_segundo_nodo_es_donde_puede_aparecer_algo():
 def test_el_prompt_de_escena_abre_la_mano_mas_alla_del_obstaculo():
     """Pedido tras jugarlo: cruzarse con alguien que te da algo, o que esté
     pasando una cosa, no sólo puertas trancadas."""
-    sistema, _ = per.prompt_escena("al Bosque", 1, especies=censo())
+    sistema, _ = per.prompt_escena(
+        "al Bosque", 1, especies=censo(), favorecida=av.FUERZA
+    )
 
     assert "No sólo un obstáculo cerrado" in sistema
     for forma in ("viajero", "pastor", "tormenta", "gachamon"):

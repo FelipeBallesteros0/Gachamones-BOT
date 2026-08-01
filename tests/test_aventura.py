@@ -83,16 +83,28 @@ def test_el_bioma_se_sortea_y_salen_todos():
 
 # --- Las pruebas -----------------------------------------------------------
 
+def terreno_de(bioma, favorecida=av.FUERZA):
+    return av.Terreno(
+        bioma.dificultad - av.SESGO_TERRENO
+        if favorecida == av.FUERZA else bioma.dificultad + av.SESGO_TERRENO,
+        bioma.dificultad - av.SESGO_TERRENO
+        if favorecida == av.VELOCIDAD else bioma.dificultad + av.SESGO_TERRENO,
+    )
+
+
 def recorrer(bicho, bioma, rng, opciones=(av.FUERZA, av.VELOCIDAD)):
     """Juega el árbol entero eligiendo esas opciones y devuelve lo que rindió.
 
     Es lo que antes hacía `explorar` de una tirada; desde el árbol lo decide
     quien juega, así que los tests también tienen que elegir."""
-    viaje = av.Viaje(bioma=bioma, escena=escena_de_prueba())
+    terreno = terreno_de(bioma)
+    viaje = av.Viaje(bioma=bioma, escena=escena_de_prueba(), terreno=terreno)
     for opcion in opciones:
         if not viaje.sigue:
             break
-        viaje = av.avanzar(viaje, bicho, opcion, escena_de_prueba(), rng)
+        viaje = av.avanzar(
+            viaje, bicho, opcion, escena_de_prueba(), terreno, rng
+        )
     return viaje.salida
 
 
@@ -103,7 +115,8 @@ def test_cada_prueba_es_stat_mas_1d20_contra_la_dificultad_del_bioma():
     for prueba in salida.pruebas:
         assert prueba.stat in ("fuerza", "velocidad")
         assert prueba.total == prueba.base + prueba.dado
-        assert prueba.dificultad == av.BIOMAS["bosque"].dificultad
+        esperada = terreno_de(av.BIOMAS["bosque"]).exigencia(prueba.stat)
+        assert prueba.dificultad == esperada
         assert prueba.superada == (prueba.total >= prueba.dificultad)
 
 
@@ -228,6 +241,7 @@ def viaje_con(salida, bioma="planicie"):
     return av.Viaje(
         bioma=av.BIOMAS[bioma],
         escena=escena_de_prueba(),
+        terreno=terreno_de(av.BIOMAS[bioma]),
         pruebas=salida.pruebas,
         nivel=av.NIVELES_DE_AVENTURA,
     )
@@ -512,12 +526,28 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
     asyncio.run(comprobar())
 
 
+def contexto_salvaje(salvaje, dicho="hola"):
+    antes = av.Encuentro(salvaje, confianza=40, paciencia=4)
+    despues = av.Encuentro(
+        salvaje, confianza=45, paciencia=3, ultimo_cambio=5
+    )
+    return av.ContextoSalvaje(
+        salvaje=salvaje,
+        acompañante=criatura(),
+        fase=av.fase_de(antes.confianza),
+        fase_ahora=av.fase_de(despues.confianza),
+        tendencia=av.tendencia_de(antes, despues),
+        paciencia=despues.paciencia,
+        dicho=dicho,
+    )
+
+
 def test_prompt_salvaje_oculta_el_caracter_y_conserva_su_conducta():
     salvaje = av.Salvaje(
         "michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10)
     )
 
-    sistema, _ = per.prompt_salvaje(salvaje, criatura(), "hola")
+    sistema, _ = per.prompt_salvaje(contexto_salvaje(salvaje))
 
     assert "sereno" not in sistema.casefold()
     assert "serena" not in sistema.casefold()
@@ -608,12 +638,11 @@ def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatc
     monkeypatch.setattr(cog_av.ia, "generar", generar)
 
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    respuesta = asyncio.run(
-        cog.contestar(salvaje, criatura(), "hola", "u1", "Reacción mecánica.")
-    )
+    contexto = contexto_salvaje(salvaje)
+    respuesta = asyncio.run(cog.contestar(contexto, "u1"))
 
     assert frase_reportada not in respuesta
-    assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
+    assert respuesta == per.respaldo_salvaje(contexto, 0)
     generar.assert_awaited_once()
 
 
@@ -640,12 +669,11 @@ def test_contestar_no_publica_el_nombre_del_caracter(
     monkeypatch.setattr(cog_av.ia, "generar", generar)
 
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    respuesta = asyncio.run(
-        cog.contestar(salvaje, criatura(), "hola", "u1", "Reacción mecánica.")
-    )
+    contexto = contexto_salvaje(salvaje)
+    respuesta = asyncio.run(cog.contestar(contexto, "u1"))
 
     assert frase_reportada.casefold() not in respuesta.casefold()
-    assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
+    assert respuesta == per.respaldo_salvaje(contexto, 0)
     generar.assert_awaited_once()
 
 
@@ -724,11 +752,21 @@ def test_lo_mas_probable_es_no_encontrar_salvaje():
     intentos = 3000
 
     for _ in range(intentos):
-        viaje = av.Viaje(bioma=av.elegir_bioma(rng), escena=escena_de_prueba())
+        bioma = av.elegir_bioma(rng)
+        terreno = av.tirar_terreno(bioma, rng)
+        viaje = av.Viaje(bioma=bioma, escena=escena_de_prueba(), terreno=terreno)
         while viaje.sigue:
-            # Jugando lo mejor posible: siempre la estadística más alta.
-            mejor = av.FUERZA if bicho.fuerza >= bicho.velocidad else av.VELOCIDAD
-            viaje = av.avanzar(viaje, bicho, mejor, escena_de_prueba(), rng)
+            probabilidades = {
+                av.FUERZA: av.probabilidad_opcion(bicho.fuerza, viaje.terreno.fuerza),
+                av.VELOCIDAD: av.probabilidad_opcion(
+                    bicho.velocidad, viaje.terreno.velocidad
+                ),
+            }
+            mejor = max(probabilidades, key=probabilidades.get)
+            siguiente_terreno = av.tirar_terreno(bioma, rng)
+            viaje = av.avanzar(
+                viaje, bicho, mejor, escena_de_prueba(), siguiente_terreno, rng
+            )
         if av.tirar_hallazgo(viaje.nodos_superados, True, rng) == av.SALVAJE:
             salvajes += 1
 
@@ -1006,18 +1044,18 @@ def test_cada_escena_ofrece_las_tres_opciones():
         assert escena.etiqueta(opcion).strip(), opcion
 
 
-def test_fuerza_y_velocidad_cuestan_lo_mismo():
-    """El 50/50 que se pidió. Si una fuera más fácil, la otra no la elegiría
-    nadie y la decisión sería de mentira."""
+def test_el_terreno_favorece_un_lado_sin_mirar_las_estadisticas():
     bioma = av.BIOMAS["bosque"]
+    t = terreno_de(bioma, av.FUERZA)
     fuerte = criatura(fuerza=99, velocidad=1)
     rapido = criatura(fuerza=1, velocidad=99)
 
-    con_fuerza = av.resolver_opcion(fuerte, bioma, av.FUERZA, DadosFijos([10]))
-    con_velocidad = av.resolver_opcion(rapido, bioma, av.VELOCIDAD, DadosFijos([10]))
+    con_fuerza = av.resolver_opcion(fuerte, t, av.FUERZA, DadosFijos([10]))
+    con_velocidad = av.resolver_opcion(rapido, t, av.VELOCIDAD, DadosFijos([10]))
     assert con_fuerza is not None and con_velocidad is not None
 
-    assert con_fuerza.dificultad == con_velocidad.dificultad == bioma.dificultad
+    assert con_fuerza.dificultad == bioma.dificultad - av.SESGO_TERRENO
+    assert con_velocidad.dificultad == bioma.dificultad + av.SESGO_TERRENO
     assert con_fuerza.base == 99 and con_velocidad.base == 99
     assert con_fuerza.superada and con_velocidad.superada
 
@@ -1026,8 +1064,9 @@ def test_la_opcion_elegida_usa_su_estadistica():
     bioma = av.BIOMAS["planicie"]
     bicho = criatura(fuerza=99, velocidad=1)
 
-    fuerza = av.resolver_opcion(bicho, bioma, av.FUERZA, DadosFijos([10]))
-    velocidad = av.resolver_opcion(bicho, bioma, av.VELOCIDAD, DadosFijos([10]))
+    t = terreno_de(bioma)
+    fuerza = av.resolver_opcion(bicho, t, av.FUERZA, DadosFijos([10]))
+    velocidad = av.resolver_opcion(bicho, t, av.VELOCIDAD, DadosFijos([10]))
     assert fuerza is not None and velocidad is not None
     assert fuerza.superada
     assert not velocidad.superada
@@ -1036,21 +1075,27 @@ def test_la_opcion_elegida_usa_su_estadistica():
 def test_volver_no_tira_ningun_dado():
     """Es la salida sin riesgo: no puede fallar."""
     assert av.resolver_opcion(
-        criatura(), av.BIOMAS["volcan"], av.VOLVER, DadosFijos([1])
+        criatura(), terreno_de(av.BIOMAS["volcan"]), av.VOLVER, DadosFijos([1])
     ) is None
 
 
 # --- Cómo avanza el viaje --------------------------------------------------
 
 def viaje_nuevo(bioma="bosque"):
-    return av.Viaje(bioma=av.BIOMAS[bioma], escena=escena_de_prueba())
+    destino = av.BIOMAS[bioma]
+    return av.Viaje(
+        bioma=destino, escena=escena_de_prueba(), terreno=terreno_de(destino)
+    )
 
 
 def test_acertar_lleva_al_siguiente_nivel():
     viaje = viaje_nuevo()
-    despues = av.avanzar(viaje, criatura(fuerza=99), av.FUERZA,
-                         escena_de_prueba(situacion="Un cofre cerrado."),
-                         DadosFijos([20]))
+    siguiente = terreno_de(viaje.bioma, av.VELOCIDAD)
+    despues = av.avanzar(
+        viaje, criatura(fuerza=99), av.FUERZA,
+        escena_de_prueba(situacion="Un cofre cerrado."), siguiente,
+        DadosFijos([20]),
+    )
 
     assert despues.nodos_superados == 1
     assert despues.sigue, "acertar en el nivel 1 no puede cerrar la aventura"
@@ -1061,7 +1106,10 @@ def test_volver_lleva_a_otra_escena_y_no_cierra_la_aventura():
     """Lo que se pidió: lo seguro no te echa, te lleva a otra parte."""
     viaje = viaje_nuevo()
     otra = escena_de_prueba(situacion="Un claro tranquilo.")
-    despues = av.avanzar(viaje, criatura(), av.VOLVER, otra, DadosFijos([1]))
+    despues = av.avanzar(
+        viaje, criatura(), av.VOLVER, otra,
+        terreno_de(viaje.bioma, av.VELOCIDAD), DadosFijos([1]),
+    )
 
     assert despues.sigue
     assert despues.escena.situacion == "Un claro tranquilo."
@@ -1073,8 +1121,9 @@ def test_volver_lleva_a_otra_escena_y_no_cierra_la_aventura():
 
 def test_fallar_cierra_la_aventura():
     viaje = viaje_nuevo()
-    despues = av.avanzar(viaje, criatura(fuerza=1), av.FUERZA, None,
-                         DadosFijos([1]))
+    despues = av.avanzar(
+        viaje, criatura(fuerza=1), av.FUERZA, None, None, DadosFijos([1])
+    )
 
     assert not despues.sigue
     assert despues.nodos_superados == 0
@@ -1085,8 +1134,10 @@ def test_la_aventura_dura_dos_niveles():
     viaje = viaje_nuevo()
     for _ in range(av.NIVELES_DE_AVENTURA):
         assert viaje.sigue
-        viaje = av.avanzar(viaje, criatura(fuerza=99), av.FUERZA,
-                           escena_de_prueba(), DadosFijos([20]))
+        viaje = av.avanzar(
+            viaje, criatura(fuerza=99), av.FUERZA, escena_de_prueba(),
+            terreno_de(viaje.bioma), DadosFijos([20]),
+        )
 
     assert not viaje.sigue
     assert viaje.nodos_superados == av.NIVELES_DE_AVENTURA
@@ -1094,10 +1145,14 @@ def test_la_aventura_dura_dos_niveles():
 
 def test_el_coste_de_hambre_crece_con_los_fallos():
     entero = viaje_nuevo()
-    entero = av.avanzar(entero, criatura(fuerza=99), av.FUERZA,
-                        escena_de_prueba(), DadosFijos([20]))
-    fallado = av.avanzar(viaje_nuevo(), criatura(fuerza=1), av.FUERZA, None,
-                         DadosFijos([1]))
+    entero = av.avanzar(
+        entero, criatura(fuerza=99), av.FUERZA, escena_de_prueba(),
+        terreno_de(entero.bioma), DadosFijos([20]),
+    )
+    fallado = av.avanzar(
+        viaje_nuevo(), criatura(fuerza=1), av.FUERZA, None, None,
+        DadosFijos([1]),
+    )
 
     assert fallado.coste_hambre > entero.coste_hambre
 
@@ -1179,14 +1234,15 @@ def test_una_etiqueta_larguisima_no_pasa_el_filtro():
 
 def test_toda_escena_escrita_cabe_en_un_boton_de_discord():
     """El respaldo no puede fallar por lo mismo que falla el modelo."""
-    for clave, escenas in av.ESCENAS_ESCRITAS.items():
-        assert escenas, clave
-        for escena in escenas:
-            for opcion in av.OPCIONES_ESCENA:
-                etiqueta = escena.etiqueta(opcion)
-                assert etiqueta.strip(), (clave, opcion)
-                assert len(etiqueta) <= cog_av.LARGO_BOTON, (clave, etiqueta)
-            assert len(escena.situacion) <= av.LARGO_SITUACION, clave
+    for clave, por_lado in av.ESCENAS_ESCRITAS.items():
+        assert por_lado, clave
+        for escenas in por_lado.values():
+            for escena in escenas:
+                for opcion in av.OPCIONES_ESCENA:
+                    etiqueta = escena.etiqueta(opcion)
+                    assert etiqueta.strip(), (clave, opcion)
+                    assert len(etiqueta) <= av.LARGO_ETIQUETA, (clave, etiqueta)
+                assert len(escena.situacion) <= av.LARGO_SITUACION, clave
 
 
 def test_hay_escenas_escritas_para_todos_los_biomas():
@@ -1195,10 +1251,12 @@ def test_hay_escenas_escritas_para_todos_los_biomas():
 
 def test_la_escena_escrita_no_repite_la_que_acaba_de_verse():
     bioma = av.BIOMAS["bosque"]
-    ya_vista = av.ESCENAS_ESCRITAS["bosque"][0]
+    ya_vista = av.ESCENAS_ESCRITAS["bosque"][av.FUERZA][0]
 
     for semilla in range(20):
-        assert av.escena_escrita(bioma, ya_vista, random.Random(semilla)) != ya_vista
+        assert av.escena_escrita(
+            bioma, av.FUERZA, ya_vista, random.Random(semilla)
+        ) != ya_vista
 
 
 def test_si_el_modelo_devuelve_basura_la_aventura_sigue_con_una_escrita(monkeypatch):
@@ -1210,10 +1268,13 @@ def test_si_el_modelo_devuelve_basura_la_aventura_sigue_con_una_escrita(monkeypa
     bioma = av.BIOMAS["volcan"]
 
     escena = asyncio.run(
-        cog_av._pedir_escena(bioma, 1, "", "u1", None, random.Random(3))
+        cog_av._pedir_escena(
+            bioma, 1, "", "u1", None, random.Random(3),
+            favorecida=av.FUERZA,
+        )
     )
 
-    assert escena in av.ESCENAS_ESCRITAS["volcan"]
+    assert escena in av.ESCENAS_ESCRITAS["volcan"][av.FUERZA]
 
 
 def test_sin_presupuesto_de_ia_no_se_llama_al_modelo(monkeypatch):
@@ -1223,18 +1284,24 @@ def test_sin_presupuesto_de_ia_no_se_llama_al_modelo(monkeypatch):
     monkeypatch.setattr(cog_av.ia, "generar_crudo", llamadas)
 
     escena = asyncio.run(
-        cog_av._pedir_escena(av.BIOMAS["ruinas"], 1, "", "u1", None, random.Random(1))
+        cog_av._pedir_escena(
+            av.BIOMAS["ruinas"], 1, "", "u1", None, random.Random(1),
+            favorecida=av.VELOCIDAD,
+        )
     )
 
     llamadas.assert_not_awaited()
-    assert escena in av.ESCENAS_ESCRITAS["ruinas"]
+    assert escena in av.ESCENAS_ESCRITAS["ruinas"][av.VELOCIDAD]
 
 
 # --- El árbol tal como se juega --------------------------------------------
 
 def vista_de_viaje(monkeypatch, bicho=None, escena=None):
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
-    viaje = av.Viaje(bioma=av.BIOMAS["bosque"], escena=escena or escena_de_prueba())
+    bioma = av.BIOMAS["bosque"]
+    viaje = av.Viaje(
+        bioma=bioma, escena=escena or escena_de_prueba(), terreno=terreno_de(bioma)
+    )
     return cog_av.ViajeView(
         Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
         bicho or criatura(), viaje
@@ -1245,7 +1312,9 @@ def test_la_escena_pone_sus_tres_etiquetas_en_los_botones(monkeypatch):
     vista = vista_de_viaje(monkeypatch)
 
     assert [boton.label for boton in vista.children] == [
-        "Forzar la puerta", "Colarte por la ventana", "Seguir tu camino"
+        "Forzar la puerta · pareja",
+        "Colarte por la ventana · pareja",
+        "Seguir tu camino",
     ]
 
 
@@ -1278,7 +1347,9 @@ def test_acertar_cambia_de_escena_sin_resolver_todavia(monkeypatch):
 
     resolver.assert_not_awaited()
     assert vista.viaje.nodos_superados == 1
-    assert vista.viaje.escena in av.ESCENAS_ESCRITAS["bosque"]
+    assert vista.viaje.escena in av.ESCENAS_ESCRITAS["bosque"][
+        vista.viaje.terreno.favorecida
+    ]
 
 
 def test_fallar_resuelve_la_aventura_ahi_mismo(monkeypatch):
@@ -1398,11 +1469,12 @@ def test_las_escenas_escritas_no_son_todas_puertas():
                    "pescador", "buceadora", "chatarrero", "cabra",
                    "espeleólogo")
 
-    for clave, escenas in av.ESCENAS_ESCRITAS.items():
-        assert len(escenas) >= 4, clave
+    for clave, por_lado in av.ESCENAS_ESCRITAS.items():
+        escenas = por_lado[av.FUERZA] + por_lado[av.VELOCIDAD]
+        assert len(escenas) == 4, clave
         assert len(set(escenas)) == len(escenas), clave
         assert any(
-            palabra in escena.situacion
+            palabra.casefold() in escena.situacion.casefold()
             for escena in escenas for palabra in con_alguien
         ), clave
 
@@ -1474,7 +1546,10 @@ def test_el_marco_sigue_cuadrado_con_un_nombre_de_persona_larguisimo():
 
 def test_la_escena_del_arbol_tambien_dice_que_van_los_dos(monkeypatch):
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
-    viaje = av.Viaje(bioma=av.BIOMAS["bosque"], escena=escena_de_prueba())
+    bioma = av.BIOMAS["bosque"]
+    viaje = av.Viaje(
+        bioma=bioma, escena=escena_de_prueba(), terreno=terreno_de(bioma)
+    )
     vista = cog_av.ViajeView(
         Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
         criatura(nombre="Pelusa"), viaje,
