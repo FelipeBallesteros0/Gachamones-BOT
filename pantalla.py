@@ -39,6 +39,14 @@ ANCHO_BARRA = 12
 ANCHO_BARRA_XP = 10  # más corta: el número «524/525» ocupa siete caracteres
 ALTO_ARTE = 7       # fijo, para que la caja no cambie de tamaño entre estados
 
+DESCRIPCIONES_IDENTIDAD = {
+    "Corazón de roble": "la fuerza domina su historia",
+    "Fibra de fresno": "la velocidad domina su historia",
+    "Savia de olivo": "la salud domina su historia",
+    "Veta en espiral": "sus últimas vetas giran por las tres estadísticas",
+    "Veta trenzada": "sus últimas vetas alternan dos caminos",
+}
+
 RESET = "\x1b[0m"
 
 
@@ -289,7 +297,21 @@ def render_rupturas(
     detalle += f" · ahora {estado}"
     if cascadas:
         detalle += f" · {cascadas} por cascada"
-    return f"{titulo}\n{detalle}"
+
+    historial = criatura.historial_vetas
+    anterior = sim.identidad_de(historial[:len(historial) - len(rupturas)])
+    identidad = sim.identidad_de(historial)
+    descubierta = anterior is None and identidad is not None
+    if identidad is not None and not descubierta:
+        detalle += f" · {identidad}"
+
+    partes = [titulo, detalle]
+    if descubierta and identidad is not None:
+        partes.append(
+            f"✨ **El pasado toma forma:** en la trayectoria de {criatura.nombre} "
+            f"se reconoce **{identidad}** — {DESCRIPCIONES_IDENTIDAD[identidad]}."
+        )
+    return "\n".join(partes)
 
 
 def render(
@@ -438,6 +460,9 @@ def render_evolucion(
         f" a **{esp.nombre_etapa(etapa, criatura.genero)}**"
         f" · nivel {criatura.nivel}"
     )
+    identidad = sim.identidad_de(criatura.historial_vetas)
+    if identidad is not None:
+        detalle += f" · {identidad}"
     partes = [titulo, detalle, "```ansi", "\n".join(cuerpo), "```"]
     if ganado:
         partes.append(f"-# {ganado}")
