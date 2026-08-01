@@ -706,17 +706,20 @@ def le_gusta(salvaje: Salvaje, opcion: str) -> bool:
 
 
 def narrar_opcion(antes: Encuentro, opcion: str, despues: Encuentro) -> str:
-    """Cómo se le cuenta al jugador lo que acaba de pasar.
-
-    Escrito a mano y no por el modelo: es la parte que dice **el resultado**, y
-    el resultado lo tienen que decidir los dados siempre, haya IA o no."""
+    """Da una pista fija del cambio real, sin revelar carácter ni delta crudo."""
     emoji, etiqueta = ETIQUETAS[opcion]
-    cambio = despues.confianza - antes.confianza
-    if le_gusta(despues.salvaje, opcion):
-        humor = "Le ha gustado." if cambio >= 10 else "No le ha molestado."
+    if despues.se_larga and not antes.se_larga:
+        pista = "Su paciencia se agota."
+    elif (
+        despues.confianza < antes.confianza
+        or despues.paciencia < antes.paciencia - 1
+    ):
+        pista = "Se pone a la defensiva."
+    elif despues.confianza > antes.confianza:
+        pista = "Ahora confía más."
     else:
-        humor = "No le ha hecho ninguna gracia."
-    return f"-# {emoji} {etiqueta} · {humor} Confianza {cambio:+d}."
+        pista = "No termina de decidirse."
+    return f"-# {emoji} {etiqueta} · {pista}"
 
 
 # --- Lo que cuesta el viaje -------------------------------------------------

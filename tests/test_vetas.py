@@ -290,11 +290,37 @@ def test_ficha_muestra_vetas_impronta_y_conserva_ancho_ascii():
     mensaje = pantalla.render(
         criatura(ten_fuerza=4.5, ten_velocidad=1.0, historial_vetas="FVS"), T0
     )
-    assert "tensión" in mensaje and "próxima veta" in mensaje
+    assert "tensión" in mensaje and "próxima veta" not in mensaje
     assert "impronta" in mensaje and "vetas: F·V·S" in mensaje
+    linea_impronta = next(
+        linea for linea in mensaje.splitlines() if "impronta" in linea
+    )
+    assert "giro" not in linea_impronta
+    assert not re.search(r"[+-]\d", linea_impronta)
     bloque = mensaje.split("```ansi\n", 1)[1].split("\n```", 1)[0]
     limpio = re.sub(r"\x1b\[[0-9;]*m", "", bloque)
     assert {len(linea) for linea in limpio.splitlines()} == {pantalla.ANCHO + 2}
+
+
+def test_ficha_traduce_la_tension_a_cuatro_bandas_relativas():
+    base = criatura()
+    umbral = sim.umbral_veta(base)
+    casos = (
+        (0, "en reposo"),
+        (umbral / 4, "despierta"),
+        (umbral / 2, "cargada"),
+        (umbral * 3 / 4, "al borde"),
+    )
+
+    for tension, banda in casos:
+        mensaje = pantalla.render(
+            replace(base, ten_fuerza=tension, ten_velocidad=tension,
+                    ten_salud=tension),
+            T0,
+        )
+        linea = next(linea for linea in mensaje.splitlines() if "tensión" in linea)
+        assert linea.count(banda) == 3
+        assert not re.search(r"\d", linea)
 
 
 def test_render_rupturas_anuncia_cascada_fuera_del_arte():
@@ -310,6 +336,8 @@ def test_render_rupturas_anuncia_cascada_fuera_del_arte():
     )
     assert "Cascada" in texto and "cascada" in texto
     assert "FUE 15 → 16" in texto and "por entrenar" in texto
+    assert "próxima veta" not in texto
+    assert "ahora FUE en reposo · VEL en reposo" in texto
     assert "```ansi" not in texto
 
 

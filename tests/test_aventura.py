@@ -440,7 +440,7 @@ def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):
     )
 
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+    asyncio.run(getattr(cog_av.Aventura.aventura, "callback")(cog, interaccion))
 
     congelar.assert_not_awaited()
 
@@ -463,6 +463,8 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
         etiqueta = cog_av.HablarModal(vista).dicho.label
         assert etiqueta == "¿Qué le dices?"
         assert "él" not in etiqueta
+        assert "carácter por descubrir" in vista.texto()
+        assert "sereno" not in vista.texto()
 
         interaccion = SimpleNamespace(
             response=SimpleNamespace(edit_message=AsyncMock())
@@ -470,12 +472,44 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
         marcharse = next(
             boton for boton in vista.children if boton.label == "Marcharse"
         )
-        await marcharse.callback(interaccion)
+        await getattr(marcharse, "callback")(interaccion)
         contenido = interaccion.response.edit_message.await_args.kwargs["content"]
-        assert (f"Dejas {articulo} {esp.ESPECIES['michi'].nombre} "
-            "donde estaba.") in contenido
+        esperado = (
+            f"Dejas {articulo} {esp.ESPECIES['michi'].nombre} donde estaba."
+        )
+        assert esperado in contenido
+        assert "carácter por descubrir" in contenido
+        assert "sereno" not in contenido
 
     asyncio.run(comprobar())
+
+
+@pytest.mark.parametrize("genero", (esp.MACHO, esp.HEMBRA))
+@pytest.mark.parametrize(
+    ("opcion", "confianza", "paciencia", "pista"),
+    (
+        (av.HABLAR, 25, 3, "Ahora confía más."),
+        (av.GOLOSINAS, 25, 2, "Se pone a la defensiva."),
+        (av.PRESUMIR, 20, 3, "No termina de decidirse."),
+        (av.ESPERAR, 25, 0, "Su paciencia se agota."),
+    ),
+)
+def test_cada_opcion_da_una_pista_del_cambio_mecanico(
+    genero, opcion, confianza, paciencia, pista
+):
+    salvaje = av.Salvaje(
+        "michi", "Michi", genero, "sereno", (10, 10, 10)
+    )
+    antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=4)
+    despues = av.Encuentro(
+        salvaje=salvaje, confianza=confianza, paciencia=paciencia
+    )
+
+    texto = av.narrar_opcion(antes, opcion, despues)
+
+    assert pista in texto
+    assert "Confianza" not in texto
+    assert "sereno" not in texto
 
 
 def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
@@ -1271,7 +1305,7 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
     cog.resolver = resolver
 
-    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+    asyncio.run(getattr(cog_av.Aventura.aventura, "callback")(cog, interaccion))
 
     assert eventos[0] == "cooldown"
     assert isinstance(eventos[1][1], cog_av.ViajeView)

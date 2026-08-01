@@ -196,8 +196,16 @@ ICONOS_ACCION = {
 }
 
 
-def _numero_tension(valor: float) -> str:
-    return f"{valor:.0f}"
+def _banda_tension(valor: float, umbral: float) -> str:
+    """Banda fija: cuartos [0, 25 %), [25, 50 %), [50, 75 %) y [75 %, ∞)."""
+    proporcion = valor / umbral
+    if proporcion < 0.25:
+        return "en reposo"
+    if proporcion < 0.5:
+        return "despierta"
+    if proporcion < 0.75:
+        return "cargada"
+    return "al borde"
 
 
 def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
@@ -207,10 +215,11 @@ def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
         for stat in impronta.anillo
     )
     afinidades = " · ".join(
-        f"{etiqueta} {afinidad:+.2f}"
+        f"{etiqueta} {'↑' if afinidad > 0 else '↓'}"
         for etiqueta, afinidad in zip(("FUE", "VEL", "SAL"), impronta.afinidades)
         if afinidad
     ) or "sin afinidad"
+    umbral = sim.umbral_veta(criatura)
     historial = criatura.historial_vetas
     anteriores = max(
         0,
@@ -227,12 +236,10 @@ def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
         )
     trayectoria = " · ".join(partes_trayectoria) or "—"
     return (
-        f"-# impronta · giro {'+' if impronta.giro == 1 else '-'} · anillo {anillo}"
-        f" · afinidad {afinidades}",
-        f"-# 🪵 tensión · FUE {_numero_tension(criatura.ten_fuerza)}"
-        f" · VEL {_numero_tension(criatura.ten_velocidad)}"
-        f" · SAL {_numero_tension(criatura.ten_salud)}"
-        f" · próxima veta a {_numero_tension(sim.umbral_veta(criatura))}",
+        f"-# impronta · anillo {anillo} · afinidad {afinidades}",
+        f"-# 🪵 tensión · FUE {_banda_tension(criatura.ten_fuerza, umbral)}"
+        f" · VEL {_banda_tension(criatura.ten_velocidad, umbral)}"
+        f" · SAL {_banda_tension(criatura.ten_salud, umbral)}",
         f"-# vetas: {trayectoria}",
     )
 
@@ -273,7 +280,13 @@ def render_rupturas(
     detalle = f"-# {cambios}"
     if origenes:
         detalle += f" · por {origenes}"
-    detalle += f" · próxima veta a {_numero_tension(sim.umbral_veta(criatura))}"
+    umbral = sim.umbral_veta(criatura)
+    estado = " · ".join(
+        f"{etiquetas[ruptura.stat]} "
+        f"{_banda_tension(getattr(criatura, f'ten_{ruptura.stat}'), umbral)}"
+        for ruptura in rupturas
+    )
+    detalle += f" · ahora {estado}"
     if cascadas:
         detalle += f" · {cascadas} por cascada"
     return f"{titulo}\n{detalle}"

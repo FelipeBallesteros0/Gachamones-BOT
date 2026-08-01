@@ -691,7 +691,7 @@ def test_cuidado_sin_efecto_responde_en_privado_sin_congelar_ni_publicar(
     dominio = economia.ejecutar_cuidado("otro", "u1", "g1", sim.LIMPIAR, T0)
     assert dominio is not None and dominio.sin_efecto
     respuesta.send_message.assert_awaited_once_with(
-        dominio.mensaje + "\n-# No le deja marca.", ephemeral=True
+        dominio.mensaje + "\n-# Sus vetas permanecen quietas.", ephemeral=True
     )
     respuesta.edit_message.assert_not_awaited()
     congelar.assert_not_awaited()
@@ -716,7 +716,34 @@ def test_cuidado_con_tension_no_dice_que_no_deja_marca(
     llamada = publicar.await_args
     assert llamada is not None
     aviso = llamada.kwargs["aviso"]
-    assert "No le deja marca" not in aviso
+    assert "Algo se pone en movimiento bajo sus vetas." in aviso
+    assert "permanecen quietas" not in aviso
+
+
+def test_cuidado_con_ruptura_deja_el_eco_al_anuncio_existente(
+    bd_temporal, monkeypatch
+):
+    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    db.guardar(replace(
+        criatura, hambre=40.0,
+        ten_fuerza=19.0, ten_velocidad=19.0, ten_salud=19.0,
+    ))
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
+    monkeypatch.setattr(vistas, "_congelar_pulsada", AsyncMock())
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, _, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ENTRENAR))
+
+    canal.send.assert_awaited_once()
+    assert "🪵" in canal.send.await_args.args[0]
+    llamada = publicar.await_args
+    assert llamada is not None
+    aviso = llamada.kwargs["aviso"]
+    assert "movimiento bajo sus vetas" not in aviso
+    assert "permanecen quietas" not in aviso
 
 
 def test_cuidado_normal_congela_publica_y_replay_responde_privado(
@@ -741,6 +768,7 @@ def test_cuidado_normal_congela_publica_y_replay_responde_privado(
     assert llamada.args[0] is canal
     assert llamada.args[1].id == criatura.id
     assert llamada.args[2] == ahora
+    assert "Sus vetas permanecen quietas." in llamada.kwargs["aviso"]
     respuesta.edit_message.assert_not_awaited()
     respuesta.send_message.assert_not_awaited()
     canal.send.assert_not_awaited()
