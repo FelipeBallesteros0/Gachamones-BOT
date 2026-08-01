@@ -567,7 +567,10 @@ def ejecutar_entrenamiento_conjunto(
                 problema="cooldown", bloqueada=bloqueada, espera=espera
             )
 
-        activo_avanzado = sim.avanzar(activo, ahora)
+        # Por `db` y no por `sim` a secas: el hogar cambia el ritmo del activo,
+        # y llamando directo se entrenaría con el de quien tiene techo aunque
+        # esté a la intemperie. La reserva no avanza, que es su invariante.
+        activo_avanzado = db._avanzar_en(con, activo, ahora)
         if not activo_avanzado.viva:
             db._guardar(con, activo_avanzado)
             return ResultadoEntrenamientoConjunto(

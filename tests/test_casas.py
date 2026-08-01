@@ -1252,3 +1252,30 @@ def test_la_cocina_solo_ofrece_los_colores_que_te_llegan():
     menu = tienda.MenuCocina(db.inventario("u1", "g1"))
 
     assert {o.value for o in menu.options} == {"rojo"}
+
+
+def test_todo_lo_que_hace_pasar_el_tiempo_mira_el_hogar():
+    """Ningún sitio puede llamar a `sim.avanzar` a secas.
+
+    El valor por defecto es el de quien tiene techo, así que olvidarlo no rompe
+    nada visible: simplemente el hogar deja de contar, en silencio. Pasó en
+    cuanto entró una función nueva escrita en paralelo, así que lo vigila un
+    barrido del fuente en vez de la buena voluntad.
+    """
+    import pathlib
+
+    raiz = pathlib.Path(__file__).parent.parent
+    permitidos = {"simulacion.py", "db.py"}
+    sueltos = []
+    for ruta in raiz.glob("**/*.py"):
+        if "tests" in ruta.parts or "venv" in ruta.parts:
+            continue
+        if ruta.name in permitidos:
+            continue
+        if "sim.avanzar(" in ruta.read_text():
+            sueltos.append(ruta.name)
+
+    assert not sueltos, (
+        f"llaman a sim.avanzar sin mirar el hogar: {sueltos}. Usa db.avanzar "
+        "o db._avanzar_en si ya hay una transacción abierta."
+    )
