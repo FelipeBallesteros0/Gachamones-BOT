@@ -139,26 +139,73 @@ def texto_de_la_casa(
 
 
 class CasaView(discord.ui.View):
-    """El botón de amueblar, pegado al dibujo de la casa.
+    """Los botones de tu propia casa, pegados al dibujo.
 
-    El mensaje de `/casa` es público —es para enseñarlo—, así que el botón
+    El mensaje de `/casa` es público —es para enseñarlo—, así que cada botón
     comprueba de quién es antes de abrir nada: amueblar la casa de otro desde su
     propio mensaje sería lo primero que probaría cualquiera.
     """
 
-    def __init__(self, dueño_id: int):
+    def __init__(self, dueño_id: int, publica: bool):
         super().__init__(timeout=SEGUNDOS_DE_CASA)
         self.dueño_id = dueño_id
+        self.publica = publica
+        self.visitas.label = "Abierta a visitas" if publica else "Cerrada"
+        self.visitas.emoji = "🔓" if publica else "🔒"
+
+    async def _es_tuya(self, interaccion: discord.Interaction) -> bool:
+        if interaccion.user.id == self.dueño_id:
+            return True
+        await interaccion.response.send_message(
+            "Esa casa no es tuya. Mira la tuya con `/casa`.", ephemeral=True
+        )
+        return False
 
     @discord.ui.button(label="Amueblar", emoji="🪑",
                        style=discord.ButtonStyle.secondary)
     async def amueblar(self, interaccion: discord.Interaction, boton) -> None:
-        if interaccion.user.id != self.dueño_id:
+        if await self._es_tuya(interaccion):
+            await tienda.abrir_amueblar(interaccion)
+
+    @discord.ui.button(style=discord.ButtonStyle.secondary)
+    async def visitas(self, interaccion: discord.Interaction, boton) -> None:
+        if not await self._es_tuya(interaccion):
+            return
+        ahora_publica = not self.publica
+        db.abrir_o_cerrar_la_casa(
+            str(interaccion.user.id), str(interaccion.guild_id),
+            ahora_publica, db.ahora_utc(),
+        )
+        await interaccion.response.send_message(
+            "🔓 Tu casa queda **abierta**: cualquiera puede verla con `/visitar`."
+            if ahora_publica else
+            "🔒 Tu casa queda **cerrada**: sólo la ves tú.",
+            ephemeral=True,
+        )
+
+
+class VisitaView(discord.ui.View):
+    """Lo que puedes hacer en casa ajena: dejar algo en su buzón.
+
+    Cualquiera que pase por el mensaje puede regalarle, y está bien: es el
+    sentido de visitar. Lo que no puede es tocarle la casa, y por eso este botón
+    es el único que hay.
+    """
+
+    def __init__(self, anfitrion_id: str, anfitrion: str):
+        super().__init__(timeout=SEGUNDOS_DE_CASA)
+        self.anfitrion_id = anfitrion_id
+        self.anfitrion = anfitrion
+
+    @discord.ui.button(label="Dejar un regalo", emoji="🎁",
+                       style=discord.ButtonStyle.success)
+    async def regalar(self, interaccion: discord.Interaction, boton) -> None:
+        if str(interaccion.user.id) == self.anfitrion_id:
             await interaccion.response.send_message(
-                "Esa casa no es tuya. Mira la tuya con `/casa`.", ephemeral=True
+                "Regalarte a ti mismo no cuenta.", ephemeral=True
             )
             return
-        await tienda.abrir_amueblar(interaccion)
+        await tienda.abrir_regalo(interaccion, self.anfitrion_id, self.anfitrion)
 
 
 def _techo_diario() -> int:
@@ -278,6 +325,11 @@ que no se te mueren mientras juegas con otro.
 -# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
 partida: los demás hay que ganárselos por ahí.
 
+-# `/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
+-# `/ranking` · `/cementerio` · `/logros` las medallas del tuyo"""
+
+    tu_casa = f"""## 🏠 Tu casa
+
 **El hogar**
 Todo tu plantel vive junto, y `/casa` te lo enseña dentro. Se empieza en el \
 **refugio**, que es de todos y dura **{cas.DIAS_DE_REFUGIO} días**; después te \
@@ -295,9 +347,11 @@ más rápido, pero **no puede matarlo**: la comida se queda en \
 {int(cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)}. El 🎟️ **ticket del refugio** \
 (🪙 {obj.CATALOGO["ticket_refugio"].precio}) te devuelve una semana bajo techo.
 
-**Otros**
-`/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
-`/ranking` · `/cementerio` · `/logros` las medallas del tuyo"""
+**Vecinos**
+`/visitar @alguien` — su casa y sus gachamones, y el botón 🎁 para dejarle algo \
+de tu mochila en el buzón, con una nota si quieres. `/buzon` recoge lo tuyo.
+-# Tu casa nace abierta; con 🔓 en `/casa` la cierras a visitas.
+"""
 
     # Se partió al entrar los logros: el dinero y las gemas necesitan su propia
     # página, y así queda sitio para explicar en qué se gasta cada moneda.
@@ -347,7 +401,7 @@ a quien quieras con 🎨 **Personalizar**.
 -# Uno de cada tipo a la vez, y lo que le quites vuelve al ropero y sirve para \
 otro. No tocan ninguna estadística — son sólo para presumir."""
 
-    return (tu_criatura, que_hacer, tus_cosas, tu_dinero)
+    return (tu_criatura, que_hacer, tus_cosas, tu_casa, tu_dinero)
 
 
 class Social(commands.Cog):
@@ -538,16 +592,52 @@ class Social(commands.Cog):
             str(interaccion.user.id), str(interaccion.guild_id)
         )
         ahora = db.ahora_utc()
+        hogar = db.hogar_de(usuario_id, guild_id, ahora)
         await interaccion.response.send_message(
             texto_de_la_casa(
-                db.hogar_de(usuario_id, guild_id, ahora),
+                hogar,
                 db.plantel(usuario_id, guild_id),
                 interaccion.user.display_name,
                 ahora,
                 db.puestos(usuario_id, guild_id),
             ),
-            view=CasaView(interaccion.user.id),
+            view=CasaView(interaccion.user.id, hogar.publica),
         )
+
+    @app_commands.command(name="visitar", description="Mira la casa de otra persona")
+    @app_commands.describe(usuario="A quién quieres visitar")
+    @comun.solo_en_el_canal()
+    async def visitar(
+        self, interaccion: discord.Interaction, usuario: discord.Member
+    ) -> None:
+        ahora = db.ahora_utc()
+        suyo, suyo_id = str(usuario.id), str(interaccion.guild_id)
+        hogar = db.hogar_leido(suyo, suyo_id, ahora)
+
+        if usuario.id == interaccion.user.id:
+            await interaccion.response.send_message(
+                "Ésa es tu casa. Para verla, usa `/casa`.", ephemeral=True
+            )
+            return
+        if not hogar.publica:
+            await interaccion.response.send_message(
+                f"🔒 {usuario.display_name} tiene la casa cerrada a visitas.",
+                ephemeral=True,
+            )
+            return
+
+        await interaccion.response.send_message(
+            texto_de_la_casa(
+                hogar, db.plantel(suyo, suyo_id), usuario.display_name, ahora,
+                hogar.puestos,
+            ),
+            view=VisitaView(suyo, usuario.display_name),
+        )
+
+    @app_commands.command(name="buzon", description="Mira los regalos que te han dejado")
+    @comun.solo_en_el_canal()
+    async def buzon(self, interaccion: discord.Interaction) -> None:
+        await tienda.abrir_buzon(interaccion)
 
     @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
     @comun.solo_en_el_canal()

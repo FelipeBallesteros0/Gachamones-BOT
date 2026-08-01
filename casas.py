@@ -98,6 +98,9 @@ class Hogar:
     # huecos— y `comodidad_de` lo respeta por su techo, así que no hace falta
     # comprobarlo aparte.
     puestos: tuple[str, ...] = ()
+    # Si otros pueden verla con `/visitar`. Nace abierta, como todo lo demás del
+    # bot: `/mascota @alguien` y `/jardin` ya enseñan lo de cualquiera.
+    publica: bool = True
 
     def estado(self, ahora: datetime) -> str:
         if self.casa is not None:

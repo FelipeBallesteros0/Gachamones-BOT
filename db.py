@@ -14,7 +14,7 @@ from __future__ import annotations
 import random
 import sqlite3
 from collections.abc import Collection
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -215,6 +215,21 @@ CREATE TABLE IF NOT EXISTS hogar (
 -- el mueble más caro dejaría el catálogo sin sentido. `colocado` es lo que
 -- distingue lo que está en la casa de lo que está guardado; los huecos los
 -- cuenta quien mira, contra `casa.huecos`.
+-- El buzón: regalos que alguien te ha dejado y todavía no has recogido. Se
+-- guarda el **nombre** de quien lo manda y no su id, porque este texto va
+-- directo a un mensaje. La nota es opcional y va con el regalo, no aparte: un
+-- regalo con nota que se separase de su nota sería peor que no tenerla.
+CREATE TABLE IF NOT EXISTS buzon (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    para_usuario TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    de_nombre TEXT NOT NULL,
+    objeto TEXT NOT NULL,
+    nota TEXT NOT NULL DEFAULT '',
+    cuando TEXT NOT NULL,
+    recogido INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS mobiliario (
     usuario_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
@@ -330,6 +345,16 @@ MIGRACIONES = (
     ("titulo", "ALTER TABLE criaturas ADD COLUMN titulo TEXT"),
 )
 
+# Lo mismo, para tablas que no son `criaturas`. Van aparte porque `MIGRACIONES`
+# mira sólo el `PRAGMA` de aquélla, que es donde habían caído todas hasta ahora.
+MIGRACIONES_DE_TABLAS = (
+    # Las casas nacieron todas visibles y así se quedan las que ya existían: es
+    # lo mismo que hace `/mascota @alguien`, que enseña el gachamon de quien sea
+    # sin preguntar.
+    ("hogar", "publica",
+     "ALTER TABLE hogar ADD COLUMN publica INTEGER NOT NULL DEFAULT 1"),
+)
+
 
 def inicializar() -> None:
     with conectar() as con:
@@ -381,6 +406,10 @@ def _migrar(con: sqlite3.Connection) -> None:
     existentes = {f["name"] for f in con.execute("PRAGMA table_info(criaturas)")}
     for columna, sentencia in MIGRACIONES:
         if columna not in existentes:
+            con.execute(sentencia)
+
+    for tabla, columna, sentencia in MIGRACIONES_DE_TABLAS:
+        if columna not in _columnas(con, tabla):
             con.execute(sentencia)
 
     # El índice viejo prohibía una segunda criatura viva; el nuevo sólo prohíbe
@@ -912,6 +941,108 @@ def regalar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> None:
         )
 
 
+# --- El buzón --------------------------------------------------------------
+
+LARGO_MAXIMO_NOTA = 140
+
+
+@dataclass(frozen=True)
+class Regalo:
+    id: int
+    de_nombre: str
+    objeto: str
+    nota: str
+    cuando: datetime
+
+
+def limpiar_nota(propuesta: str) -> str:
+    """Deja la nota en una línea y del largo que cabe.
+
+    Va aquí y no en el cog porque el recorte tiene que valer igual venga de donde
+    venga: una nota con saltos de línea rompería el listado del buzón, que pinta
+    un regalo por renglón.
+    """
+    return " ".join(propuesta.split())[:LARGO_MAXIMO_NOTA]
+
+
+def mandar_regalo(
+    de_usuario: str, de_nombre: str, para_usuario: str, guild_id: str,
+    clave: str, nota: str, ahora: datetime,
+) -> bool:
+    """Saca el objeto de tu mochila y lo deja en el buzón del otro.
+
+    Las dos mitades van en la misma transacción: un objeto que saliera de una
+    mochila sin llegar a ningún buzón se habría perdido, y al revés se habría
+    duplicado. Devuelve si había algo que mandar.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        gastado = con.execute(
+            "UPDATE inventario SET cantidad = cantidad - 1 "
+            "WHERE usuario_id = ? AND guild_id = ? AND objeto = ? AND cantidad > 0",
+            (de_usuario, guild_id, clave),
+        ).rowcount > 0
+        if not gastado:
+            return False
+        con.execute(
+            "INSERT INTO buzon "
+            "(para_usuario, guild_id, de_nombre, objeto, nota, cuando) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (para_usuario, guild_id, de_nombre, clave,
+             limpiar_nota(nota), ahora.isoformat()),
+        )
+        return True
+
+
+def buzon_de(usuario_id: str, guild_id: str) -> list[Regalo]:
+    """Lo que te espera sin recoger, lo más viejo primero."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT id, de_nombre, objeto, nota, cuando FROM buzon "
+            "WHERE para_usuario = ? AND guild_id = ? AND recogido = 0 "
+            "ORDER BY cuando, id",
+            (usuario_id, guild_id),
+        ).fetchall()
+    return [
+        Regalo(f["id"], f["de_nombre"], f["objeto"], f["nota"],
+               datetime.fromisoformat(f["cuando"]))
+        for f in filas
+    ]
+
+
+def recoger_del_buzon(
+    usuario_id: str, guild_id: str, regalo_id: int
+) -> Regalo | None:
+    """Lo pasa a tu mochila y lo marca recogido. `None` si ya no estaba.
+
+    Lo que impide entregarlo dos veces es el `BEGIN IMMEDIATE` con el `SELECT`
+    dentro: el segundo clic no encuentra ya la fila sin recoger. Aquí no hace
+    falta además meter la condición en el `UPDATE`, como sí hacen las compras —
+    allí no hay un `SELECT` previo que la cubra.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        fila = con.execute(
+            "SELECT id, de_nombre, objeto, nota, cuando FROM buzon "
+            "WHERE id = ? AND para_usuario = ? AND guild_id = ? AND recogido = 0",
+            (regalo_id, usuario_id, guild_id),
+        ).fetchone()
+        if fila is None:
+            return None
+        con.execute("UPDATE buzon SET recogido = 1 WHERE id = ?", (regalo_id,))
+        con.execute(
+            "INSERT INTO inventario (usuario_id, guild_id, objeto, cantidad) "
+            "VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(usuario_id, guild_id, objeto) "
+            "DO UPDATE SET cantidad = cantidad + 1",
+            (usuario_id, guild_id, fila["objeto"]),
+        )
+        return Regalo(
+            fila["id"], fila["de_nombre"], fila["objeto"], fila["nota"],
+            datetime.fromisoformat(fila["cuando"]),
+        )
+
+
 def gastar(usuario_id: str, guild_id: str, clave: str) -> bool:
     """Descuenta una unidad. Devuelve si la había.
 
@@ -1215,7 +1346,7 @@ def _hogar_leido(
     gachamon con `/mascota @alguien`.
     """
     fila = con.execute(
-        "SELECT casa, refugio_hasta FROM hogar "
+        "SELECT casa, refugio_hasta, publica FROM hogar "
         "WHERE usuario_id = ? AND guild_id = ?",
         (usuario_id, guild_id),
     ).fetchone()
@@ -1226,7 +1357,26 @@ def _hogar_leido(
         casa=cas.buscar(fila["casa"]),
         refugio_hasta=datetime.fromisoformat(fila["refugio_hasta"]),
         puestos=tuple(c for c, puesto in mobiliario.items() if puesto),
+        publica=bool(fila["publica"]),
     )
+
+
+def hogar_leido(usuario_id: str, guild_id: str, ahora: datetime) -> cas.Hogar:
+    """El hogar de alguien sin tocarle nada. Es lo que mira `/visitar`."""
+    with conectar() as con:
+        return _hogar_leido(con, usuario_id, guild_id, ahora)
+
+
+def abrir_o_cerrar_la_casa(
+    usuario_id: str, guild_id: str, publica: bool, ahora: datetime
+) -> None:
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        _hogar_de(con, usuario_id, guild_id, ahora)      # la crea si no está
+        con.execute(
+            "UPDATE hogar SET publica = ? WHERE usuario_id = ? AND guild_id = ?",
+            (int(publica), usuario_id, guild_id),
+        )
 
 
 def avanzar(criatura: sim.Criatura, ahora: datetime) -> sim.Criatura:

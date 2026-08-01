@@ -79,6 +79,9 @@ Instala el hook local cuando prepares el entorno:
 - El hogar sólo afecta a la criatura activa; las de reserva siguen congeladas.
 - La intemperie acelera el decaimiento, pero nunca puede matar.
 - La comodidad frena el ánimo y no toca el hambre, que lleva su instante de muerte precalculado.
+- Visitar una casa sólo mira: nunca le empieza a nadie su estancia en el refugio.
+- Un regalo sale de una mochila y entra en un buzón en la misma transacción.
+- El buzón guarda el nombre de quien regala, nunca su id.
 - Casi todos los logros son de la criatura y se pierden con ella.
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
 - Los logros de la persona sobreviven a todo su plantel.

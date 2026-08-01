@@ -772,3 +772,155 @@ def test_el_ticket_sale_mas_caro_que_comprar_casa_a_la_larga():
     gasta más que la casa pequeña en dos meses y sigue sin poder amueblar."""
     ocho_semanas = TICKET.precio * 8
     assert ocho_semanas > PEQUENA.precio
+
+
+# --- Visitar y el buzón ----------------------------------------------------
+
+import objetos as objs   # noqa: E402  (al final, junto a lo que lo usa)
+
+GOLOSINAS = objs.CATALOGO["golosinas"]
+PLACA = objs.CATALOGO["placa"]
+
+
+def test_la_casa_nace_abierta_a_visitas():
+    """Como todo lo demás del bot: `/mascota @alguien` y `/jardin` ya enseñan lo
+    de cualquiera sin preguntar."""
+    assert hogar().publica
+
+
+def test_se_puede_cerrar_y_volver_a_abrir():
+    db.abrir_o_cerrar_la_casa("u1", "g1", False, T0)
+    assert not hogar().publica
+
+    db.abrir_o_cerrar_la_casa("u1", "g1", True, T0)
+    assert hogar().publica
+
+
+def test_cerrar_la_casa_no_la_toca_por_dentro():
+    con_casa("mediana")
+    comprar_m(CHIMENEA)
+    db.abrir_o_cerrar_la_casa("u1", "g1", False, T0)
+
+    suyo = hogar()
+    assert suyo.casa == MEDIANA and suyo.puestos == ("chimenea",)
+
+
+def test_mirar_la_casa_de_otro_no_le_estrena_el_refugio():
+    """`/visitar` sólo mira: no puede empezarle a nadie su semana."""
+    db.hogar_leido("u2", "g1", T0)
+
+    with db.conectar() as con:
+        assert not db._hay_hogar(con, "u2", "g1")
+
+
+def test_el_regalo_sale_de_tu_mochila_y_llega_a_su_buzon():
+    db.regalar("u1", "g1", GOLOSINAS)
+
+    assert db.mandar_regalo(
+        "u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "toma", T0
+    )
+
+    assert db.inventario("u1", "g1") == {}
+    assert db.inventario("u2", "g1") == {}          # todavía en el buzón
+    [regalo] = db.buzon_de("u2", "g1")
+    assert regalo.objeto == GOLOSINAS.clave
+    assert regalo.de_nombre == "Felipe" and regalo.nota == "toma"
+
+
+def test_no_se_puede_regalar_lo_que_no_tienes():
+    """Las dos mitades van juntas: un objeto que saliera de una mochila sin
+    llegar a ningún buzón se habría perdido."""
+    assert not db.mandar_regalo(
+        "u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "", T0
+    )
+    assert db.buzon_de("u2", "g1") == []
+
+
+def test_recoger_lo_pasa_a_la_mochila_y_vacia_el_buzon():
+    db.regalar("u1", "g1", GOLOSINAS)
+    db.mandar_regalo("u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "", T0)
+    [regalo] = db.buzon_de("u2", "g1")
+
+    recogido = db.recoger_del_buzon("u2", "g1", regalo.id)
+
+    assert recogido is not None and recogido.objeto == GOLOSINAS.clave
+    assert db.inventario("u2", "g1") == {GOLOSINAS.clave: 1}
+    assert db.buzon_de("u2", "g1") == []
+
+
+def test_el_mismo_regalo_no_se_recoge_dos_veces():
+    """El doble clic: la condición viaja dentro del UPDATE, como en las compras."""
+    db.regalar("u1", "g1", GOLOSINAS)
+    db.mandar_regalo("u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "", T0)
+    [regalo] = db.buzon_de("u2", "g1")
+
+    assert db.recoger_del_buzon("u2", "g1", regalo.id) is not None
+    assert db.recoger_del_buzon("u2", "g1", regalo.id) is None
+    assert db.inventario("u2", "g1") == {GOLOSINAS.clave: 1}
+
+
+def test_no_se_recoge_el_regalo_de_otro():
+    db.regalar("u1", "g1", GOLOSINAS)
+    db.mandar_regalo("u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "", T0)
+    [regalo] = db.buzon_de("u2", "g1")
+
+    assert db.recoger_del_buzon("u3", "g1", regalo.id) is None
+    assert len(db.buzon_de("u2", "g1")) == 1
+
+
+def test_la_nota_es_opcional_y_cabe_en_una_linea():
+    """Una nota con saltos rompería el listado, que pinta un regalo por renglón."""
+    assert db.limpiar_nota("") == ""
+    assert db.limpiar_nota("dos\nlíneas   y   huecos") == "dos líneas y huecos"
+    assert len(db.limpiar_nota("x" * 500)) == db.LARGO_MAXIMO_NOTA
+
+
+def test_el_buzon_es_de_cada_persona_y_servidor():
+    db.regalar("u1", "g1", GOLOSINAS)
+    db.mandar_regalo("u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "", T0)
+
+    assert len(db.buzon_de("u2", "g1")) == 1
+    assert db.buzon_de("u2", "g2") == []
+    assert db.buzon_de("u1", "g1") == []
+
+
+def test_el_buzon_los_lista_del_mas_viejo_al_mas_nuevo():
+    for objeto in (GOLOSINAS, PLACA):
+        db.regalar("u1", "g1", objeto)
+    db.mandar_regalo("u1", "A", "u2", "g1", GOLOSINAS.clave, "", T0)
+    db.mandar_regalo("u1", "B", "u2", "g1", PLACA.clave, "", T0 + timedelta(days=1))
+
+    assert [r.de_nombre for r in db.buzon_de("u2", "g1")] == ["A", "B"]
+
+
+def test_el_buzon_vacio_lo_dice_y_no_ofrece_menu():
+    assert "No te espera nada" in tienda.texto_del_buzon("u1", "g1")
+
+
+def test_el_buzon_enseña_de_quien_es_y_su_nota():
+    db.regalar("u1", "g1", GOLOSINAS)
+    db.mandar_regalo("u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "para Pyro", T0)
+
+    texto = tienda.texto_del_buzon("u2", "g1")
+
+    assert GOLOSINAS.nombre in texto
+    assert "de Felipe" in texto and "«para Pyro»" in texto
+
+
+def test_un_regalo_sin_nota_no_deja_comillas_vacias():
+    db.regalar("u1", "g1", GOLOSINAS)
+    db.mandar_regalo("u1", "Felipe", "u2", "g1", GOLOSINAS.clave, "", T0)
+
+    assert "«»" not in tienda.texto_del_buzon("u2", "g1")
+
+
+def test_el_menu_del_buzon_cabe_en_discord():
+    """Con más de veinticinco se recogen por tandas, que es mejor que un menú
+    que Discord rechaza entero."""
+    for i in range(30):
+        db.regalar("u1", "g1", GOLOSINAS)
+        db.mandar_regalo("u1", f"Vecino{i}", "u2", "g1", GOLOSINAS.clave, "", T0)
+
+    menu = tienda.MenuBuzon(db.buzon_de("u2", "g1"))
+
+    assert len(menu.options) == 25

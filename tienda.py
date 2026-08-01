@@ -654,6 +654,149 @@ async def abrir_amueblar(interaccion: discord.Interaction) -> None:
     )
 
 
+# --- El buzón ---------------------------------------------------------------
+
+def texto_del_buzon(usuario_id: str, guild_id: str) -> str:
+    regalos = db.buzon_de(usuario_id, guild_id)
+    if not regalos:
+        return (
+            "## 📬 Buzón\nNo te espera nada.\n"
+            "-# Los regalos llegan cuando alguien te visita con `/visitar`."
+        )
+    lineas = "\n".join(_linea_de_regalo(r) for r in regalos)
+    return (
+        f"## 📬 Buzón\n{lineas}\n"
+        f"-# **{len(regalos)}** sin recoger. Elige abajo para quedártelo."
+    )
+
+
+def _linea_de_regalo(regalo: db.Regalo) -> str:
+    objeto = obj.CATALOGO.get(regalo.objeto)
+    nombre = objeto.nombre if objeto else regalo.objeto
+    emoji = objeto.emoji if objeto else "🎁"
+    linea = f"{emoji} **{nombre}** — de {regalo.de_nombre}"
+    if regalo.nota:
+        linea += f"\n-# ✉️ «{regalo.nota}»"
+    return linea
+
+
+class MenuBuzon(discord.ui.Select):
+    def __init__(self, regalos: list[db.Regalo]):
+        opciones = [
+            discord.SelectOption(
+                label=(
+                    obj.CATALOGO[r.objeto].nombre if r.objeto in obj.CATALOGO
+                    else r.objeto
+                )[:100],
+                value=str(r.id),
+                description=f"de {r.de_nombre}"[:100],
+                emoji=obj.CATALOGO[r.objeto].emoji if r.objeto in obj.CATALOGO else "🎁",
+            )
+            # Veinticinco es el tope de Discord; con más, se recogen por tandas.
+            for r in regalos[:25]
+        ]
+        super().__init__(placeholder="Recoger…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        regalo = db.recoger_del_buzon(
+            str(interaccion.user.id), str(interaccion.guild_id),
+            int(self.values[0]),
+        )
+        if regalo is None:
+            aviso = "❌ Ese regalo ya no está en el buzón."
+        else:
+            aviso = (
+                f"🎁 Recogido: {_linea_de_regalo(regalo)}\n"
+                "-# Ya está en tu 🎒 **Mochila**."
+            )
+        await interaccion.response.edit_message(content=aviso, view=None)
+
+
+async def abrir_buzon(interaccion: discord.Interaction) -> None:
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    regalos = db.buzon_de(usuario_id, guild_id)
+    await interaccion.response.send_message(
+        texto_del_buzon(usuario_id, guild_id),
+        view=VistaConMenu(MenuBuzon(regalos)) if regalos else None,
+        ephemeral=True,
+    )
+
+
+class NotaModal(discord.ui.Modal, title="Deja una nota"):
+    """La nota es opcional: se puede mandar el regalo dejándola en blanco."""
+
+    def __init__(self, para_id: str, para_nombre: str, objeto: obj.Objeto):
+        super().__init__()
+        self.para_id = para_id
+        self.para_nombre = para_nombre
+        self.objeto = objeto
+        self.nota = discord.ui.TextInput(
+            label="Nota (opcional)",
+            placeholder="Para que se lo des a tu Pyro.",
+            required=False,
+            max_length=db.LARGO_MAXIMO_NOTA,
+        )
+        self.add_item(self.nota)
+
+    async def on_submit(self, interaccion: discord.Interaction) -> None:
+        mandado = db.mandar_regalo(
+            str(interaccion.user.id), interaccion.user.display_name,
+            self.para_id, str(interaccion.guild_id), self.objeto.clave,
+            str(self.nota), db.ahora_utc(),
+        )
+        if not mandado:
+            await interaccion.response.send_message(
+                f"❌ Ya no te queda ningún **{self.objeto.nombre}**.",
+                ephemeral=True,
+            )
+            return
+        await interaccion.response.send_message(
+            f"🎁 {self.objeto.emoji} **{self.objeto.nombre}** va camino del "
+            f"buzón de **{self.para_nombre}**.",
+            ephemeral=True,
+        )
+
+
+class MenuRegalar(discord.ui.Select):
+    """Lo que llevas en la mochila, para dejarlo en el buzón de quien visitas."""
+
+    def __init__(self, tengo: dict[str, int], para_id: str, para_nombre: str):
+        self.para_id = para_id
+        self.para_nombre = para_nombre
+        opciones = [
+            discord.SelectOption(
+                label=f"{obj.CATALOGO[clave].nombre} ×{cuantos}",
+                value=clave,
+                emoji=obj.CATALOGO[clave].emoji,
+            )
+            for clave, cuantos in sorted(tengo.items())
+        ][:25]
+        super().__init__(placeholder="¿Qué le dejas?", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        await interaccion.response.send_modal(
+            NotaModal(self.para_id, self.para_nombre, obj.CATALOGO[self.values[0]])
+        )
+
+
+async def abrir_regalo(
+    interaccion: discord.Interaction, para_id: str, para_nombre: str
+) -> None:
+    tengo = lo_que_tiene(str(interaccion.user.id), str(interaccion.guild_id))
+    if not tengo:
+        await interaccion.response.send_message(
+            "No llevas nada que regalar. Compra algo en 🛒 **Tienda**.",
+            ephemeral=True,
+        )
+        return
+    await interaccion.response.send_message(
+        f"## 🎁 Un regalo para {para_nombre}\n"
+        "-# Sale de tu mochila y le espera en su buzón. Puedes dejarle una nota.",
+        view=VistaConMenu(MenuRegalar(tengo, para_id, para_nombre)),
+        ephemeral=True,
+    )
+
+
 class MenuPonerCosmetico(discord.ui.Select):
     """Lo que tienes en el ropero, para ponérselo al activo."""
 
