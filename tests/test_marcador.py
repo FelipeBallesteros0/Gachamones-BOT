@@ -69,7 +69,7 @@ def test_el_torneo_cuenta_como_torneo_y_tambien_como_sumo():
         nacer(usuario)
     resultado = competir_de("e1", tipo=comp.SUMO, usuarios=("u1", "u2", "u3", "u4"))
 
-    assert resultado.encuentro.es_torneo
+    assert resultado.encuentro is not None and resultado.encuentro.es_torneo
     assert db.marcador(ganador_de(resultado).id) == {
         logros.SUMOS: 1, logros.TORNEOS: 1,
     }
@@ -126,14 +126,20 @@ def test_repetir_el_mismo_evento_de_cuidado_no_cuenta_dos_veces():
 
 def viaje_de(bioma="planicie", nodos=2):
     """Un viaje ya cerrado, como el que llega a `resolver`."""
-    escena = av.ESCENAS_ESCRITAS[bioma][0]
+    destino = av.BIOMAS[bioma]
+    terreno = av.Terreno(
+        destino.dificultad - av.SESGO_TERRENO,
+        destino.dificultad + av.SESGO_TERRENO,
+    )
+    escena = av.ESCENAS_ESCRITAS[bioma][av.FUERZA][0]
     pruebas = tuple(
         av.Prueba(obstaculo=f"tramo {i}", stat=av.FUERZA, base=10, dado=20,
                   dificultad=1)
         for i in range(nodos)
     )
     return av.Viaje(
-        bioma=av.BIOMAS[bioma], escena=escena, pruebas=pruebas, nivel=nodos
+        bioma=destino, escena=escena, terreno=terreno,
+        pruebas=pruebas, nivel=nodos,
     )
 
 

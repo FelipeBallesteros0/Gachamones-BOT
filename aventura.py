@@ -188,13 +188,112 @@ def tirar_percance(
 
 # --- El árbol de decisiones ------------------------------------------------
 
-# Cada escena ofrece las tres, siempre. Fuerza y velocidad tiran contra la misma
-# dificultad a propósito: si una fuera más barata, nadie elegiría la otra y la
-# decisión sería un adorno.
+# Cada escena ofrece las tres, siempre. El terreno favorece una de las dos
+# acciones sin mirar a la criatura; la banda visible sale después de sus stats.
 FUERZA = "fuerza"
 VELOCIDAD = "velocidad"
 VOLVER = "volver"
 OPCIONES_ESCENA = (FUERZA, VELOCIDAD, VOLVER)
+SESGO_TERRENO = 2
+
+
+@dataclass(frozen=True)
+class Terreno:
+    fuerza: int
+    velocidad: int
+
+    def exigencia(self, opcion: str) -> int:
+        if opcion not in (FUERZA, VELOCIDAD):
+            raise ValueError(f"opción sin exigencia: {opcion!r}")
+        return getattr(self, opcion)
+
+    @property
+    def favorecida(self) -> str:
+        return FUERZA if self.fuerza < self.velocidad else VELOCIDAD
+
+
+def tirar_terreno(
+    bioma: Bioma, rng: random.Random | None = None,
+) -> Terreno:
+    """Sortea el lado favorecido sin recibir ni mirar a la criatura."""
+    favorecida = (FUERZA, VELOCIDAD)[(rng or random.Random()).randint(0, 1)]
+    baja = bioma.dificultad - SESGO_TERRENO
+    alta = bioma.dificultad + SESGO_TERRENO
+    return Terreno(baja, alta) if favorecida == FUERZA else Terreno(alta, baja)
+
+
+def probabilidad_opcion(stat: int, exigencia: int) -> float:
+    """Probabilidad exacta y clampada de `stat + 1d20 >= exigencia`."""
+    return max(0, min(CARA_DADO, CARA_DADO + 1 + stat - exigencia)) / CARA_DADO
+
+
+def banda_opcion(stat: int, exigencia: int) -> str:
+    probabilidad = probabilidad_opcion(stat, exigencia)
+    if probabilidad >= 0.75:
+        return "favorable"
+    if probabilidad >= 0.50:
+        return "pareja"
+    if probabilidad >= 0.25:
+        return "cuesta arriba"
+    return "temeraria"
+
+
+def deja_marca(holgura: int) -> bool:
+    """Si el esfuerzo canónico de esta holgura supera el filtro de VETAS."""
+    esfuerzo = sim.esfuerzo_de_aventura(FUERZA, holgura)
+    return esfuerzo.profunda or esfuerzo.bruto >= sim.UMBRAL_ESFUERZO
+
+
+def puede_dejar_marca(stat: int, exigencia: int) -> bool:
+    """Si algún resultado posible del d20 emitiría tensión canónica."""
+    return any(deja_marca(stat + dado - exigencia)
+               for dado in range(1, CARA_DADO + 1))
+
+
+def pista_marcas(criatura: sim.Criatura, terreno: Terreno) -> str:
+    fuerza = puede_dejar_marca(criatura.fuerza, terreno.fuerza)
+    velocidad = puede_dejar_marca(criatura.velocidad, terreno.velocidad)
+    if fuerza and velocidad:
+        cuales = "cualquiera de las dos"
+    elif fuerza:
+        cuales = "sólo la 💪"
+    elif velocidad:
+        cuales = "sólo la 💨"
+    else:
+        cuales = "ninguna"
+    return f"-# 🪵 pueden forjar marca: {cuales}"
+
+
+def palabra_holgura(holgura: int) -> str:
+    if holgura in (0, 1):
+        return "al límite"
+    if 2 <= holgura <= 5:
+        return "justa"
+    if holgura >= 6:
+        return "sobrada"
+    if holgura >= -5:
+        return "por un pelo"
+    return "de largo"
+
+
+def render_beat(prueba: Prueba | None) -> str:
+    if prueba is None:
+        return "🚶 Prefirieron no meterse"
+    emoji = "💪" if prueba.stat == FUERZA else "💨"
+    esfuerzo = sim.esfuerzo_de_aventura(prueba.stat, prueba.holgura)
+    marca = esfuerzo.profunda or esfuerzo.bruto >= sim.UMBRAL_ESFUERZO
+    huella = (
+        "marca profunda" if esfuerzo.profunda
+        else "deja marca" if marca
+        else "sin marca"
+    )
+    resultado = "✓" if prueba.superada else "✗"
+    return (
+        f"{resultado} {prueba.obstaculo} — {emoji} {prueba.base} + "
+        f"{prueba.dado} = {prueba.total} / {prueba.dificultad} · "
+        f"{palabra_holgura(prueba.holgura)}, {huella}"
+    )
+
 
 # Cuántas decisiones dura una aventura. Volver también gasta una: es la salida
 # sin riesgo, no una forma de seguir mirando escenas hasta que salga una fácil.
@@ -272,165 +371,207 @@ def escena_desde_json(crudo: str) -> Escena | None:
 # cerrado, alguien con quien cruzarse y algo que está pasando. Si todas fueran
 # obstáculos, el respaldo cantaría al segundo viaje y el modelo tendería a
 # copiar la única forma que ve.
-ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
-    "bosque": (
-        Escena("Una cabaña con la puerta hinchada por la humedad.",
-               "Empujar la puerta", "Colarte por la ventana rota",
-               "Seguir el sendero"),
-        Escena("Un leñador forcejea con su carro atascado en el barro.",
-               "Levantarlo por detrás", "Calzar la rueda antes de que se hunda",
-               "Desearle suerte y seguir"),
-        Escena("Un panal zumbando justo encima del camino.",
-               "Bajar la rama despacio", "Pasar por debajo de un tirón",
-               "Dar un rodeo"),
-        Escena("Cruje arriba: una rama enorme viene abajo sobre el sendero.",
-               "Aguantarla mientras pasas", "Cruzar antes de que caiga",
-               "Refugiarte y esperar"),
-    ),
-    "planicie": (
-        Escena("Un pozo de piedra tapado con una losa.",
-               "Levantar la losa", "Descolgarte por la cuerda",
-               "Dejarlo estar"),
-        Escena("Un rebaño se ha asustado y viene de frente.",
-               "Plantarte y aguantar", "Esquivarlo por el flanco",
-               "Tumbarte en la hierba"),
-        Escena("Una pastora lleva media tarde buscando una oveja perdida.",
-               "Apartar los fardos del corral", "Batir el campo a la carrera",
-               "Decirle que no la has visto"),
-        Escena("El viento arranca la lona de un puesto de feria.",
-               "Sujetar el poste a pulso", "Atrapar la lona antes de que vuele",
-               "Dejar que se la lleve"),
-    ),
-    "desierto": (
-        Escena("Media columna asoma de la arena, y algo brilla debajo.",
-               "Empujar la columna", "Escarbar antes de que se hunda",
-               "Buscar sombra"),
-        Escena("Una caravana ha perdido un fardo y lo busca antes del viento.",
-               "Cargar tú con el resto", "Rastrear las huellas que quedan",
-               "Seguir tu camino"),
-        Escena("El suelo cede: debajo se abre una galería antigua.",
-               "Aguantar el borde que se desmorona", "Saltar al otro lado",
-               "Retroceder sobre tus huellas"),
-        Escena("Un pozo seco con un cubo atascado en el brocal.",
-               "Tirar de la cadena", "Bajar por el brocal",
-               "Seguir la duna"),
-    ),
-    "ruinas": (
-        Escena("Un portón de bronce, cerrado desde dentro.",
-               "Reventar el portón", "Trepar por la hiedra",
-               "Rodear la muralla"),
-        Escena("Alguien pide ayuda debajo de una viga caída.",
-               "Levantar la viga", "Sacarlo a rastras antes de que ceda",
-               "Ir a buscar ayuda"),
-        Escena("Una bandada sale en tromba y tapa el pasillo entero.",
-               "Abrirte paso a manotazos", "Cruzar mientras dure el hueco",
-               "Esperar a que se calmen"),
-        Escena("Una losa con una argolla, en mitad de la sala.",
-               "Levantar la losa", "Colarte por la rendija",
-               "Dejar la losa quieta"),
-    ),
-    "cienaga": (
-        Escena("Una pasarela de tablones podridos sobre el agua negra.",
-               "Reforzarla con un tronco", "Cruzarla de tres zancadas",
-               "Vadear por la orilla"),
-        Escena("Un pescador con la barca encallada en el limo.",
-               "Empujar la barca", "Sacar el limo antes de que agarre",
-               "Desearle suerte y seguir"),
-        Escena("Sube una niebla espesa y el camino desaparece.",
-               "Apartar los juncos a manotazos", "Cruzar antes de que cierre",
-               "Sentarte a esperar que aclare"),
-        Escena("Algo grande se mueve bajo el agua, muy despacio.",
-               "Golpear el agua para asustarlo", "Pasar de puntillas",
-               "Rodear la charca entera"),
-    ),
-    "arrecife": (
-        Escena("La marea sube y tapa el paso entre las rocas.",
-               "Apartar las rocas sueltas", "Cruzar antes de la próxima ola",
-               "Esperar a que baje"),
-        Escena("Una red vieja enredada en el coral, con algo dentro.",
-               "Tirar de la red", "Desenredarla antes de que se hunda",
-               "Dejarla donde está"),
-        Escena("Una buceadora se ha quedado sin aire y golpea las rocas.",
-               "Levantar la piedra que la atrapa", "Nadar a por ella",
-               "Ir a buscar ayuda"),
-        Escena("Un banco de peces cierra el paso como una pared.",
-               "Abrirte camino a brazadas", "Colarte por un hueco",
-               "Bordear el arrecife"),
-    ),
-    "chatarral": (
-        Escena("Una torre de chatarra se tambalea encima del sendero.",
-               "Sujetar la torre", "Cruzar antes de que caiga",
-               "Dar un rodeo largo"),
-        Escena("Un chatarrero busca una pieza y ya no ve bien.",
-               "Levantar la plancha que la tapa", "Rebuscar tú, que eres rápido",
-               "Decirle que no la has visto"),
-        Escena("Salta una chispa y un montón de aceite empieza a arder.",
-               "Ahogar el fuego con arena", "Apartar lo que arde de un tirón",
-               "Alejarte del humo"),
-        Escena("Un portón de acero, soldado por el óxido.",
-               "Reventar la soldadura", "Colarte por el respiradero",
-               "Buscar otra entrada"),
-    ),
-    "cumbre": (
-        Escena("Una cornisa estrecha, con el hielo justo encima.",
-               "Romper el hielo a golpes", "Cruzar antes de que resbale",
-               "Bajar y rodear"),
-        Escena("Una cabra se ha quedado atascada entre dos rocas.",
-               "Separar las rocas", "Sacarla antes de que se agote",
-               "Dejarla, que se apañe"),
-        Escena("Empieza la ventisca y el sendero se borra en un minuto.",
-               "Abrir camino a paladas", "Correr al refugio de abajo",
-               "Refugiarte tras una roca"),
-        Escena("Un puente de cuerda tieso de escarcha.",
-               "Tensar la cuerda helada", "Cruzarlo sin mirar",
-               "Buscar el paso de abajo"),
-    ),
-    "cavernas": (
-        Escena("Un derrumbe tapa la galería, pero queda un hueco arriba.",
-               "Apartar los bloques", "Colarte por el hueco",
-               "Volver por donde entraste"),
-        Escena("Un espeleólogo se ha quedado sin luz y no se atreve a moverse.",
-               "Cargar con su equipo", "Guiarlo hasta la salida",
-               "Marcar el sitio y avisar fuera"),
-        Escena("Un lago subterráneo corta el paso, y está muy frío.",
-               "Empujar una roca para hacer puente", "Cruzarlo a nado",
-               "Bordearlo por la cornisa"),
-        Escena("Cuelgan estalactitas justo encima, y el suelo tiembla.",
-               "Partir las que estorban", "Pasar corriendo por debajo",
-               "Esperar a que pare el temblor"),
-    ),
-    "volcan": (
-        Escena("Una colada de lava con costra encima.",
-               "Romper la costra y saltar", "Cruzar corriendo por encima",
-               "Bordear la colada"),
-        Escena("Un buscador de obsidiana se ha quedado sin agua y no se levanta.",
-               "Cargarlo hasta la sombra", "Correr a por agua fría",
-               "Avisar en el poblado"),
-        Escena("Empieza a caer ceniza y el sendero desaparece a ojos vistas.",
-               "Apartarla a paladas", "Cruzar antes de que lo cubra",
-               "Buscar refugio"),
-        Escena("Una puerta de obsidiana, tibia al tacto.",
-               "Forzar la obsidiana", "Colarte por la grieta del marco",
-               "Alejarte del calor"),
-    ),
+ESCENAS_ESCRITAS: dict[str, dict[str, tuple[Escena, Escena]]] = {
+    "bosque": {
+        FUERZA: (
+            Escena("Una puerta hinchada cede hacia afuera y tiene un tronco firme donde apoyar el hombro.",
+                   "Empujar la puerta", "Colarte por la ventana enredada",
+                   "Seguir el sendero"),
+            Escena("El carro de un leñador está calzado, pero su eje quedó hundido en barro espeso.",
+                   "Levantar el eje apoyándote", "Calzar la rueda entre raíces",
+                   "Desearle suerte y seguir"),
+        ),
+        VELOCIDAD: (
+            Escena("Bajo un panal queda un tramo limpio; la rama que lo sostiene es gruesa y está muy alta.",
+                   "Bajar la rama trabada", "Cruzar el tramo de un tirón",
+                   "Dar un rodeo"),
+            Escena("Una rama enorme cruje lejos; el sendero queda recto, pero sujetarla exigiría arrancar raíces.",
+                   "Aguantar la rama enraizada", "Cruzar antes de que caiga",
+                   "Refugiarte y esperar"),
+        ),
+    },
+    "planicie": {
+        FUERZA: (
+            Escena("La losa de un pozo sobresale y deja hueco para meter ambas manos; la cuerda cuelga muy lejos.",
+                   "Levantar la losa", "Alcanzar la cuerda de un salto",
+                   "Dejarlo estar"),
+            Escena("Un rebaño entra por un paso angosto con una cerca firme a la espalda; el flanco está lleno de hoyos.",
+                   "Plantarte contra la cerca", "Esquivarlo por los hoyos",
+                   "Tumbarte en la hierba"),
+        ),
+        VELOCIDAD: (
+            Escena("Una pastora ve entre los fardos un pasillo despejado hacia su oveja; cada fardo está empapado y pesa demasiado.",
+                   "Apartar los fardos mojados", "Recorrer el pasillo corriendo",
+                   "Decir que no la viste"),
+            Escena("Una lona vuela baja sobre campo abierto; el poste que la sujetaba está clavado hasta la piedra.",
+                   "Arrancar el poste clavado", "Atrapar la lona al vuelo",
+                   "Dejar que se la lleve"),
+        ),
+    },
+    "desierto": {
+        FUERZA: (
+            Escena("Una columna sobresale con base redonda y sitio para hacer palanca; alrededor la arena se hunde al correr.",
+                   "Volcar la columna con palanca", "Saltar sobre la arena suelta",
+                   "Buscar sombra"),
+            Escena("La caravana apoya un fardo en una tarima firme; las huellas ya se borran entre dunas separadas.",
+                   "Cargar el fardo apoyado", "Seguir las huellas lejanas",
+                   "Seguir tu camino"),
+        ),
+        VELOCIDAD: (
+            Escena("Al ceder el suelo queda un borde corto y limpio; sostenerlo exigiría cargar una placa entera de roca.",
+                   "Sostener la placa de roca", "Saltar el borde de un impulso",
+                   "Retroceder sobre tus huellas"),
+            Escena("Un cubo cuelga a un salto dentro del brocal; la cadena está encajada bajo un bloque macizo.",
+                   "Arrancar la cadena encajada", "Bajar y tomar el cubo",
+                   "Seguir la duna"),
+        ),
+    },
+    "ruinas": {
+        FUERZA: (
+            Escena("El portón de bronce está entreabierto y tiene un puntal firme; la hiedra cuelga rota y lejos.",
+                   "Empujar desde el puntal", "Trepar por la hiedra rota",
+                   "Rodear la muralla"),
+            Escena("Alguien quedó bajo una viga apoyada sobre un bloque firme; el suelo alrededor está cubierto de cascotes.",
+                   "Levantar la viga apoyada", "Sacar a alguien entre cascotes",
+                   "Ir a buscar ayuda"),
+        ),
+        VELOCIDAD: (
+            Escena("Una bandada deja un hueco recto al girar; cerrarles el paso exigiría mover una estatua maciza.",
+                   "Mover la estatua maciza", "Cruzar mientras dure el hueco",
+                   "Esperar a que se calmen"),
+            Escena("Bajo una losa queda una rendija lisa y cercana; la argolla está fundida con toda la piedra.",
+                   "Levantar la losa fundida", "Colarte por la rendija",
+                   "Dejar la losa quieta"),
+        ),
+    },
+    "cienaga": {
+        FUERZA: (
+            Escena("La pasarela descansa junto a un tronco seco que encaja debajo; los tablones libres resbalan al pisarlos rápido.",
+                   "Reforzarla con el tronco", "Cruzar los tablones mojados",
+                   "Vadear por la orilla"),
+            Escena("La barca de un pescador tiene la popa contra suelo firme; el limo alrededor llega hasta las rodillas.",
+                   "Empujar desde suelo firme", "Sacar el limo a zancadas",
+                   "Desearle suerte y seguir"),
+        ),
+        VELOCIDAD: (
+            Escena("La niebla aún deja un corredor recto entre juncos; arrancarlos requeriría sacar sus raíces del fango.",
+                   "Arrancar los juncos enraizados", "Cruzar antes de que cierre",
+                   "Esperar que aclare"),
+            Escena("Algo se hunde y abre una franja de agua quieta; golpearlo exige levantar un tronco anegado.",
+                   "Levantar el tronco anegado", "Pasar por la franja quieta",
+                   "Rodear la charca entera"),
+        ),
+    },
+    "arrecife": {
+        FUERZA: (
+            Escena("Las rocas sueltas tienen cantos para agarrarlas y apoyo seco; la próxima ola ya rompe muy cerca.",
+                   "Apartar las rocas apoyadas", "Cruzar antes de la ola",
+                   "Esperar a que baje"),
+            Escena("Una red queda al alcance sobre coral firme; desenredarla obliga a nadar entre corrientes cruzadas.",
+                   "Tirar de la red apoyándote", "Desenredarla entre corrientes",
+                   "Dejarla donde está"),
+        ),
+        VELOCIDAD: (
+            Escena("Una corriente recta lleva hasta una buceadora; la piedra que la atrapa está encajada en todo el arrecife.",
+                   "Levantar la piedra encajada", "Nadar con la corriente",
+                   "Ir a buscar ayuda"),
+            Escena("Un banco de peces abre huecos amplios al girar; apartarlo exigiría empujar contra toda la corriente.",
+                   "Empujar contra la corriente", "Colarte por un hueco",
+                   "Bordear el arrecife"),
+        ),
+    },
+    "chatarral": {
+        FUERZA: (
+            Escena("Una plancha cierra el paso apoyada de canto y deja sitio para el hombro; arriba sólo hay chapa suelta.",
+                   "Volcar la plancha apoyada", "Trepar por la chapa suelta",
+                   "Dar un rodeo largo"),
+            Escena("La pieza que busca un chatarrero está bajo una tapa con asa; rebuscar obliga a cruzar cables tensos.",
+                   "Levantar la tapa por el asa", "Rebuscar entre cables tensos",
+                   "Decir que no la viste"),
+        ),
+        VELOCIDAD: (
+            Escena("El aceite arde en un extremo y deja una franja despejada; ahogarlo exigiría mover un depósito lleno.",
+                   "Volcar el depósito lleno", "Apartar lo que arde rápido",
+                   "Alejarte del humo"),
+            Escena("Un respiradero queda a un paso tras una cinta móvil; el portón está soldado a un marco macizo.",
+                   "Reventar el marco soldado", "Colarte por el respiradero",
+                   "Buscar otra entrada"),
+        ),
+    },
+    "cumbre": {
+        FUERZA: (
+            Escena("Una placa de hielo sobresale sobre roca firme y se puede golpear desde abajo; la cornisa exterior está pulida.",
+                   "Romper el hielo apoyándote", "Cruzar la cornisa pulida",
+                   "Bajar y rodear"),
+            Escena("Dos rocas dejan una cuña natural junto a una cabra; el otro acceso baja por nieve suelta.",
+                   "Separar las rocas con cuña", "Bajar por la nieve suelta",
+                   "Dejarla donde está"),
+        ),
+        VELOCIDAD: (
+            Escena("La ventisca deja visible una bajada recta al refugio; abrir camino exige mover nieve apelmazada.",
+                   "Mover la nieve apelmazada", "Correr por la bajada visible",
+                   "Refugiarte tras una roca"),
+            Escena("El puente queda recto entre dos anclajes; su cuerda helada está rígida como una barra de hierro.",
+                   "Doblar la cuerda helada", "Cruzar de un tirón",
+                   "Buscar el paso de abajo"),
+        ),
+    },
+    "cavernas": {
+        FUERZA: (
+            Escena("Los bloques del derrumbe descansan sobre una repisa firme; el hueco superior es estrecho y tiene grava suelta.",
+                   "Apartar los bloques apoyados", "Colarte por el hueco suelto",
+                   "Volver por donde entraste"),
+            Escena("El equipo de un espeleólogo tiene correas y apoyo para cargarlo; la salida queda tras cornisas mojadas.",
+                   "Cargar el equipo con correas", "Guiarlo por cornisas mojadas",
+                   "Marcar el sitio y avisar"),
+        ),
+        VELOCIDAD: (
+            Escena("Una corriente corta cruza el lago hasta la otra orilla; la roca para un puente está fundida al suelo.",
+                   "Arrancar la roca del suelo", "Cruzar siguiendo la corriente",
+                   "Bordearlo por la cornisa"),
+            Escena("Entre dos temblores queda un tramo despejado; las estalactitas forman una sola masa sobre la bóveda.",
+                   "Partir la masa de piedra", "Pasar durante la pausa",
+                   "Esperar a que pare"),
+        ),
+    },
+    "volcan": {
+        FUERZA: (
+            Escena("La costra de lava tiene una grieta y roca firme para la palanca; el tramo para correr se deshace bajo los pies.",
+                   "Abrir la costra con palanca", "Cruzar la costra quebradiza",
+                   "Bordear la colada"),
+            Escena("Un buscador descansa junto a una parihuela sólida; el agua está detrás de una ladera de ceniza suelta.",
+                   "Cargarlo en la parihuela", "Correr por la ceniza suelta",
+                   "Avisar en el poblado"),
+        ),
+        VELOCIDAD: (
+            Escena("La ceniza deja un corredor breve hacia el refugio; apartarla exige mover capas compactadas por el calor.",
+                   "Mover la ceniza compactada", "Cruzar por el corredor",
+                   "Buscar refugio"),
+            Escena("Una grieta recta atraviesa el marco de obsidiana; la puerta es una sola pieza encajada en basalto.",
+                   "Arrancar la puerta encajada", "Colarte por la grieta",
+                   "Alejarte del calor"),
+        ),
+    },
 }
 
 
 def escena_escrita(
-    bioma: Bioma, evitar: Escena | None = None, rng: random.Random | None = None
+    bioma: Bioma, favorecida: str, evitar: Escena | None = None,
+    rng: random.Random | None = None,
 ) -> Escena:
-    """Una escena de las escritas, saltándose la que ya se enseñó.
-
-    `evitar` está para que el segundo nodo no repita el primero, que es lo que
-    delataría el respaldo en cuanto la IA se cae dos veces seguidas.
-    """
-    posibles = [e for e in ESCENAS_ESCRITAS[bioma.clave] if e != evitar]
+    """Una escena del lado sorteado, saltándose la que ya se enseñó."""
+    if favorecida not in (FUERZA, VELOCIDAD):
+        raise ValueError(f"lado desconocido: {favorecida!r}")
+    posibles = [
+        escena for escena in ESCENAS_ESCRITAS[bioma.clave][favorecida]
+        if escena != evitar
+    ]
     return (rng or random.Random()).choice(posibles)
 
 
 def resolver_opcion(
     criatura: sim.Criatura,
-    bioma: Bioma,
+    terreno: Terreno,
     opcion: str,
     rng: random.Random | None = None,
     obstaculo: str = "",
@@ -447,7 +588,7 @@ def resolver_opcion(
         stat=opcion,
         base=base,
         dado=(rng or random.Random()).randint(1, CARA_DADO),
-        dificultad=bioma.dificultad,
+        dificultad=terreno.exigencia(opcion),
     )
 
 
@@ -461,6 +602,7 @@ class Viaje:
 
     bioma: Bioma
     escena: Escena
+    terreno: Terreno
     pruebas: tuple[Prueba, ...] = ()
     nivel: int = 0
     fallo: bool = False
@@ -492,20 +634,20 @@ def avanzar(
     criatura: sim.Criatura,
     opcion: str,
     siguiente: Escena | None,
+    siguiente_terreno: Terreno | None,
     rng: random.Random | None = None,
 ) -> Viaje:
-    """Aplica una decisión y devuelve el viaje resultante.
-
-    Acertar y volver llevan a `siguiente`; fallar cierra la aventura ahí mismo,
-    y por eso `siguiente` puede venir vacío.
-    """
+    """Aplica una decisión y cambia escena y terreno juntos o ninguno."""
+    if (siguiente is None) != (siguiente_terreno is None):
+        raise ValueError("escena y terreno siguientes deben cambiar juntos")
     prueba = resolver_opcion(
-        criatura, viaje.bioma, opcion, rng, viaje.escena.etiqueta(opcion)
+        criatura, viaje.terreno, opcion, rng, viaje.escena.etiqueta(opcion)
     )
     fallo = prueba is not None and not prueba.superada
     return Viaje(
         bioma=viaje.bioma,
         escena=siguiente or viaje.escena,
+        terreno=siguiente_terreno or viaje.terreno,
         pruebas=viaje.pruebas + ((prueba,) if prueba else ()),
         nivel=viaje.nivel + 1,
         fallo=fallo,
@@ -738,6 +880,80 @@ def narrar_opcion(antes: Encuentro, opcion: str, despues: Encuentro) -> str:
     else:
         pista = "No termina de decidirse."
     return f"-# {emoji} {etiqueta} · {pista}"
+
+
+MAX_HISTORIAL_ENCUENTRO = 4
+LARGO_CONTESTO_HISTORIAL = 160
+
+
+@dataclass(frozen=True)
+class TurnoHablar:
+    dicho: str
+    contesto: str
+
+
+@dataclass(frozen=True)
+class TurnoGesto:
+    accion: str
+    reaccion: str
+
+
+EventoEncuentro = TurnoHablar | TurnoGesto
+
+
+_FRASES_GESTO = {
+    (GOLOSINAS, True): "te ofrecieron golosinas y las devoraste",
+    (GOLOSINAS, False): "te ofrecieron golosinas y las apartaste de un manotazo",
+    (PRESUMIR, True): "su gachamon presumió delante de ti y te picó la curiosidad",
+    (PRESUMIR, False): "su gachamon presumió delante de ti y no te hizo ninguna gracia",
+    (ESPERAR, True): "se quedaron quietos, sin agobiarte, y lo agradeciste",
+    (ESPERAR, False): "se quedaron quietos un buen rato y te aburriste",
+}
+
+
+def frase_gesto(accion: str, gusto: bool) -> str:
+    try:
+        return _FRASES_GESTO[(accion, gusto)]
+    except KeyError as exc:
+        raise ValueError(f"gesto desconocido: {accion!r}") from exc
+
+
+def recordar(
+    historial: tuple[EventoEncuentro, ...], evento: EventoEncuentro,
+) -> tuple[EventoEncuentro, ...]:
+    if isinstance(evento, TurnoHablar):
+        evento = replace(
+            evento, contesto=evento.contesto[:LARGO_CONTESTO_HISTORIAL]
+        )
+    return (historial + (evento,))[-MAX_HISTORIAL_ENCUENTRO:]
+
+
+def fase_de(confianza: int) -> str:
+    if confianza < 40:
+        return "arisco"
+    if confianza < 70:
+        return "receloso"
+    return "cercano"
+
+
+def tendencia_de(antes: Encuentro, despues: Encuentro) -> str:
+    if despues.paciencia < antes.paciencia - 1:
+        return "recela"
+    if despues.confianza > antes.confianza:
+        return "mejora"
+    return "estancada"
+
+
+@dataclass(frozen=True)
+class ContextoSalvaje:
+    salvaje: Salvaje
+    acompañante: sim.Criatura
+    fase: str
+    fase_ahora: str
+    tendencia: str
+    paciencia: int
+    dicho: str
+    historial: tuple[EventoEncuentro, ...] = ()
 
 
 # --- Lo que cuesta el viaje -------------------------------------------------
