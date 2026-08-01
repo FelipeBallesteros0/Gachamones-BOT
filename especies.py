@@ -45,6 +45,21 @@ COMUN = "común"
 POCO_COMUN = "poco común"
 RARA = "rara"
 
+# Lo que pesa cada rareza al cruzarte con un salvaje en `/aventura`.
+#
+# Es el MISMO reparto que usa el huevo (12/6/4), a propósito: así «raro»
+# significa lo mismo en los dos sitios y no hay un segundo juego de números que
+# mantener al lado del primero.
+#
+# **No puede salir de `Especie.peso`**, que es la probabilidad en el huevo y
+# vale 0 en las quince que no salen de él: leerlo aquí las dejaría sin aparecer
+# nunca en ningún sitio. Sale de la rareza, que está declarada en cada especie.
+#
+# Sólo muerde donde el bioma mezcla rarezas. En las Ruinas las tres son «poco
+# común» y allí reparte igual que antes; hay un test que lo deja escrito para
+# que nadie lo lea como un fallo.
+PESO_EN_EL_CAMPO = {COMUN: 12, POCO_COMUN: 6, RARA: 4}
+
 # Estados de ánimo.
 FELIZ = "feliz"
 NORMAL = "normal"
@@ -487,7 +502,7 @@ _registrar(Especie(
 ))
 
 _registrar(Especie(
-    clave="fantasma", nombre="Duskhause", emoji="👻", color=ROSA,
+    clave="fantasma", nombre="Duskhouse", emoji="👻", color=ROSA,
     fuerza=4, velocidad=13, salud=7, rareza=POCO_COMUN, peso=6.0,
     descripcion="Ya estaba muerto antes de nacer. No preguntes.",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},

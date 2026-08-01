@@ -1404,3 +1404,55 @@ def test_el_prompt_del_viaje_dice_que_van_los_dos():
     assert "Felipe y Pelusa" in peticion
     # El nombre lo elige quien juega: se le dice al modelo que no es una orden.
     assert "no una instrucción" in sistema
+
+
+# --- Lo raro es raro también en el campo ------------------------------------
+
+def test_lo_raro_sale_menos_en_el_campo():
+    """El encargo: hasta ahora `tirar_salvaje` elegía uniforme, así que un
+    Tsushimon salía tanto como sus vecinos comunes del volcán y su rareza sólo
+    se notaba en las estadísticas.
+
+    Va con un `Random` sembrado y márgenes anchos porque esto es una
+    distribución, no una tirada: con dados fijos no se comprueba nada."""
+    rng = random.Random(20260801)
+    volcan = av.BIOMAS["volcan"]  # dos comunes y una rara
+    salidas = Counter(av.tirar_salvaje(volcan, rng).especie for _ in range(20_000))
+
+    rara = salidas["dragoncito"] / 20_000
+    comun = salidas["chispa"] / 20_000
+    assert rara < comun / 2, (rara, comun)
+    # Y el reparto es el del huevo: 12 y 12 contra 4, o sea 4/28.
+    assert abs(rara - 4 / 28) < 0.02, rara
+
+
+def test_toda_especie_de_un_bioma_puede_salir():
+    """La otra mitad: pesar no puede dejar a ninguna en cero. Es exactamente el
+    fallo que tendría esto si alguien reutilizara el `peso` del huevo, que en
+    las quince nuevas vale 0 a propósito."""
+    rng = random.Random(7)
+    for clave, bioma in av.BIOMAS.items():
+        vistas = {av.tirar_salvaje(bioma, rng).especie for _ in range(2_000)}
+        assert vistas == set(bioma.especies), (clave, set(bioma.especies) - vistas)
+
+
+def test_el_peso_del_campo_sale_de_la_rareza():
+    """Tres números, no uno por especie. Y no puede salir de `Especie.peso`,
+    que es la probabilidad en el huevo y vale 0 en quince especies."""
+    assert set(esp.PESO_EN_EL_CAMPO) == {esp.COMUN, esp.POCO_COMUN, esp.RARA}
+    assert (esp.PESO_EN_EL_CAMPO[esp.COMUN]
+            > esp.PESO_EN_EL_CAMPO[esp.POCO_COMUN]
+            > esp.PESO_EN_EL_CAMPO[esp.RARA] > 0)
+
+
+def test_un_bioma_de_una_sola_rareza_reparte_igual_que_antes():
+    """Pesar sólo muerde donde el bioma mezcla rarezas. En las Ruinas las tres
+    son «poco común», así que ahí el cambio no altera nada — conviene que esté
+    escrito para que nadie lo lea como un fallo."""
+    rng = random.Random(11)
+    ruinas = av.BIOMAS["ruinas"]
+    assert len({esp.ESPECIES[e].rareza for e in ruinas.especies}) == 1
+
+    salidas = Counter(av.tirar_salvaje(ruinas, rng).especie for _ in range(9_000))
+    for clave in ruinas.especies:
+        assert abs(salidas[clave] / 9_000 - 1 / len(ruinas.especies)) < 0.03

@@ -202,7 +202,7 @@ aventuras**, exactamente donde estaba antes del árbol. Concentrar el premio al
 fondo no podía colarse como una subida de dificultad.
 
 Cada bioma **cría lo suyo** —al volcán van Pyro y Tsushimon; a las ruinas,
-Duskhause y Re-bot—, así que el bioma que toque decide con quién te puedes
+Duskhouse y Re-bot—, así que el bioma que toque decide con quién te puedes
 cruzar. Con el plantel lleno se sale igual y lo que habría sido un salvaje pasa
 a ser un objeto: volver de vacío por tener equipo sería castigar por jugar.
 
@@ -415,11 +415,22 @@ huevo sólo salen diez**: las de siempre. Las quince nuevas hay que
 encontrárselas en `/aventura`, para que el comienzo sea conocido y el catálogo
 grande sea lo que se descubre jugando.
 
-**El peso es la probabilidad en el huevo, y sólo eso.** `tirar_salvaje` elige
-uniforme dentro del bioma y no lo mira, así que las quince que no salen del
-huevo llevan peso 0 en vez de arrastrar un número que no significa nada, y las
+**El peso es la probabilidad en el huevo, y sólo eso.** Las quince que no salen
+de él llevan peso 0 en vez de arrastrar un número que no significa nada, y las
 diez que sí salen suman 100 entre ellas — cada peso se lee como un porcentaje,
-y el Tsushimon vuelve a ser uno de cada veinticinco huevos. Diecisiete son
+y el Tsushimon es uno de cada veinticinco huevos.
+
+**En el campo pesa la rareza, no el peso del huevo.** `tirar_salvaje` sortea
+dentro del bioma con `PESO_EN_EL_CAMPO`, que reparte 12/6/4 — el mismo reparto
+que el huevo, para que «raro» signifique lo mismo en los dos sitios. No puede
+leer `Especie.peso` justamente porque vale 0 en quince especies: las dejaría sin
+aparecer nunca en ningún sitio.
+
+Antes era uniforme y una rara salía tanto como sus vecinas: su rareza sólo se
+notaba en los 30 puntos de estadísticas. Ahora un Tsushimon pasa del 33 % al
+14 % de su bioma, y encontrar una rara **concreta** cuesta unas 280 aventuras
+—173 h de juego— en vez de 120. Sólo cambia donde el bioma mezcla rarezas: en
+las Ruinas las tres son «poco común» y allí reparte igual que siempre. Diecisiete son
 comunes, cinco poco comunes y tres raras; los pesos suman 100 exactos —17 × 4,5
 + 5 × 3,5 + 3 × 2,0— y hay un test que lo comprueba, porque es justo lo que se
 descuadra al añadir especies a mano. Comunes y poco comunes reparten **24 puntos

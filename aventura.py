@@ -580,8 +580,17 @@ class Salvaje:
 
 
 def tirar_salvaje(bioma: Bioma, rng: random.Random | None = None) -> Salvaje:
+    """Con quién te cruzas, **pesado por la rareza**.
+
+    Antes era uniforme y una rara salía tanto como sus vecinas comunes: su
+    rareza sólo se notaba en las estadísticas y en la etiqueta de la ficha. El
+    peso sale de `esp.PESO_EN_EL_CAMPO`, el mismo reparto que usa el huevo.
+    """
     rng = rng or random.Random()
-    definicion = esp.ESPECIES[rng.choice(bioma.especies)]
+    pesos = [esp.PESO_EN_EL_CAMPO[esp.ESPECIES[e].rareza] for e in bioma.especies]
+    definicion = esp.ESPECIES[
+        rng.choices(list(bioma.especies), weights=pesos, k=1)[0]
+    ]
     return Salvaje(
         especie=definicion.clave,
         nombre=definicion.nombre,  # provisional, como el del huevo
