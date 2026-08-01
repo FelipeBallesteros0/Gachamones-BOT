@@ -90,6 +90,29 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
     )
 
 
+def texto_testigo_competencia(
+    plantel: list[sim.Criatura], protagonista: sim.Criatura, *, gano: bool
+) -> str | None:
+    """Elige un testigo determinista que sólo reacciona desde la incubadora."""
+    testigo = next(
+        (
+            criatura for criatura in plantel
+            if criatura.id != protagonista.id
+            and criatura.viva
+            and not criatura.activa
+            and not sim.esta_sin_nombrar(criatura)
+        ),
+        None,
+    )
+    if testigo is None:
+        return None
+    reaccion = (
+        f"celebra a **{protagonista.nombre}**"
+        if gano else f"espera a **{protagonista.nombre}**"
+    )
+    return f"-# 👀 Desde la incubadora, **{testigo.nombre}** {reaccion}."
+
+
 def texto_recibo_competencia(
     recibo: economia.ReciboCompetencia,
     mencion: str,
@@ -461,6 +484,21 @@ class Competencias(commands.Cog):
                 )
 
             await comun.anunciar_logros(canal, nueva, ahora)
+
+        # El plantel sólo se consulta tras publicar todas las salidas canónicas.
+        reacciones = [
+            reaccion
+            for dorsal, usuario in enumerate(participantes)
+            if (
+                reaccion := texto_testigo_competencia(
+                    db.plantel(str(usuario.id), guild_id),
+                    resultado.despues[dorsal],
+                    gano=dorsal == ganador,
+                )
+            )
+        ]
+        if reacciones:
+            await canal.send("\n".join(reacciones))
 
     async def _animar(
         self, canal: discord.abc.Messageable, fotogramas: list[str]

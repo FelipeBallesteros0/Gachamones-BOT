@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -55,6 +55,120 @@ def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
     )
 
 
+def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
+    activa = db.crear("u1", "g1", "pulpo", "Sol", STATS, T0)
+    sin_nombre = db.crear(
+        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
+    )
+    primera = db.crear(
+        "u1", "g1", "michi", "Luna", STATS, T0, activa=False
+    )
+    segunda = db.crear(
+        "u1", "g1", "michi", "Bruma", STATS, T0, activa=False
+    )
+    # Va delante de Luna y aun así no reacciona: quien ya no está no presencia.
+    muerta = replace(primera, nombre="Nube", muerta_en=T0)
+    plantel = [activa, sin_nombre, muerta, primera, segunda]
+
+    assert cog_comp.texto_testigo_competencia(plantel, activa, gano=True) == (
+        "-# 👀 Desde la incubadora, **Luna** celebra a **Sol**."
+    )
+    assert cog_comp.texto_testigo_competencia(plantel, activa, gano=False) == (
+        "-# 👀 Desde la incubadora, **Luna** espera a **Sol**."
+    )
+
+
+def test_testigo_no_sale_sin_reserva_nombrada():
+    activa = nacer("u1")
+    assert cog_comp.texto_testigo_competencia([activa], activa, gano=True) is None
+
+    sin_nombre = db.crear(
+        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
+    )
+    assert cog_comp.texto_testigo_competencia(
+        [activa, sin_nombre], activa, gano=True
+    ) is None
+
+
+def test_testigo_con_cambio_de_activa_conserva_la_protagonista_del_evento():
+    protagonista = db.crear("u1", "g1", "pulpo", "Sol", STATS, T0)
+    nueva_activa = db.crear(
+        "u1", "g1", "michi", "Luna", STATS, T0, activa=False
+    )
+    tercera = db.crear(
+        "u1", "g1", "michi", "Bruma", STATS, T0, activa=False
+    )
+    plantel_tardio = [
+        replace(protagonista, activa=False),
+        replace(nueva_activa, activa=True),
+        tercera,
+    ]
+
+    assert cog_comp.texto_testigo_competencia(
+        plantel_tardio, protagonista, gano=True
+    ) == "-# 👀 Desde la incubadora, **Bruma** celebra a **Sol**."
+    assert cog_comp.texto_testigo_competencia(
+        plantel_tardio[:2], protagonista, gano=True
+    ) is None
+
+
+def test_disputar_con_cambio_tardio_usa_protagonista_del_evento(monkeypatch):
+    protagonista = db.crear("1", "g1", "pulpo", "Sol", STATS, T0)
+    luna = db.crear(
+        "1", "g1", "michi", "Luna", STATS, T0, activa=False
+    )
+    bruma = db.crear(
+        "1", "g1", "michi", "Bruma", STATS, T0, activa=False
+    )
+    db.crear("2", "g1", "pulpo", "Rival", STATS, T0)
+    resultado = competir(
+        "evento-testigo-integrado", usuarios=("1", "2"), semilla=6
+    )
+    assert resultado.encuentro is not None
+    assert resultado.encuentro.orden[0] == 0
+    assert resultado.despues[0].id == protagonista.id
+
+    planteles_tardios = {
+        "1": [
+            replace(resultado.despues[0], activa=False),
+            replace(luna, activa=True),
+            bruma,
+        ],
+        "2": [resultado.despues[1]],
+    }
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(
+        cog_comp.db,
+        "plantel",
+        lambda usuario_id, guild_id: planteles_tardios[usuario_id],
+    )
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
+    cog = Competencias.__new__(Competencias)
+    cog._animar = AsyncMock()
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    participantes = [
+        SimpleNamespace(id=1, mention="<@1>", display_name="Dueña de Sol"),
+        SimpleNamespace(id=2, mention="<@2>", display_name="Dueña de Rival"),
+    ]
+
+    asyncio.run(
+        cog.disputar(canal, participantes, comp.CARRERA, "g1", "publicacion")
+    )
+
+    mensajes_testigo = [
+        llamada.args[0]
+        for llamada in canal.send.await_args_list
+        if "👀" in llamada.args[0]
+    ]
+    assert mensajes_testigo == [
+        "-# 👀 Desde la incubadora, **Bruma** celebra a **Sol**."
+    ]
+
+
 def test_recibo_de_competencia_conserva_topes_de_moneda_y_evolucion():
     recibo = economia.ReciboCompetencia(
         usuario_id="u1",
@@ -82,8 +196,18 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     usuarios = tuple(str(1_000_000_000_000_000_001 + n) for n in range(5))
     nombres = tuple(f"CriaturaLimite{n:010d}" for n in range(1, 6))
     assert all(len(nombre) == sim.LARGO_MAXIMO_NOMBRE for nombre in nombres)
-    for usuario, nombre in zip(usuarios, nombres):
+    # Los testigos también van al largo máximo: es el caso que aprieta los
+    # 2000 caracteres, y con nombres cortos el tope no se estaría midiendo.
+    testigos = tuple(f"Testigo{n:017d}" for n in range(1, 6))
+    assert all(len(testigo) == sim.LARGO_MAXIMO_NOMBRE for testigo in testigos)
+    reservas = []
+    for usuario, nombre, testigo in zip(usuarios, nombres, testigos):
         db.crear(usuario, "g1", "pulpo", nombre, STATS, T0)
+        reservas.append(
+            db.crear(
+                usuario, "g1", "michi", testigo, STATS, T0, activa=False
+            )
+        )
 
     resultado = competir("evento-cinco", usuarios=usuarios, semilla=1)
     assert resultado.encuentro is not None
@@ -97,6 +221,13 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     cog = Competencias.__new__(Competencias)
     cog._animar = AsyncMock()
     canal = SimpleNamespace(id="canal", send=AsyncMock())
+    leer_plantel_db = db.plantel
+
+    def leer_plantel(*args):
+        assert len(canal.send.await_args_list) == 6
+        return leer_plantel_db(*args)
+
+    monkeypatch.setattr(cog_comp.db, "plantel", leer_plantel)
     participantes = [
         SimpleNamespace(
             id=int(usuario), mention=f"<@{usuario}>", display_name=nombre
@@ -108,19 +239,32 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         cog.disputar(canal, participantes, comp.CARRERA, "g1", "publicacion")
     )
 
-    # Primero el resumen con los cinco recibos y después una medalla por cabeza
-    # —la de la alfa, que se llevan todos la primera vez que se les mira.
+    # Primero el resumen con los cinco recibos, después una medalla por cabeza
+    # y al final un único mensaje con todos los testigos.
     mandados = [llamada.args[0] for llamada in canal.send.await_args_list]
-    resumen, medallas = mandados[0], mandados[1:]
+    resumen, *medallas, testigos_mensaje = mandados
     assert len(medallas) == 5
     assert all("De la alfa" in medalla for medalla in medallas)
     lineas = [linea for linea in resumen.splitlines() if linea.startswith("-# <@")]
+    reacciones = testigos_mensaje.splitlines()
     assert len(resumen) < 2000
+    assert "👀" not in resumen
     assert len(lineas) == 5
+    assert len(testigos_mensaje) < 2000
+    assert len(reacciones) == 5
+    assert sum("👀" in mensaje for mensaje in mandados) == 1
+    assert all(
+        f"**{testigo}**" in linea and f"**{nombre}**" in linea
+        for testigo, nombre, linea in zip(testigos, nombres, reacciones)
+    )
+    assert all("Desde la incubadora" in linea for linea in reacciones)
+    assert sum(" celebra a " in linea for linea in reacciones) == 1
+    assert sum(" espera a " in linea for linea in reacciones) == 4
     assert [linea.split(" · ", 1)[0] for linea in lineas] == [
         f"-# <@{usuario}>" for usuario in usuarios
     ]
     ganador = resultado.encuentro.orden[0]
+    assert " celebra a " in reacciones[ganador]
     assert sum("+10 XP" in linea for linea in lineas) == 1
     assert sum("+4 XP" in linea for linea in lineas) == 4
     for dorsal, linea in enumerate(lineas):
@@ -128,6 +272,19 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         assert "velocidad +1 entrenamiento" in linea
         assert "coste base -10 comida" in linea
         assert "coste base -5 ánimo" in linea
+
+    assert [db.obtener(reserva.id) for reserva in reservas] == reservas
+    for reserva in reservas:
+        assert db.esperas(reserva.id, T0, (sim.COMPETIR,)) == {
+            sim.COMPETIR: timedelta(0)
+        }
+        assert db.efectos_activos(reserva.id, T0) == {}
+        assert db.marcador(reserva.id) == {}
+        assert db.logros_de(reserva.id) == {}
+    with db.conectar() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM operaciones_economia WHERE tipo = 'competencia'"
+        ).fetchone()[0] == 5
 
 
 def test_competencia_acredita_6_al_ganador_y_4_al_resto_y_replay_no_muta():
@@ -313,6 +470,9 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     ]
     assert eventos[-1][0] == "publicar"
     assert eventos[-1][2] == {"ya_congelada": "ficha-1"}
+    assert not any(
+        "👀" in llamada.args[0] for llamada in canal.send.await_args_list
+    )
 
 
 def test_una_veta_sin_nivel_no_anuncia_una_subida(monkeypatch):
@@ -369,9 +529,17 @@ def test_competencia_repetida_o_rechazada_no_congela(monkeypatch, resultado):
         cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
     )
     monkeypatch.setattr(cog_comp.vistas, "congelar", congelar)
+    leer_plantel = Mock(
+        side_effect=AssertionError("replay o problema no debe leer el plantel")
+    )
+    monkeypatch.setattr(cog_comp.db, "plantel", leer_plantel)
     cog = Competencias.__new__(Competencias)
     canal = SimpleNamespace(send=AsyncMock())
 
     asyncio.run(cog.disputar(canal, [], comp.CARRERA, "g1", "evento"))
 
     congelar.assert_not_awaited()
+    leer_plantel.assert_not_called()
+    assert not any(
+        "👀" in llamada.args[0] for llamada in canal.send.await_args_list
+    )
