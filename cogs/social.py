@@ -42,6 +42,7 @@ def panel_de_logros(
     criatura: sim.Criatura,
     hechos: dict[str, int],
     conseguidos: dict,
+    reserva: int = 0,
 ) -> str:
     """La lista de las dieciocho medallas, con cuáles lleva y cuánto le falta.
 
@@ -52,18 +53,26 @@ def panel_de_logros(
     lineas = []
     for logro in lgr.LOGROS:
         tiene = logro.clave in conseguidos
-        linea = f"{'✅' if tiene else '⬜'} **{logro.nombre}** · {logro.como}"
+        linea = (
+            f"{'✅' if tiene else '⬜'} **{logro.nombre}** · {logro.como} · "
+            f"{obj.EMOJI_GEMA} {logro.gemas}"
+        )
         # El progreso sólo donde significa algo: en los de una sola vez, un
         # «0/1» no le dice nada a nadie.
         if not tiene and logro.meta > 1:
             linea += f" · `{min(hechos.get(logro.hecho, 0), logro.meta)}/{logro.meta}`"
         lineas.append(linea)
 
+    ganadas = sum(lgr.POR_CLAVE[c].gemas for c in conseguidos if c in lgr.POR_CLAVE)
+    por_ganar = sum(l.gemas for l in lgr.LOGROS) - ganadas
     return (
         f"## 🏅 Logros de {sim.nombre_visible(criatura)}\n"
         + "\n".join(lineas)
-        + f"\n-# {len(conseguidos)} de {len(lgr.LOGROS)}. "
-        "Son del gachamon: cada uno lleva los suyos."
+        + f"\n-# {len(conseguidos)} de {len(lgr.LOGROS)} · "
+        f"{obj.EMOJI_GEMA} **{reserva}** en reserva · "
+        f"le quedan {por_ganar} por ganar.\n"
+        "-# Son del gachamon: cada uno se gana las suyas, y las gemas van a "
+        "tu monedero."
     )
 
 
@@ -83,11 +92,12 @@ def _techo_diario() -> int:
 def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
     """La ayuda repartida en mensajes, uno por página.
 
-    Va en dos porque no cabe en uno: Discord corta el `content` en 2000
+    Va partida porque no cabe en uno: Discord corta el `content` en 2000
     caracteres y la ayuda entera se pasaba, así que `/ayuda` fallaba con un 400
     sin que se notara. Partirla en vez de apretar el texto deja sitio para seguir
-    explicando lo que haga falta. El corte va donde cambia el tema: primero la
-    criatura, después qué hacer con ella.
+    explicando lo que haga falta, y por eso son cuatro y no dos: cada vez que una
+    página se llena se abre otra. Los cortes van donde cambia el tema — la
+    criatura, qué hacer con ella, el plantel y el dinero.
 
     Es una función aparte y no el cuerpo del comando para poder medir cada página
     en un test sin conectarse a nada.
@@ -183,6 +193,14 @@ que no se te mueren mientras juegas con otro.
 -# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
 partida: los demás hay que ganárselos por ahí.
 
+**Otros**
+`/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
+`/ranking` · `/cementerio` · `/logros` las medallas del tuyo"""
+
+    # Se partió al entrar los logros: el dinero y las gemas necesitan su propia
+    # página, y así queda sitio para explicar en qué se gasta cada moneda.
+    tu_dinero = f"""## {obj.EMOJI_MONEDA_TIENDA} Tu dinero
+
 **Mochila y tienda**
 Los dos botones de abajo, o `/mochila` y `/tienda`. En la **tienda** se compra con \
 {obj.EMOJI_MONEDA_TIENDA} {obj.MONEDA_TIENDA}; en la **mochila** eliges qué usar. \
@@ -207,11 +225,16 @@ hasta {eco.TOPE_COMPETENCIAS} al día
 Son unos **{_techo_diario()} al día** si lo aprovechas entero. Y en `/aventura` \
 se encuentran objetos por el camino, que salen gratis.
 
-**Otros**
-`/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
-`/ranking` · `/cementerio` · `/logros` las medallas del tuyo"""
+**Ganar {obj.EMOJI_GEMA} asciigems**
+Sólo con los **logros**, que son de cada gachamon y no tuyos: `/logros` te \
+enseña los {len(lgr.LOGROS)} y cuánto te falta para cada uno. Van desde ganar \
+tu primera competencia hasta pisar los diez biomas o llegar a los 30 días de \
+vida, y se pagan **una sola vez**.
+-# Hay **{sum(l.gemas for l in lgr.LOGROS)}** {obj.EMOJI_GEMA} por gachamon si \
+los consigues todos, y las gemas caen en tu monedero: las de uno sirven para \
+cualquiera de tu plantel."""
 
-    return (tu_criatura, que_hacer, tus_cosas)
+    return (tu_criatura, que_hacer, tus_cosas, tu_dinero)
 
 
 class Social(commands.Cog):
@@ -319,15 +342,20 @@ class Social(commands.Cog):
             )
             return
 
-        # Se revisa antes de pintar, y no sólo por cortesía: «Veterano» y «Bien
+        # Se paga antes de pintar, y no sólo por cortesía: «Veterano» y «Bien
         # criado» dependen del tiempo y del nivel, así que se cumplen sin que
         # nadie haga nada. Si no se apuntaran aquí, el panel diría que los tiene
-        # y la tabla de logros no se habría enterado.
-        nuevos = db.revisar_logros(criatura, ahora)
+        # y la tabla de logros no se habría enterado, y no se cobrarían nunca.
+        recibo = eco.pagar_logros(criatura, ahora)
         hechos = lgr.hechos_de(criatura, db.marcador(criatura.id), ahora)
-        panel = panel_de_logros(criatura, hechos, db.logros_de(criatura.id))
-        if nuevos:
-            panel += f"\n{comun.texto_del_anuncio(criatura, nuevos)}"
+        reserva = eco.saldos(
+            criatura.usuario_id, criatura.guild_id
+        ).asciigems
+        panel = panel_de_logros(
+            criatura, hechos, db.logros_de(criatura.id), reserva
+        )
+        if recibo.nuevos:
+            panel += f"\n{comun.texto_del_anuncio(criatura, recibo)}"
 
         await interaccion.response.send_message(panel)
 

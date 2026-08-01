@@ -8,6 +8,8 @@ from discord import app_commands
 
 import config
 import db
+import economia
+import objetos as obj
 import simulacion as sim
 
 
@@ -29,14 +31,25 @@ def solo_en_el_canal():
     return app_commands.check(predicado)
 
 
-def texto_del_anuncio(criatura: sim.Criatura, nuevos) -> str:
+def texto_del_anuncio(
+    criatura: sim.Criatura, recibo: economia.ReciboLogros
+) -> str:
     """Cómo se canta una medalla. Aparte del envío, para poder probarlo."""
     nombre = sim.nombre_visible(criatura)
-    if len(nuevos) == 1:
-        logro = nuevos[0]
-        return f"🏅 **{nombre}** consigue **{logro.nombre}** — {logro.como}."
-    lineas = "\n".join(f"🏅 **{l.nombre}** — {l.como}." for l in nuevos)
-    return f"**{nombre}** consigue {len(nuevos)} logros:\n{lineas}"
+    cobro = f"{obj.EMOJI_GEMA} +{recibo.asciigems}"
+    if len(recibo.nuevos) == 1:
+        logro = recibo.nuevos[0]
+        return (
+            f"🏅 **{nombre}** consigue **{logro.nombre}** — {logro.como}. "
+            f"{cobro}"
+        )
+    lineas = "\n".join(
+        f"🏅 **{l.nombre}** — {l.como}. {obj.EMOJI_GEMA} +{l.gemas}"
+        for l in recibo.nuevos
+    )
+    return (
+        f"**{nombre}** consigue {len(recibo.nuevos)} logros. {cobro}\n{lineas}"
+    )
 
 
 async def anunciar_logros(
@@ -50,14 +63,17 @@ async def anunciar_logros(
     medalla anunciada que luego no estuviera sería peor que una que tarda un
     segundo en salir.
 
-    `db.revisar_logros` devuelve **sólo lo nuevo**, así que llamar de más no
+    `economia.pagar_logros` devuelve **sólo lo nuevo**, así que llamar de más no
     repite nada. Por eso esto se puede poner en cualquier sitio donde algo
     pueda desbloquearse sin tener que pensar cuál de los dieciocho era.
     """
-    nuevos = db.revisar_logros(criatura, ahora or db.ahora_utc())
-    if not nuevos:
+    recibo = economia.pagar_logros(criatura, ahora or db.ahora_utc())
+    if not recibo.nuevos:
         return
-    await canal.send(texto_del_anuncio(criatura, nuevos))
+    await canal.send(
+        f"{texto_del_anuncio(criatura, recibo)}\n"
+        f"-# {obj.EMOJI_GEMA} {recibo.saldo} asciigems en reserva."
+    )
 
 
 async def manejar_error(

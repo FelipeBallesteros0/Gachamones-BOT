@@ -1,4 +1,4 @@
-"""El marcador y los logros en la base: que cuenten, y que no paguen dos veces."""
+"""El marcador y la tabla de logros: contar, y que nada se apunte dos veces."""
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -6,7 +6,6 @@ import pytest
 
 import db
 import logros
-import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15)
@@ -62,86 +61,44 @@ def test_lo_apuntado_a_medias_no_queda():
     assert db.marcador(bicho.id) == {}
 
 
-# --- Desbloquear -----------------------------------------------------------
+# --- Anotar ----------------------------------------------------------------
+#
+# Quién decide que un logro está cumplido y quién lo paga es de `economia`; lo
+# de aquí es sólo la fila y su fecha.
 
-def test_revisar_devuelve_lo_recien_ganado_y_lo_guarda():
+def test_anotar_dice_si_era_nuevo():
+    """Lo que devuelve **es** la garantía de que no se pague dos veces: quien
+    llama sólo cobra lo que entró de verdad."""
     bicho = nacer()
-    db.apuntar(bicho.id, logros.CARRERAS, 10)
-
-    nuevos = {logro.clave for logro in db.revisar_logros(bicho, T0)}
-    assert "velocista" in nuevos
-    assert set(db.logros_de(bicho.id)) >= {"velocista", "de_la_alfa"}
-
-
-def test_un_logro_no_se_cobra_dos_veces():
-    """El fallo caro: el contador de carreras sigue subiendo después de
-    desbloquear «Velocista», así que si `revisar_logros` lo devolviera cada vez,
-    en la entrega de las gemas se pagaría en cada carrera."""
-    bicho = nacer()
-    db.apuntar(bicho.id, logros.CARRERAS, 10)
-    db.revisar_logros(bicho, T0)
-
-    for _ in range(5):
-        db.apuntar(bicho.id, logros.CARRERAS)
-        assert db.revisar_logros(bicho, T0 + timedelta(hours=1)) == ()
-
-    assert len(db.logros_de(bicho.id)) == 2  # velocista y de_la_alfa, una vez
+    with db.conectar() as con:
+        assert db.anotar_logro_en(con, bicho.id, "velocista", T0) is True
+        assert db.anotar_logro_en(con, bicho.id, "velocista", T0) is False
 
 
 def test_la_fecha_es_la_de_cuando_se_consiguio():
     bicho = nacer()
     despues = T0 + timedelta(days=3)
-    db.apuntar(bicho.id, logros.AVENTURAS, 10)
-    db.revisar_logros(bicho, despues)
+    with db.conectar() as con:
+        db.anotar_logro_en(con, bicho.id, "explorador", despues)
 
     assert db.logros_de(bicho.id)["explorador"] == despues
 
 
-def test_los_logros_son_del_gachamon_y_no_del_jugador():
-    """Lo que se pidió: dos gachamones de la misma persona llevan medallas
-    distintas, y morirse se las lleva."""
-    corredor = nacer(nombre="Corredor")
-    novato = nacer(nombre="Novato", activa=False)
-
-    db.apuntar(corredor.id, logros.CARRERAS, 10)
-    db.revisar_logros(corredor, T0)
-    db.revisar_logros(novato, T0)
-
-    assert "velocista" in db.logros_de(corredor.id)
-    assert "velocista" not in db.logros_de(novato.id)
-    # Al novato le queda lo que se lleva por existir, y nada más.
-    assert set(db.logros_de(novato.id)) == {"de_la_alfa"}
-
-
-def test_al_morir_conserva_lo_que_hizo_pero_no_superviviente():
+def test_reintentar_no_mueve_la_fecha():
+    """El segundo intento no entra, así que tampoco puede reescribir el día en
+    que se consiguió por el de hoy."""
     bicho = nacer()
-    db.apuntar(bicho.id, logros.AVENTURAS, 100)
-    db.revisar_logros(bicho, T0)
-    assert "superviviente" in db.logros_de(bicho.id)
+    with db.conectar() as con:
+        db.anotar_logro_en(con, bicho.id, "explorador", T0)
+        db.anotar_logro_en(con, bicho.id, "explorador", T0 + timedelta(days=9))
 
-    otro = nacer(usuario="u2", nombre="Muerto")
-    db.apuntar(otro.id, logros.AVENTURAS, 100)
-    muerto = sim.Criatura(**{
-        **otro.__dict__, "muerta_en": T0, "causa_muerte": "hambre",
-    })
-    db.guardar(muerto)
-    db.revisar_logros(muerto, T0)
-    conseguidos = db.logros_de(otro.id)
-
-    assert "explorador" in conseguidos
-    assert "superviviente" not in conseguidos
+    assert db.logros_de(bicho.id)["explorador"] == T0
 
 
-def test_cartografo_pide_los_diez_biomas_de_verdad():
-    """El marcador guarda una clave por bioma, así que volver al mismo sitio no
-    acerca la medalla. Es la razón de que no sea un simple contador."""
-    import aventura as av
+def test_los_logros_son_de_cada_gachamon_por_separado():
+    uno, otro = nacer(nombre="Uno"), nacer(nombre="Otro", activa=False)
+    with db.conectar() as con:
+        db.anotar_logro_en(con, uno.id, "velocista", T0)
 
-    bicho = nacer()
-    for _ in range(20):
-        db.apuntar(bicho.id, logros.clave_de_bioma("volcan"))
-    assert "cartografo" not in {l.clave for l in db.revisar_logros(bicho, T0)}
-
-    for bioma in av.BIOMAS:
-        db.apuntar(bicho.id, logros.clave_de_bioma(bioma))
-    assert "cartografo" in {l.clave for l in db.revisar_logros(bicho, T0)}
+    assert set(db.logros_de(uno.id)) == {"velocista"}
+    assert db.logros_de(otro.id) == {}

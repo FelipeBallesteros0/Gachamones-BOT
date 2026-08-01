@@ -908,30 +908,26 @@ def logros_de(criatura_id: int) -> dict[str, datetime]:
     return {f["clave"]: datetime.fromisoformat(f["cuando"]) for f in filas}
 
 
-def revisar_logros(
-    criatura: sim.Criatura, ahora: datetime
-) -> tuple[lgr.Logro, ...]:
-    """Apunta lo que acaba de conseguir y devuelve **sólo lo nuevo**.
+def anotar_logro_en(
+    con: sqlite3.Connection, criatura_id: int, clave: str, cuando: datetime
+) -> bool:
+    """Apunta un logro y dice si era nuevo. Falso si ya lo tenía.
 
-    Único sitio que escribe en `logros`, y devuelve lo recién ganado para que se
-    anuncie una vez. Que no se cobre dos veces no lo vigila este código sino la
-    clave primaria: se intenta insertar todo lo cumplido y se queda con lo que
-    entró de verdad. Es la misma disciplina de `operaciones_economia`, y el
-    motivo es el mismo — el contador de carreras sigue subiendo para siempre.
+    Recibe la conexión porque quien desbloquea también paga —`economia`— y las
+    dos cosas tienen que ir juntas: un logro apuntado sin pagar no se puede
+    reintentar, porque el segundo intento ya lo encuentra puesto.
+
+    Que no se pague dos veces no lo vigila el código sino la clave primaria de
+    la tabla: se intenta insertar y se mira si entró. Es la misma disciplina de
+    `operaciones_economia`, y por el mismo motivo — el contador de carreras
+    sigue subiendo para siempre después de desbloquear «Velocista».
     """
-    nuevos = []
-    with conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        hechos = lgr.hechos_de(criatura, _marcador(con, criatura.id), ahora)
-        for logro in lgr.cumplidos(hechos):
-            cursor = con.execute(
-                "INSERT OR IGNORE INTO logros (criatura_id, clave, cuando) "
-                "VALUES (?, ?, ?)",
-                (criatura.id, logro.clave, ahora.isoformat()),
-            )
-            if cursor.rowcount:
-                nuevos.append(logro)
-    return tuple(nuevos)
+    cursor = con.execute(
+        "INSERT OR IGNORE INTO logros (criatura_id, clave, cuando) "
+        "VALUES (?, ?, ?)",
+        (criatura_id, clave, cuando.isoformat()),
+    )
+    return bool(cursor.rowcount)
 
 
 # --- Listados --------------------------------------------------------------

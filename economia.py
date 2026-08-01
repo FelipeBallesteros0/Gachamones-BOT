@@ -183,6 +183,58 @@ def saldos(usuario_id: str, guild_id: str) -> Saldos:
         return _saldos_en(con, usuario_id, guild_id)
 
 
+# --- Los logros y lo que pagan ----------------------------------------------
+
+@dataclass(frozen=True)
+class ReciboLogros:
+    """Lo que acaba de desbloquear un gachamon y lo que le ha valido."""
+
+    nuevos: tuple[lgr.Logro, ...] = ()
+    asciigems: int = 0
+    saldo: int = 0          # lo que queda en reserva después de cobrar
+
+
+def pagar_logros(criatura: sim.Criatura, ahora: datetime) -> ReciboLogros:
+    """Desbloquea lo que le toque al gachamon y le paga las gemas a su dueño.
+
+    Vive aquí y no en `db` porque toca el monedero, y la orquestación monetaria
+    es de este módulo. Desbloquear y pagar van bajo un mismo `BEGIN IMMEDIATE`,
+    y no por costumbre: un logro apuntado sin pagar **no se puede reintentar**,
+    porque el segundo intento ya lo encuentra puesto y no devuelve nada.
+
+    No lleva ledger propio en `operaciones_economia` como los asciicoins. Allí
+    hace falta porque el mismo clic puede reprocesarse y hay que congelar lo que
+    pagó; aquí la clave primaria de `logros` ya dice, por sí sola, que cada uno
+    se cobró una vez. Tampoco hay tope diario: los dieciocho son de una sola vez
+    por construcción, así que no hay nada que machacar.
+
+    Las gemas van al monedero de **la persona**, que es de quien son los
+    monederos, aunque la medalla sea del gachamon: es lo que cierra el círculo
+    con los cosméticos, que se compran para el que tengas activo.
+    """
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        hechos = lgr.hechos_de(criatura, db._marcador(con, criatura.id), ahora)
+        nuevos = tuple(
+            logro for logro in lgr.cumplidos(hechos)
+            if db.anotar_logro_en(con, criatura.id, logro.clave, ahora)
+        )
+        if not nuevos:
+            return ReciboLogros()
+
+        gemas = sum(logro.gemas for logro in nuevos)
+        _asegurar_monedero(con, criatura.usuario_id, criatura.guild_id)
+        con.execute(
+            "UPDATE monederos SET asciigems = asciigems + ? "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (gemas, criatura.usuario_id, criatura.guild_id),
+        )
+        saldo = _saldos_en(
+            con, criatura.usuario_id, criatura.guild_id
+        ).asciigems
+        return ReciboLogros(nuevos, gemas, saldo)
+
+
 def _contar_acreditadas(
     con, usuario_id: str, guild_id: str, fecha: str, tipo: str
 ) -> int:

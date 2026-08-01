@@ -9,7 +9,9 @@ import pytest
 import cogs.social as social
 import comun
 import db
+import economia
 import logros
+import objetos as obj
 import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
@@ -28,23 +30,32 @@ def nacer(nombre="Mia"):
 
 # --- El anuncio ------------------------------------------------------------
 
+def recibo_de(*claves, saldo=0):
+    nuevos = tuple(logros.POR_CLAVE[c] for c in claves)
+    return economia.ReciboLogros(
+        nuevos, sum(l.gemas for l in nuevos), saldo
+    )
+
+
 def test_una_sola_medalla_se_canta_en_una_linea():
     bicho = nacer()
-    texto = comun.texto_del_anuncio(bicho, (logros.POR_CLAVE["velocista"],))
+    texto = comun.texto_del_anuncio(bicho, recibo_de("velocista"))
 
-    assert texto == "🏅 **Mia** consigue **Velocista** — gana 10 carreras."
+    assert texto == (
+        "🏅 **Mia** consigue **Velocista** — gana 10 carreras. 💎 +10"
+    )
 
 
 def test_varias_medallas_van_juntas_y_no_en_mensajes_sueltos():
     """Diez carreras seguidas pueden desbloquear dos a la vez; dos mensajes
     seguidos con el mismo formato se leen como si el bot se hubiera repetido."""
     bicho = nacer()
-    texto = comun.texto_del_anuncio(bicho, (
-        logros.POR_CLAVE["velocista"], logros.POR_CLAVE["primera_sangre"],
-    ))
+    texto = comun.texto_del_anuncio(bicho, recibo_de("velocista", "primera_sangre"))
 
-    assert texto.startswith("**Mia** consigue 2 logros:")
+    assert texto.startswith("**Mia** consigue 2 logros. 💎 +15")
     assert texto.count("🏅") == 2
+    # Y cada una dice lo suyo, que es lo que se mira cuando se cobran de golpe.
+    assert "💎 +10" in texto and "💎 +5" in texto
 
 
 def test_el_anuncio_sale_una_vez_por_mucho_que_se_llame():
@@ -63,7 +74,7 @@ def test_el_anuncio_sale_una_vez_por_mucho_que_se_llame():
 def test_sin_nada_nuevo_no_se_manda_mensaje():
     bicho = nacer()
     canal = SimpleNamespace(send=AsyncMock())
-    db.revisar_logros(bicho, T0)
+    economia.pagar_logros(bicho, T0)
 
     asyncio.run(comun.anunciar_logros(canal, bicho, T0))
 
@@ -76,7 +87,7 @@ def test_el_recluta_sin_nombre_no_sale_como_cadena_vacia():
     recluta = db.crear(
         "u2", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
     )
-    texto = comun.texto_del_anuncio(recluta, (logros.POR_CLAVE["domador"],))
+    texto = comun.texto_del_anuncio(recluta, recibo_de("domador"))
 
     assert sim.SIN_NOMBRE in texto
 
@@ -85,7 +96,10 @@ def test_el_recluta_sin_nombre_no_sale_como_cadena_vacia():
 
 def panel_de(bicho, ahora=T0):
     hechos = logros.hechos_de(bicho, db.marcador(bicho.id), ahora)
-    return social.panel_de_logros(bicho, hechos, db.logros_de(bicho.id))
+    reserva = economia.saldos(bicho.usuario_id, bicho.guild_id).asciigems
+    return social.panel_de_logros(
+        bicho, hechos, db.logros_de(bicho.id), reserva
+    )
 
 
 def test_el_panel_lista_las_dieciocho_tenga_las_que_tenga():
@@ -100,12 +114,12 @@ def test_el_panel_lista_las_dieciocho_tenga_las_que_tenga():
 def test_el_panel_marca_lo_conseguido_y_cuenta_cuánto_falta():
     bicho = nacer()
     db.apuntar(bicho.id, logros.CARRERAS, 10)
-    db.revisar_logros(bicho, T0)
+    economia.pagar_logros(bicho, T0)
 
     panel = panel_de(bicho)
     assert "✅ **Velocista**" in panel
     # Las mismas diez carreras son 10 de las 100 que pide Bólido.
-    assert "⬜ **Bólido** · gana 100 carreras · `10/100`" in panel
+    assert "⬜ **Bólido** · gana 100 carreras · 💎 50 · `10/100`" in panel
 
 
 def test_el_progreso_no_se_pasa_de_la_meta():
@@ -131,20 +145,42 @@ def test_el_panel_cabe_en_un_mensaje_de_discord():
 
 def test_el_panel_dice_cuantas_lleva():
     bicho = nacer()
-    db.revisar_logros(bicho, T0)
+    economia.pagar_logros(bicho, T0)
 
     assert f"-# 1 de {len(logros.LOGROS)}" in panel_de(bicho)
 
 
+def test_el_panel_enseña_la_reserva_y_lo_que_queda_por_ganar():
+    """Las dos cifras que hacen falta para decidir si ya te alcanza para algo,
+    y lo que se dejaría de ganar quien abandone a este gachamon."""
+    todas = sum(logro.gemas for logro in logros.LOGROS)
+    bicho = nacer()
+    recibo = economia.pagar_logros(bicho, T0)  # «De la alfa» y sus gemas
+
+    panel = panel_de(bicho)
+    assert f"💎 **{obj.ASCIIGEMS_INICIALES + recibo.asciigems}** en reserva" in panel
+    assert f"le quedan {todas - recibo.asciigems} por ganar" in panel
+
+
+def test_cada_logro_dice_lo_que_paga():
+    """Es lo que convierte el panel en una lista de objetivos: sin el número,
+    no hay forma de saber cuál compensa perseguir."""
+    panel = panel_de(nacer())
+
+    for logro in logros.LOGROS:
+        assert f"**{logro.nombre}** · {logro.como} · 💎 {logro.gemas}" in panel
+
+
 def test_veterano_se_apunta_al_mirar_el_panel_aunque_nadie_haya_jugado():
     """El único de los dieciocho que se cumple solo con esperar. Si `/logros`
-    no lo apuntara, el panel lo daría por conseguido y la tabla no lo tendría —
-    y en la entrega de las gemas no se pagaría nunca."""
+    no lo pagara, el panel lo daría por conseguido, la tabla no se habría
+    enterado y las gemas no se cobrarían nunca."""
     bicho = nacer()
     un_mes = T0 + timedelta(days=31)
 
     assert "veterano" not in db.logros_de(bicho.id)
-    nuevos = {logro.clave for logro in db.revisar_logros(bicho, un_mes)}
+    recibo = economia.pagar_logros(bicho, un_mes)
 
-    assert "veterano" in nuevos
+    assert "veterano" in {logro.clave for logro in recibo.nuevos}
     assert "veterano" in db.logros_de(bicho.id)
+    assert recibo.asciigems >= logros.POR_CLAVE["veterano"].gemas

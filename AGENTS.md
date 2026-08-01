@@ -65,8 +65,12 @@ Instala el hook local cuando prepares el entorno:
 - Reclutar, evolucionar o promover desde la incubadora tampoco reinicia los topes.
 - El replay idempotente de un evento conserva sus resultados monetarios congelados.
 - No vuelvas a sortear, recalcular ni duplicar dinero al reprocesar el mismo evento.
-- Los asciigems son una reserva visible.
-- No existe todavía ninguna vía para ganar ni gastar asciigems.
+- Los asciigems se ganan sólo con los logros de un gachamon.
+- No existe todavía ninguna vía para gastar asciigems.
+- Los logros son de la criatura; sus asciigems van al monedero de la persona.
+- Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de `logros`.
+- Desbloquear un logro y pagarlo ocurren en la misma transacción.
+- Los contadores del marcador suben dentro de la transacción que resuelve la acción.
 
 ## Arte ASCII
 
