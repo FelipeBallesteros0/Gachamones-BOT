@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -55,6 +55,39 @@ def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
     )
 
 
+def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
+    activa = nacer("u1")
+    sin_nombre = db.crear(
+        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
+    )
+    primera = db.crear(
+        "u1", "g1", "michi", "Luna", STATS, T0, activa=False
+    )
+    segunda = db.crear(
+        "u1", "g1", "michi", "Sol", STATS, T0, activa=False
+    )
+    plantel = [activa, sin_nombre, primera, segunda]
+
+    assert cog_comp.texto_testigo_competencia(plantel, gano=True) == (
+        "-# 👀 **Luna** celebra la victoria de **u1**."
+    )
+    assert cog_comp.texto_testigo_competencia(plantel, gano=False) == (
+        "-# 👀 **Luna** acompaña a **u1** tras la competencia."
+    )
+
+
+def test_testigo_no_sale_sin_reserva_nombrada():
+    activa = nacer("u1")
+    assert cog_comp.texto_testigo_competencia([activa], gano=True) is None
+
+    sin_nombre = db.crear(
+        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
+    )
+    assert cog_comp.texto_testigo_competencia(
+        [activa, sin_nombre], gano=True
+    ) is None
+
+
 def test_recibo_de_competencia_conserva_topes_de_moneda_y_evolucion():
     recibo = economia.ReciboCompetencia(
         usuario_id="u1",
@@ -82,8 +115,15 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     usuarios = tuple(str(1_000_000_000_000_000_001 + n) for n in range(5))
     nombres = tuple(f"CriaturaLimite{n:010d}" for n in range(1, 6))
     assert all(len(nombre) == sim.LARGO_MAXIMO_NOMBRE for nombre in nombres)
-    for usuario, nombre in zip(usuarios, nombres):
+    testigos = tuple(f"Testigo{n}" for n in range(1, 6))
+    reservas = []
+    for usuario, nombre, testigo in zip(usuarios, nombres, testigos):
         db.crear(usuario, "g1", "pulpo", nombre, STATS, T0)
+        reservas.append(
+            db.crear(
+                usuario, "g1", "michi", testigo, STATS, T0, activa=False
+            )
+        )
 
     resultado = competir("evento-cinco", usuarios=usuarios, semilla=1)
     assert resultado.encuentro is not None
@@ -115,8 +155,18 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     assert len(medallas) == 5
     assert all("De la alfa" in medalla for medalla in medallas)
     lineas = [linea for linea in resumen.splitlines() if linea.startswith("-# <@")]
+    reacciones = [
+        linea for linea in resumen.splitlines() if linea.startswith("-# 👀")
+    ]
     assert len(resumen) < 2000
     assert len(lineas) == 5
+    assert len(reacciones) == 5
+    assert all(
+        f"**{testigo}**" in linea
+        for testigo, linea in zip(testigos, reacciones)
+    )
+    assert sum("celebra la victoria" in linea for linea in reacciones) == 1
+    assert sum("tras la competencia" in linea for linea in reacciones) == 4
     assert [linea.split(" · ", 1)[0] for linea in lineas] == [
         f"-# <@{usuario}>" for usuario in usuarios
     ]
@@ -128,6 +178,20 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         assert "velocidad +1 entrenamiento" in linea
         assert "coste base -10 comida" in linea
         assert "coste base -5 ánimo" in linea
+
+    assert [db.obtener(reserva.id) for reserva in reservas] == reservas
+    with db.conectar() as con:
+        for reserva in reservas:
+            for consulta in (
+                "SELECT COUNT(*) FROM cooldowns WHERE criatura_id = ?",
+                "SELECT COUNT(*) FROM efectos WHERE criatura_id = ?",
+                "SELECT COUNT(*) FROM marcador WHERE criatura_id = ?",
+                "SELECT COUNT(*) FROM logros WHERE criatura_id = ?",
+            ):
+                assert con.execute(consulta, (reserva.id,)).fetchone()[0] == 0
+        assert con.execute(
+            "SELECT COUNT(*) FROM operaciones_economia WHERE tipo = 'competencia'"
+        ).fetchone()[0] == 5
 
 
 def test_competencia_acredita_6_al_ganador_y_4_al_resto_y_replay_no_muta():
@@ -369,9 +433,17 @@ def test_competencia_repetida_o_rechazada_no_congela(monkeypatch, resultado):
         cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
     )
     monkeypatch.setattr(cog_comp.vistas, "congelar", congelar)
+    leer_plantel = Mock(
+        side_effect=AssertionError("replay o problema no debe leer el plantel")
+    )
+    monkeypatch.setattr(cog_comp.db, "plantel", leer_plantel)
     cog = Competencias.__new__(Competencias)
     canal = SimpleNamespace(send=AsyncMock())
 
     asyncio.run(cog.disputar(canal, [], comp.CARRERA, "g1", "evento"))
 
     congelar.assert_not_awaited()
+    leer_plantel.assert_not_called()
+    assert not any(
+        "👀" in llamada.args[0] for llamada in canal.send.await_args_list
+    )

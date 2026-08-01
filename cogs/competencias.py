@@ -90,6 +90,28 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
     )
 
 
+def texto_testigo_competencia(
+    plantel: list[sim.Criatura], *, gano: bool
+) -> str | None:
+    activa = next((criatura for criatura in plantel if criatura.activa), None)
+    testigo = next(
+        (
+            criatura for criatura in plantel
+            if criatura.viva
+            and not criatura.activa
+            and not sim.esta_sin_nombrar(criatura)
+        ),
+        None,
+    )
+    if activa is None or testigo is None:
+        return None
+    reaccion = (
+        f"celebra la victoria de **{activa.nombre}**"
+        if gano else f"acompaña a **{activa.nombre}** tras la competencia"
+    )
+    return f"-# 👀 **{testigo.nombre}** {reaccion}."
+
+
 def texto_recibo_competencia(
     recibo: economia.ReciboCompetencia,
     mencion: str,
@@ -437,7 +459,20 @@ class Competencias(commands.Cog):
                 zip(resultado.recibos, participantes)
             )
         )
-        await canal.send(f"{comp.resumen(encuentro)}\n{recibos}")
+        reacciones = "\n".join(
+            reaccion
+            for dorsal, usuario in enumerate(participantes)
+            if (
+                reaccion := texto_testigo_competencia(
+                    db.plantel(str(usuario.id), guild_id),
+                    gano=dorsal == ganador,
+                )
+            )
+        )
+        cierre = f"{comp.resumen(encuentro)}\n{recibos}"
+        if reacciones:
+            cierre += f"\n{reacciones}"
+        await canal.send(cierre)
 
         for antes, nueva, rupturas, usuario in zip(
             resultado.antes, resultado.despues, resultado.rupturas, participantes
