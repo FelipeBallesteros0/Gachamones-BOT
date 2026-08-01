@@ -418,8 +418,8 @@ def _efecto_recibo_cuidado(
     if accion == sim.ALIMENTAR:
         return (
             "🍖 Alimentar",
-            f"comida {resultado.criatura.hambre:g}",
-            f"ánimo {resultado.criatura.animo:g}",
+            f"comida {round(resultado.criatura.hambre)}",
+            f"ánimo {round(resultado.criatura.animo)}",
             xp,
         )
 
@@ -427,7 +427,7 @@ def _efecto_recibo_cuidado(
     if accion == sim.JUGAR:
         return (
             "🪀 Jugar",
-            f"ánimo {resultado.criatura.animo:g}",
+            f"ánimo {round(resultado.criatura.animo)}",
             f"velocidad +{efecto['ent_velocidad']:g} entrenamiento",
             xp,
             f"coste base {efecto['hambre']:g} comida",
