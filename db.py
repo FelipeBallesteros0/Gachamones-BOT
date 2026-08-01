@@ -22,6 +22,7 @@ import casas as cas
 import config
 import cosmeticos as cos
 import especies as esp
+import huerto as hue
 import logros as lgr
 import objetos as obj
 import personalidad as per
@@ -228,6 +229,18 @@ CREATE TABLE IF NOT EXISTS buzon (
     nota TEXT NOT NULL DEFAULT '',
     cuando TEXT NOT NULL,
     recogido INTEGER NOT NULL DEFAULT 0
+);
+
+-- Los bancales del huerto. Uno por número dentro de tu casa: cuántos tienes lo
+-- decide su tamaño, así que mudarte a una mayor te da sitio y las filas viejas
+-- siguen valiendo. Sin fila es barbecho.
+CREATE TABLE IF NOT EXISTS huerto (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    bancal INTEGER NOT NULL,
+    plantado_en TEXT NOT NULL,
+    regado INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (usuario_id, guild_id, bancal)
 );
 
 CREATE TABLE IF NOT EXISTS mobiliario (
@@ -921,11 +934,17 @@ def esperas_de_ficha(
 def inventario(usuario_id: str, guild_id: str) -> dict[str, int]:
     """Qué tiene y cuánto. Lo que se ha gastado del todo no sale."""
     with conectar() as con:
-        filas = con.execute(
-            "SELECT objeto, cantidad FROM inventario "
-            "WHERE usuario_id = ? AND guild_id = ? AND cantidad > 0",
-            (usuario_id, guild_id),
-        ).fetchall()
+        return _inventario(con, usuario_id, guild_id)
+
+
+def _inventario(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> dict[str, int]:
+    filas = con.execute(
+        "SELECT objeto, cantidad FROM inventario "
+        "WHERE usuario_id = ? AND guild_id = ? AND cantidad > 0",
+        (usuario_id, guild_id),
+    ).fetchall()
     return {f["objeto"]: f["cantidad"] for f in filas}
 
 
@@ -1359,6 +1378,107 @@ def _hogar_leido(
         puestos=tuple(c for c, puesto in mobiliario.items() if puesto),
         publica=bool(fila["publica"]),
     )
+
+
+def huerto_de(
+    usuario_id: str, guild_id: str, cuantos: int
+) -> list[hue.Bancal]:
+    """Los bancales que da tu casa, plantados o en barbecho.
+
+    Se devuelven **todos**, no sólo los que tienen fila: un bancal vacío es algo
+    que enseñar y donde plantar, no una ausencia. Y si te mudas a una casa menor
+    —que hoy no se puede— los de más se quedarían fuera sin borrar nada.
+    """
+    with conectar() as con:
+        return _huerto_de(con, usuario_id, guild_id, cuantos)
+
+
+def _huerto_de(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, cuantos: int
+) -> list[hue.Bancal]:
+    filas = {
+        f["bancal"]: f
+        for f in con.execute(
+            "SELECT bancal, plantado_en, regado FROM huerto "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchall()
+    }
+    bancales = []
+    for numero in range(1, cuantos + 1):
+        fila = filas.get(numero)
+        bancales.append(hue.Bancal(
+            numero=numero,
+            plantado_en=(
+                datetime.fromisoformat(fila["plantado_en"]) if fila else None
+            ),
+            regado=bool(fila["regado"]) if fila else False,
+        ))
+    return bancales
+
+
+def plantar_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str,
+    bancal: int, ahora: datetime,
+) -> None:
+    con.execute(
+        "INSERT INTO huerto (usuario_id, guild_id, bancal, plantado_en, regado) "
+        "VALUES (?, ?, ?, ?, 0) "
+        "ON CONFLICT(usuario_id, guild_id, bancal) DO UPDATE SET "
+        "plantado_en = excluded.plantado_en, regado = 0",
+        (usuario_id, guild_id, bancal, ahora.isoformat()),
+    )
+
+
+def regar_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, bancal: int
+) -> None:
+    con.execute(
+        "UPDATE huerto SET regado = 1 "
+        "WHERE usuario_id = ? AND guild_id = ? AND bancal = ?",
+        (usuario_id, guild_id, bancal),
+    )
+
+
+def arrancar_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, bancal: int
+) -> None:
+    """Deja el bancal en barbecho. Se llama al cosechar."""
+    con.execute(
+        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ? AND bancal = ?",
+        (usuario_id, guild_id, bancal),
+    )
+
+
+def guardar_en_la_mochila_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str,
+    cuantos: int = 1,
+) -> None:
+    con.execute(
+        "INSERT INTO inventario (usuario_id, guild_id, objeto, cantidad) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(usuario_id, guild_id, objeto) "
+        "DO UPDATE SET cantidad = cantidad + excluded.cantidad",
+        (usuario_id, guild_id, clave, cuantos),
+    )
+
+
+def gastar_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str,
+    cuantos: int = 1,
+) -> bool:
+    """Descuenta varias unidades de golpe, o ninguna si no llegan."""
+    gastado = con.execute(
+        "UPDATE inventario SET cantidad = cantidad - ? "
+        "WHERE usuario_id = ? AND guild_id = ? AND objeto = ? AND cantidad >= ?",
+        (cuantos, usuario_id, guild_id, clave, cuantos),
+    ).rowcount > 0
+    con.execute(
+        "DELETE FROM inventario WHERE usuario_id = ? AND guild_id = ? "
+        "AND objeto = ? AND cantidad <= 0",
+        (usuario_id, guild_id, clave),
+    )
+    return gastado
 
 
 def hogar_leido(usuario_id: str, guild_id: str, ahora: datetime) -> cas.Hogar:

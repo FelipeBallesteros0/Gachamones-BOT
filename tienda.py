@@ -20,6 +20,7 @@ import casas as cas
 import cosmeticos as cos
 import db
 import economia
+import huerto as hue
 import objetos as obj
 import simulacion as sim
 
@@ -122,6 +123,20 @@ def usar(
         return (
             f"{objeto.emoji} **{criatura.nombre}** gana **+{bonus} de "
             f"{objeto.stat}** durante {obj.MINUTOS_DE_EFECTO} minutos."
+        )
+
+    if objeto.es_sopaipilla:
+        caras = hue.caras_de(criatura.caracter, objeto.color)
+        gusto = hue.le_gusta(criatura.caracter, objeto.color)
+        # Un solo dado para las dos estadísticas: es un plato, no dos pociones.
+        bonus = (rng or random.Random()).randint(1, caras)
+        for stat in ("fuerza", "velocidad"):
+            db.poner_efecto(criatura.id, stat, bonus, ahora)
+        return (
+            f"{objeto.emoji} **{criatura.nombre}** se come una sopaipilla "
+            f"{objeto.color} — {gusto}.\n"
+            f"-# **+{bonus}** de fuerza y de velocidad (1d{caras}) durante "
+            f"{obj.MINUTOS_DE_EFECTO} minutos."
         )
 
     if objeto.dias_de_refugio:
@@ -287,7 +302,10 @@ class MenuTienda(discord.ui.Select):
                 description=objeto.descripcion[:100],
                 emoji=objeto.emoji,
             )
-            for clave, objeto in obj.CATALOGO.items()
+            # Sólo lo que está a la venta: los porotos y las sopaipillas viven
+            # en el catálogo porque van a la mochila y se regalan, pero no se
+            # compran, y además no cabrían en las 25 opciones de un desplegable.
+            for clave, objeto in obj.CATALOGO.items() if objeto.se_vende
         ]
         # Etiqueta y no pregunta, y con la moneda delante: comparte mensaje con
         # el de cosméticos, así que lo que hace falta es poder distinguirlos de
@@ -793,6 +811,162 @@ async def abrir_regalo(
         f"## 🎁 Un regalo para {para_nombre}\n"
         "-# Sale de tu mochila y le espera en su buzón. Puedes dejarle una nota.",
         view=VistaConMenu(MenuRegalar(tengo, para_id, para_nombre)),
+        ephemeral=True,
+    )
+
+
+# --- El huerto --------------------------------------------------------------
+
+def _cuando(bancal: hue.Bancal, ahora) -> str:
+    faltan = bancal.listo_en() - ahora
+    horas = faltan.total_seconds() / 3600
+    if horas <= 0:
+        return "listo para cosechar"
+    if horas < 1:
+        return f"le faltan {int(faltan.total_seconds() // 60)} min"
+    return f"le faltan {horas:.0f} h"
+
+
+def texto_del_huerto(usuario_id: str, guild_id: str, ahora) -> str:
+    hogar = db.hogar_leido(usuario_id, guild_id, ahora)
+    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
+    if not cuantos:
+        return (
+            "## 🌱 Huerto\n-# El refugio no tiene huerto. Cómprate una casa en "
+            "🛒 **Tienda**."
+        )
+
+    lineas = []
+    for bancal in db.huerto_de(usuario_id, guild_id, cuantos):
+        if not bancal.plantado:
+            lineas.append(f"`{bancal.numero}` 🟫 en barbecho")
+        elif bancal.listo(ahora):
+            lineas.append(f"`{bancal.numero}` 🌾 **listo para cosechar**")
+        else:
+            regado = " · regado" if bancal.regado else ""
+            lineas.append(f"`{bancal.numero}` 🌱 {_cuando(bancal, ahora)}{regado}")
+
+    semillas = db.inventario(usuario_id, guild_id).get("semilla", 0)
+    return (
+        f"## 🌱 Huerto de {hogar.casa.nombre}\n" + "\n".join(lineas) +
+        f"\n-# Semillas: **{semillas}** · tarda {hue.HORAS_DE_CULTIVO} h, "
+        f"o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} h si lo riegas.\n"
+        f"-# Sale un poroto de color al azar. Con "
+        f"{hue.POROTOS_POR_SOPAIPILLA} del mismo color se cocina una sopaipilla."
+    )
+
+
+def texto_resultado_huerto(resultado: economia.ResultadoHuerto, ahora) -> str:
+    if not resultado.ok:
+        return f"❌ {resultado.problema}"
+    if resultado.cosechado:
+        poroto = obj.CATALOGO[resultado.cosechado]
+        return (
+            f"{poroto.emoji} Ha salido un **{poroto.nombre}**.\n"
+            "-# Ya está en tu 🎒 **Mochila**. El bancal queda libre."
+        )
+    faltan = hue.Bancal(resultado.bancal)
+    espera = _cuando(
+        hue.Bancal(resultado.bancal, ahora,
+                   regado=resultado.listo_en != faltan.listo_en()),
+        ahora,
+    )
+    return f"🌱 Bancal `{resultado.bancal}`: {espera}."
+
+
+class MenuHuerto(discord.ui.Select):
+    """Un solo desplegable: cada bancal ofrece lo que toca ahora mismo.
+
+    Plantar, regar y cosechar en tres menús sería el mismo bancal escrito tres
+    veces; así cada renglón dice lo único que se puede hacer con él.
+    """
+
+    def __init__(self, bancales: list[hue.Bancal], ahora):
+        self.ahora = ahora
+        opciones = []
+        for bancal in bancales:
+            if not bancal.plantado:
+                accion, etiqueta, emoji = "plantar", "Plantar", "🌱"
+            elif bancal.listo(ahora):
+                accion, etiqueta, emoji = "cosechar", "Cosechar", "🌾"
+            elif bancal.puede_regarse(ahora):
+                accion, etiqueta, emoji = "regar", "Regar", "💧"
+            else:
+                continue                    # regado y creciendo: nada que hacer
+            opciones.append(discord.SelectOption(
+                label=f"{etiqueta} el bancal {bancal.numero}",
+                value=f"{accion}:{bancal.numero}",
+                emoji=emoji,
+            ))
+        super().__init__(placeholder="El huerto…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        accion, numero = self.values[0].split(":")
+        usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+        ahora = db.ahora_utc()
+        hacer = {
+            "plantar": economia.plantar,
+            "regar": economia.regar,
+            "cosechar": economia.cosechar,
+        }[accion]
+        resultado = hacer(usuario_id, guild_id, int(numero), ahora)
+        await interaccion.response.edit_message(
+            content=texto_resultado_huerto(resultado, ahora), view=None
+        )
+
+
+class MenuCocina(discord.ui.Select):
+    """Los colores de los que te llegan porotos para cocinar."""
+
+    def __init__(self, mochila: dict[str, int]):
+        opciones = []
+        for color in hue.COLORES:
+            cuantos = mochila.get(hue.clave_de_poroto(color), 0)
+            if cuantos < hue.POROTOS_POR_SOPAIPILLA:
+                continue
+            opciones.append(discord.SelectOption(
+                label=f"Sopaipilla {color}",
+                value=color,
+                description=f"gasta {hue.POROTOS_POR_SOPAIPILLA} de {cuantos}",
+                emoji=hue.EMOJI_COLOR[color],
+            ))
+        super().__init__(placeholder="Cocinar…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        resultado = economia.cocinar(
+            str(interaccion.user.id), str(interaccion.guild_id), self.values[0]
+        )
+        if not resultado.ok:
+            aviso = f"❌ {resultado.problema}"
+        else:
+            aviso = (
+                f"{resultado.sopaipilla.emoji} Cocinada una "
+                f"**{resultado.sopaipilla.nombre}**.\n"
+                "-# Dásela desde 🎒 **Mochila**: cuánto suba depende de si a tu "
+                "gachamon le gusta el color."
+            )
+        await interaccion.response.edit_message(content=aviso, view=None)
+
+
+async def abrir_huerto(interaccion: discord.Interaction) -> None:
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    ahora = db.ahora_utc()
+    hogar = db.hogar_leido(usuario_id, guild_id, ahora)
+    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
+    mochila = db.inventario(usuario_id, guild_id)
+
+    menus: list[discord.ui.Select] = []
+    if cuantos:
+        del_huerto = MenuHuerto(db.huerto_de(usuario_id, guild_id, cuantos), ahora)
+        if del_huerto.options:
+            menus.append(del_huerto)
+        cocina = MenuCocina(mochila)
+        if cocina.options:
+            menus.append(cocina)
+
+    await interaccion.response.send_message(
+        texto_del_huerto(usuario_id, guild_id, ahora),
+        view=VistaConMenu(*menus) if menus else None,
         ephemeral=True,
     )
 

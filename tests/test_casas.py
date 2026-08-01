@@ -924,3 +924,331 @@ def test_el_menu_del_buzon_cabe_en_discord():
     menu = tienda.MenuBuzon(db.buzon_de("u2", "g1"))
 
     assert len(menu.options) == 25
+
+
+# --- El huerto -------------------------------------------------------------
+
+import huerto as hue        # noqa: E402
+import random               # noqa: E402
+
+SEMILLA = objs.CATALOGO["semilla"]
+
+
+def con_huerto(clave="grande", semillas=10):
+    con_casa(clave)
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", "semilla", semillas)
+
+
+def bancales(usuario="u1", clave="grande"):
+    return db.huerto_de(usuario, "g1", hue.bancales_de(clave))
+
+
+# --- La tabla de gustos ---
+
+def test_cada_caracter_ordena_los_cinco_colores():
+    """Es lo que hace que el color importe: sin una lista completa por carácter,
+    `caras_de` reventaría con el que faltara."""
+    import personalidad as per
+
+    assert set(hue.AFINIDAD) == set(per.CARACTERES)
+    for caracter, orden in hue.AFINIDAD.items():
+        assert set(orden) == set(hue.COLORES), caracter
+        assert len(orden) == len(set(orden)) == len(hue.COLORES), caracter
+
+
+def test_los_cinco_dados_se_reparten_uno_por_puesto():
+    assert len(hue.CARAS_POR_PUESTO) == len(hue.COLORES)
+    assert list(hue.CARAS_POR_PUESTO) == sorted(hue.CARAS_POR_PUESTO, reverse=True)
+
+    for caracter, orden in hue.AFINIDAD.items():
+        caras = [hue.caras_de(caracter, color) for color in orden]
+        assert caras == list(hue.CARAS_POR_PUESTO), caracter
+
+
+def test_el_favorito_es_el_dado_mayor_y_el_peor_el_menor():
+    for caracter, orden in hue.AFINIDAD.items():
+        assert hue.caras_de(caracter, orden[0]) == 12, caracter
+        assert hue.caras_de(caracter, orden[-1]) == 4, caracter
+        assert "favorito" in hue.le_gusta(caracter, orden[0])
+        assert "detesta" in hue.le_gusta(caracter, orden[-1])
+
+
+def test_a_dos_caracteres_no_les_gusta_lo_mismo_en_el_mismo_orden():
+    """Si dos coincidieran, el carácter daría igual para media tabla."""
+    ordenes = [tuple(o) for o in hue.AFINIDAD.values()]
+    assert len(set(ordenes)) == len(ordenes)
+
+
+# --- Plantar, regar, cosechar ---
+
+def test_el_refugio_no_tiene_huerto():
+    resultado = economia.plantar("u1", "g1", 1, T0)
+
+    assert not resultado.ok
+    assert "refugio no tiene huerto" in resultado.problema
+
+
+def test_los_bancales_los_da_el_tamaño_de_la_casa():
+    assert hue.bancales_de(None) == 0
+    assert hue.bancales_de(cas.REFUGIO) == 0
+    por_tamano = sorted(cas.CATALOGO.values(), key=lambda c: c.tamano)
+    cuantos = [hue.bancales_de(c.clave) for c in por_tamano]
+    assert cuantos == sorted(cuantos) and cuantos[0] >= 1
+
+
+def test_plantar_gasta_una_semilla():
+    con_huerto(semillas=2)
+
+    resultado = economia.plantar("u1", "g1", 1, T0)
+
+    assert resultado.ok
+    assert db.inventario("u1", "g1")["semilla"] == 1
+    assert bancales()[0].plantado
+
+
+def test_sin_semillas_no_se_planta():
+    con_huerto(semillas=0)
+
+    resultado = economia.plantar("u1", "g1", 1, T0)
+
+    assert not resultado.ok and "semilla" in resultado.problema
+    assert not bancales()[0].plantado
+
+
+def test_no_se_planta_dos_veces_en_el_mismo_bancal():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+    quedan = db.inventario("u1", "g1")["semilla"]
+
+    repetida = economia.plantar("u1", "g1", 1, T0)
+
+    assert not repetida.ok and "ya hay algo" in repetida.problema
+    assert db.inventario("u1", "g1")["semilla"] == quedan
+
+
+def test_no_se_planta_en_un_bancal_que_no_tienes():
+    """La casa pequeña tiene uno: el segundo no es suyo aunque exista para otro."""
+    con_huerto("pequena")
+
+    resultado = economia.plantar("u1", "g1", 2, T0)
+
+    assert not resultado.ok and "no es tuyo" in resultado.problema
+
+
+def test_regar_adelanta_la_cosecha():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+
+    resultado = economia.regar("u1", "g1", 1, T0 + timedelta(hours=1))
+
+    assert resultado.ok
+    listo = bancales()[0].listo_en()
+    assert listo == T0 + timedelta(
+        hours=hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR
+    )
+    assert not bancales()[0].listo(T0 + timedelta(hours=4))
+    assert bancales()[0].listo(T0 + timedelta(hours=5))
+
+
+def test_no_se_riega_dos_veces_ni_lo_que_ya_esta_listo():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+    economia.regar("u1", "g1", 1, T0)
+
+    assert "Ya está regado" in economia.regar("u1", "g1", 1, T0).problema
+
+    economia.plantar("u1", "g1", 2, T0)
+    tarde = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+    assert "Ya está listo" in economia.regar("u1", "g1", 2, tarde).problema
+
+
+def test_no_se_riega_lo_que_no_esta_plantado():
+    con_huerto()
+    assert "no hay nada" in economia.regar("u1", "g1", 1, T0).problema
+
+
+def test_cosechar_da_un_poroto_y_deja_el_bancal_libre():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+
+    resultado = economia.cosechar("u1", "g1", 1, listo, random.Random(1))
+
+    assert resultado.ok
+    assert resultado.cosechado in {
+        hue.clave_de_poroto(c) for c in hue.COLORES
+    }
+    assert db.inventario("u1", "g1")[resultado.cosechado] == 1
+    assert not bancales()[0].plantado
+
+
+def test_no_se_cosecha_antes_de_tiempo():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+
+    resultado = economia.cosechar("u1", "g1", 1, T0 + timedelta(hours=1))
+
+    assert not resultado.ok and "Todavía no" in resultado.problema
+    assert bancales()[0].plantado
+
+
+def test_el_color_se_sortea_al_cosechar_y_no_al_sembrar():
+    """Si saliera al sembrar se podría mirar y replantar hasta que tocara el
+    color que interesa."""
+    con_huerto()
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+    salidos = set()
+    for _ in range(40):
+        economia.plantar("u1", "g1", 1, T0)
+        with db.conectar() as con:      # más semillas, que se acaban
+            db.guardar_en_la_mochila_en(con, "u1", "g1", "semilla", 1)
+        salidos.add(economia.cosechar("u1", "g1", 1, listo).cosechado)
+    assert len(salidos) > 1
+
+
+# --- Cocinar ---
+
+def test_cocinar_gasta_los_porotos_y_da_la_sopaipilla():
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(
+            con, "u1", "g1", hue.clave_de_poroto("rojo"),
+            hue.POROTOS_POR_SOPAIPILLA + 1,
+        )
+
+    resultado = economia.cocinar("u1", "g1", "rojo")
+
+    assert resultado.ok
+    mochila = db.inventario("u1", "g1")
+    assert mochila[hue.clave_de_poroto("rojo")] == 1
+    assert mochila[hue.clave_de_sopaipilla("rojo")] == 1
+
+
+def test_sin_porotos_suficientes_no_se_cocina_ni_se_gasta_nada():
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", hue.clave_de_poroto("rojo"), 2)
+
+    resultado = economia.cocinar("u1", "g1", "rojo")
+
+    assert not resultado.ok and "y tienes 2" in resultado.problema
+    assert db.inventario("u1", "g1")[hue.clave_de_poroto("rojo")] == 2
+
+
+def test_no_se_cocina_un_color_que_no_existe():
+    with pytest.raises(ValueError):
+        economia.cocinar("u1", "g1", "morado")
+
+
+# --- Comerse la sopaipilla ---
+
+def test_la_sopaipilla_sube_fuerza_y_velocidad_a_la_vez():
+    """Un plato, no dos pociones: el mismo número en las dos."""
+    bicho = nacer(especie="chispa")
+
+    aviso = tienda.usar(
+        bicho, objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], T0,
+        random.Random(3),
+    )
+
+    # `efectos_activos` devuelve (bonus, lo que queda), no sólo el número.
+    efectos = {
+        stat: bonus for stat, (bonus, _) in
+        db.efectos_activos(bicho.id, T0).items()
+    }
+    assert set(efectos) == {"fuerza", "velocidad"}
+    assert efectos["fuerza"] == efectos["velocidad"]
+    assert f"+{efectos['fuerza']}" in aviso
+
+
+def test_el_dado_de_la_sopaipilla_sale_del_caracter():
+    bicho = nacer()
+    favorito = hue.AFINIDAD[bicho.caracter][0]
+    peor = hue.AFINIDAD[bicho.caracter][-1]
+
+    bueno = tienda.usar(
+        bicho, objs.CATALOGO[hue.clave_de_sopaipilla(favorito)], T0
+    )
+    malo = tienda.usar(
+        bicho, objs.CATALOGO[hue.clave_de_sopaipilla(peor)], T0
+    )
+
+    assert "1d12" in bueno and "es su favorito" in bueno
+    assert "1d4" in malo and "lo detesta" in malo
+
+
+def test_la_sopaipilla_no_se_acumula():
+    """Como las pociones: la nueva sustituye a la anterior."""
+    bicho = nacer()
+    for _ in range(3):
+        tienda.usar(bicho, objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], T0)
+
+    efectos = db.efectos_activos(bicho.id, T0)
+    assert len(efectos) == 2                 # fuerza y velocidad, una de cada
+
+
+# --- Lo que no se vende ---
+
+def test_los_porotos_y_las_sopaipillas_no_se_compran():
+    for color in hue.COLORES:
+        for clave in (hue.clave_de_poroto(color), hue.clave_de_sopaipilla(color)):
+            assert not objs.CATALOGO[clave].se_vende, clave
+    assert objs.CATALOGO["semilla"].se_vende
+
+
+def test_el_poroto_se_puede_regalar_por_el_buzon():
+    """Media gracia de que haya colores: te sobran unos y te faltan otros."""
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", hue.clave_de_poroto("rojo"))
+
+    assert db.mandar_regalo(
+        "u1", "Felipe", "u2", "g1", hue.clave_de_poroto("rojo"), "te sobran", T0
+    )
+    assert "Poroto rojo" in tienda.texto_del_buzon("u2", "g1")
+
+
+# --- Lo que se ve ---
+
+def test_el_huerto_dice_lo_que_le_falta_a_cada_bancal():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+    economia.plantar("u1", "g1", 2, T0)
+    economia.regar("u1", "g1", 2, T0)
+
+    texto = tienda.texto_del_huerto("u1", "g1", T0 + timedelta(hours=6))
+
+    assert "barbecho" in texto                     # el tercero
+    assert "listo para cosechar" in texto          # el regado, a las 5 h
+    assert "le faltan 2 h" in texto                # el otro
+
+
+def test_el_huerto_del_refugio_lo_dice_y_no_ofrece_menu():
+    assert "El refugio no tiene huerto" in tienda.texto_del_huerto("u1", "g1", T0)
+
+
+def test_el_menu_del_huerto_ofrece_lo_que_toca_en_cada_bancal():
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+    economia.plantar("u1", "g1", 2, T0)
+    economia.regar("u1", "g1", 2, T0)
+
+    a_las_seis = T0 + timedelta(hours=6)
+    menu = tienda.MenuHuerto(bancales(), a_las_seis)
+
+    assert {o.value for o in menu.options} == {
+        "regar:1",        # plantado, sin regar, aún creciendo
+        "cosechar:2",     # regado y listo a las 5 h
+        "plantar:3",      # en barbecho
+    }
+
+
+def test_la_cocina_solo_ofrece_los_colores_que_te_llegan():
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(
+            con, "u1", "g1", hue.clave_de_poroto("rojo"),
+            hue.POROTOS_POR_SOPAIPILLA,
+        )
+        db.guardar_en_la_mochila_en(con, "u1", "g1", hue.clave_de_poroto("azul"), 1)
+
+    menu = tienda.MenuCocina(db.inventario("u1", "g1"))
+
+    assert {o.value for o in menu.options} == {"rojo"}

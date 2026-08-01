@@ -13,6 +13,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, replace
 
+import huerto as hue
 import simulacion as sim
 
 # Cuánto dura una poción de estadística. Cinco minutos y no uno: quien acepta un
@@ -52,6 +53,13 @@ class Objeto:
     # Devuelve una estancia entera en el refugio. Es la salida de la intemperie
     # para quien todavía no llega a una casa.
     dias_de_refugio: int = 0
+    # De qué color es, si es un poroto o una sopaipilla. Los porotos no hacen
+    # nada por sí solos —son ingrediente— y las sopaipillas dan el bonus.
+    color: str | None = None
+    es_sopaipilla: bool = False
+    # Si sale a la venta. Lo que se cosecha o se cocina no se compra, y además
+    # no cabría: la tienda ya roza las 25 opciones que admite un desplegable.
+    se_vende: bool = True
 
     @property
     def se_usa_en_mochila(self) -> bool:
@@ -62,7 +70,7 @@ class Objeto:
         """
         return bool(
             self.reinicia or self.stat or self.alimenta or self.renombra
-            or self.dias_de_refugio
+            or self.dias_de_refugio or self.es_sopaipilla
         )
 
     @property
@@ -74,6 +82,7 @@ class Objeto:
         """
         return bool(
             self.reinicia or self.stat or self.alimenta or self.dias_de_refugio
+            or self.es_sopaipilla
         )
 
 
@@ -202,3 +211,45 @@ def aplicar_a_la_criatura(objeto: Objeto, criatura: sim.Criatura) -> sim.Criatur
             criatura, hambre=min(100.0, criatura.hambre + objeto.alimenta)
         )
     return criatura
+
+
+# --- Lo del huerto ---------------------------------------------------------
+#
+# Nada de esto sale a la venta salvo la semilla: los porotos se cosechan y las
+# sopaipillas se cocinan. Van en el catálogo igual porque viven en la mochila y
+# se pueden regalar por el buzón, que es media gracia de tener colores.
+
+_registrar(Objeto(
+    clave="semilla",
+    nombre="Semilla de poroto",
+    emoji="🌱",
+    precio=15,
+    descripcion="Se planta en el huerto de tu casa. Sale un poroto de color al azar.",
+))
+
+for _color in hue.COLORES:
+    _registrar(Objeto(
+        clave=hue.clave_de_poroto(_color),
+        nombre=f"Poroto {_color}",
+        emoji=hue.EMOJI_COLOR[_color],
+        precio=0,
+        descripcion=(
+            f"Ingrediente. Con {hue.POROTOS_POR_SOPAIPILLA} se cocina una "
+            f"sopaipilla {_color}."
+        ),
+        color=_color,
+        se_vende=False,
+    ))
+    _registrar(Objeto(
+        clave=hue.clave_de_sopaipilla(_color),
+        nombre=f"Sopaipilla {_color}",
+        emoji="🥟",
+        precio=0,
+        descripcion=(
+            "Bonus de fuerza y velocidad a la vez, por unos minutos. Cuánto "
+            "depende de si a tu gachamon le gusta el color."
+        ),
+        color=_color,
+        es_sopaipilla=True,
+        se_vende=False,
+    ))

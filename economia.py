@@ -15,6 +15,7 @@ import casas as cas
 import competir as comp
 import cosmeticos as cos
 import db
+import huerto as hue
 import logros as lgr
 import objetos as obj
 import simulacion as sim
@@ -985,6 +986,155 @@ def retirar_mueble(
         return _recibo_mueble(
             con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
         )
+
+
+@dataclass(frozen=True)
+class ResultadoHuerto:
+    """Cómo salió plantar, regar o cosechar."""
+
+    ok: bool = False
+    bancal: int = 0
+    cosechado: str | None = None        # la clave del poroto que salió
+    listo_en: datetime | None = None
+    problema: str | None = None
+
+
+def _huerto_abierto(
+    con, usuario_id: str, guild_id: str, ahora: datetime
+) -> tuple[list[hue.Bancal], str | None]:
+    """Los bancales de tu casa, o por qué no tienes ninguno."""
+    hogar = db._hogar_leido(con, usuario_id, guild_id, ahora)
+    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
+    if not cuantos:
+        return [], (
+            "El refugio no tiene huerto. Cómprate una casa en 🛒 **Tienda**."
+        )
+    return db._huerto_de(con, usuario_id, guild_id, cuantos), None
+
+
+def plantar(
+    usuario_id: str, guild_id: str, bancal: int, ahora: datetime | None = None
+) -> ResultadoHuerto:
+    """Gasta una semilla y la siembra. El color se sortea al cosechar."""
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        bancales, estorbo = _huerto_abierto(con, usuario_id, guild_id, ahora)
+        if estorbo:
+            return ResultadoHuerto(problema=estorbo)
+        elegido = next((b for b in bancales if b.numero == bancal), None)
+        if elegido is None:
+            return ResultadoHuerto(problema="Ese bancal no es tuyo.")
+        if elegido.plantado:
+            return ResultadoHuerto(
+                bancal=bancal, problema="En ese bancal ya hay algo creciendo."
+            )
+        if not db.gastar_en(con, usuario_id, guild_id, "semilla"):
+            return ResultadoHuerto(
+                bancal=bancal,
+                problema="No te queda ninguna semilla. Cómpralas en 🛒 **Tienda**.",
+            )
+
+        db.plantar_en(con, usuario_id, guild_id, bancal, ahora)
+        return ResultadoHuerto(
+            ok=True, bancal=bancal,
+            listo_en=hue.Bancal(bancal, ahora).listo_en(),
+        )
+
+
+def regar(
+    usuario_id: str, guild_id: str, bancal: int, ahora: datetime | None = None
+) -> ResultadoHuerto:
+    """Adelanta la cosecha. Sólo mientras crece: regar lo listo no haría nada."""
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        bancales, estorbo = _huerto_abierto(con, usuario_id, guild_id, ahora)
+        if estorbo:
+            return ResultadoHuerto(problema=estorbo)
+        elegido = next((b for b in bancales if b.numero == bancal), None)
+        if elegido is None or not elegido.plantado:
+            return ResultadoHuerto(
+                bancal=bancal, problema="Ahí no hay nada plantado."
+            )
+        if elegido.regado:
+            return ResultadoHuerto(bancal=bancal, problema="Ya está regado.")
+        if elegido.listo(ahora):
+            return ResultadoHuerto(
+                bancal=bancal, problema="Ya está listo: cosecha y vuelve a sembrar."
+            )
+
+        db.regar_en(con, usuario_id, guild_id, bancal)
+        regado = replace(elegido, regado=True)
+        return ResultadoHuerto(ok=True, bancal=bancal, listo_en=regado.listo_en())
+
+
+def cosechar(
+    usuario_id: str, guild_id: str, bancal: int,
+    ahora: datetime | None = None, rng=None,
+) -> ResultadoHuerto:
+    """Recoge el poroto y deja el bancal en barbecho.
+
+    **El color se sortea aquí y no al sembrar**: así no hay forma de mirar lo que
+    va a salir ni de replantar hasta que salga el que interesa.
+    """
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        bancales, estorbo = _huerto_abierto(con, usuario_id, guild_id, ahora)
+        if estorbo:
+            return ResultadoHuerto(problema=estorbo)
+        elegido = next((b for b in bancales if b.numero == bancal), None)
+        if elegido is None or not elegido.plantado:
+            return ResultadoHuerto(
+                bancal=bancal, problema="Ahí no hay nada plantado."
+            )
+        if not elegido.listo(ahora):
+            return ResultadoHuerto(
+                bancal=bancal, listo_en=elegido.listo_en(),
+                problema="Todavía no está listo.",
+            )
+
+        clave = hue.clave_de_poroto(hue.tirar_color(rng))
+        db.guardar_en_la_mochila_en(con, usuario_id, guild_id, clave)
+        db.arrancar_en(con, usuario_id, guild_id, bancal)
+        return ResultadoHuerto(ok=True, bancal=bancal, cosechado=clave)
+
+
+@dataclass(frozen=True)
+class ResultadoCocina:
+    ok: bool = False
+    sopaipilla: obj.Objeto | None = None
+    problema: str | None = None
+
+
+def cocinar(
+    usuario_id: str, guild_id: str, color: str, ahora: datetime | None = None
+) -> ResultadoCocina:
+    """Cambia porotos de un color por una sopaipilla de ese color."""
+    if color not in hue.COLORES:
+        raise ValueError(f"color de poroto desconocido: {color!r}")
+
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        sopaipilla = obj.CATALOGO[hue.clave_de_sopaipilla(color)]
+        if not db.gastar_en(
+            con, usuario_id, guild_id, hue.clave_de_poroto(color),
+            hue.POROTOS_POR_SOPAIPILLA,
+        ):
+            tengo = db._inventario(con, usuario_id, guild_id).get(
+                hue.clave_de_poroto(color), 0
+            )
+            return ResultadoCocina(
+                problema=(
+                    f"Hacen falta {hue.POROTOS_POR_SOPAIPILLA} porotos "
+                    f"{color} y tienes {tengo}."
+                ),
+            )
+        db.guardar_en_la_mochila_en(
+            con, usuario_id, guild_id, sopaipilla.clave
+        )
+        return ResultadoCocina(ok=True, sopaipilla=sopaipilla)
 
 
 def equipar_cosmetico(

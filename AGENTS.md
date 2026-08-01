@@ -82,6 +82,10 @@ Instala el hook local cuando prepares el entorno:
 - Visitar una casa sólo mira: nunca le empieza a nadie su estancia en el refugio.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.
+- El huerto es de la casa: el refugio no tiene bancales.
+- El color del poroto se sortea al cosechar, nunca al sembrar.
+- Una sopaipilla da el mismo bonus a fuerza y velocidad, y no se acumula.
+- Lo que no se vende no sale de botín ni ocupa sitio en la tienda.
 - Casi todos los logros son de la criatura y se pierden con ella.
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
 - Los logros de la persona sobreviven a todo su plantel.

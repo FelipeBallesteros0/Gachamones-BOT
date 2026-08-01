@@ -19,6 +19,7 @@ import economia as eco
 import equipo
 import objetos as obj
 import especies as esp
+import huerto as hue
 import ia
 import jardin
 import logros as lgr
@@ -166,6 +167,12 @@ class CasaView(discord.ui.View):
     async def amueblar(self, interaccion: discord.Interaction, boton) -> None:
         if await self._es_tuya(interaccion):
             await tienda.abrir_amueblar(interaccion)
+
+    @discord.ui.button(label="Huerto", emoji="🌱",
+                       style=discord.ButtonStyle.success)
+    async def huerto(self, interaccion: discord.Interaction, boton) -> None:
+        if await self._es_tuya(interaccion):
+            await tienda.abrir_huerto(interaccion)
 
     @discord.ui.button(style=discord.ButtonStyle.secondary)
     async def visitas(self, interaccion: discord.Interaction, boton) -> None:
@@ -346,6 +353,12 @@ intemperie** todo le baja un {int((cas.PENALIZACION_INTEMPERIE - 1) * 100)} % \
 más rápido, pero **no puede matarlo**: la comida se queda en \
 {int(cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)}. El 🎟️ **ticket del refugio** \
 (🪙 {obj.CATALOGO["ticket_refugio"].precio}) te devuelve una semana bajo techo.
+
+**El huerto**
+Tu casa trae bancales —{" · ".join(f"**{cas.CATALOGO[c].nombre}** {n}" for c, n in hue.BANCALES.items())}— y con 🌱 **Huerto** en `/casa` se siembra. \
+Cada semilla (🪙 {obj.CATALOGO["semilla"].precio}) tarda **{hue.HORAS_DE_CULTIVO} h**, o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} si la riegas, y sale un **poroto de color al azar**.
+-# Con **{hue.POROTOS_POR_SOPAIPILLA} porotos del mismo color** cocinas una sopaipilla. Al comérsela, tu gachamon gana el **mismo bonus de fuerza y de velocidad** durante {obj.MINUTOS_DE_EFECTO} min — y el dado sale de si le gusta ese color: **1d12** el favorito de su carácter, **1d4** el que detesta.
+-# Por eso te sobrarán colores y te faltarán otros: se regalan por el buzón.
 
 **Vecinos**
 `/visitar @alguien` — su casa y sus gachamones, y el botón 🎁 para dejarle algo \

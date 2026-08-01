@@ -705,9 +705,13 @@ def tirar_objeto(rng: random.Random | None = None) -> obj.Objeto:
     Las golosinas y las pociones pequeñas son corrientes; una de 1d12 es un
     hallazgo. Se apoya en los precios que ya existen en vez de mantener una
     segunda tabla que se desincronizaría al tocar la tienda.
+
+    Sólo se encuentra lo que está a la venta. Lo demás —porotos y sopaipillas—
+    se cosecha y se cocina, y además vale 0: repartir por el precio daría una
+    división por cero, que es exactamente cómo se descubrió.
     """
     rng = rng or random.Random()
-    objetos = list(obj.CATALOGO.values())
+    objetos = [o for o in obj.CATALOGO.values() if o.se_vende]
     pesos = [max(1, 100 // o.precio) for o in objetos]
     return rng.choices(objetos, weights=pesos, k=1)[0]
 

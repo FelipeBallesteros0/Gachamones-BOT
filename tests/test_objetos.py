@@ -1,6 +1,7 @@
 """El catálogo de consumibles: precios, dados y qué hace cada uno."""
 import random
 
+import huerto as hue
 import objetos as obj
 import simulacion as sim
 
@@ -21,9 +22,12 @@ class DadoFijo(random.Random):
 
 def test_estan_los_objetos_pedidos():
     """Una poción de comida, cinco tamaños por cada estadística, los dos
-    reinicios de enfriamiento, la placa con nombre, las golosinas y el ticket
-    del refugio."""
-    assert len(obj.CATALOGO) == 16
+    reinicios de enfriamiento, la placa con nombre, las golosinas, el ticket del
+    refugio y la semilla. Y aparte, lo que no se vende: un poroto y una
+    sopaipilla por color."""
+    a_la_venta = [o for o in obj.CATALOGO.values() if o.se_vende]
+    assert len(a_la_venta) == 17
+    assert len(obj.CATALOGO) == 17 + 2 * len(hue.COLORES)
 
     caras = sorted(o.caras for o in obj.CATALOGO.values() if o.stat == "fuerza")
     assert caras == [4, 6, 8, 10, 12]
@@ -35,7 +39,9 @@ def test_estan_los_objetos_pedidos():
 def test_todo_objeto_tiene_precio_nombre_y_clave_distinta():
     for clave, objeto in obj.CATALOGO.items():
         assert objeto.clave == clave, clave
-        assert objeto.precio > 0, clave
+        # Lo que no se vende no tiene por qué valer nada: los porotos se
+        # cosechan y las sopaipillas se cocinan.
+        assert (objeto.precio > 0) == objeto.se_vende, clave
         assert objeto.nombre.strip(), clave
         assert objeto.emoji.strip(), clave
         assert objeto.descripcion.strip(), clave
@@ -56,9 +62,14 @@ def test_cuanto_mas_grande_el_dado_mas_caro():
         assert len(set(precios)) == len(precios), (stat, precios)
 
 
-def test_el_catalogo_cabe_en_un_desplegable_de_discord():
-    """Discord no admite más de 25 opciones en un menú."""
-    assert len(obj.CATALOGO) <= 25
+def test_lo_que_se_vende_cabe_en_un_desplegable_de_discord():
+    """Discord no admite más de 25 opciones en un menú.
+
+    Se mide sobre lo que sale a la venta y no sobre el catálogo entero: los
+    porotos y las sopaipillas están en él para poder vivir en la mochila y
+    regalarse, pero la tienda no los ofrece. El catálogo entero ya se pasa.
+    """
+    assert len([o for o in obj.CATALOGO.values() if o.se_vende]) <= 25
 
 
 # --- Las pociones de estadística -------------------------------------------
@@ -134,7 +145,7 @@ def test_los_reinicios_apuntan_a_acciones_de_verdad():
 def _efectos(objeto) -> list[bool]:
     return [objeto.stat is not None, objeto.reinicia is not None,
             bool(objeto.alimenta), objeto.renombra, objeto.ceba,
-            bool(objeto.dias_de_refugio)]
+            bool(objeto.dias_de_refugio), objeto.es_sopaipilla]
 
 
 def test_todo_objeto_hace_al_menos_una_cosa():
@@ -143,9 +154,27 @@ def test_todo_objeto_hace_al_menos_una_cosa():
 
     Antes exigía **exactamente** una cosa, y eso prohibía justo lo que ahora se
     quiere: las golosinas alimentan y además sirven de cebo. Lo que no puede
-    haber es un objeto sin ningún efecto."""
+    haber es un objeto sin ningún efecto.
+
+    Los ingredientes quedan fuera: un poroto no hace nada por sí solo —para eso
+    es ingrediente— y la semilla se planta en el huerto, no se usa desde la
+    mochila. Lo que se vende sin efecto y sin uso sí sería un timo.
+    """
+    ingredientes = {hue.clave_de_poroto(c) for c in hue.COLORES} | {"semilla"}
     for clave, objeto in obj.CATALOGO.items():
+        if clave in ingredientes:
+            continue
         assert any(_efectos(objeto)), clave
+
+
+def test_los_ingredientes_dicen_para_qué_son():
+    """No hacen nada al usarlos, así que su descripción es lo único que evita
+    que parezcan un objeto roto."""
+    for color in hue.COLORES:
+        poroto = obj.CATALOGO[hue.clave_de_poroto(color)]
+        assert "sopaipilla" in poroto.descripcion.lower(), color
+        assert not poroto.se_usa_en_mochila, color
+    assert "huerto" in obj.CATALOGO["semilla"].descripcion.lower()
 
 
 def test_un_objeto_de_dos_usos_lo_dice_en_su_descripcion():
@@ -168,7 +197,8 @@ def test_lo_que_no_se_usa_en_la_mochila_esta_declarado():
     tiene que coincidir con lo que el objeto hace de verdad."""
     for clave, objeto in obj.CATALOGO.items():
         esperado = bool(objeto.stat or objeto.reinicia or objeto.alimenta
-                        or objeto.renombra or objeto.dias_de_refugio)
+                        or objeto.renombra or objeto.dias_de_refugio
+                        or objeto.es_sopaipilla)
         assert objeto.se_usa_en_mochila == esperado, clave
 
 

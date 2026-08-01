@@ -794,10 +794,15 @@ def test_los_objetos_raros_salen_menos():
     assert cuenta[caro.clave] > 0, "pero salir, sale"
 
 
-def test_todo_el_catalogo_puede_encontrarse():
+def test_todo_lo_que_se_vende_puede_encontrarse():
+    """Y sólo eso: los porotos se cosechan y las sopaipillas se cocinan.
+
+    Además valen 0, así que repartir por el precio como hace `tirar_objeto`
+    daría una división por cero. Así se descubrió.
+    """
     rng = random.Random(5)
     vistos = {av.tirar_objeto(rng).clave for _ in range(20000)}
-    assert vistos == set(obj.CATALOGO)
+    assert vistos == {c for c, o in obj.CATALOGO.items() if o.se_vende}
 
 
 # --- El salvaje ------------------------------------------------------------

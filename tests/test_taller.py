@@ -330,12 +330,13 @@ def test_los_dos_desplegables_de_la_tienda_caben_en_discord():
     consumibles = tienda.MenuTienda()
     cosmeticos = tienda.MenuCosmeticos()
 
-    assert len(consumibles.options) == len(obj.CATALOGO) <= 25
+    a_la_venta = [o for o in obj.CATALOGO.values() if o.se_vende]
+    assert len(consumibles.options) == len(a_la_venta) <= 25
     assert len(cosmeticos.options) == len(cos.CATALOGO) <= 25
     for menu in (consumibles, cosmeticos):
         assert all(1 <= len(o.label) <= 100 for o in menu.options)
     # Y los dos juntos NO caben, que es el motivo de que estén separados.
-    assert len(obj.CATALOGO) + len(cos.CATALOGO) > 25
+    assert len(a_la_venta) + len(cos.CATALOGO) > 25
 
 
 def test_los_dos_desplegables_de_la_tienda_se_etiquetan_a_juego():
