@@ -251,9 +251,9 @@ def es_simetrica(linea: str) -> bool:
 
 
 def test_lo_que_es_simetrico_va_centrado():
-    """Regresión: el Michi cría salía con la cara una columna a la izquierda de
+    """Regresión: el Purreon cría salía con la cara una columna a la izquierda de
     las orejas y los bigotes, y se le veía torcido en Discord. Había cinco casos
-    así repartidos entre Michi, Slime, Dragoncito y Chispa.
+    así repartidos entre Purreon, Gelatín, Tsushimon y Pyro.
 
     El test de centrado general no los cazaba porque tolera hasta 1,5 de
     desviación, que es justo lo que necesitan las colas y los picos. La

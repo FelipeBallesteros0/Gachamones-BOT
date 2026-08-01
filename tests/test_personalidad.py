@@ -22,6 +22,13 @@ def criatura(**cambios) -> sim.Criatura:
     return sim.Criatura(**base)
 
 
+def censo(clave: str = "bosque") -> tuple[str, ...]:
+    """Quién vive en un bioma, leído del catálogo igual que en producción."""
+    import aventura as av
+
+    return av.BIOMAS[clave].nombres_especies
+
+
 # --- Cobertura -------------------------------------------------------------
 
 def test_todas_las_especies_tienen_personalidad():
@@ -190,7 +197,7 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
         per.prompt_jardin([c], T0)[0],
         per.prompt_aventura(c, "al bosque", [], av.NADA)[0],
         per.prompt_salvaje(salvaje, c, "hola")[0],
-        per.prompt_escena("al bosque", 1)[0],
+        per.prompt_escena("al bosque", 1, especies=censo())[0],
     )
 
     for prompt in prompts:
@@ -447,7 +454,7 @@ def test_la_semilla_vieja_es_justo_la_que_fallaba():
 
 
 def test_el_prompt_de_escena_pide_las_cuatro_claves_y_sitúa_el_bioma():
-    sistema, peticion = per.prompt_escena("al Volcán", 1)
+    sistema, peticion = per.prompt_escena("al Volcán", 1, especies=censo("volcan"))
 
     for clave in ("situacion", "fuerza", "velocidad", "volver"):
         assert f'"{clave}"' in sistema
@@ -462,7 +469,7 @@ def test_el_prompt_de_escena_no_le_cuenta_al_modelo_quién_va():
     A la escena no se le pasa la criatura: si el modelo supiera si es fuerte o
     rápida, escribiría la opción que le conviene, y quien decide es quien juega.
     Además se le prohíbe expresamente adelantar el resultado."""
-    sistema, _ = per.prompt_escena("al Bosque", 2)
+    sistema, _ = per.prompt_escena("al Bosque", 2, especies=censo())
 
     assert "no digas cuál es la buena" in sistema.lower()
     assert "no menciones al gachamon" in sistema.lower()
@@ -474,8 +481,10 @@ def test_en_el_segundo_nodo_es_donde_puede_aparecer_algo():
     """Es donde va el hallazgo. Lo que NO se le dice es de qué forma: un cofre
     era un ejemplo, y si se le nombra sólo eso, todas las escenas acaban siendo
     cofres."""
-    _, primera = per.prompt_escena("al Bosque", 1)
-    _, segunda = per.prompt_escena("al Bosque", 2, "Forzó la puerta.")
+    _, primera = per.prompt_escena("al Bosque", 1, especies=censo())
+    _, segunda = per.prompt_escena(
+        "al Bosque", 2, "Forzó la puerta.", especies=censo()
+    )
 
     assert "algo que se lleve" in segunda and "algo que se lleve" not in primera
     assert "cofre" not in segunda
@@ -485,7 +494,7 @@ def test_en_el_segundo_nodo_es_donde_puede_aparecer_algo():
 def test_el_prompt_de_escena_abre_la_mano_mas_alla_del_obstaculo():
     """Pedido tras jugarlo: cruzarse con alguien que te da algo, o que esté
     pasando una cosa, no sólo puertas trancadas."""
-    sistema, _ = per.prompt_escena("al Bosque", 1)
+    sistema, _ = per.prompt_escena("al Bosque", 1, especies=censo())
 
     assert "No sólo un obstáculo cerrado" in sistema
     for forma in ("viajero", "pastor", "tormenta", "gachamon"):

@@ -27,8 +27,8 @@ def test_una_criatura_tipica_aguanta_unas_73_horas():
 
 def test_el_rango_de_vida_entre_especies_es_el_previsto():
     """De 2,5 a 3,5 días: el ritmo indulgente que se pidió."""
-    frágil = sim.horas_de_vida(10)   # Chispa recién nacida
-    sana = sim.horas_de_vida(21)     # Brote sano
+    frágil = sim.horas_de_vida(10)   # Pyro recién nacido
+    sana = sim.horas_de_vida(21)     # Magora sana
     assert 60 <= frágil <= 64
     assert 84 <= sana <= 88
 

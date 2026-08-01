@@ -29,8 +29,8 @@ import especies as esp
 # --- Ritmo -----------------------------------------------------------------
 
 # El hambre baja 100 puntos en (40 + salud * 2.2) horas.
-# Salud típica al nacer (~15) -> ~73 h. Un Brote sano (~21) -> ~86 h.
-# Una Chispa frágil (~10) -> ~62 h. Todas entre 2,5 y 3,5 días.
+# Salud típica al nacer (~15) -> ~73 h. Una Magora sana (~21) -> ~86 h.
+# Un Pyro frágil (~10) -> ~62 h. Todas entre 2,5 y 3,5 días.
 HORAS_BASE_HAMBRE = 40.0
 HORAS_POR_SALUD = 2.2
 

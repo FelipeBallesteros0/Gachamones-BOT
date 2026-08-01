@@ -92,7 +92,7 @@ def test_no_se_come_el_nombre_si_forma_parte_de_la_frase():
 
 
 def test_quita_markdown_pero_respeta_los_asteriscos_del_personaje():
-    """*chisp* es la muletilla de Chispa: no se puede borrar."""
+    """*chisp* es la muletilla de Pyro: no se puede borrar."""
     assert "*chisp*" in ia.limpiar("*chisp* ¡Oye!", "Ceniza")
     assert ia.limpiar("## Hola\n- una cosa", "X") == "Hola\nuna cosa"
 
@@ -291,7 +291,7 @@ def test_cada_especie_cae_en_su_propio_respaldo():
         texto, _ = correr(ia.responder(
             c, T0, "felipe", [], "hola", transporte=transporte_roto,
         ))
-        # Concordadas: la de Chispa lleva marca de género («ocupad{o/a}»).
+        # Concordadas: la de Pyro lleva marca de género («ocupad{o/a}»).
         esperadas = [esp.concordar(f, c.genero) for f in per.VOCES[clave].respaldo]
         assert texto in esperadas
 
@@ -484,7 +484,7 @@ def test_una_respuesta_cortada_se_deja_en_la_ultima_frase_entera():
     acabaron los tokens. Publicar eso queda peor que decir una frase menos.
 
     Los puntos suspensivos cuentan como final bueno: son la muletilla de
-    Fantasma y de Brote, así que cortar ahí conserva más y suena natural."""
+    Duskhouse y de Magora, así que cortar ahí conserva más y suena natural."""
     texto = pedir_con(respuesta_cortada(
         "Pío... ¿ya volviste con esas preguntas? Pío pío... ¡hasta cuándo"))
     assert texto == "Pío... ¿ya volviste con esas preguntas? Pío pío..."
@@ -505,7 +505,7 @@ def test_si_acaba_bien_no_se_toca_aunque_venga_marcada_como_cortada():
 
 def test_una_respuesta_completa_no_se_recorta_nunca():
     """Sin `finish_reason: length` el texto va tal cual, aunque no lleve punto
-    final: hay criaturas que hablan así (Fantasma deja frases en el aire)."""
+    final: hay criaturas que hablan así (Duskhouse deja frases en el aire)."""
     texto = pedir_con(respuesta_cortada("Iba a decirte algo importante y",
                                         razon="stop"))
     assert texto == "Iba a decirte algo importante y"
@@ -683,7 +683,7 @@ def test_no_se_toca_un_parentesis_que_forma_parte_de_la_frase():
 
 
 def test_no_se_toca_una_acotacion_del_personaje():
-    """La muletilla de Chispa y las acotaciones con asteriscos se quedan."""
+    """La muletilla de Pyro y las acotaciones con asteriscos se quedan."""
     assert ia.limpiar("*chisp* No me toques.", "") == "*chisp* No me toques."
 
 

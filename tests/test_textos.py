@@ -45,7 +45,9 @@ def test_prompts_usan_gachamon_y_aventura_nombra_comida():
     viaje = per.prompt_aventura(
         c, "al bosque", [], aventura.NADA, aventura.PERCANCE
     )[0]
-    escena = per.prompt_escena("al bosque", 1)[0]
+    escena = per.prompt_escena(
+        "al bosque", 1, especies=aventura.BIOMAS["bosque"].nombres_especies
+    )[0]
     voz_salvaje = per.prompt_salvaje(salvaje, c, "hola")[0]
 
     assert "no les hablas directamente" in jardin
@@ -123,3 +125,53 @@ def test_ayuda_conserva_el_comando_mascota_y_el_limite_de_discord():
         "`/mascota @alguien` el de otro"
     ) in ayuda
     assert all(len(pagina) <= 2000 for pagina in paginas)
+
+
+# --- Los nombres de las especies -------------------------------------------
+#
+# Jugando salió «un grupo de chispas», y Chispa dejó de existir el 31 de julio:
+# hoy se llama Pyro. Lo que lo permitía es que a la escena se le pedía inventar
+# —incluso «otro gachamon que no deja pasar»— sin decirle qué especies hay.
+
+def test_la_escena_solo_puede_nombrar_a_los_del_bioma():
+    """El censo va en el prompt y sale del catálogo, no escrito aquí: así un
+    rebautizo futuro llega solo y este test no se puede quedar viejo."""
+    import especies as esp
+
+    for clave, bioma in aventura.BIOMAS.items():
+        sistema, _ = per.prompt_escena(
+            bioma.adonde, 1, especies=bioma.nombres_especies
+        )
+        for nombre in bioma.nombres_especies:
+            assert nombre in sistema, (clave, nombre)
+        for otra in esp.ESPECIES.values():
+            if otra.clave not in bioma.especies:
+                assert otra.nombre not in sistema, (clave, otra.nombre)
+        assert "Nunca te inventes nombres de especie." in sistema
+
+
+def test_el_censo_enumera_en_castellano():
+    """La «o» pasa a «u» ante palabra que empieza por o-, y en el catálogo hay
+    justo un caso: el Arrecife acaba en «Remolín u Octopul». No rompe nada y
+    canta al leerlo, que es exactamente lo que no cazaría ningún otro test."""
+    assert per.enumerar(("Pyro",)) == "Pyro"
+    assert per.enumerar(("Pyro", "Tsushimon")) == "Pyro o Tsushimon"
+    assert per.enumerar(("Geo", "Ostra")) == "Geo u Ostra"
+    assert per.enumerar(("Geo", "Hongo")) == "Geo u Hongo"
+    assert per.enumerar(aventura.BIOMAS["arrecife"].nombres_especies) == (
+        "Coralito, Nacar, Remolín u Octopul"
+    )
+
+
+def test_ninguna_pantalla_ensena_la_clave_de_la_especie():
+    """El invariante de fondo: lo que se guarda es la clave y lo que se ve es el
+    nombre. Diez especies tienen los dos distintos desde el rebautizo, y son las
+    únicas donde confundirlos se nota."""
+    import especies as esp
+
+    for especie in esp.ESPECIES.values():
+        if especie.clave.casefold() == especie.nombre.casefold():
+            continue
+        ficha = ANSI.sub("", pantalla.render(gachamon(especie=especie.clave), T0))
+        assert especie.nombre in ficha, especie.clave
+        assert especie.clave not in ficha.casefold(), especie.clave

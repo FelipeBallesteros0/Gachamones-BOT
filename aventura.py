@@ -66,6 +66,15 @@ class Bioma:
     def adonde(self) -> str:
         return f"{self.articulo} {self.nombre}"
 
+    @property
+    def nombres_especies(self) -> tuple[str, ...]:
+        """Quién vive aquí, con el nombre que se ve.
+
+        Sale del catálogo y no escrito, que es lo que hace que un rebautizo de
+        especie llegue solo hasta el prompt de las escenas.
+        """
+        return tuple(esp.ESPECIES[clave].nombre for clave in self.especies)
+
 
 BIOMAS: dict[str, Bioma] = {}
 

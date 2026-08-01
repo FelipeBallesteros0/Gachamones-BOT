@@ -119,7 +119,9 @@ async def _pedir_escena(
         return escrita
 
     db.registrar_uso_ia(usuario_id, ahora)
-    sistema, peticion = per.prompt_escena(bioma.adonde, nivel, antes)
+    sistema, peticion = per.prompt_escena(
+        bioma.adonde, nivel, antes, especies=bioma.nombres_especies
+    )
     crudo = await ia.generar_crudo(sistema, peticion)
     if not crudo:
         return escrita

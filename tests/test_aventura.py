@@ -514,7 +514,7 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
 
 def test_prompt_salvaje_oculta_el_caracter_y_conserva_su_conducta():
     salvaje = av.Salvaje(
-        "michi", "Michi", esp.MACHO, "sereno", (10, 10, 10)
+        "michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10)
     )
 
     sistema, _ = per.prompt_salvaje(salvaje, criatura(), "hola")
@@ -544,7 +544,7 @@ def test_aplicar_opcion_narra_el_cambio_mecanico_real(
     genero, opcion, paciencia, gasto, pista
 ):
     salvaje = av.Salvaje(
-        "michi", "Michi", genero, "sereno", (10, 10, 10)
+        "michi", esp.ESPECIES["michi"].nombre, genero, "sereno", (10, 10, 10)
     )
     antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=paciencia)
     despues = av.aplicar_opcion(antes, opcion, DadosFijos([1]))
@@ -631,7 +631,7 @@ def test_contestar_no_publica_el_nombre_del_caracter(
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     generar = AsyncMock(return_value=(frase_reportada, True))
     salvaje = av.Salvaje(
-        "michi", "Michi", genero, caracter, (10, 10, 10)
+        "michi", esp.ESPECIES["michi"].nombre, genero, caracter, (10, 10, 10)
     )
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)

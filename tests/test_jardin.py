@@ -151,7 +151,7 @@ def test_el_dibujo_no_se_deforma_al_colocarlo():
 
 
 def test_el_dibujo_sigue_centrado_bajo_su_nombre():
-    c = criatura(especie="chispa", nombre="Mr. Chispa")
+    c = criatura(especie="chispa", nombre="Mr. Pyro")
     b = jardin.bloque_de(c)
     colocadas = [b.linea(i) for i in range(len(b.lineas))]
 

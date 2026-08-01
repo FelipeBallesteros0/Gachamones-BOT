@@ -1,20 +1,20 @@
-"""Las 10 especies: arte ASCII por etapa, estadísticas base y rarezas.
+"""Las 25 especies: arte ASCII por etapa, estadísticas base y rarezas.
 
 Módulo puro: no importa discord ni toca la base de datos, así que se puede
 testear entero sin conexión.
 
 Cómo se guarda el arte
 ----------------------
-Cinco etapas por diez especies, y cada una con tres estados de ánimo, serían
-150 dibujos. Insostenible.
+Cinco etapas por veinticinco especies, y cada una con tres estados de ánimo,
+serían 375 dibujos. Insostenible.
 
 Pero mirando los dibujos, casi todos se diferencian **sólo en la cara**: el
-mismo cuerpo de Pollito con `^v^`, `o.o` o `T_T`. Así que cada etapa se guarda
+mismo cuerpo de Piollito con `^v^`, `o.o` o `T_T`. Así que cada etapa se guarda
 como una plantilla con un hueco `{cara}`, y cada especie declara sus tres
-caras. Resultado: **50 dibujos y los ánimos salen gratis**.
+caras. Resultado: **125 dibujos y los ánimos salen gratis**.
 
-Donde el ánimo cambia más que la cara —al Brote se le caen las hojas, la llama
-de Chispa mengua— se declara el dibujo completo en `excepciones`, que gana a la
+Donde el ánimo cambia más que la cara —a Magora se le caen las hojas, la llama
+de Pyro mengua— se declara el dibujo completo en `excepciones`, que gana a la
 plantilla.
 
 Las tres caras de una especie tienen que medir lo mismo: si no, sustituir una
@@ -112,7 +112,7 @@ class Especie:
     caras: dict[str, str]   # ánimo -> los caracteres que van en {cara}
     arte: dict[str, str]    # etapa -> plantilla
     # Concuerda con el NOMBRE de la especie, no con el género de la criatura:
-    # «una Chispa macho» es lo correcto, igual que «una jirafa macho». Son dos
+    # «una Magora macho» es lo correcto, igual que «una jirafa macho». Son dos
     # ejes distintos y no hay que mezclarlos.
     articulo: str = "un"
     excepciones: dict[tuple[str, str], str] = field(default_factory=dict)

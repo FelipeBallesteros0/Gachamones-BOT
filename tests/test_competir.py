@@ -564,8 +564,8 @@ def test_cada_gachamon_va_encima_de_su_cajon():
     encima del número va el techo del cajón, y encima del techo la cara, las tres
     piezas empezando en la misma columna.
 
-    Se prueban las diez especies porque la cara la pone la especie, y con caras
-    de distinto ancho el dibujo se torcería. (Hoy las diez miden 3, y hay un test
+    Se prueban las veinticinco porque la cara la pone la especie, y con caras
+    de distinto ancho el dibujo se torcería. (Hoy las 25 miden 3, y hay un test
     en `test_especies.py` que lo vigila; esto cuida el otro lado.)
     """
     for clave in esp.ESPECIES:

@@ -361,7 +361,7 @@ sereno, miedoso, valiente, gruñón, curioso, cariñoso, orgulloso, perezoso o
 travieso. Los dos salen en la ficha y no cambian nunca. **No tocan ninguna
 estadística**: sólo cómo habla y cómo se porta en el jardín, así que ninguna
 personalidad es mejor que otra. La personalidad se suma a la voz de la especie
-sin sustituirla: un Pedrusco travieso sigue siendo lento y de pocas palabras,
+sin sustituirla: un Geo travieso sigue siendo lento y de pocas palabras,
 pero con retranca.
 
 Todo lo que una criatura dice de sí misma lleva marcas de concordancia

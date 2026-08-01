@@ -47,7 +47,7 @@ def comprobar_marco(mensaje: str) -> None:
 
 
 def test_todas_las_especies_en_todos_los_estados_cuadran():
-    """10 especies x 3 ánimos x 2 etapas: 60 pantallas, ninguna descuadrada."""
+    """25 especies x 3 ánimos x 2 etapas: 150 pantallas, ninguna descuadrada."""
     for clave in esp.ESPECIES:
         for hambre, animo in ((90, 90), (50, 50), (10, 50)):
             for horas in (2, 48):  # cría y adulta

@@ -30,7 +30,7 @@ def _como_esta(criatura: sim.Criatura) -> str:
 
 
 def _resumen(criatura: sim.Criatura) -> str:
-    """`Pollito · adulto · nivel 3 · en la incubadora`, para la lista."""
+    """`Piollito · adulto · nivel 3 · en la incubadora`, para la lista."""
     definicion = criatura.def_especie
     etapa = esp.nombre_etapa(criatura.etapa, criatura.genero)
     return (

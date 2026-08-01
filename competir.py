@@ -531,8 +531,8 @@ MEDALLAS = ("🥇", "🥈", "🥉")
 PUESTOS_EN_EL_PODIO = 3
 
 # Cada cajón mide lo mismo que el token de un gachamón, `(` + cara + `)`, porque
-# las diez especies tienen la cara de tres caracteres exactos. Eso es lo que hace
-# que la cara caiga siempre justo encima de su cajón sin medir nada.
+# las veinticinco especies tienen la cara de tres caracteres exactos. Eso es lo
+# que hace que la cara caiga siempre justo encima de su cajón sin medir nada.
 ANCHO_CAJON = 5
 
 # Dónde empieza el cajón de cada puesto, en columnas del interior del marco.
@@ -686,7 +686,7 @@ def _renglones_del_cruce(resultado: Resultado) -> list[str]:
 
         Juan III   ─┐
                      ├─ Juan III
-        Michi      ─┘
+        Purreon    ─┘
 
     Las tres esquinas caen en la misma columna por construcción: la sangría del
     cruce es exactamente lo que ocupan el margen, el nombre y las dos rayas.
