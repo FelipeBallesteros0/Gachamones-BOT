@@ -19,7 +19,6 @@ from vistas import NombrarView, PantallaView
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
-    "taller",
 }
 
 
@@ -57,11 +56,9 @@ def test_los_comandos_directos_se_anuncian_como_toca():
     """`/mochila`, `/tienda` y `/plantel` abren lo que hasta ahora sólo estaba
     bajo los botones de la ficha. La descripción es lo único que se ve al
     escribir «/» en Discord, así que si miente el comando no se encuentra."""
-    import objetos as obj
-
     esperadas = {
         "mochila": "Abre tu mochila y usa lo que lleves",
-        "tienda": f"Compra objetos con {obj.MONEDA_TIENDA}",
+        "tienda": "Compra objetos y cosméticos",
         "plantel": "Mira tu plantel y cambia de gachamon activo",
     }
     directos = {c.name: c.description for c in _cargar_todo() if c.name in esperadas}
@@ -105,7 +102,8 @@ def test_los_botones_de_la_pantalla_son_persistentes():
     """Sin timeout y con custom_id fijo siguen funcionando tras un reinicio."""
     vista = PantallaView()
     assert vista.timeout is None
-    assert len(vista.children) == 8  # cinco acciones + mochila, tienda y plantel
+    # cinco acciones arriba; mochila, tienda, plantel y personalizar abajo
+    assert len(vista.children) == 9
 
     ids = [hijo.custom_id for hijo in vista.children]
     assert all(i and i.startswith("tama:") for i in ids)
@@ -113,9 +111,11 @@ def test_los_botones_de_la_pantalla_son_persistentes():
 
 
 def test_los_botones_caben_en_las_filas_de_discord():
-    """Discord no admite más de cinco por fila ni más de cinco filas. Con siete
-    hacen falta dos, y las de mochila y tienda van abajo a propósito, separadas
-    de las de cuidar."""
+    """Discord no admite más de cinco por fila ni más de cinco filas.
+
+    La de arriba está llena con los cinco cuidados, y por eso los que abren
+    menús —mochila, tienda, plantel y personalizar— van todos abajo. Es lo que
+    obligó a bajar el de personalizar, y sin este test nadie se acuerda."""
     from collections import Counter
 
     hijos = PantallaView().children
@@ -128,7 +128,8 @@ def test_los_botones_caben_en_las_filas_de_discord():
 def test_hay_un_boton_por_accion():
     acciones = {i.custom_id.split(":", 1)[1] for i in PantallaView().children}
     assert acciones == (
-        set(sim.ACCIONES_DE_CUIDADO) | {sim.ACTUALIZAR, "inventario", "tienda", "plantel"}
+        set(sim.ACCIONES_DE_CUIDADO)
+        | {sim.ACTUALIZAR, "inventario", "tienda", "plantel", "personalizar"}
     )
 
 

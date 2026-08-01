@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import config
+import cosmeticos as cos
 import especies as esp
 import logros as lgr
 import objetos as obj
@@ -182,6 +183,18 @@ CREATE TABLE IF NOT EXISTS logros_persona (
     clave TEXT NOT NULL,
     cuando TEXT NOT NULL,
     PRIMARY KEY (usuario_id, guild_id, clave)
+);
+
+-- Lo que has comprado, que no es lo mismo que lo que lleva puesto. Las cuatro
+-- columnas de `criaturas` siguen siendo lo puesto —uno de cada tipo, impuesto
+-- por el esquema— y esto es el armario de donde sale. Sin `cantidad`: una
+-- corona se tiene o no se tiene, y tener dos no significaría nada; la clave
+-- primaria es lo que lo impone y de paso lo que impide cobrarla dos veces.
+CREATE TABLE IF NOT EXISTS ropero (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    cosmetico TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id, cosmetico)
 );
 
 CREATE TABLE IF NOT EXISTS operaciones_economia (
@@ -423,6 +436,20 @@ def _migrar(con: sqlite3.Connection) -> None:
         (lgr.RECLUTADOS,),
     )
     con.execute("DELETE FROM marcador WHERE clave = ?", (lgr.RECLUTADOS,))
+
+    # Los cosméticos dejaron de comprarse puestos: ahora se compran al ropero de
+    # la persona y desde ahí se equipan y se quitan. Lo que cada gachamon lleve
+    # encima entra en el ropero de su dueño y **se queda puesto**, que es lo que
+    # hace que nadie note el cambio salvo por poder quitárselo.
+    #
+    # Las columnas no se tocan: siguen siendo lo puesto. Idempotente por el
+    # `OR IGNORE`, y al llegar aquí era cero filas.
+    for columna in cos.TIPOS:
+        con.execute(
+            "INSERT OR IGNORE INTO ropero (usuario_id, guild_id, cosmetico) "
+            f"SELECT usuario_id, guild_id, {columna} FROM criaturas "
+            f"WHERE {columna} IS NOT NULL"
+        )
 
 
 def ahora_utc() -> datetime:
@@ -1055,6 +1082,43 @@ def anotar_logro_de_persona_en(
         "INSERT OR IGNORE INTO logros_persona "
         "(usuario_id, guild_id, clave, cuando) VALUES (?, ?, ?, ?)",
         (usuario_id, guild_id, clave, cuando.isoformat()),
+    )
+    return bool(cursor.rowcount)
+
+
+# --- El ropero -------------------------------------------------------------
+#
+# Lo que tienes, no lo que llevas puesto. Lo puesto sigue en las cuatro columnas
+# de `criaturas`, que es lo que hace que sea uno de cada tipo sin comprobarlo.
+
+def ropero(usuario_id: str, guild_id: str) -> frozenset[str]:
+    with conectar() as con:
+        return _ropero(con, usuario_id, guild_id)
+
+
+def _ropero(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> frozenset[str]:
+    filas = con.execute(
+        "SELECT cosmetico FROM ropero WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchall()
+    return frozenset(f["cosmetico"] for f in filas)
+
+
+def guardar_en_el_ropero_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str
+) -> bool:
+    """Lo mete y dice si era nuevo. Falso si ya lo tenía.
+
+    Igual que `anotar_logro_en` y por lo mismo: lo que devuelve **es** la
+    garantía de que no se cobre dos veces, y quien llama sólo cobra lo que entró
+    de verdad.
+    """
+    cursor = con.execute(
+        "INSERT OR IGNORE INTO ropero (usuario_id, guild_id, cosmetico) "
+        "VALUES (?, ?, ?)",
+        (usuario_id, guild_id, clave),
     )
     return bool(cursor.rowcount)
 

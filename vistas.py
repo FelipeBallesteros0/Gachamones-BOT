@@ -132,6 +132,16 @@ class PantallaView(discord.ui.View):
             return
         await equipo.abrir_plantel(interaccion, congelar, bautizar, publicar_pantalla)
 
+    # Va en esta fila y no con los cuidados porque aquélla ya tiene los cinco
+    # botones que admite Discord. Encaja además con sus vecinos: abre un menú
+    # que sólo ve quien pulsa y no gasta enfriamiento.
+    @discord.ui.button(label="Personalizar", emoji="🎨", row=1,
+                       style=discord.ButtonStyle.secondary, custom_id="tama:personalizar")
+    async def personalizar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
+        if await _es_de_otro(interaccion):
+            return
+        await tienda.abrir_personalizacion(interaccion, republicar_ficha)
+
 
 class NombreModal(discord.ui.Modal, title="Ponle nombre"):
     """Bautizo. La criatura ya existe: esto sólo le cambia el nombre.
@@ -580,3 +590,20 @@ async def publicar_pantalla(
         mensaje = await canal.send(contenido)
     db.guardar_pantalla(criatura.id, str(mensaje.id), str(getattr(canal, "id")))
     return mensaje
+
+
+async def republicar_ficha(
+    interaccion: discord.Interaction, criatura: sim.Criatura
+) -> None:
+    """Vuelve a publicar la ficha porque el gachamon ha cambiado de aspecto.
+
+    Se le pasa a `tienda.abrir_personalizacion` igual que `congelar` al plantel:
+    ponerle una corona no se nota en ningún número, sólo en el dibujo, así que la
+    ficha vieja se quedaría mintiendo con los botones vivos.
+    """
+    if interaccion.channel is None:
+        return
+    try:
+        await publicar_pantalla(interaccion.channel, criatura, db.ahora_utc())
+    except (NotFound, Forbidden, HTTPException):
+        log.warning("No se pudo republicar la ficha tras vestirla", exc_info=True)

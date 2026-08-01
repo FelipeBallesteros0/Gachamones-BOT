@@ -646,54 +646,68 @@ def ejecutar_competencia(
 
 @dataclass(frozen=True)
 class ResultadoCosmetico:
-    """Cómo salió ponerle algo encima al gachamon."""
+    """Cómo salió comprar, poner o quitar un cosmético."""
 
     ok: bool = False
     criatura: sim.Criatura | None = None
     saldo: int = 0                  # asciigems que quedan
     problema: str | None = None
-    sustituido: cos.Cosmetico | None = None   # el que llevaba y se ha perdido
+    # El que llevaba de ese tipo y se ha quitado para dejar sitio. **No se
+    # pierde**: sigue en el ropero, que es de la persona.
+    sustituido: cos.Cosmetico | None = None
+
+
+def _vestir_en(
+    con, criatura: sim.Criatura, tipo: str, clave: str | None
+) -> tuple[sim.Criatura, cos.Cosmetico | None]:
+    """Le cambia una pieza y devuelve cómo queda y qué llevaba antes."""
+    llevaba = cos.buscar(getattr(criatura, tipo))
+    vestido = replace(criatura, **{tipo: clave})
+    db._guardar(con, vestido)
+    return vestido, llevaba
 
 
 def comprar_cosmetico(
-    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico,
-    ahora: datetime | None = None,
+    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico
 ) -> ResultadoCosmetico:
-    """Cobra las gemas y se lo pone al gachamon activo, en una transacción.
+    """Cobra las gemas, lo mete en tu ropero y se lo pone al activo.
 
     Como las compras de la tienda, la condición del cobro viaja **dentro** del
     UPDATE: así dos clics a la vez no pueden dejar el saldo en negativo pagando
     dos veces la última gema.
 
     No lleva fila en `operaciones_economia` porque allí sólo caben asciicoins
-    —lo dice su CHECK—, pero el doble clic sí hace falta pararlo: dos compras
-    del mismo sombrero cobrarían 120 gemas y dejarían un sombrero. Se para de la
-    forma que además es la que quiere quien juega: si ya lo lleva puesto, ni se
-    cobra ni se cambia nada.
+    —lo dice su CHECK—, pero el doble clic sí hace falta pararlo: dos compras del
+    mismo sombrero cobrarían 120 gemas y dejarían una corona. Lo para el ropero:
+    si ya lo tienes, ni se cobra ni se toca nada. Mirar antes de cobrar es seguro
+    porque el `BEGIN IMMEDIATE` pone en fila a los que escriben, así que el
+    segundo clic ya lo encuentra dentro.
 
-    Comprar otro **del mismo tipo** sí sustituye al anterior, que se pierde. Es
-    lo pedido, y por eso el resultado dice cuál se ha ido: cobrarle a alguien
-    sesenta gemas y quitarle la corona sin decírselo sería una faena.
+    Que además se lo ponga es a propósito, y no un efecto secundario: es lo que
+    espera quien acaba de gastarse sesenta gemas en una corona. Lo que llevara de
+    ese tipo se le quita pero **no se pierde**, que es la diferencia con antes.
+
+    Sin gachamon activo se puede comprar igual: va al ropero y se equipa cuando
+    haya a quién.
     """
     if cos.CATALOGO.get(cosmetico.clave) != cosmetico:
         raise ValueError("el cosmético no coincide con el catálogo actual")
 
-    ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         criatura = db.criatura_activa_en(con, usuario_id, guild_id)
-        if criatura is None:
-            return ResultadoCosmetico(
-                problema="No tienes ningún gachamon activo."
-            )
-        if getattr(criatura, cosmetico.tipo) == cosmetico.clave:
+        _asegurar_monedero(con, usuario_id, guild_id)
+
+        if cosmetico.clave in db._ropero(con, usuario_id, guild_id):
             return ResultadoCosmetico(
                 criatura=criatura,
                 saldo=_saldos_en(con, usuario_id, guild_id).asciigems,
-                problema=f"{criatura.nombre} ya lo lleva puesto.",
+                problema=(
+                    f"Ya tienes **{cosmetico.nombre}** en tu ropero. "
+                    "Póntelo desde 🎨 Personalizar."
+                ),
             )
 
-        _asegurar_monedero(con, usuario_id, guild_id)
         pagado = con.execute(
             "UPDATE monederos SET asciigems = asciigems - ? "
             "WHERE usuario_id = ? AND guild_id = ? AND asciigems >= ?",
@@ -709,11 +723,79 @@ def comprar_cosmetico(
                 ),
             )
 
-        sustituido = cos.buscar(getattr(criatura, cosmetico.tipo))
-        vestido = replace(criatura, **{cosmetico.tipo: cosmetico.clave})
-        db._guardar(con, vestido)
+        db.guardar_en_el_ropero_en(con, usuario_id, guild_id, cosmetico.clave)
+        if criatura is None:
+            return ResultadoCosmetico(ok=True, saldo=saldo)
+        vestido, sustituido = _vestir_en(
+            con, criatura, cosmetico.tipo, cosmetico.clave
+        )
         return ResultadoCosmetico(
             ok=True, criatura=vestido, saldo=saldo, sustituido=sustituido
+        )
+
+
+def equipar_cosmetico(
+    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico
+) -> ResultadoCosmetico:
+    """Le pone al activo algo que ya tienes. No cobra nada.
+
+    Exige tenerlo en el ropero, y eso se comprueba **dentro** de la transacción:
+    un menú abierto hace dos minutos puede ofrecer algo que ya no está.
+    """
+    if cos.CATALOGO.get(cosmetico.clave) != cosmetico:
+        raise ValueError("el cosmético no coincide con el catálogo actual")
+
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        saldo = _saldos_en(con, usuario_id, guild_id).asciigems
+        criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+        if criatura is None:
+            return ResultadoCosmetico(
+                saldo=saldo, problema="No tienes ningún gachamon activo."
+            )
+        if cosmetico.clave not in db._ropero(con, usuario_id, guild_id):
+            return ResultadoCosmetico(
+                criatura=criatura, saldo=saldo,
+                problema=f"No tienes **{cosmetico.nombre}** en tu ropero.",
+            )
+        if getattr(criatura, cosmetico.tipo) == cosmetico.clave:
+            return ResultadoCosmetico(
+                criatura=criatura, saldo=saldo,
+                problema=f"{sim.nombre_visible(criatura)} ya lo lleva puesto.",
+            )
+
+        vestido, sustituido = _vestir_en(
+            con, criatura, cosmetico.tipo, cosmetico.clave
+        )
+        return ResultadoCosmetico(
+            ok=True, criatura=vestido, saldo=saldo, sustituido=sustituido
+        )
+
+
+def quitar_cosmetico(
+    usuario_id: str, guild_id: str, tipo: str
+) -> ResultadoCosmetico:
+    """Le quita una pieza al activo. Se queda en el ropero, no se pierde."""
+    if tipo not in cos.TIPOS:
+        raise ValueError(f"tipo de cosmético desconocido: {tipo!r}")
+
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        saldo = _saldos_en(con, usuario_id, guild_id).asciigems
+        criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+        if criatura is None:
+            return ResultadoCosmetico(
+                saldo=saldo, problema="No tienes ningún gachamon activo."
+            )
+        if getattr(criatura, tipo) is None:
+            return ResultadoCosmetico(
+                criatura=criatura, saldo=saldo,
+                problema=f"{sim.nombre_visible(criatura)} no lleva nada de eso.",
+            )
+
+        desnudo, quitado = _vestir_en(con, criatura, tipo, None)
+        return ResultadoCosmetico(
+            ok=True, criatura=desnudo, saldo=saldo, sustituido=quitado
         )
 
 

@@ -255,13 +255,14 @@ los otros **{len(lgr.de_la_persona())}** son tuyos \
 gemas caen siempre en tu monedero: las de uno sirven para todo tu plantel.
 
 **Gastar {obj.EMOJI_GEMA} asciigems**
-`/taller` — le pones algo encima al gachamon **activo**, y se queda con él.
+En la misma 🛒 **Tienda**, abajo. Lo comprado va a tu **ropero** y se lo pones \
+a quien quieras con 🎨 **Personalizar**.
 -# 🎨 **tinte** ({cosm.PRECIOS[cosm.TINTE]}) le cambia el color · \
 👑 **sombrero** ({cosm.PRECIOS[cosm.SOMBRERO]}) le pone algo en la cabeza · \
 🖼️ **marco** ({cosm.PRECIOS[cosm.MARCO]}) cambia el borde de la ficha · \
 📜 **título** ({cosm.PRECIOS[cosm.TITULO]}) le añade un mote
--# Uno de cada tipo: el nuevo **sustituye** al que llevara, y el viejo se \
-pierde. No tocan ninguna estadística — son sólo para presumir."""
+-# Uno de cada tipo a la vez, y lo que le quites vuelve al ropero y sirve para \
+otro. No tocan ninguna estadística — son sólo para presumir."""
 
     return (tu_criatura, que_hacer, tus_cosas, tu_dinero)
 
@@ -442,15 +443,10 @@ class Social(commands.Cog):
     async def mochila(self, interaccion: discord.Interaction) -> None:
         await tienda.abrir_inventario(interaccion, vistas.congelar)
 
-    @app_commands.command(name="tienda", description=f"Compra objetos con {obj.MONEDA_TIENDA}")
+    @app_commands.command(name="tienda", description="Compra objetos y cosméticos")
     @comun.solo_en_el_canal()
     async def tienda_cmd(self, interaccion: discord.Interaction) -> None:
         await tienda.abrir_tienda(interaccion)
-
-    @app_commands.command(name="taller", description="Viste a tu gachamon con asciigems")
-    @comun.solo_en_el_canal()
-    async def taller(self, interaccion: discord.Interaction) -> None:
-        await tienda.abrir_taller(interaccion)
 
     @app_commands.command(name="plantel", description="Mira tu plantel y cambia de gachamon activo")
     @comun.solo_en_el_canal()

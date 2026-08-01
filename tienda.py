@@ -43,7 +43,8 @@ def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
     return (
         f"## {obj.EMOJI_MONEDA_TIENDA} Tienda\n"
         f"{_saldos(usuario_id, guild_id)}\n"
-        "-# Elige abajo lo que quieras comprar."
+        "-# Arriba los consumibles, que se usan desde 🎒 **Mochila**. "
+        "Abajo los cosméticos, que se ponen desde 🎨 **Personalizar**."
     )
 
 
@@ -293,11 +294,12 @@ class MenuTienda(discord.ui.Select):
         )
 
 
-# --- El taller: lo que se compra con gemas ----------------------------------
+# --- Los cosméticos ---------------------------------------------------------
 #
-# Aparte de la tienda porque es otra moneda y otra cosa: allí se compran
-# consumibles para la persona, aquí se le pone algo encima a **un** gachamon y
-# se queda con él. Comparte el patrón —un desplegable efímero— y nada más.
+# Se compran en la misma tienda que lo demás, pero en su propio desplegable: son
+# 15 objetos y 23 cosméticos, y en una lista de Discord caben 25. Lo que se
+# compra va a tu **ropero**, y ponérselo o quitárselo a un gachamon es otra
+# pantalla, la de 🎨 Personalizar.
 
 EMOJI_TIPO = {
     cos.TINTE: "🎨", cos.SOMBRERO: "👑", cos.MARCO: "🖼️", cos.TITULO: "📜",
@@ -323,56 +325,98 @@ def _lo_que_lleva(criatura: sim.Criatura | None) -> str:
     )
 
 
-def texto_del_taller(usuario_id: str, guild_id: str) -> str:
+def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
     criatura = db.criatura_activa(usuario_id, guild_id)
-    saldos = economia.saldos(usuario_id, guild_id)
+    tengo = len(db.ropero(usuario_id, guild_id))
+    if criatura is None:
+        return "## 🎨 Personalizar\n-# No tienes ningún gachamon activo."
+    if not tengo:
+        return (
+            f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
+            "Tu ropero está vacío. Cómprale algo en 🛒 **Tienda**.\n"
+            f"-# {obj.EMOJI_GEMA} asciigems: "
+            f"**{economia.saldos(usuario_id, guild_id).asciigems}**"
+        )
     return (
-        f"## {obj.EMOJI_GEMA} Taller\n"
-        f"{obj.EMOJI_GEMA} asciigems: **{saldos.asciigems}**\n"
+        f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
         f"{_lo_que_lleva(criatura)}\n"
-        "-# Se le pone al gachamon **activo** y se queda con él. Uno de cada "
-        "tipo: el nuevo sustituye al que llevara."
+        f"-# En tu ropero: **{tengo}** "
+        f"{'pieza' if tengo == 1 else 'piezas'}. Lo que le quites vuelve ahí."
     )
 
 
-def texto_resultado_cosmetico(
+def texto_resultado_compra_cosmetico(
     resultado: economia.ResultadoCosmetico, cosmetico: cos.Cosmetico
 ) -> str:
     if not resultado.ok:
         return f"❌ {resultado.problema}"
 
-    nombre = sim.nombre_visible(resultado.criatura)
-    linea = (
-        f"{EMOJI_TIPO[cosmetico.tipo]} **{nombre}** estrena "
-        f"**{cosmetico.nombre}**."
-    )
+    linea = f"{EMOJI_TIPO[cosmetico.tipo]} Comprado: **{cosmetico.nombre}**."
+    if resultado.criatura is not None:
+        linea += (
+            f" Se lo estrena **{sim.nombre_visible(resultado.criatura)}**."
+        )
+    else:
+        linea += " Está en tu ropero."
     if resultado.sustituido is not None:
-        linea += f"\n-# Se queda sin **{resultado.sustituido.nombre}**."
+        linea += (
+            f"\n-# Se le quita **{resultado.sustituido.nombre}**, que vuelve a "
+            "tu ropero."
+        )
     return (
         f"{linea}\n-# {obj.EMOJI_GEMA} -{cosmetico.precio} · "
         f"te quedan **{resultado.saldo}**."
     )
 
 
-class MenuTaller(discord.ui.Select):
-    """Los cosméticos en un solo desplegable.
+def texto_resultado_equipar(
+    resultado: economia.ResultadoCosmetico, cosmetico: cos.Cosmetico
+) -> str:
+    if not resultado.ok:
+        return f"❌ {resultado.problema}"
+    linea = (
+        f"{EMOJI_TIPO[cosmetico.tipo]} **{sim.nombre_visible(resultado.criatura)}** "
+        f"lleva ahora **{cosmetico.nombre}**."
+    )
+    if resultado.sustituido is not None:
+        linea += (
+            f"\n-# **{resultado.sustituido.nombre}** vuelve a tu ropero."
+        )
+    return linea
 
-    Caben los veintitrés en las 25 opciones que admite Discord, así que no hace
-    falta partirlo por tipos y meter un clic de más. Un test vigila el tope: el
-    día que no quepan, hay que partirlo.
+
+def texto_resultado_quitar(resultado: economia.ResultadoCosmetico) -> str:
+    if not resultado.ok:
+        return f"❌ {resultado.problema}"
+    return (
+        f"🧺 **{sim.nombre_visible(resultado.criatura)}** se queda sin "
+        f"**{resultado.sustituido.nombre}**.\n"
+        "-# Sigue en tu ropero: se lo puedes volver a poner cuando quieras."
+    )
+
+
+class MenuCosmeticos(discord.ui.Select):
+    """Los cosméticos de la tienda, en su propio desplegable.
+
+    Caben los veintitrés en las 25 opciones que admite Discord, y por eso van
+    aparte de los objetos: juntos serían 38 y no habría lista que los aguantara.
+    Un test vigila el tope: el día que no quepan, hay que partirlo por tipos.
     """
 
-    def __init__(self):
+    def __init__(self, tengo: frozenset[str] = frozenset()):
         opciones = [
             discord.SelectOption(
-                label=f"{cosmetico.nombre} — 💎 {cosmetico.precio}",
+                label=(
+                    f"{cosmetico.nombre} — ya lo tienes" if clave in tengo
+                    else f"{cosmetico.nombre} — 💎 {cosmetico.precio}"
+                ),
                 value=clave,
                 description=NOMBRE_TIPO[cosmetico.tipo],
                 emoji=EMOJI_TIPO[cosmetico.tipo],
             )
             for clave, cosmetico in cos.CATALOGO.items()
         ]
-        super().__init__(placeholder="¿Qué le pones?", options=opciones)
+        super().__init__(placeholder="💎 Cosméticos", options=opciones)
 
     async def callback(self, interaccion: discord.Interaction) -> None:
         cosmetico = cos.CATALOGO[self.values[0]]
@@ -380,16 +424,93 @@ class MenuTaller(discord.ui.Select):
             str(interaccion.user.id), str(interaccion.guild_id), cosmetico
         )
         await interaccion.response.edit_message(
-            content=texto_resultado_cosmetico(resultado, cosmetico), view=None
+            content=texto_resultado_compra_cosmetico(resultado, cosmetico),
+            view=None,
         )
 
 
-class VistaConMenu(discord.ui.View):
-    """Un desplegable suelto. Caduca solo: no tiene que sobrevivir a nada."""
+class MenuPonerCosmetico(discord.ui.Select):
+    """Lo que tienes en el ropero, para ponérselo al activo."""
 
-    def __init__(self, menu: discord.ui.Select):
+    def __init__(self, tengo: frozenset[str], refrescar=None):
+        self.refrescar = refrescar
+        opciones = [
+            discord.SelectOption(
+                label=cosmetico.nombre,
+                value=clave,
+                description=NOMBRE_TIPO[cosmetico.tipo],
+                emoji=EMOJI_TIPO[cosmetico.tipo],
+            )
+            for clave, cosmetico in cos.CATALOGO.items()
+            if clave in tengo
+        ]
+        super().__init__(placeholder="Ponerle…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        cosmetico = cos.CATALOGO[self.values[0]]
+        resultado = economia.equipar_cosmetico(
+            str(interaccion.user.id), str(interaccion.guild_id), cosmetico
+        )
+        await _contestar(
+            interaccion, texto_resultado_equipar(resultado, cosmetico),
+            resultado, self.refrescar,
+        )
+
+
+class MenuQuitarCosmetico(discord.ui.Select):
+    """Sólo lo que lleva puesto, que no pueden ser más de cuatro cosas.
+
+    Van en su propio desplegable y no mezclados con los de poner justamente por
+    eso: así ninguna de las dos listas depende de lo grande que sea el catálogo.
+    """
+
+    def __init__(self, criatura: sim.Criatura, refrescar=None):
+        self.refrescar = refrescar
+        opciones = []
+        for tipo in cos.TIPOS:
+            cosmetico = cos.buscar(getattr(criatura, tipo))
+            if cosmetico is not None:
+                opciones.append(discord.SelectOption(
+                    label=f"Quitar {cosmetico.nombre}",
+                    value=tipo,
+                    description=NOMBRE_TIPO[tipo],
+                    emoji=EMOJI_TIPO[tipo],
+                ))
+        super().__init__(placeholder="Quitarle…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        resultado = economia.quitar_cosmetico(
+            str(interaccion.user.id), str(interaccion.guild_id), self.values[0]
+        )
+        await _contestar(
+            interaccion, texto_resultado_quitar(resultado), resultado,
+            self.refrescar,
+        )
+
+
+async def _contestar(
+    interaccion: discord.Interaction,
+    aviso: str,
+    resultado: economia.ResultadoCosmetico,
+    refrescar,
+) -> None:
+    """Contesta y, si el gachamon ha cambiado de aspecto, republica su ficha."""
+    await interaccion.response.edit_message(content=aviso, view=None)
+    if resultado.ok and refrescar is not None:
+        await refrescar(interaccion, resultado.criatura)
+
+
+class VistaConMenu(discord.ui.View):
+    """Uno o varios desplegables sueltos. Caduca solo: no sobrevive a nada.
+
+    Discord admite cinco filas por mensaje y un desplegable ocupa una entera, así
+    que aquí caben cinco. La tienda usa dos y la personalización otros dos.
+    """
+
+    def __init__(self, *menus: discord.ui.Select):
         super().__init__(timeout=SEGUNDOS_DE_MENU)
-        self.add_item(menu)
+        for menu in menus:
+            self.add_item(menu)
 
 
 async def abrir_inventario(interaccion: discord.Interaction, congelar=None) -> None:
@@ -405,18 +526,34 @@ async def abrir_inventario(interaccion: discord.Interaction, congelar=None) -> N
 
 
 async def abrir_tienda(interaccion: discord.Interaction) -> None:
+    """Todo lo que se compra, en un solo sitio y con sus dos monedas."""
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
     await interaccion.response.send_message(
-        texto_de_la_tienda(str(interaccion.user.id), str(interaccion.guild_id)),
-        view=VistaConMenu(MenuTienda()),
+        texto_de_la_tienda(usuario_id, guild_id),
+        view=VistaConMenu(
+            MenuTienda(), MenuCosmeticos(db.ropero(usuario_id, guild_id))
+        ),
         ephemeral=True,
     )
 
 
-async def abrir_taller(interaccion: discord.Interaction) -> None:
+async def abrir_personalizacion(
+    interaccion: discord.Interaction, refrescar=None
+) -> None:
+    """Poner y quitar lo que ya tienes. Aquí no se cobra nada."""
     usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
-    hay_activo = db.criatura_activa(usuario_id, guild_id) is not None
+    criatura = db.criatura_activa(usuario_id, guild_id)
+    tengo = db.ropero(usuario_id, guild_id)
+
+    menus: list[discord.ui.Select] = []
+    if criatura is not None:
+        if tengo:
+            menus.append(MenuPonerCosmetico(tengo, refrescar))
+        if any(getattr(criatura, tipo) for tipo in cos.TIPOS):
+            menus.append(MenuQuitarCosmetico(criatura, refrescar))
+
     await interaccion.response.send_message(
-        texto_del_taller(usuario_id, guild_id),
-        view=VistaConMenu(MenuTaller()) if hay_activo else None,
+        texto_de_personalizacion(usuario_id, guild_id),
+        view=VistaConMenu(*menus) if menus else None,
         ephemeral=True,
     )
