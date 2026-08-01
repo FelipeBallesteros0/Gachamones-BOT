@@ -1,6 +1,7 @@
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false
 """Las mutaciones externas apagan la ficha viva que acaba de quedar obsoleta."""
 import asyncio
+import re
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -68,6 +69,38 @@ def test_recibo_de_entrenamiento_detalla_efecto_costo_recompensa_y_tope():
         "coste base -15 comida · coste base -10 ánimo · "
         "🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
+
+
+def test_recibos_de_cuidado_redondean_los_stats_vivos():
+    fraccionaria = replace(
+        criatura(1, "Mia", True, "ficha"),
+        hambre=89.5837,
+        animo=99.9991,
+        limpieza=42.4999,
+    )
+    resultado = economia.ResultadoCuidado(
+        criatura=fraccionaria,
+        mensaje="Ñam.",
+        delta_asciicoins=1,
+        usados=1,
+    )
+
+    recibos = {
+        accion: vistas.texto_recibo_cuidado(resultado, accion)
+        for accion in (sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR)
+    }
+    assert recibos[sim.ALIMENTAR] == (
+        "-# 🍖 Alimentar · comida 90 · ánimo 100 · +1 XP · "
+        "🪙 +1 asciicoins · cuidado 1/12 UTC"
+    )
+    assert recibos[sim.JUGAR] == (
+        "-# 🪀 Jugar · ánimo 100 · velocidad +1 entrenamiento · +2 XP · "
+        "coste base -5 comida · 🪙 +1 asciicoins · cuidado 1/12 UTC"
+    )
+
+    decimal_vivo = re.compile(r"(?:comida|ánimo|aseo) -?\d+\.\d+")
+    for recibo in recibos.values():
+        assert not decimal_vivo.search(f"{recibo} · versión 1.2.3")
 
 
 def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
