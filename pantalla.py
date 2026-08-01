@@ -156,9 +156,16 @@ def _lineas_arte(arte: str, color: str) -> list[str]:
     return salida
 
 
+def _entero(valor: float) -> int:
+    try:
+        return int(valor)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"número no representable: {valor!r}") from exc
+
+
 def formato_espera(restante: timedelta) -> str:
     """'listo', '12 min' o '1 h 20 min'."""
-    segundos = int(restante.total_seconds())
+    segundos = _entero(restante.total_seconds())
     if segundos <= 0:
         return "listo"
     minutos = (segundos + 59) // 60
@@ -172,9 +179,9 @@ def _formato_edad(horas: float) -> str:
     if horas < 1:
         return "recién nacida"
     if horas < 24:
-        return f"{int(horas)} h de vida"
-    dias = horas / 24
-    return f"{int(dias)} día{'s' if int(dias) != 1 else ''} de vida"
+        return f"{_entero(horas)} h de vida"
+    dias = _entero(horas / 24)
+    return f"{dias} día{'s' if dias != 1 else ''} de vida"
 
 
 ACCIONES_EN_FICHA = (*sim.ACCIONES_DE_CUIDADO, sim.COMPETIR, sim.AVENTURA)
@@ -187,6 +194,89 @@ ICONOS_ACCION = {
     sim.COMPETIR: "🏁",
     sim.AVENTURA: "🧭",
 }
+
+
+def _numero_tension(valor: float) -> str:
+    return f"{valor:.0f}"
+
+
+def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
+    impronta = sim.impronta_de(criatura)
+    anillo = "→".join(
+        {"fuerza": "FUE", "velocidad": "VEL", "salud": "SAL"}[stat]
+        for stat in impronta.anillo
+    )
+    afinidades = " · ".join(
+        f"{etiqueta} {afinidad:+.2f}"
+        for etiqueta, afinidad in zip(("FUE", "VEL", "SAL"), impronta.afinidades)
+        if afinidad
+    ) or "sin afinidad"
+    historial = criatura.historial_vetas
+    anteriores = max(
+        0,
+        criatura.niv_fuerza + criatura.niv_velocidad + criatura.niv_salud
+        - len(historial),
+    )
+    partes_trayectoria = []
+    if anteriores:
+        partes_trayectoria.append(f"{anteriores} anteriores sin trayectoria")
+    if historial:
+        recientes = "·".join(historial[-24:])
+        partes_trayectoria.append(
+            f"…·{recientes}" if len(historial) > 24 else recientes
+        )
+    trayectoria = " · ".join(partes_trayectoria) or "—"
+    return (
+        f"-# impronta · giro {'+' if impronta.giro == 1 else '-'} · anillo {anillo}"
+        f" · afinidad {afinidades}",
+        f"-# 🪵 tensión · FUE {_numero_tension(criatura.ten_fuerza)}"
+        f" · VEL {_numero_tension(criatura.ten_velocidad)}"
+        f" · SAL {_numero_tension(criatura.ten_salud)}"
+        f" · próxima veta a {_numero_tension(sim.umbral_veta(criatura))}",
+        f"-# vetas: {trayectoria}",
+    )
+
+
+def render_rupturas(
+    criatura: sim.Criatura, rupturas: tuple[sim.Ruptura, ...] | list[sim.Ruptura],
+) -> str:
+    """Anuncia vetas y cascadas fuera del arte ANSI."""
+    rupturas = tuple(rupturas)
+    if not rupturas:
+        return ""
+    etiquetas = {"fuerza": "FUE", "velocidad": "VEL", "salud": "SAL"}
+    nombres = " · ".join(etiquetas[r.stat] for r in rupturas)
+    cambios = " · ".join(
+        f"{etiquetas[ruptura.stat]} {ruptura.antes} → {ruptura.despues}"
+        for ruptura in rupturas
+    )
+    causas = {
+        sim.ALIMENTAR: "alimentar",
+        sim.JUGAR: "jugar",
+        sim.ENTRENAR: "entrenar",
+        sim.LIMPIAR: "limpiar",
+        sim.COMPETIR: "competir",
+        sim.AVENTURA: "la aventura",
+        "nivel": "subir de nivel",
+    }
+    origenes = " y ".join(dict.fromkeys(
+        causas.get(ruptura.causa, ruptura.causa)
+        for ruptura in rupturas if ruptura.causa
+    ))
+    cascadas = sum(ruptura.cascada for ruptura in rupturas)
+    if cascadas:
+        titulo = f"## 🪵🪵 ¡Cascada en {criatura.nombre}!"
+    elif len(rupturas) == 1:
+        titulo = f"## 🪵 A {criatura.nombre} le ha salido una veta de {nombres}"
+    else:
+        titulo = f"## 🪵 ¡{criatura.nombre} ha sacado {len(rupturas)} vetas!"
+    detalle = f"-# {cambios}"
+    if origenes:
+        detalle += f" · por {origenes}"
+    detalle += f" · próxima veta a {_numero_tension(sim.umbral_veta(criatura))}"
+    if cascadas:
+        detalle += f" · {cascadas} por cascada"
+    return f"{titulo}\n{detalle}"
 
 
 def render(
@@ -229,6 +319,7 @@ def render(
         cabecera.append(f"> {aviso}")
 
     partes = cabecera + ["```ansi", "\n".join(cuerpo), "```"]
+    partes.extend(_lineas_vetas(criatura))
 
     if asciicoins is not None:
         partes.append(f"-# 🪙 {asciicoins} asciicoins · 🎒 Mochila para gastarlos")
@@ -294,7 +385,8 @@ def render_lapida(criatura: sim.Criatura, ahora: datetime) -> str:
 
 
 def render_evolucion(
-    criatura: sim.Criatura, etapa_anterior: str, subidas: tuple[str, ...] = ()
+    criatura: sim.Criatura, etapa_anterior: str, subidas: tuple[str, ...] = (),
+    *, rupturas: tuple[sim.Ruptura, ...] = (),
 ) -> str:
     """El anuncio de que la criatura ha cambiado de etapa.
 
@@ -312,7 +404,12 @@ def render_evolucion(
     cuerpo.append("╰" + "─" * ANCHO + "╯")
 
     ganado = ""
-    if subidas:
+    if rupturas:
+        ganado = " · ".join(
+            f"veta {ruptura.stat}" for ruptura in rupturas
+        )
+    elif subidas:
+        # Compatibilidad con callers viejos que sólo conocían nombres de stat.
         cuenta: dict[str, int] = {}
         for stat in subidas:
             cuenta[stat] = cuenta.get(stat, 0) + 1
@@ -358,7 +455,7 @@ def render_revelacion(criatura: sim.Criatura, ahora: datetime) -> str:
         "\n".join(cuerpo),
         "```",
         f"-# Es {per.nombre_caracter(criatura)}. Aguantará unas "
-        f"{int(sim.horas_de_vida(criatura.salud))} h sin comer. "
+        f"{_entero(sim.horas_de_vida(criatura.salud))} h sin comer. "
         "Ahora ponle nombre.",
     ])
 

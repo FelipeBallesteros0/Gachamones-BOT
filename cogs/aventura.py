@@ -7,20 +7,23 @@ aceptable por lo mismo que allí.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
+import sqlite3
 from dataclasses import replace
 from datetime import timedelta
-from functools import partial
+from typing import cast
 
 import discord
-from discord import app_commands
+from discord import HTTPException, app_commands
 from discord.ext import commands
 
 import aventura as av
 import comun
 import config
 import db
+import economia
 import especies as esp
 import ia
 import objetos as obj
@@ -142,6 +145,7 @@ class ViajeView(discord.ui.View):
         self.viaje = viaje
         self.mensaje: discord.Message | None = None
         self._resuelto = False
+        self._resolucion = asyncio.Lock()
         self._poner_botones()
 
     def _poner_botones(self) -> None:
@@ -157,7 +161,10 @@ class ViajeView(discord.ui.View):
                 emoji=EMOJI_OPCION[opcion],
                 style=ESTILO_OPCION[opcion],
             )
-            boton.callback = partial(self._elegir, opcion)
+            async def callback(interaction: discord.Interaction, opcion=opcion):
+                await self._elegir(opcion, interaction)
+
+            boton.callback = callback
             self.add_item(boton)
 
     def texto(self) -> str:
@@ -180,38 +187,41 @@ class ViajeView(discord.ui.View):
 
     async def _elegir(self, opcion: str, interaccion: discord.Interaction) -> None:
         await interaccion.response.defer()
-        rng = random.Random()
-        anterior = self.viaje
+        async with self._resolucion:
+            if self._resuelto:
+                return
+            rng = random.Random()
+            anterior = self.viaje
 
-        # Se tira PRIMERO y se pide la escena después. Al revés se gastaría una
-        # llamada al modelo en la mitad de los viajes que terminan aquí mismo.
-        self.viaje = av.avanzar(anterior, self.criatura, opcion, None, rng)
+            # Se tira PRIMERO y se pide la escena después. Al revés se gastaría una
+            # llamada al modelo en la mitad de los viajes que terminan aquí mismo.
+            self.viaje = av.avanzar(anterior, self.criatura, opcion, None, rng)
 
-        if self.viaje.sigue:
-            escena = await _pedir_escena(
-                self.viaje.bioma, self.viaje.nivel + 1,
-                _continuacion(anterior.escena, opcion),
-                str(self.dueño.id), db.ahora_utc(), rng, anterior.escena,
+            if self.viaje.sigue:
+                escena = await _pedir_escena(
+                    self.viaje.bioma, self.viaje.nivel + 1,
+                    _continuacion(anterior.escena, opcion),
+                    str(self.dueño.id), db.ahora_utc(), rng, anterior.escena,
+                )
+                self.viaje = replace(self.viaje, escena=escena)
+                self._poner_botones()
+                await self._editar(self.texto(), self)
+                return
+
+            self.stop()
+            await self._editar(self.texto(), None)
+            self._resuelto = True
+            await self.cog.resolver(
+                interaccion.channel, self.dueño, self.guild_id,
+                self.criatura, self.viaje,
             )
-            self.viaje = replace(self.viaje, escena=escena)
-            self._poner_botones()
-            await self._editar(self.texto(), self)
-            return
-
-        self.stop()
-        await self._editar(self.texto(), None)
-        await self.cog.resolver(
-            interaccion.channel, self.dueño, self.guild_id,
-            self.criatura, self.viaje,
-        )
-        self._resuelto = True
 
     async def _editar(self, cuerpo: str, vista) -> None:
         if self.mensaje is None:
             return
         try:
             await self.mensaje.edit(content=cuerpo, view=vista)
-        except discord.HTTPException:
+        except HTTPException:
             log.warning("No se pudo actualizar la aventura", exc_info=True)
 
     async def on_timeout(self) -> None:
@@ -220,14 +230,15 @@ class ViajeView(discord.ui.View):
         Si no se resolviera, quien se distrae se quedaría con el enfriamiento
         puesto y sin nada a cambio, que es peor que volver con las manos vacías.
         """
-        if self._resuelto or self.mensaje is None:
-            return
-        self._resuelto = True
-        await self._editar(f"{self.texto()}\n\n⌛ Se hizo tarde y volvió.", None)
-        await self.cog.resolver(
-            self.mensaje.channel, self.dueño, self.guild_id,
-            self.criatura, self.viaje,
-        )
+        async with self._resolucion:
+            if self._resuelto or self.mensaje is None:
+                return
+            await self._editar(f"{self.texto()}\n\n⌛ Se hizo tarde y volvió.", None)
+            self._resuelto = True
+            await self.cog.resolver(
+                self.mensaje.channel, self.dueño, self.guild_id,
+                self.criatura, self.viaje,
+            )
 
 
 def _continuacion(escena: av.Escena, opcion: str) -> str:
@@ -258,7 +269,7 @@ class EncuentroView(discord.ui.View):
         """Las golosinas sólo salen si te queda alguna."""
         tiene = db.inventario(str(self.dueño.id), self.guild_id).get("golosinas", 0)
         for hijo in self.children:
-            if getattr(hijo, "custom_id", None) == "av:golosinas":
+            if isinstance(hijo, discord.ui.Button) and hijo.custom_id == "av:golosinas":
                 hijo.disabled = tiene <= 0
                 hijo.label = f"Golosinas ({tiene})"
 
@@ -380,7 +391,7 @@ class EncuentroView(discord.ui.View):
                 canal_id=str(interaccion.channel_id),
                 activa=False,  # a la incubadora: no te cambia el activo sin avisar
             )
-        except Exception as error:
+        except (ValueError, sqlite3.IntegrityError) as error:
             # Tope de plantel (`ValueError`) o el índice único si alguien metió
             # otro por medio. De cara a quien juega significan lo mismo.
             log.warning("No se pudo reclutar: %s", error)
@@ -406,7 +417,7 @@ class EncuentroView(discord.ui.View):
             await interaccion.edit_original_response(
                 content=self.texto(cuerpo), view=vista
             )
-        except discord.HTTPException:
+        except HTTPException:
             log.warning("No se pudo actualizar el encuentro", exc_info=True)
 
     async def on_timeout(self) -> None:
@@ -416,13 +427,13 @@ class EncuentroView(discord.ui.View):
             await self.mensaje.edit(
                 content=self.texto("⌛ Se cansó de esperar y se fue."), view=None
             )
-        except discord.HTTPException:
+        except HTTPException:
             log.debug("No se pudo cerrar el encuentro caducado", exc_info=True)
 
 
-class HablarModal(discord.ui.Modal, title="¿Qué le dices?"):
+class HablarModal(discord.ui.Modal):
     def __init__(self, vista: EncuentroView):
-        super().__init__()
+        super().__init__(title="¿Qué le dices?")
         self.vista = vista
         self.dicho = discord.ui.TextInput(
             label="¿Qué le dices?",
@@ -481,6 +492,8 @@ class Aventura(commands.Cog):
         if problema:
             await interaccion.response.send_message(problema, ephemeral=True)
             return
+        # La función de validación sólo deja pasar a una activa viva.
+        assert criatura is not None
 
         rng = random.Random()
         bioma = av.elegir_bioma(rng)
@@ -489,14 +502,16 @@ class Aventura(commands.Cog):
         # minutos y sin esto se podrían abrir diez aventuras a la vez.
         db.poner_cooldown_persona(usuario_id, guild_id, sim.AVENTURA, ahora)
 
-        canal = interaccion.channel
+        canal = cast(discord.abc.Messageable, interaccion.channel)
         canal_anterior = vistas._canal_anterior(canal, criatura)
         await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
         await interaccion.response.defer()
 
         escena = await _pedir_escena(bioma, 1, "", usuario_id, ahora, rng)
         viaje = av.Viaje(bioma=bioma, escena=escena)
-        vista = ViajeView(self, interaccion.user, guild_id, criatura, viaje)
+        vista = ViajeView(
+            self, cast(discord.User, interaccion.user), guild_id, criatura, viaje
+        )
         vista.mensaje = await interaccion.followup.send(
             vista.texto(), view=vista, wait=True
         )
@@ -519,13 +534,22 @@ class Aventura(commands.Cog):
         hallazgo = av.tirar_hallazgo(viaje.nodos_superados, hueco, rng)
         percance = av.tirar_percance(salida, rng)
 
-        # El desgaste se aplica pase lo que pase: el viaje ya se ha hecho. La XP
-        # sólo llega si vuelve con vida.
-        cansada, subidas = av.aplicar_viaje(criatura, salida, ahora, percance, rng)
-        db.guardar(cansada)
+        # La aventura no tiene ledger de replay, pero sí una frontera
+        # autoritativa: recarga el activo, valida que siga siendo el mismo y
+        # confirma desgaste + VETAS antes de publicar cualquier resultado.
+        confirmado = economia.ejecutar_viaje(
+            usuario_id, guild_id, criatura.id, salida, ahora, percance
+        )
+        if confirmado.problema or confirmado.criatura is None:
+            await canal.send(f"❌ Se cancela: {confirmado.problema or 'No hay un gachamon activo.'}")
+            return
+        cansada = confirmado.criatura
+        criatura_avanzada = confirmado.antes or criatura
+        rupturas = confirmado.rupturas
 
         pruebas = av.render_pruebas(
-            criatura, viaje.bioma, salida, percance, dueño=dueño.display_name
+            criatura_avanzada, viaje.bioma, salida, percance,
+            dueño=dueño.display_name,
         )
         if cansada.viva:
             pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
@@ -535,18 +559,20 @@ class Aventura(commands.Cog):
             await canal.send(f"💀 **{cansada.nombre}** no sobrevivió al viaje.")
             return
 
-        if criatura.etapa != cansada.etapa:
+        if criatura_avanzada.etapa != cansada.etapa:
             await canal.send(pantalla.render_evolucion(
-                cansada, criatura.etapa, tuple(subidas)
+                cansada, criatura_avanzada.etapa
             ))
-        elif subidas:
+        elif criatura_avanzada.nivel != cansada.nivel:
             await canal.send(
                 f"✨ **{cansada.nombre}** sube a nivel {cansada.nivel}, "
                 f"{dueño.mention}."
             )
+        if rupturas:
+            await canal.send(pantalla.render_rupturas(cansada, rupturas))
 
         narracion = await _narrar(
-            criatura, viaje.bioma, salida, hallazgo, percance, usuario_id, ahora,
+            criatura_avanzada, viaje.bioma, salida, hallazgo, percance, usuario_id, ahora,
             dueño.display_name,
         )
         await canal.send(narracion)

@@ -1,6 +1,7 @@
 """Reglas del juego: decaimiento, muerte, acciones, stats y niveles."""
 import random
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import especies as esp
 import simulacion as sim
@@ -9,7 +10,7 @@ T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 
 
 def criatura(**cambios) -> sim.Criatura:
-    base = dict(
+    base: dict[str, Any] = dict(
         id=1, usuario_id="u1", guild_id="g1", especie="pulpo", nombre="Prueba",
         nacida_en=T0, actualizada_en=T0,
         base_fuerza=15, base_velocidad=15, base_salud=15,
@@ -215,49 +216,27 @@ def test_pasado_el_ultimo_nivel_se_sigue_subiendo():
     assert sim.xp_para_subir(9) == sim.COSTE_XP_EXTRA
 
 
-def test_sube_de_nivel_al_acumular_xp():
+def test_sube_de_nivel_al_acumular_xp_sin_azar_propio():
     c = criatura()
-    subida, cambios = sim.aplicar_xp(c, sim.xp_para_subir(1), random.Random(1))
+    subida, rupturas = sim.aplicar_xp(c, sim.xp_para_subir(1), random.Random(1))
     assert subida.nivel == 2
     assert subida.xp == 0
-    assert len(cambios) == sim.puntos_al_subir(2)
-
-
-def test_las_evoluciones_tardias_dan_mas_puntos():
-    """Llegar arriba tiene que notarse más que el primer escalón."""
-    puntos = [sim.puntos_al_subir(n) for n in range(2, 6)]
-    assert puntos == sorted(puntos)
-    assert sum(puntos) == 14
+    assert all(isinstance(ruptura, sim.Ruptura) for ruptura in rupturas)
 
 
 def test_un_golpe_grande_de_xp_puede_subir_varios_niveles():
     c = criatura()
-    subida, cambios = sim.aplicar_xp(c, 900, random.Random(1))
+    subida, _ = sim.aplicar_xp(c, 900, random.Random(1))
     assert subida.nivel == 5
-    assert len(cambios) == sum(sim.puntos_al_subir(n) for n in range(2, 6))
+    assert subida.xp == 0
 
 
-def test_los_puntos_repartidos_cuadran_con_las_subidas():
-    c = criatura()
-    subida, cambios = sim.aplicar_xp(c, 900, random.Random(5))
-    total = subida.niv_fuerza + subida.niv_velocidad + subida.niv_salud
-    assert total == len(cambios)
-
-
-def test_evolucionar_alarga_la_vida():
-    """Parte de los puntos van a salud, así que aguanta más sin comer: era el
-    otro efecto que se pedía de la evolución."""
-    bebe = criatura(especie="brote")
-    mayor, _ = sim.aplicar_xp(bebe, 900, random.Random(2))
-    assert sim.horas_de_vida(mayor.salud) > sim.horas_de_vida(bebe.salud)
-
-
-def test_las_subidas_siguen_el_perfil_de_la_especie():
-    """Un Pollito (vel 14 / fue 4) debe mejorar mucho más en velocidad."""
-    rng = random.Random(11)
+def test_dos_semillas_no_cambian_las_vetas_de_nivel():
     c = criatura(especie="pollito")
-    subida, _ = sim.aplicar_xp(c, 5_000, rng)
-    assert subida.niv_velocidad > subida.niv_fuerza
+    uno, rupturas_uno = sim.aplicar_xp(c, 5_000, random.Random(11))
+    dos, rupturas_dos = sim.aplicar_xp(c, 5_000, random.Random(99))
+    assert uno == dos
+    assert rupturas_uno == rupturas_dos
 
 
 # --- Acciones de cuidado ---------------------------------------------------
@@ -312,7 +291,7 @@ def test_cuidar_puede_disparar_una_evolucion():
     assert r.evoluciono
     assert r.etapa_anterior == esp.BEBE
     assert r.criatura.etapa == esp.NINO
-    assert r.subidas
+    assert isinstance(r.rupturas, tuple)
 
 
 def test_una_accion_normal_no_dice_que_hubo_evolucion():

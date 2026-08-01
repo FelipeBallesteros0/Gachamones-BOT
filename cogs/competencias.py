@@ -4,9 +4,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from typing import cast
 
 import discord
-from discord import app_commands
+from discord import HTTPException, app_commands
 from discord.ext import commands
 
 import comun
@@ -80,7 +81,13 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
     hambre y ánimo, así que si eso contara habría que republicar a todos, que es
     justo lo que llenaba el canal.
     """
-    return antes.nivel != despues.nivel or antes.etapa != despues.etapa
+    return (
+        antes.nivel != despues.nivel
+        or antes.etapa != despues.etapa
+        or antes.historial_vetas != despues.historial_vetas
+        or (antes.ten_fuerza, antes.ten_velocidad, antes.ten_salud)
+        != (despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud)
+    )
 
 
 def texto_recibo_competencia(
@@ -194,12 +201,12 @@ class RetoView(discord.ui.View):
 
     @discord.ui.button(label="Aceptar", emoji="✅", style=discord.ButtonStyle.success)
     async def aceptar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        self.dentro.append(interaccion.user)
+        self.dentro.append(cast(discord.User, interaccion.user))
         await self._contestado(interaccion)
 
     @discord.ui.button(label="Rechazar", emoji="❌", style=discord.ButtonStyle.secondary)
     async def rechazar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        self.fuera.append(interaccion.user)
+        self.fuera.append(cast(discord.User, interaccion.user))
         await self._contestado(interaccion)
 
     async def _contestado(self, interaccion: discord.Interaction) -> None:
@@ -212,14 +219,14 @@ class RetoView(discord.ui.View):
             )
             return
         await interaccion.response.edit_message(content=self._cierre(), view=None)
-        await self._arrancar(interaccion.channel)
+        await self._arrancar(cast(discord.abc.Messageable, interaccion.channel))
 
     async def on_timeout(self) -> None:
         if self.mensaje is None or self._arrancado:
             return
         try:
             await self.mensaje.edit(content=self._cierre(), view=None)
-        except discord.HTTPException:
+        except HTTPException:
             log.debug("No se pudo cerrar el reto caducado", exc_info=True)
         await self._arrancar(self.mensaje.channel)
 
@@ -319,7 +326,7 @@ class Competencias(commands.Cog):
         tipo: str,
     ) -> None:
         ahora = db.ahora_utc()
-        retador = interaccion.user
+        retador = cast(discord.User, interaccion.user)
         guild_id = str(interaccion.guild_id)
 
         invitados, problema = _invitados_validos(retador, propuestos)
@@ -432,19 +439,21 @@ class Competencias(commands.Cog):
         )
         await canal.send(f"{comp.resumen(encuentro)}\n{recibos}")
 
-        for antes, nueva, subidas, usuario in zip(
-            resultado.antes, resultado.despues, resultado.subidas, participantes
+        for antes, nueva, rupturas, usuario in zip(
+            resultado.antes, resultado.despues, resultado.rupturas, participantes
         ):
             if antes.etapa != nueva.etapa:
                 await canal.send(f"{usuario.mention}")
                 await canal.send(pantalla.render_evolucion(
-                    nueva, antes.etapa, subidas
+                    nueva, antes.etapa
                 ))
-            elif subidas:
+            elif antes.nivel != nueva.nivel:
                 await canal.send(
                     f"✨ **{nueva.nombre}** sube a nivel {nueva.nivel}, "
                     f"{usuario.mention}."
                 )
+            if rupturas:
+                await canal.send(pantalla.render_rupturas(nueva, tuple(rupturas)))
 
             if _ha_cambiado_la_ficha(antes, nueva):
                 await vistas.publicar_pantalla(
@@ -460,7 +469,7 @@ class Competencias(commands.Cog):
             await asyncio.sleep(SEGUNDOS_ENTRE_TRAMOS)
             try:
                 await mensaje.edit(content=fotograma)
-            except discord.HTTPException:
+            except HTTPException:
                 log.warning("No se pudo animar la competencia", exc_info=True)
                 break
         await asyncio.sleep(SEGUNDOS_ENTRE_TRAMOS)

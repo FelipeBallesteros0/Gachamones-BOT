@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import random
 import unicodedata
+from random import Random as _RandomImpronta
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
@@ -49,11 +50,23 @@ MULTIPLICADOR_ANIMO_SUCIO = 1.5
 COSTE_XP_NIVEL = (25, 100, 250, 525)
 COSTE_XP_EXTRA = 525  # niveles a partir del quinto: ya no hay etapa nueva
 
-# Puntos de estadística que reparte cada evolución, repartidos según el perfil
-# de la especie. +14 en total sobre unos 45 de partida, y como parte va a
-# salud, la criatura evolucionada aguanta bastante más sin comer.
-PUNTOS_POR_EVOLUCION = (2, 3, 4, 5)
-PUNTOS_POR_NIVEL_EXTRA = 2
+# --- VETAS -----------------------------------------------------------------
+
+# El crecimiento de las estadísticas no usa dados propios. Los sucesos reales
+# emiten tensión, que decae y rompe por el punto más cargado.
+UMBRAL_ESFUERZO = 1.3
+PROFUNDA = 2.5
+BETA = 0.70
+GAMMA = 0.25
+AFIN = 0.35
+ESCALA = 1.4
+SEMIVIDA_TENSION = 18.0
+U0 = 20.0
+PASO = 4.0
+CASCADA = 0.5
+MAX_RUPTURAS_POR_SUCESO = 3
+ESTADISTICAS = ("fuerza", "velocidad", "salud")
+LETRAS_VETA = {"fuerza": "F", "velocidad": "V", "salud": "S"}
 
 # --- Acciones --------------------------------------------------------------
 
@@ -231,6 +244,10 @@ class Criatura:
     niv_fuerza: int = 0
     niv_velocidad: int = 0
     niv_salud: int = 0
+    ten_fuerza: float = 0.0
+    ten_velocidad: float = 0.0
+    ten_salud: float = 0.0
+    historial_vetas: str = ""
     xp: int = 0
     nivel: int = 1
     victorias: int = 0
@@ -330,55 +347,317 @@ def xp_acumulada_para(nivel: int) -> int:
     return sum(xp_para_subir(n) for n in range(1, nivel))
 
 
-def puntos_al_subir(nivel_alcanzado: int) -> int:
-    indice = nivel_alcanzado - 2
-    if 0 <= indice < len(PUNTOS_POR_EVOLUCION):
-        return PUNTOS_POR_EVOLUCION[indice]
-    return PUNTOS_POR_NIVEL_EXTRA
+@dataclass(frozen=True)
+class Impronta:
+    """Fisiología derivada de especie e id, nunca persistida."""
+
+    giro: int
+    afinidades: tuple[float, float, float]
+
+    @property
+    def anillo(self) -> tuple[str, str, str]:
+        return (
+            ESTADISTICAS if self.giro == 1
+            else ("fuerza", "salud", "velocidad")
+        )
+
+
+@dataclass(frozen=True)
+class Esfuerzo:
+    """Un resultado real que puede dejar tensión en una estadística."""
+
+    stat: str
+    bruto: float
+    profunda: bool = False
+    forzar: bool = False
+    causa: str = ""
+
+
+@dataclass(frozen=True)
+class Ruptura:
+    """Una veta ganada dentro de un suceso."""
+
+    stat: str
+    umbral: float
+    antes: int = 0
+    despues: int = 0
+    cascada: bool = False
+    causa: str = ""
+
+
+def impronta_de(criatura: Criatura) -> Impronta:
+    """Deriva siempre la misma impronta sin añadir una columna a SQLite."""
+    rng = _RandomImpronta(f"{criatura.especie}:{criatura.id}")
+    giro = rng.choice((1, -1))
+    crudas = tuple(rng.choice((-1, 0, 1)) for _ in ESTADISTICAS)
+    media = sum(crudas) / len(crudas)
+    afinidades = tuple(AFIN * (valor - media) for valor in crudas)
+    return Impronta(giro, (afinidades[0], afinidades[1], afinidades[2]))
+
+
+def _vetas(criatura: Criatura) -> tuple[int, int, int]:
+    return criatura.niv_fuerza, criatura.niv_velocidad, criatura.niv_salud
+
+
+def _tensiones(criatura: Criatura) -> tuple[float, float, float]:
+    return criatura.ten_fuerza, criatura.ten_velocidad, criatura.ten_salud
+
+
+def umbral_veta(criatura: Criatura) -> float:
+    """Umbral global de la siguiente veta."""
+    return U0 + PASO * sum(_vetas(criatura))
+
+
+def _indice_stat(stat: str) -> int:
+    try:
+        return ESTADISTICAS.index(stat)
+    except ValueError as exc:
+        raise ValueError(f"estadística desconocida: {stat}") from exc
+
+
+def _real(valor: float, nombre: str) -> float:
+    try:
+        return float(valor)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{nombre} inválido: {valor!r}") from exc
+
+
+def receptividad(criatura: Criatura, stat: str) -> float:
+    """Multiplicador acoplado al historial de vetas e impronta."""
+    indice = _indice_stat(stat)
+    vetas = _vetas(criatura)
+    media = sum(vetas) / 3.0
+    impronta = impronta_de(criatura)
+    anillo = impronta.anillo
+    anterior = anillo[(anillo.index(stat) - 1) % 3]
+    valor = BETA * (vetas[indice] - media)
+    valor += impronta.afinidades[indice]
+    valor -= GAMMA * vetas[_indice_stat(anterior)]
+    # Limitar el exponente evita overflow con criaturas antiguas sin cambiar
+    # el resultado dentro del rango mecánico observable.
+    exponente = max(math.log(0.35), min(math.log(3.0), valor))
+    return max(0.35, min(3.0, math.exp(exponente)))
+
+
+def esfuerzos_de_cuidado(criatura: Criatura, accion: str) -> tuple[Esfuerzo, ...]:
+    """Calcula la marca de una acción usando sus barras antes del efecto."""
+    if accion == ALIMENTAR:
+        return (Esfuerzo(
+            "salud", 4.0 * (100.0 - criatura.hambre) / 100.0,
+            criatura.hambre < 15.0, causa=accion,
+        ),)
+    if accion == JUGAR:
+        return (Esfuerzo(
+            "velocidad", 3.5 * (100.0 - criatura.animo) / 100.0,
+            causa=accion,
+        ),)
+    if accion == ENTRENAR:
+        bruto = 4.0 * max(
+            15.0 / max(15.0, criatura.hambre),
+            10.0 / max(10.0, criatura.animo),
+        )
+        return (Esfuerzo("fuerza", bruto, causa=accion),)
+    if accion == LIMPIAR:
+        return (Esfuerzo(
+            "salud", 1.5 * (100.0 - criatura.limpieza) / 100.0,
+            causa=accion,
+        ),)
+    return ()
+
+
+def esfuerzo_de_cuidado(criatura: Criatura, accion: str) -> Esfuerzo | None:
+    """Devuelve el esfuerzo de una acción de cuidado concreta."""
+    emisiones = esfuerzos_de_cuidado(criatura, accion)
+    return emisiones[0] if emisiones else None
+
+
+def esfuerzo_de_competencia(
+    stat: str, margen: float, gano: bool,
+) -> Esfuerzo:
+    margen = max(0.0, _real(margen, "margen"))
+    bruto = 3.0 * (
+        0.5 + 0.5 * (1.0 - min(1.0, margen / 30.0))
+    ) * (1.0 if gano else 1.3)
+    return Esfuerzo(stat, bruto, margen <= 2.0, causa=COMPETIR)
+
+
+def esfuerzo_de_aventura(stat: str, holgura: float) -> Esfuerzo:
+    holgura = _real(holgura, "holgura")
+    return Esfuerzo(
+        stat, 3.0 * (1.0 - min(1.0, abs(holgura) / 10.0)),
+        holgura in (0.0, 1.0), causa=AVENTURA,
+    )
+
+
+def _aplicar_rupturas(
+    criatura: Criatura,
+    limite: int = MAX_RUPTURAS_POR_SUCESO,
+    causa: str = "",
+) -> tuple[Criatura, tuple[Ruptura, ...]]:
+    """Rompe tensiones ya acumuladas, con selección y cascada deterministas."""
+    rupturas: list[Ruptura] = []
+    arrastradas: set[str] = set()
+    estado = criatura
+    while len(rupturas) < limite:
+        umbral = umbral_veta(estado)
+        tensiones = _tensiones(estado)
+        elegibles = [
+            stat for stat, tension in zip(ESTADISTICAS, tensiones)
+            if tension >= umbral
+        ]
+        if not elegibles:
+            break
+        # max estable con este orden: primero tensión, luego FUE, VEL, SAL.
+        stat = max(
+            elegibles,
+            key=lambda candidato: (tensiones[_indice_stat(candidato)],
+                                   -_indice_stat(candidato)),
+        )
+        cascada = stat in arrastradas
+        stat_antes = getattr(estado, stat)
+        indice = _indice_stat(stat)
+        antes = list(tensiones)
+        anillo = impronta_de(estado).anillo
+        posicion = anillo.index(stat)
+        siguiente = anillo[(posicion + 1) % 3]
+        anterior = anillo[(posicion - 1) % 3]
+        siguiente_i = _indice_stat(siguiente)
+        anterior_i = _indice_stat(anterior)
+        acoplamiento = CASCADA * umbral
+        siguiente_era_elegible = antes[siguiente_i] >= umbral
+        tensiones_nuevas = list(antes)
+        tensiones_nuevas[indice] = max(0.0, antes[indice] - umbral)
+        tensiones_nuevas[siguiente_i] += acoplamiento
+        tensiones_nuevas[anterior_i] = max(
+            0.0, antes[anterior_i] - acoplamiento
+        )
+        vetas = list(_vetas(estado))
+        vetas[indice] += 1
+        umbral_nuevo = U0 + PASO * sum(vetas)
+        arrastradas = {
+            candidata for candidata in arrastradas
+            if candidata != stat
+            and tensiones_nuevas[_indice_stat(candidata)] >= umbral_nuevo
+        }
+        if (
+            not siguiente_era_elegible
+            and tensiones_nuevas[siguiente_i] >= umbral_nuevo
+        ):
+            arrastradas.add(siguiente)
+        estado = replace(
+            estado,
+            niv_fuerza=vetas[0],
+            niv_velocidad=vetas[1],
+            niv_salud=vetas[2],
+            ten_fuerza=tensiones_nuevas[0],
+            ten_velocidad=tensiones_nuevas[1],
+            ten_salud=tensiones_nuevas[2],
+            historial_vetas=estado.historial_vetas + LETRAS_VETA[stat],
+        )
+        rupturas.append(Ruptura(
+            stat=stat,
+            umbral=umbral,
+            antes=stat_antes,
+            despues=getattr(estado, stat),
+            cascada=cascada,
+            causa=causa,
+        ))
+    return estado, tuple(rupturas)
+
+
+def romper_vetas(
+    criatura: Criatura, max_rupturas: int = MAX_RUPTURAS_POR_SUCESO,
+) -> tuple[Criatura, tuple[Ruptura, ...]]:
+    return _aplicar_rupturas(criatura, max(0, max_rupturas))
+
+
+def emitir_tension(
+    criatura: Criatura, esfuerzo: Esfuerzo | str, bruto: float | None = None,
+    *, profunda: bool = False, forzar: bool = False, causa: str = "",
+    max_rupturas: int = MAX_RUPTURAS_POR_SUCESO,
+) -> tuple[Criatura, tuple[Ruptura, ...]]:
+    """Añade una emisión, filtra el esfuerzo y rompe como máximo tres veces."""
+    if isinstance(esfuerzo, str):
+        esfuerzo = Esfuerzo(esfuerzo, bruto or 0.0, profunda, forzar, causa)
+    if esfuerzo.stat not in ESTADISTICAS:
+        raise ValueError(f"estadística desconocida: {esfuerzo.stat}")
+    valor = max(0.0, _real(esfuerzo.bruto, "esfuerzo"))
+    if (
+        not (esfuerzo.forzar or forzar or esfuerzo.profunda or profunda)
+        and valor < UMBRAL_ESFUERZO
+    ):
+        return criatura, ()
+    if esfuerzo.profunda or profunda:
+        valor *= PROFUNDA
+    if valor <= 0.0:
+        return criatura, ()
+    indice = _indice_stat(esfuerzo.stat)
+    tensiones = list(_tensiones(criatura))
+    tensiones[indice] = max(
+        0.0, tensiones[indice] + valor * ESCALA * receptividad(criatura, esfuerzo.stat)
+    )
+    con_tension = replace(
+        criatura,
+        ten_fuerza=tensiones[0],
+        ten_velocidad=tensiones[1],
+        ten_salud=tensiones[2],
+    )
+    return _aplicar_rupturas(
+        con_tension,
+        max(0, max_rupturas),
+        esfuerzo.causa or causa,
+    )
+
+
+def _surge(nivel: int) -> float:
+    return (3.0, 4.0, 5.0, 6.0)[nivel - 2] if 2 <= nivel <= 5 else 2.5
+
+
+def _emisiones_de_nivel(criatura: Criatura, nivel: int) -> tuple[Esfuerzo, ...]:
+    definicion = criatura.def_especie
+    pesos = (definicion.fuerza, definicion.velocidad, definicion.salud)
+    total = sum(pesos)
+    surge = _surge(nivel)
+    return tuple(
+        Esfuerzo(stat, surge * peso / total, forzar=True, causa="nivel")
+        for stat, peso in zip(ESTADISTICAS, pesos)
+    )
+
+
+def aplicar_evento(
+    criatura: Criatura, esfuerzos: tuple[Esfuerzo, ...] = (),
+    ganada: int = 0, rng: random.Random | None = None,
+) -> tuple[Criatura, tuple[Ruptura, ...]]:
+    """Aplica emisiones reales y después las subidas de nivel del mismo evento."""
+    del rng  # La firma conserva compatibilidad; VETAS no tira dados de crecimiento.
+    estado = criatura
+    rupturas: list[Ruptura] = []
+    for esfuerzo in esfuerzos:
+        estado, nuevas = emitir_tension(
+            estado, esfuerzo, max_rupturas=MAX_RUPTURAS_POR_SUCESO - len(rupturas)
+        )
+        rupturas.extend(nuevas)
+    xp = estado.xp + ganada
+    nivel = estado.nivel
+    while xp >= xp_para_subir(nivel):
+        xp -= xp_para_subir(nivel)
+        nivel += 1
+        for esfuerzo in _emisiones_de_nivel(estado, nivel):
+            estado, nuevas = emitir_tension(
+                estado, esfuerzo,
+                max_rupturas=MAX_RUPTURAS_POR_SUCESO - len(rupturas),
+            )
+            rupturas.extend(nuevas)
+    estado = replace(estado, xp=xp, nivel=nivel)
+    return estado, tuple(rupturas)
 
 
 def aplicar_xp(
     criatura: Criatura, ganada: int, rng: random.Random | None = None
-) -> tuple[Criatura, list[str]]:
-    """Suma XP y sube de nivel las veces que haga falta.
-
-    Cada subida reparte varios puntos entre las stats, sorteados con el perfil
-    de la especie como peso: un Pollito tiende a mejorar en velocidad, un
-    Pedrusco en fuerza. Las evoluciones tardías dan más puntos que las
-    primeras, así que llegar arriba se nota.
-    """
-    rng = rng or random.Random()
-    definicion = criatura.def_especie
-    xp = criatura.xp + ganada
-    nivel = criatura.nivel
-    bonus = {
-        "fuerza": criatura.niv_fuerza,
-        "velocidad": criatura.niv_velocidad,
-        "salud": criatura.niv_salud,
-    }
-    subidas: list[str] = []
-
-    while xp >= xp_para_subir(nivel):
-        xp -= xp_para_subir(nivel)
-        nivel += 1
-        for _ in range(puntos_al_subir(nivel)):
-            stat = rng.choices(
-                ["fuerza", "velocidad", "salud"],
-                weights=[definicion.fuerza, definicion.velocidad, definicion.salud],
-                k=1,
-            )[0]
-            bonus[stat] += 1
-            subidas.append(stat)
-
-    actualizada = replace(
-        criatura,
-        xp=xp,
-        nivel=nivel,
-        niv_fuerza=bonus["fuerza"],
-        niv_velocidad=bonus["velocidad"],
-        niv_salud=bonus["salud"],
-    )
-    return actualizada, subidas
+) -> tuple[Criatura, list[Ruptura]]:
+    """Suma XP y emite el surge determinista de cada nivel alcanzado."""
+    estado, rupturas = aplicar_evento(criatura, ganada=ganada, rng=rng)
+    return estado, list(rupturas)
 
 
 # --- Decaimiento -----------------------------------------------------------
@@ -442,12 +721,16 @@ def avanzar(criatura: Criatura, ahora: datetime) -> Criatura:
     if criatura.limpieza < LIMPIEZA_SUCIA:
         ritmo_animo *= MULTIPLICADOR_ANIMO_SUCIO
     animo = max(0.0, criatura.animo - ritmo_animo * horas)
+    factor_tension = 0.5 ** (horas / SEMIVIDA_TENSION)
 
     avanzada = replace(
         criatura,
         hambre=hambre,
         animo=animo,
         limpieza=limpieza,
+        ten_fuerza=max(0.0, criatura.ten_fuerza * factor_tension),
+        ten_velocidad=max(0.0, criatura.ten_velocidad * factor_tension),
+        ten_salud=max(0.0, criatura.ten_salud * factor_tension),
         actualizada_en=ahora,
     )
 
@@ -470,6 +753,10 @@ class ResultadoAccion:
     mensaje: str
     ok: bool = True
     espera: timedelta | None = None
+    rupturas: tuple[Ruptura, ...] = ()
+    marca: bool = False
+    # Alias de lectura para integraciones antiguas; las nuevas deben usar
+    # `rupturas`, que conserva la causa y la cascada de cada veta.
     subidas: tuple[str, ...] = ()
     etapa_anterior: str | None = None
 
@@ -488,6 +775,10 @@ class ResultadoAccion:
         object.__setattr__(
             self, "mensaje", esp.concordar(self.mensaje, self.criatura.genero)
         )
+        if self.rupturas and not self.subidas:
+            object.__setattr__(
+                self, "subidas", tuple(ruptura.stat for ruptura in self.rupturas)
+            )
 
     @property
     def evoluciono(self) -> bool:
@@ -534,15 +825,15 @@ def aplicar_accion(
         return bruto
 
     ganada = XP_POR_CUIDADO.get(accion, 0)
-    if not ganada:
-        return bruto
-
-    crecida, subidas = aplicar_xp(bruto.criatura, ganada, rng)
+    crecida, rupturas = aplicar_evento(
+        bruto.criatura, esfuerzos_de_cuidado(criatura, accion), ganada, rng
+    )
     return ResultadoAccion(
         criatura=crecida,
         mensaje=bruto.mensaje,
-        subidas=tuple(subidas),
-        etapa_anterior=criatura.etapa,
+        rupturas=rupturas,
+        marca=bool(rupturas or _tensiones(crecida) != _tensiones(bruto.criatura)),
+        etapa_anterior=criatura.etapa if ganada else None,
     )
 
 
@@ -608,12 +899,9 @@ def aplicar_competencia(
     gano: bool,
     stat: str,
     rng: random.Random | None = None,
-) -> tuple[Criatura, list[str]]:
-    """Aplica el desgaste, la XP y el entrenamiento de haber competido.
-
-    `stat` es "velocidad" en las carreras y "fuerza" en el sumo. Se recibe como
-    texto para no tener que importar `competir`, que ya importa este módulo.
-    """
+    margen: float | None = None,
+) -> tuple[Criatura, list[Ruptura]]:
+    """Aplica desgaste, marca real, XP y entrenamiento de haber competido."""
     if stat not in ("velocidad", "fuerza"):
         raise ValueError(f"estadística de competencia desconocida: {stat}")
 
@@ -631,4 +919,13 @@ def aplicar_competencia(
         derrotas=criatura.derrotas + (0 if gano else 1),
         **entrenados,
     )
-    return aplicar_xp(desgastada, XP_VICTORIA if gano else XP_DERROTA, rng)
+    esfuerzo = esfuerzo_de_competencia(
+        stat, 30.0 if margen is None else margen, gano
+    )
+    estado, rupturas = aplicar_evento(
+        desgastada,
+        (esfuerzo,),
+        XP_VICTORIA if gano else XP_DERROTA,
+        rng,
+    )
+    return estado, list(rupturas)

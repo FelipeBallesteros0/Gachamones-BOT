@@ -1,3 +1,4 @@
+# pyright: reportArgumentType=false
 import asyncio
 import random
 import sqlite3
@@ -256,6 +257,7 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
         encuentro=SimpleNamespace(orden=(0, 1)),
         antes=antes,
         despues=despues,
+        rupturas=((), ()),
         subidas=(("fuerza",), ()),
         recibos=(object(), object()),
     )
@@ -307,6 +309,42 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     ]
     assert eventos[-1][0] == "publicar"
     assert eventos[-1][2] == {"ya_congelada": "ficha-1"}
+
+
+def test_una_veta_sin_nivel_no_anuncia_una_subida(monkeypatch):
+    primera = replace(nacer("u1"), ten_velocidad=20.0)
+    db.guardar(primera)
+    nacer("u2")
+    resultado = competir("veta-sin-nivel")
+    assert resultado.rupturas[0]
+    assert resultado.antes[0].nivel == resultado.despues[0].nivel
+
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.comp, "fotogramas_de", lambda _: [])
+    monkeypatch.setattr(cog_comp.comp, "resumen", lambda _: "resumen")
+    monkeypatch.setattr(
+        cog_comp, "texto_recibo_competencia", lambda *_, **__: "recibo"
+    )
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    participantes = [
+        SimpleNamespace(id=usuario, mention=f"<@{usuario}>", display_name=usuario)
+        for usuario in ("u1", "u2")
+    ]
+
+    cog = Competencias.__new__(Competencias)
+    cog._animar = AsyncMock()
+    asyncio.run(cog.disputar(
+        canal, participantes, comp.CARRERA, "g1", "veta-sin-nivel"
+    ))
+
+    mensajes = [llamada.args[0] for llamada in canal.send.await_args_list]
+    assert not any("sube a nivel" in mensaje for mensaje in mensajes)
+    assert any("veta" in mensaje.lower() for mensaje in mensajes)
 
 
 @pytest.mark.parametrize(

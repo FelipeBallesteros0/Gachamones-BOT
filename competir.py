@@ -148,6 +148,31 @@ class Encuentro:
         return len(self.combates) > 1
 
 
+def margen_de(encuentro: Encuentro, dorsal: int) -> int:
+    """Margen del último combate real de un participante.
+
+    En un torneo los derrotados sólo aparecen en una semifinal y los finalistas
+    en la final; recorrer de atrás hacia delante conserva exactamente ese último
+    resultado sin inventar un margen a partir del orden global.
+    """
+    objetivo = encuentro.competidores[dorsal]
+    for combate in reversed(encuentro.combates):
+        indices = [
+            indice for indice, competidor in enumerate(combate.competidores)
+            if competidor is objetivo
+        ]
+        if not indices:
+            continue
+        indice = indices[0]
+        totales = combate.totales
+        ganador = combate.orden[0]
+        if indice != ganador:
+            return abs(totales[indice] - totales[ganador])
+        subcampeon = combate.orden[1]
+        return abs(totales[indice] - totales[subcampeon])
+    raise ValueError(f"dorsal sin combate: {dorsal}")
+
+
 def modificador_por_estado(hambre: float, animo: float) -> int:
     """Cuidar a la criatura se nota, pero poco: el 1d20 sigue mandando."""
     modificador = 0

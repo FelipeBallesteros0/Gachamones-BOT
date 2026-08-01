@@ -132,8 +132,12 @@ class Prueba:
         return self.base + self.dado
 
     @property
+    def holgura(self) -> int:
+        return self.total - self.dificultad
+
+    @property
     def superada(self) -> bool:
-        return self.total >= self.dificultad
+        return self.holgura >= 0
 
 
 @dataclass(frozen=True)
@@ -742,15 +746,33 @@ def aplicar_desgaste(
     )
 
 
+def esfuerzos_de_viaje(salida: Salida) -> tuple[sim.Esfuerzo, ...]:
+    """Convierte las pruebas ya resueltas en emisiones, en orden real."""
+    esfuerzos: list[sim.Esfuerzo] = []
+    for prueba in salida.pruebas:
+        esfuerzos.append(sim.esfuerzo_de_aventura(
+            prueba.stat, prueba.holgura
+        ))
+        if not prueba.superada:
+            # El fallo añade SAL 1.0, que por sí solo no supera el filtro.
+            esfuerzos.append(sim.Esfuerzo(
+                "salud", 1.0, causa=sim.AVENTURA
+            ))
+    return tuple(esfuerzos)
+
+
 def aplicar_viaje(
     criatura: sim.Criatura, salida: Salida, ahora: datetime,
     percance: Percance | None = None, rng: random.Random | None = None,
-) -> tuple[sim.Criatura, list[str]]:
-    """Cobra el viaje y da experiencia únicamente a quien vuelve con vida."""
+) -> tuple[sim.Criatura, list[sim.Ruptura]]:
+    """Cobra el viaje, emite sus pruebas y da XP sólo si vuelve con vida."""
     cansada = aplicar_desgaste(criatura, salida, ahora, percance)
     if not cansada.viva:
         return cansada, []
-    return sim.aplicar_xp(cansada, sim.XP_AVENTURA, rng)
+    estado, rupturas = sim.aplicar_evento(
+        cansada, esfuerzos_de_viaje(salida), sim.XP_AVENTURA, rng
+    )
+    return estado, list(rupturas)
 
 
 def render_percance(percance: Percance | None) -> str:
