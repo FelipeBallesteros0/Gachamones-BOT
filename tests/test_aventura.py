@@ -2,6 +2,7 @@
 """La aventura: biomas, pruebas, qué te encuentras y convencer a un salvaje."""
 import asyncio
 import random
+import unicodedata
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -440,7 +441,7 @@ def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):
     )
 
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+    asyncio.run(getattr(cog_av.Aventura.aventura, "callback")(cog, interaccion))
 
     congelar.assert_not_awaited()
 
@@ -463,6 +464,8 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
         etiqueta = cog_av.HablarModal(vista).dicho.label
         assert etiqueta == "¿Qué le dices?"
         assert "él" not in etiqueta
+        assert "carácter por descubrir" in vista.texto()
+        assert "sereno" not in vista.texto()
 
         interaccion = SimpleNamespace(
             response=SimpleNamespace(edit_message=AsyncMock())
@@ -470,12 +473,62 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
         marcharse = next(
             boton for boton in vista.children if boton.label == "Marcharse"
         )
-        await marcharse.callback(interaccion)
+        await getattr(marcharse, "callback")(interaccion)
         contenido = interaccion.response.edit_message.await_args.kwargs["content"]
-        assert (f"Dejas {articulo} {esp.ESPECIES['michi'].nombre} "
-            "donde estaba.") in contenido
+        esperado = (
+            f"Dejas {articulo} {esp.ESPECIES['michi'].nombre} donde estaba."
+        )
+        assert esperado in contenido
+        assert "carácter por descubrir" in contenido
+        assert "sereno" not in contenido
 
     asyncio.run(comprobar())
+
+
+def test_prompt_salvaje_oculta_el_caracter_y_conserva_su_conducta():
+    salvaje = av.Salvaje(
+        "michi", "Michi", esp.MACHO, "sereno", (10, 10, 10)
+    )
+
+    sistema, _ = per.prompt_salvaje(salvaje, criatura(), "hola")
+
+    assert "sereno" not in sistema.casefold()
+    assert "serena" not in sistema.casefold()
+    assert "Nada te altera." in sistema
+
+
+def test_detecta_el_caracter_como_palabra_completa():
+    assert per.menciona_nombre_caracter("Soy SERENO.", "sereno")
+    assert per.menciona_nombre_caracter("Estoy serena.", "sereno")
+    assert not per.menciona_nombre_caracter("Empieza la serenata.", "sereno")
+    assert not per.menciona_nombre_caracter("Soy gruñón.", "sereno")
+
+
+@pytest.mark.parametrize("genero", (esp.MACHO, esp.HEMBRA))
+@pytest.mark.parametrize(
+    ("opcion", "paciencia", "gasto", "pista"),
+    (
+        (av.HABLAR, 4, 1, "Ahora confía más."),
+        (av.PRESUMIR, 4, 2, "Se pone a la defensiva."),
+        (av.PRESUMIR, 2, 2, "Su paciencia se agota."),
+    ),
+)
+def test_aplicar_opcion_narra_el_cambio_mecanico_real(
+    genero, opcion, paciencia, gasto, pista
+):
+    salvaje = av.Salvaje(
+        "michi", "Michi", genero, "sereno", (10, 10, 10)
+    )
+    antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=paciencia)
+    despues = av.aplicar_opcion(antes, opcion, DadosFijos([1]))
+
+    texto = av.narrar_opcion(antes, opcion, despues)
+
+    assert despues.paciencia == paciencia - gasto
+    assert pista in texto
+    assert "Confianza" not in texto
+    assert str(despues.ultimo_cambio) not in texto
+    assert "sereno" not in texto
 
 
 def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
@@ -533,6 +586,38 @@ def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatc
     )
 
     assert frase_reportada not in respuesta
+    assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
+    generar.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("genero", "caracter", "frase_reportada"),
+    (
+        (esp.MACHO, "sereno", "Soy SERENO."),
+        (esp.HEMBRA, "sereno", "Soy serena."),
+        (esp.MACHO, "gruñón", unicodedata.normalize("NFD", "Soy gruñón.")),
+    ),
+)
+def test_contestar_no_publica_el_nombre_del_caracter(
+    monkeypatch, genero, caracter, frase_reportada
+):
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    generar = AsyncMock(return_value=(frase_reportada, True))
+    salvaje = av.Salvaje(
+        "michi", "Michi", genero, caracter, (10, 10, 10)
+    )
+
+    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
+    monkeypatch.setattr(cog_av.db, "registrar_uso_ia", Mock())
+    monkeypatch.setattr(cog_av.ia, "generar", generar)
+
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    respuesta = asyncio.run(
+        cog.contestar(salvaje, criatura(), "hola", "u1", "Reacción mecánica.")
+    )
+
+    assert frase_reportada.casefold() not in respuesta.casefold()
     assert respuesta == "> Te mira de reojo y no dice nada.\nReacción mecánica."
     generar.assert_awaited_once()
 
@@ -1271,7 +1356,7 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
     cog = cog_av.Aventura.__new__(cog_av.Aventura)
     cog.resolver = resolver
 
-    asyncio.run(cog_av.Aventura.aventura.callback(cog, interaccion))
+    asyncio.run(getattr(cog_av.Aventura.aventura, "callback")(cog, interaccion))
 
     assert eventos[0] == "cooldown"
     assert isinstance(eventos[1][1], cog_av.ViajeView)

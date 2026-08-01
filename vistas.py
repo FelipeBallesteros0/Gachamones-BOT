@@ -281,6 +281,14 @@ async def bautizar(interaccion: discord.Interaction, criatura: sim.Criatura) -> 
     await interaccion.response.send_modal(NombreModal("", criatura.id))
 
 
+def _eco_vetas_cuidado(resultado: economia.ResultadoCuidado) -> str:
+    if resultado.rupturas:
+        return ""
+    if resultado.marca:
+        return "-# Algo se pone en movimiento bajo sus vetas."
+    return "-# Sus vetas permanecen quietas."
+
+
 async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     ahora = db.ahora_utc()
     usuario_id = str(interaccion.user.id)
@@ -370,8 +378,8 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     # recibo falso. Se cuenta en privado y no se toca la ficha viva.
     if not resultado.ok or resultado.sin_efecto:
         mensaje = resultado.mensaje
-        if resultado.ok and not resultado.marca:
-            mensaje += "\n-# No le deja marca."
+        if resultado.ok:
+            mensaje += f"\n{_eco_vetas_cuidado(resultado)}"
         await interaccion.response.send_message(mensaje, ephemeral=True)
         return
 
@@ -390,8 +398,9 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         )
 
     aviso = resultado.mensaje
-    if not resultado.marca:
-        aviso += "\n-# No le deja marca."
+    eco_vetas = _eco_vetas_cuidado(resultado)
+    if eco_vetas:
+        aviso += f"\n{eco_vetas}"
     if resultado.usados or resultado.topada or resultado.evoluciono:
         aviso += f"\n{texto_recibo_cuidado(resultado, accion)}"
     await publicar_pantalla(
