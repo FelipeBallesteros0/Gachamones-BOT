@@ -142,6 +142,13 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     cog = Competencias.__new__(Competencias)
     cog._animar = AsyncMock()
     canal = SimpleNamespace(id="canal", send=AsyncMock())
+    leer_plantel_db = db.plantel
+
+    def leer_plantel(*args):
+        assert len(canal.send.await_args_list) == 6
+        return leer_plantel_db(*args)
+
+    monkeypatch.setattr(cog_comp.db, "plantel", leer_plantel)
     participantes = [
         SimpleNamespace(
             id=int(usuario), mention=f"<@{usuario}>", display_name=nombre
@@ -153,19 +160,20 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         cog.disputar(canal, participantes, comp.CARRERA, "g1", "publicacion")
     )
 
-    # Primero el resumen con los cinco recibos y después una medalla por cabeza
-    # —la de la alfa, que se llevan todos la primera vez que se les mira.
+    # Primero el resumen con los cinco recibos, después una medalla por cabeza
+    # y al final un único mensaje con todos los testigos.
     mandados = [llamada.args[0] for llamada in canal.send.await_args_list]
-    resumen, medallas = mandados[0], mandados[1:]
+    resumen, *medallas, testigos_mensaje = mandados
     assert len(medallas) == 5
     assert all("De la alfa" in medalla for medalla in medallas)
     lineas = [linea for linea in resumen.splitlines() if linea.startswith("-# <@")]
-    reacciones = [
-        linea for linea in resumen.splitlines() if linea.startswith("-# 👀")
-    ]
+    reacciones = testigos_mensaje.splitlines()
     assert len(resumen) < 2000
+    assert "👀" not in resumen
     assert len(lineas) == 5
+    assert len(testigos_mensaje) < 2000
     assert len(reacciones) == 5
+    assert sum("👀" in mensaje for mensaje in mandados) == 1
     assert all(
         f"**{testigo}**" in linea and f"**{nombre}**" in linea
         for testigo, nombre, linea in zip(testigos, nombres, reacciones)
@@ -187,15 +195,14 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         assert "coste base -5 ánimo" in linea
 
     assert [db.obtener(reserva.id) for reserva in reservas] == reservas
+    for reserva in reservas:
+        assert db.esperas(reserva.id, T0, (sim.COMPETIR,)) == {
+            sim.COMPETIR: timedelta(0)
+        }
+        assert db.efectos_activos(reserva.id, T0) == {}
+        assert db.marcador(reserva.id) == {}
+        assert db.logros_de(reserva.id) == {}
     with db.conectar() as con:
-        for reserva in reservas:
-            for consulta in (
-                "SELECT COUNT(*) FROM cooldowns WHERE criatura_id = ?",
-                "SELECT COUNT(*) FROM efectos WHERE criatura_id = ?",
-                "SELECT COUNT(*) FROM marcador WHERE criatura_id = ?",
-                "SELECT COUNT(*) FROM logros WHERE criatura_id = ?",
-            ):
-                assert con.execute(consulta, (reserva.id,)).fetchone()[0] == 0
         assert con.execute(
             "SELECT COUNT(*) FROM operaciones_economia WHERE tipo = 'competencia'"
         ).fetchone()[0] == 5
@@ -384,6 +391,9 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     ]
     assert eventos[-1][0] == "publicar"
     assert eventos[-1][2] == {"ya_congelada": "ficha-1"}
+    assert not any(
+        "👀" in llamada.args[0] for llamada in canal.send.await_args_list
+    )
 
 
 def test_una_veta_sin_nivel_no_anuncia_una_subida(monkeypatch):

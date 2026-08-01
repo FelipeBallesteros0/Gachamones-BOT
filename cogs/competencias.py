@@ -460,22 +460,7 @@ class Competencias(commands.Cog):
                 zip(resultado.recibos, participantes)
             )
         )
-        # El plantel se lee aquí y no antes: si el encuentro era un replay o no
-        # llegó a celebrarse ya se ha vuelto arriba, y entonces no hay resultado
-        # que nadie pueda presenciar.
-        reacciones = [
-            reaccion
-            for dorsal, usuario in enumerate(participantes)
-            if (
-                reaccion := texto_testigo_competencia(
-                    db.plantel(str(usuario.id), guild_id),
-                    gano=dorsal == ganador,
-                )
-            )
-        ]
-        await canal.send(
-            "\n".join([comp.resumen(encuentro), recibos, *reacciones])
-        )
+        await canal.send(f"{comp.resumen(encuentro)}\n{recibos}")
 
         for antes, nueva, rupturas, usuario in zip(
             resultado.antes, resultado.despues, resultado.rupturas, participantes
@@ -499,6 +484,20 @@ class Competencias(commands.Cog):
                 )
 
             await comun.anunciar_logros(canal, nueva, ahora)
+
+        # El plantel sólo se consulta tras publicar todas las salidas canónicas.
+        reacciones = [
+            reaccion
+            for dorsal, usuario in enumerate(participantes)
+            if (
+                reaccion := texto_testigo_competencia(
+                    db.plantel(str(usuario.id), guild_id),
+                    gano=dorsal == ganador,
+                )
+            )
+        ]
+        if reacciones:
+            await canal.send("\n".join(reacciones))
 
     async def _animar(
         self, canal: discord.abc.Messageable, fotogramas: list[str]
