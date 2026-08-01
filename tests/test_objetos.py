@@ -21,8 +21,9 @@ class DadoFijo(random.Random):
 
 def test_estan_los_objetos_pedidos():
     """Una poción de comida, cinco tamaños por cada estadística, los dos
-    reinicios de enfriamiento, la placa con nombre y las golosinas."""
-    assert len(obj.CATALOGO) == 15
+    reinicios de enfriamiento, la placa con nombre, las golosinas y el ticket
+    del refugio."""
+    assert len(obj.CATALOGO) == 16
 
     caras = sorted(o.caras for o in obj.CATALOGO.values() if o.stat == "fuerza")
     assert caras == [4, 6, 8, 10, 12]
@@ -132,7 +133,8 @@ def test_los_reinicios_apuntan_a_acciones_de_verdad():
 
 def _efectos(objeto) -> list[bool]:
     return [objeto.stat is not None, objeto.reinicia is not None,
-            bool(objeto.alimenta), objeto.renombra, objeto.ceba]
+            bool(objeto.alimenta), objeto.renombra, objeto.ceba,
+            bool(objeto.dias_de_refugio)]
 
 
 def test_todo_objeto_hace_al_menos_una_cosa():
@@ -166,7 +168,7 @@ def test_lo_que_no_se_usa_en_la_mochila_esta_declarado():
     tiene que coincidir con lo que el objeto hace de verdad."""
     for clave, objeto in obj.CATALOGO.items():
         esperado = bool(objeto.stat or objeto.reinicia or objeto.alimenta
-                        or objeto.renombra)
+                        or objeto.renombra or objeto.dias_de_refugio)
         assert objeto.se_usa_en_mochila == esperado, clave
 
 

@@ -1164,23 +1164,93 @@ def hogar_de(usuario_id: str, guild_id: str, ahora: datetime) -> cas.Hogar:
 def _hogar_de(
     con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
 ) -> cas.Hogar:
+    """El hogar, **empezando la estancia** si es la primera vez que se mira."""
+    hogar = _hogar_leido(con, usuario_id, guild_id, ahora)
+    if not _hay_hogar(con, usuario_id, guild_id):
+        con.execute(
+            "INSERT INTO hogar (usuario_id, guild_id, casa, refugio_hasta) "
+            "VALUES (?, ?, NULL, ?)",
+            (usuario_id, guild_id, hogar.refugio_hasta.isoformat()),
+        )
+    return hogar
+
+
+def alargar_el_refugio(
+    usuario_id: str, guild_id: str, dias: int, ahora: datetime
+) -> datetime:
+    """Le da otra estancia en el refugio y devuelve hasta cuándo llega.
+
+    Cuenta **desde ahora** y no desde el final de la que hubiera: quien lo use
+    con estancia de sobra estaría tirando el ticket, así que el aviso lo dice y
+    el menú lo deja para cuando haga falta.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        _hogar_de(con, usuario_id, guild_id, ahora)     # la crea si no está
+        hasta = ahora + timedelta(days=dias)
+        con.execute(
+            "UPDATE hogar SET refugio_hasta = ? WHERE usuario_id = ? "
+            "AND guild_id = ?",
+            (hasta.isoformat(), usuario_id, guild_id),
+        )
+        return hasta
+
+
+def _hay_hogar(con: sqlite3.Connection, usuario_id: str, guild_id: str) -> bool:
+    return con.execute(
+        "SELECT 1 FROM hogar WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchone() is not None
+
+
+def _hogar_leido(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
+) -> cas.Hogar:
+    """El hogar **sin escribir nada**, para los caminos de sólo lectura.
+
+    Quien no tiene fila todavía no ha empezado su estancia, y aquí se le trata
+    como si acabara de entrar al refugio. Es lo correcto y además evita dos
+    cosas feas: coger el cerrojo de escritura cada vez que alguien mira una
+    ficha, y estrenarle el refugio a otra persona sólo por haber mirado su
+    gachamon con `/mascota @alguien`.
+    """
     fila = con.execute(
         "SELECT casa, refugio_hasta FROM hogar "
         "WHERE usuario_id = ? AND guild_id = ?",
         (usuario_id, guild_id),
     ).fetchone()
     if fila is None:
-        hasta = cas.estancia_desde(ahora)
-        con.execute(
-            "INSERT INTO hogar (usuario_id, guild_id, casa, refugio_hasta) "
-            "VALUES (?, ?, NULL, ?)",
-            (usuario_id, guild_id, hasta.isoformat()),
-        )
-        return cas.Hogar(casa=None, refugio_hasta=hasta)
+        return cas.Hogar(casa=None, refugio_hasta=cas.estancia_desde(ahora))
+    mobiliario = _mobiliario(con, usuario_id, guild_id)
     return cas.Hogar(
         casa=cas.buscar(fila["casa"]),
         refugio_hasta=datetime.fromisoformat(fila["refugio_hasta"]),
+        puestos=tuple(c for c, puesto in mobiliario.items() if puesto),
     )
+
+
+def avanzar(criatura: sim.Criatura, ahora: datetime) -> sim.Criatura:
+    """`sim.avanzar` con el ritmo que le toca por su hogar.
+
+    Existe para que **no haya catorce sitios** teniendo que acordarse de mirar la
+    casa antes de hacer pasar el tiempo. Quien llame a `sim.avanzar` a secas se
+    queda con el ritmo de siempre, que es el de quien tiene techo: el fallo por
+    olvido es el comportamiento anterior y nunca uno peor.
+    """
+    with conectar() as con:
+        return _avanzar_en(con, criatura, ahora)
+
+
+def _avanzar_en(
+    con: sqlite3.Connection, criatura: sim.Criatura, ahora: datetime
+) -> sim.Criatura:
+    """La versión para quien ya tiene una transacción abierta.
+
+    Hace falta la pareja porque abrir una segunda conexión dentro de un
+    `BEGIN IMMEDIATE` ajeno se quedaría esperando a sí misma.
+    """
+    hogar = _hogar_leido(con, criatura.usuario_id, criatura.guild_id, ahora)
+    return sim.avanzar(criatura, ahora, cas.ritmo_de(hogar, ahora))
 
 
 def mudar_en(

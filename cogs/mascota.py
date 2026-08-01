@@ -116,7 +116,7 @@ class Mascota(commands.Cog):
         # el tercero se ganan reclutándolos.
         actual = db.criatura_activa(usuario_id, guild_id)
         if actual is not None:
-            actual = sim.avanzar(actual, ahora)
+            actual = db.avanzar(actual, ahora)
             if not actual.viva:
                 # Se murió mientras nadie miraba: se registra y, si queda alguna
                 # en la incubadora, sale ella en vez de un huevo nuevo.
@@ -158,7 +158,7 @@ class Mascota(commands.Cog):
             await interaccion.response.send_message(texto, ephemeral=True)
             return
 
-        criatura = sim.avanzar(criatura, ahora)
+        criatura = db.avanzar(criatura, ahora)
         if not criatura.viva:
             db.guardar(criatura)
 
@@ -201,7 +201,7 @@ class Mascota(commands.Cog):
         await self._avisar_hambrientas(ahora)
 
         for pendiente in db.pendientes_de_morir(ahora):
-            muerta = sim.avanzar(pendiente, ahora)
+            muerta = db.avanzar(pendiente, ahora)
             if muerta.viva:  # la alimentaron entre medias
                 continue
 
@@ -248,7 +248,7 @@ class Mascota(commands.Cog):
     async def _avisar_hambrientas(self, ahora) -> None:
         """Un aviso por criatura y por bajada. Se rearma al alimentarla."""
         for pendiente in db.pendientes_de_aviso(ahora):
-            criatura = sim.avanzar(pendiente, ahora)
+            criatura = db.avanzar(pendiente, ahora)
             if not criatura.viva:
                 continue  # ya no es un aviso, es un funeral: lo hace el bucle
             if criatura.hambre > sim.UMBRAL_AVISO_HAMBRE:

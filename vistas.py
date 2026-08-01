@@ -194,7 +194,7 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
         # A la que duerme en la incubadora no se le adelanta el reloj: sólo la
         # activa decae, y `avanzar` le comería el hambre por estar guardada.
         if criatura.activa:
-            criatura = sim.avanzar(criatura, ahora)
+            criatura = db.avanzar(criatura, ahora)
         criatura = replace(criatura, nombre=nombre)
         db.guardar(criatura)
 

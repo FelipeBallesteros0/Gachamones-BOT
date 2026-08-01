@@ -558,7 +558,7 @@ class Aventura(commands.Cog):
 
         criatura = db.criatura_activa(usuario_id, guild_id)
         if criatura is not None:
-            criatura = sim.avanzar(criatura, ahora)
+            criatura = db.avanzar(criatura, ahora)
             db.guardar(criatura)
 
         # La espera es tuya, no del gachamon, así que se mira antes incluso de

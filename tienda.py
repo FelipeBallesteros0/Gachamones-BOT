@@ -124,6 +124,16 @@ def usar(
             f"{objeto.stat}** durante {obj.MINUTOS_DE_EFECTO} minutos."
         )
 
+    if objeto.dias_de_refugio:
+        hasta = db.alargar_el_refugio(
+            criatura.usuario_id, criatura.guild_id, objeto.dias_de_refugio, ahora
+        )
+        return (
+            f"{objeto.emoji} Otra estancia en el refugio, hasta el "
+            f"**{hasta:%d/%m}**.\n-# Cuenta desde ahora: si te sobraba tiempo, "
+            "lo has perdido."
+        )
+
     if objeto.alimenta:
         nueva = obj.aplicar_a_la_criatura(objeto, criatura)
         db.guardar(nueva)
@@ -259,7 +269,7 @@ class MenuInventario(discord.ui.Select):
             return
 
         ahora = db.ahora_utc()
-        criatura = sim.avanzar(criatura, ahora)
+        criatura = db.avanzar(criatura, ahora)
         db.guardar(criatura)
         aviso = usar(criatura, objeto, ahora)
 

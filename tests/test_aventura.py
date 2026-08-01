@@ -1427,7 +1427,7 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: viajera)
-    monkeypatch.setattr(cog_av.sim, "avanzar", lambda c, _: c)
+    monkeypatch.setattr(cog_av.db, "avanzar", lambda c, _: c)
     monkeypatch.setattr(cog_av.db, "espera_de_persona", lambda *_: timedelta(0))
     monkeypatch.setattr(cog_av.db, "guardar", lambda c: None)
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)

@@ -94,6 +94,10 @@ class Hogar:
 
     casa: Casa | None
     refugio_hasta: datetime
+    # Los muebles que hay dentro. El refugio no admite ninguno —tiene cero
+    # huecos— y `comodidad_de` lo respeta por su techo, así que no hace falta
+    # comprobarlo aparte.
+    puestos: tuple[str, ...] = ()
 
     def estado(self, ahora: datetime) -> str:
         if self.casa is not None:
@@ -105,7 +109,10 @@ class Hogar:
         return self.casa or EL_REFUGIO
 
     def comodidad(self, ahora: datetime) -> int:
-        return 0 if self.estado(ahora) == INTEMPERIE else self.donde(ahora).comodidad
+        """Lo cómodo que es esto de verdad, muebles incluidos."""
+        if self.estado(ahora) == INTEMPERIE:
+            return 0
+        return comodidad_de(self.donde(ahora), self.puestos)
 
 
 def estancia_desde(ahora: datetime) -> datetime:
@@ -172,6 +179,57 @@ def comodidad_de(casa: Casa, puestos: Collection[str]) -> int:
 
 def caben_mas(casa: Casa, puestos: Collection[str]) -> bool:
     return len(puestos) < casa.huecos
+
+
+# --- Lo que el hogar le hace al gachamon ------------------------------------
+#
+# Sólo a la **activa**: las de la incubadora siguen congeladas, como manda el
+# invariante. Un hogar no puede despertarlas sin romper lo que hace viable tener
+# diez.
+#
+# Dos efectos, simétricos a propósito para que se puedan explicar en una frase:
+#
+# * **A la intemperie todo cae un 25 % más rápido**, y el hambre no baja del
+#   suelo: se pasa mal, pero no se pierde el gachamon por no tener casa.
+# * **La comodidad por encima del refugio frena el ánimo**, hasta ese mismo 25 %
+#   en la casa mejor amueblada.
+#
+# El hambre no la toca la comodidad, y es a propósito: `muere_en` va precalculado
+# en la base para que el bucle de la muerte sea una consulta y no una simulación
+# de todas las filas. Si la casa cambiara el ritmo del hambre, ese instante
+# guardado dejaría de ser cierto en cuanto alguien se mudara.
+
+PENALIZACION_INTEMPERIE = 1.25
+ALIVIO_MAXIMO_DE_ANIMO = 0.25
+
+# Por debajo de esto el hambre no baja mientras se esté a la intemperie. Deja
+# margen de sobra por encima del aviso: quien por fin compre casa no puede
+# encontrarse con que su gachamon se muere a los dos minutos de mudarse.
+SUELO_DE_HAMBRE_A_LA_INTEMPERIE = 25.0
+
+
+def ritmo_de(hogar: Hogar, ahora: datetime) -> sim.Ritmo:
+    """Cómo le pasa el tiempo a quien vive aquí."""
+    if hogar.estado(ahora) == INTEMPERIE:
+        return sim.Ritmo(
+            hambre=PENALIZACION_INTEMPERIE,
+            animo=PENALIZACION_INTEMPERIE,
+            limpieza=PENALIZACION_INTEMPERIE,
+            suelo_de_hambre=SUELO_DE_HAMBRE_A_LA_INTEMPERIE,
+        )
+    return sim.Ritmo(animo=alivio_de_animo(hogar.comodidad(ahora)))
+
+
+def alivio_de_animo(comodidad: int) -> float:
+    """El multiplicador del ánimo: 1.0 en el refugio y 0.75 en la mejor casa.
+
+    Se calcula del catálogo —del techo más alto que existe— y no de un número
+    escrito, para que añadir una casa mejor no deje esto desfasado.
+    """
+    mejor = max(casa.techo for casa in CATALOGO.values())
+    de_mas = max(0, comodidad - EL_REFUGIO.comodidad)
+    margen = mejor - EL_REFUGIO.comodidad
+    return 1.0 - ALIVIO_MAXIMO_DE_ANIMO * min(1.0, de_mas / margen)
 
 
 # --- El dibujo -------------------------------------------------------------

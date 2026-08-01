@@ -371,7 +371,7 @@ class Competencias(commands.Cog):
         for usuario in (retador, *invitados):
             criatura = db.criatura_activa(str(usuario.id), guild_id)
             if criatura is not None:
-                criatura = sim.avanzar(criatura, ahora)
+                criatura = db.avanzar(criatura, ahora)
                 db.guardar(criatura)
             criaturas.append(criatura)
 

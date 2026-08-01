@@ -599,3 +599,176 @@ def test_la_tienda_sigue_cabiendo_con_los_cuatro_desplegables():
     assert len(vista.children) == 4 <= 5
     for menu in menus:
         assert 1 <= len(menu.options) <= 25
+
+
+# --- Lo que el hogar le hace al gachamon -----------------------------------
+
+def _viva(hambre=100.0, animo=100.0, limpieza=100.0, activa=True):
+    return sim.Criatura(
+        id=1, usuario_id="u1", guild_id="g1", especie="pulpo", nombre="Kuro",
+        nacida_en=T0, actualizada_en=T0, base_fuerza=15, base_velocidad=15,
+        base_salud=15, hambre=hambre, animo=animo, limpieza=limpieza,
+        activa=activa,
+    )
+
+
+def _tras(horas, ritmo=sim.RITMO_BAJO_TECHO, **estado):
+    return sim.avanzar(_viva(**estado), T0 + timedelta(hours=horas), ritmo)
+
+
+def test_bajo_techo_el_tiempo_pasa_como_siempre():
+    """El ritmo por defecto **es** el de quien tiene techo: quien olvide pasarlo
+    se queda con el comportamiento de antes y nunca con uno peor."""
+    hogar = cas.Hogar(None, T0 + timedelta(days=1))       # refugio
+    assert cas.ritmo_de(hogar, T0) == sim.Ritmo()
+    assert _tras(10, cas.ritmo_de(hogar, T0)) == _tras(10)
+
+
+def test_a_la_intemperie_todo_cae_un_cuarto_mas_rapido():
+    fuera = cas.ritmo_de(cas.Hogar(None, T0), T0 + timedelta(days=1))
+
+    normal, crudo = _tras(10), _tras(10, fuera)
+
+    for barra in ("hambre", "animo", "limpieza"):
+        perdido_normal = 100.0 - getattr(normal, barra)
+        perdido_fuera = 100.0 - getattr(crudo, barra)
+        assert perdido_fuera == pytest.approx(perdido_normal * 1.25), barra
+
+
+def test_la_intemperie_no_puede_matar():
+    """Lo decidido: acelera, pero nadie pierde un gachamon para siempre por no
+    haber comprado casa. Ni en un mes a la intemperie."""
+    fuera = cas.ritmo_de(cas.Hogar(None, T0), T0 + timedelta(days=1))
+
+    tras_un_mes = _tras(24 * 30, fuera, hambre=30.0)
+
+    assert tras_un_mes.viva
+    assert tras_un_mes.hambre == cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE
+    assert tras_un_mes.muerta_en is None
+
+
+def test_el_suelo_deja_margen_para_mudarse_sin_morirse():
+    """Quien por fin compre casa no puede encontrarse con que su gachamon se
+    muere a los dos minutos: el suelo tiene que quedar por encima del aviso."""
+    assert cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE > sim.UMBRAL_AVISO_HAMBRE
+
+
+def test_bajo_techo_el_hambre_sigue_matando():
+    """El suelo es sólo de la intemperie: la muerte por hambre sigue existiendo
+    para quien tiene casa, que es como ha sido siempre."""
+    muerta = _tras(24 * 5, hambre=10.0)
+    assert not muerta.viva and muerta.causa_muerte == "hambre"
+
+
+def test_la_comodidad_frena_el_animo_hasta_un_cuarto():
+    """Simétrico al castigo de la intemperie, para poder contarlo en una frase."""
+    assert cas.alivio_de_animo(cas.EL_REFUGIO.comodidad) == 1.0
+    assert cas.alivio_de_animo(GRANDE.techo) == 1.0 - cas.ALIVIO_MAXIMO_DE_ANIMO
+    # Y por debajo del refugio no premia, que sería al revés de lo que toca.
+    assert cas.alivio_de_animo(0) == 1.0
+
+
+def test_la_mejor_casa_conserva_mas_animo_que_el_refugio():
+    mejor = cas.Hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos)))
+    refugio = cas.Hogar(None, T0 + timedelta(days=1))
+
+    en_casa = _tras(24, cas.ritmo_de(mejor, T0))
+    en_refugio = _tras(24, cas.ritmo_de(refugio, T0))
+
+    assert en_casa.animo > en_refugio.animo
+    # Y el hambre no la toca la comodidad: `muere_en` va precalculado en la base
+    # y dejaría de ser cierto en cuanto alguien se mudara.
+    assert en_casa.hambre == en_refugio.hambre
+
+
+def test_los_muebles_cuentan_para_el_ritmo():
+    vacia = cas.Hogar(GRANDE, T0)
+    llena = cas.Hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos)))
+
+    assert cas.ritmo_de(llena, T0).animo < cas.ritmo_de(vacia, T0).animo
+
+
+def test_las_de_la_incubadora_siguen_congeladas_vivan_donde_vivan():
+    """El invariante que no se toca: si las de reserva decayeran, con diez por
+    persona se morirían hiciera lo que hiciera su dueño."""
+    fuera = cas.ritmo_de(cas.Hogar(None, T0), T0 + timedelta(days=1))
+    guardada = _viva(activa=False)
+
+    assert sim.avanzar(guardada, T0 + timedelta(days=30), fuera) == guardada
+
+
+def test_avanzar_mira_el_hogar_de_quien_sea_la_criatura():
+    """De punta a punta: nadie pasa el ritmo a mano, sale de la base."""
+    from dataclasses import replace
+
+    nacer()
+    bicho = db.criatura_activa("u1", "g1")
+    fin = db.hogar_de("u1", "g1", T0).refugio_hasta
+
+    dentro = db.avanzar(bicho, T0 + timedelta(hours=1))
+    # El mismo, con el reloj puesto justo cuando se le acaba el refugio: una
+    # hora dentro contra una hora fuera, que es lo comparable. Medido sobre
+    # varios días, el ánimo toca fondo en cero y la media miente.
+    fuera = db.avanzar(
+        replace(bicho, actualizada_en=fin), fin + timedelta(hours=1)
+    )
+
+    assert (100.0 - fuera.animo) == pytest.approx(
+        (100.0 - dentro.animo) * cas.PENALIZACION_INTEMPERIE
+    )
+
+
+def test_mirar_la_ficha_de_otro_no_le_estrena_el_refugio():
+    """`avanzar` es de sólo lectura: coger el cerrojo de escritura en cada ficha
+    sería caro, y estrenarle la estancia a otro por mirarle el gachamon, injusto."""
+    nacer(usuario="u2")
+    ajena = db.criatura_activa("u2", "g1")
+
+    db.avanzar(ajena, T0 + timedelta(hours=1))
+
+    with db.conectar() as con:
+        assert not db._hay_hogar(con, "u2", "g1")
+
+
+# --- El ticket del refugio -------------------------------------------------
+
+TICKET = __import__("objetos").CATALOGO["ticket_refugio"]
+
+
+def test_el_ticket_devuelve_una_estancia_entera():
+    nacer()
+    bicho = db.criatura_activa("u1", "g1")
+    fuera = hogar().refugio_hasta + timedelta(days=1)
+    assert hogar().estado(fuera) == cas.INTEMPERIE
+
+    aviso = tienda.usar(bicho, TICKET, fuera)
+
+    assert "refugio" in aviso
+    assert db.hogar_de("u1", "g1", fuera).estado(fuera) == cas.REFUGIO
+
+
+def test_el_ticket_cuenta_desde_que_se_usa():
+    """Y el aviso lo dice: usarlo con estancia de sobra es tirarlo."""
+    nacer()
+    bicho = db.criatura_activa("u1", "g1")
+    db.hogar_de("u1", "g1", T0)
+
+    aviso = tienda.usar(bicho, TICKET, T0 + timedelta(days=1))
+
+    assert "lo has perdido" in aviso
+    assert db.hogar_de("u1", "g1", T0).refugio_hasta == (
+        T0 + timedelta(days=1 + TICKET.dias_de_refugio)
+    )
+
+
+def test_el_ticket_se_puede_usar_desde_la_mochila():
+    """Si no, se gastaría la unidad sin hacer nada: es justo lo que comprueba el
+    menú antes de gastarla."""
+    assert TICKET.se_usa_en_mochila and TICKET.se_aplica_al_momento
+
+
+def test_el_ticket_sale_mas_caro_que_comprar_casa_a_la_larga():
+    """Es una red de seguridad, no una alternativa: quien lo use cada semana
+    gasta más que la casa pequeña en dos meses y sigue sin poder amueblar."""
+    ocho_semanas = TICKET.precio * 8
+    assert ocho_semanas > PEQUENA.precio

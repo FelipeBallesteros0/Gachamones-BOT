@@ -51,7 +51,7 @@ class Charla(commands.Cog):
             )
             return
 
-        criatura = sim.avanzar(criatura, ahora)
+        criatura = db.avanzar(criatura, ahora)
         if not criatura.viva:
             db.guardar(criatura)
             await mensaje.reply(

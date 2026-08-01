@@ -214,7 +214,7 @@ def criatura_de_prueba(**cambios) -> sim.Criatura:
     return sim.Criatura(**base)
 
 
-def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
+def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch, bd_temporal):
     from types import SimpleNamespace
     from typing import Any, cast
     from unittest.mock import AsyncMock, Mock
@@ -271,7 +271,7 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch):
     assert "view" not in llamada.kwargs
 
 
-def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch):
+def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_temporal):
     from types import SimpleNamespace
     from typing import Any, cast
     from unittest.mock import AsyncMock, Mock

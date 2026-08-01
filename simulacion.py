@@ -711,6 +711,29 @@ def horas_de_vida(salud: int) -> float:
     return HORAS_BASE_HAMBRE + salud * HORAS_POR_SALUD
 
 
+@dataclass(frozen=True)
+class Ritmo:
+    """Cuánto más rápido o más lento pasa el tiempo para una criatura.
+
+    Lo trae el hogar, y se le pasa a `avanzar` ya calculado: este módulo no sabe
+    de casas ni de refugios, sólo de multiplicadores. `casas.ritmo_de` es quien
+    los saca del hogar.
+
+    `suelo_de_hambre` es lo que hace que la intemperie **no pueda matar**: por
+    debajo de ahí el hambre no baja, así que se pasa mal indefinidamente pero no
+    se pierde el gachamon por no haber comprado casa. Bajo techo vale 0, que es
+    el comportamiento de siempre.
+    """
+
+    hambre: float = 1.0
+    animo: float = 1.0
+    limpieza: float = 1.0
+    suelo_de_hambre: float = 0.0
+
+
+RITMO_BAJO_TECHO = Ritmo()
+
+
 def momento_de_aviso(criatura: Criatura) -> datetime:
     """Instante en que la comida bajará del umbral de aviso.
 
@@ -735,7 +758,9 @@ def momento_de_muerte(criatura: Criatura) -> datetime:
     return criatura.actualizada_en + timedelta(hours=horas)
 
 
-def avanzar(criatura: Criatura, ahora: datetime) -> Criatura:
+def avanzar(
+    criatura: Criatura, ahora: datetime, ritmo: Ritmo = RITMO_BAJO_TECHO
+) -> Criatura:
     """Aplica el paso del tiempo hasta `ahora`. Idempotente y sin efectos.
 
     A las de la incubadora no les pasa el tiempo. Es lo que hace viable tener
@@ -743,6 +768,11 @@ def avanzar(criatura: Criatura, ahora: datetime) -> Criatura:
     morirían de hambre hiciera lo que hiciera su dueño. Al sacarlas, `db.activar`
     les pone `actualizada_en` al día para que las horas dormidas no se les caigan
     encima de golpe.
+
+    `ritmo` es lo que aporta el hogar: quien lo tiene lo calcula y lo pasa. Por
+    defecto va el de siempre, que es también el de quien tiene techo — así el
+    `muere_en` guardado en la base sigue siendo exacto para todo el mundo salvo
+    para quien esté a la intemperie, y a ése el hambre no lo puede matar.
     """
     if not criatura.viva or not criatura.activa:
         return criatura
@@ -751,13 +781,16 @@ def avanzar(criatura: Criatura, ahora: datetime) -> Criatura:
     if horas <= 0:
         return criatura
 
-    hambre = max(0.0, criatura.hambre - tasa_hambre_por_hora(criatura.salud) * horas)
-    limpieza = max(0.0, criatura.limpieza - (100.0 / HORAS_VACIAR_LIMPIEZA) * horas)
+    caida = tasa_hambre_por_hora(criatura.salud) * ritmo.hambre * horas
+    hambre = max(ritmo.suelo_de_hambre, criatura.hambre - caida)
+    limpieza = max(
+        0.0, criatura.limpieza - (100.0 / HORAS_VACIAR_LIMPIEZA) * ritmo.limpieza * horas
+    )
 
     # El ánimo cae más rápido si está sucia. Se decide con la limpieza al
     # principio del intervalo: es una aproximación, pero el ánimo no mata, así
     # que un error de unos puntos no tiene consecuencias.
-    ritmo_animo = 100.0 / HORAS_VACIAR_ANIMO
+    ritmo_animo = 100.0 / HORAS_VACIAR_ANIMO * ritmo.animo
     if criatura.limpieza < LIMPIEZA_SUCIA:
         ritmo_animo *= MULTIPLICADOR_ANIMO_SUCIO
     animo = max(0.0, criatura.animo - ritmo_animo * horas)

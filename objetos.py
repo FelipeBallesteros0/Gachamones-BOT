@@ -49,6 +49,9 @@ class Objeto:
     # Sirve además en una aventura, para ganarse a un salvaje. Se gasta al
     # ofrecérselo, sin pasar por la mochila.
     ceba: bool = False
+    # Devuelve una estancia entera en el refugio. Es la salida de la intemperie
+    # para quien todavía no llega a una casa.
+    dias_de_refugio: int = 0
 
     @property
     def se_usa_en_mochila(self) -> bool:
@@ -57,7 +60,10 @@ class Objeto:
         Lo consulta el menú **antes de gastar la unidad**: sin esto, elegir algo
         que sólo sirve de cebo te costaría el objeto a cambio de nada.
         """
-        return bool(self.reinicia or self.stat or self.alimenta or self.renombra)
+        return bool(
+            self.reinicia or self.stat or self.alimenta or self.renombra
+            or self.dias_de_refugio
+        )
 
     @property
     def se_aplica_al_momento(self) -> bool:
@@ -66,7 +72,9 @@ class Objeto:
         La placa no: necesita que escribas el nombre, así que abre un formulario
         y se gasta al confirmarlo. Por eso son dos propiedades y no una.
         """
-        return bool(self.reinicia or self.stat or self.alimenta)
+        return bool(
+            self.reinicia or self.stat or self.alimenta or self.dias_de_refugio
+        )
 
 
 CATALOGO: dict[str, Objeto] = {}
@@ -155,6 +163,19 @@ _registrar(Objeto(
     precio=15,
     descripcion="Le cambia el nombre a tu gachamon activo.",
     renombra=True,
+))
+
+# La salida de la intemperie para quien todavía no llega a una casa. Cuesta
+# poco a propósito: es una red de seguridad, no una alternativa a comprar. Quien
+# lo use cada semana gasta más que la casa pequeña en dos meses y sigue sin
+# tener dónde poner un mueble.
+_registrar(Objeto(
+    clave="ticket_refugio",
+    nombre="Ticket del refugio",
+    emoji="🎟️",
+    precio=40,
+    descripcion="Otra semana en el refugio, desde que lo uses.",
+    dias_de_refugio=7,
 ))
 
 

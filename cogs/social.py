@@ -288,6 +288,12 @@ quedas a la intemperie hasta que compres casa en 🛒 **Tienda**.
 (🪙 {min(m.precio for m in cas.MUEBLES.values())}–\
 {max(m.precio for m in cas.MUEBLES.values())}) suman comodidad hasta el techo de \
 tu casa; se ponen y se quitan con 🪑 **Amueblar**, y lo que retires se guarda.
+-# Cuanta más **comodidad**, más despacio le baja el ánimo a tu activo — hasta \
+un {int(cas.ALIVIO_MAXIMO_DE_ANIMO * 100)} % menos en la mejor casa. **A la \
+intemperie** todo le baja un {int((cas.PENALIZACION_INTEMPERIE - 1) * 100)} % \
+más rápido, pero **no puede matarlo**: la comida se queda en \
+{int(cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)}. El 🎟️ **ticket del refugio** \
+(🪙 {obj.CATALOGO["ticket_refugio"].precio}) te devuelve una semana bajo techo.
 
 **Otros**
 `/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
@@ -364,7 +370,7 @@ class Social(commands.Cog):
 
         criaturas = []
         for viva in db.vivas_del_servidor(guild_id):
-            avanzada = sim.avanzar(viva, ahora)
+            avanzada = db.avanzar(viva, ahora)
             db.guardar(avanzada)
             if avanzada.viva:
                 criaturas.append(avanzada)

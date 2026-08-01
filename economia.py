@@ -141,7 +141,7 @@ def ejecutar_viaje(
                 actual,
                 problema="La aventura ya no pertenece al gachamon activo.",
             )
-        avanzado = sim.avanzar(actual, ahora)
+        avanzado = db._avanzar_en(con, actual, ahora)
         nueva, rupturas = av.aplicar_viaje(
             avanzado, salida, ahora, percance
         )
@@ -390,7 +390,7 @@ def ejecutar_cuidado(
         criatura = db.criatura_activa_en(con, usuario_id, guild_id)
         if criatura is None:
             return None
-        criatura = sim.avanzar(criatura, ahora)
+        criatura = db._avanzar_en(con, criatura, ahora)
         if not criatura.viva:
             db._guardar(con, criatura)
             return ResultadoCuidado(
@@ -526,7 +526,9 @@ def ejecutar_competencia(
                 )
             antes_lista.append(criatura)
         antes = tuple(antes_lista)
-        criaturas = tuple(sim.avanzar(criatura, ahora) for criatura in antes)
+        criaturas = tuple(
+            db._avanzar_en(con, criatura, ahora) for criatura in antes
+        )
         for criatura in criaturas:
             db._guardar(con, criatura)
         for usuario_id, criatura in zip(usuarios, criaturas):
