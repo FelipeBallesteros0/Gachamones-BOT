@@ -268,7 +268,10 @@ class MenuEntrenamientoConjunto(discord.ui.Select):
             await interaction.response.edit_message(content=texto, view=None)
             if resultado.problema == "activo_muerto" and resultado.bloqueada:
                 canal = _canal_de(interaction)
-                await congelar(canal, self.pantalla_msg_id)
+                await congelar(
+                    canal,
+                    resultado.bloqueada.pantalla_msg_id or self.pantalla_msg_id,
+                )
                 await canal.send(pantalla.render(resultado.bloqueada, ahora))
             return
 

@@ -397,7 +397,7 @@ def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
     ]
 
 
-def test_muerte_lazy_cierra_selector_publica_lapida_y_no_toca_reserva(
+def test_muerte_lazy_congela_ficha_activa_autoritativa_y_no_toca_reserva(
     bd_temporal, monkeypatch
 ):
     activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
@@ -405,7 +405,7 @@ def test_muerte_lazy_cierra_selector_publica_lapida_y_no_toca_reserva(
         "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
     )
     db.guardar(replace(activa, hambre=0.1))
-    db.guardar_pantalla(activa.id, "ficha", "canal")
+    db.guardar_pantalla(activa.id, "ficha-b", "canal")
     monkeypatch.setattr(
         vistas.db, "ahora_utc", Mock(return_value=T0 + timedelta(hours=1))
     )
@@ -413,7 +413,7 @@ def test_muerte_lazy_cierra_selector_publica_lapida_y_no_toca_reserva(
     publicar = AsyncMock()
     monkeypatch.setattr(vistas, "congelar", congelar)
     monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha-a")
     menu._values = [str(reserva.id)]
     interaccion, respuesta, canal = interaccion_de(evento_id="selector")
 
@@ -422,7 +422,7 @@ def test_muerte_lazy_cierra_selector_publica_lapida_y_no_toca_reserva(
     respuesta.edit_message.assert_awaited_once_with(
         content="Tu gachamon ya no está entre nosotros.", view=None
     )
-    congelar.assert_awaited_once_with(canal, "ficha")
+    congelar.assert_awaited_once_with(canal, "ficha-b")
     canal.send.assert_awaited_once()
     publicar.assert_not_awaited()
     assert db.obtener(reserva.id) == reserva
