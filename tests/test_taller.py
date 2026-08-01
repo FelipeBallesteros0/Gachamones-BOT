@@ -338,6 +338,41 @@ def test_los_dos_desplegables_de_la_tienda_caben_en_discord():
     assert len(obj.CATALOGO) + len(cos.CATALOGO) > 25
 
 
+def test_los_dos_desplegables_de_la_tienda_se_etiquetan_a_juego():
+    """Reportado jugando: arriba ponía «¿Qué compras?» y abajo «💎 Cosméticos»,
+    y uno al lado del otro no se leían como una pareja.
+
+    La regla es la del sitio, no la del menú: **compartiendo mensaje se
+    etiqueta**, porque lo que hace falta es distinguir en cuál mirar; el emoji
+    de la moneda es de paso lo que dice con qué se paga cada lista.
+    """
+    consumibles = tienda.MenuTienda().placeholder
+    cosmeticos = tienda.MenuCosmeticos().placeholder
+
+    assert consumibles == "🪙 Consumibles"
+    assert cosmeticos == "💎 Cosméticos"
+    for etiqueta in (consumibles, cosmeticos):
+        assert "?" not in etiqueta and "¿" not in etiqueta, etiqueta
+
+
+def test_los_dos_de_personalizar_tambien_van_a_juego():
+    nacer()
+    poner = tienda.MenuPonerCosmetico(frozenset({"corona"})).placeholder
+    quitar = tienda.MenuQuitarCosmetico(activa()).placeholder
+
+    assert (poner, quitar) == ("Ponerle…", "Quitarle…")
+
+
+def test_el_desplegable_que_va_solo_en_su_mensaje_si_pregunta():
+    """La otra mitad de la regla, para que no se lea como «prohibido preguntar»
+    y alguien vaya a igualar también éstos: van solos, no hay con qué
+    confundirlos, y preguntar se lee mejor."""
+    import equipo
+
+    assert tienda.MenuInventario({}).placeholder == "¿Qué usas?"
+    assert equipo.MenuPlantel([], None, None, None).placeholder == "¿A cuál sacas?"
+
+
 def test_la_tienda_marca_lo_que_ya_tienes_en_vez_de_ofrecerlo():
     menu = tienda.MenuCosmeticos(frozenset({"corona"}))
     por_valor = {o.value: o.label for o in menu.options}

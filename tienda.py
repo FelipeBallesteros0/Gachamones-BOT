@@ -43,8 +43,8 @@ def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
     return (
         f"## {obj.EMOJI_MONEDA_TIENDA} Tienda\n"
         f"{_saldos(usuario_id, guild_id)}\n"
-        "-# Arriba los consumibles, que se usan desde 🎒 **Mochila**. "
-        "Abajo los cosméticos, que se ponen desde 🎨 **Personalizar**."
+        "-# Los consumibles se usan desde 🎒 **Mochila**; los cosméticos se "
+        "ponen desde 🎨 **Personalizar**."
     )
 
 
@@ -278,7 +278,10 @@ class MenuTienda(discord.ui.Select):
             )
             for clave, objeto in obj.CATALOGO.items()
         ]
-        super().__init__(placeholder="¿Qué compras?", options=opciones)
+        # Etiqueta y no pregunta, y con la moneda delante: comparte mensaje con
+        # el de cosméticos, así que lo que hace falta es poder distinguirlos de
+        # un vistazo. Los que van solos en su mensaje sí preguntan.
+        super().__init__(placeholder="🪙 Consumibles", options=opciones)
 
     async def callback(self, interaccion: discord.Interaction) -> None:
         usuario_id = str(interaccion.user.id)
