@@ -93,6 +93,7 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
 def texto_testigo_competencia(
     plantel: list[sim.Criatura], *, gano: bool
 ) -> str | None:
+    """Elige un testigo determinista que sólo reacciona desde la incubadora."""
     activa = next((criatura for criatura in plantel if criatura.activa), None)
     testigo = next(
         (
@@ -106,10 +107,10 @@ def texto_testigo_competencia(
     if activa is None or testigo is None:
         return None
     reaccion = (
-        f"celebra la victoria de **{activa.nombre}**"
-        if gano else f"acompaña a **{activa.nombre}** tras la competencia"
+        f"celebra a **{activa.nombre}**"
+        if gano else f"espera a **{activa.nombre}**"
     )
-    return f"-# 👀 **{testigo.nombre}** {reaccion}."
+    return f"-# 👀 Desde la incubadora, **{testigo.nombre}** {reaccion}."
 
 
 def texto_recibo_competencia(
@@ -459,7 +460,10 @@ class Competencias(commands.Cog):
                 zip(resultado.recibos, participantes)
             )
         )
-        reacciones = "\n".join(
+        # El plantel se lee aquí y no antes: si el encuentro era un replay o no
+        # llegó a celebrarse ya se ha vuelto arriba, y entonces no hay resultado
+        # que nadie pueda presenciar.
+        reacciones = [
             reaccion
             for dorsal, usuario in enumerate(participantes)
             if (
@@ -468,11 +472,10 @@ class Competencias(commands.Cog):
                     gano=dorsal == ganador,
                 )
             )
+        ]
+        await canal.send(
+            "\n".join([comp.resumen(encuentro), recibos, *reacciones])
         )
-        cierre = f"{comp.resumen(encuentro)}\n{recibos}"
-        if reacciones:
-            cierre += f"\n{reacciones}"
-        await canal.send(cierre)
 
         for antes, nueva, rupturas, usuario in zip(
             resultado.antes, resultado.despues, resultado.rupturas, participantes

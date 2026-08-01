@@ -56,7 +56,7 @@ def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
 
 
 def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
-    activa = nacer("u1")
+    activa = db.crear("u1", "g1", "pulpo", "Sol", STATS, T0)
     sin_nombre = db.crear(
         "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
     )
@@ -64,15 +64,17 @@ def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
         "u1", "g1", "michi", "Luna", STATS, T0, activa=False
     )
     segunda = db.crear(
-        "u1", "g1", "michi", "Sol", STATS, T0, activa=False
+        "u1", "g1", "michi", "Bruma", STATS, T0, activa=False
     )
-    plantel = [activa, sin_nombre, primera, segunda]
+    # Va delante de Luna y aun así no reacciona: quien ya no está no presencia.
+    muerta = replace(primera, nombre="Nube", muerta_en=T0)
+    plantel = [activa, sin_nombre, muerta, primera, segunda]
 
     assert cog_comp.texto_testigo_competencia(plantel, gano=True) == (
-        "-# 👀 **Luna** celebra la victoria de **u1**."
+        "-# 👀 Desde la incubadora, **Luna** celebra a **Sol**."
     )
     assert cog_comp.texto_testigo_competencia(plantel, gano=False) == (
-        "-# 👀 **Luna** acompaña a **u1** tras la competencia."
+        "-# 👀 Desde la incubadora, **Luna** espera a **Sol**."
     )
 
 
@@ -115,7 +117,10 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     usuarios = tuple(str(1_000_000_000_000_000_001 + n) for n in range(5))
     nombres = tuple(f"CriaturaLimite{n:010d}" for n in range(1, 6))
     assert all(len(nombre) == sim.LARGO_MAXIMO_NOMBRE for nombre in nombres)
-    testigos = tuple(f"Testigo{n}" for n in range(1, 6))
+    # Los testigos también van al largo máximo: es el caso que aprieta los
+    # 2000 caracteres, y con nombres cortos el tope no se estaría midiendo.
+    testigos = tuple(f"Testigo{n:017d}" for n in range(1, 6))
+    assert all(len(testigo) == sim.LARGO_MAXIMO_NOMBRE for testigo in testigos)
     reservas = []
     for usuario, nombre, testigo in zip(usuarios, nombres, testigos):
         db.crear(usuario, "g1", "pulpo", nombre, STATS, T0)
@@ -162,15 +167,17 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
     assert len(lineas) == 5
     assert len(reacciones) == 5
     assert all(
-        f"**{testigo}**" in linea
-        for testigo, linea in zip(testigos, reacciones)
+        f"**{testigo}**" in linea and f"**{nombre}**" in linea
+        for testigo, nombre, linea in zip(testigos, nombres, reacciones)
     )
-    assert sum("celebra la victoria" in linea for linea in reacciones) == 1
-    assert sum("tras la competencia" in linea for linea in reacciones) == 4
+    assert all("Desde la incubadora" in linea for linea in reacciones)
+    assert sum(" celebra a " in linea for linea in reacciones) == 1
+    assert sum(" espera a " in linea for linea in reacciones) == 4
     assert [linea.split(" · ", 1)[0] for linea in lineas] == [
         f"-# <@{usuario}>" for usuario in usuarios
     ]
     ganador = resultado.encuentro.orden[0]
+    assert " celebra a " in reacciones[ganador]
     assert sum("+10 XP" in linea for linea in lineas) == 1
     assert sum("+4 XP" in linea for linea in lineas) == 4
     for dorsal, linea in enumerate(lineas):
