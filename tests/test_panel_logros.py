@@ -252,3 +252,44 @@ def test_al_reclutar_domador_se_canta_como_tuyo(monkeypatch):
     assert set(db.logros_de_persona("1", "g1")) == {"domador"}
     # Y el gachamon que salió no se lleva ninguna de las tres.
     assert "domador" not in db.logros_de(bicho.id)
+
+
+@pytest.mark.parametrize("clave", ["dragoncito", "cefiro", "prismlon"])
+def test_reclutar_un_raro_tambien_da_uno_entre_veinticinco(clave):
+    """Pedido tras jugarlo: la medalla no es sólo del huevo de partida.
+
+    Se prueban las tres raras y no una: **dos de ellas no salen del huevo**, así
+    que reclutarlas es la única forma de conseguirlas, y si esto sólo mirase a
+    la del huevo no habría manera de ganarla con ellas.
+    """
+    import aventura as av
+    import cogs.aventura as cog_av
+    import especies as esp
+
+    assert esp.ESPECIES[clave].rareza == esp.RARA
+    bicho = db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
+    canal = SimpleNamespace(send=AsyncMock())
+    salvaje = av.Salvaje(
+        clave, esp.ESPECIES[clave].nombre, esp.MACHO, "sereno", (10, 10, 10)
+    )
+    vista = cog_av.EncuentroView(
+        None, SimpleNamespace(id="1", display_name="Felipe"), "g1", bicho,
+        av.Encuentro(salvaje=salvaje, confianza=100),
+    )
+
+    asyncio.run(vista._unirse(_interaccion(canal), "se acerca"))
+
+    anuncios = " ".join(c.args[0] for c in canal.send.await_args_list)
+    assert "Uno entre veinticinco" in anuncios
+    assert set(db.logros_de_persona("1", "g1")) == {
+        "domador", "uno_entre_veinticinco"
+    }
+
+
+def test_dos_de_las_tres_raras_no_salen_del_huevo():
+    """Lo que hace imprescindible al test de arriba: si «Uno entre veinticinco»
+    dependiera del cascarón, Céfiro y Prismlon no la darían nunca."""
+    import especies as esp
+
+    raras = {c for c, e in esp.ESPECIES.items() if e.rareza == esp.RARA}
+    assert raras - set(esp.DEL_HUEVO) == {"cefiro", "prismlon"}
