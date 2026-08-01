@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import random
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -552,8 +553,12 @@ def usa_formas_de_vosotros(texto: str) -> bool:
 def menciona_nombre_caracter(texto: str, clave_caracter: str) -> bool:
     """Si el texto nombra como palabra el carácter indicado."""
     caracter = CARACTERES[clave_caracter]
+    texto = unicodedata.normalize("NFC", texto)
     palabras = set(re.findall(r"[^\W\d_]+", texto.casefold()))
-    nombres = {caracter.masculino.casefold(), caracter.femenino.casefold()}
+    nombres = {
+        unicodedata.normalize("NFC", nombre).casefold()
+        for nombre in (caracter.masculino, caracter.femenino)
+    }
     return not nombres.isdisjoint(palabras)
 
 

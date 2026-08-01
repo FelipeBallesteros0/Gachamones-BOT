@@ -2,6 +2,7 @@
 """La aventura: biomas, pruebas, qué te encuentras y convencer a un salvaje."""
 import asyncio
 import random
+import unicodedata
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -500,6 +501,7 @@ def test_detecta_el_caracter_como_palabra_completa():
     assert per.menciona_nombre_caracter("Soy SERENO.", "sereno")
     assert per.menciona_nombre_caracter("Estoy serena.", "sereno")
     assert not per.menciona_nombre_caracter("Empieza la serenata.", "sereno")
+    assert not per.menciona_nombre_caracter("Soy gruñón.", "sereno")
 
 
 @pytest.mark.parametrize("genero", (esp.MACHO, esp.HEMBRA))
@@ -589,16 +591,20 @@ def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatc
 
 
 @pytest.mark.parametrize(
-    ("genero", "frase_reportada"),
-    ((esp.MACHO, "Soy SERENO."), (esp.HEMBRA, "Soy serena.")),
+    ("genero", "caracter", "frase_reportada"),
+    (
+        (esp.MACHO, "sereno", "Soy SERENO."),
+        (esp.HEMBRA, "sereno", "Soy serena."),
+        (esp.MACHO, "gruñón", unicodedata.normalize("NFD", "Soy gruñón.")),
+    ),
 )
 def test_contestar_no_publica_el_nombre_del_caracter(
-    monkeypatch, genero, frase_reportada
+    monkeypatch, genero, caracter, frase_reportada
 ):
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     generar = AsyncMock(return_value=(frase_reportada, True))
     salvaje = av.Salvaje(
-        "michi", "Michi", genero, "sereno", (10, 10, 10)
+        "michi", "Michi", genero, caracter, (10, 10, 10)
     )
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
