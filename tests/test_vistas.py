@@ -5,7 +5,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
@@ -114,22 +114,28 @@ def test_pantalla_inyecta_el_congelador_en_mochila_y_plantel(monkeypatch):
     asyncio.run(botones["tama:plantel"].callback(interaccion))
 
     abrir_inventario.assert_awaited_once_with(interaccion, vistas.congelar)
-    # El plantel recibe además el bautizo: es lo que le deja mandar a poner
-    # nombre al recluta sin importar este módulo, que ya lo importa a él.
+    # El plantel recibe además el bautizo y la publicación de la ficha sin
+    # importar este módulo, que ya lo importa a él.
     abrir_plantel.assert_awaited_once_with(
-        interaccion, vistas.congelar, vistas.bautizar
+        interaccion, vistas.congelar, vistas.bautizar, vistas.publicar_pantalla
     )
 
 
-def test_cambiar_activo_congela_la_ficha_anterior_antes_de_responder(monkeypatch):
+def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
-    nueva = criatura(2, "Nueva", False, "ficha-nueva")
+    nueva = criatura(2, "Nueva", True, "ficha-nueva")
+    ahora = object()
     monkeypatch.setattr(
         equipo.db, "criatura_activa", Mock(side_effect=[anterior, nueva])
     )
-    monkeypatch.setattr(equipo.db, "activar", Mock(return_value=True))
-    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     eventos = []
+
+    def activar(*args):
+        eventos.append(("activar", *args))
+        return True
+
+    monkeypatch.setattr(equipo.db, "activar", activar)
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=ahora))
 
     async def responder(**_):
         eventos.append("respuesta")
@@ -137,7 +143,10 @@ def test_cambiar_activo_congela_la_ficha_anterior_antes_de_responder(monkeypatch
     async def congelar(canal, mensaje_id):
         eventos.append(("congelar", canal, mensaje_id))
 
-    menu = equipo.MenuPlantel([anterior, nueva], congelar)
+    async def publicar(canal, criatura_nueva, instante):
+        eventos.append(("publicar", canal, criatura_nueva, instante))
+
+    menu = equipo.MenuPlantel([anterior, nueva], congelar, None, publicar)
     menu._values = [str(nueva.id)]
     canal = SimpleNamespace()
     interaccion = SimpleNamespace(
@@ -147,17 +156,23 @@ def test_cambiar_activo_congela_la_ficha_anterior_antes_de_responder(monkeypatch
 
     asyncio.run(menu.callback(interaccion))
 
-    assert eventos == [("congelar", canal, "ficha-anterior"), "respuesta"]
+    assert eventos == [
+        ("activar", nueva.id, "u1", "g1", ahora),
+        ("congelar", canal, "ficha-anterior"),
+        "respuesta",
+        ("publicar", canal, nueva, ahora),
+    ]
 
 
-def test_cambiar_al_mismo_activo_no_congela(monkeypatch):
+def test_cambiar_al_mismo_activo_no_congela_ni_publica(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
     monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=anterior))
     activar = Mock()
     monkeypatch.setattr(equipo.db, "activar", activar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     congelar = AsyncMock()
-    menu = equipo.MenuPlantel([anterior], congelar)
+    publicar = AsyncMock()
+    menu = equipo.MenuPlantel([anterior], congelar, publicar=publicar)
     menu._values = [str(anterior.id)]
     interaccion = SimpleNamespace(
         user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
@@ -167,17 +182,19 @@ def test_cambiar_al_mismo_activo_no_congela(monkeypatch):
     asyncio.run(menu.callback(interaccion))
 
     congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
     activar.assert_not_called()
 
 
-def test_cambio_de_activo_invalido_no_congela(monkeypatch):
+def test_cambio_de_activo_invalido_no_congela_ni_publica(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
     ajena = criatura(2, "Ajena", False, "ficha-ajena")
     monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=anterior))
     monkeypatch.setattr(equipo.db, "activar", Mock(return_value=False))
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     congelar = AsyncMock()
-    menu = equipo.MenuPlantel([anterior, ajena], congelar)
+    publicar = AsyncMock()
+    menu = equipo.MenuPlantel([anterior, ajena], congelar, publicar=publicar)
     menu._values = [str(ajena.id)]
     interaccion = SimpleNamespace(
         user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
@@ -187,6 +204,7 @@ def test_cambio_de_activo_invalido_no_congela(monkeypatch):
     asyncio.run(menu.callback(interaccion))
 
     congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
 
 
 # --- La ficha vive en su canal, no en el que se escribe ----------------------
@@ -196,6 +214,7 @@ def canal_falso(id_, guild=None):
     return SimpleNamespace(
         id=id_, guild=guild, mensaje=mensaje,
         fetch_message=AsyncMock(return_value=mensaje),
+        send=AsyncMock(return_value=SimpleNamespace(id=999)),
     )
 
 
@@ -221,7 +240,9 @@ def dos_canales(guardado_id, actual_id, en_hilo=False):
 
 def menu_de_plantel(plantel, elegido, canal):
     """El `/plantel` de verdad: el menú abierto en un canal cualquiera."""
-    menu = equipo.MenuPlantel(plantel, vistas.congelar)
+    menu = equipo.MenuPlantel(
+        plantel, vistas.congelar, publicar=vistas.publicar_pantalla
+    )
     menu._values = [str(elegido.id)]
     interaccion = SimpleNamespace(
         user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
@@ -243,8 +264,11 @@ def test_congelar_va_al_canal_guardado_de_la_ficha_y_no_al_de_la_orden(bd_tempor
     assert guardado.mensaje.edit.await_args.kwargs["view"].children[0].disabled
 
 
-def test_cambiar_de_activo_desde_otro_canal_congela_la_ficha_donde_esta(bd_temporal):
-    """`/plantel` se abre en cualquier canal; la ficha anterior no se mueve."""
+def test_cambiar_de_activo_publica_ficha_canonica_en_el_canal_actual(
+    bd_temporal, monkeypatch
+):
+    """La ficha vieja se congela donde estaba y la nueva nace donde se eligió."""
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
     anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
     db.guardar_pantalla(anterior.id, "555", "111")
     reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
@@ -253,12 +277,61 @@ def test_cambiar_de_activo_desde_otro_canal_congela_la_ficha_donde_esta(bd_tempo
     menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
     asyncio.run(menu.callback(interaccion))
 
+    activa = db.criatura_activa("u1", "g1")
+    assert activa is not None and activa.id == reserva.id
+    esperado = pantalla.render(
+        activa,
+        T0,
+        esperas=db.esperas_de_ficha(activa, T0, pantalla.ACCIONES_EN_FICHA),
+        efectos=db.efectos_activos(activa.id, T0),
+        en_la_incubadora=1,
+        asciicoins=economia.saldos("u1", "g1").asciicoins,
+    )
+    actual.send.assert_awaited_once()
+    assert actual.send.await_args.args == (esperado,)
+    vista = actual.send.await_args.kwargs["view"]
+    assert isinstance(vista, vistas.PantallaView)
+    assert all(not boton.disabled for boton in vista.children)
     guardado.fetch_message.assert_awaited_once_with(555)
     actual.fetch_message.assert_not_awaited()
+    assert guardado.mensaje.edit.await_args.kwargs["view"].children[0].disabled
+    recargada = db.por_id(reserva.id)
+    assert recargada is not None
+    assert (recargada.pantalla_msg_id, recargada.canal_id) == ("999", "222")
 
 
-def test_cambiar_de_activo_congela_la_ficha_que_quedo_en_un_hilo(bd_temporal):
+def test_cambiar_activo_congela_la_ficha_vieja_de_la_que_regresa(
+    bd_temporal, monkeypatch
+):
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
+    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    db.guardar_pantalla(anterior.id, "555", "111")
+    reserva = db.crear(
+        "u1", "g1", "pulpo", "Reserva", STATS, T0, canal_id="111", activa=False
+    )
+    db.guardar_pantalla(reserva.id, "777", "111")
+    guardado, actual = dos_canales("111", "222")
+
+    menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
+    asyncio.run(menu.callback(interaccion))
+
+    assert guardado.fetch_message.await_args_list == [call(555), call(777)]
+    assert guardado.mensaje.edit.await_count == 2
+    assert all(
+        llamada.kwargs["view"].children[0].disabled
+        for llamada in guardado.mensaje.edit.await_args_list
+    )
+    actual.send.assert_awaited_once()
+    assert all(
+        not boton.disabled for boton in actual.send.await_args.kwargs["view"].children
+    )
+
+
+def test_cambiar_de_activo_congela_en_hilo_y_publica_en_canal_actual(
+    bd_temporal, monkeypatch
+):
     """Un hilo es un canal más donde jugar, y `get_channel` no lo encuentra."""
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
     anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
     db.guardar_pantalla(anterior.id, "555", "111")
     reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
@@ -270,6 +343,9 @@ def test_cambiar_de_activo_congela_la_ficha_que_quedo_en_un_hilo(bd_temporal):
     hilo.fetch_message.assert_awaited_once_with(555)
     actual.fetch_message.assert_not_awaited()
     assert hilo.mensaje.edit.await_args.kwargs["view"].children[0].disabled
+    actual.send.assert_awaited_once()
+    recargada = db.por_id(reserva.id)
+    assert recargada is not None and recargada.canal_id == "222"
 
 
 def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temporal):
@@ -290,7 +366,7 @@ def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temp
 
 # --- El recluta que todavía no tiene nombre ---------------------------------
 
-def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):
+def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo_sin_publicar(monkeypatch):
     """Elegirlo no es un error del que quejarse: es el momento de nombrarlo."""
     activa = criatura(1, "Activa", True, "ficha-activa")
     recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
@@ -299,7 +375,8 @@ def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):
     monkeypatch.setattr(equipo.db, "activar", activar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     bautizar = AsyncMock()
-    menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), bautizar)
+    publicar = AsyncMock()
+    menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), bautizar, publicar)
     menu._values = [str(recluta.id)]
     interaccion = SimpleNamespace(
         user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
@@ -309,18 +386,20 @@ def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo(monkeypatch):
     asyncio.run(menu.callback(cast(Any, interaccion)))
 
     bautizar.assert_awaited_once_with(interaccion, recluta)
+    publicar.assert_not_awaited()
     # Y no se activa: eso es justo lo que no puede pasar sin nombre.
     activar.assert_not_called()
 
 
-def test_sin_bautizo_inyectado_se_explica_en_vez_de_activar(monkeypatch):
+def test_sin_bautizo_inyectado_se_explica_sin_activar_ni_publicar(monkeypatch):
     activa = criatura(1, "Activa", True, "ficha-activa")
     recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
     monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
     activar = Mock()
     monkeypatch.setattr(equipo.db, "activar", activar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
-    menu = equipo.MenuPlantel([activa, recluta], AsyncMock())
+    publicar = AsyncMock()
+    menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), publicar=publicar)
     menu._values = [str(recluta.id)]
     editar = AsyncMock()
     interaccion = SimpleNamespace(
@@ -331,6 +410,7 @@ def test_sin_bautizo_inyectado_se_explica_en_vez_de_activar(monkeypatch):
     asyncio.run(menu.callback(cast(Any, interaccion)))
 
     activar.assert_not_called()
+    publicar.assert_not_awaited()
     assert editar.await_args is not None
     assert "nombre" in editar.await_args.kwargs["content"]
 
