@@ -1,10 +1,14 @@
 """Utilidades compartidas por los cogs."""
 from __future__ import annotations
 
+from datetime import datetime
+
 import discord
 from discord import app_commands
 
 import config
+import db
+import simulacion as sim
 
 
 class CanalEquivocado(app_commands.CheckFailure):
@@ -23,6 +27,37 @@ def solo_en_el_canal():
         return True
 
     return app_commands.check(predicado)
+
+
+def texto_del_anuncio(criatura: sim.Criatura, nuevos) -> str:
+    """Cómo se canta una medalla. Aparte del envío, para poder probarlo."""
+    nombre = sim.nombre_visible(criatura)
+    if len(nuevos) == 1:
+        logro = nuevos[0]
+        return f"🏅 **{nombre}** consigue **{logro.nombre}** — {logro.como}."
+    lineas = "\n".join(f"🏅 **{l.nombre}** — {l.como}." for l in nuevos)
+    return f"**{nombre}** consigue {len(nuevos)} logros:\n{lineas}"
+
+
+async def anunciar_logros(
+    canal: discord.abc.Messageable,
+    criatura: sim.Criatura,
+    ahora: datetime | None = None,
+) -> None:
+    """Canta lo que el gachamon acaba de conseguir, si es que hay algo.
+
+    Va después de que cierre la transacción, como todo lo que se publica: una
+    medalla anunciada que luego no estuviera sería peor que una que tarda un
+    segundo en salir.
+
+    `db.revisar_logros` devuelve **sólo lo nuevo**, así que llamar de más no
+    repite nada. Por eso esto se puede poner en cualquier sitio donde algo
+    pueda desbloquearse sin tener que pensar cuál de los dieciocho era.
+    """
+    nuevos = db.revisar_logros(criatura, ahora or db.ahora_utc())
+    if not nuevos:
+        return
+    await canal.send(texto_del_anuncio(criatura, nuevos))
 
 
 async def manejar_error(

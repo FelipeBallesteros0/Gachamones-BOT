@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 import aventura as av
 import competir as comp
 import db
+import logros as lgr
 import objetos as obj
 import simulacion as sim
 
@@ -116,11 +117,17 @@ def ejecutar_viaje(
     salida: av.Salida,
     ahora: datetime,
     percance: av.Percance | None = None,
+    viaje: av.Viaje | None = None,
 ) -> ResultadoViaje:
     """Confirma el viaje sobre la criatura activa actual, antes de publicarlo.
 
     Las aventuras no tienen ledger histórico; esta frontera sólo evita aplicar
     una vista vieja sobre otra criatura o sobre un estado concurrente.
+
+    `viaje` es de dónde sale el marcador —dónde estuvo y cuántos nodos pasó—,
+    que se apunta aquí para que vaya en la misma transacción que el desgaste.
+    Es opcional porque lo que confirma el viaje es la `salida`; sin él, todo
+    ocurre igual pero no se apunta nada.
     """
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -137,6 +144,13 @@ def ejecutar_viaje(
             avanzado, salida, ahora, percance
         )
         db._guardar(con, nueva)
+        if viaje is not None:
+            db.apuntar_en(con, nueva.id, lgr.AVENTURAS)
+            db.apuntar_en(con, nueva.id, lgr.clave_de_bioma(viaje.bioma.clave))
+            if viaje.nodos_superados:
+                db.apuntar_en(
+                    con, nueva.id, lgr.NODOS, viaje.nodos_superados
+                )
         return ResultadoViaje(
             nueva, antes=avanzado, rupturas=tuple(rupturas)
         )
@@ -311,6 +325,9 @@ def ejecutar_cuidado(
         duracion = sim.COOLDOWNS.get(accion, timedelta(0))
         if duracion:
             db.poner_cooldown_en(con, criatura.id, accion, ahora + duracion)
+        # Un cuidado de los que cuentan: los tres returns de arriba ya han
+        # descartado el fallo, el `/actualizar` y el que no cambió nada.
+        db.apuntar_en(con, criatura.id, lgr.CUIDADOS)
         fecha = _fecha_economica(ahora)
         delta, usados, topada = _registrar_recompensa(
             con, evento_id, usuario_id, guild_id, fecha,
@@ -481,6 +498,19 @@ def ejecutar_competencia(
                 con, criatura.id, sim.COMPETIR,
                 ahora + sim.COOLDOWNS[sim.COMPETIR],
             )
+
+        # El marcador del ganador, aquí dentro y no después: si se cayera la
+        # conexión entre ganar y apuntarlo quedaría una victoria que no cuenta
+        # para nada, y nadie tendría forma de saberlo. El replay de más arriba
+        # ya ha vuelto antes de llegar aquí, así que reprocesar el mismo evento
+        # no cuenta dos veces.
+        campeon = despues[ganador]
+        db.apuntar_en(
+            con, campeon.id,
+            lgr.CARRERAS if tipo == comp.CARRERA else lgr.SUMOS,
+        )
+        if encuentro.es_torneo:
+            db.apuntar_en(con, campeon.id, lgr.TORNEOS)
 
         fecha = _fecha_economica(ahora)
         recibos = []

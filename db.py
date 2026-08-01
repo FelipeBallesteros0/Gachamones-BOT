@@ -20,6 +20,7 @@ from pathlib import Path
 
 import config
 import especies as esp
+import logros as lgr
 import objetos as obj
 import personalidad as per
 import simulacion as sim
@@ -138,6 +139,29 @@ CREATE TABLE IF NOT EXISTS efectos (
     bonus INTEGER NOT NULL,
     hasta TEXT NOT NULL,
     PRIMARY KEY (criatura_id, stat)
+);
+
+-- Lo que lleva hecho cada gachamon: carreras ganadas, aventuras, biomas
+-- pisados. Es una tabla de clave y valor y no una columna por contador porque
+-- los logros se añaden a menudo: así uno nuevo se escribe en `logros.py` y no
+-- toca el esquema. Va atada a `criatura_id`, como los efectos: el marcador es
+-- suyo y se lo lleva al morirse.
+CREATE TABLE IF NOT EXISTS marcador (
+    criatura_id INTEGER NOT NULL REFERENCES criaturas(id),
+    clave TEXT NOT NULL,
+    valor INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (criatura_id, clave)
+);
+
+-- Los logros conseguidos, con la fecha de verdad. La clave primaria **es** la
+-- garantía de que ninguno se cobra dos veces: los contadores siguen subiendo
+-- después de desbloquear «Velocista», así que sin esto se pagaría en cada
+-- carrera. El INSERT que no entra es exactamente el que ya estaba.
+CREATE TABLE IF NOT EXISTS logros (
+    criatura_id INTEGER NOT NULL REFERENCES criaturas(id),
+    clave TEXT NOT NULL,
+    cuando TEXT NOT NULL,
+    PRIMARY KEY (criatura_id, clave)
 );
 
 CREATE TABLE IF NOT EXISTS operaciones_economia (
@@ -506,11 +530,16 @@ def crear(
     caracter: str = esp.CARACTER_POR_DEFECTO,
     canal_id: str | None = None,
     activa: bool = True,
+    reclutado_por: int | None = None,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
 
     `activa=False` la mete directa a la incubadora. Lo usa el reclutamiento: uno
     que se une en una aventura no puede desbancar sin avisar al que llevabas.
+
+    `reclutado_por` es el id de quien lo convenció, y le apunta el reclutamiento
+    en su marcador aquí dentro: si el alta se cae por el tope del plantel, no
+    puede quedar apuntado un salvaje que no llegó a unirse.
 
     Dos defensas distintas y las dos hacen falta:
 
@@ -550,6 +579,8 @@ def crear(
             valores,
         )
         nuevo_id = cursor.lastrowid
+        if reclutado_por is not None:
+            apuntar_en(con, reclutado_por, lgr.RECLUTADOS)
 
     return replace(nueva, id=nuevo_id)
 
@@ -822,6 +853,85 @@ def efectos_activos(criatura_id: int, ahora: datetime) -> dict[str, tuple[int, t
         if restante.total_seconds() > 0:
             activos[fila["stat"]] = (fila["bonus"], restante)
     return activos
+
+
+# --- Marcador y logros ------------------------------------------------------
+#
+# Aquí sólo se guarda y se recuerda; qué hace falta para cada medalla lo decide
+# `logros.py`, que es puro. La frontera está donde siempre: este módulo sabe de
+# filas y aquel sabe de juego.
+
+def marcador(criatura_id: int) -> dict[str, int]:
+    """Lo que lleva hecho. Lo que no ha hecho nunca no sale, y vale cero."""
+    with conectar() as con:
+        return _marcador(con, criatura_id)
+
+
+def _marcador(con: sqlite3.Connection, criatura_id: int) -> dict[str, int]:
+    filas = con.execute(
+        "SELECT clave, valor FROM marcador WHERE criatura_id = ?", (criatura_id,)
+    ).fetchall()
+    return {f["clave"]: f["valor"] for f in filas}
+
+
+def apuntar_en(
+    con: sqlite3.Connection, criatura_id: int, clave: str, cuanto: int = 1
+) -> None:
+    """Sube un contador dentro de una transacción que ya está abierta.
+
+    Recibe la conexión a propósito: contar tiene que ocurrir **con** el
+    resultado que lo provoca, no después. Si se cayera la conexión entre ganar
+    la carrera y apuntarla, quedaría una victoria que no cuenta para nada y no
+    habría forma de saberlo.
+    """
+    con.execute(
+        "INSERT INTO marcador (criatura_id, clave, valor) VALUES (?, ?, ?) "
+        "ON CONFLICT(criatura_id, clave) DO UPDATE SET valor = valor + excluded.valor",
+        (criatura_id, clave, cuanto),
+    )
+
+
+def apuntar(criatura_id: int, clave: str, cuanto: int = 1) -> None:
+    """La versión suelta, para quien no tiene ya una transacción entre manos."""
+    with conectar() as con:
+        apuntar_en(con, criatura_id, clave, cuanto)
+
+
+def logros_de(criatura_id: int) -> dict[str, datetime]:
+    """Los que ya tiene y cuándo los consiguió."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT clave, cuando FROM logros WHERE criatura_id = ? "
+            "ORDER BY cuando, clave",
+            (criatura_id,),
+        ).fetchall()
+    return {f["clave"]: datetime.fromisoformat(f["cuando"]) for f in filas}
+
+
+def revisar_logros(
+    criatura: sim.Criatura, ahora: datetime
+) -> tuple[lgr.Logro, ...]:
+    """Apunta lo que acaba de conseguir y devuelve **sólo lo nuevo**.
+
+    Único sitio que escribe en `logros`, y devuelve lo recién ganado para que se
+    anuncie una vez. Que no se cobre dos veces no lo vigila este código sino la
+    clave primaria: se intenta insertar todo lo cumplido y se queda con lo que
+    entró de verdad. Es la misma disciplina de `operaciones_economia`, y el
+    motivo es el mismo — el contador de carreras sigue subiendo para siempre.
+    """
+    nuevos = []
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        hechos = lgr.hechos_de(criatura, _marcador(con, criatura.id), ahora)
+        for logro in lgr.cumplidos(hechos):
+            cursor = con.execute(
+                "INSERT OR IGNORE INTO logros (criatura_id, clave, cuando) "
+                "VALUES (?, ?, ?)",
+                (criatura.id, logro.clave, ahora.isoformat()),
+            )
+            if cursor.rowcount:
+                nuevos.append(logro)
+    return tuple(nuevos)
 
 
 # --- Listados --------------------------------------------------------------

@@ -388,6 +388,9 @@ class EncuentroView(discord.ui.View):
                 genero=salvaje.genero, caracter=salvaje.caracter,
                 canal_id=str(interaccion.channel_id),
                 activa=False,  # a la incubadora: no te cambia el activo sin avisar
+                # El reclutamiento se le apunta a quien fue de aventura, no al
+                # que se une: la medalla es de quien lo convenció.
+                reclutado_por=self.criatura.id,
             )
         except (ValueError, sqlite3.IntegrityError) as error:
             # Tope de plantel (`ValueError`) o el índice único si alguien metió
@@ -409,6 +412,9 @@ class EncuentroView(discord.ui.View):
             ),
             vistas.NombrarReclutaView(),
         )
+        # La medalla es de quien lo convenció, y por eso se revisa el suyo.
+        if interaccion.channel is not None:
+            await comun.anunciar_logros(interaccion.channel, self.criatura, ahora)
 
     async def _editar(self, interaccion, cuerpo: str, vista) -> None:
         try:
@@ -538,7 +544,8 @@ class Aventura(commands.Cog):
         # autoritativa: recarga el activo, valida que siga siendo el mismo y
         # confirma desgaste + VETAS antes de publicar cualquier resultado.
         confirmado = economia.ejecutar_viaje(
-            usuario_id, guild_id, criatura.id, salida, ahora, percance
+            usuario_id, guild_id, criatura.id, salida, ahora, percance,
+            viaje=viaje,
         )
         if confirmado.problema or confirmado.criatura is None:
             await canal.send(f"❌ Se cancela: {confirmado.problema or 'No hay un gachamon activo.'}")
@@ -576,6 +583,11 @@ class Aventura(commands.Cog):
             dueño.display_name,
         )
         await canal.send(narracion)
+
+        # Después de contar el viaje y antes de lo que se encuentre: la medalla
+        # es por lo andado, no por el premio. Va aquí y no en cada uno de los
+        # tres finales porque los tres pasan por este punto.
+        await comun.anunciar_logros(canal, cansada, ahora)
 
         if hallazgo == av.OBJETO:
             encontrado = av.tirar_objeto(rng)

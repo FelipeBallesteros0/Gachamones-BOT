@@ -460,6 +460,8 @@ class Competencias(commands.Cog):
                     canal, nueva, ahora, ya_congelada=antes.pantalla_msg_id
                 )
 
+            await comun.anunciar_logros(canal, nueva, ahora)
+
     async def _animar(
         self, canal: discord.abc.Messageable, fotogramas: list[str]
     ) -> None:

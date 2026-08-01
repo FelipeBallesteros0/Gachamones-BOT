@@ -250,7 +250,10 @@ def ejecutar_aventura_final(
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: percance)
     monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
 
-    def confirmar(_usuario_id, _guild_id, _criatura_id, salida_real, ahora_real, percance_real):
+    def confirmar(
+        _usuario_id, _guild_id, _criatura_id, salida_real, ahora_real,
+        percance_real, viaje=None,
+    ):
         actualizada, rupturas = av.aplicar_viaje(
             viajera, salida_real, ahora_real, percance_real
         )
@@ -266,6 +269,14 @@ def ejecutar_aventura_final(
         return "NARRACIÓN"
 
     monkeypatch.setattr(cog_av, "_narrar", narrar)
+
+    # Las medallas se apuntan en su propia transacción y aquí no hay base de
+    # datos: se anota el momento en que se revisan, que es lo que este test
+    # puede comprobar del anuncio.
+    async def anunciar(_canal, quien, _ahora=None):
+        eventos.append(("logros", quien, None))
+
+    monkeypatch.setattr(cog_av.comun, "anunciar_logros", anunciar)
 
     def render_evolucion(actualizada, etapa_anterior, subidas=()):
         evoluciones.append((actualizada, etapa_anterior, subidas))
@@ -371,6 +382,22 @@ def test_la_subida_sin_cambio_de_etapa_se_anuncia_como_en_competencias(monkeypat
     assert evoluciones == []
 
 
+def test_las_medallas_se_revisan_tras_narrar_y_antes_del_salvaje(monkeypatch):
+    """Sobre el gachamon que viajó y con el viaje ya guardado: una medalla
+    anunciada sobre un viaje que no llegó a confirmarse sería mentira."""
+    viajera = criatura(actualizada_en=datetime(2026, 1, 2, tzinfo=timezone.utc))
+
+    eventos, guardadas, _, _ = ejecutar_aventura_final(
+        monkeypatch, viajera, salida_con_fallos(0), hallazgo=av.SALVAJE
+    )
+
+    orden = [tipo for tipo, _, _ in eventos]
+    assert orden.count("logros") == 1
+    revisadas = [quien for tipo, quien, _ in eventos if tipo == "logros"]
+    assert revisadas == [guardadas[-1]]
+    assert orden.index("guardar") < orden.index("logros") < len(orden) - 1
+
+
 def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypatch):
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     viajera = criatura(
@@ -383,7 +410,7 @@ def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypa
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: av.PERCANCE)
-    def confirmar(*args):
+    def confirmar(*args, **kwargs):
         actualizada, rupturas = av.aplicar_viaje(
             viajera, args[3], args[4], args[5]
         )

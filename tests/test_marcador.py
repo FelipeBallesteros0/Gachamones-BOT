@@ -1,0 +1,203 @@
+"""Que cada cosa se cuente donde se resuelve, y sólo una vez.
+
+Estos tests miran los contadores desde fuera —después de competir, cuidar o
+viajar de verdad—, que es la única forma de cazar el fallo que importa: uno que
+se cuente en el sitio equivocado sigue pasando todos los tests de `logros.py`.
+"""
+import random
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+import aventura as av
+import competir as comp
+import db
+import economia
+import logros
+import simulacion as sim
+
+T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+STATS = (15, 15, 15)
+
+
+@pytest.fixture(autouse=True)
+def bd(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "marcador.db")
+    db.inicializar()
+
+
+def nacer(usuario="u1", activa=True, nombre=None):
+    return db.crear(
+        usuario, "g1", "pulpo", nombre or usuario, STATS, T0, activa=activa
+    )
+
+
+def competir_de(evento, tipo=comp.CARRERA, usuarios=("u1", "u2"), semilla=1):
+    return economia.ejecutar_competencia(
+        evento, usuarios, "g1", tipo, T0, random.Random(semilla)
+    )
+
+
+def ganador_de(resultado):
+    return resultado.despues[resultado.encuentro.orden[0]]
+
+
+# --- Competir --------------------------------------------------------------
+
+def test_la_carrera_se_le_apunta_al_que_gana_y_a_nadie_mas():
+    nacer("u1")
+    nacer("u2")
+    resultado = competir_de("e1")
+
+    ganador = ganador_de(resultado)
+    perdedor = next(c for c in resultado.despues if c.id != ganador.id)
+    assert db.marcador(ganador.id) == {logros.CARRERAS: 1}
+    assert db.marcador(perdedor.id) == {}
+
+
+def test_el_sumo_cuenta_como_sumo_y_no_como_carrera():
+    nacer("u1")
+    nacer("u2")
+    resultado = competir_de("e1", tipo=comp.SUMO)
+
+    assert db.marcador(ganador_de(resultado).id) == {logros.SUMOS: 1}
+
+
+def test_el_torneo_cuenta_como_torneo_y_tambien_como_sumo():
+    """Ganar el torneo es haber ganado sumos: se lleva las dos cosas."""
+    for usuario in ("u1", "u2", "u3", "u4"):
+        nacer(usuario)
+    resultado = competir_de("e1", tipo=comp.SUMO, usuarios=("u1", "u2", "u3", "u4"))
+
+    assert resultado.encuentro.es_torneo
+    assert db.marcador(ganador_de(resultado).id) == {
+        logros.SUMOS: 1, logros.TORNEOS: 1,
+    }
+
+
+def test_reprocesar_el_mismo_encuentro_no_cuenta_dos_veces():
+    """Mismo motivo que el dinero congelado: el replay devuelve lo de antes, no
+    vuelve a resolver nada."""
+    nacer("u1")
+    nacer("u2")
+    primero = competir_de("e1")
+    ganador = ganador_de(primero)
+
+    repetido = competir_de("e1")
+    assert repetido.replay
+    assert db.marcador(ganador.id) == {logros.CARRERAS: 1}
+
+
+# --- Cuidar ----------------------------------------------------------------
+
+def test_cada_cuidado_se_apunta():
+    bicho = nacer()
+    economia.ejecutar_cuidado("c1", "u1", "g1", sim.ALIMENTAR, T0)
+    economia.ejecutar_cuidado("c2", "u1", "g1", sim.JUGAR, T0)
+
+    assert db.marcador(bicho.id) == {logros.CUIDADOS: 2}
+
+
+def test_actualizar_no_es_un_cuidado():
+    """`/actualizar` sólo mira; no debería acercar a «Consentido»."""
+    bicho = nacer()
+    economia.ejecutar_cuidado("c1", "u1", "g1", sim.ACTUALIZAR, T0)
+
+    assert db.marcador(bicho.id) == {}
+
+
+def test_el_cuidado_que_rebota_por_la_espera_no_cuenta():
+    bicho = nacer()
+    economia.ejecutar_cuidado("c1", "u1", "g1", sim.ALIMENTAR, T0)
+    economia.ejecutar_cuidado("c2", "u1", "g1", sim.ALIMENTAR, T0)
+
+    assert db.marcador(bicho.id) == {logros.CUIDADOS: 1}
+
+
+def test_repetir_el_mismo_evento_de_cuidado_no_cuenta_dos_veces():
+    bicho = nacer()
+    economia.ejecutar_cuidado("c1", "u1", "g1", sim.ALIMENTAR, T0)
+    economia.ejecutar_cuidado("c1", "u1", "g1", sim.ALIMENTAR, T0)
+
+    assert db.marcador(bicho.id) == {logros.CUIDADOS: 1}
+
+
+# --- Salir al campo --------------------------------------------------------
+
+def viaje_de(bioma="planicie", nodos=2):
+    """Un viaje ya cerrado, como el que llega a `resolver`."""
+    escena = av.ESCENAS_ESCRITAS[bioma][0]
+    pruebas = tuple(
+        av.Prueba(obstaculo=f"tramo {i}", stat=av.FUERZA, base=10, dado=20,
+                  dificultad=1)
+        for i in range(nodos)
+    )
+    return av.Viaje(
+        bioma=av.BIOMAS[bioma], escena=escena, pruebas=pruebas, nivel=nodos
+    )
+
+
+def test_el_viaje_apunta_la_aventura_el_bioma_y_los_nodos():
+    bicho = nacer()
+    viaje = viaje_de("planicie", nodos=2)
+    economia.ejecutar_viaje(
+        "u1", "g1", bicho.id, viaje.salida, T0, viaje=viaje
+    )
+
+    assert db.marcador(bicho.id) == {
+        logros.AVENTURAS: 1,
+        logros.NODOS: 2,
+        logros.clave_de_bioma("planicie"): 1,
+    }
+
+
+def test_volver_al_mismo_bioma_no_abre_uno_nuevo():
+    bicho = nacer()
+    for cuando in (T0, T0 + timedelta(hours=1)):
+        viaje = viaje_de("planicie", nodos=0)
+        economia.ejecutar_viaje(
+            "u1", "g1", bicho.id, viaje.salida, cuando, viaje=viaje
+        )
+
+    marcador = db.marcador(bicho.id)
+    assert marcador[logros.clave_de_bioma("planicie")] == 2
+    assert sum(1 for c in marcador if c.startswith(logros.PREFIJO_BIOMA)) == 1
+
+
+def test_el_viaje_que_no_se_confirma_no_cuenta():
+    """Si el activo ya no es el que salió, no hay viaje y no hay marcador."""
+    bicho = nacer()
+    viaje = viaje_de()
+    resultado = economia.ejecutar_viaje(
+        "u1", "g1", bicho.id + 999, viaje.salida, T0, viaje=viaje
+    )
+
+    assert resultado.problema
+    assert db.marcador(bicho.id) == {}
+
+
+def test_reclutar_se_le_apunta_al_que_fue_de_aventura():
+    aventurero = nacer(nombre="Aventurero")
+    recluta = db.crear(
+        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
+        activa=False, reclutado_por=aventurero.id,
+    )
+
+    assert db.marcador(aventurero.id) == {logros.RECLUTADOS: 1}
+    assert db.marcador(recluta.id) == {}
+
+
+def test_el_recluta_que_no_cabe_no_se_apunta():
+    """El alta y el marcador van en la misma transacción justamente para esto:
+    con el plantel lleno no puede quedar apuntado un salvaje que no se unió."""
+    aventurero = nacer(nombre="Aventurero")
+    for i in range(db.MAXIMO_PLANTEL - 1):
+        nacer(nombre=f"Relleno{i}", activa=False)
+
+    with pytest.raises(ValueError):
+        db.crear(
+            "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
+            activa=False, reclutado_por=aventurero.id,
+        )
+
+    assert db.marcador(aventurero.id) == {}

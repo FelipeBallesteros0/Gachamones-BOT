@@ -1,0 +1,150 @@
+"""Cómo se cuentan las medallas: el anuncio del canal y el panel de `/logros`."""
+import asyncio
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+
+import cogs.social as social
+import comun
+import db
+import logros
+import simulacion as sim
+
+T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+STATS = (15, 15, 15)
+
+
+@pytest.fixture(autouse=True)
+def bd(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "panel.db")
+    db.inicializar()
+
+
+def nacer(nombre="Mia"):
+    return db.crear("u1", "g1", "pulpo", nombre, STATS, T0)
+
+
+# --- El anuncio ------------------------------------------------------------
+
+def test_una_sola_medalla_se_canta_en_una_linea():
+    bicho = nacer()
+    texto = comun.texto_del_anuncio(bicho, (logros.POR_CLAVE["velocista"],))
+
+    assert texto == "🏅 **Mia** consigue **Velocista** — gana 10 carreras."
+
+
+def test_varias_medallas_van_juntas_y_no_en_mensajes_sueltos():
+    """Diez carreras seguidas pueden desbloquear dos a la vez; dos mensajes
+    seguidos con el mismo formato se leen como si el bot se hubiera repetido."""
+    bicho = nacer()
+    texto = comun.texto_del_anuncio(bicho, (
+        logros.POR_CLAVE["velocista"], logros.POR_CLAVE["primera_sangre"],
+    ))
+
+    assert texto.startswith("**Mia** consigue 2 logros:")
+    assert texto.count("🏅") == 2
+
+
+def test_el_anuncio_sale_una_vez_por_mucho_que_se_llame():
+    """Es lo que permite ponerlo en todos los sitios sin pensar: el segundo
+    intento no encuentra nada nuevo y no manda nada."""
+    bicho = nacer()
+    canal = SimpleNamespace(send=AsyncMock())
+
+    asyncio.run(comun.anunciar_logros(canal, bicho, T0))
+    asyncio.run(comun.anunciar_logros(canal, bicho, T0))
+
+    canal.send.assert_awaited_once()
+    assert "De la alfa" in canal.send.await_args.args[0]
+
+
+def test_sin_nada_nuevo_no_se_manda_mensaje():
+    bicho = nacer()
+    canal = SimpleNamespace(send=AsyncMock())
+    db.revisar_logros(bicho, T0)
+
+    asyncio.run(comun.anunciar_logros(canal, bicho, T0))
+
+    canal.send.assert_not_awaited()
+
+
+def test_el_recluta_sin_nombre_no_sale_como_cadena_vacia():
+    """Un salvaje recién unido no tiene nombre todavía, y `**** consigue` sería
+    lo que saldría sin pasar por `nombre_visible`."""
+    recluta = db.crear(
+        "u2", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
+    )
+    texto = comun.texto_del_anuncio(recluta, (logros.POR_CLAVE["domador"],))
+
+    assert sim.SIN_NOMBRE in texto
+
+
+# --- El panel --------------------------------------------------------------
+
+def panel_de(bicho, ahora=T0):
+    hechos = logros.hechos_de(bicho, db.marcador(bicho.id), ahora)
+    return social.panel_de_logros(bicho, hechos, db.logros_de(bicho.id))
+
+
+def test_el_panel_lista_las_dieciocho_tenga_las_que_tenga():
+    """Las que faltan también salen: son la lista de lo que hay por hacer."""
+    panel = panel_de(nacer())
+
+    for logro in logros.LOGROS:
+        assert logro.nombre in panel
+    assert panel.count("⬜") + panel.count("✅") == len(logros.LOGROS)
+
+
+def test_el_panel_marca_lo_conseguido_y_cuenta_cuánto_falta():
+    bicho = nacer()
+    db.apuntar(bicho.id, logros.CARRERAS, 10)
+    db.revisar_logros(bicho, T0)
+
+    panel = panel_de(bicho)
+    assert "✅ **Velocista**" in panel
+    # Las mismas diez carreras son 10 de las 100 que pide Bólido.
+    assert "⬜ **Bólido** · gana 100 carreras · `10/100`" in panel
+
+
+def test_el_progreso_no_se_pasa_de_la_meta():
+    """Con «Velocista» ya conseguido el contador sigue subiendo, y `137/100`
+    en «Bólido» estaría bien pero en uno a medias se lee como un fallo."""
+    bicho = nacer()
+    db.apuntar(bicho.id, logros.CARRERAS, 137)
+
+    assert "`100/100`" in panel_de(bicho)
+
+
+def test_los_de_una_sola_vez_no_enseñan_progreso():
+    """Un «0/1» en «De la alfa» no le dice nada a nadie."""
+    panel = panel_de(nacer())
+    assert "/1`" not in panel
+
+
+def test_el_panel_cabe_en_un_mensaje_de_discord():
+    """Dieciocho líneas con nombre y descripción; el tope son 2000 caracteres."""
+    bicho = nacer(nombre="Nombre bastante largo pa")
+    assert len(panel_de(bicho)) < 2000
+
+
+def test_el_panel_dice_cuantas_lleva():
+    bicho = nacer()
+    db.revisar_logros(bicho, T0)
+
+    assert f"-# 1 de {len(logros.LOGROS)}" in panel_de(bicho)
+
+
+def test_veterano_se_apunta_al_mirar_el_panel_aunque_nadie_haya_jugado():
+    """El único de los dieciocho que se cumple solo con esperar. Si `/logros`
+    no lo apuntara, el panel lo daría por conseguido y la tabla no lo tendría —
+    y en la entrega de las gemas no se pagaría nunca."""
+    bicho = nacer()
+    un_mes = T0 + timedelta(days=31)
+
+    assert "veterano" not in db.logros_de(bicho.id)
+    nuevos = {logro.clave for logro in db.revisar_logros(bicho, un_mes)}
+
+    assert "veterano" in nuevos
+    assert "veterano" in db.logros_de(bicho.id)

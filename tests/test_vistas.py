@@ -737,8 +737,12 @@ def test_cuidado_con_ruptura_deja_el_eco_al_anuncio_existente(
 
     asyncio.run(vistas._ejecutar(interaccion, sim.ENTRENAR))
 
-    canal.send.assert_awaited_once()
-    assert "🪵" in canal.send.await_args.args[0]
+    # La ruptura primero y la medalla de la alfa después, cada una en su
+    # mensaje: el eco de las vetas no se mezcla con el anuncio del logro.
+    mandados = [llamada.args[0] for llamada in canal.send.await_args_list]
+    assert len(mandados) == 2
+    assert "🪵" in mandados[0]
+    assert "De la alfa" in mandados[1]
     llamada = publicar.await_args
     assert llamada is not None
     aviso = llamada.kwargs["aviso"]
@@ -771,7 +775,10 @@ def test_cuidado_normal_congela_publica_y_replay_responde_privado(
     assert "Sus vetas permanecen quietas." in llamada.kwargs["aviso"]
     respuesta.edit_message.assert_not_awaited()
     respuesta.send_message.assert_not_awaited()
-    canal.send.assert_not_awaited()
+    # Lo único que se manda al canal aparte de la ficha es la medalla que se
+    # lleva por haber nacido durante la alfa, y sale una sola vez.
+    canal.send.assert_awaited_once()
+    assert "De la alfa" in canal.send.await_args.args[0]
 
     asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
 

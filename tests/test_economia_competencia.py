@@ -108,8 +108,12 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         cog.disputar(canal, participantes, comp.CARRERA, "g1", "publicacion")
     )
 
-    canal.send.assert_awaited_once()
-    resumen = canal.send.await_args.args[0]
+    # Primero el resumen con los cinco recibos y después una medalla por cabeza
+    # —la de la alfa, que se llevan todos la primera vez que se les mira.
+    mandados = [llamada.args[0] for llamada in canal.send.await_args_list]
+    resumen, medallas = mandados[0], mandados[1:]
+    assert len(medallas) == 5
+    assert all("De la alfa" in medalla for medalla in medallas)
     lineas = [linea for linea in resumen.splitlines() if linea.startswith("-# <@")]
     assert len(resumen) < 2000
     assert len(lineas) == 5

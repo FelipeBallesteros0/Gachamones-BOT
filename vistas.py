@@ -19,6 +19,7 @@ from typing import cast
 import discord
 from discord import Forbidden, HTTPException, NotFound
 
+import comun
 import db
 import economia
 import equipo
@@ -407,6 +408,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         canal, resultado.criatura, ahora,
         aviso=aviso, ya_congelada=str(_mensaje_de(interaccion).id),
     )
+    await comun.anunciar_logros(canal, resultado.criatura, ahora)
 
 
 def _efecto_recibo_cuidado(

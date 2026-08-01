@@ -19,6 +19,7 @@ import objetos as obj
 import especies as esp
 import ia
 import jardin
+import logros as lgr
 import pantalla
 import personalidad as per
 import simulacion as sim
@@ -35,6 +36,35 @@ def _tabla(lineas: list[str], vacia: str) -> str:
     if not lineas:
         return vacia
     return "```ansi\n" + "\n".join(lineas) + "\n```"
+
+
+def panel_de_logros(
+    criatura: sim.Criatura,
+    hechos: dict[str, int],
+    conseguidos: dict,
+) -> str:
+    """La lista de las dieciocho medallas, con cuáles lleva y cuánto le falta.
+
+    En markdown y no dentro de un ```ansi``` como el ranking: aquí lo que manda
+    es el texto de cada logro, que es largo y de ancho variable, y en un bloque
+    de código no cabría sin recortarlo. Fuera del bloque, Discord lo parte solo.
+    """
+    lineas = []
+    for logro in lgr.LOGROS:
+        tiene = logro.clave in conseguidos
+        linea = f"{'✅' if tiene else '⬜'} **{logro.nombre}** · {logro.como}"
+        # El progreso sólo donde significa algo: en los de una sola vez, un
+        # «0/1» no le dice nada a nadie.
+        if not tiene and logro.meta > 1:
+            linea += f" · `{min(hechos.get(logro.hecho, 0), logro.meta)}/{logro.meta}`"
+        lineas.append(linea)
+
+    return (
+        f"## 🏅 Logros de {sim.nombre_visible(criatura)}\n"
+        + "\n".join(lineas)
+        + f"\n-# {len(conseguidos)} de {len(lgr.LOGROS)}. "
+        "Son del gachamon: cada uno lleva los suyos."
+    )
 
 
 def _techo_diario() -> int:
@@ -179,7 +209,7 @@ se encuentran objetos por el camino, que salen gratis.
 
 **Otros**
 `/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
-`/ranking` · `/cementerio`"""
+`/ranking` · `/cementerio` · `/logros` las medallas del tuyo"""
 
     return (tu_criatura, que_hacer, tus_cosas)
 
@@ -274,6 +304,32 @@ class Social(commands.Cog):
             "## 🏆 Ranking\n"
             + _tabla(lineas, "-# Todavía no hay ningún gachamon vivo. Usa `/huevo`.")
         )
+
+    @app_commands.command(name="logros", description="Las medallas de tu gachamon activo")
+    @comun.solo_en_el_canal()
+    async def logros_cmd(self, interaccion: discord.Interaction) -> None:
+        ahora = db.ahora_utc()
+        criatura = db.criatura_activa(
+            str(interaccion.user.id), str(interaccion.guild_id)
+        )
+        if criatura is None:
+            await interaccion.response.send_message(
+                "No tienes ningún gachamon activo. Empieza con `/huevo`.",
+                ephemeral=True,
+            )
+            return
+
+        # Se revisa antes de pintar, y no sólo por cortesía: «Veterano» y «Bien
+        # criado» dependen del tiempo y del nivel, así que se cumplen sin que
+        # nadie haga nada. Si no se apuntaran aquí, el panel diría que los tiene
+        # y la tabla de logros no se habría enterado.
+        nuevos = db.revisar_logros(criatura, ahora)
+        hechos = lgr.hechos_de(criatura, db.marcador(criatura.id), ahora)
+        panel = panel_de_logros(criatura, hechos, db.logros_de(criatura.id))
+        if nuevos:
+            panel += f"\n{comun.texto_del_anuncio(criatura, nuevos)}"
+
+        await interaccion.response.send_message(panel)
 
     @app_commands.command(name="cementerio", description="Los gachamones que ya no están")
     @comun.solo_en_el_canal()
