@@ -1,16 +1,12 @@
-"""Carreras y peleas de sumo.
+"""Carreras acumulativas y combates de sumo por intercambios.
 
 Módulo puro: el generador de números aleatorios se pasa como argumento, así que
-los tests fijan los dados y comprueban el resultado exacto.
+los tests fijan los dados y comprueban el resultado exacto. Cada fase combina
+las estadísticas que le corresponden y suma 1d20.
 
-La tirada es la pedida: `estadística + 1d20`. Lo que se hace es repetirla en
-tres tramos y sumar. Con una sola tirada el ganador estaría decidido antes del
-primer fotograma y la animación sería decorado; con tres hay remontadas y el
-resultado se construye delante de quien mira.
-
-Una carrera admite de dos a cinco corredores; el sumo, dos y sólo dos, porque es
-un forcejeo y el dohyō tiene dos lados. De ahí que todo se guarde en listas
-indexadas y no en un `a` y un `b`: un solo vocabulario para los dos casos.
+Una carrera admite de dos a cinco corredores; el sumo, dos o un torneo de
+cuatro. Todo se guarda en listas indexadas para conservar un solo vocabulario y
+el orden original de dorsales.
 """
 from __future__ import annotations
 
@@ -25,11 +21,19 @@ import simulacion as sim
 CARRERA = "carrera"
 SUMO = "sumo"
 
-TRAMOS = 3
+SALIDA = "SALIDA"
+TERRENO = "TERRENO"
+FONDO = "FONDO"
+POSICION = "POSICIÓN"
+EMPUJE = "EMPUJE"
+AGUANTE = "AGUANTE"
+DESEMPATE = "DESEMPATE"
+FASES_CARRERA = (SALIDA, TERRENO, FONDO)
+FASES_SUMO = (POSICION, EMPUJE, AGUANTE)
+
 CARA_DADO = 20
 ANCHO_PISTA = 10
 ANCHO_DOHYO = 19  # impar, para que haya casilla central exacta
-PUNTOS_POR_CASILLA = 5  # cuánta ventaja hace falta para empujar una casilla
 
 # Tope de desempates: con 1d20 la probabilidad de encadenar empates es ínfima,
 # pero un bucle sin salida en producción no es aceptable.
@@ -55,8 +59,12 @@ RONDAS_DEL_TORNEO = ("SEMIFINAL 1", "SEMIFINAL 2", "FINAL")
 class Competidor:
     nombre: str
     especie: str
-    stat: int
+    fuerza: int
+    velocidad: int
+    salud: int
     modificador: int = 0
+    bonus_fuerza: int = 0
+    bonus_velocidad: int = 0
     # La cara que tiene puesta al competir. Se trae hecha desde la criatura para
     # que el podio pueda dibujarla sin que este módulo deje de ser puro.
     animo: str = esp.NORMAL
@@ -69,18 +77,36 @@ class Competidor:
     def cara(self) -> str:
         return esp.ESPECIES[self.especie].caras[self.animo]
 
-    @property
-    def base(self) -> int:
-        """Lo que aporta sin contar el dado. Nunca baja de 1."""
-        return max(1, self.stat + self.modificador)
+    def base_en(self, fase: str) -> int:
+        """Aporte de la fase sin dado, con el estado aplicado una sola vez."""
+        fuerza = self.fuerza + self.bonus_fuerza
+        velocidad = self.velocidad + self.bonus_velocidad
+        if fase == SALIDA:
+            base = velocidad
+        elif fase == TERRENO:
+            base = round((7 * velocidad + 3 * fuerza) / 10)
+        elif fase == FONDO:
+            base = round((7 * velocidad + 3 * self.salud) / 10)
+        elif fase == POSICION:
+            base = round((7 * fuerza + 3 * velocidad) / 10)
+        elif fase == EMPUJE:
+            base = fuerza
+        elif fase == AGUANTE:
+            base = round((7 * fuerza + 3 * self.salud) / 10)
+        else:
+            raise ValueError(f"fase desconocida: {fase}")
+        return max(1, base + self.modificador)
 
 
 @dataclass(frozen=True)
 class Ronda:
-    """Un tramo: el dado de cada competidor y lo que sumó, en el mismo orden."""
+    """Una fase visible, con posibles reintentos de empate ocultos."""
 
     dados: tuple[int, ...]
     totales: tuple[int, ...]
+    fase: str = ""
+    ganador: int | None = None
+    desempates: int = 0
 
 
 @dataclass(frozen=True)
@@ -89,21 +115,37 @@ class Resultado:
     competidores: tuple[Competidor, ...]
     rondas: list[Ronda]
     orden: tuple[int, ...]  # índices de `competidores`, del 1.º al último
-    desempates: int = 0
+
+    @property
+    def desempates(self) -> int:
+        return sum(
+            ronda.desempates + (ronda.fase == DESEMPATE)
+            for ronda in self.rondas
+        )
 
     @property
     def totales(self) -> tuple[int, ...]:
-        """Lo que suma cada competidor al final, en orden de dorsal."""
+        """Puntos crudos acumulados, en orden de dorsal."""
         return tuple(
             sum(r.totales[i] for r in self.rondas)
             for i in range(len(self.competidores))
         )
 
     @property
+    def marcadores(self) -> tuple[int, ...]:
+        """Puntos acumulados en Carrera; intercambios ganados en Sumo."""
+        if self.tipo == CARRERA:
+            return self.totales
+        return tuple(
+            sum(ronda.ganador == i for ronda in self.rondas)
+            for i in range(len(self.competidores))
+        )
+
+    @property
     def clasificacion(self) -> tuple[tuple[Competidor, int], ...]:
-        """`(competidor, total)` del primero al último."""
-        totales = self.totales
-        return tuple((self.competidores[i], totales[i]) for i in self.orden)
+        """`(competidor, marcador)` del primero al último."""
+        marcadores = self.marcadores
+        return tuple((self.competidores[i], marcadores[i]) for i in self.orden)
 
     @property
     def competidor_ganador(self) -> Competidor:
@@ -128,7 +170,7 @@ class Encuentro:
     competidores: tuple[Competidor, ...]  # en el orden en que se invitó
     combates: tuple[Resultado, ...]
     orden: tuple[int, ...]  # dorsales, del 1.º al último
-    # El marcador que se le apunta a cada dorsal: lo que sumó en su última pelea.
+    # Marcador del último combate: puntos de Carrera o intercambios de Sumo.
     marcadores: tuple[int, ...]
 
     @property
@@ -164,8 +206,18 @@ def margen_de(encuentro: Encuentro, dorsal: int) -> int:
         if not indices:
             continue
         indice = indices[0]
-        totales = combate.totales
         ganador = combate.orden[0]
+        if combate.tipo == SUMO:
+            ganados = 0
+            for ronda in combate.rondas:
+                if ronda.ganador == ganador:
+                    ganados += 1
+                if ganados == 2:
+                    rival = 1 - ganador
+                    return abs(ronda.totales[ganador] - ronda.totales[rival])
+            raise ValueError("sumo sin intercambio decisivo")
+
+        totales = combate.totales
         if indice != ganador:
             return abs(totales[indice] - totales[ganador])
         subcampeon = combate.orden[1]
@@ -186,24 +238,21 @@ def modificador_por_estado(hambre: float, animo: float) -> int:
 
 
 def competidor_de(
-    criatura: sim.Criatura, tipo: str, bonus_objetos: int = 0
+    criatura: sim.Criatura,
+    *,
+    bonus_fuerza: int = 0,
+    bonus_velocidad: int = 0,
 ) -> Competidor:
-    """La criatura vista como competidor.
-
-    El bonus de las pociones entra como argumento y no se consulta aquí porque
-    este módulo es puro a propósito —el generador de dados se pasa por fuera por
-    lo mismo—, y buscarlo dentro obligaría a montar una base de datos para cada
-    test de dados. Va al modificador y no a la estadística: así una poción se
-    suma donde ya se suman el hambre y el ánimo, y sigue mandando el 1d20.
-    """
-    stat = criatura.velocidad if tipo == CARRERA else criatura.fuerza
+    """La criatura vista como competidor, sin consultar persistencia."""
     return Competidor(
         nombre=criatura.nombre,
         especie=criatura.especie,
-        stat=stat,
-        modificador=(
-            modificador_por_estado(criatura.hambre, criatura.animo) + bonus_objetos
-        ),
+        fuerza=criatura.fuerza,
+        velocidad=criatura.velocidad,
+        salud=criatura.salud,
+        modificador=modificador_por_estado(criatura.hambre, criatura.animo),
+        bonus_fuerza=bonus_fuerza,
+        bonus_velocidad=bonus_velocidad,
         animo=criatura.animo_visual,
     )
 
@@ -213,54 +262,57 @@ def resolver(
     tipo: str,
     rng: random.Random | None = None,
 ) -> Resultado:
-    """Un combate: todos contra todos a la vez, tres tramos y el que más sume.
-
-    No valida cuántos son: eso lo hace `enfrentar`, que es quien sabe si el grupo
-    pelea de una vez o repartido en un torneo.
-    """
+    """Resuelve una Carrera acumulativa o un Sumo al mejor de tres."""
     competidores = tuple(competidores)
     rng = rng or random.Random()
     rondas: list[Ronda] = []
 
-    def tirar() -> Ronda:
-        # Un dado por competidor, en orden de dorsal: así los tests de dados
-        # fijos pueden guionizar la tirada entera.
+    def tirar(fase: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
         dados = tuple(rng.randint(1, CARA_DADO) for _ in competidores)
-        return Ronda(
-            dados, tuple(c.base + d for c, d in zip(competidores, dados))
+        totales = tuple(
+            c.base_en(fase) + dado
+            for c, dado in zip(competidores, dados)
         )
+        return dados, totales
 
-    def acumulados() -> tuple[int, ...]:
-        return tuple(
-            sum(r.totales[i] for r in rondas) for i in range(len(competidores))
+    if tipo == CARRERA:
+        for fase in FASES_CARRERA:
+            dados, totales = tirar(fase)
+            rondas.append(Ronda(dados, totales, fase))
+
+        totales = tuple(
+            sum(r.totales[i] for r in rondas)
+            for i in range(len(competidores))
         )
+        desempates = 0
+        while len(set(totales)) != len(totales) and desempates < MAX_DESEMPATES:
+            dados, puntos = tirar(SALIDA)
+            rondas.append(Ronda(dados, puntos, DESEMPATE))
+            totales = tuple(
+                sum(r.totales[i] for r in rondas)
+                for i in range(len(competidores))
+            )
+            desempates += 1
+        orden = tuple(
+            sorted(range(len(competidores)), key=lambda i: (-totales[i], i))
+        )
+        return Resultado(tipo, competidores, rondas, orden)
 
-    for _ in range(TRAMOS):
-        rondas.append(tirar())
+    marcadores = [0, 0]
+    for fase in FASES_SUMO:
+        dados, totales = tirar(fase)
+        desempates = 0
+        while totales[0] == totales[1] and desempates < MAX_DESEMPATES:
+            desempates += 1
+            dados, totales = tirar(fase)
+        ganador = 0 if totales[0] >= totales[1] else 1
+        rondas.append(Ronda(dados, totales, fase, ganador, desempates))
+        marcadores[ganador] += 1
+        if marcadores[ganador] == 2:
+            break
 
-    # Mientras haya DOS totales iguales cualesquiera se tira otro tramo para
-    # todos. Con cinco corredores los empates son bastante más probables que con
-    # dos, pero cada tramo extra añade un d20 independiente a cada uno, así que
-    # se rompen enseguida.
-    desempates = 0
-    totales = acumulados()
-    while len(set(totales)) != len(totales) and desempates < MAX_DESEMPATES:
-        rondas.append(tirar())
-        totales = acumulados()
-        desempates += 1
-
-    # Al agotar los desempates puede quedar algún empate: lo deshace el dorsal,
-    # que es el equivalente al «gana `a` los empates» de cuando esto era de dos.
-    orden = tuple(
-        sorted(range(len(competidores)), key=lambda i: (-totales[i], i))
-    )
-    return Resultado(
-        tipo=tipo,
-        competidores=competidores,
-        rondas=rondas,
-        orden=orden,
-        desempates=desempates,
-    )
+    orden = tuple(sorted((0, 1), key=lambda i: (-marcadores[i], i)))
+    return Resultado(tipo, competidores, rondas, orden)
 
 
 def enfrentar(
@@ -291,7 +343,7 @@ def enfrentar(
         competidores=competidores,
         combates=(combate,),
         orden=combate.orden,
-        marcadores=combate.totales,
+        marcadores=combate.marcadores,
     )
 
 
@@ -310,36 +362,40 @@ def _torneo(
 
     combates: list[Resultado] = []
     finalistas: list[int] = []
-    caidos: list[tuple[int, int]] = []  # (dorsal, lo que sumó en su semifinal)
+    # (dorsal, intercambios ganados, puntos crudos en su semifinal)
+    caidos: list[tuple[int, int, int]] = []
 
     for pareja in parejas:
         semifinal = resolver([competidores[d] for d in pareja], tipo, rng)
         combates.append(semifinal)
         finalistas.append(pareja[semifinal.orden[0]])
-        perdedor = pareja[semifinal.orden[-1]]
-        caidos.append((perdedor, semifinal.totales[semifinal.orden[-1]]))
+        indice_perdedor = semifinal.orden[-1]
+        caidos.append((
+            pareja[indice_perdedor],
+            semifinal.marcadores[indice_perdedor],
+            semifinal.totales[indice_perdedor],
+        ))
 
     final = resolver([competidores[d] for d in finalistas], tipo, rng)
     combates.append(final)
 
     campeon = finalistas[final.orden[0]]
     subcampeon = finalistas[final.orden[1]]
-    # Los dos de semifinales no pelean por el bronce, así que se ordenan entre sí
-    # por lo que sumaron: mejor marcador, mejor puesto. Así el orden es completo
-    # y determinista en vez de arbitrario.
-    caidos.sort(key=lambda caido: -caido[1])
+    # Los dos de semifinales no pelean por el bronce: primero manda cuántos
+    # intercambios ganaron, después sus puntos crudos y por último el dorsal.
+    caidos.sort(key=lambda caido: (-caido[1], -caido[2], caido[0]))
 
     marcadores = [0] * len(competidores)
-    marcadores[campeon] = final.totales[final.orden[0]]
-    marcadores[subcampeon] = final.totales[final.orden[1]]
-    for dorsal, total in caidos:
-        marcadores[dorsal] = total
+    marcadores[campeon] = final.marcadores[final.orden[0]]
+    marcadores[subcampeon] = final.marcadores[final.orden[1]]
+    for dorsal, marcador, _ in caidos:
+        marcadores[dorsal] = marcador
 
     return Encuentro(
         tipo=tipo,
         competidores=competidores,
         combates=tuple(combates),
-        orden=(campeon, subcampeon, *(dorsal for dorsal, _ in caidos)),
+        orden=(campeon, subcampeon, *(dorsal for dorsal, _, _ in caidos)),
         marcadores=tuple(marcadores),
     )
 
@@ -347,14 +403,12 @@ def _torneo(
 # --- Narración -------------------------------------------------------------
 
 def _cabecera(resultado: Resultado, paso: int, titulo: str) -> list[str]:
-    """El marco de arriba. `titulo` cabe en 14: el más largo, «SEMIFINAL 1», mide 11."""
-    total = len(resultado.rondas)
-    etiqueta = f"tramo {paso}/{total}" if paso <= total else "final"
-    if paso > TRAMOS and paso <= total:
-        etiqueta = "desempate"
+    """El título del combate y la fase real que se está mostrando."""
+    ronda = resultado.rondas[paso - 1]
+    etiqueta = ronda.fase + ("*" if ronda.desempates else "")
     return [
         "╭" + "─" * pantalla.ANCHO + "╮",
-        pantalla.fila(f" {titulo:<14}{etiqueta:>10} "),
+        pantalla.fila(f" {titulo[:12]:<12}{etiqueta:>12} "),
         "├" + "─" * pantalla.ANCHO + "┤",
     ]
 
@@ -399,7 +453,14 @@ def _anchos_del_dado(resultado: Resultado) -> tuple[int, int]:
     anchos de siempre, así que un combate normal sale exactamente igual que
     antes.
     """
-    ancho_base = max([2] + [len(str(c.base)) for c in resultado.competidores])
+    ancho_base = max(
+        [2]
+        + [
+            len(str(total - dado))
+            for ronda in resultado.rondas
+            for dado, total in zip(ronda.dados, ronda.totales)
+        ]
+    )
     ancho_total = max(
         [3] + [len(str(t)) for r in resultado.rondas for t in r.totales]
     )
@@ -418,9 +479,10 @@ def _fila_dado(
     """
     # 1 + nombre + 1 + base + len("+d20") + 1 + 2 + len(" = ") + total + 1
     ancho_nombre = max(1, pantalla.ANCHO - 1 - ancho_base - ancho_total - 13)
+    base = total - dado
     return pantalla.fila(
         f" {c.nombre[:ancho_nombre]:<{ancho_nombre}} "
-        f"{c.base:>{ancho_base}}+d20 {dado:>2} = {total:>{ancho_total}} "
+        f"{base:>{ancho_base}}+d20 {dado:>2} = {total:>{ancho_total}} "
     )
 
 
@@ -468,23 +530,21 @@ def fotogramas_sumo(resultado: Resultado, titulo: str) -> list[str]:
     fotogramas = []
 
     for paso in range(1, total_rondas + 1):
-        acum_a, acum_b = _acumulados(resultado, paso)
+        marcadores = tuple(
+            sum(ronda.ganador == i for ronda in resultado.rondas[:paso])
+            for i in (0, 1)
+        )
         ronda = resultado.rondas[paso - 1]
-
-        # Cuanto más domina A, más lejos empuja la marca hacia el lado de B.
-        # La escala es fija (tantos puntos de ventaja = una casilla) en vez de
-        # relativa al marcador final: si se normalizase contra la diferencia
-        # final, la marca saltaría al extremo en cuanto alguien se pusiera por
-        # delante y se quedaría ahí clavada el resto del combate.
-        ventaja = acum_a - acum_b
-        desplazamiento = round(ventaja / PUNTOS_POR_CASILLA)
+        desplazamiento = 3 * (marcadores[0] - marcadores[1])
 
         cuerpo = _cabecera(resultado, paso, titulo)
         cuerpo.append(pantalla.fila(
             f" {a.nombre[:11]:<11}{b.nombre[:11]:>13} "
         ))
         cuerpo.append(pantalla.fila(f" {_dohyo(desplazamiento)} "))
-        cuerpo.append(pantalla.fila(f" {acum_a:<11}{acum_b:>13} "))
+        cuerpo.append(pantalla.fila(
+            f" {marcadores[0]:<11}{marcadores[1]:>13} "
+        ))
         cuerpo.append("├" + "─" * pantalla.ANCHO + "┤")
         cuerpo.append(_fila_dado(a, ronda.dados[0], ronda.totales[0],
                                  ancho_base, ancho_total))
@@ -645,7 +705,7 @@ def podio(encuentro: Encuentro) -> str:
 
 
 def _nota_de_desempates(encuentro: Encuentro) -> str:
-    """Cuántos tramos extra hicieron falta, sumando todos los combates."""
+    """Reintentos ocultos de Sumo y rondas visibles de Carrera."""
     desempates = sum(combate.desempates for combate in encuentro.combates)
     if not desempates:
         return ""
@@ -727,7 +787,8 @@ def cuadro(encuentro: Encuentro) -> str:
     cuerpo.append("╰" + "─" * pantalla.ANCHO + "╯")
 
     marcadores = " · ".join(
-        f"{c.competidor_ganador.nombre} {max(c.totales)}-{min(c.totales)} "
+        f"{c.competidor_ganador.nombre} "
+        f"{c.marcadores[c.orden[0]]}–{c.marcadores[c.orden[1]]} "
         f"{c.competidor_perdedor.nombre}"
         for c in encuentro.combates
     )
@@ -735,7 +796,7 @@ def cuadro(encuentro: Encuentro) -> str:
         f"## 🏆 Campeón de {NOMBRES[encuentro.tipo]}\n"
         f"{MEDALLAS[0]} **{campeon.nombre}**\n"
         "```ansi\n" + "\n".join(cuerpo) + "\n```"
-        f"\n-# {marcadores}"
+        f"\n-# Intercambios: {marcadores}"
         + _nota_de_desempates(encuentro)
     )
 
@@ -755,9 +816,13 @@ def resumen(encuentro: Encuentro) -> str:
     combate = encuentro.combates[0]
     ganador = combate.competidor_ganador
     perdedor = combate.competidor_perdedor
-    totales = combate.totales
-    marcador = f"{max(totales)} a {min(totales)}"
+    marcador = (
+        f"{combate.marcadores[combate.orden[0]]}–"
+        f"{combate.marcadores[combate.orden[1]]}"
+    )
+    regla = " en intercambios" if encuentro.tipo == SUMO else " puntos acumulados"
     return (
-        f"🏆 **{ganador.nombre}** gana a **{perdedor.nombre}** por {marcador}."
+        f"🏆 **{ganador.nombre}** gana a **{perdedor.nombre}** por "
+        f"{marcador}{regla}."
         + _nota_de_desempates(encuentro)
     )

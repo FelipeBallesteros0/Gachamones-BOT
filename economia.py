@@ -747,8 +747,13 @@ def ejecutar_competencia(
         encuentro = comp.enfrentar(
             [
                 comp.competidor_de(
-                    criatura, tipo,
-                    db.efecto_activo_en(con, criatura.id, stat, ahora),
+                    criatura,
+                    bonus_fuerza=db.efecto_activo_en(
+                        con, criatura.id, "fuerza", ahora
+                    ),
+                    bonus_velocidad=db.efecto_activo_en(
+                        con, criatura.id, "velocidad", ahora
+                    ),
                 )
                 for criatura in criaturas
             ],
@@ -1066,6 +1071,7 @@ def comprar_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=estorbo,
             )
+        assert casa is not None
         if mueble.clave in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
@@ -1115,6 +1121,7 @@ def colocar_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=estorbo,
             )
+        assert casa is not None
         if mueble.clave not in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,

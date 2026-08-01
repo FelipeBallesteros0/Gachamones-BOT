@@ -285,16 +285,17 @@ sólo cómo te habla y cómo se porta en el jardín. Ninguna es mejor que otra."
     que_hacer = f"""## 🏁 Y qué hacer con él
 
 **Competir**
-`/carrera @alguien` — decide la velocidad + 1d20. Puedes invitar a **tres más** \
-en los huecos opcionales y correr hasta {comp.MAX_CORREDORES}: con tres o más, \
-la carrera acaba en **podio**, con los tres primeros subidos a su cajón.
-`/sumo @alguien` — decide la fuerza + 1d20, cuerpo a cuerpo.
-`/sumo @a @b @c` — **torneo de cuatro**: se sortean dos semifinales y los que \
-pasan juegan la final. De dos o de cuatro; con tres no hay forma de emparejar.
--# {comp.TRAMOS} tramos por pelea, gana quien sume más. El buen ánimo suma un \
-poco; tener poca comida resta. Sólo el primero suma victoria, y el torneo cuenta como \
-una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
-reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
+`/carrera @alguien` — **puntos acumulados**: **SALIDA** (velocidad + 1d20), \
+**TERRENO** (70 % velocidad + 30 % fuerza + 1d20) y **FONDO** (70 % velocidad \
++ 30 % salud + 1d20). Corren hasta {comp.MAX_CORREDORES}; con tres o más hay podio.
+`/sumo @alguien` — **mejor de tres**: **POSICIÓN** (70 % fuerza + 30 % \
+velocidad + 1d20), **EMPUJE** (fuerza + 1d20) y **AGUANTE** (70 % fuerza + \
+30 % salud + 1d20). Gana **dos intercambios**; con 2–0 no juega AGUANTE.
+`/sumo @a @b @c` — torneo de cuatro: dos semis y final, cada cruce al mejor de \
+tres. De dos o cuatro; con tres no se puede emparejar.
+-# El buen ánimo suma un poco; tener poca comida resta. Sólo el primero suma \
+victoria; el \
+torneo cuenta una competencia. Quien rechaza se cae del reto.
 
 **Aventura**
 `/aventura` te lleva **a ti y a tu gachamon** a un bioma al azar, ante una escena \
@@ -349,9 +350,9 @@ quedas a la intemperie hasta que compres casa en 🛒 **Tienda**.
 tu casa; se ponen y se quitan con 🪑 **Amueblar**, y lo que retires se guarda.
 -# Cuanta más **comodidad**, más despacio le baja el ánimo a tu activo — hasta \
 un {int(cas.ALIVIO_MAXIMO_DE_ANIMO * 100)} % menos en la mejor casa. **A la \
-intemperie** todo le baja un {int((cas.PENALIZACION_INTEMPERIE - 1) * 100)} % \
+intemperie** todo le baja un {(cas.PENALIZACION_INTEMPERIE - 1) * 100:.0f} % \
 más rápido, pero **no puede matarlo**: la comida se queda en \
-{int(cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)}. El 🎟️ **ticket del refugio** \
+{cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE:.0f}. El 🎟️ **ticket del refugio** \
 (🪙 {obj.CATALOGO["ticket_refugio"].precio}) te devuelve una semana bajo techo.
 
 **El huerto**
@@ -566,12 +567,14 @@ class Social(commands.Cog):
 
         lineas = []
         for criatura in criaturas:
+            if criatura.muerta_en is None or criatura.nacida_en is None:
+                continue
             definicion = criatura.def_especie
             vivio = (criatura.muerta_en - criatura.nacida_en).total_seconds() / 3600
             nombre = pantalla.pintar(f"{criatura.nombre[:13]:<13}", esp.GRIS)
             lineas.append(
                 f" {nombre} {definicion.nombre[:11]:<11}"
-                f" {int(vivio):>3} h  {criatura.victorias:>2}V"
+                f" {vivio:>3.0f} h  {criatura.victorias:>2}V"
             )
 
         await interaccion.response.send_message(
@@ -662,7 +665,9 @@ class Social(commands.Cog):
     @app_commands.command(name="ayuda", description="Cómo funciona el bot")
     @comun.solo_en_el_canal()
     async def ayuda(self, interaccion: discord.Interaction) -> None:
-        primera, *resto = paginas_de_ayuda(interaccion.client.user.display_name)
+        usuario = interaccion.client.user
+        nombre_bot = usuario.display_name if usuario is not None else "Gachamon"
+        primera, *resto = paginas_de_ayuda(nombre_bot)
         await interaccion.response.send_message(primera, ephemeral=True)
         for pagina in resto:
             await interaccion.followup.send(pagina, ephemeral=True)
