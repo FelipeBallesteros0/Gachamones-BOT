@@ -164,6 +164,26 @@ CREATE TABLE IF NOT EXISTS logros (
     PRIMARY KEY (criatura_id, clave)
 );
 
+-- Las dos de arriba, pero de la persona. Tres medallas no son del gachamon
+-- —convencer salvajes y que te salga una rara los haces tú— y ésas se quedan
+-- aunque se te muera el plantel entero, que es justamente lo que las distingue.
+-- La clave primaria vuelve a ser la garantía de que ninguna se cobra dos veces.
+CREATE TABLE IF NOT EXISTS marcador_persona (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    clave TEXT NOT NULL,
+    valor INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (usuario_id, guild_id, clave)
+);
+
+CREATE TABLE IF NOT EXISTS logros_persona (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    clave TEXT NOT NULL,
+    cuando TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id, clave)
+);
+
 CREATE TABLE IF NOT EXISTS operaciones_economia (
     evento_id        TEXT NOT NULL,
     usuario_id       TEXT NOT NULL,
@@ -368,6 +388,42 @@ def _migrar(con: sqlite3.Connection) -> None:
     )
     con.execute("DELETE FROM cooldowns WHERE accion = ?", (sim.AVENTURA,))
 
+    # Y por lo mismo, tres logros dejaron de ser del gachamon: a la aventura vas
+    # tú, así que convencer salvajes lo haces tú, y que te salga una rara es tu
+    # suerte. Se mudan en vez de tirarse — **no se paga ni se quita nada**: las
+    # gemas ya cobradas se quedan donde están, y quien las cobró dos veces con
+    # dos gachamones se las queda. Se conserva la fecha del primero, que es la de
+    # verdad.
+    #
+    # Es idempotente porque borra su propia fuente, y las dos mitades caen en la
+    # misma transacción que el resto de `_migrar`: o se muda todo o no se muda
+    # nada.
+    claves = tuple(logro.clave for logro in lgr.de_la_persona())
+    huecos = ", ".join("?" * len(claves))
+    con.execute(
+        "INSERT INTO logros_persona (usuario_id, guild_id, clave, cuando) "
+        "SELECT c.usuario_id, c.guild_id, l.clave, MIN(l.cuando) "
+        "  FROM logros l JOIN criaturas c ON c.id = l.criatura_id "
+        f" WHERE l.clave IN ({huecos}) "
+        " GROUP BY c.usuario_id, c.guild_id, l.clave "
+        "ON CONFLICT(usuario_id, guild_id, clave) DO UPDATE SET "
+        "  cuando = MIN(cuando, excluded.cuando)",
+        claves,
+    )
+    con.execute(f"DELETE FROM logros WHERE clave IN ({huecos})", claves)
+
+    con.execute(
+        "INSERT INTO marcador_persona (usuario_id, guild_id, clave, valor) "
+        "SELECT c.usuario_id, c.guild_id, m.clave, SUM(m.valor) "
+        "  FROM marcador m JOIN criaturas c ON c.id = m.criatura_id "
+        " WHERE m.clave = ? "
+        " GROUP BY c.usuario_id, c.guild_id, m.clave "
+        "ON CONFLICT(usuario_id, guild_id, clave) DO UPDATE SET "
+        "  valor = valor + excluded.valor",
+        (lgr.RECLUTADOS,),
+    )
+    con.execute("DELETE FROM marcador WHERE clave = ?", (lgr.RECLUTADOS,))
+
 
 def ahora_utc() -> datetime:
     return datetime.now(timezone.utc)
@@ -544,16 +600,18 @@ def crear(
     caracter: str = esp.CARACTER_POR_DEFECTO,
     canal_id: str | None = None,
     activa: bool = True,
-    reclutado_por: int | None = None,
+    reclutada: bool = False,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
 
     `activa=False` la mete directa a la incubadora. Lo usa el reclutamiento: uno
     que se une en una aventura no puede desbancar sin avisar al que llevabas.
 
-    `reclutado_por` es el id de quien lo convenció, y le apunta el reclutamiento
-    en su marcador aquí dentro: si el alta se cae por el tope del plantel, no
-    puede quedar apuntado un salvaje que no llegó a unirse.
+    `reclutada` dice que llega de una aventura, y le apunta el reclutamiento a
+    **la persona** aquí dentro: si el alta se cae por el tope del plantel, no
+    puede quedar apuntado un salvaje que no llegó a unirse. No hace falta decir
+    qué gachamon lo convenció porque la medalla ya no es suya: a la aventura va
+    la persona, que es la misma que sale en esta fila.
 
     Dos defensas distintas y las dos hacen falta:
 
@@ -593,8 +651,8 @@ def crear(
             valores,
         )
         nuevo_id = cursor.lastrowid
-        if reclutado_por is not None:
-            apuntar_en(con, reclutado_por, lgr.RECLUTADOS)
+        if reclutada:
+            apuntar_persona_en(con, usuario_id, guild_id, lgr.RECLUTADOS)
 
     return replace(nueva, id=nuevo_id)
 
@@ -942,6 +1000,84 @@ def anotar_logro_en(
         (criatura_id, clave, cuando.isoformat()),
     )
     return bool(cursor.rowcount)
+
+
+# --- Lo mismo, pero de la persona -------------------------------------------
+#
+# Cambia la clave y nada más: las mismas fronteras, la misma disciplina de
+# apuntar dentro de la transacción que lo provoca, y la misma clave primaria
+# haciendo de garantía de pago único.
+
+def marcador_de_persona(usuario_id: str, guild_id: str) -> dict[str, int]:
+    with conectar() as con:
+        return _marcador_de_persona(con, usuario_id, guild_id)
+
+
+def _marcador_de_persona(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> dict[str, int]:
+    filas = con.execute(
+        "SELECT clave, valor FROM marcador_persona "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchall()
+    return {f["clave"]: f["valor"] for f in filas}
+
+
+def apuntar_persona_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str,
+    clave: str, cuanto: int = 1,
+) -> None:
+    con.execute(
+        "INSERT INTO marcador_persona (usuario_id, guild_id, clave, valor) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(usuario_id, guild_id, clave) "
+        "DO UPDATE SET valor = valor + excluded.valor",
+        (usuario_id, guild_id, clave, cuanto),
+    )
+
+
+def logros_de_persona(usuario_id: str, guild_id: str) -> dict[str, datetime]:
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT clave, cuando FROM logros_persona "
+            "WHERE usuario_id = ? AND guild_id = ? ORDER BY cuando, clave",
+            (usuario_id, guild_id),
+        ).fetchall()
+    return {f["clave"]: datetime.fromisoformat(f["cuando"]) for f in filas}
+
+
+def anotar_logro_de_persona_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str,
+    clave: str, cuando: datetime,
+) -> bool:
+    cursor = con.execute(
+        "INSERT OR IGNORE INTO logros_persona "
+        "(usuario_id, guild_id, clave, cuando) VALUES (?, ?, ?, ?)",
+        (usuario_id, guild_id, clave, cuando.isoformat()),
+    )
+    return bool(cursor.rowcount)
+
+
+def especies_de(usuario_id: str, guild_id: str) -> tuple[str, ...]:
+    """Las especies que ha tenido, **vivas y muertas**.
+
+    Es lo que alimenta «Uno entre veinticinco»: que te saliera una rara no deja
+    de haber pasado porque se te muriera.
+    """
+    with conectar() as con:
+        return _especies_de(con, usuario_id, guild_id)
+
+
+def _especies_de(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> tuple[str, ...]:
+    filas = con.execute(
+        "SELECT DISTINCT especie FROM criaturas "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchall()
+    return tuple(f["especie"] for f in filas)
 
 
 # --- Listados --------------------------------------------------------------

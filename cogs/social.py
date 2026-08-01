@@ -39,20 +39,11 @@ def _tabla(lineas: list[str], vacia: str) -> str:
     return "```ansi\n" + "\n".join(lineas) + "\n```"
 
 
-def panel_de_logros(
-    criatura: sim.Criatura,
-    hechos: dict[str, int],
-    conseguidos: dict,
-    reserva: int = 0,
-) -> str:
-    """La lista de las dieciocho medallas, con cuáles lleva y cuánto le falta.
-
-    En markdown y no dentro de un ```ansi``` como el ranking: aquí lo que manda
-    es el texto de cada logro, que es largo y de ancho variable, y en un bloque
-    de código no cabría sin recortarlo. Fuera del bloque, Discord lo parte solo.
-    """
+def _lineas_de_logros(
+    catalogo: tuple[lgr.Logro, ...], hechos: dict[str, int], conseguidos: dict
+) -> list[str]:
     lineas = []
-    for logro in lgr.LOGROS:
+    for logro in catalogo:
         tiene = logro.clave in conseguidos
         linea = (
             f"{'✅' if tiene else '⬜'} **{logro.nombre}** · {logro.como} · "
@@ -63,17 +54,44 @@ def panel_de_logros(
         if not tiene and logro.meta > 1:
             linea += f" · `{min(hechos.get(logro.hecho, 0), logro.meta)}/{logro.meta}`"
         lineas.append(linea)
+    return lineas
 
-    ganadas = sum(lgr.POR_CLAVE[c].gemas for c in conseguidos if c in lgr.POR_CLAVE)
+
+def panel_de_logros(
+    criatura: sim.Criatura,
+    hechos: dict[str, int],
+    conseguidos: dict,
+    persona: str,
+    hechos_persona: dict[str, int],
+    conseguidos_persona: dict,
+    reserva: int = 0,
+) -> str:
+    """Las dieciocho medallas, en dos secciones: las suyas y las tuyas.
+
+    En markdown y no dentro de un ```ansi``` como el ranking: aquí lo que manda
+    es el texto de cada logro, que es largo y de ancho variable, y en un bloque
+    de código no cabría sin recortarlo. Fuera del bloque, Discord lo parte solo.
+
+    Van en el mismo mensaje y no en dos porque juntas caben de sobra, y porque
+    lo que se quiere ver de un vistazo es cuánto queda en total.
+    """
+    todos = {**conseguidos, **conseguidos_persona}
+    ganadas = sum(lgr.POR_CLAVE[c].gemas for c in todos if c in lgr.POR_CLAVE)
     por_ganar = sum(l.gemas for l in lgr.LOGROS) - ganadas
     return (
         f"## 🏅 Logros de {sim.nombre_visible(criatura)}\n"
-        + "\n".join(lineas)
-        + f"\n-# {len(conseguidos)} de {len(lgr.LOGROS)} · "
+        + "\n".join(_lineas_de_logros(lgr.del_gachamon(), hechos, conseguidos))
+        + f"\n### 🏅 Tuyos, {persona}\n"
+        + "\n".join(
+            _lineas_de_logros(
+                lgr.de_la_persona(), hechos_persona, conseguidos_persona
+            )
+        )
+        + f"\n-# {len(todos)} de {len(lgr.LOGROS)} · "
         f"{obj.EMOJI_GEMA} **{reserva}** en reserva · "
         f"le quedan {por_ganar} por ganar.\n"
-        "-# Son del gachamon: cada uno se gana las suyas, y las gemas van a "
-        "tu monedero."
+        "-# Las de arriba se van con el gachamon si se muere; las tuyas se "
+        "quedan. Las gemas van a tu monedero en los dos casos."
     )
 
 
@@ -227,13 +245,14 @@ Son unos **{_techo_diario()} al día** si lo aprovechas entero. Y en `/aventura`
 se encuentran objetos por el camino, que salen gratis.
 
 **Ganar {obj.EMOJI_GEMA} asciigems**
-Sólo con los **logros**, que son de cada gachamon y no tuyos: `/logros` te \
-enseña los {len(lgr.LOGROS)} y cuánto te falta para cada uno. Van desde ganar \
-tu primera competencia hasta pisar los diez biomas o llegar a los 30 días de \
-vida, y se pagan **una sola vez**.
--# Hay **{sum(l.gemas for l in lgr.LOGROS)}** {obj.EMOJI_GEMA} por gachamon si \
-los consigues todos, y las gemas caen en tu monedero: las de uno sirven para \
-cualquiera de tu plantel.
+Sólo con los **logros**: `/logros` te enseña los {len(lgr.LOGROS)} y cuánto te \
+falta para cada uno. Van desde ganar tu primera competencia hasta pisar los \
+diez biomas o llegar a los 30 días de vida, y se pagan **una sola vez**.
+-# **{len(lgr.del_gachamon())}** son de cada gachamon \
+({sum(l.gemas for l in lgr.del_gachamon())} {obj.EMOJI_GEMA}) y se van con él; \
+los otros **{len(lgr.de_la_persona())}** son tuyos \
+({sum(l.gemas for l in lgr.de_la_persona())} {obj.EMOJI_GEMA}) y se quedan. Las \
+gemas caen siempre en tu monedero: las de uno sirven para todo tu plantel.
 
 **Gastar {obj.EMOJI_GEMA} asciigems**
 `/taller` — le pones algo encima al gachamon **activo**, y se queda con él.
@@ -360,15 +379,32 @@ class Social(commands.Cog):
         # nadie haga nada. Si no se apuntaran aquí, el panel diría que los tiene
         # y la tabla de logros no se habría enterado, y no se cobrarían nunca.
         recibo = eco.pagar_logros(criatura, ahora)
+        # Y las tuyas, que es lo que repesca a quien ya cumplía: la rara que te
+        # salió hace días no la vas a volver a sacar.
+        recibo_persona = eco.pagar_logros_de_persona(
+            criatura.usuario_id, criatura.guild_id, ahora
+        )
+        persona = interaccion.user.display_name
         hechos = lgr.hechos_de(criatura, db.marcador(criatura.id), ahora)
+        hechos_persona = lgr.hechos_de_la_persona(
+            db.marcador_de_persona(criatura.usuario_id, criatura.guild_id),
+            db.especies_de(criatura.usuario_id, criatura.guild_id),
+        )
         reserva = eco.saldos(
             criatura.usuario_id, criatura.guild_id
         ).asciigems
         panel = panel_de_logros(
-            criatura, hechos, db.logros_de(criatura.id), reserva
+            criatura, hechos, db.logros_de(criatura.id),
+            persona, hechos_persona,
+            db.logros_de_persona(criatura.usuario_id, criatura.guild_id),
+            reserva,
         )
         if recibo.nuevos:
-            panel += f"\n{comun.texto_del_anuncio(criatura, recibo)}"
+            panel += (
+                f"\n{comun.texto_del_anuncio(sim.nombre_visible(criatura), recibo)}"
+            )
+        if recibo_persona.nuevos:
+            panel += f"\n{comun.texto_del_anuncio(persona, recibo_persona)}"
 
         await interaccion.response.send_message(panel)
 

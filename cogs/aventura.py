@@ -390,9 +390,9 @@ class EncuentroView(discord.ui.View):
                 genero=salvaje.genero, caracter=salvaje.caracter,
                 canal_id=str(interaccion.channel_id),
                 activa=False,  # a la incubadora: no te cambia el activo sin avisar
-                # El reclutamiento se le apunta a quien fue de aventura, no al
-                # que se une: la medalla es de quien lo convenció.
-                reclutado_por=self.criatura.id,
+                # El reclutamiento se le apunta a la persona, no a ningún
+                # gachamon: a la aventura vas tú y es tuyo el mérito.
+                reclutada=True,
             )
         except (ValueError, sqlite3.IntegrityError) as error:
             # Tope de plantel (`ValueError`) o el índice único si alguien metió
@@ -414,9 +414,15 @@ class EncuentroView(discord.ui.View):
             ),
             vistas.NombrarReclutaView(),
         )
-        # La medalla es de quien lo convenció, y por eso se revisa el suyo.
+        # Domador y Flautista son tuyos, y también «Uno entre veinticinco» si el
+        # que se acaba de unir era raro. Los del gachamon que iba se revisan
+        # igual: la aventura le ha subido sus propios contadores.
         if interaccion.channel is not None:
             await comun.anunciar_logros(interaccion.channel, self.criatura, ahora)
+            await comun.anunciar_logros_de_persona(
+                interaccion.channel, str(self.dueño.id), self.guild_id,
+                self.dueño.display_name, ahora,
+            )
 
     async def _editar(self, interaccion, cuerpo: str, vista) -> None:
         try:

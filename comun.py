@@ -31,11 +31,12 @@ def solo_en_el_canal():
     return app_commands.check(predicado)
 
 
-def texto_del_anuncio(
-    criatura: sim.Criatura, recibo: economia.ReciboLogros
-) -> str:
-    """Cómo se canta una medalla. Aparte del envío, para poder probarlo."""
-    nombre = sim.nombre_visible(criatura)
+def texto_del_anuncio(nombre: str, recibo: economia.ReciboLogros) -> str:
+    """Cómo se canta una medalla. Aparte del envío, para poder probarlo.
+
+    Recibe el nombre y no la criatura porque lo mismo canta las del gachamon que
+    las tuyas: en aquéllas es el nombre del bicho y en éstas el tuyo.
+    """
     cobro = f"{obj.EMOJI_GEMA} +{recibo.asciigems}"
     if len(recibo.nuevos) == 1:
         logro = recibo.nuevos[0]
@@ -68,10 +69,35 @@ async def anunciar_logros(
     pueda desbloquearse sin tener que pensar cuál de los dieciocho era.
     """
     recibo = economia.pagar_logros(criatura, ahora or db.ahora_utc())
+    await _cantar(canal, sim.nombre_visible(criatura), recibo)
+
+
+async def anunciar_logros_de_persona(
+    canal: discord.abc.Messageable,
+    usuario_id: str,
+    guild_id: str,
+    nombre: str,
+    ahora: datetime | None = None,
+) -> None:
+    """Canta las tuyas, las tres que no son de ningún gachamon.
+
+    Va donde puede cambiar alguna: al reclutar y al nacer un gachamon nuevo.
+    `/logros` las repesca, que es lo que cubre a quien ya cumplía antes de que
+    esto existiera.
+    """
+    recibo = economia.pagar_logros_de_persona(
+        usuario_id, guild_id, ahora or db.ahora_utc()
+    )
+    await _cantar(canal, nombre, recibo)
+
+
+async def _cantar(
+    canal: discord.abc.Messageable, nombre: str, recibo: economia.ReciboLogros
+) -> None:
     if not recibo.nuevos:
         return
     await canal.send(
-        f"{texto_del_anuncio(criatura, recibo)}\n"
+        f"{texto_del_anuncio(nombre, recibo)}\n"
         f"-# {obj.EMOJI_GEMA} {recibo.saldo} asciigems en reserva."
     )
 

@@ -176,28 +176,45 @@ def test_el_viaje_que_no_se_confirma_no_cuenta():
     assert db.marcador(bicho.id) == {}
 
 
-def test_reclutar_se_le_apunta_al_que_fue_de_aventura():
+def test_reclutar_se_le_apunta_a_la_persona_y_no_a_ningun_gachamon():
+    """A la aventura vas tú, así que el reclutamiento es tuyo. Ni el que salió
+    ni el que se une llevan nada en su marcador."""
     aventurero = nacer(nombre="Aventurero")
     recluta = db.crear(
         "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
-        activa=False, reclutado_por=aventurero.id,
+        activa=False, reclutada=True,
     )
 
-    assert db.marcador(aventurero.id) == {logros.RECLUTADOS: 1}
+    assert db.marcador_de_persona("u1", "g1") == {logros.RECLUTADOS: 1}
+    assert db.marcador(aventurero.id) == {}
     assert db.marcador(recluta.id) == {}
+
+
+def test_los_reclutas_de_tus_gachamones_suman_en_el_mismo_sitio():
+    """Antes cada gachamon llevaba su cuenta y «Flautista» pedía diez con el
+    mismo: ahora se suman todos porque el que recluta eres tú."""
+    nacer(nombre="Primero")
+    for i in range(3):
+        db.crear(
+            "u1", "g1", "michi", f"Recluta{i}", STATS, T0,
+            activa=False, reclutada=True,
+        )
+    db.crear("u2", "g1", "michi", "DeOtro", STATS, T0, reclutada=True)
+
+    assert db.marcador_de_persona("u1", "g1") == {logros.RECLUTADOS: 3}
+    assert db.marcador_de_persona("u2", "g1") == {logros.RECLUTADOS: 1}
 
 
 def test_el_recluta_que_no_cabe_no_se_apunta():
     """El alta y el marcador van en la misma transacción justamente para esto:
     con el plantel lleno no puede quedar apuntado un salvaje que no se unió."""
-    aventurero = nacer(nombre="Aventurero")
-    for i in range(db.MAXIMO_PLANTEL - 1):
-        nacer(nombre=f"Relleno{i}", activa=False)
+    for i in range(db.MAXIMO_PLANTEL):
+        nacer(nombre=f"Relleno{i}", activa=i == 0)
 
     with pytest.raises(ValueError):
         db.crear(
             "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
-            activa=False, reclutado_por=aventurero.id,
+            activa=False, reclutada=True,
         )
 
-    assert db.marcador(aventurero.id) == {}
+    assert db.marcador_de_persona("u1", "g1") == {}

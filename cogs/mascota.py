@@ -83,6 +83,14 @@ class HuevoView(discord.ui.View):
         mensaje = await interaccion.original_response()
         db.guardar_pantalla(criatura.id, str(mensaje.id), str(interaccion.channel_id))
 
+        # Si le ha salido un raro, «Uno entre veinticinco» es suyo y no del
+        # bicho: la suerte fue de quien rompió el cascarón.
+        if interaccion.channel is not None:
+            await comun.anunciar_logros_de_persona(
+                interaccion.channel, str(interaccion.user.id),
+                str(interaccion.guild_id), interaccion.user.display_name, ahora,
+            )
+
 
 class Mascota(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:

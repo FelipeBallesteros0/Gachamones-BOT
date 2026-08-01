@@ -1,4 +1,4 @@
-"""Las medallas del gachamon: que se ganen cuando toca y no antes."""
+"""Las medallas: que se ganen cuando toca, y que sean de quien deben."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -23,7 +23,12 @@ def criatura(**cambios) -> sim.Criatura:
 
 def cumplidos(marcador=None, bicho=None, ahora=T0):
     hechos = logros.hechos_de(bicho or criatura(), marcador or {}, ahora)
-    return {logro.clave for logro in logros.cumplidos(hechos)}
+    return {l.clave for l in logros.cumplidos(hechos, logros.GACHAMON)}
+
+
+def cumplidos_de_persona(marcador=None, especies=()):
+    hechos = logros.hechos_de_la_persona(marcador or {}, especies)
+    return {l.clave for l in logros.cumplidos(hechos, logros.PERSONA)}
 
 
 # --- El catálogo -----------------------------------------------------------
@@ -44,15 +49,36 @@ def test_ninguna_clave_ni_nombre_se_repite():
 
 def test_todo_logro_mira_un_hecho_que_alguien_rellena():
     """Un logro que mire una clave que nadie cuenta no se gana nunca, y no hay
-    forma de notarlo jugando: sólo se ve leyendo el código."""
-    bicho = criatura()
-    contados = {
+    forma de notarlo jugando: sólo se ve leyendo el código.
+
+    Se comprueba por dueño: un logro del gachamon que mirase un hecho que sólo
+    existe en la persona tampoco se ganaría, y ése es el fallo que puede colarse
+    justo ahora que hay dos marcadores.
+    """
+    del_gachamon = {
         logros.CARRERAS, logros.SUMOS, logros.TORNEOS, logros.AVENTURAS,
-        logros.NODOS, logros.RECLUTADOS, logros.CUIDADOS,
+        logros.NODOS, logros.CUIDADOS,
+    } | set(logros.hechos_de(criatura(), {}, T0))
+    de_la_persona = {logros.RECLUTADOS} | set(
+        logros.hechos_de_la_persona({}, ())
+    )
+
+    for logro in logros.del_gachamon():
+        assert logro.hecho in del_gachamon, logro.clave
+    for logro in logros.de_la_persona():
+        assert logro.hecho in de_la_persona, logro.clave
+
+
+def test_los_dos_juegos_de_medallas_no_se_solapan():
+    """Cada medalla es de uno o del otro, y entre las dos listas están las
+    dieciocho: si alguna se cayera de las dos, no se ganaría jamás."""
+    suyas = logros.del_gachamon()
+    mias = logros.de_la_persona()
+    assert set(suyas) | set(mias) == set(logros.LOGROS)
+    assert not set(suyas) & set(mias)
+    assert {l.clave for l in mias} == {
+        "domador", "flautista", "uno_entre_veinticinco"
     }
-    derivados = set(logros.hechos_de(bicho, {}, T0))
-    for logro in logros.LOGROS:
-        assert logro.hecho in contados | derivados, logro.clave
 
 
 # --- Que se ganen cuando toca ----------------------------------------------
@@ -74,8 +100,6 @@ def test_el_contador_justo_por_debajo_no_desbloquea():
     ("yokozuna", {logros.SUMOS: 100}),
     ("dinastia", {logros.TORNEOS: 10}),
     ("explorador", {logros.AVENTURAS: 10}),
-    ("domador", {logros.RECLUTADOS: 1}),
-    ("flautista", {logros.RECLUTADOS: 10}),
     ("paso_firme", {logros.NODOS: 50}),
     ("consentido", {logros.CUIDADOS: 100}),
     ("malcriado", {logros.CUIDADOS: 500}),
@@ -113,11 +137,38 @@ def test_cartografo_pide_los_diez_biomas_distintos():
     assert "cartografo" in cumplidos(todos)
 
 
-def test_uno_entre_veinticinco_es_de_la_especie_y_no_del_marcador():
-    assert "uno_entre_veinticinco" not in cumplidos(bicho=criatura(especie="pulpo"))
+# --- Las tres que son de la persona ----------------------------------------
+
+def test_reclutar_es_de_la_persona_y_no_de_ningun_gachamon():
+    """Lo pedido: a la aventura vas tú, así que convencer al salvaje lo haces
+    tú. Un gachamon con el contador puesto no gana nada, porque ese contador ya
+    no vive en su marcador."""
+    assert cumplidos_de_persona({logros.RECLUTADOS: 1}) == {"domador"}
+    assert cumplidos_de_persona({logros.RECLUTADOS: 10}) == {
+        "domador", "flautista"
+    }
+    assert not cumplidos({logros.RECLUTADOS: 10}) & {"domador", "flautista"}
+
+
+def test_uno_entre_veinticinco_es_de_la_persona_y_cuenta_las_muertas():
+    """Que te saliera una rara no deja de haber pasado porque se te muriera, y
+    por eso mira todas tus especies y no la que lleves activa."""
+    comunes = ("pulpo", "michi", "pollito")
+    assert "uno_entre_veinticinco" not in cumplidos_de_persona(especies=comunes)
+
     raras = [c for c, d in esp.ESPECIES.items() if d.rareza == esp.RARA]
+    assert len(raras) == 3
     for clave in raras:
-        assert "uno_entre_veinticinco" in cumplidos(bicho=criatura(especie=clave))
+        assert "uno_entre_veinticinco" in cumplidos_de_persona(
+            especies=(*comunes, clave)
+        )
+
+
+def test_un_jugador_que_lo_ha_hecho_todo_gana_las_tres():
+    conseguidos = cumplidos_de_persona(
+        {logros.RECLUTADOS: 10}, especies=("dragoncito",)
+    )
+    assert conseguidos == {l.clave for l in logros.de_la_persona()}
 
 
 def test_superviviente_pide_seguir_vivo():
@@ -145,12 +196,11 @@ def test_la_alfa_se_puede_cerrar(monkeypatch):
     assert "de_la_alfa" not in cumplidos(bicho=novata)
 
 
-def test_un_gachamon_hecho_de_todo_los_gana_todos():
-    """Que ninguno se quede inalcanzable por una clave mal escrita."""
+def test_un_gachamon_hecho_de_todo_gana_todas_las_suyas():
+    """Que ninguna se quede inalcanzable por una clave mal escrita."""
     marcador = {
         logros.CARRERAS: 100, logros.SUMOS: 100, logros.TORNEOS: 10,
-        logros.AVENTURAS: 100, logros.NODOS: 50, logros.RECLUTADOS: 10,
-        logros.CUIDADOS: 500,
+        logros.AVENTURAS: 100, logros.NODOS: 50, logros.CUIDADOS: 500,
     }
     marcador.update({logros.clave_de_bioma(b): 1 for b in av.BIOMAS})
     campeon = criatura(
@@ -158,4 +208,6 @@ def test_un_gachamon_hecho_de_todo_los_gana_todos():
         nacida_en=T0 - timedelta(days=40),
     )
 
-    assert cumplidos(marcador, bicho=campeon) == set(logros.POR_CLAVE)
+    assert cumplidos(marcador, bicho=campeon) == {
+        l.clave for l in logros.del_gachamon()
+    }

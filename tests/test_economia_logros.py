@@ -223,3 +223,104 @@ def test_la_primera_victoria_se_paga_al_terminar_la_carrera():
 
     assert "primera_sangre" in claves(recibo)
     assert gemas_de(campeon.usuario_id) == antes + recibo.asciigems
+
+
+# --- Y las tres que son tuyas ----------------------------------------------
+
+def test_reclutar_de_verdad_paga_domador_a_la_persona():
+    """De punta a punta: nadie apunta nada a mano, se recluta de verdad."""
+    nacer(nombre="Aventurero")
+    antes = gemas_de()
+
+    db.crear(
+        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
+        activa=False, reclutada=True,
+    )
+    recibo = economia.pagar_logros_de_persona("u1", "g1", T0)
+
+    assert claves(recibo) == {"domador"}
+    assert gemas_de() == antes + logros.POR_CLAVE["domador"].gemas
+
+
+def test_las_tuyas_no_se_pagan_dos_veces():
+    """El contador sigue subiendo después de desbloquear Domador, así que sin la
+    clave primaria se cobraría en cada salvaje que convencieras."""
+    nacer(nombre="Aventurero")
+    for i in range(3):
+        db.crear(
+            "u1", "g1", "michi", f"R{i}", STATS, T0, activa=False, reclutada=True
+        )
+
+    primero = economia.pagar_logros_de_persona("u1", "g1", T0)
+    antes = gemas_de()
+    segundo = economia.pagar_logros_de_persona("u1", "g1", T0 + timedelta(days=1))
+
+    assert claves(primero) == {"domador"}
+    assert segundo.nuevos == ()
+    assert gemas_de() == antes
+
+
+def test_las_tuyas_las_conservas_aunque_se_te_muera_todo_el_plantel():
+    """Es lo que las distingue de las quince del gachamon, y por eso `/logros`
+    las puede seguir enseñando cuando no queda ninguno vivo."""
+    bicho = nacer(nombre="Aventurero")
+    db.crear(
+        "u1", "g1", "michi", "Recluta", STATS, T0, activa=False, reclutada=True
+    )
+    economia.pagar_logros_de_persona("u1", "g1", T0)
+
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre'",
+            (T0.isoformat(),),
+        )
+
+    assert set(db.logros_de_persona("u1", "g1")) == {"domador"}
+    assert db.logros_de(bicho.id) == {}
+
+
+def test_uno_entre_veinticinco_se_paga_por_tener_la_rara_aunque_este_muerta():
+    """Lo decidido: que te saliera una rara no deja de haber pasado porque se
+    te muriera."""
+    rara = db.crear("u1", "g1", "dragoncito", "Rara", STATS, T0)
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?",
+            (T0.isoformat(), rara.id),
+        )
+    antes = gemas_de()
+
+    recibo = economia.pagar_logros_de_persona("u1", "g1", T0)
+
+    assert claves(recibo) == {"uno_entre_veinticinco"}
+    assert gemas_de() == antes + logros.POR_CLAVE["uno_entre_veinticinco"].gemas
+
+
+def test_las_tuyas_son_de_cada_persona_por_separado():
+    nacer("u1")
+    nacer("u2")
+    db.crear(
+        "u1", "g1", "michi", "Recluta", STATS, T0, activa=False, reclutada=True
+    )
+
+    mio = economia.pagar_logros_de_persona("u1", "g1", T0)
+    tuyo = economia.pagar_logros_de_persona("u2", "g1", T0)
+
+    assert claves(mio) == {"domador"}
+    assert tuyo.nuevos == ()
+
+
+def test_las_dos_mitades_no_se_pisan():
+    """Cada una desbloquea lo suyo y nada de lo de la otra: si `cumplidos` no
+    filtrara por dueño, aquí se cobrarían medallas cruzadas."""
+    bicho = nacer(nombre="Aventurero")
+    db.apuntar(bicho.id, logros.CARRERAS, 10)
+    db.crear(
+        "u1", "g1", "michi", "Recluta", STATS, T0, activa=False, reclutada=True
+    )
+
+    suyas = claves(economia.pagar_logros(bicho, T0))
+    mias = claves(economia.pagar_logros_de_persona("u1", "g1", T0))
+
+    assert suyas == {"velocista", "de_la_alfa"}
+    assert mias == {"domador"}

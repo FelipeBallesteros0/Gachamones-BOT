@@ -39,7 +39,7 @@ def recibo_de(*claves, saldo=0):
 
 def test_una_sola_medalla_se_canta_en_una_linea():
     bicho = nacer()
-    texto = comun.texto_del_anuncio(bicho, recibo_de("velocista"))
+    texto = comun.texto_del_anuncio("Mia", recibo_de("velocista"))
 
     assert texto == (
         "🏅 **Mia** consigue **Velocista** — gana 10 carreras. 💎 +10"
@@ -50,7 +50,9 @@ def test_varias_medallas_van_juntas_y_no_en_mensajes_sueltos():
     """Diez carreras seguidas pueden desbloquear dos a la vez; dos mensajes
     seguidos con el mismo formato se leen como si el bot se hubiera repetido."""
     bicho = nacer()
-    texto = comun.texto_del_anuncio(bicho, recibo_de("velocista", "primera_sangre"))
+    texto = comun.texto_del_anuncio(
+        "Mia", recibo_de("velocista", "primera_sangre")
+    )
 
     assert texto.startswith("**Mia** consigue 2 logros. 💎 +15")
     assert texto.count("🏅") == 2
@@ -83,22 +85,30 @@ def test_sin_nada_nuevo_no_se_manda_mensaje():
 
 def test_el_recluta_sin_nombre_no_sale_como_cadena_vacia():
     """Un salvaje recién unido no tiene nombre todavía, y `**** consigue` sería
-    lo que saldría sin pasar por `nombre_visible`."""
+    lo que saldría si quien anuncia no pasara por `nombre_visible`."""
     recluta = db.crear(
         "u2", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
     )
-    texto = comun.texto_del_anuncio(recluta, recibo_de("domador"))
+    canal = SimpleNamespace(send=AsyncMock())
 
-    assert sim.SIN_NOMBRE in texto
+    asyncio.run(comun.anunciar_logros(canal, recluta, T0))
+
+    assert sim.SIN_NOMBRE in canal.send.await_args.args[0]
 
 
 # --- El panel --------------------------------------------------------------
 
-def panel_de(bicho, ahora=T0):
+def panel_de(bicho, ahora=T0, persona="Felipe"):
+    usuario, guild = bicho.usuario_id, bicho.guild_id
     hechos = logros.hechos_de(bicho, db.marcador(bicho.id), ahora)
-    reserva = economia.saldos(bicho.usuario_id, bicho.guild_id).asciigems
+    hechos_persona = logros.hechos_de_la_persona(
+        db.marcador_de_persona(usuario, guild), db.especies_de(usuario, guild)
+    )
+    reserva = economia.saldos(usuario, guild).asciigems
     return social.panel_de_logros(
-        bicho, hechos, db.logros_de(bicho.id), reserva
+        bicho, hechos, db.logros_de(bicho.id),
+        persona, hechos_persona, db.logros_de_persona(usuario, guild),
+        reserva,
     )
 
 
@@ -184,3 +194,61 @@ def test_veterano_se_apunta_al_mirar_el_panel_aunque_nadie_haya_jugado():
     assert "veterano" in {logro.clave for logro in recibo.nuevos}
     assert "veterano" in db.logros_de(bicho.id)
     assert recibo.asciigems >= logros.POR_CLAVE["veterano"].gemas
+
+
+# --- Que el anuncio esté enchufado donde se gana ----------------------------
+#
+# Las tres de la persona sólo pueden cambiar al nacer un gachamon y al reclutar,
+# y ahí es donde se cantan. Se prueban contra los cogs de verdad porque el fallo
+# que importa es el cable suelto: la medalla se gana igual, pero nadie se entera
+# hasta que escriba `/logros`.
+
+def _interaccion(canal, usuario_id="1", nombre="Felipe"):
+    return SimpleNamespace(
+        user=SimpleNamespace(id=usuario_id, display_name=nombre),
+        guild_id="g1",
+        channel_id="c1",
+        channel=canal,
+        response=SimpleNamespace(edit_message=AsyncMock()),
+        original_response=AsyncMock(return_value=SimpleNamespace(id="m1")),
+        edit_original_response=AsyncMock(),
+    )
+
+
+def test_al_romper_el_huevo_una_rara_se_canta_como_tuya(monkeypatch):
+    import cogs.mascota as cog_mascota
+    import especies as esp
+
+    canal = SimpleNamespace(send=AsyncMock())
+    monkeypatch.setattr(
+        cog_mascota.esp, "elegir_del_huevo", lambda _: esp.ESPECIES["dragoncito"]
+    )
+    vista = cog_mascota.HuevoView("1")
+
+    asyncio.run(vista.romper.callback(_interaccion(canal)))
+
+    anuncio = canal.send.await_args.args[0]
+    assert "Uno entre veinticinco" in anuncio
+    assert "Felipe" in anuncio          # tuya, no del bicho
+    assert set(db.logros_de_persona("1", "g1")) == {"uno_entre_veinticinco"}
+
+
+def test_al_reclutar_domador_se_canta_como_tuyo(monkeypatch):
+    import aventura as av
+    import cogs.aventura as cog_av
+
+    bicho = db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
+    canal = SimpleNamespace(send=AsyncMock())
+    salvaje = av.Salvaje("michi", "Michi", "macho", "sereno", (10, 10, 10))
+    vista = cog_av.EncuentroView(
+        None, SimpleNamespace(id="1", display_name="Felipe"), "g1", bicho,
+        av.Encuentro(salvaje=salvaje, confianza=100),
+    )
+
+    asyncio.run(vista._unirse(_interaccion(canal), "se acerca"))
+
+    anuncios = " ".join(c.args[0] for c in canal.send.await_args_list)
+    assert "Domador" in anuncios and "Felipe" in anuncios
+    assert set(db.logros_de_persona("1", "g1")) == {"domador"}
+    # Y el gachamon que salió no se lleva ninguna de las tres.
+    assert "domador" not in db.logros_de(bicho.id)

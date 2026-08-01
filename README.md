@@ -328,9 +328,10 @@ pantalla se pone al día en cuanto se pulsa cualquiera.
 
 **Consumibles.** Los botones 🎒 **Mochila** y 🛒 **Tienda** abren menús que sólo
 ve quien los pulsa. Cada persona empieza con **50 asciicoins y 50 asciigems**.
-La tienda cobra sólo asciicoins; los asciigems quedan visibles en reserva, sin
-conversión ni gasto. El monedero es **suyo, no de la criatura**, así que lo
-comprado sobrevive a la muerte de una mascota. Hay
+La tienda cobra sólo asciicoins; los asciigems se ganan con los logros y se
+gastan en el `/taller`, sin conversión entre las dos monedas. El monedero es
+**suyo, no de la criatura**, así que lo comprado sobrevive a la muerte de una
+mascota. Hay
 pociones de fuerza y de velocidad de 1d4 a 1d12 que duran cinco minutos, una que
 llena el hambre saltándose el empacho, y dos que borran un enfriamiento.
 

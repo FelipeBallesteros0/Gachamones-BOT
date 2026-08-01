@@ -67,10 +67,14 @@ Instala el hook local cuando prepares el entorno:
 - No vuelvas a sortear, recalcular ni duplicar dinero al reprocesar el mismo evento.
 - Los asciigems se ganan sólo con los logros de un gachamon.
 - Los asciigems se gastan sólo en cosméticos, que no tocan ninguna estadística.
-- Los logros son de la criatura; sus asciigems van al monedero de la persona.
+- Casi todos los logros son de la criatura y se pierden con ella.
+- Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
+- Los logros de la persona sobreviven a todo su plantel.
+- Un logro pertenece a un dueño o al otro, nunca a los dos.
+- Los asciigems de cualquier logro van siempre al monedero de la persona.
 - Un gachamon lleva como mucho un cosmético de cada tipo, y lo impone el esquema.
 - Los cosméticos son de la criatura y se pierden con ella.
-- Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de `logros`.
+- Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de su tabla.
 - Desbloquear un logro y pagarlo ocurren en la misma transacción.
 - Los contadores del marcador suben dentro de la transacción que resuelve la acción.
 
