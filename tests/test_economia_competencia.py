@@ -70,23 +70,45 @@ def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
     muerta = replace(primera, nombre="Nube", muerta_en=T0)
     plantel = [activa, sin_nombre, muerta, primera, segunda]
 
-    assert cog_comp.texto_testigo_competencia(plantel, gano=True) == (
+    assert cog_comp.texto_testigo_competencia(plantel, activa, gano=True) == (
         "-# 👀 Desde la incubadora, **Luna** celebra a **Sol**."
     )
-    assert cog_comp.texto_testigo_competencia(plantel, gano=False) == (
+    assert cog_comp.texto_testigo_competencia(plantel, activa, gano=False) == (
         "-# 👀 Desde la incubadora, **Luna** espera a **Sol**."
     )
 
 
 def test_testigo_no_sale_sin_reserva_nombrada():
     activa = nacer("u1")
-    assert cog_comp.texto_testigo_competencia([activa], gano=True) is None
+    assert cog_comp.texto_testigo_competencia([activa], activa, gano=True) is None
 
     sin_nombre = db.crear(
         "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
     )
     assert cog_comp.texto_testigo_competencia(
-        [activa, sin_nombre], gano=True
+        [activa, sin_nombre], activa, gano=True
+    ) is None
+
+
+def test_testigo_con_cambio_de_activa_conserva_la_protagonista_del_evento():
+    protagonista = db.crear("u1", "g1", "pulpo", "Sol", STATS, T0)
+    nueva_activa = db.crear(
+        "u1", "g1", "michi", "Luna", STATS, T0, activa=False
+    )
+    tercera = db.crear(
+        "u1", "g1", "michi", "Bruma", STATS, T0, activa=False
+    )
+    plantel_tardio = [
+        replace(protagonista, activa=False),
+        replace(nueva_activa, activa=True),
+        tercera,
+    ]
+
+    assert cog_comp.texto_testigo_competencia(
+        plantel_tardio, protagonista, gano=True
+    ) == "-# 👀 Desde la incubadora, **Bruma** celebra a **Sol**."
+    assert cog_comp.texto_testigo_competencia(
+        plantel_tardio[:2], protagonista, gano=True
     ) is None
 
 

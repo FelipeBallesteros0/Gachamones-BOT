@@ -91,24 +91,24 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
 
 
 def texto_testigo_competencia(
-    plantel: list[sim.Criatura], *, gano: bool
+    plantel: list[sim.Criatura], protagonista: sim.Criatura, *, gano: bool
 ) -> str | None:
     """Elige un testigo determinista que sólo reacciona desde la incubadora."""
-    activa = next((criatura for criatura in plantel if criatura.activa), None)
     testigo = next(
         (
             criatura for criatura in plantel
-            if criatura.viva
+            if criatura.id != protagonista.id
+            and criatura.viva
             and not criatura.activa
             and not sim.esta_sin_nombrar(criatura)
         ),
         None,
     )
-    if activa is None or testigo is None:
+    if testigo is None:
         return None
     reaccion = (
-        f"celebra a **{activa.nombre}**"
-        if gano else f"espera a **{activa.nombre}**"
+        f"celebra a **{protagonista.nombre}**"
+        if gano else f"espera a **{protagonista.nombre}**"
     )
     return f"-# 👀 Desde la incubadora, **{testigo.nombre}** {reaccion}."
 
@@ -492,6 +492,7 @@ class Competencias(commands.Cog):
             if (
                 reaccion := texto_testigo_competencia(
                     db.plantel(str(usuario.id), guild_id),
+                    resultado.despues[dorsal],
                     gano=dorsal == ganador,
                 )
             )
