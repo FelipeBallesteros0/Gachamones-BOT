@@ -1,4 +1,4 @@
-# pyright: reportArgumentType=false, reportCallIssue=false, reportAttributeAccessIssue=false, reportFunctionMemberAccess=false
+# pyright: reportArgumentType=false, reportCallIssue=false, reportAttributeAccessIssue=false
 """La aventura: biomas, pruebas, qué te encuentras y convencer a un salvaje."""
 import asyncio
 import random
