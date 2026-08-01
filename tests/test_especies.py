@@ -27,8 +27,34 @@ def todos_los_dibujos() -> dict[str, str]:
 
 # --- Equilibrio y rarezas --------------------------------------------------
 
-def test_hay_diez_especies():
-    assert len(esp.ESPECIES) == 10
+def test_el_catalogo_esta_completo():
+    """Sin el número escrito dentro: al pasar de 10 a 25 este test habría
+    obligado a venir a cambiarlo, que es cuando un test deja de comprobar algo
+    y pasa a estorbar. Lo que importa es que no haya claves repetidas ni fichas
+    a medias."""
+    assert len(esp.ESPECIES) >= 10
+    for clave, especie in esp.ESPECIES.items():
+        assert especie.clave == clave
+        assert especie.nombre.strip() and especie.emoji.strip()
+        assert especie.descripcion.strip(), clave
+        assert especie.rareza in (esp.COMUN, esp.POCO_COMUN, esp.RARA), clave
+
+
+def test_ninguna_especie_repite_emoji():
+    """Con diez se veía a simple vista; con veinticinco, no. Y dos especies con
+    el mismo emoji se confunden en la cabecera de la ficha, que es donde más se
+    mira."""
+    from collections import Counter
+    repetidos = [e for e, n in Counter(
+        especie.emoji for especie in esp.ESPECIES.values()).items() if n > 1]
+    assert not repetidos, repetidos
+
+
+def test_ninguna_especie_repite_nombre():
+    from collections import Counter
+    repetidos = [n for n, veces in Counter(
+        especie.nombre for especie in esp.ESPECIES.values()).items() if veces > 1]
+    assert not repetidos, repetidos
 
 
 def test_las_no_raras_estan_equilibradas():
@@ -39,10 +65,11 @@ def test_las_no_raras_estan_equilibradas():
             assert especie.total_base == 24, especie.clave
 
 
-def test_la_rara_es_mejor():
-    dragon = esp.ESPECIES["dragoncito"]
-    assert dragon.rareza == esp.RARA
-    assert dragon.total_base == 30
+def test_las_raras_son_mejores():
+    raras = [e for e in esp.ESPECIES.values() if e.rareza == esp.RARA]
+    assert raras
+    for rara in raras:
+        assert rara.total_base == 30, rara.clave
 
 
 def test_los_pesos_suman_cien():

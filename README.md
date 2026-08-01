@@ -1,13 +1,13 @@
 # Gachamones BOT
 
-Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
+Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 25
 gachamones al azar, se cuida con los botones bajo el mensaje y compite contra los
 de otras personas en carreras y peleas de sumo. Todo el arte es ASCII dentro de
 bloques de código: ni una sola imagen.
 
 ```
 ## 🐥 Pelusa
--# Pollito · adulta · nivel 3 · 4V-1D · 2 días de vida
+-# Piollito · adulta · nivel 3 · 4V-1D · 2 días de vida
 ╭──────────────────────────╮
 │             _            │
 │            (,)           │
@@ -139,7 +139,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 
 ## Reglas
 
-**El plantel.** Hasta **3 gachamones** por persona y servidor, con **uno
+**El plantel.** Hasta **10 gachamones** por persona y servidor, con **uno
 activo**: el que recibe los botones y los comandos. Los demás esperan en la
 **incubadora**, y ahí **no les pasa el tiempo** — ni hambre, ni ánimo, ni aseo,
 y no pueden morir. No es un adorno: los cuidados sólo llegan al activo, así que
@@ -151,11 +151,12 @@ que es lo único que hace falta para que los bucles de muerte y de aviso la
 ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
 `actualizada_en` al día, o las horas dormidas se le caerían encima de golpe.
 
-`/huevo` da **sólo el de partida**: el segundo y el tercero hay que ganárselos
-en `/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
+`/huevo` da **sólo el de partida**: los demás hay que ganárselos en
+`/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
 
 **Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
-azar (bosque, planicie, desierto, ruinas, volcán) y os planta delante una escena
+azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
+cumbre, ruinas, cavernas y volcán— y os planta delante una escena
 con **tres salidas**: fuerza, velocidad o volverse. Las dos primeras tiran
 `stat + 1d20` contra la dificultad del bioma y **cuestan lo mismo**: si una fuera
 más barata, la otra no la elegiría nadie y la decisión sería un adorno. Volver no
@@ -164,8 +165,8 @@ arriesga nada, pero tampoco cuenta como nodo superado.
 **La espera de 37 minutos es de la persona, no del gachamon**, y por eso vive en
 `cooldowns_persona` y no en `cooldowns`. Es la única que lo hace: cuidar y
 competir son del gachamon —es él quien come y quien pelea—, pero a la aventura
-vas tú. Atada al gachamon era un agujero: con tres en el plantel se salía tres
-veces seguidas cambiando de activo entre viaje y viaje.
+vas tú. Atada al gachamon era un agujero: con varios en el plantel se salía
+varias veces seguidas cambiando de activo entre viaje y viaje.
 
 Son **dos decisiones**. Acertar lleva a la escena siguiente; fallar cierra el
 viaje ahí mismo, así que un viaje jugado trae **un fallo como mucho**. Si vuelve
@@ -200,8 +201,8 @@ los dos nodos el 46 % de las veces, así que deja el encuentro en el **25 % de l
 aventuras**, exactamente donde estaba antes del árbol. Concentrar el premio al
 fondo no podía colarse como una subida de dificultad.
 
-Cada bioma **cría lo suyo** —al volcán van Chispa y Dragoncito; a las ruinas,
-Fantasma y Chatarra—, así que el bioma que toque decide con quién te puedes
+Cada bioma **cría lo suyo** —al volcán van Pyro y Tsushimon; a las ruinas,
+Duskhause y Re-bot—, así que el bioma que toque decide con quién te puedes
 cruzar. Con el plantel lleno se sale igual y lo que habría sido un salvaje pasa
 a ser un objeto: volver de vacío por tener equipo sería castigar por jugar.
 
@@ -265,7 +266,7 @@ pedir el nombre a la vez.)
 **Cuidar.** Tres barras bajan con el tiempo, y sólo las del gachamon activo. Si
 **COMIDA** llega a 0, la criatura muere: sale el siguiente de la incubadora si
 lo hay, y si no, a empezar con otro huevo. Una criatura típica aguanta unas
-73 h; la salud alarga ese margen (un Brote sano llega a ~86 h, una Chispa frágil
+73 h; la salud alarga ese margen (una Magora sana llega a ~86 h, un Pyro frágil
 baja a ~62 h). El ánimo y el aseo no matan: el aseo bajo amarga el ánimo, y el
 ánimo bajo penaliza en las competencias.
 
@@ -369,8 +370,8 @@ con las marcas puestas y se resuelven de una vez al final, así ningún texto nu
 se puede olvidar de concordar; un test comprueba que no sobrevive ninguna marca.
 
 **Hablar.** Menciona al bot y tu criatura contesta con su propio carácter: el
-Pollito mete «pío» en todas las frases, Pedrusco responde con una palabra, y si
-intentas acariciar a Chispa te quema los dedos. El tono cambia según cómo la
+Piollito mete «pío» en todas las frases, Geo responde con una palabra, y si
+intentas acariciar a Pyro te quema los dedos. El tono cambia según cómo la
 tengas — una criatura hambrienta contesta de mal humor — y se acuerda de los
 últimos ocho intercambios. Hasta 20 mensajes por hora y por persona. Hablar no
 gasta comida ni da experiencia: queda fuera del equilibrio del juego.
@@ -382,7 +383,7 @@ testean sin conexión. Los cogs son capas finas encima.
 
 | Fichero | Qué hace |
 |---|---|
-| `especies.py` | Las 10 especies, su arte ASCII por etapa, estadísticas y rarezas. |
+| `especies.py` | Las 25 especies, su arte ASCII por etapa, estadísticas y rarezas. |
 | `jardin.py` | El reparto de varias criaturas en una sola escena. |
 | `personalidad.py` | La voz de cada especie, los diez caracteres y cómo se le explica todo al modelo. |
 | `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. |
@@ -399,15 +400,29 @@ testean sin conexión. Los cogs son capas finas encima.
 | `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
 | `cogs/` | Los slash commands. |
 
-**Cómo se guarda el arte.** Cinco etapas por diez especies, con tres estados de
-ánimo cada una, serían 150 dibujos. Pero casi todos se diferencian **sólo en la
-cara**: el mismo cuerpo de Pollito con `^v^`, `o.o` o `T_T`. Así que cada etapa
-es una plantilla con un hueco `{cara}` y cada especie declara sus tres caras:
-**50 dibujos y los ánimos salen gratis**. Donde el ánimo cambia más que la cara
-—al Brote se le caen las hojas, la llama de Chispa mengua— se declara el dibujo
+**Cómo se guarda el arte.** Cinco etapas por veinticinco especies, con tres
+estados de ánimo cada una, serían 375 dibujos. Pero casi todos se diferencian
+**sólo en la cara**: el mismo cuerpo de Piollito con `^v^`, `o.o` o `T_T`. Así
+que cada etapa es una plantilla con un hueco `{cara}` y cada especie declara sus
+tres caras: **125 dibujos y los ánimos salen gratis**. Donde el ánimo cambia más que la cara
+—a Magora se le caen las hojas, la llama de Pyro mengua— se declara el dibujo
 completo en `excepciones`, que gana a la plantilla. Las tres caras de una
 especie tienen que medir lo mismo, o sustituir una por otra descuadraría el
 dibujo; hay un test que lo comprueba.
+
+**El catálogo.** Veinticinco especies repartidas en diez biomas. Diecisiete son
+comunes, cinco poco comunes y tres raras; los pesos suman 100 exactos —17 × 4,5
++ 5 × 3,5 + 3 × 2,0— y hay un test que lo comprueba, porque es justo lo que se
+descuadra al añadir especies a mano. Comunes y poco comunes reparten **24 puntos
+exactos** entre las tres estadísticas y las raras **30**: ninguna es mejor que
+otra dentro de su rareza, sólo distinta.
+
+Al triplicar el catálogo, encontrar una rara **concreta** bajó del 4 % al 2 %,
+pero las tres juntas siguen saliendo el 6 % de las veces.
+
+Y ninguna se llama distinto de mayor. El campo que guardaba ese segundo nombre
+se quitó en vez de dejarlo repitiendo el primero: un campo que siempre vale lo
+mismo que otro es ruido.
 
 Dos decisiones más que explican el resto del diseño:
 

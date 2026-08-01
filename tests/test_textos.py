@@ -110,7 +110,11 @@ def test_ayuda_conserva_el_comando_mascota_y_el_limite_de_discord():
     assert "Cuidarlo da experiencia" in ayuda
     assert "Y qué hacer con él" in ayuda
     assert getattr(mascota.Mascota, "mascota").name == "mascota"
-    assert "ves cuál de los 10 gachamones te ha tocado" in ayuda
+    # El número sale del catálogo, no escrito aquí: al pasar de 10 a 25
+    # especies este test habría fallado sin que la ayuda estuviera mal.
+    import especies as esp
+    assert (f"ves cuál de los {len(esp.ESPECIES)} gachamones te ha tocado"
+            in ayuda)
     assert "El buen ánimo suma un poco; tener poca comida resta." in ayuda
     assert (
         "`/jardin` todos juntos · `/mascota` el tuyo · "

@@ -46,8 +46,10 @@ def criatura(fuerza=15, velocidad=15, nombre="Juan III", **cambios):
 
 # --- Los biomas ------------------------------------------------------------
 
-def test_hay_cinco_biomas_y_cada_uno_tiene_lo_suyo():
-    assert len(av.BIOMAS) == 5
+def test_todo_bioma_tiene_lo_suyo():
+    """Sin el número escrito dentro: al pasar de 5 a 10 este test habría
+    obligado a venir a cambiarlo sin que nada estuviera mal."""
+    assert len(av.BIOMAS) >= 5
     for clave, bioma in av.BIOMAS.items():
         assert bioma.clave == clave
         assert bioma.nombre.strip() and bioma.emoji.strip()
@@ -1235,7 +1237,9 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
 def test_las_escenas_escritas_no_son_todas_puertas():
     """Pedido tras jugarlo: que no todo sea forzar algo cerrado. En cada bioma
     tiene que haber también alguien con quien cruzarse."""
-    con_alguien = ("leñador", "pastora", "caravana", "Alguien", "buscador")
+    con_alguien = ("leñador", "pastora", "caravana", "Alguien", "buscador",
+                   "pescador", "buceadora", "chatarrero", "cabra",
+                   "espeleólogo")
 
     for clave, escenas in av.ESCENAS_ESCRITAS.items():
         assert len(escenas) >= 4, clave

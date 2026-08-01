@@ -75,16 +75,42 @@ def _registrar(bioma: Bioma) -> Bioma:
     return bioma
 
 
-_registrar(Bioma("bosque", "Bosque", "🌲", ("brote", "michi", "pollito"), 24))
+# Ordenados por dificultad. Los cinco nuevos se reparten DENTRO del rango que
+# ya había (22-30) en vez de estirarlo: subir el techo cambiaría lo dura que es
+# la aventura, que es otra decisión.
 _registrar(Bioma(
     "planicie", "Planicie", "🌾", ("pollito", "pulpo", "michi"), 22,
     articulo="a la",
 ))
-_registrar(Bioma("desierto", "Desierto", "🏜️", ("pedrusco", "chatarra"), 26))
 _registrar(Bioma(
-    "ruinas", "Ruinas", "🌑", ("fantasma", "chatarra"), 28, articulo="a las",
+    "cienaga", "Ciénaga", "🪷", ("slime", "swampdon", "canizo"), 23,
+    articulo="a la",
 ))
-_registrar(Bioma("volcan", "Volcán", "🌋", ("chispa", "dragoncito"), 30))
+_registrar(Bioma("bosque", "Bosque", "🌲", ("brote", "michi", "pollito"), 24))
+_registrar(Bioma(
+    "arrecife", "Arrecife", "🏝️",
+    ("coralito", "nacar", "remolin", "pulpo"), 25,
+))
+_registrar(Bioma(
+    "chatarral", "Chatarral", "⚙️",
+    ("chatarra", "prinel", "bulb", "magnetron"), 26,
+))
+_registrar(Bioma("desierto", "Desierto", "🏜️",
+                 ("pedrusco", "chatarra", "escorpgon"), 26))
+_registrar(Bioma(
+    "cumbre", "Cumbre", "🏔️", ("criold", "goot", "cefiro"), 28,
+    articulo="a la",
+))
+_registrar(Bioma(
+    "ruinas", "Ruinas", "🌑", ("fantasma", "chatarra", "lucierno"), 28,
+    articulo="a las",
+))
+_registrar(Bioma(
+    "cavernas", "Cavernas", "🕳️", ("noctule", "prismlon", "pedrusco"), 29,
+    articulo="a las",
+))
+_registrar(Bioma("volcan", "Volcán", "🌋",
+                 ("chispa", "dragoncito", "escorpgon"), 30))
 
 
 def elegir_bioma(rng: random.Random | None = None) -> Bioma:
@@ -289,6 +315,76 @@ ESCENAS_ESCRITAS: dict[str, tuple[Escena, ...]] = {
         Escena("Una losa con una argolla, en mitad de la sala.",
                "Levantar la losa", "Colarte por la rendija",
                "Dejar la losa quieta"),
+    ),
+    "cienaga": (
+        Escena("Una pasarela de tablones podridos sobre el agua negra.",
+               "Reforzarla con un tronco", "Cruzarla de tres zancadas",
+               "Vadear por la orilla"),
+        Escena("Un pescador con la barca encallada en el limo.",
+               "Empujar la barca", "Sacar el limo antes de que agarre",
+               "Desearle suerte y seguir"),
+        Escena("Sube una niebla espesa y el camino desaparece.",
+               "Apartar los juncos a manotazos", "Cruzar antes de que cierre",
+               "Sentarte a esperar que aclare"),
+        Escena("Algo grande se mueve bajo el agua, muy despacio.",
+               "Golpear el agua para asustarlo", "Pasar de puntillas",
+               "Rodear la charca entera"),
+    ),
+    "arrecife": (
+        Escena("La marea sube y tapa el paso entre las rocas.",
+               "Apartar las rocas sueltas", "Cruzar antes de la próxima ola",
+               "Esperar a que baje"),
+        Escena("Una red vieja enredada en el coral, con algo dentro.",
+               "Tirar de la red", "Desenredarla antes de que se hunda",
+               "Dejarla donde está"),
+        Escena("Una buceadora se ha quedado sin aire y golpea las rocas.",
+               "Levantar la piedra que la atrapa", "Nadar a por ella",
+               "Ir a buscar ayuda"),
+        Escena("Un banco de peces cierra el paso como una pared.",
+               "Abrirte camino a brazadas", "Colarte por un hueco",
+               "Bordear el arrecife"),
+    ),
+    "chatarral": (
+        Escena("Una torre de chatarra se tambalea encima del sendero.",
+               "Sujetar la torre", "Cruzar antes de que caiga",
+               "Dar un rodeo largo"),
+        Escena("Un chatarrero busca una pieza y ya no ve bien.",
+               "Levantar la plancha que la tapa", "Rebuscar tú, que eres rápido",
+               "Decirle que no la has visto"),
+        Escena("Salta una chispa y un montón de aceite empieza a arder.",
+               "Ahogar el fuego con arena", "Apartar lo que arde de un tirón",
+               "Alejarte del humo"),
+        Escena("Un portón de acero, soldado por el óxido.",
+               "Reventar la soldadura", "Colarte por el respiradero",
+               "Buscar otra entrada"),
+    ),
+    "cumbre": (
+        Escena("Una cornisa estrecha, con el hielo justo encima.",
+               "Romper el hielo a golpes", "Cruzar antes de que resbale",
+               "Bajar y rodear"),
+        Escena("Una cabra se ha quedado atascada entre dos rocas.",
+               "Separar las rocas", "Sacarla antes de que se agote",
+               "Dejarla, que se apañe"),
+        Escena("Empieza la ventisca y el sendero se borra en un minuto.",
+               "Abrir camino a paladas", "Correr al refugio de abajo",
+               "Refugiarte tras una roca"),
+        Escena("Un puente de cuerda tieso de escarcha.",
+               "Tensar la cuerda helada", "Cruzarlo sin mirar",
+               "Buscar el paso de abajo"),
+    ),
+    "cavernas": (
+        Escena("Un derrumbe tapa la galería, pero queda un hueco arriba.",
+               "Apartar los bloques", "Colarte por el hueco",
+               "Volver por donde entraste"),
+        Escena("Un espeleólogo se ha quedado sin luz y no se atreve a moverse.",
+               "Cargar con su equipo", "Guiarlo hasta la salida",
+               "Marcar el sitio y avisar fuera"),
+        Escena("Un lago subterráneo corta el paso, y está muy frío.",
+               "Empujar una roca para hacer puente", "Cruzarlo a nado",
+               "Bordearlo por la cornisa"),
+        Escena("Cuelgan estalactitas justo encima, y el suelo tiembla.",
+               "Partir las que estorban", "Pasar corriendo por debajo",
+               "Esperar a que pare el temblor"),
     ),
     "volcan": (
         Escena("Una colada de lava con costra encima.",

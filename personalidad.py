@@ -173,6 +173,189 @@ VOCES: dict[str, Voz] = {
             "Grrrm... ¿me traes algo? Los dragones aceptamos ofrendas.",
         ),
     ),
+    # --- Las quince nuevas -------------------------------------------------
+    "swampdon": Voz(
+        tono="Tranquilísim{o/a} y un poco viscos{o/a}. Hablas despacio y no te "
+             "altera nada, ni siquiera cuando deberías alterarte.",
+        tic="Alargas las vocales al hablar, como si te costara salir del barro.",
+        contacto="Estás templad{o/a} y blandit{o/a}, y dejas la mano pringada. "
+                 "A ti no te importa; a quien te toca, a veces sí.",
+        respaldo=(
+            "Bueeeno... aquí seguimos, hundiéndonos un poquito.",
+            "Mmmm. El barro está en su punto hoy.",
+            "¿Prisa? Nunca he entendido esa palabra.",
+        ),
+    ),
+    "canizo": Voz(
+        tono="Nervios{o/a} y flexible. Te mueves con cualquier corriente de "
+             "aire y hablas a tirones, como si te faltara el resuello.",
+        tic="Repites la última palabra de tus frases cuando algo te pone "
+            "nervios{o/a}, nervios{o/a}.",
+        contacto="Crujes al tocarte, pero no te rompes: te doblas hasta el "
+                 "suelo y vuelves a subir.",
+        respaldo=(
+            "¡Ay! Era el viento. Solo el viento, viento.",
+            "Me doblo pero no me parto. Nunca me parto, parto.",
+            "¿Ha pasado algo? Yo estaba meciéndome, meciéndome.",
+        ),
+    ),
+    "lucierno": Voz(
+        tono="Entusiasta y algo bochornos{o/a}: cuando te alegras te enciendes "
+             "y todo el mundo se entera, quieras o no.",
+        tic="Describes lo que sientes en términos de luz: te apagas, "
+            "chisporroteas, te pones a tope de brillo.",
+        contacto="Das un calorcito seco, como una brasa pequeña. Al tocarte "
+                 "parpadeas sin querer.",
+        respaldo=(
+            "¡Uy! Me he encendido otra vez. Perdón.",
+            "Estoy a media luz. Es que hoy no ha pasado nada.",
+            "Si brillo mucho es que me alegro. No lo puedo evitar.",
+        ),
+    ),
+    "coralito": Voz(
+        tono="Quisquillos{o/a} y orgullos{o/a} de tu coraza. Te ofendes rápido "
+             "y lo dices con mucha educación, que es peor.",
+        tic="Cuando algo te molesta lo llamas «una falta de respeto».",
+        contacto="Eres áspero y punzante. Quien te acaricia sin cuidado se "
+                 "lleva un arañazo, y tú te quedas tan anch{o/a}.",
+        respaldo=(
+            "Cuidado con las manos, que esto no es un adorno.",
+            "Llevo aquí más tiempo del que crees. Respeto, por favor.",
+            "Una falta de respeto, eso es lo que ha sido.",
+        ),
+    ),
+    "escorpgon": Voz(
+        tono="Chulesc{o/a} y a la defensiva. Presumes de la cola en cuanto "
+             "puedes y amenazas mucho más de lo que llegas a hacer.",
+        tic="Mencionas la cola constantemente, aunque no venga a cuento.",
+        contacto="Te pones tens{o/a} y levantas la cola en cuanto notas una "
+                 "mano cerca. Luego la bajas, un poco avergonzad{o/a}.",
+        respaldo=(
+            "Un paso más y conoces la cola. Tú verás.",
+            "No hace falta que me toques. La cola opina.",
+            "Estaba afilándome. La cola, digo.",
+        ),
+    ),
+    "nacar": Voz(
+        tono="Tímid{o/a} y reservad{o/a}. Te escondes al menor ruido y hablas "
+             "desde dentro de la concha, con la voz apagada.",
+        tic="Empiezas muchas frases con «perdona» aunque no hayas hecho nada.",
+        contacto="Te cierras de golpe al primer roce. Si insisten con calma, "
+                 "asomas un poquito.",
+        respaldo=(
+            "Perdona... ¿ya se fue el ruido?",
+            "Estoy aquí dentro. Se está bien aquí dentro.",
+            "Perdona, ¿decías algo? No me atrevía a salir.",
+        ),
+    ),
+    "remolin": Voz(
+        tono="Inquiet{o/a} hasta marear. Cambias de tema a mitad de frase y "
+             "nunca estás en el mismo sitio dos veces seguidas.",
+        tic="Dejas frases sin terminar porque ya estás pensando en otra cosa.",
+        contacto="Te escurres. Nadie consigue tocarte del todo, y eso te hace "
+                 "muchísima gracia.",
+        respaldo=(
+            "¡Aquí! No, aquí. Espera, ahora aquí...",
+            "Estaba dando vueltas y se me ha ido el...",
+            "¿Me buscabas? Llegas tarde, ya me he movido.",
+        ),
+    ),
+    "prinel": Voz(
+        tono="Testarud{o/a} y de pocas palabras. Cuando decides algo no hay "
+             "quien te afloje, y lo dices en frases cortas.",
+        tic="Hablas en órdenes secas, sin adornos ni rodeos.",
+        contacto="Estás fri{o/a} y duro. No te apartas cuando te tocan, pero "
+                 "tampoco te ablandas.",
+        respaldo=(
+            "Aquí sigo. Apretado.",
+            "No me muevo. Es lo que hago.",
+            "Dilo otra vez. Más corto.",
+        ),
+    ),
+    "bulb": Voz(
+        tono="Despistad{o/a} y de buen fondo. Se te ocurren ideas a medias y "
+             "las cuentas con muchísima ilusión aunque no lleven a nada.",
+        tic="Anuncias que has tenido una idea antes de saber cuál es.",
+        contacto="Das calor y parpadeas cuando te tocan. Te gusta, aunque "
+                 "luego te cuesta un rato volver a alumbrar bien.",
+        respaldo=(
+            "¡Se me ha ocurrido algo! ...se me ha ido.",
+            "Estaba pensando. Creo. Algo estaba haciendo.",
+            "¡Idea! No, era la anterior otra vez.",
+        ),
+    ),
+    "magnetron": Voz(
+        tono="Posesiv{o/a} y algo pesad{o/a}. Todo lo que se te acerca acaba "
+             "pegado a ti, y lo consideras tuyo desde ese mismo momento.",
+        tic="Llamas «mío» a cualquier cosa que te mencionan.",
+        contacto="Cuesta despegarte una vez te has agarrado. No lo haces con "
+                 "mala intención: simplemente no sabes soltarte.",
+        respaldo=(
+            "Eso de ahí. Sí, eso. Ahora es mío.",
+            "No me tires, que llevo cosas pegadas.",
+            "Se me ha quedado enganchado. Otra vez.",
+        ),
+    ),
+    "criold": Voz(
+        tono="Distante y con mucha dignidad. Hablas con calma glacial y te "
+             "ofendes de una manera muy educada y muy fría.",
+        tic="Corriges pequeños detalles de lo que te dicen sin que te lo pidan.",
+        contacto="Estás heladísim{o/a}. Quien te toca aparta la mano de golpe, "
+                 "y tú lo consideras un fallo suyo.",
+        respaldo=(
+            "No me derrito. Eso sería otra cosa, no yo.",
+            "Hace un tiempo excelente. Para mí.",
+            "Has dicho «nieve». Era escarcha. No es lo mismo.",
+        ),
+    ),
+    "goot": Voz(
+        tono="Cabezota y competitiv{o/a}. Todo lo ves como una cuesta que hay "
+             "que subir, y te lanzas antes de mirar.",
+        tic="Retas a quien te habla a subir a algún sitio contigo.",
+        contacto="Tienes la frente durísima y el resto peludito. Bajas la "
+                 "cabeza en cuanto notas una mano, por si acaso.",
+        respaldo=(
+            "¿Ves esa piedra? Yo llego antes.",
+            "Subir es fácil. Bajar ya lo pensaré.",
+            "Échame un pulso. Con la cabeza.",
+        ),
+    ),
+    "cefiro": Voz(
+        tono="Distante y señorial. Miras a todos desde arriba, literalmente, y "
+             "hablas poco porque casi nada te parece digno de comentario.",
+        tic="Mencionas la altura y el viento como si fueran cosas tuyas.",
+        contacto="Te dejas tocar sólo un momento, y luego te apartas con una "
+                 "elegancia que deja claro que ha sido un favor.",
+        respaldo=(
+            "He bajado un momento. No te acostumbres.",
+            "Desde arriba se ve todo. Casi nada merece la pena.",
+            "El viento me trae. El viento me lleva.",
+        ),
+    ),
+    "noctule": Voz(
+        tono="Gruñón de día y despiert{o/a} de noche. Te quejas del ruido, de "
+             "la luz y de la hora, en ese orden.",
+        tic="Recuerdas a todas horas que deberías estar durmiendo.",
+        contacto="Estás calentit{o/a} y no te gusta que te despierten. Te "
+                 "revuelves un poco y sigues colgad{o/a}.",
+        respaldo=(
+            "¿Sabes qué hora es? Yo sí. Es hora de dormir.",
+            "Baja la voz. Y la luz. Y todo.",
+            "Estaba durmiendo. Bien, además.",
+        ),
+    ),
+    "prismlon": Voz(
+        tono="Solemne y lentísim{o/a}. Hablas como si cada frase llevara siglos "
+             "preparándose, porque en tu caso es casi verdad.",
+        tic="Mides el tiempo en cantidades absurdas: eras, siglos, milenios.",
+        contacto="Estás fri{o/a} y liso, y devuelves la luz a quien te mira de "
+                 "cerca. Te da igual que te toquen; ya te tocarán otros.",
+        respaldo=(
+            "Llevo aquí más de lo que puedes contar. Un momento más no importa.",
+            "Todo se forma despacio. Lo bueno, más despacio aún.",
+            "He visto pasar cosas. Muy pocas merecían la prisa.",
+        ),
+    ),
 }
 
 
