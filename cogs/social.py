@@ -63,18 +63,21 @@ def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
     en un test sin conectarse a nada.
     """
     horas = int(sim.horas_de_vida(15))
-    especies_txt = " ".join(e.emoji for e in esp.ESPECIES.values())
+    del_huevo_txt = " ".join(esp.ESPECIES[c].emoji for c in esp.DEL_HUEVO)
+    del_campo_txt = " ".join(e.emoji for c, e in esp.ESPECIES.items()
+                             if c not in esp.DEL_HUEVO)
     caracteres_txt = ", ".join(c.masculino for c in per.CARACTERES.values())
     limite = config.LIMITE_CHARLA_POR_HORA
 
     tu_criatura = f"""## 🥚 Gachamones BOT
 
 **Empezar**
-`/huevo` — te da un huevo. Al romperlo ves cuál de los {len(esp.ESPECIES)} \
-gachamones te ha tocado y con qué estadísticas; después lo bautizas.
--# {especies_txt}
--# Es el huevo de partida: sólo sale si no tienes ningún gachamon. Los demás se \
-consiguen en `/aventura`.
+`/huevo` — te da un huevo. Al romperlo ves cuál de los {len(esp.DEL_HUEVO)} \
+gachamones de partida te ha tocado y con qué estadísticas; después lo bautizas.
+-# {del_huevo_txt}
+-# Los otros **{len(esp.ESPECIES) - len(esp.DEL_HUEVO)}** no salen del huevo: \
+sólo te los encuentras en `/aventura`.
+-# {del_campo_txt}
 
 **Cuidarlo**
 Los botones bajo la pantalla: 🍖 alimentar, 🎮 jugar, 🏋️ entrenar, 🧼 limpiar, \

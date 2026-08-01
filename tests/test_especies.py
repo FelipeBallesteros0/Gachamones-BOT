@@ -73,18 +73,6 @@ def test_las_raras_son_mejores():
         assert rara.total_base == 30, rara.clave
 
 
-def test_los_pesos_suman_cien():
-    assert round(sum(e.peso for e in esp.ESPECIES.values()), 6) == 100.0
-
-
-def test_distribucion_de_rarezas():
-    rng = random.Random(1234)
-    cuenta = Counter(esp.elegir_especie(rng).clave for _ in range(20_000))
-    for clave, especie in esp.ESPECIES.items():
-        observado = cuenta[clave] / 20_000 * 100
-        assert abs(observado - especie.peso) < 1.5, (clave, observado, especie.peso)
-
-
 # --- Tirada de nacimiento --------------------------------------------------
 
 def test_2d6_rango_y_media():
@@ -349,3 +337,43 @@ def test_ninguna_especie_copia_la_cabeza_de_otra():
     repetidas = {c: sorted(quienes) for c, quienes in coronas.items()
                  if len(quienes) > 1}
     assert not repetidas, repetidas
+
+
+# --- Del huevo salen sólo las diez de siempre -------------------------------
+
+def test_del_huevo_solo_salen_las_originales():
+    """Lo pedido: el huevo de partida da una de las diez de siempre, y las
+    quince nuevas hay que encontrárselas por ahí. Así el huevo sigue siendo el
+    comienzo conocido y el catálogo grande es lo que se descubre jugando."""
+    rng = random.Random(20260801)
+    salidas = {esp.elegir_del_huevo(rng).clave for _ in range(20_000)}
+
+    assert salidas == set(esp.DEL_HUEVO)
+    assert len(salidas) == 10
+
+
+def test_las_nuevas_no_salen_del_huevo_pero_viven_en_algun_bioma():
+    """La otra mitad de la regla: si no salieran del huevo NI de un bioma, no
+    habría forma de conseguirlas."""
+    import aventura as av
+
+    en_biomas = {e for bioma in av.BIOMAS.values() for e in bioma.especies}
+    for clave, especie in esp.ESPECIES.items():
+        if clave in esp.DEL_HUEVO:
+            continue
+        assert especie.peso == 0, (clave, "no sale del huevo: su peso sobra")
+        assert clave in en_biomas, (clave, "no se consigue de ninguna forma")
+
+
+def test_el_peso_es_la_probabilidad_en_el_huevo():
+    """El peso sólo lo usa el huevo: `tirar_salvaje` elige uniforme dentro del
+    bioma y no lo mira. Por eso las que no salen del huevo lo llevan a 0, en vez
+    de arrastrar un número que no significa nada."""
+    del_huevo = [esp.ESPECIES[c] for c in esp.DEL_HUEVO]
+    assert round(sum(e.peso for e in del_huevo), 6) == 100.0
+
+    rng = random.Random(1234)
+    cuenta = Counter(esp.elegir_del_huevo(rng).clave for _ in range(20_000))
+    for clave in esp.DEL_HUEVO:
+        observado = cuenta[clave] / 20_000 * 100
+        assert abs(observado - esp.ESPECIES[clave].peso) < 1.5, (clave, observado)

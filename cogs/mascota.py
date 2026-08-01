@@ -50,7 +50,7 @@ class HuevoView(discord.ui.View):
         self.stop()
         ahora = db.ahora_utc()
         rng = random.Random()
-        especie = esp.elegir_especie(rng)
+        especie = esp.elegir_del_huevo(rng)
 
         try:
             criatura = db.crear(

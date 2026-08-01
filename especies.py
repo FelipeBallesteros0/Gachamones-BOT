@@ -149,15 +149,16 @@ def _registrar(especie: Especie) -> None:
 # Comunes y poco comunes reparten 24 puntos entre las tres estadísticas:
 # ninguna es mejor, sólo distinta. Las raras llevan 30 y por eso salen poco.
 #
-# Los pesos se reparten por rareza y suman 100 entre todas:
-#   17 comunes × 4,5  +  5 poco comunes × 3,5  +  3 raras × 2,0  =  100
-# Al triplicar el catálogo, encontrar una rara CONCRETA bajó del 4 % al 2 %,
-# pero las tres juntas siguen saliendo el 6 % de las veces.
+# **El peso es la probabilidad en el huevo, y sólo eso.** `aventura.tirar_salvaje`
+# elige uniforme dentro del bioma y no lo mira, así que las especies que no
+# salen del huevo llevan peso 0 en vez de arrastrar un número que no significa
+# nada. Las diez que sí salen suman 100 entre ellas y cada peso se lee como un
+# porcentaje.
 # --------------------------------------------------------------------------
 
 _registrar(Especie(
     clave="pollito", nombre="Piollito", emoji="🐥", color=AMARILLO,
-    fuerza=4, velocidad=14, salud=6, rareza=COMUN, peso=4.5,
+    fuerza=4, velocidad=14, salud=6, rareza=COMUN, peso=12.0,
     descripcion="Corre como si le persiguieran. Porque suele ser el caso.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
     arte={
@@ -200,7 +201,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="brote", articulo="una", nombre="Magora", emoji="🌱", color=VERDE,
-    fuerza=7, velocidad=3, salud=14, rareza=COMUN, peso=4.5,
+    fuerza=7, velocidad=3, salud=14, rareza=COMUN, peso=12.0,
     descripcion="Aguanta lo que le echen. Moverse ya es otro tema.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -261,7 +262,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="michi", nombre="Purreon", emoji="🐱", color=AMARILLO,
-    fuerza=7, velocidad=12, salud=5, rareza=COMUN, peso=4.5,
+    fuerza=7, velocidad=12, salud=5, rareza=COMUN, peso=12.0,
     descripcion="Rápido y elegante. Te obedece cuando quiere.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
     arte={
@@ -302,7 +303,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="slime", nombre="Gelatín", emoji="🟢", color=CIAN,
-    fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=4.5,
+    fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=12.0,
     descripcion="Blando, resistente y sorprendentemente alegre.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -344,7 +345,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="pedrusco", nombre="Geo", emoji="🪨", color=BLANCO,
-    fuerza=13, velocidad=2, salud=9, rareza=COMUN, peso=4.5,
+    fuerza=13, velocidad=2, salud=9, rareza=COMUN, peso=12.0,
     descripcion="Inamovible en el sumo. Inamovible en general, la verdad.",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
     arte={
@@ -384,7 +385,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="pulpo", nombre="Octopul", emoji="🐙", color=ROSA,
-    fuerza=8, velocidad=8, salud=8, rareza=COMUN, peso=4.5,
+    fuerza=8, velocidad=8, salud=8, rareza=COMUN, peso=12.0,
     descripcion="Ni el más fuerte ni el más rápido, pero nunca el peor.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -428,7 +429,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="chispa", nombre="Pyro", emoji="🔥", color=ROJO, articulo="un",
-    fuerza=13, velocidad=8, salud=3, rareza=COMUN, peso=4.5,
+    fuerza=13, velocidad=8, salud=3, rareza=COMUN, peso=12.0,
     descripcion="Pega fortísimo y se apaga igual de rápido. Dale de comer.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -487,7 +488,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="fantasma", nombre="Duskhause", emoji="👻", color=ROSA,
-    fuerza=4, velocidad=13, salud=7, rareza=POCO_COMUN, peso=3.5,
+    fuerza=4, velocidad=13, salud=7, rareza=POCO_COMUN, peso=6.0,
     descripcion="Ya estaba muerto antes de nacer. No preguntes.",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
     arte={
@@ -529,7 +530,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="chatarra", nombre="Re-bot", emoji="🤖", color=CIAN, articulo="un",
-    fuerza=7, velocidad=4, salud=13, rareza=POCO_COMUN, peso=3.5,
+    fuerza=7, velocidad=4, salud=13, rareza=POCO_COMUN, peso=6.0,
     descripcion="No se cansa, no se queja, no se muere. Casi.",
     caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
     arte={
@@ -573,8 +574,8 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="dragoncito", nombre="Tsushimon", emoji="🐉", color=ROJO,
-    fuerza=12, velocidad=9, salud=9, rareza=RARA, peso=2.0,
-    descripcion="Sale una vez de cada cincuenta huevos. Cuídalo bien.",
+    fuerza=12, velocidad=9, salud=9, rareza=RARA, peso=4.0,
+    descripcion="Sale una vez de cada veinticinco huevos. Cuídalo bien.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
@@ -617,12 +618,23 @@ _registrar(Especie(
 # Selección al nacer
 # --------------------------------------------------------------------------
 
-def elegir_especie(rng: random.Random | None = None) -> Especie:
-    """Elige una especie al azar respetando los pesos de rareza."""
+# Las que puede dar el huevo de partida: las diez de siempre. Las demás sólo se
+# consiguen reclutándolas en `/aventura`, para que el comienzo sea conocido y el
+# catálogo grande sea lo que se descubre jugando.
+DEL_HUEVO: tuple[str, ...] = tuple(
+    clave for clave, especie in ESPECIES.items() if especie.peso > 0
+)
+
+
+def elegir_del_huevo(rng: random.Random | None = None) -> Especie:
+    """Qué sale al romper el huevo, respetando los pesos de rareza.
+
+    Se llama así y no `elegir_especie` porque no elige entre todas: las quince
+    que no salen del huevo se quedan fuera por llevar peso 0.
+    """
     rng = rng or random.Random()
-    claves = list(ESPECIES)
-    pesos = [ESPECIES[c].peso for c in claves]
-    return ESPECIES[rng.choices(claves, weights=pesos, k=1)[0]]
+    pesos = [ESPECIES[c].peso for c in DEL_HUEVO]
+    return ESPECIES[rng.choices(list(DEL_HUEVO), weights=pesos, k=1)[0]]
 
 
 def tirar_2d6(rng: random.Random) -> int:
@@ -691,7 +703,7 @@ def nombre_etapa(etapa: str, genero: str = MACHO) -> str:
 
 _registrar(Especie(
     clave="swampdon", nombre="Swampdón", emoji="🐸", color=VERDE,
-    fuerza=9, velocidad=4, salud=11, rareza=COMUN, peso=4.5,
+    fuerza=9, velocidad=4, salud=11, rareza=COMUN, peso=0.0,
     descripcion="Un pegote de barro con ojos. Se hunde a propósito.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -732,7 +744,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="canizo", nombre="Cañizo", emoji="🎋", color=VERDE,
-    fuerza=5, velocidad=10, salud=9, rareza=COMUN, peso=4.5,
+    fuerza=5, velocidad=10, salud=9, rareza=COMUN, peso=0.0,
     descripcion="Tan flaco que el viento lo dobla y no lo parte.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "-_-"},
     arte={
@@ -773,7 +785,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="lucierno", nombre="Lucierno", emoji="✨", color=AMARILLO,
-    fuerza=3, velocidad=13, salud=8, rareza=POCO_COMUN, peso=3.5,
+    fuerza=3, velocidad=13, salud=8, rareza=POCO_COMUN, peso=0.0,
     descripcion="Se enciende cuando está contento. Delata al equipo entero.",
     caras={FELIZ: "^o^", NORMAL: "o.o", MAL: "u.u"},
     arte={
@@ -809,7 +821,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="coralito", nombre="Coralito", emoji="🪸", color=ROSA,
-    fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=4.5,
+    fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=0.0,
     descripcion="Duro por fuera y quisquilloso por dentro. No lo toques.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -847,7 +859,7 @@ AAAAAAAAA
 
 _registrar(Especie(
     clave="escorpgon", nombre="Escorpgon", emoji="🦂", color=ROJO,
-    fuerza=12, velocidad=8, salud=4, rareza=COMUN, peso=4.5,
+    fuerza=12, velocidad=8, salud=4, rareza=COMUN, peso=0.0,
     descripcion="Toda la fuerza está en la cola. El resto es decorado.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -886,7 +898,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="nacar", nombre="Nacar", emoji="🐚", color=ROSA,
-    fuerza=5, velocidad=7, salud=12, rareza=COMUN, peso=4.5,
+    fuerza=5, velocidad=7, salud=12, rareza=COMUN, peso=0.0,
     descripcion="Se mete en su concha al primer susto. Aguanta ahí semanas.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -916,7 +928,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="remolin", nombre="Remolín", emoji="🌀", color=CIAN,
-    fuerza=6, velocidad=14, salud=4, rareza=POCO_COMUN, peso=3.5,
+    fuerza=6, velocidad=14, salud=4, rareza=POCO_COMUN, peso=0.0,
     descripcion="Nunca está donde lo dejaste. Marea sólo de mirarlo.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "@_@"},
     arte={
@@ -955,7 +967,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="prinel", nombre="Prinel", emoji="🔩", color=GRIS,
-    fuerza=11, velocidad=5, salud=8, rareza=COMUN, peso=4.5,
+    fuerza=11, velocidad=5, salud=8, rareza=COMUN, peso=0.0,
     descripcion="Cabezón y roscado. Cuesta lo mismo apretarlo que convencerlo.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -994,7 +1006,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="bulb", nombre="Bulb", emoji="💡", color=AMARILLO,
-    fuerza=4, velocidad=9, salud=11, rareza=COMUN, peso=4.5,
+    fuerza=4, velocidad=9, salud=11, rareza=COMUN, peso=0.0,
     descripcion="Parpadea cuando piensa. Piensa poco, así que alumbra bien.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -1033,7 +1045,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="magnetron", nombre="Magnetrón", emoji="🧲", color=ROJO,
-    fuerza=13, velocidad=4, salud=7, rareza=COMUN, peso=4.5,
+    fuerza=13, velocidad=4, salud=7, rareza=COMUN, peso=0.0,
     descripcion="Se le pega todo. A veces lo que no debería.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -1072,7 +1084,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="criold", nombre="Criold", emoji="❄️", color=CIAN,
-    fuerza=6, velocidad=11, salud=7, rareza=COMUN, peso=4.5,
+    fuerza=6, velocidad=11, salud=7, rareza=COMUN, peso=0.0,
     descripcion="Cae despacio y siempre de pie. No se derrite: se ofende.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -1106,7 +1118,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="goot", nombre="Goot", emoji="🐐", color=BLANCO,
-    fuerza=12, velocidad=7, salud=5, rareza=COMUN, peso=4.5,
+    fuerza=12, velocidad=7, salud=5, rareza=COMUN, peso=0.0,
     descripcion="Sube por donde no hay camino. Baja igual de mal.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -1142,7 +1154,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="cefiro", nombre="Céfiro", emoji="🦅", color=AMARILLO,
-    fuerza=9, velocidad=14, salud=7, rareza=RARA, peso=2.0,
+    fuerza=9, velocidad=14, salud=7, rareza=RARA, peso=0.0,
     descripcion="Vive donde no llega nadie. Baja sólo si le conviene.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
@@ -1178,7 +1190,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="noctule", nombre="Noctule", emoji="🦇", color=ROSA,
-    fuerza=6, velocidad=13, salud=5, rareza=POCO_COMUN, peso=3.5,
+    fuerza=6, velocidad=13, salud=5, rareza=POCO_COMUN, peso=0.0,
     descripcion="Duerme de día y se queja de noche. Ve mejor que tú.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "u.u"},
     arte={
@@ -1212,7 +1224,7 @@ _registrar(Especie(
 
 _registrar(Especie(
     clave="prismlon", nombre="Prismlon", emoji="💎", color=AZUL,
-    fuerza=12, velocidad=5, salud=13, rareza=RARA, peso=2.0,
+    fuerza=12, velocidad=5, salud=13, rareza=RARA, peso=0.0,
     descripcion="Tardó mil años en formarse. Tiene la paciencia que eso implica.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={

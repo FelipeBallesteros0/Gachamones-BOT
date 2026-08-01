@@ -1,7 +1,7 @@
 # Gachamones BOT
 
-Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 25
-gachamones al azar, se cuida con los botones bajo el mensaje y compite contra los
+Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
+gachamones al azar —hay 25 en total; los otros 15 se encuentran por ahí—, se cuida con los botones bajo el mensaje y compite contra los
 de otras personas en carreras y peleas de sumo. Todo el arte es ASCII dentro de
 bloques de código: ni una sola imagen.
 
@@ -410,7 +410,16 @@ completo en `excepciones`, que gana a la plantilla. Las tres caras de una
 especie tienen que medir lo mismo, o sustituir una por otra descuadraría el
 dibujo; hay un test que lo comprueba.
 
-**El catálogo.** Veinticinco especies repartidas en diez biomas. Diecisiete son
+**El catálogo.** Veinticinco especies repartidas en diez biomas, pero **del
+huevo sólo salen diez**: las de siempre. Las quince nuevas hay que
+encontrárselas en `/aventura`, para que el comienzo sea conocido y el catálogo
+grande sea lo que se descubre jugando.
+
+**El peso es la probabilidad en el huevo, y sólo eso.** `tirar_salvaje` elige
+uniforme dentro del bioma y no lo mira, así que las quince que no salen del
+huevo llevan peso 0 en vez de arrastrar un número que no significa nada, y las
+diez que sí salen suman 100 entre ellas — cada peso se lee como un porcentaje,
+y el Tsushimon vuelve a ser uno de cada veinticinco huevos. Diecisiete son
 comunes, cinco poco comunes y tres raras; los pesos suman 100 exactos —17 × 4,5
 + 5 × 3,5 + 3 × 2,0— y hay un test que lo comprueba, porque es justo lo que se
 descuadra al añadir especies a mano. Comunes y poco comunes reparten **24 puntos
