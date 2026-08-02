@@ -13,16 +13,28 @@ import pantalla
 # por `test_ningun_rango_permitido_cuela_un_caracter_ancho`.
 RANGOS_PERMITIDOS = (
     (0x0020, 0x007E),   # ASCII imprimible
-    (0x02B0, 0x02FF),   # modificadores de espaciado: ˚ ˅ ˒ ˍ
+    (0x00A1, 0x00FF),   # latín-1: ¬, las orejas caídas de Goot
+    (0x02B0, 0x02FF),   # modificadores de espaciado: ˚ ˅ ˒ ˍ ˘
+    (0x0370, 0x03FF),   # griego: ω, los hocicos
+    (0x1400, 0x167F),   # silábicos canadienses: ᐩ, las garras de Céfiro
+    (0x1D00, 0x1D7F),   # extensiones fonéticas: ᵕ ᴥ
+    (0x2000, 0x206F),   # puntuación general: ‿
+    (0x2200, 0x22FF),   # operadores matemáticos: ≡ bigotes, ⊐ ⊏ pinzas
     (0x2500, 0x257F),   # dibujo de cajas: ╭ ╮ ╰ ╯ ─ │ ╥ ╷ — ya en casas.py
-    (0x2580, 0x259F),   # elementos de bloque: ▀ ▄ █ ░ ▒ ▓
+    (0x2580, 0x259F),   # elementos de bloque: ▀ ▄ █ ░ ▒ ▓ ▁
     (0xFF61, 0xFF9F),   # katakana de medio ancho: ｼ ｰ ﾉ ﾞ ｡ ･
 )
 
-# De Formas Geométricas y de Puntuación general no vale el bloque entero: en el
-# primero, U+25FD y U+25FE miden dos columnas, y U+25B6 lo pinta Discord como
-# ▶️. Así que de ahí entra sólo lo que se usa, uno a uno y mirado.
-EXTRAS = "●◠‿▿"
+# Dos bloques de los que sólo entra lo que se usa, porque enteros no valen:
+#
+# * Formas Geométricas — U+25FD y U+25FE miden dos columnas, y U+25B6 lo pinta
+#   Discord como ▶️.
+# * Miscellaneous Technical — de U+231A a U+23F3 hay diez caracteres anchos,
+#   de ⌚ a ⏳.
+#
+# El test de más abajo comprueba los rangos, no éstos: aquí la garantía es que
+# son cuatro y están mirados uno a uno.
+EXTRAS = "●◠▿⌐"
 
 
 def lineas(arte: str) -> list[str]:
