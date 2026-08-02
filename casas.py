@@ -123,8 +123,27 @@ def estancia_desde(ahora: datetime) -> datetime:
 
 
 def puede_mudarse_a(hogar: Hogar, casa: Casa) -> bool:
-    """Sólo se sube de tamaño. Comprar lo que ya tienes no es una mudanza."""
+    """Sólo se sube de tamaño. Comprar lo que ya tienes no es una mudanza.
+
+    Bajar se hace vendiendo primero: sin casa, esto vuelve a admitir cualquiera.
+    Así el 20 % que se pierde al vender es explícito y no una sorpresa dentro de
+    una compra.
+    """
     return casa.tamano > (hogar.casa.tamano if hogar.casa else 0)
+
+
+# Lo que dan por una casa usada. El 20 % que se pierde es lo que evita comprar y
+# vender por deporte, y con los precios de hoy sale exacto: 160, 400 y 960.
+#
+# Coincide con el ticket del refugio, y no por casualidad: vender la pequeña
+# cuesta 40 netos, que es lo que vale el ticket por la misma semana. Comprar y
+# vender para tener techo no es un atajo, es la misma tarifa por otro camino.
+PORCENTAJE_DE_REVENTA = 80
+
+
+def lo_que_dan_por(casa: Casa) -> int:
+    """Con enteros y no con flotantes: el dinero no admite un 159,99999."""
+    return casa.precio * PORCENTAJE_DE_REVENTA // 100
 
 
 # --- El mobiliario ---------------------------------------------------------

@@ -1279,3 +1279,179 @@ def test_todo_lo_que_hace_pasar_el_tiempo_mira_el_hogar():
         f"llaman a sim.avanzar sin mirar el hogar: {sueltos}. Usa db.avanzar "
         "o db._avanzar_en si ya hay una transacción abierta."
     )
+
+
+# --- Vender la casa --------------------------------------------------------
+
+def vender(usuario="u1", ahora=T0):
+    return economia.vender_casa(usuario, "g1", ahora)
+
+
+def test_solo_se_tiene_una_casa():
+    """Lo impone la clave primaria de `hogar` con una sola columna `casa`, y
+    hasta ahora no lo decía ningún test. Comprar tres deja una: la última."""
+    con_monedas(9000)
+    for clave in ("pequena", "mediana", "grande"):
+        economia.comprar_casa("u1", "g1", cas.CATALOGO[clave], T0)
+
+    assert hogar().casa == GRANDE
+    with db.conectar() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM hogar WHERE usuario_id='u1' AND guild_id='g1'"
+        ).fetchone()[0] == 1
+
+
+def test_vender_devuelve_el_ochenta_por_ciento():
+    con_casa("grande")
+    saldo = monedas()
+
+    resultado = vender()
+
+    assert resultado.ok and resultado.casa == GRANDE
+    assert resultado.cobrado == GRANDE.precio * cas.PORCENTAJE_DE_REVENTA // 100
+    assert monedas() == saldo + resultado.cobrado
+    assert hogar().casa is None
+
+
+def test_la_venta_no_pasa_por_el_bote_diario():
+    """Lo que más caro saldría equivocado: el bote son 20 al día y la casa
+    grande devuelve 960. Si contara como ganancia se perderían 940.
+
+    Una venta es una devolución, no una ganancia.
+    """
+    con_casa("grande")
+    # Se llena el bote del día antes de vender.
+    ganado = 0
+    i = 0
+    while ganado < economia.TOPE_DIARIO_ASCIICOINS:
+        ganado += economia.otorgar_hallazgo(f"h{i}", "u1", "g1", 10, 0, T0).monedas
+        i += 1
+    saldo = monedas()
+
+    resultado = vender()
+
+    assert resultado.cobrado == cas.lo_que_dan_por(GRANDE)      # los 960 enteros
+    assert monedas() == saldo + cas.lo_que_dan_por(GRANDE)
+    # Y no deja rastro en el ledger, que envenenaría el bote del día.
+    with db.conectar() as con:
+        assert economia._ganado_hoy(con, "u1", "g1", "2026-01-01") == (
+            economia.TOPE_DIARIO_ASCIICOINS
+        )
+
+
+def test_vender_dos_veces_no_paga_dos_veces():
+    """El doble clic. Lo para el propio estado: con la casa ya a NULL no hay
+    nada que vender."""
+    con_casa("mediana")
+    primera = vender()
+    saldo = monedas()
+
+    segunda = vender()
+
+    assert primera.ok and not segunda.ok
+    assert "No tienes casa que vender" in segunda.problema
+    assert monedas() == saldo
+
+
+def test_en_el_refugio_no_hay_nada_que_vender():
+    con_monedas(500)
+    resultado = vender()
+
+    assert not resultado.ok and "vives en el refugio" in resultado.problema
+    assert monedas() == 500
+
+
+def test_vender_devuelve_al_refugio_con_la_semana_entera():
+    con_casa("pequena")
+    mas_tarde = T0 + timedelta(days=30)
+
+    vender(ahora=mas_tarde)
+
+    suyo = db.hogar_de("u1", "g1", mas_tarde)
+    assert suyo.estado(mas_tarde) == cas.REFUGIO
+    assert suyo.refugio_hasta == mas_tarde + timedelta(days=cas.DIAS_DE_REFUGIO)
+
+
+def test_al_vender_los_muebles_se_guardan_y_el_huerto_se_pierde():
+    """Retirar un mueble nunca lo destruye, tampoco al vender la casa. Lo
+    plantado sí: la tierra era de la casa."""
+    con_huerto("grande")
+    for mueble in mejores(3):
+        comprar_m(mueble)
+    economia.plantar("u1", "g1", 1, T0)
+    assert bancales()[0].plantado
+
+    resultado = vender()
+
+    assert resultado.guardados == 3
+    assert set(db.mobiliario("u1", "g1")) == {m.clave for m in mejores(3)}
+    assert not any(db.mobiliario("u1", "g1").values())    # ninguno colocado
+    with db.conectar() as con:
+        assert con.execute("SELECT COUNT(*) FROM huerto").fetchone()[0] == 0
+
+
+def test_los_muebles_guardados_se_vuelven_a_poner_en_la_casa_nueva():
+    """Es lo que hace que vender no sea tirar el dinero del mobiliario."""
+    con_huerto("grande")
+    for mueble in mejores(3):
+        comprar_m(mueble)
+    vender()
+    con_monedas(monedas() + PEQUENA.precio)
+    economia.comprar_casa("u1", "g1", PEQUENA, T0)
+
+    puesto = economia.colocar_mueble("u1", "g1", mejores(1)[0], T0)
+
+    assert puesto.ok and puesto.puestos == 1
+
+
+def test_vender_es_el_camino_para_bajar_de_casa():
+    """`puede_mudarse_a` sigue prohibiendo bajar de golpe; vendiendo primero se
+    puede, y el 20 % perdido queda a la vista en vez de escondido en la compra."""
+    con_casa("grande", monedas=5000)
+    assert not economia.comprar_casa("u1", "g1", PEQUENA, T0).ok
+
+    saldo = monedas()
+    cobrado = vender().cobrado
+    bajada = economia.comprar_casa("u1", "g1", PEQUENA, T0)
+
+    assert bajada.ok and hogar().casa == PEQUENA
+    assert monedas() == saldo + cobrado - PEQUENA.precio
+
+
+def test_vender_cuesta_lo_mismo_que_el_ticket_del_refugio():
+    """Ata las dos cifras: es lo que impide que comprar y vender salga más
+    barato que el ticket y se convierta en el atajo para tener techo gratis."""
+    perdido = PEQUENA.precio - cas.lo_que_dan_por(PEQUENA)
+
+    assert perdido == objs.CATALOGO["ticket_refugio"].precio
+    assert objs.CATALOGO["ticket_refugio"].dias_de_refugio == cas.DIAS_DE_REFUGIO
+
+
+def test_lo_que_dan_es_entero_por_todas_las_casas():
+    for casa in cas.CATALOGO.values():
+        dan = cas.lo_que_dan_por(casa)
+        assert isinstance(dan, int)
+        assert 0 < dan < casa.precio, casa.clave
+
+
+# --- Lo que se ve al vender ------------------------------------------------
+
+def test_el_menu_ofrece_vender_solo_si_tienes_casa():
+    assert tienda.VENDER not in {o.value for o in tienda.MenuCasas(hogar()).options}
+
+    con_casa("mediana")
+    opciones = tienda.MenuCasas(hogar()).options
+
+    assert opciones[0].value == tienda.VENDER          # la primera, no perdida
+    assert str(cas.lo_que_dan_por(MEDIANA)) in opciones[0].label
+
+
+def test_el_aviso_de_la_venta_dice_lo_que_se_pierde():
+    con_huerto("grande")
+    comprar_m(CHIMENEA)
+
+    texto = tienda.texto_de_la_venta(hogar(), db.mobiliario("u1", "g1"))
+
+    assert str(cas.lo_que_dan_por(GRANDE)) in texto
+    assert "se guardan" in texto
+    assert "huerto se pierde" in texto

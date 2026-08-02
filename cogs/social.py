@@ -331,7 +331,9 @@ Todo tu plantel vive junto, y `/casa` te lo enseña dentro. Se empieza en el \
 quedas a la intemperie hasta que compres casa en 🛒 **Tienda**.
 -# 🏠 {" · ".join(f"**{c.nombre}** 🪙 {c.precio}, comodidad {c.comodidad} y \
 {c.huecos} huecos" for c in cas.CATALOGO.values())}
--# Se sube de tamaño, nunca se baja. Los **{len(cas.MUEBLES)} muebles** \
+-# Se sube de tamaño, y para bajar se **vende** primero: te dan el \
+{cas.PORCENTAJE_DE_REVENTA} % de lo que costó y vuelves al refugio con la semana \
+entera. Tienes una casa, no varias. Los **{len(cas.MUEBLES)} muebles** \
 (🪙 {min(m.precio for m in cas.MUEBLES.values())}–\
 {max(m.precio for m in cas.MUEBLES.values())}) suman comodidad hasta el techo de \
 tu casa; se ponen y se quitan con 🪑 **Amueblar**, y lo que retires se guarda.

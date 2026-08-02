@@ -73,7 +73,10 @@ Instala el hook local cuando prepares el entorno:
 - Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.
 - Nadie empieza en la calle: sin casa propia se vive en el refugio.
 - El hogar es de la persona y en él vive todo su plantel vivo.
-- De casa sólo se sube de tamaño, nunca se baja.
+- Una persona tiene como mucho una casa por servidor, y lo impone el esquema.
+- De casa sólo se sube de tamaño; para bajar hay que vender primero.
+- Vender una casa es una devolución y no una ganancia: no pasa por el tope diario.
+- Vender no destruye muebles: se descuelgan y se guardan.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`.
 - Todo mueble suma comodidad: ninguno ocupa un hueco a cambio de nada.
 - Se tiene un mueble de cada, y tenerlo no es lo mismo que tenerlo puesto.

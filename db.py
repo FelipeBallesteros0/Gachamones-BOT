@@ -1580,6 +1580,32 @@ def _avanzar_en(
     return sim.avanzar(criatura, ahora, cas.ritmo_de(hogar, ahora))
 
 
+def vaciar_la_casa_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
+) -> int:
+    """Te deja sin casa y de vuelta en el refugio. Devuelve muebles guardados.
+
+    Los muebles **no se destruyen**, sólo se descuelgan: es el mismo invariante
+    que al retirarlos uno a uno. Lo plantado sí se pierde, porque la tierra era
+    de la casa y los bancales los daba su tamaño.
+    """
+    con.execute(
+        "UPDATE hogar SET casa = NULL, refugio_hasta = ? "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (cas.estancia_desde(ahora).isoformat(), usuario_id, guild_id),
+    )
+    guardados = con.execute(
+        "UPDATE mobiliario SET colocado = 0 "
+        "WHERE usuario_id = ? AND guild_id = ? AND colocado = 1",
+        (usuario_id, guild_id),
+    ).rowcount
+    con.execute(
+        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    )
+    return guardados
+
+
 def mudar_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str
 ) -> None:

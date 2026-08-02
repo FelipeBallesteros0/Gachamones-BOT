@@ -1034,6 +1034,67 @@ class ResultadoMudanza:
     problema: str | None = None
 
 
+@dataclass(frozen=True)
+class ResultadoVenta:
+    """Cómo salió vender la casa."""
+
+    ok: bool = False
+    casa: cas.Casa | None = None      # la que se ha vendido
+    cobrado: int = 0
+    saldo: int = 0
+    guardados: int = 0                # muebles que vuelven al armario
+    problema: str | None = None
+
+
+def vender_casa(
+    usuario_id: str, guild_id: str, ahora: datetime | None = None
+) -> ResultadoVenta:
+    """Vende la casa y te devuelve al refugio con la semana entera.
+
+    **Lo cobrado no pasa por el bote diario, y es lo más importante de aquí.**
+    El bote son veinte asciicoins al día y la casa grande devuelve novecientos
+    sesenta: si esto contara como ganancia se cobrarían veinte y se perderían
+    novecientos cuarenta. Una venta es una **devolución**, no una ganancia, y por
+    eso entra directa al monedero y no lleva fila en `operaciones_economia` —que
+    además envenenaría el bote del día, porque `_ganado_hoy` suma todo lo
+    acreditado.
+
+    Lo que impide cobrarla dos veces no es el ledger sino el propio estado: con
+    la casa ya a `NULL` no hay nada que vender. Es el cerrojo de
+    `comprar_cosmetico`.
+
+    Los muebles se guardan sin colocar —retirar uno nunca lo destruye— y lo
+    plantado se pierde: la tierra era de la casa.
+    """
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
+        if hogar.casa is None:
+            return ResultadoVenta(
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+                problema=(
+                    "No tienes casa que vender: vives en el refugio."
+                    if hogar.estado(ahora) == cas.REFUGIO
+                    else "No tienes casa que vender."
+                ),
+            )
+
+        casa = hogar.casa
+        cobrado = cas.lo_que_dan_por(casa)
+        _asegurar_monedero(con, usuario_id, guild_id)
+        con.execute(
+            "UPDATE monederos SET asciicoins = asciicoins + ? "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (cobrado, usuario_id, guild_id),
+        )
+        guardados = db.vaciar_la_casa_en(con, usuario_id, guild_id, ahora)
+        return ResultadoVenta(
+            ok=True, casa=casa, cobrado=cobrado, guardados=guardados,
+            saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+        )
+
+
 def comprar_casa(
     usuario_id: str, guild_id: str, casa: cas.Casa,
     ahora: datetime | None = None,

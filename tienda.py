@@ -477,12 +477,72 @@ def texto_de_la_mudanza(nombre: str, resultado: economia.ResultadoMudanza) -> st
     )
 
 
+VENDER = "vender"
+
+
+def texto_de_la_venta(hogar: cas.Hogar, mobiliario: dict[str, bool]) -> str:
+    """Lo que te darían y lo que pierdes, antes de confirmar."""
+    casa = hogar.casa
+    puestos = sum(1 for dentro in mobiliario.values() if dentro)
+    aviso = (
+        f"## 🏷️ ¿Vender {casa.nombre}?\n"
+        f"Te dan **{cas.lo_que_dan_por(casa)}** 🪙 — el "
+        f"{cas.PORCENTAJE_DE_REVENTA} % de los {casa.precio} que costó.\n"
+        f"-# Vuelves al refugio con los {cas.DIAS_DE_REFUGIO} días enteros."
+    )
+    if puestos:
+        aviso += (
+            f"\n-# Tus **{puestos}** muebles se guardan: no se pierde ninguno."
+        )
+    aviso += "\n-# ⚠️ **Lo que tengas plantado en el huerto se pierde.**"
+    return aviso
+
+
+class ConfirmarVenta(discord.ui.View):
+    """El segundo clic. Se pierde el 20 % y el huerto, así que no puede pasar
+    por un resbalón sobre un desplegable."""
+
+    def __init__(self):
+        super().__init__(timeout=SEGUNDOS_DE_MENU)
+
+    @discord.ui.button(label="Vender", emoji="🏷️",
+                       style=discord.ButtonStyle.danger)
+    async def vender(self, interaccion: discord.Interaction, boton) -> None:
+        resultado = economia.vender_casa(
+            str(interaccion.user.id), str(interaccion.guild_id)
+        )
+        if not resultado.ok:
+            await interaccion.response.edit_message(
+                content=f"❌ {resultado.problema}", view=None
+            )
+            return
+
+        aviso = (
+            f"🏷️ Vendida **{resultado.casa.nombre}** por "
+            f"**{resultado.cobrado}** 🪙. Te quedan **{resultado.saldo}**.\n"
+            f"-# De vuelta al refugio. Cómprate otra cuando quieras: con la casa "
+            "vendida puedes elegir cualquier tamaño."
+        )
+        if resultado.guardados:
+            aviso += f"\n-# **{resultado.guardados}** muebles esperando en tu armario."
+        await interaccion.response.edit_message(content=aviso, view=None)
+
+
 class MenuCasas(discord.ui.Select):
     """Las tres casas. Marca la tuya y las que se te han quedado pequeñas."""
 
     def __init__(self, hogar: cas.Hogar | None = None):
         tuya = hogar.casa if hogar else None
         opciones = []
+        if tuya is not None:
+            # Primera, y no perdida entre las tres: es lo único distinto que
+            # puede hacer aquí quien ya tiene casa.
+            opciones.append(discord.SelectOption(
+                label=f"Vender {tuya.nombre} — 🪙 +{cas.lo_que_dan_por(tuya)}",
+                value=VENDER,
+                description=f"El {cas.PORCENTAJE_DE_REVENTA} % de lo que costó",
+                emoji="🏷️",
+            ))
         for clave, casa in cas.CATALOGO.items():
             if tuya is not None and casa.tamano < tuya.tamano:
                 etiqueta = f"{casa.nombre} — se te quedó pequeña"
@@ -502,10 +562,22 @@ class MenuCasas(discord.ui.Select):
         super().__init__(placeholder="🏠 Casas", options=opciones)
 
     async def callback(self, interaccion: discord.Interaction) -> None:
+        usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+        if self.values[0] == VENDER:
+            # Elegir vender **no vende**: enseña la cuenta y pide el segundo
+            # clic. Lo que se pierde no se recupera comprando otra vez.
+            ahora = db.ahora_utc()
+            await interaccion.response.edit_message(
+                content=texto_de_la_venta(
+                    db.hogar_leido(usuario_id, guild_id, ahora),
+                    db.mobiliario(usuario_id, guild_id),
+                ),
+                view=ConfirmarVenta(),
+            )
+            return
+
         casa = cas.CATALOGO[self.values[0]]
-        resultado = economia.comprar_casa(
-            str(interaccion.user.id), str(interaccion.guild_id), casa
-        )
+        resultado = economia.comprar_casa(usuario_id, guild_id, casa)
         if not resultado.ok:
             await interaccion.response.edit_message(
                 content=f"❌ {resultado.problema}", view=None
