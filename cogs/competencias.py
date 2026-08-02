@@ -379,6 +379,7 @@ class Competencias(commands.Cog):
         interaccion: discord.Interaction,
         propuestos: tuple[discord.User | None, ...],
         tipo: str,
+        canal_publico: discord.abc.Messageable | None = None,
     ) -> None:
         ahora = db.ahora_utc()
         retador = cast(discord.User, interaccion.user)
@@ -424,10 +425,24 @@ class Competencias(commands.Cog):
             f"-# {nombres} · {regla}."
         )
         vista = RetoView(self, retador, invitados, tipo, guild_id, cabecera)
-        await interaccion.response.send_message(
-            f"{cabecera}\n{vista.marcador()}", view=vista
-        )
-        vista.mensaje = await interaccion.original_response()
+        contenido = f"{cabecera}\n{vista.marcador()}"
+        if canal_publico is None:
+            await interaccion.response.send_message(contenido, view=vista)
+            vista.mensaje = await interaccion.original_response()
+        else:
+            await interaccion.response.edit_message(
+                content="Publicando el reto en el canal…", view=None
+            )
+            try:
+                vista.mensaje = await canal_publico.send(contenido, view=vista)
+            except HTTPException:
+                await interaccion.edit_original_response(
+                    content="No pude publicar el reto en el canal. Inténtalo de nuevo."
+                )
+                return
+            await interaccion.edit_original_response(
+                content="Reto publicado en el canal."
+            )
 
     # -- disputa ------------------------------------------------------------
 

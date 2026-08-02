@@ -16,7 +16,12 @@ from discord.ext import commands
 import comun
 import config
 import db
-from vistas import NombrarReclutaView, NombrarView, PantallaView
+from vistas import (
+    NombrarReclutaView,
+    NombrarView,
+    PantallaAnteriorView,
+    PantallaView,
+)
 
 log = logging.getLogger("gachamones")
 
@@ -46,6 +51,7 @@ class Tamagotchi(commands.Bot):
         # Vistas persistentes: los botones siguen vivos tras un reinicio sin
         # tener que recordar en qué mensajes estaban.
         self.add_view(PantallaView())
+        self.add_view(PantallaAnteriorView())
         self.add_view(NombrarView())
         self.add_view(NombrarReclutaView())
 

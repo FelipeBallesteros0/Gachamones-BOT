@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock, call
 import discord
 import pytest
 
+import competir as comp
 import db
 import economia
 import equipo
@@ -337,19 +338,180 @@ def test_menu_entrenamiento_conjunto_falla_cerrado_si_el_valor_no_fue_capturado(
     )
 
 
-def test_boton_persistente_abre_el_selector_de_entrenamiento_conjunto(monkeypatch):
-    abrir = AsyncMock()
-    monkeypatch.setattr(vistas, "abrir_entrenamiento_conjunto", abrir)
-    interaccion = SimpleNamespace()
-    boton = next(
-        hijo
-        for hijo in vistas.PantallaView().children
-        if hijo.custom_id == "tama:entrenar_juntos"
+def interaccion_de_selector():
+    mensaje = SimpleNamespace(id="ficha", edit=AsyncMock())
+    return SimpleNamespace(
+        user=SimpleNamespace(id="u1"),
+        guild_id="g1",
+        message=mensaje,
+        response=SimpleNamespace(send_message=AsyncMock(), edit_message=AsyncMock()),
+        channel=SimpleNamespace(),
     )
 
-    asyncio.run(boton.callback(interaccion))
 
+@pytest.mark.parametrize(
+    "valor,tipo",
+    [
+        (comp.CARRERA, comp.CARRERA),
+        (comp.SUMO, comp.SUMO),
+        (comp.TOTEM, comp.TOTEM),
+    ],
+)
+def test_selector_social_abre_la_modalidad_elegida(monkeypatch, valor, tipo):
+    abrir = AsyncMock()
+    monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
+    monkeypatch.setattr(vistas, "abrir_seleccion_rivales", abrir)
+    interaccion = interaccion_de_selector()
+    selector = next(
+        hijo
+        for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:desafiar"
+    )
+    selector._values = [valor]
+
+    asyncio.run(selector.callback(interaccion))
+
+    interaccion.message.edit.assert_awaited_once_with(view=selector.view)
+    abrir.assert_awaited_once_with(interaccion, tipo)
+
+
+def test_selector_social_conserva_entrenar_juntos(monkeypatch):
+    abrir = AsyncMock()
+    monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
+    monkeypatch.setattr(vistas, "abrir_entrenamiento_conjunto", abrir)
+    interaccion = interaccion_de_selector()
+    selector = next(
+        hijo
+        for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:desafiar"
+    )
+    selector._values = ["entrenar_juntos"]
+
+    asyncio.run(selector.callback(interaccion))
+
+    interaccion.message.edit.assert_awaited_once_with(view=selector.view)
     abrir.assert_awaited_once_with(interaccion)
+
+
+@pytest.mark.parametrize(
+    "valor,helper,args",
+    [
+        (sim.ACTUALIZAR, "ejecutar", (sim.ACTUALIZAR,)),
+        ("inventario", "inventario", (vistas.congelar,)),
+        ("tienda", "tienda", ()),
+        (
+            "plantel",
+            "plantel",
+            (vistas.congelar, vistas.bautizar, vistas.publicar_pantalla),
+        ),
+        ("personalizar", "personalizar", (vistas.republicar_ficha,)),
+    ],
+)
+def test_selector_de_gestion_delega_una_vez_al_helper_actual(
+    monkeypatch, valor, helper, args
+):
+    helpers = {nombre: AsyncMock() for nombre in (
+        "ejecutar", "inventario", "tienda", "plantel", "personalizar"
+    )}
+    monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
+    monkeypatch.setattr(vistas, "_ejecutar", helpers["ejecutar"])
+    monkeypatch.setattr(vistas.tienda, "abrir_inventario", helpers["inventario"])
+    monkeypatch.setattr(vistas.tienda, "abrir_tienda", helpers["tienda"])
+    monkeypatch.setattr(vistas.equipo, "abrir_plantel", helpers["plantel"])
+    monkeypatch.setattr(
+        vistas.tienda, "abrir_personalizacion", helpers["personalizar"]
+    )
+    interaccion = interaccion_de_selector()
+    selector = next(
+        hijo
+        for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:mas_acciones"
+    )
+    selector._values = [valor]
+
+    asyncio.run(selector.callback(interaccion))
+
+    interaccion.message.edit.assert_awaited_once_with(view=selector.view)
+    helpers[helper].assert_awaited_once_with(interaccion, *args)
+    assert sum(mock.await_count for mock in helpers.values()) == 1
+
+
+@pytest.mark.parametrize(
+    "tipo,maximo,copy",
+    [
+        (comp.CARRERA, 4, "entre 1 y 4 rivales"),
+        (comp.SUMO, 3, "1 o 3 rivales"),
+        (comp.TOTEM, 4, "entre 1 y 4 rivales"),
+    ],
+)
+def test_cada_modalidad_abre_seleccion_privada_con_sus_cantidades(
+    tipo, maximo, copy
+):
+    interaccion = interaccion_de_selector()
+    interaccion.client = SimpleNamespace(
+        get_cog=Mock(return_value=SimpleNamespace(_retar=AsyncMock()))
+    )
+
+    asyncio.run(vistas.abrir_seleccion_rivales(interaccion, tipo))
+
+    llamada = interaccion.response.send_message.await_args
+    assert llamada is not None and llamada.kwargs["ephemeral"] is True
+    assert copy in llamada.args[0]
+    vista = llamada.kwargs["view"]
+    assert isinstance(vista, vistas.VistaSeleccionRivales)
+    selector = vista.children[0]
+    assert isinstance(selector, discord.ui.UserSelect)
+    assert selector.min_values == 1
+    assert selector.max_values == maximo
+
+
+@pytest.mark.parametrize("tipo", [comp.CARRERA, comp.SUMO, comp.TOTEM])
+def test_seleccion_de_rivales_termina_en_el_seam_canonico(tipo):
+    rivales = [SimpleNamespace(id="u2"), SimpleNamespace(id="u3")]
+    retar = AsyncMock()
+    interaccion = interaccion_de_selector()
+    interaccion.client = SimpleNamespace(
+        get_cog=Mock(return_value=SimpleNamespace(_retar=retar))
+    )
+    selector = vistas.MenuSeleccionRivales(tipo)
+    selector._values = rivales
+
+    asyncio.run(selector.callback(interaccion))
+
+    retar.assert_awaited_once_with(
+        interaccion, tuple(rivales), tipo, canal_publico=interaccion.channel
+    )
+
+
+def test_seleccion_temporal_solo_responde_a_quien_la_abrio():
+    vista = vistas.VistaSeleccionRivales("u1", comp.CARRERA)
+    interaccion = interaccion_de_selector()
+    interaccion.user.id = "u2"
+
+    permitido = asyncio.run(vista.interaction_check(interaccion))
+
+    assert not permitido
+    interaccion.response.send_message.assert_awaited_once_with(
+        "Este selector de rivales no es tuyo.", ephemeral=True
+    )
+
+
+def test_cog_de_competencias_ausente_falla_sin_crash():
+    interaccion = interaccion_de_selector()
+    interaccion.client = SimpleNamespace(get_cog=Mock(return_value=None))
+
+    asyncio.run(vistas.abrir_seleccion_rivales(interaccion, comp.CARRERA))
+
+    interaccion.response.send_message.assert_awaited_once_with(
+        "Las competencias no están disponibles en este momento.", ephemeral=True
+    )
+
+    selector = vistas.MenuSeleccionRivales(comp.CARRERA)
+    selector._values = [SimpleNamespace(id="u2")]
+    asyncio.run(selector.callback(interaccion))
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content="Las competencias no están disponibles en este momento.", view=None
+    )
 
 
 def test_entrenamiento_conjunto_reutiliza_el_rechazo_de_ficha_ajena(bd_temporal):
@@ -426,26 +588,6 @@ def test_muerte_lazy_congela_ficha_activa_autoritativa_y_no_toca_reserva(
     canal.send.assert_awaited_once()
     publicar.assert_not_awaited()
     assert db.obtener(reserva.id) == reserva
-
-
-def test_pantalla_inyecta_el_congelador_en_mochila_y_plantel(monkeypatch):
-    monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
-    abrir_inventario = AsyncMock()
-    abrir_plantel = AsyncMock()
-    monkeypatch.setattr(vistas.tienda, "abrir_inventario", abrir_inventario)
-    monkeypatch.setattr(vistas.equipo, "abrir_plantel", abrir_plantel)
-    interaccion = SimpleNamespace()
-    botones = {boton.custom_id: boton for boton in vistas.PantallaView().children}
-
-    asyncio.run(botones["tama:inventario"].callback(interaccion))
-    asyncio.run(botones["tama:plantel"].callback(interaccion))
-
-    abrir_inventario.assert_awaited_once_with(interaccion, vistas.congelar)
-    # El plantel recibe además el bautizo y la publicación de la ficha sin
-    # importar este módulo, que ya lo importa a él.
-    abrir_plantel.assert_awaited_once_with(
-        interaccion, vistas.congelar, vistas.bautizar, vistas.publicar_pantalla
-    )
 
 
 def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
