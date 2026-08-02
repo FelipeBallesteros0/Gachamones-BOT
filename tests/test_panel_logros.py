@@ -112,7 +112,7 @@ def panel_de(bicho, ahora=T0, persona="Felipe"):
     )
 
 
-def test_el_panel_lista_las_dieciocho_tenga_las_que_tenga():
+def test_el_panel_las_lista_todas_tenga_las_que_tenga():
     """Las que faltan también salen: son la lista de lo que hay por hacer."""
     panel = panel_de(nacer())
 
@@ -182,7 +182,7 @@ def test_cada_logro_dice_lo_que_paga():
 
 
 def test_veterano_se_apunta_al_mirar_el_panel_aunque_nadie_haya_jugado():
-    """El único de los dieciocho que se cumple solo con esperar. Si `/logros`
+    """El único que se cumple solo con esperar. Si `/logros`
     no lo pagara, el panel lo daría por conseguido, la tabla no se habría
     enterado y las gemas no se cobrarían nunca."""
     bicho = nacer()

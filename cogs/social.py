@@ -73,7 +73,7 @@ def panel_de_logros(
     conseguidos_persona: dict,
     reserva: int = 0,
 ) -> str:
-    """Las dieciocho medallas, en dos secciones: las suyas y las tuyas.
+    """Todas las medallas, en dos secciones: las suyas y las tuyas.
 
     En markdown y no dentro de un ```ansi``` como el ranking: aquí lo que manda
     es el texto de cada logro, que es largo y de ancho variable, y en un bloque

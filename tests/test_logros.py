@@ -56,8 +56,8 @@ def test_todo_logro_mira_un_hecho_que_alguien_rellena():
     justo ahora que hay dos marcadores.
     """
     del_gachamon = {
-        logros.CARRERAS, logros.SUMOS, logros.TORNEOS, logros.AVENTURAS,
-        logros.NODOS, logros.CUIDADOS,
+        logros.CARRERAS, logros.SUMOS, logros.TOTEMS, logros.TORNEOS,
+        logros.AVENTURAS, logros.NODOS, logros.CUIDADOS,
     } | set(logros.hechos_de(criatura(), {}, T0))
     de_la_persona = {logros.RECLUTADOS} | set(
         logros.hechos_de_la_persona({}, ())
@@ -71,7 +71,7 @@ def test_todo_logro_mira_un_hecho_que_alguien_rellena():
 
 def test_los_dos_juegos_de_medallas_no_se_solapan():
     """Cada medalla es de uno o del otro, y entre las dos listas están las
-    dieciocho: si alguna se cayera de las dos, no se ganaría jamás."""
+    todas: si alguna se cayera de las dos, no se ganaría jamás."""
     suyas = logros.del_gachamon()
     mias = logros.de_la_persona()
     assert set(suyas) | set(mias) == set(logros.LOGROS)
@@ -98,6 +98,7 @@ def test_el_contador_justo_por_debajo_no_desbloquea():
     ("bolido", {logros.CARRERAS: 100}),
     ("luchador", {logros.SUMOS: 10}),
     ("yokozuna", {logros.SUMOS: 100}),
+    ("asaltante", {logros.TOTEMS: 10}),
     ("dinastia", {logros.TORNEOS: 10}),
     ("explorador", {logros.AVENTURAS: 10}),
     ("paso_firme", {logros.NODOS: 50}),
@@ -199,8 +200,9 @@ def test_la_alfa_se_puede_cerrar(monkeypatch):
 def test_un_gachamon_hecho_de_todo_gana_todas_las_suyas():
     """Que ninguna se quede inalcanzable por una clave mal escrita."""
     marcador = {
-        logros.CARRERAS: 100, logros.SUMOS: 100, logros.TORNEOS: 10,
-        logros.AVENTURAS: 100, logros.NODOS: 50, logros.CUIDADOS: 500,
+        logros.CARRERAS: 100, logros.SUMOS: 100, logros.TOTEMS: 10,
+        logros.TORNEOS: 10, logros.AVENTURAS: 100, logros.NODOS: 50,
+        logros.CUIDADOS: 500,
     }
     marcador.update({logros.clave_de_bioma(b): 1 for b in av.BIOMAS})
     campeon = criatura(

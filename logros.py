@@ -1,15 +1,15 @@
 """Las medallas, las del gachamon y las tuyas.
 
 Módulo puro, como `competir.py`: no toca la base ni Discord. Se le pasa un
-diccionario de **hechos** y dice qué logros cumple. Así los dieciocho se pueden
+diccionario de **hechos** y dice qué logros cumple. Así todos se pueden
 probar sin partida y sin red.
 
 Hay dos dueños y conviene no confundirlos:
 
-* **Los quince del gachamon** son suyos: dos gachamones de la misma persona
-  llevan medallas distintas, y si uno se muere se va con las suyas. Es lo que
-  hace que signifiquen algo.
-* **Los tres de la persona** —Domador, Flautista y Uno entre veinticinco— son
+* **Casi todas son del gachamon**: dos gachamones de la misma persona llevan
+  medallas distintas, y si uno se muere se va con las suyas. Es lo que hace que
+  signifiquen algo.
+* **Las tres de la persona** —Domador, Flautista y Uno entre veinticinco— son
   tuyos y se quedan aunque se te muera el plantel entero. A la aventura vas tú,
   así que convencer a un salvaje lo haces tú; y que te salga una rara es tu
   suerte, no un mérito suyo.
@@ -44,9 +44,8 @@ PERSONA = "persona"
 # Del gachamon.
 CARRERAS = "carreras_ganadas"
 SUMOS = "sumos_ganados"
-# Todavía no lo mira ningún logro, pero se cuenta aparte desde el primer día:
-# apuntarlo en `SUMOS` cobraría «Yokozuna» con tótems, y no hay forma de
-# separarlos después.
+# Aparte de `SUMOS` aunque las dos sean peleas: apuntarlos juntos cobraría
+# «Yokozuna» con tótems, y no habría forma de separarlos después.
 TOTEMS = "totems_ganados"
 TORNEOS = "torneos_ganados"
 AVENTURAS = "aventuras"
@@ -98,6 +97,7 @@ LOGROS: tuple[Logro, ...] = (
     Logro("bolido", "Bólido", "gana 100 carreras", CARRERAS, 100, 50),
     Logro("luchador", "Luchador", "gana 10 sumos", SUMOS, 10, 10),
     Logro("yokozuna", "Yokozuna", "gana 100 sumos", SUMOS, 100, 50),
+    Logro("asaltante", "Asaltante", "gana 10 asaltos al tótem", TOTEMS, 10, 10),
     Logro("dinastia", "Dinastía", "gana 10 torneos", TORNEOS, 10, 40),
     # --- Salir al campo ---------------------------------------------------
     Logro("explorador", "Explorador", "sal de aventura 10 veces",
@@ -181,7 +181,7 @@ def cumplidos(hechos: dict[str, int], de_quien: str) -> tuple[Logro, ...]:
 
     Dice cuáles **cumple**, no cuáles son nuevos: quién los tenía ya y a quién
     hay que pagarle lo decide `db`, que es quien recuerda. Separarlo así es lo
-    que permite probar los dieciocho sin base de datos.
+    que permite probarlos todos sin base de datos.
 
     `de_quien` no lleva valor por defecto a propósito: quien lo olvidara
     evaluaría el juego de medallas equivocado contra hechos que no le tocan, y

@@ -66,7 +66,7 @@ async def anunciar_logros(
 
     `economia.pagar_logros` devuelve **sólo lo nuevo**, así que llamar de más no
     repite nada. Por eso esto se puede poner en cualquier sitio donde algo
-    pueda desbloquearse sin tener que pensar cuál de los dieciocho era.
+    pueda desbloquearse sin tener que pensar cuál de todas era.
     """
     recibo = economia.pagar_logros(criatura, ahora or db.ahora_utc())
     await _cantar(canal, sim.nombre_visible(criatura), recibo)
