@@ -5,36 +5,43 @@ import statistics
 import textwrap
 import unicodedata
 from collections import Counter
+from pathlib import Path
 
 import especies as esp
 import pantalla
 
-# Lo que puede aparecer en un dibujo. Cada rango entra entero y está comprobado
-# por `test_ningun_rango_permitido_cuela_un_caracter_ancho`.
-RANGOS_PERMITIDOS = (
-    (0x0020, 0x007E),   # ASCII imprimible
-    (0x00A1, 0x00FF),   # latín-1: ¬, las orejas caídas de Goot
-    (0x02B0, 0x02FF),   # modificadores de espaciado: ˚ ˅ ˒ ˍ ˘
-    (0x0370, 0x03FF),   # griego: ω, los hocicos
-    (0x1400, 0x167F),   # silábicos canadienses: ᐩ, las garras de Céfiro
-    (0x1D00, 0x1D7F),   # extensiones fonéticas: ᵕ ᴥ
-    (0x2000, 0x206F),   # puntuación general: ‿
-    (0x2200, 0x22FF),   # operadores matemáticos: ≡ bigotes, ⊐ ⊏ pinzas
-    (0x2500, 0x257F),   # dibujo de cajas: ╭ ╮ ╰ ╯ ─ │ ╥ ╷ — ya en casas.py
-    (0x2580, 0x259F),   # elementos de bloque: ▀ ▄ █ ░ ▒ ▓ ▁
-    (0xFF61, 0xFF9F),   # katakana de medio ancho: ｼ ｰ ﾉ ﾞ ｡ ･
+# Lo que puede aparecer en un dibujo de especie.
+#
+# Va como lista explícita y no como rangos, y eso es la corrección de un fallo
+# que llegó a producción. Con rangos se abrían bloques enteros —miles de puntos
+# de código que nadie había visto pintados nunca— y por ahí se colaron once
+# caracteres de ancho **ambiguo**: los que valen una celda en fuente occidental
+# y dos en fuente asiática. Cuál se aplica depende de a qué fuente caiga el
+# cliente cuando su monoespaciada no tiene el glifo, así que las fichas salían
+# corridas en Discord y ningún test se enteraba.
+#
+# El ASCII entra entero porque es lo único probado de verdad: las 25 especies
+# estuvieron meses dibujadas sólo con él.
+ASCII_IMPRIMIBLE = frozenset(chr(cp) for cp in range(0x20, 0x7F))
+
+PERMITIDOS = ASCII_IMPRIMIBLE | frozenset(
+    "¬"      # signo de negación: las orejas caídas de Goot
+    "ᐩ"      # silábico canadiense: las garras de Céfiro
+    "ᵕ"      # media o baja: bocas dormidas
+    "‿"      # undertie: la boca contenta
+    "∙⊏⊐⊗"   # operadores: limaduras, pinzas y ojos mareados
+    "⌐"      # negación al revés: el pico de Céfiro
+    "╷"      # trazo hacia abajo: patas
+    "░"      # sombra ligera: escamas y texturas
+    "▿◠"     # picos y ojos contentos
+    "｡ｰｼﾉﾞ"  # katakana de medio ancho: crestas, alas y patas
 )
 
-# Dos bloques de los que sólo entra lo que se usa, porque enteros no valen:
-#
-# * Formas Geométricas — U+25FD y U+25FE miden dos columnas, y U+25B6 lo pinta
-#   Discord como ▶️.
-# * Miscellaneous Technical — de U+231A a U+23F3 hay diez caracteres anchos,
-#   de ⌚ a ⏳.
-#
-# El test de más abajo comprueba los rangos, no éstos: aquí la garantía es que
-# son cuatro y están mirados uno a uno.
-EXTRAS = "●◠▿⌐"
+# Y aparte, los de ancho ambiguo que sí valen. Son los seis del marco de la
+# ficha y de los arcos de las casas: llevan meses pintándose bien en Discord, y
+# ésa —haberlos visto— es la única garantía que cuenta. Cualquier otro ambiguo
+# está prohibido; lo comprueba el test de más abajo.
+AMBIGUOS_PROBADOS = frozenset("─│╭╮╯╰")
 
 
 def lineas(arte: str) -> list[str]:
@@ -221,20 +228,14 @@ def test_el_arte_no_rompe_el_bloque_de_codigo():
 def test_el_arte_solo_usa_caracteres_de_una_columna():
     """La regla de verdad: en el marco cabe lo que mide **una columna**.
 
-    Hay dos formas de romperlo y las dos descuadran igual. Los emoji, que
-    Discord pinta como imágenes de ancho variable incluso dentro de un bloque de
-    código. Y los caracteres anchos —el kana normal, sin ir más lejos—, que
-    ocupan dos columnas mientras `pantalla` rellena contando caracteres: `len()`
-    diría 26 y la ficha saldría de 33.
+    `pantalla` rellena el marco contando caracteres, así que un glifo que se
+    pinte más ancho descuadra la ficha y `len()` no se entera.
 
-    Va por lista de rangos y no por un umbral porque el umbral que había antes
-    —`ord < 0x2500`— prohibía de paso el dibujo de cajas y los elementos de
-    bloque, que miden una columna y que `casas.py` ya pinta en producción.
+    Añadir un carácter a `PERMITIDOS` no es gratis: hay que **verlo pintado en
+    Discord**, en escritorio y en móvil. Ninguna tabla de Unicode responde a esa
+    pregunta, y creer que sí es lo que rompió las fichas.
     """
-    permitido = set(EXTRAS)
-    for inicio, fin in RANGOS_PERMITIDOS:
-        permitido.update(chr(cp) for cp in range(inicio, fin + 1))
-
+    permitido = PERMITIDOS | AMBIGUOS_PROBADOS
     for nombre, arte in todos_los_dibujos().items():
         for caracter in arte:
             if caracter == "\n":
@@ -242,27 +243,41 @@ def test_el_arte_solo_usa_caracteres_de_una_columna():
             assert caracter in permitido, (nombre, repr(caracter))
 
 
-def test_ningun_rango_permitido_cuela_un_caracter_ancho():
-    """Comprueba la lista, que es donde se puede meter la pata.
+def test_ningun_permitido_es_de_ancho_incierto():
+    """Ni ancho ni **ambiguo**, que es la lección que costó un despliegue.
 
-    Un rango se añade de una vez y cubre cientos de caracteres, así que el
-    error no aparece en un dibujo sino en la lista: quien añadiera el katakana
-    normal (U+30A0–U+30FF) metería 96 caracteres de dos columnas y ningún
-    dibujo lo notaría hasta usarlos.
+    Un carácter «ambiguo» —`east_asian_width == "A"`— mide una celda en fuente
+    occidental y dos en asiática. Cuál se aplica lo decide el cliente al elegir
+    la fuente, no nosotros, así que en el arte no puede haber ninguno: la ficha
+    saldría bien en un sitio y corrida en otro.
 
-    No es una comprobación de adorno: es la que descartó el bloque entero de
-    Formas Geométricas, porque U+25FD y U+25FE miden dos. Por eso los cuatro que
-    hacían falta de ahí van en `EXTRAS`, uno a uno.
+    El guardián de antes sólo prohibía `W` y `F` y dejaba pasar la `A`. Con eso
+    se colaron once —`● ω ╥ ˚ ≡ ˘ ≈ ˍ ┬ ▁ ·`— repartidos por las 25 especies.
+
+    Los seis de `AMBIGUOS_PROBADOS` quedan fuera de esta comprobación a
+    propósito: son el marco y los arcos de las casas, y su garantía no es una
+    tabla sino que llevan meses viéndose bien.
     """
-    for inicio, fin in RANGOS_PERMITIDOS:
-        for cp in range(inicio, fin + 1):
-            assert unicodedata.east_asian_width(chr(cp)) not in ("W", "F"), (
-                hex(cp), unicodedata.name(chr(cp), "?")
-            )
-    for caracter in EXTRAS:
-        assert unicodedata.east_asian_width(caracter) not in ("W", "F"), (
-            repr(caracter)
+    for caracter in PERMITIDOS:
+        assert unicodedata.east_asian_width(caracter) in ("Na", "N", "H"), (
+            repr(caracter), unicodedata.name(caracter, "?")
         )
+
+
+def test_los_ambiguos_probados_salen_ya_en_cada_ficha():
+    """La puerta de atrás tiene que seguir siendo pequeña.
+
+    `AMBIGUOS_PROBADOS` es la única lista que se salta la regla, así que lo que
+    la protege es que todo lo que hay dentro **ya se pinta** en el marco de cada
+    ficha. Eso es lo que quiere decir «probado»: no que una tabla lo diga, sino
+    que lleva meses delante de los ojos de quien juega.
+
+    Si alguien mete aquí un carácter que no dibuja `pantalla`, por definición no
+    está probado y esto salta.
+    """
+    fuente = Path(pantalla.__file__).read_text(encoding="utf-8")
+    for caracter in AMBIGUOS_PROBADOS:
+        assert caracter in fuente, repr(caracter)
 
 
 def test_cada_etapa_se_ve_distinta():
