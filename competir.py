@@ -1,10 +1,19 @@
-"""Carreras acumulativas y combates de sumo por intercambios.
+"""Carreras acumulativas, sumo por intercambios y asaltos al tótem por puestos.
 
 Módulo puro: el generador de números aleatorios se pasa como argumento, así que
 los tests fijan los dados y comprueban el resultado exacto. Cada fase combina
 las estadísticas que le corresponden y suma 1d20.
 
-Una carrera admite de dos a cinco corredores; el sumo, dos o un torneo de
+Las tres modalidades se diferencian por **cómo cuentan**, no por cuántas fases
+tienen:
+
+* la **carrera** acumula puntos crudos y los domina la velocidad;
+* el **sumo** va a dos intercambios ganados y lo domina la fuerza;
+* el **asalto al tótem** juega una fase entera con cada estadística y reparte
+  puestos en cada una, así que lo gana quien es completo y no quien destaca en
+  una sola cosa.
+
+Una carrera y un asalto admiten de dos a cinco; el sumo, dos o un torneo de
 cuatro. Todo se guarda en listas indexadas para conservar un solo vocabulario y
 el orden original de dorsales.
 """
@@ -20,6 +29,7 @@ import simulacion as sim
 
 CARRERA = "carrera"
 SUMO = "sumo"
+TOTEM = "totem"
 
 SALIDA = "SALIDA"
 TERRENO = "TERRENO"
@@ -27,9 +37,13 @@ FONDO = "FONDO"
 POSICION = "POSICIÓN"
 EMPUJE = "EMPUJE"
 AGUANTE = "AGUANTE"
+CENTRO = "AL CENTRO"
+FORCEJEO = "FORCEJEO"
+HUIDA = "HUIDA"
 DESEMPATE = "DESEMPATE"
 FASES_CARRERA = (SALIDA, TERRENO, FONDO)
 FASES_SUMO = (POSICION, EMPUJE, AGUANTE)
+FASES_TOTEM = (CENTRO, FORCEJEO, HUIDA)
 
 CARA_DADO = 20
 ANCHO_PISTA = 10
@@ -46,13 +60,44 @@ MAX_CORREDORES = 5
 CUANTOS_CABEN = {
     CARRERA: tuple(range(2, MAX_CORREDORES + 1)),
     SUMO: (2, 4),
+    TOTEM: tuple(range(2, MAX_CORREDORES + 1)),
 }
 # Con cuatro, el sumo se juega a torneo: dos semifinales y una final.
 CUANTOS_EN_TORNEO = 4
 
-NOMBRES = {CARRERA: "CARRERA", SUMO: "SUMO"}
-STATS = {CARRERA: "velocidad", SUMO: "fuerza"}
+NOMBRES = {CARRERA: "CARRERA", SUMO: "SUMO", TOTEM: "TÓTEM"}
+# Qué estadísticas pone a prueba de verdad cada modalidad, en el orden de sus
+# fases. Van en tupla incluso cuando es una sola: el tótem juega las tres, y es
+# esta lista la que hace que las vetas y el entrenamiento cuenten lo que pasó.
+STATS = {
+    CARRERA: ("velocidad",),
+    SUMO: ("fuerza",),
+    TOTEM: ("velocidad", "fuerza", "salud"),
+}
 RONDAS_DEL_TORNEO = ("SEMIFINAL 1", "SEMIFINAL 2", "FINAL")
+
+# Cómo se dice cada modalidad al anunciar el reto y con qué se cuenta su
+# marcador. Van en tabla y no en condicionales porque son tres cosas paralelas.
+ARTICULOS = {
+    CARRERA: "una CARRERA",
+    SUMO: "un SUMO",
+    TOTEM: "un ASALTO AL TÓTEM",
+}
+REGLA_DEL_MARCADOR = {
+    CARRERA: " puntos acumulados",
+    SUMO: " en intercambios",
+    TOTEM: " puntos de colocación",
+}
+# Cómo se resume la modalidad al lanzar el reto, para que quien acepte sepa a
+# qué juega antes de pulsar.
+REGLAS = {
+    CARRERA: "SALIDA, TERRENO y FONDO suman puntos",
+    SUMO: "POSICIÓN, EMPUJE y AGUANTE; gana quien logra 2 intercambios",
+    TOTEM: (
+        "AL CENTRO, FORCEJEO y HUIDA; cada fase reparte puestos "
+        "y gana quien más sume"
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -93,6 +138,14 @@ class Competidor:
             base = fuerza
         elif fase == AGUANTE:
             base = round((7 * fuerza + 3 * self.salud) / 10)
+        elif fase == CENTRO:
+            # El tótem no mezcla: cada asalto pone a prueba una estadística
+            # entera, y es el reparto de puestos el que premia ser completo.
+            base = velocidad
+        elif fase == FORCEJEO:
+            base = fuerza
+        elif fase == HUIDA:
+            base = self.salud
         else:
             raise ValueError(f"fase desconocida: {fase}")
         return max(1, base + self.modificador)
@@ -107,6 +160,122 @@ class Ronda:
     fase: str = ""
     ganador: int | None = None
     desempates: int = 0
+    # Quiénes tiraron de verdad. Vacío quiere decir «todos», que es lo normal:
+    # sólo un forcejeo de desempate del tótem lo rellena, porque allí tira nada
+    # más quien sigue empatado. `dados` y `totales` se quedan a lo largo del
+    # campo entero, con un cero en quien no tiró, para que todo lo que indexa
+    # por dorsal —Carrera, Sumo y las sumas— siga funcionando igual.
+    dorsales: tuple[int, ...] = ()
+
+
+def _crudos(rondas: Sequence[Ronda], cuantos: int) -> tuple[int, ...]:
+    """Puntos crudos acumulados por cada dorsal a lo largo de esas rondas."""
+    return tuple(
+        sum(ronda.totales[i] for ronda in rondas) for i in range(cuantos)
+    )
+
+
+def _puntos_de_colocacion(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[int, ...]:
+    """N puntos al mejor de cada fase, N-1 al siguiente y así hasta 1.
+
+    Quien empata dentro de una fase se lleva el puesto de arriba —los dos
+    terceros de cinco cobran 3— y el de abajo se salta. Repartir por orden de
+    dorsal sería más simple, pero le daría el punto extra al que se apuntó
+    antes, que es justo lo que un empate dice que no ha pasado.
+    """
+    return tuple(
+        sum(
+            cuantos - sum(otro > ronda.totales[i] for otro in ronda.totales)
+            for ronda in rondas
+        )
+        for i in range(cuantos)
+    )
+
+
+def _oficiales(rondas: Sequence[Ronda]) -> list[Ronda]:
+    """Las fases de verdad del tótem: un desempate **no** es una cuarta fase."""
+    return [ronda for ronda in rondas if ronda.fase != DESEMPATE]
+
+
+def _de_desempate(rondas: Sequence[Ronda]) -> list[Ronda]:
+    return [ronda for ronda in rondas if ronda.fase == DESEMPATE]
+
+
+def senda_de_desempate(
+    rondas: Sequence[Ronda], dorsal: int
+) -> tuple[int, ...]:
+    """Lo que sacó un dorsal en cada forcejeo de desempate que jugó, en orden.
+
+    Es una **senda** y no una suma porque los desempates se ramifican: la
+    primera ronda parte a los empatados en subgrupos y las siguientes sólo
+    ordenan dentro del subgrupo que sigue empatado. Comparadas por orden y de
+    mayor a menor, la primera componente decide entre quien salió de ramas
+    distintas y las de después sólo desempatan dentro de la misma rama.
+
+    Sumarlas sería otra cosa: quien siguió tirando acumularía puntos que quien
+    ya se había resuelto no tiene forma de igualar, y acabaría adelantándolo.
+    """
+    return tuple(
+        ronda.totales[dorsal]
+        for ronda in _de_desempate(rondas)
+        if not ronda.dorsales or dorsal in ronda.dorsales
+    )
+
+
+def _claves_del_totem(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[tuple[int, int, tuple[int, ...]], ...]:
+    """Por dorsal: `(puestos oficiales, bruto oficial, senda de desempate)`.
+
+    Los dos primeros salen **sólo** de las tres fases y no se mueven nunca más.
+    La senda va la última, así que sólo ordena a quien ya venía empatado en los
+    dos anteriores: si contara para los puestos, un forcejeo entre dos coronaría
+    a un tercero que no estaba empatado con nadie.
+    """
+    oficiales = _oficiales(rondas)
+    puestos = _puntos_de_colocacion(oficiales, cuantos)
+    brutos = _crudos(oficiales, cuantos)
+    sendas = [senda_de_desempate(rondas, i) for i in range(cuantos)]
+    return tuple(zip(puestos, brutos, sendas))
+
+
+def _empatados_del_totem(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[int, ...]:
+    """Quiénes siguen exactamente empatados con alguien, en orden de dorsal.
+
+    Un empate exacto se deshace **entre los suyos**: si a la vez hay dos grupos
+    empatados y uno se resuelve antes, la ronda que le hace falta al otro no
+    puede volver a tirar por los ya resueltos, porque les cambiaría un orden
+    que ya estaba decidido.
+    """
+    claves = _claves_del_totem(rondas, cuantos)
+    return tuple(i for i in range(cuantos) if claves.count(claves[i]) > 1)
+
+
+def _orden_del_totem(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[int, ...]:
+    """Del 1.º al último por `(puestos, bruto, senda, dorsal)`.
+
+    Todo se compara de mayor a menor, y para eso se le da la vuelta al signo:
+    ordenar ascendente por la senda negada es ordenar descendente por la senda,
+    componente a componente. Dos sendas con el mismo principio y distinto largo
+    no se dan entre empatados, porque quien comparte prefijo comparte también
+    grupo y vuelve a tirar con él.
+    """
+    claves = _claves_del_totem(rondas, cuantos)
+    return tuple(sorted(
+        range(cuantos),
+        key=lambda i: (
+            -claves[i][0],
+            -claves[i][1],
+            tuple(-total for total in claves[i][2]),
+            i,
+        ),
+    ))
 
 
 @dataclass(frozen=True)
@@ -125,17 +294,23 @@ class Resultado:
 
     @property
     def totales(self) -> tuple[int, ...]:
-        """Puntos crudos acumulados, en orden de dorsal."""
-        return tuple(
-            sum(r.totales[i] for r in self.rondas)
-            for i in range(len(self.competidores))
-        )
+        """Puntos crudos acumulados, en orden de dorsal.
+
+        En Carrera los desempates son tramos de verdad y suman; en Tótem no lo
+        son, así que el bruto oficial se queda en las tres fases.
+        """
+        rondas = _oficiales(self.rondas) if self.tipo == TOTEM else self.rondas
+        return _crudos(rondas, len(self.competidores))
 
     @property
     def marcadores(self) -> tuple[int, ...]:
-        """Puntos acumulados en Carrera; intercambios ganados en Sumo."""
+        """Puntos acumulados en Carrera, puestos en Tótem, intercambios en Sumo."""
         if self.tipo == CARRERA:
             return self.totales
+        if self.tipo == TOTEM:
+            return _puntos_de_colocacion(
+                _oficiales(self.rondas), len(self.competidores)
+            )
         return tuple(
             sum(ronda.ganador == i for ronda in self.rondas)
             for i in range(len(self.competidores))
@@ -297,6 +472,47 @@ def resolver(
             sorted(range(len(competidores)), key=lambda i: (-totales[i], i))
         )
         return Resultado(tipo, competidores, rondas, orden)
+
+    if tipo == TOTEM:
+        cuantos = len(competidores)
+        for fase in FASES_TOTEM:
+            dados, totales = tirar(fase)
+            rondas.append(Ronda(dados, totales, fase))
+
+        def forcejear(quienes: tuple[int, ...]) -> Ronda:
+            """Un forcejeo de desempate en el que sólo tiran `quienes`.
+
+            Quien no tira se queda a cero en esa ronda, así que su tercer
+            criterio no se mueve y su sitio tampoco.
+            """
+            dados = [0] * cuantos
+            totales = [0] * cuantos
+            for dorsal in quienes:
+                dado = rng.randint(1, CARA_DADO)
+                dados[dorsal] = dado
+                totales[dorsal] = competidores[dorsal].base_en(FORCEJEO) + dado
+            return Ronda(
+                tuple(dados), tuple(totales), DESEMPATE, dorsales=quienes
+            )
+
+        desempates = 0
+        # El tótem se decide agarrándolo, así que el desempate es otro forcejeo.
+        # Cada ronda añade una componente a la senda de quien tira, que es el
+        # tercer criterio y el último antes del dorsal; las componentes de antes
+        # no se tocan, así que el orden que ya abrió una ronda anterior se
+        # mantiene. Sólo tira quien sigue empatado: dos grupos pueden compartir
+        # una ronda, y el que se resuelva primero se queda fuera de las
+        # siguientes.
+        while desempates < MAX_DESEMPATES:
+            pendientes = _empatados_del_totem(rondas, cuantos)
+            if not pendientes:
+                break
+            rondas.append(forcejear(pendientes))
+            desempates += 1
+
+        return Resultado(
+            tipo, competidores, rondas, _orden_del_totem(rondas, cuantos)
+        )
 
     marcadores = [0, 0]
     for fase in FASES_SUMO:
@@ -556,11 +772,86 @@ def fotogramas_sumo(resultado: Resultado, titulo: str) -> list[str]:
     return fotogramas
 
 
+# El tótem se dibuja en un campo de ancho fijo para que se vea que cambia de
+# sitio: en las dos primeras fases está en el centro y en la HUIDA, desplazado
+# hacia la derecha porque se lo están llevando.
+ANCHO_ESCENA = 15
+ALTO_ESCENA = 3
+
+ESCENAS_TOTEM = {
+    CENTRO: (
+        "      ┌─┐      ",
+        ">>>>  │#│  <<<<",
+        "      └─┘      ",
+    ),
+    FORCEJEO: (
+        "     \\┌─┐/     ",
+        "  >>>-│#│-<<<  ",
+        "     /└─┘\\     ",
+    ),
+    HUIDA: (
+        "          ┌─┐  ",
+        " >>>  >>  │#│>>",
+        "          └─┘  ",
+    ),
+}
+
+
+def fotogramas_totem(resultado: Resultado, titulo: str) -> list[str]:
+    """Un mensaje por fase: la escena, los dados y cómo va el reparto de puestos.
+
+    Los puestos se pintan con la fila del podio —la misma de `resumen()`—
+    porque es justo lo que se está disputando: el marcador del tótem no es lo
+    que se saca, sino en qué lugar se queda uno fase tras fase.
+
+    En un fotograma de desempate los puntos ya no se mueven —el desempate no es
+    una fase—, pero las filas sí se reordenan: se ordenan con la misma clave con
+    la que se reparte el premio, así que el último fotograma enseña exactamente
+    el orden del resultado.
+    """
+    cuantos = len(resultado.competidores)
+    ancho_base, ancho_total = _anchos_del_dado(resultado)
+    fotogramas = []
+
+    for paso in range(1, len(resultado.rondas) + 1):
+        ronda = resultado.rondas[paso - 1]
+        hasta_aqui = resultado.rondas[:paso]
+        puntos = _puntos_de_colocacion(_oficiales(hasta_aqui), cuantos)
+        ancho_puntos = max([3] + [len(str(punto)) for punto in puntos])
+
+        cuerpo = _cabecera(resultado, paso, titulo)
+        # Un desempate es otro forcejeo, así que se dibuja como tal.
+        for linea in ESCENAS_TOTEM.get(ronda.fase, ESCENAS_TOTEM[FORCEJEO]):
+            cuerpo.append(pantalla.fila(f"{linea:^{pantalla.ANCHO}}"))
+        cuerpo.append("├" + "─" * pantalla.ANCHO + "┤")
+        # En un desempate sólo tiran los que siguen empatados, así que sólo
+        # ellos salen aquí; la clasificación de abajo sigue siendo del campo
+        # entero.
+        for dorsal in ronda.dorsales or range(cuantos):
+            cuerpo.append(_fila_dado(
+                resultado.competidores[dorsal],
+                ronda.dados[dorsal], ronda.totales[dorsal],
+                ancho_base, ancho_total,
+            ))
+        cuerpo.append("├" + "─" * pantalla.ANCHO + "┤")
+        for puesto, dorsal in enumerate(
+            _orden_del_totem(hasta_aqui, cuantos), start=1
+        ):
+            cuerpo.append(_fila_puesto(
+                puesto, resultado.competidores[dorsal],
+                puntos[dorsal], ancho_puntos,
+            ))
+        cuerpo.append("╰" + "─" * pantalla.ANCHO + "╯")
+        fotogramas.append("```ansi\n" + "\n".join(cuerpo) + "\n```")
+
+    return fotogramas
+
+
 def como_se_llama(tipo: str, cuantos: int) -> str:
-    """«una CARRERA», «un SUMO» o «un TORNEO DE SUMO», para anunciar el reto."""
+    """«una CARRERA», «un SUMO», «un TORNEO DE SUMO» o «un ASALTO AL TÓTEM»."""
     if tipo == SUMO and cuantos == CUANTOS_EN_TORNEO:
         return "un TORNEO DE SUMO"
-    return "una CARRERA" if tipo == CARRERA else "un SUMO"
+    return ARTICULOS[tipo]
 
 
 def _titulos(encuentro: Encuentro) -> tuple[str, ...]:
@@ -570,15 +861,20 @@ def _titulos(encuentro: Encuentro) -> tuple[str, ...]:
     return (NOMBRES[encuentro.tipo],)
 
 
+DIBUJANTES = {
+    CARRERA: fotogramas_carrera,
+    SUMO: fotogramas_sumo,
+    TOTEM: fotogramas_totem,
+}
+
+
 def fotogramas_de(encuentro: Encuentro) -> list[list[str]]:
     """Los fotogramas de cada combate, en orden y con el título de su ronda.
 
     Una lista por combate: el cog manda un mensaje por cada una y la va editando
     para animarla. Un torneo son tres tandas; todo lo demás, una.
     """
-    dibujar = (
-        fotogramas_carrera if encuentro.tipo == CARRERA else fotogramas_sumo
-    )
+    dibujar = DIBUJANTES[encuentro.tipo]
     return [
         dibujar(combate, titulo)
         for combate, titulo in zip(encuentro.combates, _titulos(encuentro))
@@ -820,7 +1116,7 @@ def resumen(encuentro: Encuentro) -> str:
         f"{combate.marcadores[combate.orden[0]]}–"
         f"{combate.marcadores[combate.orden[1]]}"
     )
-    regla = " en intercambios" if encuentro.tipo == SUMO else " puntos acumulados"
+    regla = REGLA_DEL_MARCADOR[encuentro.tipo]
     return (
         f"🏆 **{ganador.nombre}** gana a **{perdedor.nombre}** por "
         f"{marcador}{regla}."

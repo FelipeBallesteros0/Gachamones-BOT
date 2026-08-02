@@ -14,6 +14,7 @@ import competir as comp
 import cogs.competencias as cog_comp
 import db
 import economia
+import logros as lgr
 import simulacion as sim
 from cogs.competencias import Competencias
 
@@ -47,11 +48,30 @@ def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
     )
 
     assert cog_comp.texto_recibo_competencia(
-        recibo, "<@u1>", gano=True, stat="velocidad"
+        recibo, "<@u1>", gano=True,
+        stats=comp.STATS[comp.CARRERA], entrenada="velocidad",
     ) == (
         "-# <@u1> · velocidad +1 entrenamiento · +10 XP · "
         "coste base -10 comida · coste base -5 ánimo · "
         "🪙 +6 asciicoins · competencia 1/3 UTC"
+    )
+
+
+def test_el_recibo_del_totem_separa_las_tres_vetas_de_la_unica_entrenada():
+    recibo = economia.ReciboCompetencia(
+        usuario_id="u1",
+        delta_asciicoins=economia.PREMIO_GANADOR,
+        delta_competencia=economia.PREMIO_GANADOR,
+        delta_evolucion=0,
+        usados=1,
+    )
+
+    assert cog_comp.texto_recibo_competencia(
+        recibo, "<@u1>", gano=True,
+        stats=comp.STATS[comp.TOTEM], entrenada="fuerza",
+    ).startswith(
+        "-# <@u1> · velocidad, fuerza y salud dejan veta · "
+        "fuerza +1 entrenamiento · "
     )
 
 
@@ -183,7 +203,8 @@ def test_recibo_de_competencia_conserva_topes_de_moneda_y_evolucion():
     )
 
     assert cog_comp.texto_recibo_competencia(
-        recibo, "<@u1>", gano=False, stat="fuerza"
+        recibo, "<@u1>", gano=False,
+        stats=comp.STATS[comp.SUMO], entrenada="fuerza",
     ).endswith(
         "🪙 +0 asciicoins · competencia 3/3 UTC (tope) · "
         "evolución +0 · evolución 1/1 UTC (tope)"
@@ -335,6 +356,82 @@ def test_cada_modalidad_entrena_solo_su_stat_primario():
     assert corredor.ent_fuerza == 0
     assert luchador.ent_fuerza == sim.ENTRENAMIENTO_POR_COMPETIR
     assert luchador.ent_velocidad == 0
+
+
+def test_el_totem_deja_un_solo_punto_de_entrenamiento_por_asalto():
+    nacer("u1")
+    nacer("u2")
+
+    economia.ejecutar_competencia(
+        "totem", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(1)
+    )
+
+    asaltante = db.criatura_activa("u1", "g1")
+    assert asaltante is not None
+    assert (
+        asaltante.ent_velocidad + asaltante.ent_fuerza + asaltante.ent_salud
+    ) == sim.ENTRENAMIENTO_POR_COMPETIR
+
+
+def test_el_recibo_nombra_la_estadistica_que_de_verdad_ha_subido():
+    """El recibo y la ficha no pueden decir cosas distintas."""
+    nacer("u1")
+    nacer("u2")
+
+    resultado = economia.ejecutar_competencia(
+        "totem", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(1)
+    )
+
+    for antes, despues in zip(resultado.antes, resultado.despues):
+        subidas = [
+            stat for stat in sim.ESTADISTICAS
+            if getattr(despues, f"ent_{stat}") > getattr(antes, f"ent_{stat}")
+        ]
+        assert subidas == [sim.stat_a_entrenar(antes, comp.STATS[comp.TOTEM])]
+
+
+def test_el_totem_apunta_su_marcador_y_no_el_de_la_carrera_ni_el_del_sumo():
+    """Un tótem ganado no es un sumo ganado: `Yokozuna` no se cobra por aquí."""
+    nacer("u1")
+    nacer("u2")
+
+    resultado = economia.ejecutar_competencia(
+        "totem", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(1)
+    )
+
+    assert resultado.encuentro is not None
+    campeon = resultado.despues[resultado.encuentro.orden[0]]
+    marcador = db.marcador(campeon.id)
+    assert marcador.get(lgr.TOTEMS) == 1
+    assert lgr.CARRERAS not in marcador
+    assert lgr.SUMOS not in marcador
+    assert lgr.TORNEOS not in marcador
+
+
+def test_el_replay_de_un_totem_conserva_premios_y_marcador_sin_tirar_dados():
+    class RngProhibido(random.Random):
+        def randint(self, a, b):
+            raise AssertionError("un replay no vuelve a tirar")
+
+    nacer("u1")
+    nacer("u2")
+    primero = economia.ejecutar_competencia(
+        "totem", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(3)
+    )
+    marcadores = tuple(db.marcador(c.id) for c in primero.despues)
+
+    replay = economia.ejecutar_competencia(
+        "totem", ("u1", "u2"), "g1", comp.TOTEM, T0, RngProhibido()
+    )
+
+    assert replay.replay
+    assert [r.delta_competencia for r in replay.recibos] == [
+        r.delta_competencia for r in primero.recibos
+    ]
+    assert tuple(db.marcador(c.id) for c in primero.despues) == marcadores
+    assert (
+        db.criatura_activa("u1", "g1"), db.criatura_activa("u2", "g1")
+    ) == primero.despues
 
 
 def test_sumo_paga_al_ganador_de_intercambios_y_el_replay_no_tira_dados():
@@ -617,3 +714,98 @@ def test_competencia_repetida_o_rechazada_no_congela(monkeypatch, resultado):
     assert not any(
         "👀" in llamada.args[0] for llamada in canal.send.await_args_list
     )
+
+
+def test_el_totem_deja_victoria_derrota_premio_y_enfriamiento_como_las_demas():
+    nacer("u1")
+    nacer("u2")
+
+    resultado = economia.ejecutar_competencia(
+        "totem", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(1)
+    )
+
+    assert resultado.encuentro is not None
+    ganador = resultado.encuentro.orden[0]
+    for dorsal, criatura in enumerate(resultado.despues):
+        assert criatura.victorias == (1 if dorsal == ganador else 0)
+        assert criatura.derrotas == (0 if dorsal == ganador else 1)
+        assert db.espera_de(criatura.id, sim.COMPETIR, T0) == (
+            sim.COOLDOWNS[sim.COMPETIR]
+        )
+    assert sorted(r.delta_competencia for r in resultado.recibos) == [4, 6]
+
+
+def test_el_mensaje_final_de_un_totem_de_cinco_cabe_en_un_mensaje_de_discord():
+    """Cinco recibos con las tres estadísticas es el caso que más aprieta."""
+    usuarios = tuple(str(1_000_000_000_000_000_001 + n) for n in range(5))
+    nombres = tuple(f"CriaturaLimite{n:010d}" for n in range(1, 6))
+    assert all(len(nombre) == sim.LARGO_MAXIMO_NOMBRE for nombre in nombres)
+    for usuario, nombre in zip(usuarios, nombres):
+        db.crear(usuario, "g1", "pulpo", nombre, STATS, T0)
+
+    resultado = economia.ejecutar_competencia(
+        "totem-cinco", usuarios, "g1", comp.TOTEM, T0, random.Random(1)
+    )
+
+    assert resultado.encuentro is not None
+    ganador = resultado.encuentro.orden[0]
+    recibos = "\n".join(
+        cog_comp.texto_recibo_competencia(
+            recibo, f"<@{usuario}>",
+            gano=dorsal == ganador,
+            stats=comp.STATS[comp.TOTEM],
+            entrenada=sim.stat_a_entrenar(antes, comp.STATS[comp.TOTEM]),
+        )
+        for dorsal, (recibo, usuario, antes) in enumerate(
+            zip(resultado.recibos, usuarios, resultado.antes)
+        )
+    )
+    mensaje = f"{comp.resumen(resultado.encuentro)}\n{recibos}"
+
+    assert len(mensaje) < 2000, len(mensaje)
+    assert mensaje.count("velocidad, fuerza y salud dejan veta") == 5
+    assert mensaje.count("+1 entrenamiento") == 5
+
+
+def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
+    """Integración: la evolución que confirma la transacción es la que crece.
+
+    Con fuerza y salud ya en el tope visible, la única que puede crecer es la
+    velocidad, y los tres esfuerzos del tótem no pueden dejarla sin veta.
+    """
+    for usuario in ("u1", "u2"):
+        nacida = db.crear(
+            usuario, "g1", "pulpo", usuario,
+            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT), T0,
+        )
+        db.guardar(replace(
+            nacida,
+            xp=sim.xp_para_subir(1) - sim.XP_VICTORIA,
+            ent_fuerza=1, ent_velocidad=1, ent_salud=1, ten_salud=35.0,
+        ))
+
+    resultado = economia.ejecutar_competencia(
+        "totem-evo", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(1)
+    )
+
+    assert resultado.encuentro is not None
+    ganador = resultado.encuentro.orden[0]
+    antes = resultado.antes[ganador]
+    despues = resultado.despues[ganador]
+
+    assert antes.etapa != despues.etapa
+    assert (antes.fuerza, antes.velocidad, antes.salud) == (
+        sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT
+    )
+    assert (despues.fuerza, despues.velocidad, despues.salud) == (
+        sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT
+    )
+
+    rupturas = resultado.rupturas[ganador]
+    assert len(rupturas) <= sim.MAX_RUPTURAS_POR_SUCESO
+    assert any(ruptura.causa == "nivel" for ruptura in rupturas)
+    assert resultado.recibos[ganador].evoluciono
+    # Lo publicado es lo confirmado: la ficha guardada es la misma que se narra.
+    assert db.criatura_activa(
+        resultado.recibos[ganador].usuario_id, "g1"
+    ) == despues

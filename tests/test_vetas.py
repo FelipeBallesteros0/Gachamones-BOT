@@ -174,6 +174,11 @@ def test_el_tope_no_anuncia_una_cascada_que_queda_pendiente():
 
 
 def test_cuidado_y_subida_comparten_el_mismo_tope_de_tres():
+    """Tres en total, y la última es de la subida.
+
+    El cuidado se queda con dos porque el suceso aparta una para el nivel: es
+    la que garantiza que evolucionar se note en alguna estadística visible.
+    """
     c = criatura(
         xp=sim.xp_para_subir(1) - 1,
         hambre=40.0,
@@ -186,7 +191,9 @@ def test_cuidado_y_subida_comparten_el_mismo_tope_de_tres():
 
     assert resultado.criatura.nivel == 2
     assert len(resultado.rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
-    assert all(ruptura.causa == sim.ENTRENAR for ruptura in resultado.rupturas)
+    assert [ruptura.causa for ruptura in resultado.rupturas] == [
+        sim.ENTRENAR, sim.ENTRENAR, "nivel",
+    ]
     assert all(ruptura.despues == ruptura.antes + 1 for ruptura in resultado.rupturas)
 
 
@@ -215,6 +222,16 @@ def test_competencia_usa_margen_derrota_y_veta_profunda():
     assert amplia.bruto == 1.5
     assert abs(derrota.bruto - 1.95) < 1e-12
     assert cerrada.profunda
+
+
+def test_las_tres_marcas_del_totem_comparten_el_tope_de_tres_rupturas():
+    c = criatura(ten_fuerza=100.0, ten_velocidad=100.0, ten_salud=100.0)
+
+    _, rupturas = sim.aplicar_competencia(
+        c, True, comp.STATS[comp.TOTEM], margen=0
+    )
+
+    assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
 
 
 def test_aventura_emite_cada_prueba_y_anade_salud_al_fallar():
@@ -603,7 +620,7 @@ def test_cuidado_descubre_identidad_por_el_camino_real():
 def test_competencia_descubre_identidad_por_el_camino_real():
     antes = _a_una_veta_de_identidad()
     actualizada, rupturas = sim.aplicar_competencia(
-        antes, True, "fuerza", margen=0
+        antes, True, ("fuerza",), margen=0
     )
     texto = pantalla.render_rupturas(actualizada, rupturas)
 
@@ -675,3 +692,189 @@ def test_fallo_al_guardar_viaje_revierte_tension_y_desgaste(
         raise AssertionError("el viaje debía fallar")
 
     assert db.criatura_activa("u1", "g1") == original
+
+
+def test_el_totem_deja_una_sola_marca_de_entrenamiento_y_veta_en_las_tres():
+    antes = criatura()
+    assert comp.STATS[comp.TOTEM] == ("velocidad", "fuerza", "salud")
+
+    despues, _ = sim.aplicar_competencia(
+        antes, True, comp.STATS[comp.TOTEM], margen=10
+    )
+
+    subidas = {
+        stat: getattr(despues, f"ent_{stat}") - getattr(antes, f"ent_{stat}")
+        for stat in sim.ESTADISTICAS
+    }
+    assert sum(subidas.values()) == sim.ENTRENAMIENTO_POR_COMPETIR
+    assert sorted(subidas.values()) == [0, 0, 1]
+    for stat in sim.ESTADISTICAS:
+        assert getattr(despues, f"ten_{stat}") > getattr(antes, f"ten_{stat}")
+
+
+def test_el_totem_entrena_la_mas_atrasada_y_asi_va_rotando():
+    """Seis asaltos son seis puntos repartidos, no dieciocho amontonados."""
+    c = criatura()
+    conteos = []
+    for _ in range(6):
+        c, _ = sim.aplicar_competencia(
+            c, True, comp.STATS[comp.TOTEM], margen=10
+        )
+        conteos.append((c.ent_velocidad, c.ent_fuerza, c.ent_salud))
+
+    assert conteos == [
+        (1, 0, 0), (1, 1, 0), (1, 1, 1),
+        (2, 1, 1), (2, 2, 1), (2, 2, 2),
+    ]
+    assert sum(conteos[-1]) == 6 * sim.ENTRENAMIENTO_POR_COMPETIR
+
+
+def test_el_totem_respeta_los_contadores_que_ya_traia():
+    c = criatura(ent_velocidad=5, ent_fuerza=2, ent_salud=9)
+
+    despues, _ = sim.aplicar_competencia(
+        c, True, comp.STATS[comp.TOTEM], margen=10
+    )
+
+    assert sim.stat_a_entrenar(c, comp.STATS[comp.TOTEM]) == "fuerza"
+    assert (
+        despues.ent_velocidad, despues.ent_fuerza, despues.ent_salud
+    ) == (5, 3, 9)
+
+
+def test_competir_rechaza_estadisticas_vacias_repetidas_o_desconocidas():
+    for stats in ((), ("fuerza", "fuerza"), ("magia",), "fuerza"):
+        try:
+            sim.aplicar_competencia(criatura(), True, stats, margen=0)
+        except ValueError:
+            continue
+        raise AssertionError(f"{stats!r} debería levantar ValueError")
+
+
+# --- Crecimiento visible al evolucionar (PR #37) ---------------------------
+
+def _visibles(c: sim.Criatura) -> tuple[int, ...]:
+    return tuple(getattr(c, stat) for stat in sim.ESTADISTICAS)
+
+
+def _al_borde_de_evolucionar_con_dos_topes() -> sim.Criatura:
+    """Nivel 1 a un paso de subir, con fuerza y salud ya en el tope visible.
+
+    Sólo la velocidad puede crecer a la vista, así que la subida de nivel tiene
+    que gastarse ahí su veta: es la garantía que trajo `fix: garantiza
+    crecimiento visible al evolucionar`.
+    """
+    return criatura(
+        xp=sim.xp_para_subir(1) - sim.XP_VICTORIA,
+        base_fuerza=sim.MAXIMO_STAT,
+        base_velocidad=50,
+        base_salud=sim.MAXIMO_STAT,
+        ent_fuerza=1,
+        ent_velocidad=1,
+        ent_salud=1,
+        ten_salud=35,
+    )
+
+
+def test_el_totem_no_se_come_la_veta_que_hace_crecer_al_evolucionar():
+    """Tres esfuerzos no pueden dejar sin sitio a la veta de la subida."""
+    antes = _al_borde_de_evolucionar_con_dos_topes()
+    assert _visibles(antes) == (sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT)
+
+    despues, rupturas = sim.aplicar_competencia(
+        antes, True, comp.STATS[comp.TOTEM], margen=0
+    )
+
+    assert despues.nivel == antes.nivel + 1
+    assert despues.etapa != antes.etapa
+    assert _visibles(despues) == (sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT)
+
+    assert len(rupturas) <= sim.MAX_RUPTURAS_POR_SUCESO
+    assert any(ruptura.causa == "nivel" for ruptura in rupturas)
+    # Las vetas topadas siguen valiendo: no se filtran por no verse.
+    assert any(
+        ruptura.antes == ruptura.despues == sim.MAXIMO_STAT
+        for ruptura in rupturas
+    )
+    subidas = sum(
+        getattr(despues, f"ent_{stat}") - getattr(antes, f"ent_{stat}")
+        for stat in sim.ESTADISTICAS
+    )
+    assert subidas == sim.ENTRENAMIENTO_POR_COMPETIR
+
+
+def test_la_carrera_y_el_sumo_siguen_creciendo_igual_al_evolucionar():
+    antes = _al_borde_de_evolucionar_con_dos_topes()
+
+    for tipo in (comp.CARRERA, comp.SUMO):
+        despues, _ = sim.aplicar_competencia(
+            antes, True, comp.STATS[tipo], margen=0
+        )
+        assert despues.etapa != antes.etapa, tipo
+        assert _visibles(despues) == (sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT), tipo
+
+
+def test_una_subida_con_todo_al_tope_no_aparta_ninguna_veta():
+    """Si no hay nada visible que crecer no se reserva nada: los tres esfuerzos
+    se gastan las tres rupturas, como en cualquier suceso sin subida."""
+    antes = criatura(
+        xp=sim.xp_para_subir(1) - sim.XP_VICTORIA,
+        base_fuerza=sim.MAXIMO_STAT,
+        base_velocidad=sim.MAXIMO_STAT,
+        base_salud=sim.MAXIMO_STAT,
+        ten_fuerza=100.0,
+        ten_velocidad=100.0,
+        ten_salud=100.0,
+    )
+
+    despues, rupturas = sim.aplicar_competencia(
+        antes, True, comp.STATS[comp.TOTEM], margen=0
+    )
+
+    assert despues.nivel == antes.nivel + 1
+    assert _visibles(despues) == _visibles(antes) == (sim.MAXIMO_STAT,) * 3
+    assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
+    assert all(ruptura.causa == sim.COMPETIR for ruptura in rupturas)
+
+
+def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
+    """La reserva se suelta **dentro** de la emisión que hace crecer.
+
+    Una identidad concreta —`P1`, con anillo fuerza → salud → velocidad— y las
+    dos tensiones justo por debajo del umbral: la subida de nivel rompe primero
+    velocidad, después salud —que es la que crece a la vista, 998 → 999— y esa
+    ruptura arrastra a velocidad otra vez. Si el hueco apartado se soltara sólo
+    entre emisiones, esa tercera ruptura se quedaría fuera y el suceso acabaría
+    con una tensión elegible pendiente y un hueco muerto.
+    """
+    antes = criatura(
+        id=1,
+        nombre="P1",
+        xp=sim.xp_para_subir(1) - 1,
+        base_fuerza=sim.MAXIMO_STAT,
+        base_velocidad=sim.MAXIMO_STAT,
+        base_salud=998,
+        ten_fuerza=0.0,
+        ten_velocidad=34.0,
+        ten_salud=33.0,
+    )
+    assert sim.impronta_de(antes).anillo == ("fuerza", "salud", "velocidad")
+    assert _visibles(antes) == (sim.MAXIMO_STAT, sim.MAXIMO_STAT, 998)
+
+    despues, rupturas = sim.aplicar_xp(antes, 1)
+
+    assert despues.nivel == 2
+    assert _visibles(despues) == (sim.MAXIMO_STAT,) * 3
+    assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
+    assert [ruptura.stat for ruptura in rupturas] == [
+        "velocidad", "salud", "velocidad",
+    ]
+    assert [ruptura.cascada for ruptura in rupturas] == [False, False, True]
+    assert all(ruptura.causa == "nivel" for ruptura in rupturas)
+    # La segunda es la que crece a la vista y suelta el hueco de la tercera.
+    assert (rupturas[1].antes, rupturas[1].despues) == (998, sim.MAXIMO_STAT)
+    # Y no queda tensión elegible por culpa de la reserva.
+    umbral = sim.umbral_veta(despues)
+    assert max(
+        despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud
+    ) < umbral

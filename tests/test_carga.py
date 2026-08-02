@@ -17,7 +17,8 @@ import simulacion as sim
 from vistas import NombrarView, PantallaView
 
 COMANDOS_ESPERADOS = {
-    "huevo", "mascota", "carrera", "sumo", "ranking", "cementerio", "ayuda",
+    "huevo", "mascota", "carrera", "sumo", "totem", "ranking", "cementerio",
+    "ayuda",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
     "casa", "visitar", "buzon",
 }

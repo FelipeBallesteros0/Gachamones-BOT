@@ -1,11 +1,13 @@
 """El vocabulario visible usa los términos canónicos del producto."""
 import re
 from dataclasses import replace
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import aventura
 from cogs import competencias, mascota, social
+import competir as comp
 import economia
 import objetos
 import pantalla
@@ -141,6 +143,38 @@ def test_ayuda_conserva_el_comando_mascota_y_el_limite_de_discord():
         "`/jardin` todos juntos · `/mascota` el tuyo · "
         "`/mascota @alguien` el de otro"
     ) in ayuda
+    assert all(len(pagina) <= 2000 for pagina in paginas)
+
+
+# «Coger» es de España y aquí se dice tomar. Va con frontera de palabra para no
+# pisar «recoger» ni «escoger», que sí son neutras.
+COGER = re.compile(r"\bcog[ei]\w*", re.IGNORECASE)
+
+
+def test_el_texto_visible_de_competir_usa_espanol_neutro():
+    visible = "\n".join((
+        *social.paginas_de_ayuda("Gachamones"),
+        *comp.REGLAS.values(),
+        *comp.ARTICULOS.values(),
+        (Path(__file__).resolve().parent.parent / "README.md").read_text(
+            encoding="utf-8"
+        ),
+    ))
+
+    encontrado = COGER.search(visible)
+    assert encontrado is None, encontrado.group(0)
+
+
+def test_la_ayuda_explica_las_tres_fases_del_asalto_al_totem():
+    """Quien lea la ayuda tiene que poder llamar al comando y saber qué mide."""
+    paginas = social.paginas_de_ayuda("Gachamones")
+    ayuda = "\n".join(paginas)
+
+    assert "`/totem @alguien`" in ayuda
+    assert "Asalto al Tótem" in ayuda
+    for fase, stat in zip(comp.FASES_TOTEM, comp.STATS[comp.TOTEM]):
+        assert f"**{fase}** ({stat}" in ayuda
+    assert "puntos de colocación" in ayuda
     assert all(len(pagina) <= 2000 for pagina in paginas)
 
 

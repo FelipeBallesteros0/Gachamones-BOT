@@ -221,9 +221,9 @@ def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
     Va partida porque no cabe en uno: Discord corta el `content` en 2000
     caracteres y la ayuda entera se pasaba, así que `/ayuda` fallaba con un 400
     sin que se notara. Partirla en vez de apretar el texto deja sitio para seguir
-    explicando lo que haga falta, y por eso son cuatro y no dos: cada vez que una
+    explicando lo que haga falta, y por eso son seis y no dos: cada vez que una
     página se llena se abre otra. Los cortes van donde cambia el tema — la
-    criatura, qué hacer con ella, el plantel y el dinero.
+    criatura, competir, la aventura, el plantel, la casa y el dinero.
 
     Es una función aparte y no el cuerpo del comando para poder medir cada página
     en un test sin conectarse a nada.
@@ -280,9 +280,21 @@ velocidad + 1d20), **EMPUJE** (fuerza + 1d20) y **AGUANTE** (70 % fuerza + \
 30 % salud + 1d20). Gana **dos intercambios**; con 2–0 no juega AGUANTE.
 `/sumo @a @b @c` — torneo de cuatro: dos semis y final, cada cruce al mejor de \
 tres. De dos o cuatro; con tres no se puede emparejar.
+`/totem @alguien` — **Asalto al Tótem**, no basta con llegar: hay que tomarlo y \
+conservarlo. **AL CENTRO** (velocidad + 1d20), **FORCEJEO** (fuerza + 1d20) y \
+**HUIDA** (salud + 1d20). Cada fase reparte **puntos de colocación** —tantos \
+como asaltantes al primero y uno al último— y gana quien más sume de las tres, \
+así que premia al gachamon completo. Asaltan hasta {comp.MAX_CORREDORES}; con \
+tres o más hay podio.
+-# Las tres dejan **veta**, pero el entrenamiento es **un punto** como en las \
+otras dos, y se lo lleva la estadística más atrasada.
 -# El buen ánimo suma un poco; tener poca comida resta. Sólo el primero suma \
 victoria; el \
-torneo cuenta una competencia. Quien rechaza se cae del reto.
+torneo cuenta una competencia. Quien rechaza se cae del reto."""
+
+    # La aventura se mudó a su propia página al entrar el tótem: con las tres
+    # modalidades explicadas, «qué hacer con él» se pasaba del tope de Discord.
+    salir_al_campo = f"""## 🧭 Salir de aventura
 
 **Aventura**
 `/aventura` te lleva **a ti y a tu gachamon** a un bioma al azar, ante una escena \
@@ -411,7 +423,10 @@ a quien quieras con 🎨 **Personalizar**.
 -# Uno de cada tipo a la vez, y lo que le quites vuelve al ropero y sirve para \
 otro. No tocan ninguna estadística — son sólo para presumir."""
 
-    return (tu_criatura, que_hacer, tus_cosas, tu_casa, tu_dinero, tus_gemas)
+    return (
+        tu_criatura, que_hacer, salir_al_campo, tus_cosas, tu_casa, tu_dinero,
+        tus_gemas,
+    )
 
 
 class Social(commands.Cog):
