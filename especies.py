@@ -178,42 +178,42 @@ _registrar(Especie(
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
     arte={
         BEBE: r"""
-  ｰ
+  |
  .-.
 ({cara})
  '-'
- ﾞ ﾞ
+ ' '
 """,
         NINO: r"""
-  ｰﾉ
+  |/
  .-~-.
 <({cara})>
  '-.-'
- ﾞ  ﾞ
+ '  '
 """,
         ADOLESCENTE: r"""
-    ｼｰﾉ
+    \|/
    .-~-.
    ({cara})
-<(|  ▿  |)>
+<(|  v  |)>
    '-.-'
-   ﾞﾞ ﾞﾞ
+   '' ''
 """,
         ADULTO: r"""
-     ｼｰﾉ
+     \|/
    .-~~~-.
   / ({cara}) \
-<(|   ▿   |)>
+<(|   v   |)>
    \  ,  /
-   ﾞﾞ   ﾞﾞ
+   ''   ''
 """,
         ADULTO_GRANDE: r"""
-      ｼｰﾉ｡
+      \|/.
     .-~~~~~-.
    /  ({cara})  \
-<(|     ▿     |)>
+<(|     v     |)>
    \   ,,,   /
-    ﾞﾞ     ﾞﾞ
+    ''     ''
 """,
     },
 ))
@@ -570,21 +570,21 @@ _registrar(Especie(
   \|/
 ╭─────╮
 │ {cara} │
-╰╷───╷╯
+╰|───|╯
 """,
         ADOLESCENTE: r"""
 \|/   \|/
 ╭───────╮
 │  {cara}  │
 │ ░░░░░ │
-╰╷─╷─╷─╷╯
+╰|─|─|─|╯
 """,
         ADULTO: r"""
 \|/      \|/
 ╭───────────╮
 │    {cara}    │
 │  ░░░░░░░  │
-╰─╷─╷───╷─╷─╯
+╰─|─|───|─|─╯
  /| || || |\
 """,
         ADULTO_GRANDE: r"""
@@ -592,7 +592,7 @@ _registrar(Especie(
 ╭───────────────╮
 │      {cara}      │
 │  ░░░░░░░░░░░  │
-╰──╷─╷─────╷─╷──╯
+╰──|─|─────|─|──╯
 /|| || ||| || ||\
 """,
     },
@@ -602,44 +602,44 @@ _registrar(Especie(
     clave="dragoncito", nombre="Tsushimon", emoji="🐉", color=ROJO,
     fuerza=12, velocidad=9, salud=9, rareza=RARA, peso=4.0,
     descripcion="Sale una vez de cada veinticinco huevos. Cuídalo bien.",
-    # Dragón chino: serpentino y SIN ALAS. Astas de ciervo «⌐ ¬», bigotes «~»
+    # Dragón chino: serpentino y SIN ALAS. Astas de ciervo «/ \», bigotes «~»
     # saliendo del hocico, melena, escamas y garras. Lo de antes le ponía
     # membranas a los lados, que es un dragón occidental.
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
     arte={
         BEBE: r"""
- ⌐\/¬
+ /\/\
 ({cara})
  ~~~
 """,
         NINO: r"""
-⌐\ /¬
+/\ /\
 ({cara})
 (~~~)
- ᐩ ᐩ
+ + +
 """,
         ADOLESCENTE: r"""
-⌐\  /¬
+/\  /\
 -({cara})-
 (~~~~~)
 ~(░░░)~
- ᐩ   ᐩ
+ +   +
 """,
         ADULTO: r"""
-  ⌐\   /¬
+  /\   /\
  --({cara})--
   ~)___(~
 ~(  ░░░  )~
 ~~(     )~~
- ᐩ   ᐩ   ᐩ
+ +   +   +
 """,
         ADULTO_GRANDE: r"""
-   ⌐\     /¬
+   /\     /\
  --( ({cara}) )--
    ~)_____(~
  ~~(  ░░░  )~~
 ~~~(       )~~~
-  ᐩ    ᐩ    ᐩ
+  +    +    +
 """,
     },
 ))
@@ -877,14 +877,14 @@ AAAAA
         ADULTO: r"""
  Y Y Y Y
  YvYvYvY
- ⌐({cara})¬
+ /({cara})\
  AAAAAAA
 AAAAAAAAA
 """,
         ADULTO_GRANDE: r"""
   Y Y Y Y Y Y
   YvYvYvYvYvY
-  ⌐(  {cara}  )¬
+  /(  {cara}  )\
   AAAAAAAAAAA
  AAAAAAAAAAAAA
 AAAAAAAAAAAAAAA
@@ -910,14 +910,14 @@ _registrar(Especie(
         ADOLESCENTE: r"""
   _,-,
   /  j
-⊐-({cara})-⊏
+>-({cara})-<
 //  ,  \\
 '  ' '  '
 """,
         ADULTO: r"""
     _,-,
     /   j
-⊐---({cara})---⊏
+>---({cara})---<
  //  ,,,  \\
  /   | |   \
  '   ' '   '
@@ -925,7 +925,7 @@ _registrar(Especie(
         ADULTO_GRANDE: r"""
       _,-,
      /    j
-⊐----(({cara}))----⊏
+>----(({cara}))----<
  ///   ,,,   \\\
  //    |||    \\
  '     ' '     '
@@ -1105,20 +1105,20 @@ _registrar(Especie(
 U   U
 """,
         ADOLESCENTE: r"""
-. ⌐({cara})¬ .
+. /({cara})\ .
   /|   |\
    |   |
    U   U
 """,
         ADULTO: r"""
-.  ⌐( {cara} )¬  .
+.  /( {cara} )\  .
    /|     |\
     |     |
     |     |
     U     U
 """,
         ADULTO_GRANDE: r"""
-∙  .  ⌐(  {cara}  )¬  .  ∙
+.  .  /(  {cara}  )\  .  .
       /|       |\
        |       |
        |       |
@@ -1179,20 +1179,20 @@ _registrar(Especie(
 """,
         NINO: r"""
  \\ //
-¬({cara})¬
+/({cara})\
   'v'
   n n
 """,
         ADOLESCENTE: r"""
 \\\___///
-¬( {cara} )¬
+/( {cara} )\
   \ w /
   '-v-'
   n   n
 """,
         ADULTO: r"""
 \\\_____///
-¬(  {cara}  )¬
+/(  {cara}  )\
   \  w  /
   '-vv-'
   //   \\
@@ -1200,7 +1200,7 @@ _registrar(Especie(
 """,
         ADULTO_GRANDE: r"""
 \\\_______///
-¬(   {cara}   )¬
+/(   {cara}   )\
   \   w   /
    '-vvv-'
   //     \\
@@ -1217,33 +1217,33 @@ _registrar(Especie(
     arte={
         BEBE: r"""
 ({cara})
- ᐩ ᐩ
+ + +
 """,
         NINO: r"""
  \ /
 ({cara})
- ᐩ ᐩ
+ + +
 """,
         ADOLESCENTE: r"""
 \\\  ///
 \({cara})/
- \ ⌐ /
- ᐩ   ᐩ
+ \ v /
+ +   +
 """,
         ADULTO: r"""
 \\\\\   /////
  \\\({cara})///
-    \ ⌐ /
+    \ v /
     /   \
-    ᐩ   ᐩ
+    +   +
 """,
         ADULTO_GRANDE: r"""
 \\\\\\\     ///////
   \\\\\({cara})/////
-      \\ ⌐ //
+      \\ v //
        |   |
        /   \
-       ᐩ   ᐩ
+       +   +
 """,
     },
 ))
@@ -1263,20 +1263,20 @@ vv({cara})vv
 """,
         ADOLESCENTE: r"""
 vvv({cara})vvv
-   \ ᵕ /
+   \ u /
     ' '
 """,
         ADULTO: r"""
 vvvv      vvvv
  vvv({cara})vvv
-   \  ᵕ  /
+   \  u  /
    |     |
    ''   ''
 """,
         ADULTO_GRANDE: r"""
 vvvvv       vvvvv
   vvvv({cara})vvvv
-    \   ᵕ   /
+    \   u   /
     |  ,,,  |
     \       /
     ''     ''

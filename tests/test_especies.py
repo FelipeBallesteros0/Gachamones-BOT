@@ -25,16 +25,9 @@ import pantalla
 ASCII_IMPRIMIBLE = frozenset(chr(cp) for cp in range(0x20, 0x7F))
 
 PERMITIDOS = ASCII_IMPRIMIBLE | frozenset(
-    "¬"      # signo de negación: las orejas caídas de Goot
-    "ᐩ"      # silábico canadiense: las garras de Céfiro y del dragón
-    "ᵕ"      # media o baja: la boca dormida de Noctule
-    "∙"      # operador: las limaduras de Magnetrón
-    "⊏⊐"     # operadores: las pinzas de Escorpgon
-    "⌐"      # negación al revés: el pico de Céfiro
-    "╷"      # trazo hacia abajo: las patas de Re-bot
-    "░"      # sombra ligera: escamas y texturas
-    "▿"      # triángulo pequeño: el pico de Piollito
-    "｡ｰｼﾉﾞ"  # katakana de medio ancho: crestas, alas y patas
+    "░"      # sombra ligera: escamas y texturas. Único no-ASCII del arte, y
+             # está aquí porque las barras de comida, ánimo y aseo lo pintan en
+             # cada ficha desde antes de todo esto.
 )
 
 # Y aparte, los de ancho ambiguo que sí valen. Son los seis del marco de la
