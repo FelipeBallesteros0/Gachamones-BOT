@@ -2,8 +2,8 @@
 
 Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
 gachamones al azar —hay 25 en total; los otros 15 se encuentran por ahí—, se cuida con los botones bajo el mensaje y compite contra los
-de otras personas en carreras y peleas de sumo. Todo el arte es ASCII dentro de
-bloques de código: ni una sola imagen.
+de otras personas en carreras, peleas de sumo y asaltos al tótem. Todo el arte
+es ASCII dentro de bloques de código: ni una sola imagen.
 
 ```
 ## 🐥 Pelusa
@@ -130,6 +130,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/mascota @alguien` | Enseña la criatura de otra persona (sin botones). |
 | `/carrera @alguien` | Reto de velocidad + 1d20. Admite hasta tres invitados más (cinco corriendo), y con tres o más termina en podio. |
 | `/sumo @alguien` | Reto de fuerza + 1d20. Con tres invitados es un torneo de cuatro: dos semifinales sorteadas y una final. |
+| `/totem @alguien` | Asalto al tótem: una fase de velocidad, otra de fuerza y otra de salud, cada una `estadística + 1d20`. Cada fase reparte puestos y gana quien más sume. De dos a cinco. |
 | `/aventura` | Sal al campo con tu activo: dos decisiones —fuerza, velocidad o volverse— y quizá un objeto o un gachamon salvaje. |
 | `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
@@ -316,10 +317,38 @@ tiene dos lados, así que con cuatro se juega a **torneo** —dos semifinales
 sorteadas y una final— y el resumen es el **cuadro**, con quien pasa en el color
 de su especie y quien cae en gris.
 
-En los dos casos sólo el primero suma victoria y se lleva los +10; el resto, +4.
+El **asalto al tótem** es de dos a cinco y no basta con llegar: hay que tomar el
+tótem y conservarlo. Son tres fases y cada una pone a prueba una estadística
+entera —**AL CENTRO** velocidad, **FORCEJEO** fuerza y **HUIDA** salud—, sin
+mezclas. Lo que cambia es el recuento: en cada fase se reparten **puntos de
+colocación**, tantos como asaltantes al primero y uno al último, y gana quien
+más sume de las tres. Por eso lo gana el gachamon **completo** y no el
+especialista: quien arrasa en una fase se queda atrás en las otras dos.
+
+Si dos empatan a puestos manda lo acumulado en bruto de esas tres fases. Sólo si
+también eso empata se juega otro **FORCEJEO**, y ése desempata **dentro** del
+empate: tiran sólo los que siguen empatados, no reparte puestos ni suma al bruto
+oficial, así que nadie de fuera adelanta por él. Si a la vez hay dos empates y
+uno se deshace antes, el otro sigue tirando por su cuenta sin tocar al primero.
+
+Las tres estadísticas dejan **veta**, porque las tres se han jugado de verdad,
+pero el **entrenamiento sigue siendo un punto** por competencia como en las
+otras dos modalidades —el coste, el enfriamiento y la experiencia son los
+mismos—. Se lo lleva la más atrasada de las tres, así que asaltar a menudo
+equilibra al gachamon en vez de multiplicar su progreso.
+
+En los tres casos sólo el primero suma victoria y se lleva los +10; el resto, +4.
 Un torneo cuenta como **una sola competencia** para el coste y la experiencia,
-aunque los finalistas peleen dos veces. Si dos empatan se tira otro tramo para
-todos hasta deshacerlo.
+aunque los finalistas peleen dos veces.
+
+Los empates se deshacen distinto en cada modalidad. En la **carrera** se corre
+otro tramo **para todos**, porque allí el marcador es la suma y un tramo más la
+cambia. En el **sumo** se repite el intercambio empatado entre los dos que
+pelean. En el **asalto al tótem** se juega otro **FORCEJEO** sólo **entre los
+que siguen exactamente empatados**: quien ya quedó por delante no vuelve a
+tirar, así que un desempate ajeno no le puede cambiar el puesto. En los tres
+casos hay un tope de intentos y, si aun así no se deshace, decide el orden en
+que se entró al reto.
 
 Al terminar, la pantalla sólo se republica a quien **suba de nivel o
 evolucione**. Al resto le queda la de antes con los números viejos, pero con los
@@ -390,7 +419,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `personalidad.py` | La voz de cada especie, los diez caracteres y cómo se le explica todo al modelo. |
 | `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. |
 | `simulacion.py` | Decaimiento, muerte, acciones de cuidado, estadísticas y niveles. |
-| `competir.py` | Resolución y narración de carreras y sumo. |
+| `competir.py` | Resolución y narración de carreras, sumo y asaltos al tótem. |
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
 | `pantalla.py` | Dibuja la pantalla como texto de Discord. |
 | `db.py` | SQLite. |

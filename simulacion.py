@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import random
 import unicodedata
+from collections.abc import Sequence
 from random import Random as _RandomImpronta
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -539,12 +540,31 @@ def _aplicar_rupturas(
     criatura: Criatura,
     limite: int = MAX_RUPTURAS_POR_SUCESO,
     causa: str = "",
+    preferida: str | None = None,
+    reservada: bool = False,
 ) -> tuple[Criatura, tuple[Ruptura, ...]]:
-    """Rompe tensiones ya acumuladas, con selección y cascada deterministas."""
+    """Rompe tensiones ya acumuladas, con selección y cascada deterministas.
+
+    `preferida` fuerza **la primera** ruptura sobre esa estadística si es
+    elegible; de la segunda en adelante manda la regla de siempre. Lo usa la
+    veta que cierra una subida de nivel, que necesita romper por donde todavía
+    se puede crecer a la vista y no por donde más tensión hay.
+
+    `reservada` dice que una de las rupturas de `limite` está apartada para la
+    subida de nivel: el techo real es una menos **mientras** no haya crecido
+    nada a la vista, y vuelve a ser `limite` en cuanto una ruptura de esta misma
+    llamada mueve una estadística visible. Se suelta aquí dentro y no entre
+    emisiones porque la cascada que abre esa ruptura tiene que romperse en este
+    mismo bucle: es lo único que conserva su `arrastradas` y su `cascada=True`.
+    """
     rupturas: list[Ruptura] = []
     arrastradas: set[str] = set()
     estado = criatura
-    while len(rupturas) < limite:
+    visibles_al_entrar = tuple(getattr(criatura, stat) for stat in ESTADISTICAS)
+    while len(rupturas) < limite - (
+        reservada
+        and tuple(getattr(estado, s) for s in ESTADISTICAS) == visibles_al_entrar
+    ):
         umbral = umbral_veta(estado)
         tensiones = _tensiones(estado)
         elegibles = [
@@ -559,6 +579,9 @@ def _aplicar_rupturas(
             key=lambda candidato: (tensiones[_indice_stat(candidato)],
                                    -_indice_stat(candidato)),
         )
+        if preferida in elegibles:
+            stat = preferida
+        preferida = None
         cascada = stat in arrastradas
         stat_antes = getattr(estado, stat)
         indice = _indice_stat(stat)
@@ -621,8 +644,14 @@ def emitir_tension(
     criatura: Criatura, esfuerzo: Esfuerzo | str, bruto: float | None = None,
     *, profunda: bool = False, forzar: bool = False, causa: str = "",
     max_rupturas: int = MAX_RUPTURAS_POR_SUCESO,
+    reservada: bool = False,
 ) -> tuple[Criatura, tuple[Ruptura, ...]]:
-    """Añade una emisión, filtra el esfuerzo y rompe como máximo tres veces."""
+    """Añade una emisión, filtra el esfuerzo y rompe como máximo tres veces.
+
+    `reservada` se pasa tal cual al bucle de rupturas: una de las de
+    `max_rupturas` está apartada para el crecimiento visible de una subida, y se
+    suelta en cuanto una ruptura de esta emisión lo consigue.
+    """
     if isinstance(esfuerzo, str):
         esfuerzo = Esfuerzo(esfuerzo, bruto or 0.0, profunda, forzar, causa)
     if esfuerzo.stat not in ESTADISTICAS:
@@ -652,6 +681,7 @@ def emitir_tension(
         con_tension,
         max(0, max_rupturas),
         esfuerzo.causa or causa,
+        reservada=reservada,
     )
 
 
@@ -689,20 +719,50 @@ def _completar_veta_de_nivel(
         criatura,
         **{f"ten_{stat}": max(tensiones[indice], umbral_veta(criatura))},
     )
-    return _aplicar_rupturas(al_umbral, limite, "nivel")
+    # Se rompe **por ahí**: subirla al umbral no basta si otra estadística ya
+    # topada acumula más tensión, y entonces la veta de la subida se iría a un
+    # 999 -> 999 que no se ve.
+    return _aplicar_rupturas(al_umbral, limite, "nivel", preferida=stat)
+
+
+def _queda_algo_visible_por_crecer(criatura: Criatura) -> bool:
+    return any(getattr(criatura, stat) < MAXIMO_STAT for stat in ESTADISTICAS)
 
 
 def aplicar_evento(
     criatura: Criatura, esfuerzos: tuple[Esfuerzo, ...] = (),
     ganada: int = 0, rng: random.Random | None = None,
 ) -> tuple[Criatura, tuple[Ruptura, ...]]:
-    """Aplica emisiones reales y después las subidas de nivel del mismo evento."""
+    """Aplica emisiones reales y después las subidas de nivel del mismo evento.
+
+    Todo el suceso comparte `MAX_RUPTURAS_POR_SUCESO`, y cuando además se sube
+    de nivel se **aparta una** de esas tres para la subida: es la que garantiza
+    que evolucionar se note en alguna estadística visible. Sin apartarla, un
+    suceso con varios esfuerzos reales —el asalto al tótem juega tres— podía
+    gastarse las tres en vetas ya topadas y dejar la evolución sin nada que
+    enseñar, mientras que una carrera o un sumo, con un solo esfuerzo, sí
+    crecían desde el mismo estado.
+
+    La reserva es de **una** ruptura y para la **primera** subida del suceso: es
+    lo que cabe sin tocar el tope global de tres. Si el suceso encadenara varios
+    niveles, los siguientes se reparten lo que quede, como hasta ahora.
+
+    No se reserva nada si no hay subida, o si las tres estadísticas visibles ya
+    están en `MAXIMO_STAT`: ahí no hay crecimiento que garantizar y el hueco
+    haría falta para vetas que sí valen. Las vetas topadas **no** se filtran:
+    siguen moviendo `niv_*`, tensión, historial e identidad.
+    """
     del rng  # La firma conserva compatibilidad; VETAS no tira dados de crecimiento.
     estado = criatura
     rupturas: list[Ruptura] = []
+    reservada = int(
+        estado.xp + ganada >= xp_para_subir(estado.nivel)
+        and _queda_algo_visible_por_crecer(estado)
+    )
     for esfuerzo in esfuerzos:
         estado, nuevas = emitir_tension(
-            estado, esfuerzo, max_rupturas=MAX_RUPTURAS_POR_SUCESO - len(rupturas)
+            estado, esfuerzo,
+            max_rupturas=MAX_RUPTURAS_POR_SUCESO - reservada - len(rupturas),
         )
         rupturas.extend(nuevas)
     xp = estado.xp + ganada
@@ -712,17 +772,26 @@ def aplicar_evento(
         nivel += 1
         stats_antes = tuple(getattr(estado, stat) for stat in ESTADISTICAS)
         for esfuerzo in _emisiones_de_nivel(estado, nivel):
+            # A la emisión se le da la capacidad **entera** que queda y aparte
+            # la intención de reservar: así, si es ella misma la que hace crecer
+            # algo visible, el hueco se suelta dentro de su propio bucle y la
+            # cascada que abre esa ruptura cabe todavía, con su `cascada=True`.
             estado, nuevas = emitir_tension(
                 estado, esfuerzo,
                 max_rupturas=MAX_RUPTURAS_POR_SUCESO - len(rupturas),
+                reservada=bool(reservada),
             )
             rupturas.extend(nuevas)
+            # Cumplida la garantía, las emisiones que queden van sin reserva.
+            if tuple(getattr(estado, s) for s in ESTADISTICAS) != stats_antes:
+                reservada = 0
         stats_despues = tuple(getattr(estado, stat) for stat in ESTADISTICAS)
         if stats_despues == stats_antes:
             estado, nuevas = _completar_veta_de_nivel(
                 estado, MAX_RUPTURAS_POR_SUCESO - len(rupturas)
             )
             rupturas.extend(nuevas)
+        reservada = 0
     estado = replace(estado, xp=xp, nivel=nivel)
     return estado, tuple(rupturas)
 
@@ -1038,23 +1107,59 @@ def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:
     raise ValueError(f"acción desconocida: {accion}")
 
 
+def _stats_de_competencia(stats: Sequence[str]) -> tuple[str, ...]:
+    """Valida la lista de estadísticas de una modalidad y la deja en tupla.
+
+    Se rechaza lo vacío, lo desconocido y lo repetido —y, de paso, una cadena
+    suelta, que se leería letra a letra y entrenaría cualquier cosa.
+    """
+    stats = tuple(stats)
+    if (
+        not stats
+        or len(set(stats)) != len(stats)
+        or any(stat not in ESTADISTICAS for stat in stats)
+    ):
+        raise ValueError(f"estadísticas de competencia inválidas: {stats}")
+    return stats
+
+
+def stat_a_entrenar(criatura: Criatura, stats: Sequence[str]) -> str:
+    """Cuál de las estadísticas jugadas se lleva el punto de entrenamiento.
+
+    Competir da **un** punto, se juegue una fase o se jueguen tres: el coste, el
+    enfriamiento y la experiencia son los mismos, así que una modalidad de tres
+    estadísticas no puede dar el triple de progreso permanente. Se lo lleva la
+    más atrasada de las que se han jugado y, a igualdad, la primera de la lista
+    —que es el orden de sus fases—, de modo que asaltos repetidos reparten solos
+    en vez de amontonar.
+    """
+    stats = _stats_de_competencia(stats)
+    return min(stats, key=lambda stat: getattr(criatura, f"ent_{stat}"))
+
+
 def aplicar_competencia(
     criatura: Criatura,
     gano: bool,
-    stat: str,
+    stats: Sequence[str],
     rng: random.Random | None = None,
     margen: float | None = None,
 ) -> tuple[Criatura, list[Ruptura]]:
-    """Aplica desgaste, marca real, XP y entrenamiento de haber competido."""
-    if stat not in ("velocidad", "fuerza"):
-        raise ValueError(f"estadística de competencia desconocida: {stat}")
+    """Aplica desgaste, marca real, XP y entrenamiento de haber competido.
 
+    `stats` son las estadísticas que la modalidad puso a prueba de verdad: una
+    en la carrera y en el sumo, y las tres del asalto al tótem, que juega una
+    fase con cada una. **Todas** dejan su marca de veta —y comparten el tope de
+    tres rupturas del suceso, que lo impone `aplicar_evento`—, pero el punto de
+    entrenamiento sigue siendo **uno solo** y se lo lleva la que dice
+    `stat_a_entrenar`.
+    """
+    stats = _stats_de_competencia(stats)
+    entrenada = stat_a_entrenar(criatura, stats)
     entrenados = {
-        "ent_velocidad": criatura.ent_velocidad,
-        "ent_fuerza": criatura.ent_fuerza,
+        f"ent_{entrenada}": (
+            getattr(criatura, f"ent_{entrenada}") + ENTRENAMIENTO_POR_COMPETIR
+        )
     }
-    entrenados[f"ent_{stat}"] += ENTRENAMIENTO_POR_COMPETIR
-
     desgastada = replace(
         criatura,
         hambre=_limitar(criatura.hambre - COSTE_HAMBRE_COMPETIR),
@@ -1063,12 +1168,13 @@ def aplicar_competencia(
         derrotas=criatura.derrotas + (0 if gano else 1),
         **entrenados,
     )
-    esfuerzo = esfuerzo_de_competencia(
-        stat, 30.0 if margen is None else margen, gano
+    esfuerzos = tuple(
+        esfuerzo_de_competencia(stat, 30.0 if margen is None else margen, gano)
+        for stat in stats
     )
     estado, rupturas = aplicar_evento(
         desgastada,
-        (esfuerzo,),
+        esfuerzos,
         XP_VICTORIA if gano else XP_DERROTA,
         rng,
     )

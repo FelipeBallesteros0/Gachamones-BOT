@@ -721,6 +721,16 @@ def ejecutar_entrenamiento_conjunto(
         )
 
 
+# Qué cuenta cada victoria. Vive aquí y no en `competir.py` ni en `logros.py`
+# porque es el único sitio que habla los dos vocabularios: la modalidad y la
+# clave del marcador.
+MARCADOR_DE_MODALIDAD = {
+    comp.CARRERA: lgr.CARRERAS,
+    comp.SUMO: lgr.SUMOS,
+    comp.TOTEM: lgr.TOTEMS,
+}
+
+
 def _replay_competencia(
     con, evento_id: str, usuarios: tuple[str, ...],
     guild_id: str, solicitud: str,
@@ -837,7 +847,7 @@ def ejecutar_competencia(
                     espera=espera,
                 )
 
-        stat = comp.STATS[tipo]
+        stats = comp.STATS[tipo]
         encuentro = comp.enfrentar(
             [
                 comp.competidor_de(
@@ -859,7 +869,7 @@ def ejecutar_competencia(
             sim.aplicar_competencia(
                 criatura,
                 dorsal == ganador,
-                stat,
+                stats,
                 rng,
                 comp.margen_de(encuentro, dorsal),
             )
@@ -883,10 +893,7 @@ def ejecutar_competencia(
         # ya ha vuelto antes de llegar aquí, así que reprocesar el mismo evento
         # no cuenta dos veces.
         campeon = despues[ganador]
-        db.apuntar_en(
-            con, campeon.id,
-            lgr.CARRERAS if tipo == comp.CARRERA else lgr.SUMOS,
-        )
+        db.apuntar_en(con, campeon.id, MARCADOR_DE_MODALIDAD[tipo])
         if encuentro.es_torneo:
             db.apuntar_en(con, campeon.id, lgr.TORNEOS)
 

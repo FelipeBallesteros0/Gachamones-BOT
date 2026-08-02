@@ -118,14 +118,22 @@ def texto_recibo_competencia(
     mencion: str,
     *,
     gano: bool,
-    stat: str,
+    stats: tuple[str, ...],
+    entrenada: str,
 ) -> str:
     cap = f"competencia {recibo.usados}/{recibo.limite} UTC"
     if recibo.topada:
         cap += " (tope)"
+    # Con una sola fase la línea de siempre ya lo dice todo. Con varias hay que
+    # separar las dos cosas: las tres dejan veta, pero el punto es uno.
+    veta = (
+        f"{', '.join(stats[:-1])} y {stats[-1]} dejan veta"
+        if len(stats) > 1 else ""
+    )
     partes = [
         mencion,
-        f"{stat} +{sim.ENTRENAMIENTO_POR_COMPETIR} entrenamiento",
+        veta,
+        f"{entrenada} +{sim.ENTRENAMIENTO_POR_COMPETIR} entrenamiento",
         f"+{sim.XP_VICTORIA if gano else sim.XP_DERROTA} XP",
         f"coste base -{sim.COSTE_HAMBRE_COMPETIR:g} comida",
         f"coste base -{sim.COSTE_ANIMO_COMPETIR:g} ánimo",
@@ -342,6 +350,29 @@ class Competencias(commands.Cog):
     ):
         await self._retar(interaccion, (usuario, usuario2, usuario3), comp.SUMO)
 
+    @app_commands.command(
+        name="totem",
+        description="Reta a un asalto al tótem: AL CENTRO, FORCEJEO y HUIDA",
+    )
+    @app_commands.describe(
+        usuario="A quién quieres retar",
+        usuario2="Otro más (opcional)",
+        usuario3="Otro más (opcional)",
+        usuario4="Otro más (opcional)",
+    )
+    @comun.solo_en_el_canal()
+    async def totem(
+        self,
+        interaccion: discord.Interaction,
+        usuario: discord.User,
+        usuario2: discord.User | None = None,
+        usuario3: discord.User | None = None,
+        usuario4: discord.User | None = None,
+    ):
+        await self._retar(
+            interaccion, (usuario, usuario2, usuario3, usuario4), comp.TOTEM
+        )
+
     async def _retar(
         self,
         interaccion: discord.Interaction,
@@ -385,11 +416,7 @@ class Competencias(commands.Cog):
 
         a_quien = ", ".join(u.mention for u in invitados)
         nombres = ", ".join(c.nombre for c in criaturas)
-        regla = (
-            "SALIDA, TERRENO y FONDO suman puntos"
-            if tipo == comp.CARRERA
-            else "POSICIÓN, EMPUJE y AGUANTE; gana quien logra 2 intercambios"
-        )
+        regla = comp.REGLAS[tipo]
         cabecera = (
             f"⚡ {retador.mention} reta a {a_quien} a "
             f"**{comp.como_se_llama(tipo, len(criaturas))}**.\n"
@@ -452,16 +479,19 @@ class Competencias(commands.Cog):
             await self._animar(canal, fotogramas)
 
         ganador = encuentro.orden[0]
-        stat = comp.STATS[tipo]
+        stats = comp.STATS[tipo]
         recibos = "\n".join(
             texto_recibo_competencia(
                 recibo,
                 usuario.mention,
                 gano=dorsal == ganador,
-                stat=stat,
+                stats=stats,
+                # El mismo selector puro que usó `aplicar_competencia`, sobre la
+                # ficha de antes: así el recibo nombra la que de verdad subió.
+                entrenada=sim.stat_a_entrenar(antes, stats),
             )
-            for dorsal, (recibo, usuario) in enumerate(
-                zip(resultado.recibos, participantes)
+            for dorsal, (recibo, usuario, antes) in enumerate(
+                zip(resultado.recibos, participantes, resultado.antes)
             )
         )
         await canal.send(f"{comp.resumen(encuentro)}\n{recibos}")

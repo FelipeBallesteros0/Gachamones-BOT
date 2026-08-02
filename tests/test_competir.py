@@ -543,7 +543,7 @@ def test_los_marcos_de_competencia_nunca_se_descuadran():
     marco."""
     rng = random.Random(0)
     for cuantos in range(2, comp.MAX_CORREDORES + 1):
-        tipos = [comp.CARRERA]
+        tipos = [comp.CARRERA, comp.TOTEM]
         if cuantos in comp.CUANTOS_CABEN[comp.SUMO]:
             tipos.append(comp.SUMO)
         for tipo in tipos:
@@ -918,3 +918,421 @@ def test_el_cuadro_no_se_descuadra():
     e = comp.enfrentar(iguales, comp.SUMO, DadosFijos([7]))
     for linea in lineas(comp.cuadro(e)):
         assert len(linea) == pantalla.ANCHO + 2, repr(linea)
+
+
+# --- El Asalto al Tótem ----------------------------------------------------
+
+def test_las_tres_fases_del_totem_miran_una_estadistica_cada_una():
+    """Sin mezclas: cada fase lee su estadística y nada más."""
+    c = competidor(
+        fuerza=10, velocidad=20, salud=30,
+        bonus_fuerza=2, bonus_velocidad=4,
+    )
+
+    assert {fase: c.base_en(fase) for fase in comp.FASES_TOTEM} == {
+        comp.CENTRO: 24,
+        comp.FORCEJEO: 12,
+        comp.HUIDA: 30,
+    }
+
+
+def test_cada_fase_del_totem_reparte_puntos_de_colocacion_de_n_a_uno():
+    tres = [
+        competidor("Alta", stat=30),
+        competidor("Media", stat=20),
+        competidor("Baja", stat=10),
+    ]
+    _, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+
+    assert len(r.rondas) == len(comp.FASES_TOTEM)
+    assert [ronda.fase for ronda in r.rondas] == list(comp.FASES_TOTEM)
+    assert r.marcadores == (9, 6, 3)
+    assert r.orden == (0, 1, 2)
+
+
+def test_los_empatados_en_una_fase_del_totem_se_llevan_los_mismos_puntos():
+    """Empatar comparte el puesto de arriba y salta el de abajo.
+
+        AL CENTRO  40 30 20 -> 3 2 1
+        FORCEJEO   20 20 40 -> 2 2 3   el empate cobra 2 y nadie cobra el 1
+        HUIDA      26 35 15 -> 2 3 1
+                              --------
+                               7 7 5   diecinueve y no dieciocho
+    """
+    tres = [
+        competidor("Justa", velocidad=30, fuerza=10, salud=16),
+        competidor("Gemela", velocidad=20, fuerza=10, salud=25),
+        competidor("Otra", velocidad=10, fuerza=30, salud=5),
+    ]
+    _, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+
+    assert r.marcadores == (7, 7, 5)
+    assert sum(r.marcadores) == 19
+
+
+def test_el_desempate_de_puntos_del_totem_mira_el_rendimiento_bruto():
+    """Con los mismos puntos manda lo acumulado; el bruto solo no gana el tótem."""
+    tres = [
+        competidor("Justa", velocidad=32, fuerza=5, salud=20),
+        competidor("Fina", velocidad=20, fuerza=5, salud=30),
+        competidor("Bruta", velocidad=10, fuerza=40, salud=10),
+    ]
+    _, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+
+    assert r.marcadores == (7, 7, 5)
+    assert r.totales == (87, 85, 90)
+    assert r.orden == (0, 1, 2)
+
+
+def test_el_empate_exacto_del_totem_se_desempata_con_un_forcejeo_visible():
+    tres = [
+        competidor("A", velocidad=30, fuerza=20, salud=10),
+        competidor("B", velocidad=20, fuerza=10, salud=30),
+        competidor("C", velocidad=10, fuerza=30, salud=20),
+    ]
+    _, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+
+    assert r.desempates == 1
+    assert len(r.rondas) == len(comp.FASES_TOTEM) + 1
+    assert r.rondas[-1].fase == comp.DESEMPATE
+    # Empate exacto a tres: el marcador y el bruto oficiales no se mueven, y
+    # quien más saca en el forcejeo se lleva el tótem.
+    assert r.marcadores == (6, 6, 6)
+    assert r.totales == (90, 90, 90)
+    assert r.orden == (2, 0, 1)
+
+
+def test_los_desempates_del_totem_tienen_tope_y_fallback_determinista():
+    dos = [competidor("A", stat=10), competidor("B", stat=10)]
+    _, r = combate(dos, comp.TOTEM, DadosFijos([7]))
+
+    assert r.desempates == comp.MAX_DESEMPATES
+    assert len(r.rondas) == len(comp.FASES_TOTEM) + comp.MAX_DESEMPATES
+    assert r.orden == (0, 1)
+
+
+def test_el_totem_admite_de_dos_a_cinco_y_nunca_es_torneo():
+    for cuantos in range(2, comp.MAX_CORREDORES + 1):
+        e = comp.enfrentar(
+            [competidor(f"C{i}", stat=10 + i) for i in range(cuantos)],
+            comp.TOTEM, DadosFijos([10]),
+        )
+        assert len(e.orden) == cuantos
+        assert not e.es_torneo
+
+
+def test_el_totem_no_admite_ni_uno_ni_seis():
+    espera_error([competidor("Solo")], comp.TOTEM,
+                 "un asalto al tótem de uno debería estar prohibido")
+    espera_error([competidor(f"C{i}") for i in range(6)], comp.TOTEM,
+                 "un asalto al tótem de seis debería estar prohibido")
+
+
+def test_el_totem_lo_gana_la_versatilidad_y_la_carrera_el_velocista():
+    """El mismo trío, dos modalidades y dos ganadores distintos."""
+    tres = [
+        competidor("Equilibrio", stat=20),
+        competidor("Velocista", velocidad=35, fuerza=10, salud=11),
+        competidor("Forzudo", velocidad=10, fuerza=35, salud=10),
+    ]
+    _, totem = combate(tres, comp.TOTEM, DadosFijos([10]))
+    _, carrera = combate(tres, comp.CARRERA, DadosFijos([10]))
+
+    # Ninguna fase la manda el mismo: cada uno gana la suya.
+    mejores = [
+        max(range(3), key=lambda i: ronda.totales[i]) for ronda in totem.rondas
+    ]
+    assert mejores == [1, 2, 0]
+
+    assert totem.marcadores == (7, 6, 5)
+    assert totem.competidor_ganador.nombre == "Equilibrio"
+    assert carrera.competidor_ganador.nombre == "Velocista"
+
+
+def test_el_reto_del_totem_se_anuncia_por_su_nombre():
+    assert comp.como_se_llama(comp.TOTEM, 3) == "un ASALTO AL TÓTEM"
+
+
+def test_con_dos_el_totem_se_resume_por_puntos_de_colocacion():
+    e, _ = combate([competidor("A", stat=20), competidor("B", stat=10)],
+                   comp.TOTEM, DadosFijos([10]))
+
+    assert comp.resumen(e) == (
+        "🏆 **A** gana a **B** por 6–3 puntos de colocación."
+    )
+
+
+def test_con_tres_o_mas_el_totem_termina_en_podio():
+    e, _ = combate([competidor(f"C{i}", stat=10 + i) for i in range(3)],
+                   comp.TOTEM, DadosFijos([10]))
+    resumen = comp.resumen(e)
+
+    assert resumen.startswith("## 🏁 Podio")
+    assert comp.NOMBRES[comp.TOTEM] in resumen
+
+
+def test_el_totem_tiene_un_fotograma_por_fase_y_tres_escenas_distintas():
+    e, _ = combate([competidor("A", stat=20), competidor("B", stat=10)],
+                   comp.TOTEM, DadosFijos([10]))
+    fotogramas = comp.fotogramas_de(e)[0]
+
+    assert len(fotogramas) == len(comp.FASES_TOTEM)
+    escenas = []
+    for fase, fotograma in zip(comp.FASES_TOTEM, fotogramas):
+        ls = lineas(fotograma)
+        assert fase in ls[1]
+        escena = tuple(ls[3:3 + comp.ALTO_ESCENA])
+        assert all("#" in "".join(escena) for _ in (0,)), escena
+        escenas.append(escena)
+    assert len(set(escenas)) == len(comp.FASES_TOTEM)
+
+
+def test_el_fotograma_del_totem_ensena_el_dado_y_los_puntos_de_cada_uno():
+    e, _ = combate([competidor("A", stat=20), competidor("B", stat=10)],
+                   comp.TOTEM, DadosFijos([10]))
+    ultimo = lineas(comp.fotogramas_de(e)[0][-1])
+
+    assert sum(1 for linea in ultimo if "+d20" in linea) == 2
+    puestos = [linea for linea in ultimo if linea.startswith(("│  1 ", "│  2 "))]
+    assert len(puestos) == 2
+    assert "A" in puestos[0] and puestos[0].strip("│ ").endswith("6")
+    assert "B" in puestos[1] and puestos[1].strip("│ ").endswith("3")
+
+
+def test_la_escena_del_totem_cabe_entera_en_el_marco():
+    assert comp.ANCHO_ESCENA <= pantalla.ANCHO
+    for fase, escena in comp.ESCENAS_TOTEM.items():
+        assert len(escena) == comp.ALTO_ESCENA, fase
+        assert {len(linea) for linea in escena} == {comp.ANCHO_ESCENA}, fase
+
+
+def test_el_totem_de_cinco_cabe_en_un_mensaje_de_discord():
+    largo = "M" * 24  # vistas.LARGO_MAXIMO_NOMBRE
+    cinco = [
+        competidor(largo, stat=sim.MAXIMO_STAT, modificador=2) for _ in range(5)
+    ]
+    e = comp.enfrentar(cinco, comp.TOTEM, DadosFijos([7]))
+
+    for fotograma in comp.fotogramas_de(e)[0]:
+        assert len(fotograma) <= 2000, len(fotograma)
+    assert len(comp.resumen(e)) <= 2000
+
+
+def test_cada_modalidad_esta_en_todas_las_tablas():
+    """Media modalidad cableada es un KeyError en producción, no un test rojo."""
+    modalidades = {comp.CARRERA, comp.SUMO, comp.TOTEM}
+    for tabla in (
+        comp.NOMBRES, comp.STATS, comp.CUANTOS_CABEN, comp.ARTICULOS,
+        comp.REGLAS, comp.REGLA_DEL_MARCADOR, comp.DIBUJANTES,
+    ):
+        assert set(tabla) == modalidades
+
+
+def test_cada_modalidad_dice_su_regla_para_anunciar_el_reto():
+    assert comp.REGLAS[comp.TOTEM] == (
+        "AL CENTRO, FORCEJEO y HUIDA; cada fase reparte puestos "
+        "y gana quien más sume"
+    )
+
+
+def test_el_totem_de_cinco_ordena_el_podio_por_puntos_de_colocacion():
+    """Tres especialistas, un equilibrado alto y otro bajo, con el dado fijo.
+
+        AL CENTRO  50 10 13 30 20 -> 5 1 2 4 3
+        FORCEJEO   11 50 10 30 20 -> 2 5 1 4 3
+        HUIDA      10 12 50 30 20 -> 1 2 5 4 3
+                                    -------------
+                                     8 8 8 12 9
+    """
+    cinco = [
+        competidor("C0", velocidad=50, fuerza=11, salud=10),
+        competidor("C1", velocidad=10, fuerza=50, salud=12),
+        competidor("C2", velocidad=13, fuerza=10, salud=50),
+        competidor("C3", stat=30),
+        competidor("C4", stat=20),
+    ]
+    e, r = combate(cinco, comp.TOTEM, DadosFijos([10]))
+
+    assert r.marcadores == (8, 8, 8, 12, 9)
+    assert r.totales == (101, 102, 103, 120, 90)
+    assert e.orden == (3, 4, 2, 1, 0)
+    assert [c.nombre for c, _ in e.clasificacion] == [
+        "C3", "C4", "C2", "C1", "C0"
+    ]
+
+    podio = comp.podio(e)
+    assert "🥇 **C3**" in podio
+    assert "🥈 **C4**" in podio
+    assert "🥉 **C2**" in podio
+
+
+def test_el_desempate_del_totem_no_es_una_cuarta_fase_para_los_demas():
+    """Reproductor: A y B empatan exacto y C se queda atrás en bruto.
+
+        AL CENTRO  40 30 20 -> 3 2 1
+        FORCEJEO   30 20 40 -> 2 1 3
+        HUIDA      20 40 25 -> 1 3 2
+                              --------
+        puestos                6  6  6
+        bruto                 90 90 85
+
+    Sólo A y B están empatados exacto. El forcejeo de desempate desempata
+    **dentro** de ese empate: no es una fase más para todos, así que no puede
+    coronar a C, que ya había quedado por detrás en el bruto oficial.
+    """
+    tres = [
+        competidor("A", velocidad=30, fuerza=20, salud=10),
+        competidor("B", velocidad=20, fuerza=10, salud=30),
+        competidor("C", velocidad=10, fuerza=30, salud=15),
+    ]
+    e, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+
+    assert r.desempates == 1
+    assert r.marcadores == (6, 6, 6)
+    assert r.totales == (90, 90, 85)
+    assert e.orden == (0, 1, 2)
+    assert e.campeon.nombre == "A"
+
+
+def test_el_bruto_oficial_del_totem_manda_sobre_el_dorsal():
+    tres = [
+        competidor("C0", velocidad=20, fuerza=5, salud=30),
+        competidor("C1", velocidad=32, fuerza=5, salud=20),
+        competidor("C2", velocidad=10, fuerza=40, salud=10),
+    ]
+    _, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+
+    assert r.marcadores == (7, 7, 5)
+    assert r.totales == (85, 87, 90)
+    assert r.orden == (1, 0, 2)
+
+
+def test_la_ultima_clasificacion_visible_del_totem_es_la_del_resultado():
+    """Con un desempate de por medio, el último fotograma tiene que enseñar el
+    orden con el que se reparte el premio y no otro."""
+    tres = [
+        competidor("A", velocidad=30, fuerza=20, salud=10),
+        competidor("B", velocidad=20, fuerza=10, salud=30),
+        competidor("C", velocidad=10, fuerza=30, salud=20),
+    ]
+    e, r = combate(tres, comp.TOTEM, DadosFijos([10]))
+    assert r.desempates == 1
+    assert r.orden == (2, 0, 1)
+
+    ultimo = lineas(comp.fotogramas_de(e)[0][-1])
+    puestos = [
+        linea for linea in ultimo if linea.startswith(("│  1 ", "│  2 ", "│  3 "))
+    ]
+    assert [linea.split()[2] for linea in puestos] == ["C", "A", "B"]
+    # Los puntos oficiales no se mueven por el desempate.
+    assert [linea.split()[-2] for linea in puestos] == ["6", "6", "6"]
+
+
+def test_un_desempate_no_vuelve_a_tirar_por_quien_ya_quedó_desempatado():
+    """Dos empates exactos a la vez, y uno se resuelve antes que el otro.
+
+    Cuatro iguales con dados `[6,6,1,1]` en las tres fases dejan dos grupos
+    empatados exacto: A/B arriba y C/D abajo. El primer forcejeo deshace A/B
+    (4 contra 2) pero no C/D (3 y 3), así que hace falta un segundo. Ese segundo
+    es **de C y D**: si volviera a tirar por A y por B les cambiaría un orden ya
+    decidido, que es justo lo que un desempate no puede hacer.
+    """
+    cuatro = [competidor(nombre, stat=10) for nombre in "ABCD"]
+    dados = DadosFijos([6, 6, 1, 1] * 3 + [4, 2, 3, 3] + [1, 6, 1, 2])
+    e, r = combate(cuatro, comp.TOTEM, dados)
+
+    # Lo oficial no se mueve en ningún momento.
+    assert r.marcadores == (12, 12, 6, 6)
+    assert r.totales == (48, 48, 33, 33)
+
+    desempates = [ronda for ronda in r.rondas if ronda.fase == comp.DESEMPATE]
+    assert len(desempates) == 2
+    # El primero es de los cuatro; el segundo, sólo de quien seguía empatado.
+    assert desempates[0].dorsales == (0, 1, 2, 3)
+    assert desempates[1].dorsales == (2, 3)
+    assert dados.i == 12 + 4 + 2
+
+    # A por delante de B como quedó en el primer forcejeo, y D sobre C por el
+    # segundo (1 contra 6).
+    assert e.orden == (0, 1, 3, 2)
+    assert [c.nombre for c, _ in e.clasificacion] == ["A", "B", "D", "C"]
+
+
+def test_el_fotograma_de_un_desempate_solo_ensena_a_quien_tira():
+    cuatro = [competidor(nombre, stat=10) for nombre in "ABCD"]
+    dados = DadosFijos([6, 6, 1, 1] * 3 + [4, 2, 3, 3] + [1, 6, 1, 2])
+    e, r = combate(cuatro, comp.TOTEM, dados)
+    fotogramas = comp.fotogramas_de(e)[0]
+    assert len(fotogramas) == len(r.rondas)
+
+    ultimo = lineas(fotogramas[-1])
+    tiradas = [linea for linea in ultimo if "+d20" in linea]
+    assert [linea.split()[1] for linea in tiradas] == ["C", "D"]
+
+    # La clasificación sigue enseñando el campo entero, y en el orden con el que
+    # se reparte el premio.
+    puestos = [
+        linea for linea in ultimo
+        if linea.startswith(("│  1 ", "│  2 ", "│  3 ", "│  4 "))
+    ]
+    assert [linea.split()[2] for linea in puestos] == ["A", "B", "D", "C"]
+    assert [linea.split()[-2] for linea in puestos] == ["12", "12", "6", "6"]
+
+
+def test_un_grupo_que_no_se_deshace_agota_el_tope_y_cae_al_dorsal():
+    """A y B se separan al primer forcejeo; C y D empatan siempre.
+
+    El tope es global y el fallback sigue siendo el dorsal, así que C acaba por
+    delante de D sin bucle infinito y sin tocar a A ni a B.
+    """
+    cuatro = [competidor(nombre, stat=10) for nombre in "ABCD"]
+    dados = DadosFijos(
+        [6, 6, 1, 1] * 3 + [4, 2, 3, 3] + [5, 5] * comp.MAX_DESEMPATES
+    )
+    _, r = combate(cuatro, comp.TOTEM, dados)
+
+    desempates = [ronda for ronda in r.rondas if ronda.fase == comp.DESEMPATE]
+    assert len(desempates) == comp.MAX_DESEMPATES
+    assert all(ronda.dorsales == (2, 3) for ronda in desempates[1:])
+    assert r.marcadores == (12, 12, 6, 6)
+    assert r.orden == (0, 1, 2, 3)
+
+
+def test_los_desempates_del_totem_van_por_ramas_y_no_por_un_marcador_sumado():
+    """Cuatro idénticos: un solo empate oficial que se parte en dos.
+
+        tres fases      16 16 16 16 -> puestos 12 12 12 12, bruto 48 48 48 48
+        desempate 1     14 12 13 13 -> A arriba, B abajo, C y D en medio
+        desempate 2      ·  · 11 16 -> el empate de C y D, sólo entre ellos
+
+    Cada uno lleva su **senda**: A (14), B (12), C (13, 11) y D (13, 16). Se
+    comparan por orden y de mayor a menor, así que C y D se colocan entre ellos
+    sin salirse del hueco que les dejaron A y B. Sumarlo todo en un número —24 y
+    29— los pondría por delante de A, que ya había ganado su desempate.
+    """
+    cuatro = [competidor(nombre, stat=10) for nombre in "ABCD"]
+    dados = DadosFijos([6, 6, 6, 6] * 3 + [4, 2, 3, 3] + [1, 6])
+    e, r = combate(cuatro, comp.TOTEM, dados)
+
+    assert r.marcadores == (12, 12, 12, 12)
+    assert r.totales == (48, 48, 48, 48)
+    assert dados.i == 12 + 4 + 2
+
+    desempates = [ronda for ronda in r.rondas if ronda.fase == comp.DESEMPATE]
+    assert [ronda.dorsales for ronda in desempates] == [(0, 1, 2, 3), (2, 3)]
+    assert [
+        comp.senda_de_desempate(r.rondas, dorsal) for dorsal in range(4)
+    ] == [(14,), (12,), (13, 11), (13, 16)]
+
+    assert e.orden == (0, 3, 2, 1)
+    assert [c.nombre for c, _ in e.clasificacion] == ["A", "D", "C", "B"]
+
+    ultimo = lineas(comp.fotogramas_de(e)[0][-1])
+    tiradas = [linea for linea in ultimo if "+d20" in linea]
+    assert [linea.split()[1] for linea in tiradas] == ["C", "D"]
+    puestos = [
+        linea for linea in ultimo
+        if linea.startswith(("│  1 ", "│  2 ", "│  3 ", "│  4 "))
+    ]
+    assert [linea.split()[2] for linea in puestos] == ["A", "D", "C", "B"]
+    assert [linea.split()[-2] for linea in puestos] == ["12"] * 4
