@@ -3,10 +3,26 @@ import random
 import re
 import statistics
 import textwrap
+import unicodedata
 from collections import Counter
 
 import especies as esp
 import pantalla
+
+# Lo que puede aparecer en un dibujo. Cada rango entra entero y está comprobado
+# por `test_ningun_rango_permitido_cuela_un_caracter_ancho`.
+RANGOS_PERMITIDOS = (
+    (0x0020, 0x007E),   # ASCII imprimible
+    (0x02B0, 0x02FF),   # modificadores de espaciado: ˚ ˅ ˒ ˍ
+    (0x2500, 0x257F),   # dibujo de cajas: ╭ ╮ ╰ ╯ ─ │ ╥ ╷ — ya en casas.py
+    (0x2580, 0x259F),   # elementos de bloque: ▀ ▄ █ ░ ▒ ▓
+    (0xFF61, 0xFF9F),   # katakana de medio ancho: ｼ ｰ ﾉ ﾞ ｡ ･
+)
+
+# De Formas Geométricas y de Puntuación general no vale el bloque entero: en el
+# primero, U+25FD y U+25FE miden dos columnas, y U+25B6 lo pinta Discord como
+# ▶️. Así que de ahí entra sólo lo que se usa, uno a uno y mirado.
+EXTRAS = "●◠‿▿"
 
 
 def lineas(arte: str) -> list[str]:
@@ -190,12 +206,51 @@ def test_el_arte_no_rompe_el_bloque_de_codigo():
         assert "```" not in arte, nombre
 
 
-def test_el_arte_no_lleva_emoji():
-    """Discord dibuja los emoji como imágenes de ancho variable incluso dentro
-    de un bloque de código: descuadrarían el marco."""
+def test_el_arte_solo_usa_caracteres_de_una_columna():
+    """La regla de verdad: en el marco cabe lo que mide **una columna**.
+
+    Hay dos formas de romperlo y las dos descuadran igual. Los emoji, que
+    Discord pinta como imágenes de ancho variable incluso dentro de un bloque de
+    código. Y los caracteres anchos —el kana normal, sin ir más lejos—, que
+    ocupan dos columnas mientras `pantalla` rellena contando caracteres: `len()`
+    diría 26 y la ficha saldría de 33.
+
+    Va por lista de rangos y no por un umbral porque el umbral que había antes
+    —`ord < 0x2500`— prohibía de paso el dibujo de cajas y los elementos de
+    bloque, que miden una columna y que `casas.py` ya pinta en producción.
+    """
+    permitido = set(EXTRAS)
+    for inicio, fin in RANGOS_PERMITIDOS:
+        permitido.update(chr(cp) for cp in range(inicio, fin + 1))
+
     for nombre, arte in todos_los_dibujos().items():
         for caracter in arte:
-            assert ord(caracter) < 0x2500, (nombre, repr(caracter))
+            if caracter == "\n":
+                continue
+            assert caracter in permitido, (nombre, repr(caracter))
+
+
+def test_ningun_rango_permitido_cuela_un_caracter_ancho():
+    """Comprueba la lista, que es donde se puede meter la pata.
+
+    Un rango se añade de una vez y cubre cientos de caracteres, así que el
+    error no aparece en un dibujo sino en la lista: quien añadiera el katakana
+    normal (U+30A0–U+30FF) metería 96 caracteres de dos columnas y ningún
+    dibujo lo notaría hasta usarlos.
+
+    No es una comprobación de adorno: es la que descartó el bloque entero de
+    Formas Geométricas, porque U+25FD y U+25FE miden dos. Por eso los cuatro que
+    hacían falta de ahí van en `EXTRAS`, uno a uno.
+    """
+    for inicio, fin in RANGOS_PERMITIDOS:
+        for cp in range(inicio, fin + 1):
+            assert unicodedata.east_asian_width(chr(cp)) not in ("W", "F"), (
+                hex(cp), unicodedata.name(chr(cp), "?")
+            )
+    for caracter in EXTRAS:
+        assert unicodedata.east_asian_width(caracter) not in ("W", "F"), (
+            repr(caracter)
+        )
 
 
 def test_cada_etapa_se_ve_distinta():

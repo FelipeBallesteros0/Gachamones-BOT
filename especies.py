@@ -175,41 +175,45 @@ _registrar(Especie(
     clave="pollito", nombre="Piollito", emoji="🐥", color=AMARILLO,
     fuerza=4, velocidad=14, salud=6, rareza=COMUN, peso=12.0,
     descripcion="Corre como si le persiguieran. Porque suele ser el caso.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "T_T"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
-   _
-  (,)
- ({cara})
-  ^ ^
+  ｰ
+ .-.
+({cara})
+ '-'
+ ﾞ ﾞ
 """,
         NINO: r"""
-    _
-   (,)
-  ({cara})
- <(   )>
-   ^ ^
+  ｰﾉ
+ .-~-.
+<({cara})>
+ '-.-'
+ ﾞ  ﾞ
 """,
         ADOLESCENTE: r"""
-   \|/
-   (,)
-  ({cara})
- <(   )>>
-   ^ ^
+    ｼｰﾉ
+   .-~-.
+   ({cara})
+<(|  ▿  |)>
+   '-.-'
+   ﾞﾞ ﾞﾞ
 """,
         ADULTO: r"""
-   \|/,
-   (,,)
-  ({cara})
- <(    )>>>
-   ^^ ^^
+     ｼｰﾉ
+   .-~~~-.
+  / ({cara}) \
+<(|   ▿   |)>
+   \  ,  /
+   ﾞﾞ   ﾞﾞ
 """,
         ADULTO_GRANDE: r"""
-   \\|//
-   (,,,)
-   ({cara})
- <(     )>>>>
-  ^^^ ^^^
+      ｼｰﾉ｡
+    .-~~~~~-.
+   /  ({cara})  \
+<(|     ▿     |)>
+   \   ,,,   /
+    ﾞﾞ     ﾞﾞ
 """,
     },
 ))
