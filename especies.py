@@ -222,59 +222,60 @@ _registrar(Especie(
     clave="brote", articulo="una", nombre="Magora", emoji="🌱", color=VERDE,
     fuerza=7, velocidad=3, salud=14, rareza=COMUN, peso=12.0,
     descripcion="Aguanta lo que le echen. Moverse ya es otro tema.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
-  \|/
- ({cara})
-   |
-  _|_
+ \|/
+({cara})
+  |
+ ≡≡≡
 """,
         NINO: r"""
-   \ | /
-    \|/
-  ( {cara} )
-    |||
-   \___/
+\\|//
+({cara})
+  |
+≡≡≡≡≡
 """,
         ADOLESCENTE: r"""
-  \  |  /
- ---{cara}---
-    |||
-    |||
-   \___/
+\\\|///
+~~~~~~~
+ ({cara})
+ \ | /
+≡≡≡≡≡≡≡
 """,
         ADULTO: r"""
-  \\\|///
- ~~~{cara}~~~
-   \ | /
-    |||
-   /___\
+\\\\|////
+~~~~~~~~~
+~~({cara})~~
+ \\ | //
+   |||
+≡≡≡≡≡≡≡≡≡
 """,
         ADULTO_GRANDE: r"""
- \\\\|////
-~~~~~~~~~~~
- ~~~{cara}~~~
-   \\ | //
-     |||
-    /___\
+ \\\\\|/////
+~~~~~~~~~~~~~
+~~~~({cara})~~~~
+  \\\ | ///
+    |||||
+ ≡≡≡▒▒▒▒▒≡≡≡
 """,
     },
+    # La cara va escrita y no como hueco: `arte_de` devuelve la excepción tal
+    # cual, y hay un test que prohíbe dejar un «{cara}» sin rellenar.
     excepciones={
         (NINO, MAL): r"""
-   ._|_.
-    \|/
-  ( x_x )
-    |||
-   \___/
+., .,
+(╥╷╥)
+  |
+≡≡≡≡≡
 """,
         (ADULTO_GRANDE, MAL): r"""
- .,.,|.,.,
-.,.,.,.,.,.
- .,.x_x.,.
-   \\ | //
-     |||
-    /___\
+., . | . .,
+ .,.,.,.,
+., (╥╷╥) .,
+  \\ | //
+   |||||
+≡≡≡▒▒▒▒▒≡≡≡
 """,
     },
 ))
@@ -452,57 +453,59 @@ _registrar(Especie(
     clave="chispa", nombre="Pyro", emoji="🔥", color=ROJO, articulo="un",
     fuerza=13, velocidad=8, salud=3, rareza=COMUN, peso=12.0,
     descripcion="Pega fortísimo y se apaga igual de rápido. Dale de comer.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
-   (
-  (^)
- ({cara})
-  \_/
+  (
+ )(
+({cara})
+ \_/
 """,
         NINO: r"""
-     )
-    ( (
-   ){cara}(
-  ( \_/ )
-   `---'
+ )(
+( )(
+({cara})
+\_ω_/
 """,
         ADOLESCENTE: r"""
-    ) (
-   ( ) )
-  ) {cara} (
- (  \_/  )
-  `-----'
+ )( )(
+( )( )(
+( {cara} )
+ \_ω_/
+ `---'
 """,
         ADULTO: r"""
-   ) ( ) (
-  ( ) ( ) )
- )   {cara}   (
-(   \___/   )
- `---------'
+ )( )( )(
+( )( )( )(
+\ ({cara}) /
+\ \_ω_/ /
+`-------'
 """,
         ADULTO_GRANDE: r"""
-  )( )( )( )
- ( )( )( )( )
-\  )  {cara}  (  /
- \(  \___/  )/
-  `---------'
+    )( )( )(
+   )( )( )( )(
+  ( )( )( )( )(
+\  )  ({cara})  (  /
+ \(   \_ω_/   )/
+  `-----------'
 """,
     },
+    # La cara va escrita y no como hueco: `arte_de` devuelve la excepción tal
+    # cual, y hay un test que prohíbe dejar un «{cara}» sin rellenar.
     excepciones={
         (ADOLESCENTE, MAL): r"""
-     .
-    ( )
-  . x_x .
- (  ~~~  )
-  `-----'
+ ˚  ˚
+ . . .
+( ╥╷╥ )
+\_~~_/
+ `---'
 """,
         (ADULTO_GRANDE, MAL): r"""
-    .  .  .
-   .  ( )  .
-\  .  x_x  .  /
- \(  ~~~~~  )/
-  `---------'
+      ˚   ˚
+   .  .  .  .
+\  .  (╥╷╥)  .  /
+\(   \_~~_/   )/
+  `-----------'
 """,
     },
 ))
@@ -766,39 +769,38 @@ _registrar(Especie(
     clave="canizo", nombre="Cañizo", emoji="🎋", color=VERDE,
     fuerza=5, velocidad=10, salud=9, rareza=COMUN, peso=0.0,
     descripcion="Tan flaco que el viento lo dobla y no lo parte.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "-_-"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "˘ˍ˘"},
     arte={
         BEBE: r"""
-   |
- ({cara})
-   |
+  |
+({cara})
+  |
 """,
         NINO: r"""
-   \|/
-  ({cara})
-    |
-    |
+ \|/
+({cara})
+ ≡|≡
 """,
         ADOLESCENTE: r"""
-  \\|//
-  ({cara})
-   |||
-   |||
+\\|//
+({cara})
+≡|≡|≡
+|| ||
 """,
         ADULTO: r"""
-  \\\|///
-   ({cara})
-   |||||
-   |||||
-   |||||
+\\\|///
+ ({cara})
+≡|≡|≡|≡
+|| || ||
+≡|≡|≡|≡
 """,
         ADULTO_GRANDE: r"""
  \\\\|////
    ({cara})
-  |||||||
-  |||||||
-  |||||||
-  |||||||
+ ≡|≡|≡|≡|≡
+|| || || ||
+ ≡|≡|≡|≡|≡
+|| || || ||
 """,
     },
 ))
@@ -807,34 +809,38 @@ _registrar(Especie(
     clave="lucierno", nombre="Lucierno", emoji="✨", color=AMARILLO,
     fuerza=3, velocidad=13, salud=8, rareza=POCO_COMUN, peso=0.0,
     descripcion="Se enciende cuando está contento. Delata al equipo entero.",
-    caras={FELIZ: "^o^", NORMAL: "o.o", MAL: "u.u"},
+    caras={FELIZ: "◠ᵕ◠", NORMAL: "●.●", MAL: "˘.˘"},
     arte={
         BEBE: r"""
-   .
- ({cara})
-   '
+  ˚
+({cara})
+  '
 """,
         NINO: r"""
-  .'.
- ({cara})
-  '.'
+ ˚ ˚
+({cara})
+ ' '
 """,
         ADOLESCENTE: r"""
- .'.'.
- ({cara})
- '.'.'
+˚ . ˚
+.'.'.
+({cara})
+'.'.'
 """,
         ADULTO: r"""
+˚ . ˚ . ˚
  .'.'.'.
   ({cara})
  '.'.'.'
+˚ ' ˚ ' ˚
 """,
         ADULTO_GRANDE: r"""
-.'.'.'.'.
- .'.'.'.
-  ({cara})
- '.'.'.'
-'.'.'.'.'
+˚  .  ˚  .  ˚
+ .'.'.'.'.'.
+ \.'.'.'.'./
+   ≡({cara})≡
+ /'.'.'.'.'\
+˚  '  ˚  '  ˚
 """,
     },
 ))
@@ -1037,37 +1043,37 @@ _registrar(Especie(
     clave="bulb", nombre="Bulb", emoji="💡", color=AMARILLO,
     fuerza=4, velocidad=9, salud=11, rareza=COMUN, peso=0.0,
     descripcion="Parpadea cuando piensa. Piensa poco, así que alumbra bien.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
- ({cara})
-  |=|
+({cara})
+ |≡|
 """,
         NINO: r"""
-  ({cara})
-  (   )
-   |=|
+ \ /
+({cara})
+ |≡|
 """,
         ADOLESCENTE: r"""
-  -({cara})-
-   (   )
-    |=|
-    |=|
+\ | /
+,-˚-.
+({cara})
+|≡≡≡|
 """,
         ADULTO: r"""
-   \     /
-   -({cara})-
-   (     )
-     |=|
-     |=|
+ \  |  /
+- ,-~~-. -
+ ( {cara} )
+  `-ω-'
+ |≡≡≡≡≡|
 """,
         ADULTO_GRANDE: r"""
   \   |   /
-   -({cara})-
-   (     )
-  /  |=|  \
-     |=|
-     |=|
+-- ,-~~~~-. --
+  (  {cara}  )
+   `--ω--'
+  |≡≡≡≡≡≡≡|
+  |≡≡≡≡≡≡≡|
 """,
     },
 ))
@@ -1271,36 +1277,36 @@ _registrar(Especie(
     clave="prismlon", nombre="Prismlon", emoji="💎", color=AZUL,
     fuerza=12, velocidad=5, salud=13, rareza=RARA, peso=0.0,
     descripcion="Tardó mil años en formarse. Tiene la paciencia que eso implica.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
- /{cara}\
- \___/
+/{cara}\
+ \_/
 """,
         NINO: r"""
-  /{cara}\
- /     \
- \_____/
+ /\
+/{cara}\
+\__/
 """,
         ADOLESCENTE: r"""
-   /\
-  /{cara}\
- /     \
- \_____/
+ /\  /\
+/  \/  \
+| {cara} |
+ \____/
 """,
         ADULTO: r"""
-   /\
-  /  \
- /{cara}\
-/       \
+ /\  /\
+/  \/  \
+/  {cara}  \
+|   ω   |
 \_______/
 """,
         ADULTO_GRANDE: r"""
-    /   \
-   /     \
-  /       \
-  /  {cara}  \
- /         \
+   /\   /\
+  /  \ /  \
+ /    v    \
+/   ({cara})   \
+ |  ▒▒▒▒▒  |
  \_________/
 """,
     },
