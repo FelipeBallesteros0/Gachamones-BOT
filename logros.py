@@ -44,6 +44,10 @@ PERSONA = "persona"
 # Del gachamon.
 CARRERAS = "carreras_ganadas"
 SUMOS = "sumos_ganados"
+# Todavía no lo mira ningún logro, pero se cuenta aparte desde el primer día:
+# apuntarlo en `SUMOS` cobraría «Yokozuna» con tótems, y no hay forma de
+# separarlos después.
+TOTEMS = "totems_ganados"
 TORNEOS = "torneos_ganados"
 AVENTURAS = "aventuras"
 NODOS = "nodos_superados"
