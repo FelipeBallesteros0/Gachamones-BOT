@@ -6,14 +6,17 @@ repetido o un import roto en un cog.
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 import discord
 import pytest
 from discord.ext import commands
 
 import bot as modulo_bot
+import competir as comp
 import db
 import simulacion as sim
+from cogs import competencias
 from vistas import NombrarView, PantallaView
 
 COMANDOS_ESPERADOS = {
@@ -687,6 +690,35 @@ def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):
     # Quien contesta es el adaptador. Si además respondiera el comando, Discord
     # rechazaría la segunda respuesta de la misma interacción.
     assert respuesta.mock_calls == [], respuesta.mock_calls
+
+
+@pytest.mark.parametrize(
+    ("tipo", "espera"),
+    ((comp.CARRERA, 1.6), (comp.SUMO, 1.6), (comp.TOTEM, 5.0)),
+)
+def test_cada_modalidad_mantiene_su_ritmo_de_animacion(
+    monkeypatch, tipo, espera
+):
+    pausas = []
+
+    class Mensaje:
+        async def edit(self, **_):
+            pass
+
+    class Canal:
+        async def send(self, _):
+            return Mensaje()
+
+    async def dormir(segundos):
+        pausas.append(segundos)
+
+    monkeypatch.setattr(competencias.asyncio, "sleep", dormir)
+    cog = object.__new__(competencias.Competencias)
+    canal = cast(discord.abc.Messageable, Canal())
+    asyncio.run(cog._animar(canal, ["primero", "último"], tipo))
+
+    # Una pausa antes de reemplazar el primero y otra antes del resumen.
+    assert pausas == [espera, espera]
 
 
 def test_mientras_falte_gente_se_sigue_esperando():
