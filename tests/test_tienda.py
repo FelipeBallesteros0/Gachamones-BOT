@@ -96,16 +96,13 @@ def test_al_caducar_deja_de_ayudar():
 def test_la_pocion_de_comida_llena_y_se_guarda():
     criatura = db.guardar(sim.avanzar(nacer(), T0))
     from dataclasses import replace
-    activa = db.criatura_activa("u1", "g1")
-    assert activa is not None
-    db.guardar(replace(activa, hambre=12.0))
+    db.guardar(replace(db.criatura_activa("u1", "g1"), hambre=12.0))
     hambrienta = db.criatura_activa("u1", "g1")
-    assert hambrienta is not None and hambrienta.hambre == 12.0
+    assert hambrienta.hambre == 12.0
 
     tienda.usar(hambrienta, obj.CATALOGO["pocion_comida"], T0)
 
-    llena = db.criatura_activa("u1", "g1")
-    assert llena is not None and llena.hambre == 100.0
+    assert db.criatura_activa("u1", "g1").hambre == 100.0
 
 
 def test_el_silbato_deja_entrenar_otra_vez():

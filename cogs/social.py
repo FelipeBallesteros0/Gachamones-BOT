@@ -350,9 +350,9 @@ quedas a la intemperie hasta que compres casa en 🛒 **Tienda**.
 tu casa; se ponen y se quitan con 🪑 **Amueblar**, y lo que retires se guarda.
 -# Cuanta más **comodidad**, más despacio le baja el ánimo a tu activo — hasta \
 un {int(cas.ALIVIO_MAXIMO_DE_ANIMO * 100)} % menos en la mejor casa. **A la \
-intemperie** todo le baja un {(cas.PENALIZACION_INTEMPERIE - 1) * 100:.0f} % \
+intemperie** todo le baja un {int((cas.PENALIZACION_INTEMPERIE - 1) * 100)} % \
 más rápido, pero **no puede matarlo**: la comida se queda en \
-{cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE:.0f}. El 🎟️ **ticket del refugio** \
+{int(cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)}. El 🎟️ **ticket del refugio** \
 (🪙 {obj.CATALOGO["ticket_refugio"].precio}) te devuelve una semana bajo techo.
 
 **El huerto**
@@ -567,14 +567,12 @@ class Social(commands.Cog):
 
         lineas = []
         for criatura in criaturas:
-            if criatura.muerta_en is None or criatura.nacida_en is None:
-                continue
             definicion = criatura.def_especie
             vivio = (criatura.muerta_en - criatura.nacida_en).total_seconds() / 3600
             nombre = pantalla.pintar(f"{criatura.nombre[:13]:<13}", esp.GRIS)
             lineas.append(
                 f" {nombre} {definicion.nombre[:11]:<11}"
-                f" {vivio:>3.0f} h  {criatura.victorias:>2}V"
+                f" {int(vivio):>3} h  {criatura.victorias:>2}V"
             )
 
         await interaccion.response.send_message(
@@ -665,9 +663,7 @@ class Social(commands.Cog):
     @app_commands.command(name="ayuda", description="Cómo funciona el bot")
     @comun.solo_en_el_canal()
     async def ayuda(self, interaccion: discord.Interaction) -> None:
-        usuario = interaccion.client.user
-        nombre_bot = usuario.display_name if usuario is not None else "Gachamon"
-        primera, *resto = paginas_de_ayuda(nombre_bot)
+        primera, *resto = paginas_de_ayuda(interaccion.client.user.display_name)
         await interaccion.response.send_message(primera, ephemeral=True)
         for pagina in resto:
             await interaccion.followup.send(pagina, ephemeral=True)

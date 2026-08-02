@@ -1071,7 +1071,6 @@ def comprar_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=estorbo,
             )
-        assert casa is not None
         if mueble.clave in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
@@ -1121,7 +1120,6 @@ def colocar_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=estorbo,
             )
-        assert casa is not None
         if mueble.clave not in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,

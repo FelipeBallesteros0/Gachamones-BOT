@@ -467,6 +467,29 @@ def test_los_caidos_de_semis_se_ordenan_primero_por_intercambios():
     assert dados.i == 14
 
 
+def test_los_caidos_empatados_se_ordenan_por_dorsal_global():
+    class DadosBarajados(DadosFijos):
+        def shuffle(self, dorsales, *args, **kwargs):
+            dorsales[:] = [dorsales[i] for i in (0, 3, 2, 1)]
+            self.sorteo = tuple(dorsales)
+
+    dados = DadosBarajados([2, 1])
+    e = comp.enfrentar(
+        [competidor(f"C{i}", stat=10) for i in range(4)],
+        comp.SUMO,
+        dados,
+    )
+    semifinales = e.combates[:2]
+
+    assert dados.sorteo == (0, 3, 2, 1)
+    assert [
+        (dados.sorteo[1], semifinales[0].marcadores[1], semifinales[0].totales[1]),
+        (dados.sorteo[3], semifinales[1].marcadores[1], semifinales[1].totales[1]),
+    ] == [(3, 0, 22), (1, 0, 22)]
+    assert e.orden == (0, 2, 1, 3)
+    assert sorted(e.orden) == [0, 1, 2, 3]
+
+
 # --- Modificadores ---------------------------------------------------------
 
 def test_el_estado_modifica_poco_comparado_con_el_d20():
