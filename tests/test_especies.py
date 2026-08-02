@@ -26,14 +26,14 @@ ASCII_IMPRIMIBLE = frozenset(chr(cp) for cp in range(0x20, 0x7F))
 
 PERMITIDOS = ASCII_IMPRIMIBLE | frozenset(
     "¬"      # signo de negación: las orejas caídas de Goot
-    "ᐩ"      # silábico canadiense: las garras de Céfiro
-    "ᵕ"      # media o baja: bocas dormidas
-    "‿"      # undertie: la boca contenta
-    "∙⊏⊐⊗"   # operadores: limaduras, pinzas y ojos mareados
+    "ᐩ"      # silábico canadiense: las garras de Céfiro y del dragón
+    "ᵕ"      # media o baja: la boca dormida de Noctule
+    "∙"      # operador: las limaduras de Magnetrón
+    "⊏⊐"     # operadores: las pinzas de Escorpgon
     "⌐"      # negación al revés: el pico de Céfiro
-    "╷"      # trazo hacia abajo: patas
+    "╷"      # trazo hacia abajo: las patas de Re-bot
     "░"      # sombra ligera: escamas y texturas
-    "▿◠"     # picos y ojos contentos
+    "▿"      # triángulo pequeño: el pico de Piollito
     "｡ｰｼﾉﾞ"  # katakana de medio ancho: crestas, alas y patas
 )
 
@@ -459,3 +459,19 @@ def test_el_peso_es_la_probabilidad_en_el_huevo():
     for clave in esp.DEL_HUEVO:
         observado = cuenta[clave] / 20_000 * 100
         assert abs(observado - esp.ESPECIES[clave].peso) < 1.5, (clave, observado)
+
+
+def test_no_sobra_ningun_permitido():
+    """La lista tiene que ser exactamente lo que se usa, ni un carácter más.
+
+    Un permitido que ya no dibuja nadie es una puerta abierta a ciegas: el
+    siguiente que la cruce lo hará sin que nadie haya mirado cómo se pinta. Es
+    la misma pereza que dejó entrar los once de ancho ambiguo, sólo que más
+    pequeña.
+    """
+    usados = set()
+    for arte in todos_los_dibujos().values():
+        usados.update(c for c in arte if c not in "\n")
+
+    sobran = (PERMITIDOS | AMBIGUOS_PROBADOS) - usados - ASCII_IMPRIMIBLE
+    assert not sobran, sorted(sobran)
