@@ -514,40 +514,40 @@ _registrar(Especie(
     clave="fantasma", nombre="Duskhouse", emoji="👻", color=ROSA,
     fuerza=4, velocidad=13, salud=7, rareza=POCO_COMUN, peso=6.0,
     descripcion="Ya estaba muerto antes de nacer. No preguntes.",
-    caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
+    caras={FELIZ: "◠ ◠", NORMAL: "● ●", MAL: "╥ ╥"},
     arte={
         BEBE: r"""
- .---.
- |{cara}|
-  ~~~
+.---.
+|{cara}|
+ ~~~
 """,
         NINO: r"""
-  .---.
- / {cara} \
- |     |
-  ~~~~~
+.-----.
+| {cara} |
+\     /
+ ~~~~~
 """,
         ADOLESCENTE: r"""
-   .-----.
-  /  {cara}  \
-  |   v   |
-  |       |
-   ~~~~~~~
+˚ .-----. ˚
+ |  {cara}  |
+ |   ω   |
+ \       /
+  ~~~~~~~
 """,
         ADULTO: r"""
-    .-------.
-   /   {cara}   \
-   |    v    |
-   |         |
-    ~~~~~~~~~
+˚  .-------.  ˚
+ /    {cara}    \
+ |     ω     |
+ \           /
+  ~~~~~~~~~~~
 """,
         ADULTO_GRANDE: r"""
-   .-----------.
-  /             \
- |      {cara}      |
- |       v       |
-  \             /
-   ~~~~~~~~~~~~~
+˚   .-----------.   ˚
+ /       {cara}       \
+ |        ω        |
+ |                 |
+  \               /
+   ~~~~~~~~~~~~~~~
 """,
     },
 ))
@@ -556,42 +556,44 @@ _registrar(Especie(
     clave="chatarra", nombre="Re-bot", emoji="🤖", color=CIAN, articulo="un",
     fuerza=7, velocidad=4, salud=13, rareza=POCO_COMUN, peso=6.0,
     descripcion="No se cansa, no se queja, no se muere. Casi.",
-    caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
+    # El único que se dibuja con líneas de caja, y a propósito: en un elenco de
+    # bichos redondos, ser el que cierra en ángulo recto es su identidad. El
+    # marco tiene que cuadrar en las cinco etapas, no sólo en la última.
+    caras={FELIZ: "◠ ◠", NORMAL: "● ●", MAL: "╥ ╥"},
     arte={
         BEBE: r"""
-  [{cara}]
-   |_|
+  |
+[{cara}]
+ |_|
 """,
         NINO: r"""
-    |
-  .---.
-  |{cara}|
-  '---'
-  /| |\
+  \|/
+╭─────╮
+│ {cara} │
+╰┬───┬╯
 """,
         ADOLESCENTE: r"""
-     |
-  .-----.
-  | {cara} |
-  | --- |
-  '-----'
-  /|   |\
+\|/   \|/
+╭───────╮
+│  {cara}  │
+│ ▒▒▒▒▒ │
+╰┬─┬─┬─┬╯
 """,
         ADULTO: r"""
-    |   |
-  .-------.
-  |  {cara}  |
-  | ----- |
-  '-------'
-  /|     |\
+\|/      \|/
+╭───────────╮
+│    {cara}    │
+│  ▒▒▒▒▒▒▒  │
+╰─┬─┬───┬─┬─╯
+ /| || || |\
 """,
         ADULTO_GRANDE: r"""
-  \|/   \|/
- .---------.
- |   {cara}   |
- | ------- |
- '---------'
- /| || || |\
+ \|/         \|/
+╭───────────────╮
+│      {cara}      │
+│  ▒▒▒▒▒▒▒▒▒▒▒  │
+╰──┬─┬─────┬─┬──╯
+/|| || ||| || ||\
 """,
     },
 ))
@@ -600,39 +602,44 @@ _registrar(Especie(
     clave="dragoncito", nombre="Tsushimon", emoji="🐉", color=ROJO,
     fuerza=12, velocidad=9, salud=9, rareza=RARA, peso=4.0,
     descripcion="Sale una vez de cada veinticinco huevos. Cuídalo bien.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    # Dragón chino: serpentino y SIN ALAS. Astas de ciervo «⌐ ¬», bigotes «≈»
+    # saliendo del hocico, melena, escamas y garras. Lo de antes le ponía
+    # membranas a los lados, que es un dragón occidental.
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
-  ^^^
- ({cara})~
-  \_/
+ ⌐\/¬
+({cara})
+ ~~~
 """,
         NINO: r"""
-   ^^^^
-  ({cara})~~
-   |   |
-   ^   ^
+⌐\ /¬
+({cara})
+(~~~)
+ ᐩ ᐩ
 """,
         ADOLESCENTE: r"""
- \       /
-  \/\_/\/
-  ( {cara} )>
-   |   |
-   ^   ^
+⌐\  /¬
+≈({cara})≈
+(~~~~~)
+~(▒▒▒)~
+ ᐩ   ᐩ
 """,
         ADULTO: r"""
-  \\     //
-  \\/\_/\//
-  ( {cara} )>>
-  /|     |\
-  ^ ^   ^ ^
+  ⌐\   /¬
+ ≈≈({cara})≈≈
+  ~)___(~
+~(  ▒▒▒  )~
+~~(     )~~
+ ᐩ   ᐩ   ᐩ
 """,
         ADULTO_GRANDE: r"""
- \\\\  /\  ////
- \\\\/\_/\////
-   (  {cara}  )>>>
-  //|      |\\
-  ^^ ^    ^ ^^
+   ⌐\     /¬
+ ≈≈( ({cara}) )≈≈
+   ~)_____(~
+ ~~(  ▒▒▒  )~~
+~~~(       )~~~
+  ᐩ    ᐩ    ᐩ
 """,
     },
 ))
@@ -965,37 +972,37 @@ _registrar(Especie(
     clave="remolin", nombre="Remolín", emoji="🌀", color=CIAN,
     fuerza=6, velocidad=14, salud=4, rareza=POCO_COMUN, peso=0.0,
     descripcion="Nunca está donde lo dejaste. Marea sólo de mirarlo.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "@_@"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "⊗ˍ⊗"},
     arte={
         BEBE: r"""
- ({cara})
-  ~~~
+({cara})
+ ~~~
 """,
         NINO: r"""
- ({cara})
- ~~~~~
-  ~~~
+~ ~ ~
+({cara})
+~~~~~
 """,
         ADOLESCENTE: r"""
-  ({cara})
- ~~~~~~~
-  ~~~~~
-   ~~~
+~ ~ ~ ~
+ ({cara})
+~~~~~~~
+ ~~~~~
 """,
         ADULTO: r"""
+~  ~  ~  ~
    ({cara})
+~~~~~~~~~~~
  ~~~~~~~~~
   ~~~~~~~
-   ~~~~~
-    ~~~
 """,
         ADULTO_GRANDE: r"""
-    ({cara})
- ~~~~~~~~~~~
-  ~~~~~~~~~
+~  ~  ~  ~  ~
+   ≈({cara})≈
+~~~~~~~~~~~~~
+ ≈~~~~~~~~~≈
    ~~~~~~~
-    ~~~~~
-     ~~~
+    ≈~~~≈
 """,
     },
 ))
@@ -1004,37 +1011,41 @@ _registrar(Especie(
     clave="prinel", nombre="Prinel", emoji="🔩", color=GRIS,
     fuerza=11, velocidad=5, salud=8, rareza=COMUN, peso=0.0,
     descripcion="Cabezón y roscado. Cuesta lo mismo apretarlo que convencerlo.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    # Cabeza hexagonal con ranura, que es lo que tiene un tornillo. Con la
+    # cúpula redonda de antes le robaba la cabeza a Geo en tres etapas.
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
- [{cara}]
-  ===
+[{cara}]
+ ≡≡≡
 """,
         NINO: r"""
- [{cara}]
- =====
- =====
+_,-,_
+({cara})
+≡≡≡≡≡
 """,
         ADOLESCENTE: r"""
-  [{cara}]
- =======
- =======
- =======
+ _,-,_
+/ {cara} \
+\_____/
+ ≡≡≡≡≡
+ \_≡_/
 """,
         ADULTO: r"""
-   [{cara}]
- =========
- =========
- =========
- =========
+ __,-,__
+/  {cara}  \
+\_______/
+ ≡≡≡≡≡≡≡
+  ≡≡≡≡≡
+ \__≡__/
 """,
         ADULTO_GRANDE: r"""
-    [{cara}]
- ===========
- ===========
- ===========
- ===========
- ===========
+  _,-,-,-,_
+/    {cara}    \
+\___________/
+≡≡≡≡≡≡≡≡≡≡≡≡≡
+ ≡≡≡≡≡≡≡≡≡≡≡
+\_____≡_____/
 """,
     },
 ))
@@ -1082,37 +1093,37 @@ _registrar(Especie(
     clave="magnetron", nombre="Magnetrón", emoji="🧲", color=ROJO,
     fuerza=13, velocidad=4, salud=7, rareza=COMUN, peso=0.0,
     descripcion="Se le pega todo. A veces lo que no debería.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
- ({cara})
- U   U
+({cara})
+ U U
 """,
         NINO: r"""
-  ({cara})
-  |   |
-  U   U
+·   ·
+({cara})
+U   U
 """,
         ADOLESCENTE: r"""
-  ({cara})
-  |   |
-  |   |
-  U   U
-""",
-        ADULTO: r"""
-   ({cara})
+· ⌐({cara})¬ ·
   /|   |\
-   |   |
    |   |
    U   U
 """,
+        ADULTO: r"""
+·  ⌐( {cara} )¬  ·
+   /|     |\
+    |     |
+    |     |
+    U     U
+""",
         ADULTO_GRANDE: r"""
- -  ({cara})  -
-   /|   |\
-    |   |
-    |   |
-    |   |
-    U   U
+∙  ·  ⌐(  {cara}  )¬  ·  ∙
+      /|       |\
+       |       |
+       |       |
+      ▒|       |▒
+       U       U
 """,
     },
 ))
