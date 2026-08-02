@@ -1,6 +1,7 @@
 """Carreras, sumo y torneos: dados fijos y marcos que no se descuadran."""
 import random
 import re
+from datetime import datetime, timezone
 
 import competir as comp
 import especies as esp
@@ -8,6 +9,7 @@ import pantalla
 import simulacion as sim
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
+T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 class DadosFijos(random.Random):
@@ -35,9 +37,22 @@ class DadosFijos(random.Random):
         return None
 
 
-def competidor(nombre="A", especie="pulpo", stat=10, modificador=0,
-               animo=esp.NORMAL):
-    return comp.Competidor(nombre, especie, stat, modificador, animo)
+def competidor(
+    nombre="A", especie="pulpo", stat=10, modificador=0, animo=esp.NORMAL,
+    *, fuerza=None, velocidad=None, salud=None,
+    bonus_fuerza=0, bonus_velocidad=0,
+):
+    return comp.Competidor(
+        nombre=nombre,
+        especie=especie,
+        fuerza=stat if fuerza is None else fuerza,
+        velocidad=stat if velocidad is None else velocidad,
+        salud=stat if salud is None else salud,
+        modificador=modificador,
+        bonus_fuerza=bonus_fuerza,
+        bonus_velocidad=bonus_velocidad,
+        animo=animo,
+    )
 
 
 def combate(competidores, tipo, rng):
@@ -56,28 +71,123 @@ def espera_error(competidores, tipo, motivo):
 
 # --- Resolución ------------------------------------------------------------
 
-def test_son_tres_tramos_y_cada_uno_es_stat_mas_1d20():
-    a = competidor("A", stat=10)
-    b = competidor("B", stat=5)
-    # Los dados se reparten en orden: A, B, A, B...
-    _, r = combate([a, b], comp.CARRERA, DadosFijos([20, 1]))
+def test_las_seis_fases_usan_sus_mezclas_y_bonus_antes_del_estado():
+    c = competidor(
+        fuerza=10, velocidad=20, salud=30,
+        bonus_fuerza=2, bonus_velocidad=4,
+    )
 
-    assert len(r.rondas) == 3
-    for ronda in r.rondas:
-        assert ronda.totales == (10 + 20, 5 + 1)
-    assert r.totales == (90, 18)
-    assert r.orden == (0, 1)
+    assert {
+        fase: c.base_en(fase)
+        for fase in (*comp.FASES_CARRERA, *comp.FASES_SUMO)
+    } == {
+        comp.SALIDA: 24,
+        comp.TERRENO: 20,
+        comp.FONDO: 26,
+        comp.POSICION: 16,
+        comp.EMPUJE: 12,
+        comp.AGUANTE: 17,
+    }
+
+    con_estado = competidor(
+        fuerza=10, velocidad=20, salud=30, modificador=2,
+        bonus_fuerza=2, bonus_velocidad=4,
+    )
+    assert con_estado.base_en(comp.TERRENO) == 22
+    assert con_estado.base_en(comp.POSICION) == 18
+
+
+def test_las_mezclas_redondean_a_par_y_la_base_se_clampa():
+    assert competidor(fuerza=5, velocidad=10).base_en(comp.TERRENO) == 8
+    assert competidor(fuerza=10, velocidad=5).base_en(comp.TERRENO) == 6
+
+    debil = competidor(stat=1, modificador=-5)
+    assert all(
+        debil.base_en(fase) == 1
+        for fase in (*comp.FASES_CARRERA, *comp.FASES_SUMO)
+    )
+
+
+def test_sopaipilla_aporta_el_bonus_completo_en_mezclas_fuerza_velocidad():
+    normal = competidor(fuerza=10, velocidad=20)
+    sopa = competidor(
+        fuerza=10, velocidad=20, bonus_fuerza=7, bonus_velocidad=7
+    )
+
+    assert sopa.base_en(comp.TERRENO) == normal.base_en(comp.TERRENO) + 7
+    assert sopa.base_en(comp.POSICION) == normal.base_en(comp.POSICION) + 7
+
+
+def test_carrera_juega_fases_nombradas_y_suma_sus_puntos():
+    a = competidor("A", fuerza=10, velocidad=20, salud=30)
+    b = competidor("B", fuerza=30, velocidad=10, salud=20)
+    dados = DadosFijos([5, 1, 5, 1, 5, 1])
+    _, r = combate([a, b], comp.CARRERA, dados)
+
+    assert [ronda.fase for ronda in r.rondas] == list(comp.FASES_CARRERA)
+    assert [ronda.totales for ronda in r.rondas] == [
+        (25, 11),
+        (22, 17),
+        (28, 14),
+    ]
+    assert r.totales == (75, 42)
+    assert r.marcadores == r.totales
+    assert dados.i == 6
 
 
 def test_gana_quien_suma_mas_no_quien_gana_mas_tramos():
-    """Con acumulado, una remontada en el último tramo puede darle la vuelta:
-    es justo lo que hace que la animación tenga gracia."""
+    """Carrera sigue siendo acumulativa: manda la suma de las tres fases."""
     a = competidor("A", stat=0)
     b = competidor("B", stat=0)
     # A: 20, 1, 1 = 22+3(base mínima) ... B: 1, 20, 20 = 41+3
     _, r = combate([a, b], comp.CARRERA, DadosFijos([20, 1, 1, 20, 1, 20]))
     assert r.orden[0] == 1
     assert r.competidor_ganador.nombre == "B"
+
+
+def test_sumo_para_en_dos_cero_y_no_juega_aguante():
+    dados = DadosFijos([20, 1, 20, 1, 99])
+    _, r = combate(
+        [competidor("A", stat=10), competidor("B", stat=10)],
+        comp.SUMO,
+        dados,
+    )
+
+    assert [ronda.fase for ronda in r.rondas] == [comp.POSICION, comp.EMPUJE]
+    assert r.marcadores == (2, 0)
+    assert r.orden == (0, 1)
+    assert dados.i == 4
+
+
+def test_sumo_dos_a_un_lo_gana_por_intercambios_aunque_pierda_la_suma():
+    dados = DadosFijos([2, 1, 1, 20, 2, 1])
+    _, r = combate(
+        [competidor("A", stat=10), competidor("B", stat=10)],
+        comp.SUMO,
+        dados,
+    )
+
+    assert [ronda.fase for ronda in r.rondas] == list(comp.FASES_SUMO)
+    assert r.marcadores == (2, 1)
+    assert r.totales == (35, 52)
+    assert r.orden == (0, 1)
+    assert dados.i == 6
+
+
+def test_el_empate_de_sumo_se_repite_oculto_en_la_misma_fase():
+    dados = DadosFijos([5, 5, 6, 4, 20, 1])
+    _, r = combate(
+        [competidor("A", stat=10), competidor("B", stat=10)],
+        comp.SUMO,
+        dados,
+    )
+
+    assert len(r.rondas) == 2
+    assert r.rondas[0].fase == comp.POSICION
+    assert r.rondas[0].dados == (6, 4)
+    assert r.rondas[0].desempates == 1
+    assert r.desempates == 1
+    assert dados.i == 6
 
 
 def test_un_empate_se_desempata_con_tramos_extra():
@@ -92,14 +202,22 @@ def test_un_empate_se_desempata_con_tramos_extra():
     assert r.orden[0] == 0
 
 
-def test_los_desempates_tienen_tope():
-    """Con dados siempre iguales el empate sería eterno: no puede colgarse."""
+def test_los_desempates_de_sumo_tienen_tope_y_fallback_determinista():
+    """Cada intercambio empatado se acota y el dorsal menor gana el fallback."""
     a = competidor("A", stat=10)
     b = competidor("B", stat=10)
-    _, r = combate([a, b], comp.SUMO, DadosFijos([7]))
+    dados = DadosFijos([7])
+    _, r = combate([a, b], comp.SUMO, dados)
 
-    assert r.desempates == comp.MAX_DESEMPATES
-    assert set(r.orden) == {0, 1}
+    assert len(r.rondas) == 2
+    assert [ronda.desempates for ronda in r.rondas] == [
+        comp.MAX_DESEMPATES,
+        comp.MAX_DESEMPATES,
+    ]
+    assert r.desempates == 2 * comp.MAX_DESEMPATES
+    assert r.marcadores == (2, 0)
+    assert r.orden == (0, 1)
+    assert dados.i == 4 * (comp.MAX_DESEMPATES + 1)
 
 
 def test_al_agotar_los_desempates_manda_el_orden_de_llegada():
@@ -112,44 +230,32 @@ def test_al_agotar_los_desempates_manda_el_orden_de_llegada():
     assert r.orden == (0, 1, 2, 3, 4)
 
 
-def test_la_carrera_usa_velocidad_y_el_sumo_fuerza():
+def test_competidor_de_conserva_stats_bonus_y_estado_visual():
     criatura = sim.Criatura(
         id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
-        nacida_en=None, actualizada_en=None,
+        nacida_en=T0, actualizada_en=T0,
         base_fuerza=30, base_velocidad=5, base_salud=10,
-        hambre=50.0, animo=50.0,
+        hambre=90.0, animo=90.0,
     )
-    assert comp.competidor_de(criatura, comp.CARRERA).stat == 5
-    assert comp.competidor_de(criatura, comp.SUMO).stat == 30
+    c = comp.competidor_de(
+        criatura, bonus_fuerza=7, bonus_velocidad=4
+    )
+
+    assert (c.fuerza, c.velocidad, c.salud) == (30, 5, 10)
+    assert (c.bonus_fuerza, c.bonus_velocidad) == (7, 4)
+    assert c.modificador == 2
+    assert c.cara == esp.ESPECIES["pulpo"].caras[esp.FELIZ]
 
 
-def test_el_bonus_de_una_pocion_llega_al_competidor():
-    """La poción no cambia la estadística de la criatura: entra por el mismo
-    sitio que el modificador de estado, que es lo que hace que siga topada por
-    el dado y no por lo que uno gaste en la tienda."""
+def test_sin_pocion_los_bonus_son_cero():
     criatura = sim.Criatura(
         id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
-        nacida_en=None, actualizada_en=None,
+        nacida_en=T0, actualizada_en=T0,
         base_fuerza=10, base_velocidad=10, base_salud=10,
         hambre=50.0, animo=50.0,
     )
-    sin = comp.competidor_de(criatura, comp.CARRERA)
-    con = comp.competidor_de(criatura, comp.CARRERA, bonus_objetos=7)
-
-    assert con.modificador == sin.modificador + 7
-    assert con.base == sin.base + 7
-    assert con.stat == sin.stat, "la estadística de la criatura no se toca"
-
-
-def test_sin_pocion_el_competidor_sale_igual_que_siempre():
-    criatura = sim.Criatura(
-        id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
-        nacida_en=None, actualizada_en=None,
-        base_fuerza=10, base_velocidad=10, base_salud=10,
-        hambre=50.0, animo=50.0,
-    )
-    assert comp.competidor_de(criatura, comp.SUMO) == \
-        comp.competidor_de(criatura, comp.SUMO, bonus_objetos=0)
+    c = comp.competidor_de(criatura)
+    assert c.bonus_fuerza == c.bonus_velocidad == 0
 
 
 def test_el_competidor_se_lleva_la_cara_que_tiene_puesta():
@@ -158,13 +264,13 @@ def test_el_competidor_se_lleva_la_cara_que_tiene_puesta():
     def criatura(hambre, animo):
         return sim.Criatura(
             id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
-            nacida_en=None, actualizada_en=None,
+            nacida_en=T0, actualizada_en=T0,
             base_fuerza=10, base_velocidad=10, base_salud=10,
             hambre=hambre, animo=animo,
         )
 
-    contento = comp.competidor_de(criatura(90.0, 90.0), comp.CARRERA)
-    hecho_polvo = comp.competidor_de(criatura(10.0, 10.0), comp.CARRERA)
+    contento = comp.competidor_de(criatura(90.0, 90.0))
+    hecho_polvo = comp.competidor_de(criatura(10.0, 10.0))
 
     assert contento.cara == esp.ESPECIES["pulpo"].caras[esp.FELIZ]
     assert hecho_polvo.cara == esp.ESPECIES["pulpo"].caras[esp.MAL]
@@ -292,15 +398,14 @@ def test_el_campeon_es_quien_gana_la_final():
 
 
 def test_el_orden_del_torneo_es_campeon_finalista_y_los_de_semis():
-    """Los dos que caen en semifinales no pelean por el bronce, así que se
-    ordenan entre sí por lo que sumaron: mejor marcador, mejor puesto."""
+    """Los caídos se ordenan por intercambios y después por puntos crudos."""
     e = torneo_guionizado()
     assert [c.nombre for c, _ in e.clasificacion] == ["C0", "C2", "C3", "C1"]
 
     marcadores = dict(e.clasificacion)
     # A cada uno se le apunta el marcador de su última pelea.
-    assert marcadores[e.competidores[1]] == 36   # C1, su semifinal
-    assert marcadores[e.competidores[3]] == 42   # C3, su semifinal
+    assert marcadores[e.competidores[1]] == 0  # C1, su semifinal 2–0
+    assert marcadores[e.competidores[3]] == 0  # C3, su semifinal 2–0
 
 
 def test_el_sorteo_mezcla_las_parejas():
@@ -336,6 +441,55 @@ def test_el_torneo_solo_cuenta_una_vez_para_cada_uno():
     assert sorted(e.orden) == [0, 1, 2, 3]
 
 
+def test_el_torneo_consume_solo_los_intercambios_reales():
+    dados = DadosFijos([20, 1])
+    cuatro = [competidor(f"C{i}", stat=10 + i) for i in range(4)]
+    e = comp.enfrentar(cuatro, comp.SUMO, dados)
+
+    assert len(e.combates) == 3
+    assert all(len(combate.rondas) == 2 for combate in e.combates)
+    assert dados.i == 12
+
+
+def test_los_caidos_de_semis_se_ordenan_primero_por_intercambios():
+    cuatro = [competidor(f"C{i}", stat=10) for i in range(4)]
+    # C1 cae 2-1 con 34 puntos; C3 cae 2-0 con 58. El intercambio ganado
+    # manda sobre los puntos crudos para ordenar tercero y cuarto.
+    dados = DadosFijos([
+        2, 1, 1, 2, 2, 1,
+        20, 19, 20, 19,
+        20, 1, 20, 1,
+    ])
+    e = comp.enfrentar(cuatro, comp.SUMO, dados)
+
+    assert e.orden == (0, 2, 1, 3)
+    assert e.marcadores == (2, 1, 0, 0)
+    assert dados.i == 14
+
+
+def test_los_caidos_empatados_se_ordenan_por_dorsal_global():
+    class DadosBarajados(DadosFijos):
+        def shuffle(self, dorsales, *args, **kwargs):
+            dorsales[:] = [dorsales[i] for i in (0, 3, 2, 1)]
+            self.sorteo = tuple(dorsales)
+
+    dados = DadosBarajados([2, 1])
+    e = comp.enfrentar(
+        [competidor(f"C{i}", stat=10) for i in range(4)],
+        comp.SUMO,
+        dados,
+    )
+    semifinales = e.combates[:2]
+
+    assert dados.sorteo == (0, 3, 2, 1)
+    assert [
+        (dados.sorteo[1], semifinales[0].marcadores[1], semifinales[0].totales[1]),
+        (dados.sorteo[3], semifinales[1].marcadores[1], semifinales[1].totales[1]),
+    ] == [(3, 0, 22), (1, 0, 22)]
+    assert e.orden == (0, 2, 1, 3)
+    assert sorted(e.orden) == [0, 1, 2, 3]
+
+
 # --- Modificadores ---------------------------------------------------------
 
 def test_el_estado_modifica_poco_comparado_con_el_d20():
@@ -349,7 +503,7 @@ def test_el_estado_modifica_poco_comparado_con_el_d20():
 
 def test_una_criatura_hecha_polvo_sigue_aportando_algo():
     debil = competidor(stat=1, modificador=-5)
-    assert debil.base == 1
+    assert debil.base_en(comp.SALIDA) == 1
 
 
 # --- Narración -------------------------------------------------------------
@@ -473,7 +627,7 @@ def test_el_total_del_tramo_se_ve_entero():
         primera = lineas(comp.fotogramas_de(e)[0][0])
         fila_dado = next(ln for ln in primera if "+d20" in ln)
         assert str(r.rondas[0].totales[0]) in fila_dado, (stat, fila_dado)
-        assert f"{a.base}+d20" in fila_dado, (stat, fila_dado)
+        assert f"{a.base_en(comp.POSICION)}+d20" in fila_dado, (stat, fila_dado)
 
 
 def test_el_ganador_llega_a_la_meta_en_la_carrera():
@@ -485,12 +639,10 @@ def test_el_ganador_llega_a_la_meta_en_la_carrera():
     assert fila_ganador.count("=") == comp.ANCHO_PISTA
 
 
-def test_en_el_sumo_la_marca_se_mueve_progresivamente():
-    """Regresión: normalizando contra la diferencia final, la marca saltaba al
-    extremo en cuanto alguien se adelantaba y se quedaba clavada."""
+def test_en_el_sumo_la_marca_se_mueve_por_intercambios():
     a = competidor("A", stat=10)
     b = competidor("B", stat=10)
-    e, _ = combate([a, b], comp.SUMO, DadosFijos([12, 8]))  # A gana 4 por tramo
+    e, _ = combate([a, b], comp.SUMO, DadosFijos([12, 8]))
 
     posiciones = []
     for fotograma in comp.fotogramas_de(e)[0]:
@@ -499,6 +651,36 @@ def test_en_el_sumo_la_marca_se_mueve_progresivamente():
 
     assert posiciones == sorted(posiciones)
     assert len(set(posiciones)) > 1, posiciones
+
+
+def test_los_fotogramas_nombrados_no_inventan_aguante_despues_del_dos_cero():
+    e, _ = combate(
+        [competidor("A"), competidor("B")],
+        comp.SUMO,
+        DadosFijos([20, 1, 20, 1]),
+    )
+    fotogramas = comp.fotogramas_de(e)[0]
+    texto = "\n".join(fotogramas)
+
+    assert len(fotogramas) == 2
+    assert comp.POSICION in lineas(fotogramas[0])[1]
+    assert comp.EMPUJE in lineas(fotogramas[1])[1]
+    assert comp.AGUANTE not in texto
+    assert "2–0" in comp.resumen(e)
+    assert "intercambios" in comp.resumen(e)
+
+
+def test_un_reintento_de_sumo_se_marca_sin_crear_otro_fotograma():
+    e, r = combate(
+        [competidor("A"), competidor("B")],
+        comp.SUMO,
+        DadosFijos([5, 5, 6, 4, 20, 1]),
+    )
+    fotogramas = comp.fotogramas_de(e)[0]
+
+    assert len(fotogramas) == len(r.rondas) == 2
+    assert f"{comp.POSICION}*" in lineas(fotogramas[0])[1]
+    assert "desempatar 1" in comp.resumen(e)
 
 
 # --- El podio --------------------------------------------------------------
@@ -704,9 +886,10 @@ def test_los_marcadores_del_torneo_van_fuera_del_marco():
     texto = comp.cuadro(e)
     cola = texto.split("```")[-1]
 
+    assert cola.count("2–0") == 3
+    assert "intercambios" in cola.lower()
     for combate_ in e.combates:
-        for total in combate_.totales:
-            assert str(total) in cola, (total, cola)
+        assert str(max(combate_.totales)) not in cola
 
 
 def test_el_cuadro_no_se_descuadra():

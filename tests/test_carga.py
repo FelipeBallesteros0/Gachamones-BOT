@@ -566,6 +566,8 @@ def test_la_ayuda_habla_de_lo_que_hay():
     esperados = (
         "/huevo", "/carrera", "/sumo", "/jardin", "/ranking", "/cementerio",
         "/aventura", "/mochila", "/tienda", "/plantel", "podio", "incubadora",
+        *comp.FASES_CARRERA, *comp.FASES_SUMO,
+        "puntos acumulados", "mejor de tres", "dos intercambios",
         str(comp.MAX_CORREDORES), str(db.MAXIMO_PLANTEL),
         obj.MONEDA_TIENDA, str(eco.TOPE_CUIDADOS), str(eco.PREMIO_EVOLUCION),
     )
@@ -573,6 +575,17 @@ def test_la_ayuda_habla_de_lo_que_hay():
         assert esperado in texto, esperado
     assert "Se acuerda de la última conversación." in texto
     assert "hayáis" not in texto
+
+
+def test_los_comandos_de_competencia_anuncian_sus_fases_y_regla():
+    comandos = {
+        c.name: c.description
+        for c in _cargar_todo()
+        if c.name in {"carrera", "sumo"}
+    }
+    assert "SALIDA, TERRENO y FONDO" in comandos["carrera"]
+    assert "POSICIÓN, EMPUJE y AGUANTE" in comandos["sumo"]
+    assert "mejor de tres" in comandos["sumo"]
 
 
 def test_la_ayuda_condiciona_la_xp_de_aventura_a_volver_con_vida():

@@ -60,19 +60,24 @@ def test_comprar_beber_y_que_se_note_en_la_carrera():
     assert "+6" in aviso and "velocidad" in aviso
 
     bonus = db.efecto_activo(criatura.id, "velocidad", T0)
-    competidor = comp.competidor_de(criatura, comp.CARRERA, bonus)
-    normal = comp.competidor_de(criatura, comp.CARRERA)
+    competidor = comp.competidor_de(criatura, bonus_velocidad=bonus)
+    normal = comp.competidor_de(criatura)
 
-    assert competidor.base == normal.base + 6
+    assert competidor.base_en(comp.SALIDA) == normal.base_en(comp.SALIDA) + 6
+    assert competidor.base_en(comp.TERRENO) == normal.base_en(comp.TERRENO) + 4
 
 
-def test_la_pocion_de_fuerza_no_ayuda_en_la_carrera():
-    """Cada poción sirve donde dice: la de fuerza, en el sumo."""
+def test_la_pocion_de_fuerza_ayuda_en_terreno_sin_volverse_de_velocidad():
     criatura = nacer()
     tienda.usar(criatura, obj.CATALOGO["fuerza_1d12"], T0, DadoFijo(12))
 
-    assert db.efecto_activo(criatura.id, comp.STATS[comp.SUMO], T0) == 12
-    assert db.efecto_activo(criatura.id, comp.STATS[comp.CARRERA], T0) == 0
+    bonus = db.efecto_activo(criatura.id, "fuerza", T0)
+    normal = comp.competidor_de(criatura)
+    con_fuerza = comp.competidor_de(criatura, bonus_fuerza=bonus)
+
+    assert bonus == 12
+    assert db.efecto_activo(criatura.id, "velocidad", T0) == 0
+    assert con_fuerza.base_en(comp.TERRENO) == normal.base_en(comp.TERRENO) + 4
 
 
 def test_al_caducar_deja_de_ayudar():
@@ -81,8 +86,9 @@ def test_al_caducar_deja_de_ayudar():
     tarde = T0 + timedelta(minutes=obj.MINUTOS_DE_EFECTO + 1)
 
     assert db.efecto_activo(criatura.id, "fuerza", tarde) == 0
-    assert comp.competidor_de(criatura, comp.SUMO, 0).base == \
-        comp.competidor_de(criatura, comp.SUMO).base
+    assert comp.competidor_de(
+        criatura, bonus_fuerza=0
+    ).base_en(comp.EMPUJE) == comp.competidor_de(criatura).base_en(comp.EMPUJE)
 
 
 # --- Los otros objetos -----------------------------------------------------

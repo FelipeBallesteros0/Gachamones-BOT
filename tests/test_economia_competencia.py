@@ -302,6 +302,80 @@ def test_competencia_acredita_6_al_ganador_y_4_al_resto_y_replay_no_muta():
     assert sum(economia.saldos(u, "g1").asciicoins for u in ("u1", "u2")) == 110
 
 
+def test_los_bonus_de_fuerza_y_velocidad_llegan_a_las_fases_en_transaccion():
+    uno = nacer("u1")
+    nacer("u2")
+    db.poner_efecto(uno.id, "fuerza", 10, T0)
+    db.poner_efecto(uno.id, "velocidad", 20, T0)
+
+    resultado = economia.ejecutar_competencia(
+        "bonus", ("u1", "u2"), "g1", comp.CARRERA, T0, random.Random(1)
+    )
+    assert resultado.encuentro is not None
+    combate = resultado.encuentro.combates[0]
+    bases = [ronda.totales[0] - ronda.dados[0] for ronda in combate.rondas]
+    assert bases == [37, 34, 31]  # +2 de ánimo, una vez tras cada mezcla
+
+
+def test_cada_modalidad_entrena_solo_su_stat_primario():
+    for usuario in ("u1", "u2", "u3", "u4"):
+        nacer(usuario)
+
+    economia.ejecutar_competencia(
+        "carrera", ("u1", "u2"), "g1", comp.CARRERA, T0, random.Random(1)
+    )
+    economia.ejecutar_competencia(
+        "sumo", ("u3", "u4"), "g1", comp.SUMO, T0, random.Random(2)
+    )
+
+    corredor = db.criatura_activa("u1", "g1")
+    luchador = db.criatura_activa("u3", "g1")
+    assert corredor is not None and luchador is not None
+    assert corredor.ent_velocidad == sim.ENTRENAMIENTO_POR_COMPETIR
+    assert corredor.ent_fuerza == 0
+    assert luchador.ent_fuerza == sim.ENTRENAMIENTO_POR_COMPETIR
+    assert luchador.ent_velocidad == 0
+
+
+def test_sumo_paga_al_ganador_de_intercambios_y_el_replay_no_tira_dados():
+    class Dados(random.Random):
+        def __init__(self):
+            super().__init__()
+            self.valores = iter([2, 1, 1, 20, 2, 1])
+
+        def randint(self, a, b):
+            return next(self.valores, a)
+
+    class RngProhibido(random.Random):
+        def randint(self, a, b):
+            raise AssertionError("un replay no vuelve a tirar")
+
+        def shuffle(self, x):
+            raise AssertionError("un replay no vuelve a sortear")
+
+    nacer("u1")
+    nacer("u2")
+    resultado = economia.ejecutar_competencia(
+        "sumo", ("u1", "u2"), "g1", comp.SUMO, T0, Dados()
+    )
+
+    assert resultado.encuentro is not None
+    combate = resultado.encuentro.combates[0]
+    assert combate.marcadores == (2, 1)
+    assert combate.totales[0] < combate.totales[1]
+    assert [r.delta_competencia for r in resultado.recibos] == [6, 4]
+    uno = db.criatura_activa("u1", "g1")
+    dos = db.criatura_activa("u2", "g1")
+    assert uno is not None and uno.victorias == 1
+    assert dos is not None and dos.derrotas == 1
+
+    replay = economia.ejecutar_competencia(
+        "sumo", ("u1", "u2"), "g1", comp.SUMO, T0, RngProhibido()
+    )
+    assert replay.replay
+    assert [r.delta_competencia for r in replay.recibos] == [6, 4]
+
+
 def test_cuarta_competencia_aplica_desgaste_pero_no_premia():
     nacer("u1")
     nacer("u2")

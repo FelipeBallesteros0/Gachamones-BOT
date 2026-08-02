@@ -228,8 +228,8 @@ def test_aventura_emite_cada_prueba_y_anade_salud_al_fallar():
 
 
 def test_margen_de_competencia_usa_el_ultimo_combate():
-    a = comp.Competidor("a", "pulpo", 10)
-    b = comp.Competidor("b", "pulpo", 10)
+    a = comp.Competidor("a", "pulpo", 10, 10, 10)
+    b = comp.Competidor("b", "pulpo", 10, 10, 10)
     resultado = comp.Resultado(
         comp.CARRERA, (a, b),
         [comp.Ronda((1, 1), (11, 11)), comp.Ronda((3, 1), (13, 11))],
@@ -242,7 +242,7 @@ def test_margen_de_competencia_usa_el_ultimo_combate():
 
 def test_margen_multijugador_compara_con_quien_gana():
     competidores = tuple(
-        comp.Competidor(nombre, "pulpo", 10)
+        comp.Competidor(nombre, "pulpo", 10, 10, 10)
         for nombre in ("a", "b", "c")
     )
     resultado = comp.Resultado(
@@ -255,6 +255,73 @@ def test_margen_multijugador_compara_con_quien_gana():
         comp.CARRERA, competidores, (resultado,), (0, 1, 2), resultado.totales
     )
     assert [comp.margen_de(encuentro, dorsal) for dorsal in range(3)] == [30, 30, 31]
+
+
+def test_margen_de_sumo_usa_el_intercambio_que_da_la_segunda_victoria():
+    a = comp.Competidor("a", "pulpo", 10, 10, 10)
+    b = comp.Competidor("b", "pulpo", 10, 10, 10)
+    resultado = comp.Resultado(
+        comp.SUMO,
+        (a, b),
+        [
+            comp.Ronda((2, 1), (12, 11), comp.POSICION, 0),
+            comp.Ronda((1, 20), (11, 30), comp.EMPUJE, 1),
+            comp.Ronda((5, 2), (15, 12), comp.AGUANTE, 0),
+        ],
+        (0, 1),
+    )
+    encuentro = comp.Encuentro(
+        comp.SUMO, (a, b), (resultado,), (0, 1), resultado.marcadores
+    )
+
+    assert comp.margen_de(encuentro, 0) == 3
+    assert comp.margen_de(encuentro, 1) == 3
+
+
+def test_margen_de_sumo_puede_ser_cero_tras_el_fallback_acotado():
+    a = comp.Competidor("a", "pulpo", 10, 10, 10)
+    b = comp.Competidor("b", "pulpo", 10, 10, 10)
+    resultado = comp.Resultado(
+        comp.SUMO,
+        (a, b),
+        [
+            comp.Ronda((7, 7), (17, 17), comp.POSICION, 0, comp.MAX_DESEMPATES),
+            comp.Ronda((7, 7), (17, 17), comp.EMPUJE, 0, comp.MAX_DESEMPATES),
+        ],
+        (0, 1),
+    )
+    encuentro = comp.Encuentro(
+        comp.SUMO, (a, b), (resultado,), (0, 1), resultado.marcadores
+    )
+    assert comp.margen_de(encuentro, 0) == 0
+    assert comp.margen_de(encuentro, 1) == 0
+
+
+def test_margen_de_sumo_respeta_el_ultimo_combate_del_torneo():
+    class Dados(random.Random):
+        def __init__(self):
+            super().__init__()
+            self.valores = iter([
+                2, 1, 1, 2, 2, 1,
+                20, 19, 20, 19,
+                20, 1, 20, 1,
+            ])
+
+        def randint(self, a, b):
+            return next(self.valores)
+
+        def shuffle(self, x):
+            return None
+
+    cuatro = [
+        comp.Competidor(f"c{i}", "pulpo", 10, 10, 10)
+        for i in range(4)
+    ]
+    encuentro = comp.enfrentar(cuatro, comp.SUMO, Dados())
+
+    assert [comp.margen_de(encuentro, dorsal) for dorsal in range(4)] == [
+        19, 1, 19, 1,
+    ]
 
 
 def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):

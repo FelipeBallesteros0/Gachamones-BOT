@@ -285,16 +285,17 @@ sólo cómo te habla y cómo se porta en el jardín. Ninguna es mejor que otra."
     que_hacer = f"""## 🏁 Y qué hacer con él
 
 **Competir**
-`/carrera @alguien` — decide la velocidad + 1d20. Puedes invitar a **tres más** \
-en los huecos opcionales y correr hasta {comp.MAX_CORREDORES}: con tres o más, \
-la carrera acaba en **podio**, con los tres primeros subidos a su cajón.
-`/sumo @alguien` — decide la fuerza + 1d20, cuerpo a cuerpo.
-`/sumo @a @b @c` — **torneo de cuatro**: se sortean dos semifinales y los que \
-pasan juegan la final. De dos o de cuatro; con tres no hay forma de emparejar.
--# {comp.TRAMOS} tramos por pelea, gana quien sume más. El buen ánimo suma un \
-poco; tener poca comida resta. Sólo el primero suma victoria, y el torneo cuenta como \
-una sola competencia aunque los finalistas peleen dos veces. Quien rechaza el \
-reto se cae, no lo cancela, y al agotarse el plazo se juega con quien aceptó.
+`/carrera @alguien` — **puntos acumulados**: **SALIDA** (velocidad + 1d20), \
+**TERRENO** (70 % velocidad + 30 % fuerza + 1d20) y **FONDO** (70 % velocidad \
++ 30 % salud + 1d20). Corren hasta {comp.MAX_CORREDORES}; con tres o más hay podio.
+`/sumo @alguien` — **mejor de tres**: **POSICIÓN** (70 % fuerza + 30 % \
+velocidad + 1d20), **EMPUJE** (fuerza + 1d20) y **AGUANTE** (70 % fuerza + \
+30 % salud + 1d20). Gana **dos intercambios**; con 2–0 no juega AGUANTE.
+`/sumo @a @b @c` — torneo de cuatro: dos semis y final, cada cruce al mejor de \
+tres. De dos o cuatro; con tres no se puede emparejar.
+-# El buen ánimo suma un poco; tener poca comida resta. Sólo el primero suma \
+victoria; el \
+torneo cuenta una competencia. Quien rechaza se cae del reto.
 
 **Aventura**
 `/aventura` te lleva **a ti y a tu gachamon** a un bioma al azar, ante una escena \

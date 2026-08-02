@@ -302,7 +302,7 @@ class Competencias(commands.Cog):
 
     @app_commands.command(
         name="carrera",
-        description="Reta a hasta cuatro personas a una carrera (velocidad + 1d20)",
+        description="Reta a una carrera: SALIDA, TERRENO y FONDO suman puntos",
     )
     @app_commands.describe(
         usuario="A quién quieres retar",
@@ -325,7 +325,7 @@ class Competencias(commands.Cog):
 
     @app_commands.command(
         name="sumo",
-        description="Reta a un sumo, o monta un torneo de cuatro (fuerza + 1d20)",
+        description="Reta a un sumo al mejor de tres: POSICIÓN, EMPUJE y AGUANTE",
     )
     @app_commands.describe(
         usuario="A quién quieres retar",
@@ -385,11 +385,15 @@ class Competencias(commands.Cog):
 
         a_quien = ", ".join(u.mention for u in invitados)
         nombres = ", ".join(c.nombre for c in criaturas)
+        regla = (
+            "SALIDA, TERRENO y FONDO suman puntos"
+            if tipo == comp.CARRERA
+            else "POSICIÓN, EMPUJE y AGUANTE; gana quien logra 2 intercambios"
+        )
         cabecera = (
             f"⚡ {retador.mention} reta a {a_quien} a "
             f"**{comp.como_se_llama(tipo, len(criaturas))}**.\n"
-            f"-# {nombres} · decide la {comp.STATS[tipo]} + 1d20 "
-            f"en {comp.TRAMOS} tramos."
+            f"-# {nombres} · {regla}."
         )
         vista = RetoView(self, retador, invitados, tipo, guild_id, cabecera)
         await interaccion.response.send_message(
