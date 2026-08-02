@@ -958,6 +958,23 @@ def interaccion_falsa(usuario_id: int, mensaje_id: int, guild_id: str):
     })(), respuesta
 
 
+def test_ningun_control_actua_sobre_una_ficha_desconocida(bd_temporal):
+    """Los controles nuevos, antiguos y de cuidado fallan cerrados."""
+    ahora = db.ahora_utc()
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
+
+    componentes = PantallaView().children + PantallaAnteriorView().children
+    for numero, componente in enumerate(componentes):
+        interaccion, respuesta = interaccion_falsa(1, 555, "g1")
+        interaccion_any = cast(Any, interaccion)
+        interaccion_any.id = f"evento-{numero}"
+        asyncio.run(componente.callback(interaccion_any))
+
+        assert respuesta.avisos == [
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`."
+        ], cast(Any, componente).custom_id
+
+
 def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
     """Regresión: Mochila, Tienda y Cambiar se añadieron sin la comprobación
     que sí tenían los cinco de cuidado, así que pulsarlos bajo la ficha de otra
@@ -977,10 +994,11 @@ def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
     componentes = PantallaView().children + PantallaAnteriorView().children
     for componente in componentes:
         interaccion, respuesta = interaccion_falsa(1, 555, "g1")
-        asyncio.run(componente.callback(interaccion))
+        componente_any = cast(Any, componente)
+        asyncio.run(componente_any.callback(interaccion))
 
-        assert respuesta.avisos, f"{componente.custom_id} no contestó nada"
+        assert respuesta.avisos, f"{componente_any.custom_id} no contestó nada"
         assert any("<@2>" in aviso for aviso in respuesta.avisos), (
-            f"{componente.custom_id} deja actuar sobre la ficha de otra persona: "
+            f"{componente_any.custom_id} deja actuar sobre la ficha de otra persona: "
             f"contestó {respuesta.avisos}"
         )

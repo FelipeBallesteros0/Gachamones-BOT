@@ -58,7 +58,13 @@ async def _es_de_otro(interaccion: discord.Interaction) -> bool:
     mirando. Vive suelta para que todos los botones usen la misma.
     """
     dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
-    if dueño is None or dueño.usuario_id == str(interaccion.user.id):
+    if dueño is None:
+        await interaccion.response.send_message(
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+            ephemeral=True,
+        )
+        return True
+    if dueño.usuario_id == str(interaccion.user.id):
         return False
     await interaccion.response.send_message(
         f"Ese es el gachamon de <@{dueño.usuario_id}>. "
@@ -92,7 +98,6 @@ class MenuSocial(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction) -> None:
         if await _es_de_otro(interaction):
             return
-        await _mensaje_de(interaction).edit(view=self.view)
         tipo = self.values[0]
         if tipo == "entrenar_juntos":
             await abrir_entrenamiento_conjunto(interaction)
@@ -102,6 +107,11 @@ class MenuSocial(discord.ui.Select):
             await interaction.response.send_message(
                 "Esa competencia ya no está disponible.", ephemeral=True
             )
+        if (
+            interaction.response.type
+            is not discord.InteractionResponseType.message_update
+        ):
+            await _mensaje_de(interaction).edit(view=self.view)
 
 
 class MenuGestion(discord.ui.Select):
@@ -122,7 +132,6 @@ class MenuGestion(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction) -> None:
         if await _es_de_otro(interaction):
             return
-        await _mensaje_de(interaction).edit(view=self.view)
         accion = self.values[0]
         if accion == sim.ACTUALIZAR:
             await _ejecutar(interaction, sim.ACTUALIZAR)
@@ -140,11 +149,17 @@ class MenuGestion(discord.ui.Select):
             await interaction.response.send_message(
                 "Esa acción ya no está disponible.", ephemeral=True
             )
+        if (
+            interaction.response.type
+            is not discord.InteractionResponseType.message_update
+        ):
+            await _mensaje_de(interaction).edit(view=self.view)
 
 
 class MenuSeleccionRivales(discord.ui.UserSelect):
     def __init__(self, tipo: str) -> None:
         self.tipo = tipo
+        self._usado = False
         super().__init__(
             placeholder="Elige rivales…",
             custom_id=f"tama:rivales:{tipo}",
@@ -153,6 +168,14 @@ class MenuSeleccionRivales(discord.ui.UserSelect):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        if self._usado:
+            await interaction.response.send_message(
+                "Este selector ya se usó. Abre `/mascota` para elegir rivales "
+                "de nuevo.",
+                ephemeral=True,
+            )
+            return
+        self._usado = True
         retar = getattr(_cog_competencias_de(interaction), "_retar", None)
         if retar is None:
             await interaction.response.edit_message(
@@ -679,22 +702,26 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     # Si la pantalla pulsada es de otra persona, no dejamos que actúe sobre la
     # suya por error: sería desconcertante ver aparecer otra criatura.
     dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
-    if dueño and dueño.usuario_id != usuario_id:
+    if dueño is None:
+        await interaccion.response.send_message(
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+            ephemeral=True,
+        )
+        return
+    if dueño.usuario_id != usuario_id:
         await interaccion.response.send_message(
             f"Ese es el gachamon de <@{dueño.usuario_id}>. "
             "Saca el tuyo con `/mascota` o `/huevo`.",
             ephemeral=True,
         )
         return
-    if dueño and dueño.viva and not dueño.activa:
+    if dueño.viva and not dueño.activa:
         await interaccion.response.send_message(
             "Ese gachamon está en la incubadora. Cambia el activo para cuidarlo.",
             ephemeral=True,
         )
         return
-    if accion == sim.ACTUALIZAR and (
-        dueño is None or not dueño.viva or not dueño.activa
-    ):
+    if accion == sim.ACTUALIZAR and (not dueño.viva or not dueño.activa):
         await interaccion.response.send_message(
             "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
             ephemeral=True,

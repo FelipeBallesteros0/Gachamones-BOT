@@ -344,7 +344,9 @@ def interaccion_de_selector():
         user=SimpleNamespace(id="u1"),
         guild_id="g1",
         message=mensaje,
-        response=SimpleNamespace(send_message=AsyncMock(), edit_message=AsyncMock()),
+        response=SimpleNamespace(
+            type=None, send_message=AsyncMock(), edit_message=AsyncMock()
+        ),
         channel=SimpleNamespace(),
     )
 
@@ -373,6 +375,69 @@ def test_selector_social_abre_la_modalidad_elegida(monkeypatch, valor, tipo):
 
     interaccion.message.edit.assert_awaited_once_with(view=selector.view)
     abrir.assert_awaited_once_with(interaccion, tipo)
+
+
+@pytest.mark.parametrize(
+    "custom_id,valor",
+    [("tama:desafiar", comp.CARRERA), ("tama:mas_acciones", "tienda")],
+)
+def test_selectores_acusan_antes_de_restaurar_el_placeholder(
+    monkeypatch, custom_id, valor
+):
+    acuse = asyncio.Event()
+    edicion_empezo = asyncio.Event()
+    liberar_edicion = asyncio.Event()
+
+    async def responder(*args, **kwargs):
+        interaccion.response.type = discord.InteractionResponseType.channel_message
+        acuse.set()
+
+    async def editar(**kwargs):
+        edicion_empezo.set()
+        await liberar_edicion.wait()
+
+    helper = AsyncMock(side_effect=responder)
+    monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
+    monkeypatch.setattr(vistas, "abrir_seleccion_rivales", helper)
+    monkeypatch.setattr(vistas.tienda, "abrir_tienda", helper)
+    interaccion = interaccion_de_selector()
+    interaccion.message.edit.side_effect = editar
+    selector = next(
+        hijo
+        for hijo in vistas.PantallaView().children
+        if hijo.custom_id == custom_id
+    )
+    selector._values = [valor]
+
+    async def comprobar():
+        tarea = asyncio.create_task(selector.callback(interaccion))
+        await edicion_empezo.wait()
+        acusado_antes = acuse.is_set()
+        liberar_edicion.set()
+        await tarea
+        assert acusado_antes
+
+    asyncio.run(comprobar())
+    helper.assert_awaited_once()
+
+
+def test_selector_no_reedita_si_el_helper_ya_actualizo_el_mensaje(monkeypatch):
+    async def actualizar(*args):
+        interaccion.response.type = discord.InteractionResponseType.message_update
+
+    monkeypatch.setattr(vistas, "_es_de_otro", AsyncMock(return_value=False))
+    monkeypatch.setattr(vistas, "_ejecutar", AsyncMock(side_effect=actualizar))
+    interaccion = interaccion_de_selector()
+    selector = next(
+        hijo
+        for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:mas_acciones"
+    )
+    selector._values = [sim.ACTUALIZAR]
+
+    asyncio.run(selector.callback(interaccion))
+
+    interaccion.message.edit.assert_not_awaited()
 
 
 def test_selector_social_conserva_entrenar_juntos(monkeypatch):
@@ -480,6 +545,43 @@ def test_seleccion_de_rivales_termina_en_el_seam_canonico(tipo):
 
     retar.assert_awaited_once_with(
         interaccion, tuple(rivales), tipo, canal_publico=interaccion.channel
+    )
+
+
+def test_selector_de_rivales_reserva_una_sola_delegacion_con_dos_callbacks():
+    rivales = [SimpleNamespace(id="u2")]
+    entro_en_retar = asyncio.Event()
+    liberar_retar = asyncio.Event()
+
+    async def retar(*args, **kwargs):
+        if not entro_en_retar.is_set():
+            entro_en_retar.set()
+            await liberar_retar.wait()
+
+    delegado = AsyncMock(side_effect=retar)
+    selector = vistas.MenuSeleccionRivales(comp.CARRERA)
+    selector._values = rivales
+    primera = interaccion_de_selector()
+    segunda = interaccion_de_selector()
+    cog = SimpleNamespace(_retar=delegado)
+    primera.client = SimpleNamespace(get_cog=Mock(return_value=cog))
+    segunda.client = SimpleNamespace(get_cog=Mock(return_value=cog))
+
+    async def competir_dos_veces():
+        tarea_primera = asyncio.create_task(selector.callback(primera))
+        await entro_en_retar.wait()
+        await selector.callback(segunda)
+        liberar_retar.set()
+        await tarea_primera
+
+    asyncio.run(competir_dos_veces())
+
+    delegado.assert_awaited_once_with(
+        primera, tuple(rivales), comp.CARRERA, canal_publico=primera.channel
+    )
+    segunda.response.send_message.assert_awaited_once_with(
+        "Este selector ya se usó. Abre `/mascota` para elegir rivales de nuevo.",
+        ephemeral=True,
     )
 
 
