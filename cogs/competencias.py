@@ -379,22 +379,28 @@ class Competencias(commands.Cog):
         interaccion: discord.Interaction,
         propuestos: tuple[discord.User | None, ...],
         tipo: str,
+        canal_publico: discord.abc.Messageable | None = None,
     ) -> None:
         ahora = db.ahora_utc()
         retador = cast(discord.User, interaccion.user)
         guild_id = str(interaccion.guild_id)
 
+        async def responder_error(error: str) -> None:
+            if canal_publico is None:
+                await interaccion.response.send_message(error, ephemeral=True)
+            else:
+                await interaccion.response.edit_message(content=error, view=None)
+
         invitados, problema = _invitados_validos(retador, propuestos)
         if problema:
-            await interaccion.response.send_message(problema, ephemeral=True)
+            await responder_error(problema)
             return
 
         caben = comp.CUANTOS_CABEN[tipo]
         if len(invitados) + 1 not in caben:
-            await interaccion.response.send_message(
+            await responder_error(
                 f"{comp.NOMBRES[tipo]} es de {' o '.join(map(str, caben))}, "
-                f"y son {len(invitados) + 1}.",
-                ephemeral=True,
+                f"y son {len(invitados) + 1}."
             )
             return
 
@@ -412,7 +418,7 @@ class Competencias(commands.Cog):
             ahora,
         )
         if problema:
-            await interaccion.response.send_message(problema, ephemeral=True)
+            await responder_error(problema)
             return
 
         a_quien = ", ".join(u.mention for u in invitados)
@@ -424,10 +430,24 @@ class Competencias(commands.Cog):
             f"-# {nombres} · {regla}."
         )
         vista = RetoView(self, retador, invitados, tipo, guild_id, cabecera)
-        await interaccion.response.send_message(
-            f"{cabecera}\n{vista.marcador()}", view=vista
-        )
-        vista.mensaje = await interaccion.original_response()
+        contenido = f"{cabecera}\n{vista.marcador()}"
+        if canal_publico is None:
+            await interaccion.response.send_message(contenido, view=vista)
+            vista.mensaje = await interaccion.original_response()
+        else:
+            await interaccion.response.edit_message(
+                content="Publicando el reto en el canal…", view=None
+            )
+            try:
+                vista.mensaje = await canal_publico.send(contenido, view=vista)
+            except HTTPException:
+                await interaccion.edit_original_response(
+                    content="No pude publicar el reto en el canal. Inténtalo de nuevo."
+                )
+                return
+            await interaccion.edit_original_response(
+                content="Reto publicado en el canal."
+            )
 
     # -- disputa ------------------------------------------------------------
 

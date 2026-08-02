@@ -6,7 +6,7 @@ repetido o un import roto en un cog.
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import cast
+from typing import Any, cast
 
 import discord
 import pytest
@@ -17,7 +17,12 @@ import competir as comp
 import db
 import simulacion as sim
 from cogs import competencias
-from vistas import NombrarView, PantallaView
+from vistas import (
+    MenuSeleccionRivales,
+    NombrarView,
+    PantallaAnteriorView,
+    PantallaView,
+)
 
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "totem", "ranking", "cementerio",
@@ -43,6 +48,7 @@ def _cargar_todo():
         for extension in modulo_bot.EXTENSIONES:
             await cliente.load_extension(extension)
         cliente.add_view(PantallaView())
+        cliente.add_view(PantallaAnteriorView())
         cliente.add_view(NombrarView())
         comandos = list(cliente.tree.get_commands())
         # Descargar para que el bucle de muerte no quede suelto.
@@ -104,45 +110,54 @@ def test_ningun_comando_se_sale_de_su_canal(monkeypatch):
     assert not sueltos, f"contestan en cualquier canal: {sueltos}"
 
 
-def test_los_botones_de_la_pantalla_son_persistentes():
-    """Sin timeout y con custom_id fijo siguen funcionando tras un reinicio."""
+def test_la_pantalla_persistente_tiene_la_estructura_aprobada():
+    """Cuatro cuidados directos y dos selectores de ancho completo."""
     vista = PantallaView()
     assert vista.timeout is None
-    # cinco acciones arriba; cinco menús, incluido el entrenamiento conjunto, abajo
-    assert len(vista.children) == 10
+    assert len(vista.children) == 6
+
+    botones = vista.children[:4]
+    assert all(isinstance(hijo, discord.ui.Button) for hijo in botones)
+    assert [hijo.label for hijo in botones] == [
+        "Alimentar", "Jugar", "Entrenar", "Limpiar"
+    ]
+    assert [str(hijo.emoji) for hijo in botones] == ["🍖", "🎮", "🏋️", "🧼"]
+    assert [hijo.row for hijo in botones] == [0, 0, 0, 0]
+
+    social, gestion = vista.children[4:]
+    assert isinstance(social, discord.ui.Select)
+    assert social.row == 1
+    assert social.placeholder == "⚔️ Desafiar a otros…"
+    assert social.custom_id == "tama:desafiar"
+    assert [(op.label, op.value) for op in social.options] == [
+        ("Carrera", comp.CARRERA),
+        ("Sumo", comp.SUMO),
+        ("Asalto al Tótem", comp.TOTEM),
+        ("Entrenar juntos", "entrenar_juntos"),
+    ]
+    assert not any(op.default for op in social.options)
+
+    assert isinstance(gestion, discord.ui.Select)
+    assert gestion.row == 2
+    assert gestion.placeholder == "🎒 Más acciones…"
+    assert gestion.custom_id == "tama:mas_acciones"
+    assert [(op.label, op.value) for op in gestion.options] == [
+        ("Actualizar", sim.ACTUALIZAR),
+        ("Mochila", "inventario"),
+        ("Tienda", "tienda"),
+        ("Cambiar", "plantel"),
+        ("Personalizar", "personalizar"),
+    ]
+    assert not any(op.default for op in gestion.options)
 
     ids = [hijo.custom_id for hijo in vista.children]
     assert all(i and i.startswith("tama:") for i in ids)
     assert len(set(ids)) == len(ids)
 
 
-def test_los_botones_caben_en_las_filas_de_discord():
-    """Discord no admite más de cinco por fila ni más de cinco filas.
-
-    La de arriba está llena con los cinco cuidados, y por eso los cinco que
-    abren menús van todos abajo. Sin este test, añadir otro desbordaría Discord."""
-    from collections import Counter
-
+def test_los_componentes_caben_en_tres_filas_de_discord():
     hijos = PantallaView().children
-    assert len(hijos) <= 25
-    filas = Counter(hijo.row or 0 for hijo in hijos)
-    assert all(cuantos <= 5 for cuantos in filas.values()), filas
-    assert len(filas) == 2, filas
-
-
-def test_hay_un_boton_por_accion():
-    acciones = {i.custom_id.split(":", 1)[1] for i in PantallaView().children}
-    assert acciones == (
-        set(sim.ACCIONES_DE_CUIDADO)
-        | {
-            sim.ACTUALIZAR,
-            "inventario",
-            "tienda",
-            "plantel",
-            "personalizar",
-            "entrenar_juntos",
-        }
-    )
+    assert [hijo.row for hijo in hijos] == [0, 0, 0, 0, 1, 2]
 
 
 def test_no_se_procesan_comandos_de_texto():
@@ -200,8 +215,26 @@ def test_el_boton_de_nombrar_tambien_es_persistente():
 
 def test_los_custom_id_no_chocan_entre_vistas():
     todos = [h.custom_id for h in PantallaView().children]
+    todos += [h.custom_id for h in PantallaAnteriorView().children]
     todos += [h.custom_id for h in NombrarView().children]
+    todos += [
+        MenuSeleccionRivales(tipo).custom_id
+        for tipo in (comp.CARRERA, comp.SUMO, comp.TOTEM)
+    ]
     assert len(set(todos)) == len(todos)
+
+
+def test_las_fichas_anteriores_conservan_sus_acciones_persistentes():
+    vista = PantallaAnteriorView()
+    assert vista.timeout is None
+    assert [hijo.custom_id for hijo in vista.children] == [
+        "tama:actualizar",
+        "tama:inventario",
+        "tama:tienda",
+        "tama:plantel",
+        "tama:personalizar",
+        "tama:entrenar_juntos",
+    ]
 
 
 def test_la_vista_congelada_no_acepta_clics():
@@ -413,6 +446,147 @@ def test_no_se_puede_invitar_al_mismo_dos_veces():
     assert _invitados_validos(yo, (ana, yo, None, None))[1] is not None
     assert _invitados_validos(yo, (ana, UsuarioFalso(9, bot=True), None, None))[1]
     assert _invitados_validos(yo, (None, None, None, None))[1] is not None
+
+
+@pytest.mark.parametrize("desde_selector", [False, True])
+def test_retar_mantiene_el_slash_y_permite_publicar_desde_selector(
+    bd_temporal, monkeypatch, desde_selector
+):
+    """El selector sólo cambia dónde se publica; la autoridad sigue en `_retar`."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
+    db.crear("2", "g1", "michi", "Lúa", (15, 15, 15), ahora)
+    retador, rival = UsuarioFalso(1), UsuarioFalso(2)
+    mensaje = SimpleNamespace(id="reto")
+    canal = SimpleNamespace(send=AsyncMock(return_value=mensaje))
+    respuesta = SimpleNamespace(send_message=AsyncMock(), edit_message=AsyncMock())
+    interaccion = SimpleNamespace(
+        user=retador,
+        guild_id="g1",
+        response=respuesta,
+        original_response=AsyncMock(return_value=mensaje),
+        edit_original_response=AsyncMock(),
+    )
+    cog = competencias.Competencias(cast(commands.Bot, None))
+    llamada = cog._retar(
+        cast(discord.Interaction, interaccion),
+        cast(tuple[discord.User | None, ...], (rival,)),
+        comp.CARRERA,
+        canal_publico=(
+            cast(discord.abc.Messageable, canal) if desde_selector else None
+        ),
+    )
+
+    asyncio.run(llamada)
+
+    if desde_selector:
+        respuesta.edit_message.assert_awaited_once_with(
+            content="Publicando el reto en el canal…", view=None
+        )
+        canal.send.assert_awaited_once()
+        interaccion.edit_original_response.assert_awaited_once_with(
+            content="Reto publicado en el canal."
+        )
+        respuesta.send_message.assert_not_awaited()
+        interaccion.original_response.assert_not_awaited()
+        vista = canal.send.await_args.kwargs["view"]
+    else:
+        respuesta.send_message.assert_awaited_once()
+        canal.send.assert_not_awaited()
+        respuesta.edit_message.assert_not_awaited()
+        interaccion.edit_original_response.assert_not_awaited()
+        interaccion.original_response.assert_awaited_once()
+        vista = respuesta.send_message.await_args.kwargs["view"]
+    assert isinstance(vista, competencias.RetoView)
+    assert vista.tipo == comp.CARRERA
+    assert [usuario.id for usuario in vista.invitados] == [2]
+    assert vista.mensaje is mensaje
+
+
+def test_fallo_al_publicar_reto_cierra_el_selector_con_error_claro(
+    bd_temporal, monkeypatch
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
+    db.crear("2", "g1", "michi", "Lúa", (15, 15, 15), ahora)
+    error = discord.HTTPException(
+        cast(Any, SimpleNamespace(status=500, reason="prueba")), "Discord cayó"
+    )
+    canal = SimpleNamespace(send=AsyncMock(side_effect=error))
+    respuesta = SimpleNamespace(send_message=AsyncMock(), edit_message=AsyncMock())
+    interaccion = SimpleNamespace(
+        user=UsuarioFalso(1),
+        guild_id="g1",
+        response=respuesta,
+        edit_original_response=AsyncMock(),
+    )
+    cog = competencias.Competencias(cast(commands.Bot, None))
+
+    asyncio.run(cog._retar(
+        cast(discord.Interaction, interaccion),
+        cast(tuple[discord.User | None, ...], (UsuarioFalso(2),)),
+        comp.CARRERA,
+        canal_publico=cast(discord.abc.Messageable, canal),
+    ))
+
+    respuesta.edit_message.assert_awaited_once_with(
+        content="Publicando el reto en el canal…", view=None
+    )
+    interaccion.edit_original_response.assert_awaited_once_with(
+        content="No pude publicar el reto en el canal. Inténtalo de nuevo."
+    )
+
+
+@pytest.mark.parametrize(
+    ("invitados_ids", "tipo", "error"),
+    [
+        ((), comp.CARRERA, "Tienes que invitar a alguien."),
+        ((2, 3), comp.SUMO, "SUMO es de 2 o 4, y son 3."),
+        ((2,), comp.CARRERA, "u1 no tiene ningún gachamon vivo."),
+    ],
+    ids=["invitados-invalidos", "cantidad-incompatible", "problema-del-grupo"],
+)
+@pytest.mark.parametrize("desde_selector", [False, True], ids=["slash", "selector"])
+def test_error_al_retar_conserva_el_slash_y_cierra_el_selector(
+    bd_temporal, invitados_ids, tipo, error, desde_selector
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    respuesta = SimpleNamespace(send_message=AsyncMock(), edit_message=AsyncMock())
+    canal = SimpleNamespace(send=AsyncMock())
+    interaccion = SimpleNamespace(
+        user=UsuarioFalso(1), guild_id="g1", response=respuesta
+    )
+    cog = competencias.Competencias(cast(commands.Bot, None))
+
+    asyncio.run(cog._retar(
+        cast(discord.Interaction, interaccion),
+        cast(
+            tuple[discord.User | None, ...],
+            tuple(UsuarioFalso(id_) for id_ in invitados_ids),
+        ),
+        tipo,
+        canal_publico=(
+            cast(discord.abc.Messageable, canal) if desde_selector else None
+        ),
+    ))
+
+    if desde_selector:
+        respuesta.edit_message.assert_awaited_once_with(content=error, view=None)
+        respuesta.send_message.assert_not_awaited()
+    else:
+        respuesta.send_message.assert_awaited_once_with(error, ephemeral=True)
+        respuesta.edit_message.assert_not_awaited()
+    canal.send.assert_not_awaited()
 
 
 def test_solo_se_republica_la_ficha_de_quien_cambia():
@@ -803,6 +977,23 @@ def interaccion_falsa(usuario_id: int, mensaje_id: int, guild_id: str):
     })(), respuesta
 
 
+def test_ningun_control_actua_sobre_una_ficha_desconocida(bd_temporal):
+    """Los controles nuevos, antiguos y de cuidado fallan cerrados."""
+    ahora = db.ahora_utc()
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
+
+    componentes = PantallaView().children + PantallaAnteriorView().children
+    for numero, componente in enumerate(componentes):
+        interaccion, respuesta = interaccion_falsa(1, 555, "g1")
+        interaccion_any = cast(Any, interaccion)
+        interaccion_any.id = f"evento-{numero}"
+        asyncio.run(componente.callback(interaccion_any))
+
+        assert respuesta.avisos == [
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`."
+        ], cast(Any, componente).custom_id
+
+
 def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
     """Regresión: Mochila, Tienda y Cambiar se añadieron sin la comprobación
     que sí tenían los cinco de cuidado, así que pulsarlos bajo la ficha de otra
@@ -819,12 +1010,14 @@ def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
     suya = db.crear("2", "g1", "pulpo", "Suya", (15, 15, 15), ahora)
     db.guardar_pantalla(suya.id, "555", "999")  # la ficha publicada es de «2»
 
-    for boton in PantallaView().children:
+    componentes = PantallaView().children + PantallaAnteriorView().children
+    for componente in componentes:
         interaccion, respuesta = interaccion_falsa(1, 555, "g1")
-        asyncio.run(boton.callback(interaccion))
+        componente_any = cast(Any, componente)
+        asyncio.run(componente_any.callback(interaccion))
 
-        assert respuesta.avisos, f"{boton.custom_id} no contestó nada"
+        assert respuesta.avisos, f"{componente_any.custom_id} no contestó nada"
         assert any("<@2>" in aviso for aviso in respuesta.avisos), (
-            f"{boton.custom_id} deja actuar sobre la ficha de otra persona: "
+            f"{componente_any.custom_id} deja actuar sobre la ficha de otra persona: "
             f"contestó {respuesta.avisos}"
         )

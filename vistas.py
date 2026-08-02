@@ -20,6 +20,7 @@ import discord
 from discord import Forbidden, HTTPException, NotFound
 
 import comun
+import competir as comp
 import db
 import economia
 import equipo
@@ -57,7 +58,13 @@ async def _es_de_otro(interaccion: discord.Interaction) -> bool:
     mirando. Vive suelta para que todos los botones usen la misma.
     """
     dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
-    if dueño is None or dueño.usuario_id == str(interaccion.user.id):
+    if dueño is None:
+        await interaccion.response.send_message(
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+            ephemeral=True,
+        )
+        return True
+    if dueño.usuario_id == str(interaccion.user.id):
         return False
     await interaccion.response.send_message(
         f"Ese es el gachamon de <@{dueño.usuario_id}>. "
@@ -67,85 +74,259 @@ async def _es_de_otro(interaccion: discord.Interaction) -> bool:
     return True
 
 
-class PantallaView(discord.ui.View):
-    """Los botones bajo la pantalla.
+def _cog_competencias_de(interaccion: discord.Interaction) -> object | None:
+    resolver = getattr(interaccion.client, "get_cog", None)
+    return resolver("Competencias") if callable(resolver) else None
 
-    Cinco de cuidado arriba, y abajo mochila, tienda y cambio de gachamon. Son
-    ocho y Discord admite cinco por fila, así que van en dos: los de cuidar
-    actúan sobre la criatura, los de abajo abren menús y no la tocan.
-    """
+
+class MenuSocial(discord.ui.Select):
+    def __init__(self) -> None:
+        super().__init__(
+            placeholder="⚔️ Desafiar a otros…",
+            custom_id="tama:desafiar",
+            row=1,
+            options=[
+                discord.SelectOption(label="Carrera", value=comp.CARRERA),
+                discord.SelectOption(label="Sumo", value=comp.SUMO),
+                discord.SelectOption(label="Asalto al Tótem", value=comp.TOTEM),
+                discord.SelectOption(
+                    label="Entrenar juntos", value="entrenar_juntos"
+                ),
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if await _es_de_otro(interaction):
+            return
+        tipo = self.values[0]
+        if tipo == "entrenar_juntos":
+            await abrir_entrenamiento_conjunto(interaction)
+        elif tipo in comp.CUANTOS_CABEN:
+            await abrir_seleccion_rivales(interaction, tipo)
+        else:
+            await interaction.response.send_message(
+                "Esa competencia ya no está disponible.", ephemeral=True
+            )
+        if (
+            interaction.response.type
+            is not discord.InteractionResponseType.message_update
+        ):
+            await _mensaje_de(interaction).edit(view=self.view)
+
+
+class MenuGestion(discord.ui.Select):
+    def __init__(self) -> None:
+        super().__init__(
+            placeholder="🎒 Más acciones…",
+            custom_id="tama:mas_acciones",
+            row=2,
+            options=[
+                discord.SelectOption(label="Actualizar", value=sim.ACTUALIZAR),
+                discord.SelectOption(label="Mochila", value="inventario"),
+                discord.SelectOption(label="Tienda", value="tienda"),
+                discord.SelectOption(label="Cambiar", value="plantel"),
+                discord.SelectOption(label="Personalizar", value="personalizar"),
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if await _es_de_otro(interaction):
+            return
+        accion = self.values[0]
+        if accion == sim.ACTUALIZAR:
+            await _ejecutar(interaction, sim.ACTUALIZAR)
+        elif accion == "inventario":
+            await tienda.abrir_inventario(interaction, congelar)
+        elif accion == "tienda":
+            await tienda.abrir_tienda(interaction)
+        elif accion == "plantel":
+            await equipo.abrir_plantel(
+                interaction, congelar, bautizar, publicar_pantalla
+            )
+        elif accion == "personalizar":
+            await tienda.abrir_personalizacion(interaction, republicar_ficha)
+        else:
+            await interaction.response.send_message(
+                "Esa acción ya no está disponible.", ephemeral=True
+            )
+        if (
+            interaction.response.type
+            is not discord.InteractionResponseType.message_update
+        ):
+            await _mensaje_de(interaction).edit(view=self.view)
+
+
+class MenuSeleccionRivales(discord.ui.UserSelect):
+    def __init__(self, tipo: str) -> None:
+        self.tipo = tipo
+        self._usado = False
+        super().__init__(
+            placeholder="Elige rivales…",
+            custom_id=f"tama:rivales:{tipo}",
+            min_values=1,
+            max_values=max(comp.CUANTOS_CABEN[tipo]) - 1,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if self._usado:
+            await interaction.response.send_message(
+                "Este selector ya se usó. Abre `/mascota` para elegir rivales "
+                "de nuevo.",
+                ephemeral=True,
+            )
+            return
+        self._usado = True
+        retar = getattr(_cog_competencias_de(interaction), "_retar", None)
+        if retar is None:
+            await interaction.response.edit_message(
+                content="Las competencias no están disponibles en este momento.",
+                view=None,
+            )
+            return
+        await retar(
+            interaction,
+            tuple(self.values),
+            self.tipo,
+            canal_publico=_canal_de(interaction),
+        )
+
+
+class VistaSeleccionRivales(discord.ui.View):
+    def __init__(self, propietario_id: str, tipo: str) -> None:
+        super().__init__(timeout=180)
+        self.propietario_id = propietario_id
+        self.add_item(MenuSeleccionRivales(tipo))
+
+    async def interaction_check(self, interaccion: discord.Interaction) -> bool:
+        if str(interaccion.user.id) == self.propietario_id:
+            return True
+        await interaccion.response.send_message(
+            "Este selector de rivales no es tuyo.", ephemeral=True
+        )
+        return False
+
+
+async def abrir_seleccion_rivales(
+    interaccion: discord.Interaction, tipo: str
+) -> None:
+    if getattr(_cog_competencias_de(interaccion), "_retar", None) is None:
+        await interaccion.response.send_message(
+            "Las competencias no están disponibles en este momento.", ephemeral=True
+        )
+        return
+    cantidades = tuple(cantidad - 1 for cantidad in comp.CUANTOS_CABEN[tipo])
+    copy = (
+        f"entre {cantidades[0]} y {cantidades[-1]}"
+        if len(cantidades) > 2
+        else " o ".join(map(str, cantidades))
+    )
+    await interaccion.response.send_message(
+        f"Elige {copy} rivales para {comp.NOMBRES[tipo].lower()}.",
+        view=VistaSeleccionRivales(str(interaccion.user.id), tipo),
+        ephemeral=True,
+    )
+
+
+class PantallaView(discord.ui.View):
+    """Cuidados frecuentes, juego social y gestión secundaria de la ficha."""
 
     def __init__(self, congelada: bool = False):
         super().__init__(timeout=None)
+        self.add_item(MenuSocial())
+        self.add_item(MenuGestion())
         if congelada:
             for hijo in self.children:
-                if isinstance(hijo, discord.ui.Button):
+                if isinstance(hijo, (discord.ui.Button, discord.ui.Select)):
                     hijo.disabled = True
 
-    @discord.ui.button(label="Alimentar", emoji="🍖",
-                       style=discord.ButtonStyle.success, custom_id="tama:alimentar")
+    @discord.ui.button(
+        label="Alimentar", emoji="🍖", row=0,
+        style=discord.ButtonStyle.success, custom_id="tama:alimentar"
+    )
     async def alimentar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.ALIMENTAR)
 
-    @discord.ui.button(label="Jugar", emoji="🎮",
-                       style=discord.ButtonStyle.primary, custom_id="tama:jugar")
+    @discord.ui.button(
+        label="Jugar", emoji="🎮", row=0,
+        style=discord.ButtonStyle.primary, custom_id="tama:jugar"
+    )
     async def jugar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.JUGAR)
 
-    @discord.ui.button(label="Entrenar", emoji="🏋️",
-                       style=discord.ButtonStyle.primary, custom_id="tama:entrenar")
+    @discord.ui.button(
+        label="Entrenar", emoji="🏋️", row=0,
+        style=discord.ButtonStyle.primary, custom_id="tama:entrenar"
+    )
     async def entrenar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.ENTRENAR)
 
-    @discord.ui.button(label="Limpiar", emoji="🧼",
-                       style=discord.ButtonStyle.secondary, custom_id="tama:limpiar")
+    @discord.ui.button(
+        label="Limpiar", emoji="🧼", row=0,
+        style=discord.ButtonStyle.secondary, custom_id="tama:limpiar"
+    )
     async def limpiar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.LIMPIAR)
 
-    @discord.ui.button(label="Actualizar", emoji="🔄",
-                       style=discord.ButtonStyle.secondary, custom_id="tama:actualizar")
+
+class PantallaAnteriorView(discord.ui.View):
+    """Despacha los controles de fichas publicadas antes del rediseño."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Actualizar", emoji="🔄", row=0,
+        style=discord.ButtonStyle.secondary, custom_id="tama:actualizar"
+    )
     async def actualizar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         await _ejecutar(interaccion, sim.ACTUALIZAR)
 
-    # Estos tres no gastan enfriamiento ni tocan a la criatura por sí solos:
-    # abren un menú que sólo ve quien pulsa, así que ni congelan la pantalla ni
-    # publican una nueva. Pero sí piden que la ficha sea tuya, como los demás:
-    # abren tus cosas, y usarlas desde la ficha de otro te haría beberte una
-    # poción o cambiar de plantel mirando a un gachamon que no es el tuyo.
-    @discord.ui.button(label="Mochila", emoji="🎒", row=1,
-                       style=discord.ButtonStyle.secondary, custom_id="tama:inventario")
-    async def abrir_mochila(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        if await _es_de_otro(interaccion):
-            return
-        await tienda.abrir_inventario(interaccion, congelar)
+    @discord.ui.button(
+        label="Mochila", emoji="🎒", row=0,
+        style=discord.ButtonStyle.secondary, custom_id="tama:inventario"
+    )
+    async def abrir_mochila(
+        self, interaccion: discord.Interaction, boton: discord.ui.Button
+    ):
+        if not await _es_de_otro(interaccion):
+            await tienda.abrir_inventario(interaccion, congelar)
 
-    @discord.ui.button(label="Tienda", emoji="🛒", row=1,
-                       style=discord.ButtonStyle.success, custom_id="tama:tienda")
-    async def abrir_tienda(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        if await _es_de_otro(interaccion):
-            return
-        await tienda.abrir_tienda(interaccion)
+    @discord.ui.button(
+        label="Tienda", emoji="🛒", row=0,
+        style=discord.ButtonStyle.success, custom_id="tama:tienda"
+    )
+    async def abrir_tienda(
+        self, interaccion: discord.Interaction, boton: discord.ui.Button
+    ):
+        if not await _es_de_otro(interaccion):
+            await tienda.abrir_tienda(interaccion)
 
-    @discord.ui.button(label="Cambiar", emoji="🧬", row=1,
-                       style=discord.ButtonStyle.primary, custom_id="tama:plantel")
-    async def cambiar_activo(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        if await _es_de_otro(interaccion):
-            return
-        await equipo.abrir_plantel(interaccion, congelar, bautizar, publicar_pantalla)
+    @discord.ui.button(
+        label="Cambiar", emoji="🧬", row=0,
+        style=discord.ButtonStyle.primary, custom_id="tama:plantel"
+    )
+    async def cambiar_activo(
+        self, interaccion: discord.Interaction, boton: discord.ui.Button
+    ):
+        if not await _es_de_otro(interaccion):
+            await equipo.abrir_plantel(
+                interaccion, congelar, bautizar, publicar_pantalla
+            )
 
-    # Va en esta fila y no con los cuidados porque aquélla ya tiene los cinco
-    # botones que admite Discord. Encaja además con sus vecinos: abre un menú
-    # que sólo ve quien pulsa y no gasta enfriamiento.
-    @discord.ui.button(label="Personalizar", emoji="🎨", row=1,
-                       style=discord.ButtonStyle.secondary, custom_id="tama:personalizar")
-    async def personalizar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        if await _es_de_otro(interaccion):
-            return
-        await tienda.abrir_personalizacion(interaccion, republicar_ficha)
+    @discord.ui.button(
+        label="Personalizar", emoji="🎨", row=0,
+        style=discord.ButtonStyle.secondary, custom_id="tama:personalizar"
+    )
+    async def personalizar(
+        self, interaccion: discord.Interaction, boton: discord.ui.Button
+    ):
+        if not await _es_de_otro(interaccion):
+            await tienda.abrir_personalizacion(interaccion, republicar_ficha)
 
-    @discord.ui.button(label="Entrenar juntos", emoji="🤝", row=1,
-                       style=discord.ButtonStyle.primary,
-                       custom_id="tama:entrenar_juntos")
+    @discord.ui.button(
+        label="Entrenar juntos", emoji="🤝", row=1,
+        style=discord.ButtonStyle.primary, custom_id="tama:entrenar_juntos"
+    )
     async def entrenar_juntos(
         self, interaccion: discord.Interaction, boton: discord.ui.Button
     ):
@@ -521,22 +702,26 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     # Si la pantalla pulsada es de otra persona, no dejamos que actúe sobre la
     # suya por error: sería desconcertante ver aparecer otra criatura.
     dueño = db.criatura_por_pantalla(str(_mensaje_de(interaccion).id))
-    if dueño and dueño.usuario_id != usuario_id:
+    if dueño is None:
+        await interaccion.response.send_message(
+            "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+            ephemeral=True,
+        )
+        return
+    if dueño.usuario_id != usuario_id:
         await interaccion.response.send_message(
             f"Ese es el gachamon de <@{dueño.usuario_id}>. "
             "Saca el tuyo con `/mascota` o `/huevo`.",
             ephemeral=True,
         )
         return
-    if dueño and dueño.viva and not dueño.activa:
+    if dueño.viva and not dueño.activa:
         await interaccion.response.send_message(
             "Ese gachamon está en la incubadora. Cambia el activo para cuidarlo.",
             ephemeral=True,
         )
         return
-    if accion == sim.ACTUALIZAR and (
-        dueño is None or not dueño.viva or not dueño.activa
-    ):
+    if accion == sim.ACTUALIZAR and (not dueño.viva or not dueño.activa):
         await interaccion.response.send_message(
             "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
             ephemeral=True,
@@ -817,6 +1002,6 @@ async def republicar_ficha(
     if interaccion.channel is None:
         return
     try:
-        await publicar_pantalla(interaccion.channel, criatura, db.ahora_utc())
+        await publicar_pantalla(_canal_de(interaccion), criatura, db.ahora_utc())
     except (NotFound, Forbidden, HTTPException):
         log.warning("No se pudo republicar la ficha tras vestirla", exc_info=True)
