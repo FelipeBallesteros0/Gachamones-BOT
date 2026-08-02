@@ -608,8 +608,8 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     async def congelar(canal, mensaje_id):
         eventos.append(("congelar", canal, mensaje_id))
 
-    async def animar(canal, fotogramas):
-        eventos.append(("animar", canal, fotogramas))
+    async def animar(canal, fotogramas, tipo):
+        eventos.append(("animar", canal, fotogramas, tipo))
 
     async def publicar(canal, criatura, ahora, **kwargs):
         eventos.append(("publicar", criatura, kwargs))
@@ -637,7 +637,7 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     assert eventos[:3] == [
         ("congelar", canales_anteriores[101], "ficha-1"),
         ("congelar", canales_anteriores[102], "ficha-2"),
-        ("animar", canal, ["tramo"]),
+        ("animar", canal, ["tramo"], comp.CARRERA),
     ]
     assert eventos[-1][0] == "publicar"
     assert eventos[-1][2] == {"ya_congelada": "ficha-1"}

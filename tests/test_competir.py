@@ -1087,6 +1087,54 @@ def test_el_totem_tiene_un_fotograma_por_fase_y_tres_escenas_distintas():
     assert len(set(escenas)) == len(comp.FASES_TOTEM)
 
 
+def test_cada_fase_del_totem_cuenta_una_accion_y_su_resultado():
+    e, _ = combate([competidor("A", stat=20), competidor("B", stat=10)],
+                   comp.TOTEM, DadosFijos([10]))
+    narraciones = [
+        fotograma.rsplit("```", 1)[1].strip()
+        for fotograma in comp.fotogramas_de(e)[0]
+    ]
+
+    assert narraciones == [
+        "A llega primero al tótem.",
+        "A gana el forcejeo y toma el control del tótem.",
+        "A escapa con el tótem y resiste la persecución.",
+    ]
+
+    iguales = [competidor("A", stat=10), competidor("B", stat=10)]
+    e_empatado, _ = combate(iguales, comp.TOTEM, DadosFijos([7]))
+    assert [
+        fotograma.rsplit("```", 1)[1].strip()
+        for fotograma in comp.fotogramas_de(e_empatado)[0][:3]
+    ] == [
+        "A y B llegan juntos al tótem.",
+        "A y B forcejean sin ceder el control del tótem.",
+        "A y B resisten juntos la huida con el tótem.",
+    ]
+
+
+def test_el_forcejeo_extra_distingue_empate_y_desempate_reales():
+    iguales = [competidor("A", stat=10), competidor("B", stat=10)]
+    e_empatado, _ = combate(iguales, comp.TOTEM, DadosFijos([7]))
+    narracion_empatada = comp.fotogramas_de(e_empatado)[0][3].rsplit(
+        "```", 1
+    )[1].strip()
+
+    tres = [
+        competidor("A", velocidad=30, fuerza=20, salud=10),
+        competidor("B", velocidad=20, fuerza=10, salud=30),
+        competidor("C", velocidad=10, fuerza=30, salud=20),
+    ]
+    e_resuelto, _ = combate(tres, comp.TOTEM, DadosFijos([10]))
+    narracion_resuelta = comp.fotogramas_de(e_resuelto)[0][-1].rsplit(
+        "```", 1
+    )[1].strip()
+
+    assert narracion_empatada == "A y B siguen empatados en el forcejeo."
+    assert narracion_resuelta == "C rompe el empate en el forcejeo."
+    assert "siguen empatados" not in narracion_resuelta
+
+
 def test_el_fotograma_del_totem_ensena_el_dado_y_los_puntos_de_cada_uno():
     e, _ = combate([competidor("A", stat=20), competidor("B", stat=10)],
                    comp.TOTEM, DadosFijos([10]))

@@ -22,6 +22,7 @@ import vistas
 log = logging.getLogger(__name__)
 
 SEGUNDOS_ENTRE_TRAMOS = 1.6
+SEGUNDOS_ENTRE_FASES_TOTEM = 5.0
 SEGUNDOS_PARA_ACEPTAR = 120
 
 
@@ -476,7 +477,7 @@ class Competencias(commands.Cog):
             canal_anterior = vistas._canal_anterior(canal, antes)
             await vistas.congelar(canal_anterior, antes.pantalla_msg_id)
         for fotogramas in comp.fotogramas_de(encuentro):
-            await self._animar(canal, fotogramas)
+            await self._animar(canal, fotogramas, tipo)
 
         ganador = encuentro.orden[0]
         stats = comp.STATS[tipo]
@@ -535,18 +536,22 @@ class Competencias(commands.Cog):
             await canal.send("\n".join(reacciones))
 
     async def _animar(
-        self, canal: discord.abc.Messageable, fotogramas: list[str]
+        self, canal: discord.abc.Messageable, fotogramas: list[str], tipo: str
     ) -> None:
         """Manda el primer fotograma y edita ese mismo mensaje con los demás."""
+        espera = (
+            SEGUNDOS_ENTRE_FASES_TOTEM
+            if tipo == comp.TOTEM else SEGUNDOS_ENTRE_TRAMOS
+        )
         mensaje = await canal.send(fotogramas[0])
         for fotograma in fotogramas[1:]:
-            await asyncio.sleep(SEGUNDOS_ENTRE_TRAMOS)
+            await asyncio.sleep(espera)
             try:
                 await mensaje.edit(content=fotograma)
             except HTTPException:
                 log.warning("No se pudo animar la competencia", exc_info=True)
                 break
-        await asyncio.sleep(SEGUNDOS_ENTRE_TRAMOS)
+        await asyncio.sleep(espera)
 
 
 async def setup(bot: commands.Bot) -> None:

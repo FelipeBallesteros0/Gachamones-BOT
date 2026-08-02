@@ -797,6 +797,70 @@ ESCENAS_TOTEM = {
 }
 
 
+def _narracion_del_totem(resultado: Resultado, paso: int) -> str:
+    """Cuenta el resultado ya resuelto de una fase o forcejeo extra."""
+    ronda = resultado.rondas[paso - 1]
+
+    def nombres(dorsales: Sequence[int]) -> str:
+        ns = [resultado.competidores[dorsal].nombre for dorsal in dorsales]
+        return ns[0] if len(ns) == 1 else ", ".join(ns[:-1]) + " y " + ns[-1]
+
+    if ronda.fase != DESEMPATE:
+        mejor = max(ronda.totales)
+        mejores = tuple(
+            dorsal for dorsal, total in enumerate(ronda.totales)
+            if total == mejor
+        )
+        quienes = nombres(mejores)
+        if ronda.fase == CENTRO:
+            return (
+                f"{quienes} llega primero al tótem."
+                if len(mejores) == 1 else
+                f"{quienes} llegan juntos al tótem."
+            )
+        if ronda.fase == FORCEJEO:
+            return (
+                f"{quienes} gana el forcejeo y toma el control del tótem."
+                if len(mejores) == 1 else
+                f"{quienes} forcejean sin ceder el control del tótem."
+            )
+        return (
+            f"{quienes} escapa con el tótem y resiste la persecución."
+            if len(mejores) == 1 else
+            f"{quienes} resisten juntos la huida con el tótem."
+        )
+
+    claves_antes = _claves_del_totem(resultado.rondas[:paso - 1],
+                                     len(resultado.competidores))
+    grupos: dict[tuple[int, int, tuple[int, ...]], list[int]] = {}
+    for dorsal in ronda.dorsales:
+        grupos.setdefault(claves_antes[dorsal], []).append(dorsal)
+
+    frases = []
+    for grupo in grupos.values():
+        por_total: dict[int, list[int]] = {}
+        for dorsal in grupo:
+            por_total.setdefault(ronda.totales[dorsal], []).append(dorsal)
+        empatados = [dorsales for dorsales in por_total.values()
+                     if len(dorsales) > 1]
+        if not empatados:
+            ganador = max(grupo, key=lambda dorsal: ronda.totales[dorsal])
+            frases.append(
+                f"{nombres((ganador,))} rompe el empate en el forcejeo."
+            )
+            continue
+        ganador = max(grupo, key=lambda dorsal: ronda.totales[dorsal])
+        if len(por_total[ronda.totales[ganador]]) == 1:
+            frases.append(
+                f"{nombres((ganador,))} toma ventaja en el forcejeo."
+            )
+        frases.extend(
+            f"{nombres(dorsales)} siguen empatados en el forcejeo."
+            for dorsales in empatados
+        )
+    return " ".join(frases)
+
+
 def fotogramas_totem(resultado: Resultado, titulo: str) -> list[str]:
     """Un mensaje por fase: la escena, los dados y cómo va el reparto de puestos.
 
@@ -842,7 +906,10 @@ def fotogramas_totem(resultado: Resultado, titulo: str) -> list[str]:
                 puntos[dorsal], ancho_puntos,
             ))
         cuerpo.append("╰" + "─" * pantalla.ANCHO + "╯")
-        fotogramas.append("```ansi\n" + "\n".join(cuerpo) + "\n```")
+        fotogramas.append(
+            "```ansi\n" + "\n".join(cuerpo) + "\n```\n"
+            + _narracion_del_totem(resultado, paso)
+        )
 
     return fotogramas
 
