@@ -285,13 +285,47 @@ def test_competir_sigue_siendo_lo_mas_rentable():
     assert sim.XP_VICTORIA > max(sim.XP_POR_CUIDADO.values())
 
 
-def test_cuidar_puede_disparar_una_evolucion():
-    apunto = criatura(xp=sim.xp_para_subir(1) - 1, hambre=50.0)
-    r = sim.aplicar_accion(apunto, sim.JUGAR, T0, random.Random(1))
+def test_cuidar_puede_disparar_una_evolucion_con_crecimiento_visible():
+    apunto = criatura(
+        especie="lucierno",
+        nombre="Cicero",
+        xp=sim.xp_para_subir(1) - 1,
+        hambre=50.0,
+        base_fuerza=13,
+        base_velocidad=25,
+        base_salud=19,
+        ent_salud=1,
+    )
+    stats_antes = apunto.fuerza, apunto.velocidad, apunto.salud
+
+    r = sim.aplicar_accion(apunto, sim.ALIMENTAR, T0, random.Random(1))
+
+    stats_despues = r.criatura.fuerza, r.criatura.velocidad, r.criatura.salud
+    assert stats_antes == (13, 25, 20)
     assert r.evoluciono
+    assert r.criatura.nivel == 2 and r.criatura.xp == 0
     assert r.etapa_anterior == esp.BEBE
     assert r.criatura.etapa == esp.NINO
-    assert isinstance(r.rupturas, tuple)
+    assert any(despues > antes for antes, despues in zip(stats_antes, stats_despues))
+    assert any(ruptura.causa == "nivel" for ruptura in r.rupturas)
+
+
+def test_subir_de_nivel_no_fuerza_crecimiento_si_todo_esta_topado():
+    apunto = criatura(
+        xp=sim.xp_para_subir(1) - 1,
+        base_fuerza=sim.MAXIMO_STAT,
+        base_velocidad=sim.MAXIMO_STAT,
+        base_salud=sim.MAXIMO_STAT,
+    )
+
+    subida, rupturas = sim.aplicar_xp(apunto, 1)
+
+    assert (subida.fuerza, subida.velocidad, subida.salud) == (
+        sim.MAXIMO_STAT,
+        sim.MAXIMO_STAT,
+        sim.MAXIMO_STAT,
+    )
+    assert rupturas == []
 
 
 def test_una_accion_normal_no_dice_que_hubo_evolucion():

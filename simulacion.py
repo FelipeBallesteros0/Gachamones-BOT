@@ -670,6 +670,28 @@ def _emisiones_de_nivel(criatura: Criatura, nivel: int) -> tuple[Esfuerzo, ...]:
     )
 
 
+def _completar_veta_de_nivel(
+    criatura: Criatura, limite: int,
+) -> tuple[Criatura, tuple[Ruptura, ...]]:
+    growables = [
+        stat for stat in ESTADISTICAS if getattr(criatura, stat) < MAXIMO_STAT
+    ]
+    if limite <= 0 or not growables:
+        return criatura, ()
+    tensiones = _tensiones(criatura)
+    stat = max(
+        growables,
+        key=lambda candidata: (tensiones[_indice_stat(candidata)],
+                               -_indice_stat(candidata)),
+    )
+    indice = _indice_stat(stat)
+    al_umbral = replace(
+        criatura,
+        **{f"ten_{stat}": max(tensiones[indice], umbral_veta(criatura))},
+    )
+    return _aplicar_rupturas(al_umbral, limite, "nivel")
+
+
 def aplicar_evento(
     criatura: Criatura, esfuerzos: tuple[Esfuerzo, ...] = (),
     ganada: int = 0, rng: random.Random | None = None,
@@ -688,10 +710,17 @@ def aplicar_evento(
     while xp >= xp_para_subir(nivel):
         xp -= xp_para_subir(nivel)
         nivel += 1
+        stats_antes = tuple(getattr(estado, stat) for stat in ESTADISTICAS)
         for esfuerzo in _emisiones_de_nivel(estado, nivel):
             estado, nuevas = emitir_tension(
                 estado, esfuerzo,
                 max_rupturas=MAX_RUPTURAS_POR_SUCESO - len(rupturas),
+            )
+            rupturas.extend(nuevas)
+        stats_despues = tuple(getattr(estado, stat) for stat in ESTADISTICAS)
+        if stats_despues == stats_antes:
+            estado, nuevas = _completar_veta_de_nivel(
+                estado, MAX_RUPTURAS_POR_SUCESO - len(rupturas)
             )
             rupturas.extend(nuevas)
     estado = replace(estado, xp=xp, nivel=nivel)
