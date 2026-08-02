@@ -326,40 +326,41 @@ _registrar(Especie(
     clave="slime", nombre="Gelatín", emoji="🟢", color=CIAN,
     fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=12.0,
     descripcion="Blando, resistente y sorprendentemente alegre.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
-  ___
- ({cara})
- ~~~~~
+  ˚
+({cara})
+~~~~~
 """,
         NINO: r"""
-   ___
-  /{cara}\
- (_____)
-  ~~~~~
+  ˚ ˚
+ ({cara})
+ ( ω )
+~~~~~~~
 """,
         ADOLESCENTE: r"""
-    ___
-   /{cara}\
-  (  v  )
- (_______)
-  ~~~~~~~
+  ˚  ˚
+ ,-~~-.
+ ( {cara} )
+ (  ω  )
+~~~~~~~~~
 """,
         ADULTO: r"""
-    _____
-    /{cara}\
-  (   v   )
- (_________)
-  ~~~~~~~~~
+   ˚   ˚
+ ,-~~~~-.
+ (  {cara}  )
+ (   ω   )
+ (       )
+~~~~~~~~~~~
 """,
         ADULTO_GRANDE: r"""
-    \\|//
-    _____
-    /{cara}\
-  (   v   )
- (_________)
- ~~~~~~~~~~~
+   ˚   ˚   ˚
+  ,-~~~~~~~-.
+ (   ({cara})   )
+(      ω      )
+(             )
+~~~~~~~~~~~~~~~
 """,
     },
 ))
@@ -368,38 +369,38 @@ _registrar(Especie(
     clave="pedrusco", nombre="Geo", emoji="🪨", color=BLANCO,
     fuerza=13, velocidad=2, salud=9, rareza=COMUN, peso=12.0,
     descripcion="Inamovible en el sumo. Inamovible en general, la verdad.",
-    caras={FELIZ: "^ ^", NORMAL: "o o", MAL: "x x"},
+    caras={FELIZ: "◠ ◠", NORMAL: "● ●", MAL: "╥ ╥"},
     arte={
         BEBE: r"""
- ,-----.
- ( {cara} )
- `-----'
+,---.
+({cara})
+`---'
 """,
         NINO: r"""
-  ,-------.
-  |  {cara}  |
-  '-------'
+,-----.
+( {cara} )
+`-----'
 """,
         ADOLESCENTE: r"""
-   _______
-  /       \
- |   {cara}   |
- '---------'
+,-------.
+(  {cara}  )
+|  ▒▒▒  |
+`-------'
 """,
         ADULTO: r"""
-    _________
-   /         \
-  |    {cara}    |
-  |     u     |
-  '-----------'
+,---------.
+/   {cara}   \
+|    ω    |
+|  ▒▒▒▒▒  |
+`---------'
 """,
         ADULTO_GRANDE: r"""
-     _________
-    /         \
-   |    {cara}    |
-   |     u     |
-   |___________|
-    |_|     |_|
+ _,-----------,_
+/      {cara}      \
+|       ω       |
+|   ▒▒▒▒▒▒▒▒▒   |
+`---------------'
+ |__|       |__|
 """,
     },
 ))
@@ -408,42 +409,41 @@ _registrar(Especie(
     clave="pulpo", nombre="Octopul", emoji="🐙", color=ROSA,
     fuerza=8, velocidad=8, salud=8, rareza=COMUN, peso=12.0,
     descripcion="Ni el más fuerte ni el más rápido, pero nunca el peor.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
-  .-.
- ({cara})
- \|||/
+ .-.
+({cara})
+\|||/
 """,
         NINO: r"""
-   ___
-  /{cara}\
-  \___/
-  /| |\
-  ' ' '
+ ,-~-.
+( {cara} )
+\|/ \|/
+ '  '
 """,
         ADOLESCENTE: r"""
-   _____
-  / {cara} \
-  \_____/
-  /|\ /|\
-  ' ' ' '
+,-~~~-.
+( {cara} )
+`--ω--'
+\|/ \|/
+'  '  '
 """,
         ADULTO: r"""
-   _______
-  /  {cara}  \
- |    u    |
-  \_______/
-  /|\ | /|\
-  ' ' ' ' '
+ ,-~~~~~~-.
+ /   {cara}   \
+|     ω     |
+`-----------'
+ \|/ \|/ \|/
+ '  '  '  '
 """,
         ADULTO_GRANDE: r"""
-    _________
-   /   {cara}   \
-  |     u     |
-   \_________/
-  //|\  |  /|\\
-  ' ' ' ' ' ' '
+   ,-~~~~~~~~~-.
+  /     {cara}     \
+ |       ω       |
+ `---------------'
+//|\ \|/ |/ \|/ /|\\
+' '  ' ' '  ' '  ' '
 """,
     },
 ))
@@ -843,7 +843,7 @@ _registrar(Especie(
     clave="coralito", nombre="Coralito", emoji="🪸", color=ROSA,
     fuerza=7, velocidad=6, salud=11, rareza=COMUN, peso=0.0,
     descripcion="Duro por fuera y quisquilloso por dentro. No lo toques.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
   Y
@@ -851,28 +851,30 @@ _registrar(Especie(
   A
 """,
         NINO: r"""
- YvY
+ Y Y
 ({cara})
  AAA
 """,
         ADOLESCENTE: r"""
- YvYvY
- ({cara})
- AAAAA
+Y Y Y
+YvYvY
+({cara})
+AAAAA
 """,
         ADULTO: r"""
+ Y Y Y Y
  YvYvYvY
-  ({cara})
-  AAAAA
- AAAAAAA
-""",
-        ADULTO_GRANDE: r"""
-YvYvYvYvY
- YvYvYvY
-  ({cara})
-  AAAAA
+ ⌐({cara})¬
  AAAAAAA
 AAAAAAAAA
+""",
+        ADULTO_GRANDE: r"""
+  Y Y Y Y Y Y
+  YvYvYvYvYvY
+  ⌐(  {cara}  )¬
+  AAAAAAAAAAA
+ AAAAAAAAAAAAA
+AAAAAAAAAAAAAAA
 """,
     },
 ))
@@ -922,28 +924,33 @@ _registrar(Especie(
     clave="nacar", nombre="Nacar", emoji="🐚", color=ROSA,
     fuerza=5, velocidad=7, salud=12, rareza=COMUN, peso=0.0,
     descripcion="Se mete en su concha al primer susto. Aguanta ahí semanas.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
- (({cara}))
+(({cara}))
 """,
         NINO: r"""
-  ((({cara})))
+((({cara})))
+  \ | /
 """,
         ADOLESCENTE: r"""
-   (((({cara}))))
-    \      /
+  _,-~-,_
+(((({cara}))))
+  \\ | //
 """,
         ADULTO: r"""
-  ((((({cara})))))
-    \\      //
-     \\    //
+ _,-~~~~-,_
+((((({cara})))))
+\(((( ω ))))/
+  \\\ | ///
 """,
         ADULTO_GRANDE: r"""
-  (((((({cara}))))))
-    \\\      ///
-     \\\    ///
-      \\\  ///
+ _,-~~~~~~~-,_
+(((((({cara}))))))
+\((((( ω )))))/
+ \\\\\ | /////
+  \\\\ | ////
+  '    '    '
 """,
     },
 ))
@@ -1108,32 +1115,35 @@ _registrar(Especie(
     clave="criold", nombre="Criold", emoji="❄️", color=CIAN,
     fuerza=6, velocidad=11, salud=7, rareza=COMUN, peso=0.0,
     descripcion="Cae despacio y siempre de pie. No se derrite: se ofende.",
-    caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
+    caras={FELIZ: "◠‿◠", NORMAL: "●.●", MAL: "╥╷╥"},
     arte={
         BEBE: r"""
- *({cara})*
+*({cara})*
 """,
         NINO: r"""
-    *
- *({cara})*
-    *
+  \|/
+*({cara})*
+  /|\
 """,
         ADOLESCENTE: r"""
-   \*/
- *({cara})*
-   /*\
+ \ * /
+≡({cara})≡
+ / * \
 """,
         ADULTO: r"""
-   \ * /
- --({cara})--
-   / * \
+ \  *  /
+ * \|/ *
+≡≡({cara})≡≡
+ * /|\ *
+ /  *  \
 """,
         ADULTO_GRANDE: r"""
-    \ * /
-   * \|/ *
- ---({cara})---
-   * /|\ *
-    / * \
+  \    *    /
+˚ * \  |  / * ˚
+ ≡≡≡≡({cara})≡≡≡≡
+˚ * /  |  \ * ˚
+  /    *    \
+  '    '    '
 """,
     },
 ))
