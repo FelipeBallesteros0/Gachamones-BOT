@@ -545,7 +545,19 @@ def test_fallo_al_publicar_reto_cierra_el_selector_con_error_claro(
     )
 
 
-def test_error_al_retar_desde_selector_sigue_siendo_privado():
+@pytest.mark.parametrize(
+    ("invitados_ids", "tipo", "error"),
+    [
+        ((), comp.CARRERA, "Tienes que invitar a alguien."),
+        ((2, 3), comp.SUMO, "SUMO es de 2 o 4, y son 3."),
+        ((2,), comp.CARRERA, "u1 no tiene ningún gachamon vivo."),
+    ],
+    ids=["invitados-invalidos", "cantidad-incompatible", "problema-del-grupo"],
+)
+@pytest.mark.parametrize("desde_selector", [False, True], ids=["slash", "selector"])
+def test_error_al_retar_conserva_el_slash_y_cierra_el_selector(
+    bd_temporal, invitados_ids, tipo, error, desde_selector
+):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
@@ -558,15 +570,22 @@ def test_error_al_retar_desde_selector_sigue_siendo_privado():
 
     asyncio.run(cog._retar(
         cast(discord.Interaction, interaccion),
-        (),
-        comp.CARRERA,
-        canal_publico=cast(discord.abc.Messageable, canal),
+        cast(
+            tuple[discord.User | None, ...],
+            tuple(UsuarioFalso(id_) for id_ in invitados_ids),
+        ),
+        tipo,
+        canal_publico=(
+            cast(discord.abc.Messageable, canal) if desde_selector else None
+        ),
     ))
 
-    respuesta.send_message.assert_awaited_once_with(
-        "Tienes que invitar a alguien.", ephemeral=True
-    )
-    respuesta.edit_message.assert_not_awaited()
+    if desde_selector:
+        respuesta.edit_message.assert_awaited_once_with(content=error, view=None)
+        respuesta.send_message.assert_not_awaited()
+    else:
+        respuesta.send_message.assert_awaited_once_with(error, ephemeral=True)
+        respuesta.edit_message.assert_not_awaited()
     canal.send.assert_not_awaited()
 
 

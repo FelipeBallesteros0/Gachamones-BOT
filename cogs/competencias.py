@@ -385,17 +385,22 @@ class Competencias(commands.Cog):
         retador = cast(discord.User, interaccion.user)
         guild_id = str(interaccion.guild_id)
 
+        async def responder_error(error: str) -> None:
+            if canal_publico is None:
+                await interaccion.response.send_message(error, ephemeral=True)
+            else:
+                await interaccion.response.edit_message(content=error, view=None)
+
         invitados, problema = _invitados_validos(retador, propuestos)
         if problema:
-            await interaccion.response.send_message(problema, ephemeral=True)
+            await responder_error(problema)
             return
 
         caben = comp.CUANTOS_CABEN[tipo]
         if len(invitados) + 1 not in caben:
-            await interaccion.response.send_message(
+            await responder_error(
                 f"{comp.NOMBRES[tipo]} es de {' o '.join(map(str, caben))}, "
-                f"y son {len(invitados) + 1}.",
-                ephemeral=True,
+                f"y son {len(invitados) + 1}."
             )
             return
 
@@ -413,7 +418,7 @@ class Competencias(commands.Cog):
             ahora,
         )
         if problema:
-            await interaccion.response.send_message(problema, ephemeral=True)
+            await responder_error(problema)
             return
 
         a_quien = ", ".join(u.mention for u in invitados)
