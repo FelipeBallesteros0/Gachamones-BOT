@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timezone
 
 import especies as esp
+import ia
 import jardin
 import simulacion as sim
 
@@ -171,3 +172,117 @@ def test_hay_frases_de_respaldo_para_cuando_falle_la_ia():
         assert f.strip()
         for fea in ("error", "api", "fall"):
             assert fea not in f.lower()
+
+
+# --- Que quepa en un mensaje de Discord ------------------------------------
+
+def poblado(cuantas: int) -> list[sim.Criatura]:
+    """Un servidor con criaturas de todas las especies, en su etapa mayor.
+
+    Mezcla especies a propósito: el reparto empaqueta de a dos o de a tres según
+    lo anchas que sean, así que un jardín de puros Nacar y uno de puros
+    Magnetrón no miden ni de lejos lo mismo.
+    """
+    claves = list(esp.ESPECIES)
+    return [
+        criatura(especie=claves[i % len(claves)], nombre=f"Bicho{i}", nivel=5)
+        for i in range(cuantas)
+    ]
+
+
+def test_el_jardin_de_un_servidor_lleno_cabe_en_un_mensaje():
+    """**El fallo que llegó a producción.** El jardín es lo único del juego que
+    crece con la gente que juega, y con 28 criaturas pedía 7500 caracteres: el
+    comando reventaba con un 400 de Discord y, como ya había diferido, se
+    quedaba en «pensando…» para siempre.
+
+    Ninguna otra pantalla tiene este problema —la ficha, la casa y la tienda
+    están acotadas—, y por eso no lo cazaba ningún test.
+    """
+    for cuantas in (1, 5, 28, 100):
+        criaturas = poblado(cuantas)
+        caben = jardin.cuantas_caben(criaturas)
+        escena = jardin.render(criaturas[:caben])
+        assert len(escena) <= jardin.TOPE_MENSAJE - jardin.MARGEN_DEL_TEXTO, (
+            cuantas, caben, len(escena)
+        )
+
+
+def test_el_margen_es_una_estimacion_holgada_de_lo_que_va_fuera():
+    """El margen sirve para que el reparto acierte a la primera, no para
+    garantizar nada: quien garantiza es `_recortar`, que mide el mensaje ya
+    montado. Aun así tiene que ser una estimación decente del caso normal.
+
+    Un test que midiera un jardín de prueba no valdría: cada criatura son unos
+    250 caracteres de golpe, así que el último escalón deja tanta holgura que
+    pasaría con el margen en 20. Lo comprobé, y pasaba.
+    """
+    titulo = "## 🌳 El jardín · 999 gachamones\n"
+    narracion_normal = jardin.LARGO_NARRACION + 2 * 4   # unas cuatro líneas
+    resto = "\n-# Y 999 más, que hoy no han salido."
+
+    assert len(titulo) + narracion_normal + len(resto) <= jardin.MARGEN_DEL_TEXTO
+
+
+def test_la_narracion_del_jardin_es_mas_corta_que_la_de_la_charla():
+    """Cada carácter de narración es un carácter menos de dibujo, y aquí lo que
+    importa es el cuadro. Con el tope general —600— la narración sola se comería
+    más de un tercio del mensaje."""
+    assert jardin.LARGO_NARRACION < ia.LARGO_MAXIMO
+
+
+def test_caben_todas_cuando_son_pocas():
+    """El recorte sólo debe entrar cuando hace falta: con cuatro criaturas no
+    puede desaparecer ninguna."""
+    criaturas = poblado(4)
+    assert jardin.cuantas_caben(criaturas) == 4
+
+
+def test_cuantas_caben_no_se_pasa_ni_por_una():
+    """La frontera: si dice que caben N, con N+1 tiene que pasarse. Si no,
+    estaría recortando de más y quitando bichos sin motivo."""
+    criaturas = poblado(60)
+    caben = jardin.cuantas_caben(criaturas)
+    assert 0 < caben < 60
+    presupuesto = jardin.TOPE_MENSAJE - jardin.MARGEN_DEL_TEXTO
+    assert len(jardin.render(criaturas[:caben])) <= presupuesto
+    assert len(jardin.render(criaturas[:caben + 1])) > presupuesto
+
+
+def test_nunca_se_esconden_todas():
+    """Un jardín que dijera «está vacío» teniendo criaturas estaría mintiendo.
+    Aunque el presupuesto sea absurdo, siempre se asoma al menos una."""
+    assert jardin.cuantas_caben(poblado(10), presupuesto=1) == 1
+    assert jardin.cuantas_caben([], presupuesto=1) == 0
+
+
+def test_el_recorte_final_aguanta_una_narracion_desatada():
+    """Lo que de verdad garantiza que el mensaje quepa.
+
+    La narración la escribe la IA y su tamaño no se puede predecir: si devuelve
+    muchas líneas cortas, el citado —«> » por línea— casi triplica. `_recortar`
+    no lo estima, lo mide, y va quitando criaturas hasta que cabe.
+    """
+    from cogs.social import Social
+
+    todas = poblado(28)
+    titulo = "## 🌳 El jardín · 28 gachamones\n"
+    # El peor citado imaginable: 280 caracteres, todos en líneas de uno.
+    citado = "\n".join("> " + c for c in "x" * jardin.LARGO_NARRACION)
+    asomadas = todas[:jardin.cuantas_caben(todas)]
+
+    mensaje, quedan = Social._recortar(titulo, citado, asomadas, todas)
+    assert len(mensaje) <= jardin.TOPE_MENSAJE, len(mensaje)
+    assert quedan, "no puede quedarse sin ninguna"
+    assert "Y " in mensaje and "más" in mensaje
+
+
+def test_el_recorte_no_toca_nada_cuando_ya_cabe():
+    """No puede quitar criaturas por si acaso: con pocas, salen todas y no hay
+    coletilla que sobre."""
+    from cogs.social import Social
+
+    todas = poblado(3)
+    mensaje, quedan = Social._recortar("## 🌳\n", "> Una frase.", todas, todas)
+    assert len(quedan) == 3
+    assert "más, que hoy no han salido" not in mensaje

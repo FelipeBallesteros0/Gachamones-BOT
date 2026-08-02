@@ -463,14 +463,50 @@ class Social(commands.Cog):
         self._ultimo_jardin[guild_id] = ahora
         await interaccion.response.defer()
 
-        escena = jardin.render(criaturas)
-        protagonistas = random.sample(criaturas, min(2, len(criaturas)))
-        narracion = await self._narrar(interaccion, protagonistas, ahora)
+        # El jardín crece con el servidor, y Discord corta en 2000 caracteres.
+        # Se baraja PRIMERO y se mide después sobre lo que va a salir: medir una
+        # lista y dibujar otra dejaría pasar un jardín de bichos anchos, que es
+        # justo el caso que se pasa. Y barajar hace que el jardín cambie entre
+        # visitas en vez de enseñar siempre a las mismas.
+        barajadas = random.sample(criaturas, len(criaturas))
+        asomadas = barajadas[:jardin.cuantas_caben(barajadas)]
 
+        # Los protagonistas salen de las que SE VEN: narrar a un bicho que no
+        # está en el cuadro deja la escena hablando de un fantasma.
+        protagonistas = random.sample(asomadas, min(2, len(asomadas)))
+        narracion = await self._narrar(interaccion, protagonistas, ahora)
         citado = "\n".join(f"> {l}" for l in narracion.split("\n"))
-        await interaccion.followup.send(
-            f"## 🌳 El jardín · {len(criaturas)} gachamones\n{escena}\n{citado}"
-        )
+        titulo = f"## 🌳 El jardín · {len(criaturas)} gachamones\n"
+
+        mensaje, asomadas = self._recortar(titulo, citado, asomadas, criaturas)
+        await interaccion.followup.send(mensaje)
+
+    @staticmethod
+    def _recortar(titulo, citado, asomadas, todas) -> tuple[str, list]:
+        """Arma el mensaje y le quita criaturas hasta que quepa.
+
+        `jardin.cuantas_caben` sólo mide el cuadro, y el mensaje lleva además
+        título, narración y coletilla. La narración la escribe la IA, así que su
+        tamaño no se puede predecir: si devuelve muchas líneas cortas, el citado
+        —que añade «> » a cada una— se dispara. Por eso se **mide lo que se va a
+        enviar** en vez de estimarlo; el reparto de arriba deja el mensaje casi
+        siempre a la primera y esto no suele dar ni una vuelta.
+        """
+        mensaje = ""
+        recortadas = asomadas
+        # De más a menos y acotado por construcción: un `while` aquí podría
+        # colgarse si la narración creciera hasta no dejar sitio ni a un bicho,
+        # y un bucle sin fin dentro de un comando bloquea el bot entero.
+        for cuantas in range(len(asomadas), 0, -1):
+            recortadas = asomadas[:cuantas]
+            fuera = len(todas) - cuantas
+            resto = f"\n-# Y {fuera} más, que hoy no han salido." if fuera else ""
+            mensaje = f"{titulo}{jardin.render(recortadas)}\n{citado}{resto}"
+            if len(mensaje) <= jardin.TOPE_MENSAJE:
+                break
+        # Si ni con una cabe, se manda igual: que Discord se queje y salga en el
+        # registro es mejor que enseñar un jardín vacío teniendo criaturas.
+        return mensaje, recortadas
 
     def _espera_del_jardin(self, guild_id: str, ahora) -> str | None:
         ultimo = self._ultimo_jardin.get(guild_id)
@@ -496,7 +532,8 @@ class Social(commands.Cog):
         db.registrar_uso_ia(usuario_id, ahora)
         sistema, peticion = per.prompt_jardin(protagonistas, ahora)
         texto, _ = await ia.generar(
-            sistema, peticion, jardin.frase_de_respaldo(semilla)
+            sistema, peticion, jardin.frase_de_respaldo(semilla),
+            largo_maximo=jardin.LARGO_NARRACION,
         )
         return texto
 

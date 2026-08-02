@@ -1,6 +1,7 @@
 """Utilidades compartidas por los cogs."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 import discord
@@ -11,6 +12,8 @@ import db
 import economia
 import objetos as obj
 import simulacion as sim
+
+log = logging.getLogger(__name__)
 
 
 class CanalEquivocado(app_commands.CheckFailure):
@@ -105,15 +108,29 @@ async def _cantar(
 async def manejar_error(
     interaccion: discord.Interaction, error: app_commands.AppCommandError
 ) -> None:
+    inesperado = False
     if isinstance(error, CanalEquivocado):
         canales = ", ".join(f"<#{c}>" for c in config.CANALES)
         mensaje = f"Los gachamones viven en {canales}. Escríbeme allí."
     elif isinstance(error, app_commands.CommandOnCooldown):
         mensaje = f"Demasiado rápido. Prueba en {error.retry_after:.0f} s."
     else:
-        raise error
+        # Antes esto era un `raise` a secas, y por eso un comando que reventaba
+        # después de `defer()` dejaba el «pensando…» girando para siempre: nadie
+        # contestaba la interacción. Ahora se contesta SIEMPRE, y el error se
+        # vuelve a lanzar después para que salga en el registro igual que antes.
+        inesperado = True
+        mensaje = "Algo se ha roto por dentro. Vuelve a intentarlo."
 
-    if interaccion.response.is_done():
-        await interaccion.followup.send(mensaje, ephemeral=True)
-    else:
-        await interaccion.response.send_message(mensaje, ephemeral=True)
+    try:
+        if interaccion.response.is_done():
+            await interaccion.followup.send(mensaje, ephemeral=True)
+        else:
+            await interaccion.response.send_message(mensaje, ephemeral=True)
+    except discord.HTTPException:
+        # Si ni el aviso se puede enviar —interacción caducada, por ejemplo—, lo
+        # que no puede es tragarse el error de origen, que es el que importa.
+        log.warning("No se pudo avisar del error al usuario", exc_info=True)
+
+    if inesperado:
+        raise error

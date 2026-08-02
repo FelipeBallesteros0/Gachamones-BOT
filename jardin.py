@@ -22,6 +22,23 @@ ANCHO = 44
 SEPARACION = 3      # espacios entre dos criaturas de la misma fila
 SUELO = ","         # el carácter con el que se dibuja la tierra
 
+# Discord corta un mensaje en 2000 caracteres, y el jardín es lo ÚNICO del juego
+# que crece con la gente que juega: la ficha, la casa y la tienda tienen tamaño
+# acotado, pero aquí cabe un bicho más por cada uno que nazca. Con 28 criaturas
+# el cuadro pedía 7500 caracteres y el comando reventaba entero.
+TOPE_MENSAJE = 2000
+
+# Lo que la IA puede escribir aquí. Más corto que el tope general de `ia`, que
+# son 600: el jardín es un cuadro con un pie, no una redacción, y cada carácter
+# de narración es un carácter menos de dibujo. Se le pasa a `ia.generar`.
+LARGO_NARRACION = 280
+
+# Lo que se reserva para lo que va FUERA del cuadro: el título con la cuenta, la
+# narración ya citada línea a línea con «> », y la coletilla de las que no caben.
+# Un test lo ata a `LARGO_NARRACION`; si aquél crece y éste no, el mensaje se
+# pasaría del tope y Discord lo rechazaría entero.
+MARGEN_DEL_TEXTO = 400
+
 
 class Bloque:
     """Una criatura lista para colocar: su dibujo y su nombre debajo."""
@@ -140,6 +157,36 @@ def render(criaturas: list[sim.Criatura], ancho: int = ANCHO) -> str:
     cuerpo += cuerpo_de(criaturas, ancho)
     cuerpo.append("╰" + "─" * ancho + "╯")
     return "```ansi\n" + "\n".join(cuerpo) + "\n```"
+
+
+def cuantas_caben(
+    criaturas: list[sim.Criatura],
+    presupuesto: int = TOPE_MENSAJE - MARGEN_DEL_TEXTO,
+) -> int:
+    """Cuántas de las primeras caben en un cuadro de ese tamaño.
+
+    No vale con dividir por un tamaño medio: los bichos miden cosas distintas
+    —de un Nacar de dos filas a un Magnetrón de veintitrés columnas— y el
+    reparto los empaqueta de a dos o de a tres según lo anchos que sean. Así que
+    se mide dibujando.
+
+    Se busca por bisección porque el tamaño **crece** con cada criatura que se
+    añade: si `n` no cabe, `n + 1` tampoco.
+    """
+    if not criaturas or len(render(criaturas)) <= presupuesto:
+        return len(criaturas)
+
+    bajo, alto = 1, len(criaturas)
+    while bajo < alto:
+        medio = (bajo + alto + 1) // 2
+        if len(render(criaturas[:medio])) <= presupuesto:
+            bajo = medio
+        else:
+            alto = medio - 1
+    # Nunca cero: un jardín que dijera «está vacío» habiendo criaturas estaría
+    # mintiendo. Si ni una cupiera, es preferible pasarse y que Discord se
+    # queje —eso sale en el registro— a enseñar algo falso.
+    return bajo
 
 
 def _centrado(texto: str, ancho: int) -> str:
