@@ -140,9 +140,13 @@ class ViajeView(discord.ui.View):
     """
 
     def __init__(self, cog: "Aventura", dueño: discord.User, guild_id: str,
-                 criatura: sim.Criatura, viaje: av.Viaje):
+                 criatura: sim.Criatura, viaje: av.Viaje, evento_id: str = ""):
         super().__init__(timeout=SEGUNDOS_PARA_DECIDIR)
         self.cog = cog
+        # Lo que identifica este viaje en el ledger, para que lo que se
+        # encuentre no se pague dos veces. Sale de la interacción que abrió la
+        # aventura: única, y disponible en los dos finales del árbol.
+        self.evento_id = evento_id
         self.dueño = dueño
         self.guild_id = guild_id
         self.criatura = criatura
@@ -248,7 +252,7 @@ class ViajeView(discord.ui.View):
             self._resuelto = True
             await self.cog.resolver(
                 interaccion.channel, self.dueño, self.guild_id,
-                self.criatura, self.viaje,
+                self.criatura, self.viaje, self.evento_id,
             )
 
     async def _editar(self, cuerpo: str, vista) -> None:
@@ -272,7 +276,7 @@ class ViajeView(discord.ui.View):
             self._resuelto = True
             await self.cog.resolver(
                 self.mensaje.channel, self.dueño, self.guild_id,
-                self.criatura, self.viaje,
+                self.criatura, self.viaje, self.evento_id,
             )
 
 
@@ -590,15 +594,55 @@ class Aventura(commands.Cog):
         )
         viaje = av.Viaje(bioma=bioma, escena=escena, terreno=terreno)
         vista = ViajeView(
-            self, cast(discord.User, interaccion.user), guild_id, criatura, viaje
+            self, cast(discord.User, interaccion.user), guild_id, criatura,
+            viaje, str(interaccion.id),
         )
         vista.mensaje = await interaccion.followup.send(
             vista.texto(), view=vista, wait=True
         )
 
+    async def _contar_lo_encontrado(
+        self, canal, evento_id: str, usuario_id: str, guild_id: str,
+        rng: random.Random, ahora,
+    ) -> None:
+        """Lo que aparece por el suelo, si aparece algo.
+
+        Se tira aparte del hallazgo de objeto/salvaje/nada, así que puede caer
+        encima de cualquiera de los tres. Sin `evento_id` no se paga: sin él no
+        habría cómo evitar cobrarlo dos veces, y prefiero no dar a dar de más.
+        """
+        monedas, gemas = av.tirar_monedas(rng), av.tirar_gemas(rng)
+        if not evento_id or (not monedas and not gemas):
+            return
+
+        recibo = economia.otorgar_hallazgo(
+            evento_id, usuario_id, guild_id, monedas, gemas, ahora
+        )
+        if recibo.replay:
+            return
+
+        partes = []
+        if recibo.monedas:
+            partes.append(f"{obj.EMOJI_MONEDA_TIENDA} **{recibo.monedas}** asciicoins")
+        if recibo.gemas:
+            partes.append(f"{obj.EMOJI_GEMA} **{recibo.gemas}** asciigems")
+        if partes:
+            aviso = f"💰 Encuentras {' y '.join(partes)} por el camino."
+            if recibo.topado:
+                aviso += (
+                    f"\n-# De los {recibo.monedas_vistas} que había, el resto se "
+                    "sale de tu tope diario."
+                )
+            await canal.send(aviso)
+        elif recibo.topado:
+            await canal.send(
+                f"💰 Encuentras {recibo.monedas_vistas} asciicoins, pero ya has "
+                "llegado a tu tope diario y se quedan donde estaban."
+            )
+
     async def resolver(
         self, canal, dueño: discord.User, guild_id: str,
-        criatura: sim.Criatura, viaje: av.Viaje,
+        criatura: sim.Criatura, viaje: av.Viaje, evento_id: str = "",
     ) -> None:
         """Lo que cuesta y lo que da el viaje, una vez cerrado el árbol.
 
@@ -662,6 +706,14 @@ class Aventura(commands.Cog):
         # es por lo andado, no por el premio. Va aquí y no en cada uno de los
         # tres finales porque los tres pasan por este punto.
         await comun.anunciar_logros(canal, cansada, ahora)
+
+        # Aparte del hallazgo de siempre, y antes que él: lo que te encuentras
+        # por el suelo puede caer además del objeto o del salvaje. El id de la
+        # interacción hace de evento para que reprocesar el viaje no pague dos
+        # veces.
+        await self._contar_lo_encontrado(
+            canal, evento_id, usuario_id, guild_id, rng, ahora
+        )
 
         if hallazgo == av.OBJETO:
             encontrado = av.tirar_objeto(rng)

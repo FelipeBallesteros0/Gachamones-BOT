@@ -43,6 +43,34 @@ MAXIMO_PLANTEL = 10
 # El esquema va en dos trozos porque el orden importa: primero las tablas,
 # después las migraciones que añaden columnas nuevas, y sólo entonces los
 # índices — que referencian esas columnas y fallarían si se crearan antes.
+# Se escribe aparte del resto del esquema porque la migración lo necesita
+# entero: SQLite no deja alterar un CHECK, así que añadir un tipo obliga a
+# recrear la tabla y volver a copiar las filas.
+DDL_OPERACIONES = """
+CREATE TABLE operaciones_economia (
+    evento_id        TEXT NOT NULL,
+    usuario_id       TEXT NOT NULL,
+    guild_id         TEXT NOT NULL,
+    tipo             TEXT NOT NULL CHECK (tipo IN ('cuidado','evolucion','competencia','aventura','compra')),
+    fecha_utc        TEXT NOT NULL,
+    resultado        TEXT NOT NULL CHECK (resultado IN ('acreditada','topada','comprada','saldo_insuficiente')),
+    delta_asciicoins INTEGER NOT NULL,
+    solicitud        TEXT NOT NULL CHECK (length(solicitud) > 0),
+    CHECK (
+        (resultado = 'acreditada' AND tipo IN ('cuidado','evolucion','competencia','aventura') AND delta_asciicoins > 0) OR
+        (resultado = 'topada' AND tipo IN ('cuidado','evolucion','competencia','aventura') AND delta_asciicoins = 0) OR
+        (resultado = 'comprada' AND tipo = 'compra' AND delta_asciicoins < 0) OR
+        (resultado = 'saldo_insuficiente' AND tipo = 'compra' AND delta_asciicoins = 0)
+    ),
+    PRIMARY KEY (evento_id, usuario_id, guild_id, tipo)
+)
+"""
+
+COLUMNAS_OPERACIONES = (
+    "evento_id", "usuario_id", "guild_id", "tipo", "fecha_utc", "resultado",
+    "delta_asciicoins", "solicitud",
+)
+
 SCHEMA_TABLAS = """
 CREATE TABLE IF NOT EXISTS criaturas (
     id INTEGER PRIMARY KEY,
@@ -251,23 +279,6 @@ CREATE TABLE IF NOT EXISTS mobiliario (
     PRIMARY KEY (usuario_id, guild_id, mueble)
 );
 
-CREATE TABLE IF NOT EXISTS operaciones_economia (
-    evento_id        TEXT NOT NULL,
-    usuario_id       TEXT NOT NULL,
-    guild_id         TEXT NOT NULL,
-    tipo             TEXT NOT NULL CHECK (tipo IN ('cuidado','evolucion','competencia','compra')),
-    fecha_utc        TEXT NOT NULL,
-    resultado        TEXT NOT NULL CHECK (resultado IN ('acreditada','topada','comprada','saldo_insuficiente')),
-    delta_asciicoins INTEGER NOT NULL,
-    solicitud        TEXT NOT NULL CHECK (length(solicitud) > 0),
-    CHECK (
-        (resultado = 'acreditada' AND tipo IN ('cuidado','evolucion','competencia') AND delta_asciicoins > 0) OR
-        (resultado = 'topada' AND tipo IN ('cuidado','evolucion','competencia') AND delta_asciicoins = 0) OR
-        (resultado = 'comprada' AND tipo = 'compra' AND delta_asciicoins < 0) OR
-        (resultado = 'saldo_insuficiente' AND tipo = 'compra' AND delta_asciicoins = 0)
-    ),
-    PRIMARY KEY (evento_id, usuario_id, guild_id, tipo)
-);
 """
 
 SCHEMA_INDICES = """
@@ -375,6 +386,7 @@ def inicializar() -> None:
         _migrar(con)
         con.commit()
         _migrar_monederos(con)
+        _migrar_operaciones(con)
         con.executescript(SCHEMA_INDICES)
 
 
@@ -406,6 +418,42 @@ def _migrar_monederos(con: sqlite3.Connection) -> None:
             "(usuario_id, guild_id, asciicoins, asciigems) "
             f"SELECT DISTINCT usuario_id, guild_id, 50, 50 FROM {tabla}"
         )
+    con.commit()
+
+
+def _migrar_operaciones(con: sqlite3.Connection) -> None:
+    """Admite el tipo `aventura` en el ledger, una sola vez.
+
+    SQLite no deja alterar un `CHECK`, así que la única salida es recrear la
+    tabla y copiar las filas. **Es la primera migración de este proyecto que
+    mueve un ledger con datos dentro**, así que va sola en su transacción y con
+    su test sobre filas de verdad.
+
+    Que ya haya corrido se detecta mirando el SQL guardado en `sqlite_master`:
+    es la única señal fiable, porque el `CHECK` no aparece en `PRAGMA
+    table_info`.
+    """
+    con.execute("BEGIN IMMEDIATE")
+    fila = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("operaciones_economia",),
+    ).fetchone()
+    if fila is None:                       # base nueva: se crea y ya está
+        con.execute(DDL_OPERACIONES)
+        con.commit()
+        return
+    if "'aventura'" in fila["sql"]:        # ya migrada
+        con.commit()
+        return
+
+    columnas = ", ".join(COLUMNAS_OPERACIONES)
+    con.execute("ALTER TABLE operaciones_economia RENAME TO operaciones_legacy")
+    con.execute(DDL_OPERACIONES)
+    con.execute(
+        f"INSERT INTO operaciones_economia ({columnas}) "
+        f"SELECT {columnas} FROM operaciones_legacy"
+    )
+    con.execute("DROP TABLE operaciones_legacy")
     con.commit()
 
 

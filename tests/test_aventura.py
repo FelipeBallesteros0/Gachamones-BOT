@@ -262,6 +262,11 @@ def ejecutar_aventura_final(
     monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
     monkeypatch.setattr(cog_av.av, "tirar_hallazgo", lambda *_: hallazgo)
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: percance)
+    # Lo que se encuentra por el suelo se fija igual que lo demás: estos tests
+    # miran el orden de los anuncios, y un hallazgo al azar los volvería
+    # intermitentes.
+    monkeypatch.setattr(cog_av.av, "tirar_monedas", lambda *_: 0)
+    monkeypatch.setattr(cog_av.av, "tirar_gemas", lambda *_: 0)
     monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
 
     def confirmar(
@@ -475,6 +480,9 @@ def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):
     monkeypatch.setattr(cog_av.db, "espera_de_persona", lambda *_: timedelta(0))
     monkeypatch.setattr(cog_av.vistas, "congelar", congelar)
     interaccion = SimpleNamespace(
+        # El `id` identifica el viaje en el ledger, para que lo que se
+        # encuentre no se pague dos veces. Una interacción de verdad lo trae.
+        id=987654321,
         user=SimpleNamespace(id="u1", display_name="Felipe"),
         guild_id="g1",
         response=SimpleNamespace(send_message=AsyncMock()),
@@ -1450,6 +1458,7 @@ def test_el_comando_pone_el_enfriamiento_antes_de_abrir_el_arbol(monkeypatch):
         return enviado
 
     interaccion = SimpleNamespace(
+        id=987654321,       # identifica el viaje en el ledger de hallazgos
         user=SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe"),
         guild_id="g1",
         response=SimpleNamespace(defer=AsyncMock()),

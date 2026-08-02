@@ -66,7 +66,9 @@ Instala el hook local cuando prepares el entorno:
 - Reclutar, evolucionar o promover desde la incubadora tampoco reinicia los topes.
 - El replay idempotente de un evento conserva sus resultados monetarios congelados.
 - No vuelvas a sortear, recalcular ni duplicar dinero al reprocesar el mismo evento.
-- Los asciigems se ganan sólo con los logros de un gachamon.
+- Los asciigems se ganan con los logros y, muy de vez en cuando, en una aventura.
+- El tope diario de asciicoins es uno solo y vale para todo lo que se gana, hallazgos incluidos.
+- Los asciigems no tienen tope diario.
 - Los asciigems se gastan sólo en cosméticos, que no tocan ninguna estadística.
 - Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.
 - Nadie empieza en la calle: sin casa propia se vive en el refugio.

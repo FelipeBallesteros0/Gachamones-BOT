@@ -699,6 +699,42 @@ def tirar_hallazgo(
     return NADA
 
 
+# Lo que te puedes encontrar por el camino además de lo de siempre. Se tira
+# **aparte** del hallazgo de objeto/salvaje/nada, no como una rama más: así
+# aparecen encima de lo que ya haya y no tocan las probabilidades de aquéllos,
+# que están calibradas.
+#
+# Los números salen de que la aventura tiene 37 min de espera: hasta 38 al día.
+# Al 4 % con 1-10, eso son ~8 asciicoins diarios, que dejan sitio en el bote de
+# 20 para lo que se gana cuidando y compitiendo. Las gemas, al 0,5 % con 1-5,
+# salen a una cada dos días largos: son un golpe de suerte, no una renta.
+# Van **por mil** y no por ciento porque las gemas caen al 0,5 % y con enteros no
+# hay forma de escribir medio punto. Se tira con `randint` como el resto del
+# módulo, y no con `uniform`, para que los dados fijos de los tests sigan
+# valiendo: aquí todo se prueba con tiradas puestas a mano.
+POR_MIL = 1000
+PROBABILIDAD_MONEDAS = 40       # 4 %
+MONEDAS_ENCONTRADAS = (1, 10)
+PROBABILIDAD_GEMAS = 5          # 0,5 %
+GEMAS_ENCONTRADAS = (1, 5)
+
+
+def tirar_monedas(rng: random.Random | None = None) -> int:
+    """Cuántos asciicoins te encuentras, o 0. Se cobran dentro del bote."""
+    rng = rng or random.Random()
+    if rng.randint(1, POR_MIL) > PROBABILIDAD_MONEDAS:
+        return 0
+    return rng.randint(*MONEDAS_ENCONTRADAS)
+
+
+def tirar_gemas(rng: random.Random | None = None) -> int:
+    """Cuántos asciigems te encuentras, o 0. Éstos no tienen tope."""
+    rng = rng or random.Random()
+    if rng.randint(1, POR_MIL) > PROBABILIDAD_GEMAS:
+        return 0
+    return rng.randint(*GEMAS_ENCONTRADAS)
+
+
 def tirar_objeto(rng: random.Random | None = None) -> obj.Objeto:
     """Un objeto del catálogo, **sorteado a la inversa del precio**.
 

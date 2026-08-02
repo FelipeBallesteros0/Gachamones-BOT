@@ -215,19 +215,6 @@ class VisitaView(discord.ui.View):
         await tienda.abrir_regalo(interaccion, self.anfitrion_id, self.anfitrion)
 
 
-def _techo_diario() -> int:
-    """Lo máximo que se puede ganar en un día, aprovechándolo entero.
-
-    Se calcula de los premios y los topes en vez de escribirlo, para que la
-    ayuda no se quede diciendo un número viejo si alguien los retoca.
-    """
-    return (
-        eco.PREMIO_CUIDADO * eco.TOPE_CUIDADOS
-        + eco.PREMIO_EVOLUCION * eco.TOPE_EVOLUCIONES
-        + eco.PREMIO_GANADOR * eco.TOPE_COMPETENCIAS
-    )
-
-
 def paginas_de_ayuda(nombre_bot: str) -> tuple[str, ...]:
     """La ayuda repartida en mensajes, uno por página.
 
@@ -376,28 +363,35 @@ Los dos botones de abajo, o `/mochila` y `/tienda`. En la **tienda** se compra c
 {obj.EMOJI_MONEDA_TIENDA} {obj.MONEDA_TIENDA}; en la **mochila** eliges qué usar. \
 Empiezas con **{obj.ASCIICOINS_INICIALES} asciicoins** para gastar y \
 **{obj.ASCIIGEMS_INICIALES} asciigems** en reserva.
-Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran \
-{obj.MINUTOS_DE_EFECTO} minutos, una que llena la comida de golpe, dos que \
-borran un enfriamiento y una placa para cambiarle el nombre.
+-# **{len([o for o in obj.CATALOGO.values() if o.se_vende])} cosas a la \
+venta**: pociones de 1d4 a 1d12 que duran {obj.MINUTOS_DE_EFECTO} min, comida, \
+dos que borran un enfriamiento, la placa del nombre, semillas y el ticket del \
+refugio.
 -# 🍬 Las **golosinas** ({obj.CATALOGO['golosinas'].precio} \
 {obj.MONEDA_TIENDA}) valen para dos cosas: dan \
 +{obj.CATALOGO['golosinas'].alimenta} de comida desde la mochila, y sirven de \
 cebo con un salvaje en `/aventura`.
--# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
-El bonus sale en la ficha mientras dure.
 
 **Ganar {obj.MONEDA_TIENDA}**
-Jugando, con tope diario para que no se pueda machacar:
+Hasta **{eco.TOPE_DIARIO_ASCIICOINS} al día**, un solo bote para todo. Se \
+renueva a medianoche UTC.
 -# 🍖 cuidarlo **+{eco.PREMIO_CUIDADO}**, hasta {eco.TOPE_CUIDADOS} al día \
 · ✨ evolucionar **+{eco.PREMIO_EVOLUCION}**, {eco.TOPE_EVOLUCIONES} al día \
 · 🏁 competir **+{eco.PREMIO_COMPETENCIA}** y **+{eco.PREMIO_GANADOR}** si ganas, \
 hasta {eco.TOPE_COMPETENCIAS} al día
-Son unos **{_techo_diario()} al día** si lo aprovechas entero. Y en `/aventura` \
-se encuentran objetos por el camino, que salen gratis.
+-# En `/aventura` te encuentras objetos gratis, a veces \
+**{av.MONEDAS_ENCONTRADAS[0]}–{av.MONEDAS_ENCONTRADAS[1]}** asciicoins —del \
+bote— y muy raramente **{av.GEMAS_ENCONTRADAS[0]}–{av.GEMAS_ENCONTRADAS[1]}** \
+{obj.EMOJI_GEMA}, que no tienen tope.
+
+-# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
+El bonus sale en la ficha mientras dure."""
+
+    tus_gemas = f"""## {obj.EMOJI_GEMA} Tus asciigems
 
 **Ganar {obj.EMOJI_GEMA} asciigems**
-Sólo con los **logros**: `/logros` te enseña los {len(lgr.LOGROS)} y cuánto te \
-falta para cada uno. Van desde ganar tu primera competencia hasta pisar los \
+Sobre todo con los **logros**: `/logros` te enseña los {len(lgr.LOGROS)} y \
+cuánto te falta para cada uno. Van desde ganar tu primera competencia hasta pisar los \
 diez biomas o llegar a los 30 días de vida, y se pagan **una sola vez**.
 -# **{len(lgr.del_gachamon())}** son de cada gachamon \
 ({sum(l.gemas for l in lgr.del_gachamon())} {obj.EMOJI_GEMA}) y se van con él; \
@@ -415,7 +409,7 @@ a quien quieras con 🎨 **Personalizar**.
 -# Uno de cada tipo a la vez, y lo que le quites vuelve al ropero y sirve para \
 otro. No tocan ninguna estadística — son sólo para presumir."""
 
-    return (tu_criatura, que_hacer, tus_cosas, tu_casa, tu_dinero)
+    return (tu_criatura, que_hacer, tus_cosas, tu_casa, tu_dinero, tus_gemas)
 
 
 class Social(commands.Cog):

@@ -20,6 +20,12 @@ import logros as lgr
 import objetos as obj
 import simulacion as sim
 
+# El bote diario. Es **uno solo para todo** lo que se gana: cuidar, evolucionar,
+# competir y lo que te encuentres en una aventura salen de aquí. Antes no había
+# tope en monedas —sólo por número de eventos— y el techo de 40 era un número
+# derivado; ahora el techo es esto y se puede decir en una frase.
+TOPE_DIARIO_ASCIICOINS = 20
+
 TOPE_CUIDADOS = 12
 TOPE_EVOLUCIONES = 1
 TOPE_COMPETENCIAS = 3
@@ -308,13 +314,41 @@ def _contar_acreditadas(
     ).fetchone()[0]
 
 
+def _ganado_hoy(con, usuario_id: str, guild_id: str, fecha: str) -> int:
+    """Los asciicoins ya cobrados hoy, vengan de donde vengan.
+
+    Sólo `acreditada`: las compras son `comprada` y llevan delta negativo, así
+    que gastar no te devuelve sitio en el bote. El bote mide lo **ganado**, no
+    lo que tienes.
+    """
+    return con.execute(
+        "SELECT COALESCE(SUM(delta_asciicoins), 0) FROM operaciones_economia "
+        "WHERE usuario_id = ? AND guild_id = ? AND fecha_utc = ? "
+        "AND resultado = 'acreditada'",
+        (usuario_id, guild_id, fecha),
+    ).fetchone()[0]
+
+
 def _resolver_recompensa(
     con, usuario_id: str, guild_id: str, fecha: str,
-    tipo: str, monto: int, limite: int,
+    tipo: str, monto: int, limite: int | None,
 ) -> tuple[int, int, bool]:
+    """Cuánto se cobra de verdad, contra el tope de la actividad y el bote.
+
+    Son dos frenos y el que manda es el bote: 20 al día para todo. Los topes por
+    actividad siguen ahí porque limitan otra cosa —cuántas veces cobras por lo
+    mismo— y quitarlos cambiaría el comportamiento de quien hace trece cuidados.
+    `limite=None` es para lo que no tiene tope propio, como los hallazgos.
+
+    **Se cobra lo que quepa, no todo o nada**: con 3 libres y un premio de 6
+    entran 3. Es lo que espera quien lee «hasta 20 al día», y la fila del ledger
+    lo admite tal cual; sólo cuando no cabe nada se apunta `topada`.
+    """
     usados = _contar_acreditadas(con, usuario_id, guild_id, fecha, tipo)
-    acreditada = usados < limite
-    delta = monto if acreditada else 0
+    libre = max(0, TOPE_DIARIO_ASCIICOINS - _ganado_hoy(con, usuario_id, guild_id, fecha))
+    cabe = limite is None or usados < limite
+    delta = min(monto, libre) if cabe else 0
+    acreditada = delta > 0
     if delta:
         _asegurar_monedero(con, usuario_id, guild_id)
         con.execute(
@@ -342,6 +376,66 @@ def _registrar_recompensa(
         ),
     )
     return delta, usados, topada
+
+
+@dataclass(frozen=True)
+class ResultadoHallazgo:
+    """Lo que te has encontrado por el camino y lo que de eso te llevas."""
+
+    monedas: int = 0        # lo que entró de verdad, ya recortado por el bote
+    monedas_vistas: int = 0  # lo que había en el suelo
+    gemas: int = 0
+    replay: bool = False
+
+    @property
+    def topado(self) -> bool:
+        return self.monedas_vistas > self.monedas
+
+
+def otorgar_hallazgo(
+    evento_id: str, usuario_id: str, guild_id: str,
+    monedas: int, gemas: int, ahora: datetime | None = None,
+) -> ResultadoHallazgo:
+    """Paga lo encontrado en una aventura, en una sola transacción.
+
+    Las monedas pasan por el bote diario —un hallazgo puede salir topado y hay
+    que decirlo— y las gemas no: son otra moneda y otra economía, y al 0,5 % no
+    hacen falta frenos.
+
+    La idempotencia sale de donde ya sale: la clave primaria del ledger sobre
+    `(evento_id, usuario_id, guild_id, tipo)`. Con la fila puesta, reprocesar el
+    mismo viaje no vuelve a pagar **ni monedas ni gemas**, aunque éstas no
+    tengan ledger propio — van dentro de la misma transacción.
+    """
+    if not monedas and not gemas:
+        return ResultadoHallazgo()
+
+    ahora = ahora or db.ahora_utc()
+    fecha = _fecha_economica(ahora)
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        ya_estaba = con.execute(
+            "SELECT 1 FROM operaciones_economia WHERE evento_id = ? "
+            "AND usuario_id = ? AND guild_id = ? AND tipo = 'aventura'",
+            (evento_id, usuario_id, guild_id),
+        ).fetchone()
+        if ya_estaba is not None:
+            return ResultadoHallazgo(replay=True)
+
+        delta, _, _ = _registrar_recompensa(
+            con, evento_id, usuario_id, guild_id, fecha, "aventura",
+            monedas, None, json.dumps({"monedas": monedas, "gemas": gemas}),
+        )
+        if gemas:
+            _asegurar_monedero(con, usuario_id, guild_id)
+            con.execute(
+                "UPDATE monederos SET asciigems = asciigems + ? "
+                "WHERE usuario_id = ? AND guild_id = ?",
+                (gemas, usuario_id, guild_id),
+            )
+        return ResultadoHallazgo(
+            monedas=delta, monedas_vistas=monedas, gemas=gemas
+        )
 
 
 def _envolver_cuidado(
