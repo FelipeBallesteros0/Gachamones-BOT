@@ -302,6 +302,8 @@ def ejecutar_aventura_final(
         return "EVOLUCIÓN"
 
     monkeypatch.setattr(cog_av.pantalla, "render_evolucion", render_evolucion)
+    monkeypatch.setattr(cog_av.pantalla, "render_rupturas", lambda *_: "VETA")
+
     async def congelar(canal, mensaje_id):
         eventos.append(("congelar", canal, mensaje_id))
 
@@ -374,7 +376,7 @@ def test_la_evolucion_se_anuncia_antes_de_narrar_y_el_salvaje_queda_ultimo(
     # El primero es siempre el marco de las pruebas; lo que se mira aquí es el
     # orden de lo que viene detrás.
     mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"][1:]
-    assert mensajes == ["EVOLUCIÓN", "NARRACIÓN", "ENCUENTRO"]
+    assert mensajes == ["EVOLUCIÓN", "VETA", "NARRACIÓN", "ENCUENTRO"]
     assert (guardadas[-1].nivel, guardadas[-1].xp) == (2, 3)
     assert evoluciones[0][1] == viajera.etapa
     assert vistas[0].criatura == guardadas[-1]
@@ -395,6 +397,7 @@ def test_la_subida_sin_cambio_de_etapa_se_anuncia_como_en_competencias(monkeypat
     mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"][1:]
     assert mensajes == [
         f"✨ **{viajera.nombre}** sube a nivel {len(esp.ETAPAS) + 1}, <@u1>.",
+        "VETA",
         "NARRACIÓN",
     ]
     assert guardadas[-1].nivel == len(esp.ETAPAS) + 1
