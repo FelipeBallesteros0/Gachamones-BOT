@@ -133,7 +133,7 @@ _registrar(Objeto(
 # existir, que es lo contrario de lo que se busca.
 _registrar(Objeto(
     clave="descanso_rapido",
-    nombre="Descanso rápido",
+    nombre="Poción de descanso rápido",
     emoji="😮‍💨",
     precio=12,
     descripcion="Deja competir otra vez ya, sin esperar el enfriamiento.",

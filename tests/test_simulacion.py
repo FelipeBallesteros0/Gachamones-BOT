@@ -517,7 +517,7 @@ def test_el_enfriamiento_de_competir_ata_mas_que_el_hambre():
     6 por hora y manda el enfriamiento, que es lo que se buscaba.
 
     Si alguien vuelve a bajarlo, este test avisa de que además está dejando el
-    «Descanso rápido» sin utilidad.
+    «Poción de descanso rápido» sin utilidad.
     """
     minutos = sim.COOLDOWNS[sim.COMPETIR].total_seconds() / 60
     peleas_por_enfriamiento = 60 / minutos
