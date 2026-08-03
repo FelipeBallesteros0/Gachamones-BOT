@@ -1,21 +1,24 @@
-"""Carreras acumulativas, sumo por intercambios y asaltos al tótem por puestos.
+"""Carreras, sumo, asaltos al tótem y laberintos contra el eco del pasillo.
 
 Módulo puro: el generador de números aleatorios se pasa como argumento, así que
 los tests fijan los dados y comprueban el resultado exacto. Cada fase combina
 las estadísticas que le corresponden y suma 1d20.
 
-Las tres modalidades se diferencian por **cómo cuentan**, no por cuántas fases
+Las cuatro modalidades se diferencian por **cómo cuentan**, no por cuántas fases
 tienen:
 
 * la **carrera** acumula puntos crudos y los domina la velocidad;
 * el **sumo** va a dos intercambios ganados y lo domina la fuerza;
 * el **asalto al tótem** juega una fase entera con cada estadística y reparte
   puestos en cada una, así que lo gana quien es completo y no quien destaca en
-  una sola cosa.
+  una sola cosa;
+* el **laberinto de ecos** es el único donde el adversario es el terreno: cada
+  fase se juega contra un eco común y se cuenta cuántas puertas abre cada uno,
+  así que puede no cruzar nadie.
 
-Una carrera y un asalto admiten de dos a cinco; el sumo, dos o un torneo de
-cuatro. Todo se guarda en listas indexadas para conservar un solo vocabulario y
-el orden original de dorsales.
+Una carrera, un asalto y un laberinto admiten de dos a cinco; el sumo, dos o un
+torneo de cuatro. Todo se guarda en listas indexadas para conservar un solo
+vocabulario y el orden original de dorsales.
 """
 from __future__ import annotations
 
@@ -1020,6 +1023,139 @@ def fotogramas_totem(resultado: Resultado, titulo: str) -> list[str]:
     return fotogramas
 
 
+# El laberinto se dibuja en el mismo campo de ancho fijo que el tótem. Las tres
+# escenas cuentan la fase sin una palabra: puertas con señales que leer, un
+# trazado de pasillos que recorrer y la salida al final de los repetidos.
+ESCENAS_LABERINTO = {
+    SENALES: (
+        " ╔═╗  ╔═╗  ╔═╗ ",
+        " ║?║  ║!║  ║?║ ",
+        " ╚═╝  ╚═╝  ╚═╝ ",
+    ),
+    TRAZADO: (
+        "═╗ ╔═══╗ ╔═══╗ ",
+        ">>>>╝ ╚>>>╝ ╚>>",
+        "══╗ ╔═══╗ ╔═══ ",
+    ),
+    NO_PERDERSE: (
+        " ╔═╗ ╔═╗  ┌─┐  ",
+        " ║#║ ║#║  │ │>>",
+        " ╚═╝ ╚═╝  └─┘  ",
+    ),
+}
+
+# Por fase: cruza uno, cruzan varios, no cruza nadie. El tercer caso no es un
+# empate ni un fallo del motor: contra el eco puede no pasar nadie, y contarlo
+# es parte de lo que distingue al laberinto de las otras tres modalidades.
+NARRACIONES_LABERINTO = {
+    SENALES: (
+        "{quienes} descifra las señales.",
+        "{quienes} descifran las señales a la vez.",
+        "El eco confunde las señales: nadie cruza.",
+    ),
+    TRAZADO: (
+        "{quienes} traza la ruta sin dudar.",
+        "{quienes} trazan rutas parejas.",
+        "Los pasillos se repiten: nadie avanza.",
+    ),
+    NO_PERDERSE: (
+        "{quienes} sale del laberinto y su eco se apaga.",
+        "{quienes} salen a la vez.",
+        "El laberinto retiene a todos una vuelta más.",
+    ),
+}
+
+
+def _narracion_del_laberinto(
+    ronda: Ronda, competidores: Sequence[Competidor]
+) -> str:
+    """Quién abrió la puerta de esta fase, o que no la abrió nadie.
+
+    Un desempate se queda sin línea: no tiene eco, así que no hay puerta que
+    contar y cualquier frase sobre cruzar sería inventada.
+    """
+    plantillas = NARRACIONES_LABERINTO.get(ronda.fase)
+    if plantillas is None:
+        return ""
+    cruzan = [
+        competidores[dorsal].nombre
+        for dorsal, total in enumerate(ronda.totales)
+        if total > ronda.eco
+    ]
+    una, varias, ninguna = plantillas
+    if not cruzan:
+        return ninguna
+    if len(cruzan) == 1:
+        return una.format(quienes=cruzan[0])
+    return varias.format(
+        quienes=", ".join(cruzan[:-1]) + " y " + cruzan[-1]
+    )
+
+
+def _fila_de_puertas(puesto: int, competidor: Competidor, puertas: int) -> str:
+    """`1. Pelusa     2 puertas`, la clasificación parcial de una fase."""
+    return pantalla.fila(
+        f" {puesto}. {competidor.nombre[:10]:<10} "
+        f"{puertas} puerta{'s' if puertas != 1 else ''} "
+    )
+
+
+def fotogramas_laberinto(resultado: Resultado, titulo: str) -> list[str]:
+    """Un mensaje por fase: la escena, el eco, quién lo supera y las puertas.
+
+    La marca ✓/✗ ocupa el espacio con el que empieza la fila del dado, así que
+    el presupuesto de esa fila no cambia y los nombres siguen teniendo el mismo
+    sitio que en las otras modalidades.
+
+    En un desempate no hay eco —no es una fase oficial— y el reparto de puertas
+    ya no se mueve, pero las filas sí se reordenan con la clave definitiva, así
+    que el último fotograma enseña el orden con el que se cierra.
+    """
+    cuantos = len(resultado.competidores)
+    ancho_base, ancho_total = _anchos_del_dado(resultado)
+    fotogramas = []
+
+    for paso in range(1, len(resultado.rondas) + 1):
+        ronda = resultado.rondas[paso - 1]
+        hasta_aqui = resultado.rondas[:paso]
+        puertas = _puertas_del_laberinto(hasta_aqui, cuantos)
+        oficial = ronda.fase in ESCENAS_LABERINTO
+
+        cuerpo = _cabecera(resultado, paso, titulo)
+        # El desempate vuelve a la base de SEÑALES, así que se dibuja como tal.
+        for linea in ESCENAS_LABERINTO.get(ronda.fase, ESCENAS_LABERINTO[SENALES]):
+            cuerpo.append(pantalla.fila(f"{linea:^{pantalla.ANCHO}}"))
+        cuerpo.append("├" + "─" * pantalla.ANCHO + "┤")
+        if oficial:
+            cuerpo.append(pantalla.fila(f" eco del pasillo {ronda.eco:>7} "))
+        for dorsal in ronda.dorsales or range(cuantos):
+            fila = _fila_dado(
+                resultado.competidores[dorsal],
+                ronda.dados[dorsal], ronda.totales[dorsal],
+                ancho_base, ancho_total,
+            )
+            if oficial:
+                marca = "✓" if ronda.totales[dorsal] > ronda.eco else "✗"
+                fila = fila[0] + marca + fila[2:]
+            cuerpo.append(fila)
+        cuerpo.append("├" + "─" * pantalla.ANCHO + "┤")
+        for puesto, dorsal in enumerate(
+            _orden_del_laberinto(hasta_aqui, cuantos), start=1
+        ):
+            cuerpo.append(_fila_de_puertas(
+                puesto, resultado.competidores[dorsal], puertas[dorsal]
+            ))
+        cuerpo.append("╰" + "─" * pantalla.ANCHO + "╯")
+
+        narracion = _narracion_del_laberinto(ronda, resultado.competidores)
+        fotogramas.append(
+            "```ansi\n" + "\n".join(cuerpo) + "\n```"
+            + (f"\n{narracion}" if narracion else "")
+        )
+
+    return fotogramas
+
+
 def como_se_llama(tipo: str, cuantos: int) -> str:
     """«una CARRERA», «un SUMO», «un TORNEO DE SUMO» o «un ASALTO AL TÓTEM»."""
     if tipo == SUMO and cuantos == CUANTOS_EN_TORNEO:
@@ -1038,6 +1174,7 @@ DIBUJANTES = {
     CARRERA: fotogramas_carrera,
     SUMO: fotogramas_sumo,
     TOTEM: fotogramas_totem,
+    LABERINTO: fotogramas_laberinto,
 }
 
 
