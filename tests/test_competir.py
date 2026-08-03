@@ -1670,6 +1670,13 @@ def test_el_cierre_de_dos_jugadores_nombra_las_puertas_abiertas():
     assert "🏆 **A** gana a **B**" in cierre
 
 
+def test_el_reto_del_laberinto_se_anuncia_por_su_nombre():
+    for cuantos in comp.CUANTOS_CABEN[comp.LABERINTO]:
+        assert comp.como_se_llama(comp.LABERINTO, cuantos) == (
+            "un LABERINTO DE ECOS"
+        )
+
+
 def test_el_laberinto_de_tres_o_mas_cierra_con_podio():
     tres = [competidor(nombre, stat=10 + i * 5) for i, nombre in enumerate("ABC")]
     encuentro = comp.enfrentar(tres, comp.LABERINTO, DadosFijos([10, 9, 8, 7]))

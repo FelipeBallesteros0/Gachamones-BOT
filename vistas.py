@@ -91,6 +91,9 @@ class MenuSocial(discord.ui.Select):
                 discord.SelectOption(label="Sumo", value=comp.SUMO),
                 discord.SelectOption(label="Asalto al Tótem", value=comp.TOTEM),
                 discord.SelectOption(
+                    label="Laberinto de Ecos", value=comp.LABERINTO
+                ),
+                discord.SelectOption(
                     label="Entrenar juntos", value="entrenar_juntos"
                 ),
             ],

@@ -517,6 +517,7 @@ def test_selector_de_gestion_delega_una_vez_al_helper_actual(
         (comp.CARRERA, 4, "entre 1 y 4 rivales"),
         (comp.SUMO, 3, "1 o 3 rivales"),
         (comp.TOTEM, 4, "entre 1 y 4 rivales"),
+        (comp.LABERINTO, 4, "entre 1 y 4 rivales"),
     ],
 )
 def test_cada_modalidad_abre_seleccion_privada_con_sus_cantidades(
@@ -540,7 +541,22 @@ def test_cada_modalidad_abre_seleccion_privada_con_sus_cantidades(
     assert selector.max_values == maximo
 
 
-@pytest.mark.parametrize("tipo", [comp.CARRERA, comp.SUMO, comp.TOTEM])
+def test_el_menu_social_ofrece_el_laberinto():
+    """La opción tiene que existir y despachar por el camino genérico."""
+    menu = next(
+        hijo for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:desafiar"
+    )
+    opciones = {opcion.value: opcion.label for opcion in menu.options}
+
+    assert opciones[comp.LABERINTO] == "Laberinto de Ecos"
+    assert comp.LABERINTO in comp.CUANTOS_CABEN
+    assert vistas.MenuSeleccionRivales(comp.LABERINTO).max_values == 4
+
+
+@pytest.mark.parametrize(
+    "tipo", [comp.CARRERA, comp.SUMO, comp.TOTEM, comp.LABERINTO]
+)
 def test_seleccion_de_rivales_termina_en_el_seam_canonico(tipo):
     rivales = [SimpleNamespace(id="u2"), SimpleNamespace(id="u3")]
     retar = AsyncMock()

@@ -25,8 +25,8 @@ from vistas import (
 )
 
 COMANDOS_ESPERADOS = {
-    "huevo", "mascota", "carrera", "sumo", "totem", "ranking", "cementerio",
-    "ayuda",
+    "huevo", "mascota", "carrera", "sumo", "totem", "laberinto",
+    "ranking", "cementerio", "ayuda",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
     "casa", "visitar", "buzon",
 }
@@ -133,6 +133,7 @@ def test_la_pantalla_persistente_tiene_la_estructura_aprobada():
         ("Carrera", comp.CARRERA),
         ("Sumo", comp.SUMO),
         ("Asalto al Tótem", comp.TOTEM),
+        ("Laberinto de Ecos", comp.LABERINTO),
         ("Entrenar juntos", "entrenar_juntos"),
     ]
     assert not any(op.default for op in social.options)
@@ -219,7 +220,7 @@ def test_los_custom_id_no_chocan_entre_vistas():
     todos += [h.custom_id for h in NombrarView().children]
     todos += [
         MenuSeleccionRivales(tipo).custom_id
-        for tipo in (comp.CARRERA, comp.SUMO, comp.TOTEM)
+        for tipo in (comp.CARRERA, comp.SUMO, comp.TOTEM, comp.LABERINTO)
     ]
     assert len(set(todos)) == len(todos)
 
@@ -759,11 +760,15 @@ def test_los_comandos_de_competencia_anuncian_sus_fases_y_regla():
     comandos = {
         c.name: c.description
         for c in _cargar_todo()
-        if c.name in {"carrera", "sumo"}
+        if c.name in {"carrera", "sumo", "totem", "laberinto"}
     }
     assert "SALIDA, TERRENO y FONDO" in comandos["carrera"]
     assert "POSICIÓN, EMPUJE y AGUANTE" in comandos["sumo"]
     assert "mejor de tres" in comandos["sumo"]
+    assert "AL CENTRO, FORCEJEO y HUIDA" in comandos["totem"]
+    assert "SEÑALES, TRAZADO y NO PERDERSE" in comandos["laberinto"]
+    assert "Laberinto de Ecos" in comandos["laberinto"]
+    assert all(len(descripcion) <= 100 for descripcion in comandos.values())
 
 
 def test_la_ayuda_condiciona_la_xp_de_aventura_a_volver_con_vida():
@@ -868,7 +873,10 @@ def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):
 
 @pytest.mark.parametrize(
     ("tipo", "espera"),
-    ((comp.CARRERA, 1.6), (comp.SUMO, 1.6), (comp.TOTEM, 5.0)),
+    (
+        (comp.CARRERA, 1.6), (comp.SUMO, 1.6), (comp.TOTEM, 5.0),
+        (comp.LABERINTO, 5.0),
+    ),
 )
 def test_cada_modalidad_mantiene_su_ritmo_de_animacion(
     monkeypatch, tipo, espera
