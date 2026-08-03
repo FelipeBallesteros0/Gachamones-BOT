@@ -859,7 +859,7 @@ def test_cambiar_de_activo_publica_ficha_canonica_en_el_canal_actual(
         asciicoins=economia.saldos("u1", "g1").asciicoins,
     )
     actual.send.assert_awaited_once()
-    assert actual.send.await_args.args == (esperado,)
+    assert actual.send.await_args.kwargs["content"] == esperado
     vista = actual.send.await_args.kwargs["view"]
     assert isinstance(vista, vistas.PantallaView)
     assert all(not boton.disabled for boton in vista.children)
@@ -1136,8 +1136,8 @@ def test_responder_y_publicar_no_consultan_saldo_para_una_lapida(monkeypatch):
     asyncio.run(vistas.publicar_pantalla(cast(Any, canal), lapida, T0))
 
     saldos.assert_not_called()
-    respuesta.send_message.assert_awaited_once_with("lápida")
-    canal.send.assert_awaited_once_with("lápida")
+    respuesta.send_message.assert_awaited_once_with(content="lápida")
+    canal.send.assert_awaited_once_with(content="lápida")
     assert [llamada.kwargs["asciicoins"] for llamada in render.call_args_list] == [
         None,
         None,
@@ -1223,7 +1223,8 @@ def test_actualizar_que_descubre_muerte_edita_la_misma_ficha_sin_botones(
     guardada = db.obtener(criatura.id)
     assert guardada is not None and not guardada.viva
     respuesta.edit_message.assert_awaited_once_with(
-        content=pantalla.render(guardada, ahora), view=None
+        content=pantalla.render(guardada, ahora),
+        attachments=[], embed=None, view=None,
     )
     saldos.assert_not_called()
     congelar.assert_not_awaited()

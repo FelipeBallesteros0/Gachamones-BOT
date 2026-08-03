@@ -361,8 +361,14 @@ def render(
     efectos: dict[str, tuple[int, timedelta]] | None = None,
     en_la_incubadora: int = 0,
     asciicoins: int | None = None,
+    sin_arte: bool = False,
 ) -> str:
-    """Pantalla completa de una criatura viva o muerta."""
+    """Pantalla completa de una criatura viva o muerta.
+
+    Con `sin_arte` se pinta el marco sin el dibujo: sólo barras, estadísticas y
+    experiencia. Lo usa la ficha con retrato, donde el bicho ya se ve en la
+    imagen y repetirlo en ASCII sería enseñarlo dos veces.
+    """
     if not criatura.viva:
         return render_lapida(criatura, ahora)
 
@@ -374,8 +380,10 @@ def render(
     color = cos.color_del_tinte(criatura.tinte, definicion.color)
 
     cuerpo = ["╭" + "─" * ANCHO + "╮"]
-    cuerpo += _lineas_arte(arte, color, cos.dibujo_del_sombrero(criatura.sombrero))
-    cuerpo.append("├" + "─" * ANCHO + "┤")
+    if not sin_arte:
+        cuerpo += _lineas_arte(arte, color,
+                               cos.dibujo_del_sombrero(criatura.sombrero))
+        cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.append(_fila_barra("COMIDA", criatura.hambre))
     cuerpo.append(_fila_barra("ÁNIMO", criatura.animo))
     cuerpo.append(_fila_barra("ASEO", criatura.limpieza))

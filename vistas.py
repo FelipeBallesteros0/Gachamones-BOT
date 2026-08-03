@@ -26,6 +26,7 @@ import economia
 import equipo
 import especies as esp
 import pantalla
+import retrato
 import simulacion as sim
 import tienda
 
@@ -747,7 +748,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         return
 
     if accion == sim.ACTUALIZAR:
-        contenido = pantalla.render(
+        ficha = _ficha(
             resultado.criatura, ahora,
             esperas=db.esperas_de_ficha(
                 resultado.criatura, ahora, pantalla.ACCIONES_EN_FICHA
@@ -767,7 +768,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
             ),
         )
         vista = PantallaView() if resultado.criatura.viva else None
-        await interaccion.response.edit_message(content=contenido, view=vista)
+        await interaccion.response.edit_message(**_como_edicion(ficha), view=vista)
         return
 
     if not resultado.criatura.viva:
@@ -926,6 +927,47 @@ def _canal_anterior(canal: discord.abc.Messageable, criatura: sim.Criatura):
     return guild.get_channel_or_thread(guardado) or canal
 
 
+def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
+    """Los argumentos con los que se pinta una ficha.
+
+    Casi siempre es el texto de siempre. Para las criaturas que tienen retrato
+    dibujado —hoy sólo Pyro adulto grande, ver `retrato.py`— es un embed con la
+    imagen de miniatura y el marco sin el dibujo, que ya se ve en la foto.
+
+    Devuelve un diccionario porque `send` y `edit_message` no piden el adjunto
+    con el mismo nombre; de eso se encarga `_como_edicion`.
+    """
+    ruta = retrato.ruta_de(criatura) if criatura.viva else None
+    if ruta is None:
+        return {"content": pantalla.render(criatura, ahora, **kw)}
+
+    nombre = retrato.nombre_del_adjunto(ruta)
+    embed = discord.Embed(
+        description=pantalla.render(criatura, ahora, sin_arte=True, **kw),
+        colour=retrato.color_de(criatura),
+    )
+    # El nombre sale de `retrato` en los dos sitios a propósito: si la URL y el
+    # adjunto no coinciden, la miniatura sale vacía y no falla nada en ningún
+    # registro, así que no hay forma de enterarse salvo mirándolo.
+    embed.set_thumbnail(url=f"attachment://{nombre}")
+    return {"content": None, "embed": embed,
+            "file": discord.File(ruta, filename=nombre)}
+
+
+def _como_edicion(ficha: dict) -> dict:
+    """Lo mismo, pero para `edit_message`, que llama `attachments` al adjunto.
+
+    Y hay que pasarlo SIEMPRE, aunque sea vacío: si no se menciona, Discord
+    conserva el adjunto anterior, y una ficha que vuelve a ASCII se quedaría con
+    el retrato viejo pegado debajo.
+    """
+    editable = {k: v for k, v in ficha.items() if k != "file"}
+    editable["attachments"] = [ficha["file"]] if "file" in ficha else []
+    editable.setdefault("content", None)
+    editable.setdefault("embed", None)
+    return editable
+
+
 async def responder_pantalla(
     interaccion: discord.Interaction, criatura: sim.Criatura, ahora
 ) -> None:
@@ -938,7 +980,7 @@ async def responder_pantalla(
         await congelar(_canal_anterior(_canal_de(interaccion), criatura),
                        criatura.pantalla_msg_id)
 
-    contenido = pantalla.render(
+    ficha = _ficha(
         criatura, ahora,
         esperas=db.esperas_de_ficha(criatura, ahora, pantalla.ACCIONES_EN_FICHA),
         efectos=db.efectos_activos(criatura.id, ahora),
@@ -951,9 +993,9 @@ async def responder_pantalla(
         ),
     )
     if criatura.viva:
-        await interaccion.response.send_message(contenido, view=PantallaView())
+        await interaccion.response.send_message(**ficha, view=PantallaView())
     else:
-        await interaccion.response.send_message(contenido)
+        await interaccion.response.send_message(**ficha)
     mensaje = await interaccion.original_response()
     db.guardar_pantalla(criatura.id, str(mensaje.id), str(interaccion.channel_id))
 
@@ -969,7 +1011,7 @@ async def publicar_pantalla(
     if criatura.pantalla_msg_id and criatura.pantalla_msg_id != ya_congelada:
         await congelar(_canal_anterior(canal, criatura), criatura.pantalla_msg_id)
 
-    contenido = pantalla.render(
+    ficha = _ficha(
         criatura, ahora,
         esperas=db.esperas_de_ficha(criatura, ahora, pantalla.ACCIONES_EN_FICHA),
         aviso=aviso,
@@ -983,9 +1025,9 @@ async def publicar_pantalla(
         ),
     )
     if criatura.viva:
-        mensaje = await canal.send(contenido, view=PantallaView())
+        mensaje = await canal.send(**ficha, view=PantallaView())
     else:
-        mensaje = await canal.send(contenido)
+        mensaje = await canal.send(**ficha)
     db.guardar_pantalla(criatura.id, str(mensaje.id), str(getattr(canal, "id")))
     return mensaje
 
