@@ -934,8 +934,11 @@ def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
     """Los argumentos con los que se pinta una ficha.
 
     Casi siempre es el texto de siempre. Para las criaturas que tienen retrato
-    dibujado —hoy sólo Pyro adulto grande, ver `retrato.py`— es un embed con la
-    imagen de miniatura y el marco sin el dibujo, que ya se ve en la foto.
+    dibujado —qué especies, en `retrato.py`— es un embed con la imagen y el
+    marco sin el dibujo, que ya se ve en la foto.
+
+    El PNG se manda tal cual está en `arte/`: aquí no se compone ni se escribe
+    nada. `discord.File` lo abre, lo sube y lo cierra.
 
     Devuelve un diccionario porque `send` y `edit_message` no piden el adjunto
     con el mismo nombre; de eso se encarga `_como_edicion`.
