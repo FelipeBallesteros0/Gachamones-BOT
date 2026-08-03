@@ -12,7 +12,10 @@ import personalidad as per
 import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
+COLUMNAS_INGENIO = (
+    "base_ingenio", "ent_ingenio", "niv_ingenio", "ten_ingenio",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -33,8 +36,23 @@ def test_crear_y_recuperar():
     assert recuperada.id == creada.id
     assert recuperada.nombre == "Prueba"
     assert recuperada.especie == "pulpo"
-    assert (recuperada.base_fuerza, recuperada.base_velocidad, recuperada.base_salud) == STATS
+    assert (
+        recuperada.base_fuerza,
+        recuperada.base_velocidad,
+        recuperada.base_salud,
+        recuperada.base_ingenio,
+    ) == STATS
     assert recuperada.nacida_en == T0
+
+
+def test_crear_persiste_el_ingenio_del_nacimiento():
+    creada = db.crear("u1", "g1", "pulpo", "Prueba", (10, 11, 12, 13), T0)
+    recuperada = db.por_id(creada.id)
+
+    assert recuperada is not None
+    assert recuperada.base_ingenio == 13
+    assert recuperada.ingenio == 13
+    assert all(campo in db.CAMPOS for campo in COLUMNAS_INGENIO)
 
 
 def test_crear_deja_siempre_una_sola_activa():
@@ -79,8 +97,9 @@ def test_guardar_conserva_todos_los_campos():
     modificada = replace(
         criatura,
         hambre=42.5, animo=17.25, limpieza=3.0,
-        ent_fuerza=9, ent_velocidad=4, ent_salud=1,
-        niv_fuerza=2, niv_velocidad=1, niv_salud=0,
+        ent_fuerza=9, ent_velocidad=4, ent_salud=1, ent_ingenio=6,
+        niv_fuerza=2, niv_velocidad=1, niv_salud=0, niv_ingenio=3,
+        ten_ingenio=2.5,
         xp=7, nivel=4, victorias=6, derrotas=3,
         actualizada_en=T0 + timedelta(hours=5),
         pantalla_msg_id="123456789",
@@ -182,6 +201,88 @@ def test_migracion_de_una_base_de_datos_antigua():
     assert not recuperada.avisada
     # Y el aviso vuelve a estar programado.
     assert db.pendientes_de_aviso(sim.momento_de_aviso(criatura) + timedelta(minutes=1))
+
+
+def _simular_esquema_sin_ingenio():
+    with db.conectar() as con:
+        for columna in COLUMNAS_INGENIO:
+            con.execute(f"ALTER TABLE criaturas DROP COLUMN {columna}")
+
+
+def test_la_migracion_rellena_ingenio_por_rareza():
+    pulpo = db.crear("u1", "g1", "pulpo", "Pulpo", STATS, T0)
+    dragon = db.crear(
+        "u1", "g1", "dragoncito", "Dragón", STATS, T0, activa=False
+    )
+    _simular_esquema_sin_ingenio()
+
+    db.inicializar()
+
+    pulpo_recuperado = db.por_id(pulpo.id)
+    dragon_recuperado = db.por_id(dragon.id)
+    assert pulpo_recuperado is not None and dragon_recuperado is not None
+    assert pulpo_recuperado.base_ingenio == 15
+    assert dragon_recuperado.base_ingenio == 17
+    assert (
+        pulpo_recuperado.ent_ingenio,
+        pulpo_recuperado.niv_ingenio,
+        pulpo_recuperado.ten_ingenio,
+    ) == (0, 0, 0.0)
+
+
+def test_el_backfill_de_ingenio_es_idempotente():
+    db.crear("u1", "g1", "pulpo", "Veterana", STATS, T0)
+    _simular_esquema_sin_ingenio()
+    db.inicializar()
+    with db.conectar() as con:
+        antes = "\n".join(con.iterdump())
+
+    db.inicializar()
+
+    with db.conectar() as con:
+        despues = "\n".join(con.iterdump())
+    assert despues == antes
+
+
+def test_una_especie_desconocida_recibe_15_neutro_sin_reventar(caplog):
+    criatura = db.crear("u1", "g1", "pulpo", "Fósil", STATS, T0)
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET especie = 'fosil_retirado' WHERE id = ?",
+            (criatura.id,),
+        )
+    _simular_esquema_sin_ingenio()
+
+    caplog.set_level("WARNING", logger="db")
+    db.inicializar()
+
+    recuperada = db.por_id(criatura.id)
+    assert recuperada is not None and recuperada.base_ingenio == 15
+    mensajes = [registro.getMessage() for registro in caplog.records]
+    assert mensajes == ["1 criaturas de especie desconocida reciben ingenio 15"]
+    assert "fosil_retirado" not in mensajes[0]
+
+
+def test_ninguna_criatura_queda_con_ingenio_cero_tras_inicializar():
+    conocida = db.crear("u1", "g1", "pulpo", "Conocida", STATS, T0)
+    desconocida = db.crear(
+        "u1", "g1", "pulpo", "Desconocida", STATS, T0, activa=False
+    )
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET especie = 'fosil_retirado' WHERE id = ?",
+            (desconocida.id,),
+        )
+    _simular_esquema_sin_ingenio()
+
+    db.inicializar()
+
+    with db.conectar() as con:
+        ceros = con.execute(
+            "SELECT COUNT(*) c FROM criaturas WHERE base_ingenio = 0"
+        ).fetchone()["c"]
+    assert conocida.id != desconocida.id
+    assert ceros == 0
 
 
 def test_cooldowns():

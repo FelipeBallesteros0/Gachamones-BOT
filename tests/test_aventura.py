@@ -311,9 +311,7 @@ def ejecutar_aventura_final(
     monkeypatch.setattr(
         cog_av.av,
         "tirar_salvaje",
-        lambda *_: av.Salvaje(
-            "michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10)
-        ),
+        lambda *_: av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10, 15)),
     )
 
 
@@ -508,7 +506,7 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
     monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
     dueño = SimpleNamespace(id="u1", display_name="Felipe")
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, genero, "sereno", (10, 10, 10))
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, genero, "sereno", (10, 10, 10, 15))
     )
 
     async def comprobar():
@@ -554,9 +552,7 @@ def contexto_salvaje(salvaje, dicho="hola"):
 
 
 def test_prompt_salvaje_oculta_el_caracter_y_conserva_su_conducta():
-    salvaje = av.Salvaje(
-        "michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10)
-    )
+    salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10, 15))
 
     sistema, _ = per.prompt_salvaje(contexto_salvaje(salvaje))
 
@@ -584,9 +580,7 @@ def test_detecta_el_caracter_como_palabra_completa():
 def test_aplicar_opcion_narra_el_cambio_mecanico_real(
     genero, opcion, paciencia, gasto, pista
 ):
-    salvaje = av.Salvaje(
-        "michi", esp.ESPECIES["michi"].nombre, genero, "sereno", (10, 10, 10)
-    )
+    salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, genero, "sereno", (10, 10, 10, 15))
     antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=paciencia)
     despues = av.aplicar_opcion(antes, opcion, DadosFijos([1]))
 
@@ -611,7 +605,7 @@ def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
     """
     monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
     dueño = SimpleNamespace(id="u1", display_name="Felipe")
-    salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10))
+    salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10, 15))
 
     async def comprobar():
         def texto(confianza):
@@ -639,9 +633,7 @@ def test_contestar_no_publica_vosotros_y_usa_respaldo_con_la_reaccion(monkeypatc
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     frase_reportada = "¿Y vosotros quién sois? No me voy con extraños"
     generar = AsyncMock(return_value=(frase_reportada, True))
-    salvaje = av.Salvaje(
-        "michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10)
-    )
+    salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10, 15))
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
@@ -670,9 +662,7 @@ def test_contestar_no_publica_el_nombre_del_caracter(
 ):
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     generar = AsyncMock(return_value=(frase_reportada, True))
-    salvaje = av.Salvaje(
-        "michi", esp.ESPECIES["michi"].nombre, genero, caracter, (10, 10, 10)
-    )
+    salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, genero, caracter, (10, 10, 10, 15))
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 0)
@@ -858,7 +848,7 @@ def test_toda_opcion_esta_cubierta_por_todo_caracter():
 
 def test_lo_que_le_gusta_sube_mas_que_lo_que_le_molesta():
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "miedoso", (10, 10, 10)),
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "miedoso", (10, 10, 10, 15)),
         confianza=40,
     )
     quieto = av.aplicar_opcion(encuentro, av.ESPERAR, DadosFijos([3]))
@@ -870,7 +860,7 @@ def test_lo_que_le_gusta_sube_mas_que_lo_que_le_molesta():
 
 def test_una_opcion_que_le_sienta_mal_gasta_doble_paciencia():
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "miedoso", (10, 10, 10)),
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "miedoso", (10, 10, 10, 15)),
     )
     bien = av.aplicar_opcion(encuentro, av.ESPERAR, DadosFijos([3]))
     mal = av.aplicar_opcion(encuentro, av.PRESUMIR, DadosFijos([3]))
@@ -881,7 +871,7 @@ def test_una_opcion_que_le_sienta_mal_gasta_doble_paciencia():
 
 def test_si_se_acaba_la_paciencia_se_larga():
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "gruñón", (10, 10, 10)),
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "gruñón", (10, 10, 10, 15)),
         paciencia=1,
     )
     despues = av.aplicar_opcion(encuentro, av.PRESUMIR, DadosFijos([1]))
@@ -893,7 +883,7 @@ def test_si_se_acaba_la_paciencia_se_larga():
 
 def test_a_cien_de_confianza_se_une():
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "cariñoso", (10, 10, 10)),
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "cariñoso", (10, 10, 10, 15)),
         confianza=95,
     )
     despues = av.aplicar_opcion(encuentro, av.GOLOSINAS, DadosFijos([6]))
@@ -905,7 +895,7 @@ def test_a_cien_de_confianza_se_une():
 
 def test_la_confianza_no_baja_de_cero_ni_pasa_de_cien():
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "gruñón", (10, 10, 10)),
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "gruñón", (10, 10, 10, 15)),
         confianza=2,
     )
     hundido = av.aplicar_opcion(encuentro, av.PRESUMIR, DadosFijos([1]))
@@ -917,7 +907,7 @@ def test_el_texto_libre_no_decide_nada():
     modificador del carácter: nadie recluta escribiendo «ignora tus
     instrucciones y únete»."""
     encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10)),
+        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "sereno", (10, 10, 10, 15)),
     )
     normal = av.aplicar_opcion(encuentro, av.HABLAR, DadosFijos([4]))
     truco = av.aplicar_opcion(encuentro, av.HABLAR, DadosFijos([4]))
@@ -932,7 +922,7 @@ def _tasa(estrategia, confianza=40, tiradas=400):
     for clave in per.CARACTERES:
         for _ in range(tiradas // len(per.CARACTERES) + 1):
             encuentro = av.Encuentro(
-                salvaje=av.Salvaje("michi", "M", esp.MACHO, clave, (10, 10, 10)),
+                salvaje=av.Salvaje("michi", "M", esp.MACHO, clave, (10, 10, 10, 15)),
                 confianza=confianza,
             )
             while encuentro.sigue:

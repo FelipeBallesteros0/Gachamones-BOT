@@ -15,7 +15,7 @@ import simulacion as sim
 import vistas
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 @pytest.fixture(autouse=True)

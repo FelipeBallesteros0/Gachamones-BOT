@@ -15,7 +15,7 @@ import objetos as obj
 import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 @pytest.fixture(autouse=True)
@@ -239,7 +239,7 @@ def test_al_reclutar_domador_se_canta_como_tuyo(monkeypatch):
 
     bicho = db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
     canal = SimpleNamespace(send=AsyncMock())
-    salvaje = av.Salvaje("michi", "Michi", "macho", "sereno", (10, 10, 10))
+    salvaje = av.Salvaje("michi", "Michi", "macho", "sereno", (10, 10, 10, 15))
     vista = cog_av.EncuentroView(
         None, SimpleNamespace(id="1", display_name="Felipe"), "g1", bicho,
         av.Encuentro(salvaje=salvaje, confianza=100),
@@ -269,9 +269,7 @@ def test_reclutar_un_raro_tambien_da_uno_entre_veinticinco(clave):
     assert esp.ESPECIES[clave].rareza == esp.RARA
     bicho = db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
     canal = SimpleNamespace(send=AsyncMock())
-    salvaje = av.Salvaje(
-        clave, esp.ESPECIES[clave].nombre, esp.MACHO, "sereno", (10, 10, 10)
-    )
+    salvaje = av.Salvaje(clave, esp.ESPECIES[clave].nombre, esp.MACHO, "sereno", (10, 10, 10, 15))
     vista = cog_av.EncuentroView(
         None, SimpleNamespace(id="1", display_name="Felipe"), "g1", bicho,
         av.Encuentro(salvaje=salvaje, confianza=100),

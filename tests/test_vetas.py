@@ -344,7 +344,7 @@ def test_margen_de_sumo_respeta_el_ultimo_combate_del_torneo():
 def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "RUTA", tmp_path / "vetas.db")
     db.inicializar()
-    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     modificada = replace(
         c, ten_fuerza=2.5, ten_velocidad=1.25, ten_salud=0.5,
         historial_vetas="FVS",
@@ -353,7 +353,7 @@ def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
     assert db.criatura_activa("u1", "g1") == modificada
     recuperada = db.criatura_activa("u1", "g1")
     assert recuperada is not None and recuperada.historial_vetas == "FVS"
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", (15, 15, 15), T0, activa=False)
+    reserva = db.crear("u1", "g1", "pulpo", "Reserva", (15, 15, 15, 15), T0, activa=False)
     dormida = sim.avanzar(reserva, T0 + timedelta(days=3))
     assert dormida == reserva
 
@@ -361,7 +361,7 @@ def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
 def test_migracion_conserva_niveles_y_anade_defaults_vetas(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "RUTA", tmp_path / "legacy.db")
     db.inicializar()
-    veterana = db.crear("u1", "g1", "pulpo", "Veterana", (15, 15, 15), T0)
+    veterana = db.crear("u1", "g1", "pulpo", "Veterana", (15, 15, 15, 15), T0)
     db.guardar(replace(
         veterana, niv_fuerza=4, niv_velocidad=2, niv_salud=1
     ))
@@ -389,7 +389,7 @@ def test_transaccion_de_aventura_recarga_el_activo_y_confirma_antes_de_publicar(
 ):
     monkeypatch.setattr(db, "RUTA", tmp_path / "aventura.db")
     db.inicializar()
-    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     db.guardar(replace(c, hambre=50.0))
     salida = av.Salida((av.Prueba("f", "fuerza", 15, 10, 20),))
     resultado = economia.ejecutar_viaje("u1", "g1", c.id, salida, T0)
@@ -677,7 +677,7 @@ def test_fallo_al_guardar_viaje_revierte_tension_y_desgaste(
 ):
     monkeypatch.setattr(db, "RUTA", tmp_path / "rollback.db")
     db.inicializar()
-    original = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    original = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     salida = av.Salida((av.Prueba("f", "fuerza", 15, 10, 20),))
 
     def fallar(*_):

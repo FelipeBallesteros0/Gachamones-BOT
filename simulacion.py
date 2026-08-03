@@ -277,15 +277,19 @@ class Criatura:
     base_fuerza: int = 0
     base_velocidad: int = 0
     base_salud: int = 0
+    base_ingenio: int = 0
     ent_fuerza: int = 0
     ent_velocidad: int = 0
     ent_salud: int = 0
+    ent_ingenio: int = 0
     niv_fuerza: int = 0
     niv_velocidad: int = 0
     niv_salud: int = 0
+    niv_ingenio: int = 0
     ten_fuerza: float = 0.0
     ten_velocidad: float = 0.0
     ten_salud: float = 0.0
+    ten_ingenio: float = 0.0
     historial_vetas: str = ""
     xp: int = 0
     nivel: int = 1
@@ -335,6 +339,10 @@ class Criatura:
     @property
     def salud(self) -> int:
         return stat_final(self.base_salud, self.ent_salud, self.niv_salud)
+
+    @property
+    def ingenio(self) -> int:
+        return stat_final(self.base_ingenio, self.ent_ingenio, self.niv_ingenio)
 
     def edad_horas(self, ahora: datetime) -> float:
         return (ahora - self.nacida_en).total_seconds() / 3600.0

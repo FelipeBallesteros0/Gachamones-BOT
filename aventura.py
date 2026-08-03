@@ -763,7 +763,7 @@ class Salvaje:
     nombre: str
     genero: str
     caracter: str
-    stats: tuple[int, int, int]
+    stats: tuple[int, int, int, int]
 
     @property
     def def_especie(self) -> esp.Especie:

@@ -206,7 +206,7 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
     import aventura as av
 
     c = criatura()
-    salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10))
+    salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10, 15))
     prompts = (
         per.construir_prompt(c, T0, "Felipe"),
         per.prompt_jardin([c], T0)[0],
@@ -227,7 +227,7 @@ def test_el_prompt_salvaje_contrasta_ustedes_con_vosotros():
     import aventura as av
 
     c = criatura()
-    salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10))
+    salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10, 15))
     sistema, _ = per.prompt_salvaje(contexto_salvaje(salvaje, c))
 
     assert "ustedes son" in sistema
@@ -365,9 +365,7 @@ def _textos_de_aventura(c, genero: str) -> list[str]:
             textos.extend(
                 per.prompt_aventura(c, bioma.adonde, list(salida.pruebas), final)
             )
-        salvaje = av.Salvaje(
-            bioma.especies[0], "Salvaje", genero, "gruñón", (10, 10, 10)
-        )
+        salvaje = av.Salvaje(bioma.especies[0], "Salvaje", genero, "gruñón", (10, 10, 10, 15))
         contexto = contexto_salvaje(salvaje, c)
         textos.extend(per.prompt_salvaje(contexto))
         textos.extend(per.respaldo_salvaje(contexto, i) for i in range(3))

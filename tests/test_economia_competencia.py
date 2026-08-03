@@ -19,7 +19,7 @@ import simulacion as sim
 from cogs.competencias import Competencias
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 @pytest.fixture(autouse=True)
@@ -776,7 +776,7 @@ def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
     for usuario in ("u1", "u2"):
         nacida = db.crear(
             usuario, "g1", "pulpo", usuario,
-            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT), T0,
+            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT, 15), T0,
         )
         db.guardar(replace(
             nacida,

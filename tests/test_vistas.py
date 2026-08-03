@@ -29,7 +29,7 @@ SIN_RETRATO = next(
 )
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 def criatura(id_, nombre, activa, pantalla_msg_id) -> sim.Criatura:

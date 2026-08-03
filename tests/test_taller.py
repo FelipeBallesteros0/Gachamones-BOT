@@ -10,7 +10,7 @@ import logros
 import tienda
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 CORONA = cos.CATALOGO["corona"]
 CHISTERA = cos.CATALOGO["chistera"]
 ROJO = cos.CATALOGO["tinte_rojo"]

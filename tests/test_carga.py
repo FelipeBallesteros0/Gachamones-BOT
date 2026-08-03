@@ -404,7 +404,7 @@ def test_el_enfriamiento_de_competir_frena_a_todos(bd_temporal):
 
     ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     criaturas = [
-        db.crear(f"u{i}", "g1", "pulpo", f"C{i}", (15, 15, 15), ahora)
+        db.crear(f"u{i}", "g1", "pulpo", f"C{i}", (15, 15, 15, 15), ahora)
         for i in range(3)
     ]
     grupo = tuple((c, f"dueño de {c.nombre}") for c in criaturas)
@@ -458,8 +458,8 @@ def test_retar_mantiene_el_slash_y_permite_publicar_desde_selector(
 
     ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
-    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
-    db.crear("2", "g1", "michi", "Lúa", (15, 15, 15), ahora)
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15, 15), ahora)
+    db.crear("2", "g1", "michi", "Lúa", (15, 15, 15, 15), ahora)
     retador, rival = UsuarioFalso(1), UsuarioFalso(2)
     mensaje = SimpleNamespace(id="reto")
     canal = SimpleNamespace(send=AsyncMock(return_value=mensaje))
@@ -515,8 +515,8 @@ def test_fallo_al_publicar_reto_cierra_el_selector_con_error_claro(
 
     ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
-    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
-    db.crear("2", "g1", "michi", "Lúa", (15, 15, 15), ahora)
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15, 15), ahora)
+    db.crear("2", "g1", "michi", "Lúa", (15, 15, 15, 15), ahora)
     error = discord.HTTPException(
         cast(Any, SimpleNamespace(status=500, reason="prueba")), "Discord cayó"
     )
@@ -980,7 +980,7 @@ def interaccion_falsa(usuario_id: int, mensaje_id: int, guild_id: str):
 def test_ningun_control_actua_sobre_una_ficha_desconocida(bd_temporal):
     """Los controles nuevos, antiguos y de cuidado fallan cerrados."""
     ahora = db.ahora_utc()
-    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15, 15), ahora)
 
     componentes = PantallaView().children + PantallaAnteriorView().children
     for numero, componente in enumerate(componentes):
@@ -1006,8 +1006,8 @@ def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
     from vistas import PantallaView
 
     ahora = db.ahora_utc()
-    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15), ahora)
-    suya = db.crear("2", "g1", "pulpo", "Suya", (15, 15, 15), ahora)
+    db.crear("1", "g1", "pulpo", "Mia", (15, 15, 15, 15), ahora)
+    suya = db.crear("2", "g1", "pulpo", "Suya", (15, 15, 15, 15), ahora)
     db.guardar_pantalla(suya.id, "555", "999")  # la ficha publicada es de «2»
 
     componentes = PantallaView().children + PantallaAnteriorView().children

@@ -54,9 +54,7 @@ def terreno(bioma="bosque", favorecida=av.FUERZA):
 def salvaje(
     especie="michi", genero=esp.MACHO, caracter="sereno",
 ):
-    return av.Salvaje(
-        especie, esp.ESPECIES[especie].nombre, genero, caracter, (10, 10, 10)
-    )
+    return av.Salvaje(especie, esp.ESPECIES[especie].nombre, genero, caracter, (10, 10, 10, 15))
 
 
 # --- Terreno, riesgo y marca -----------------------------------------------

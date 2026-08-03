@@ -55,9 +55,7 @@ def contexto_salvaje(salvaje, acompañante):
 
 def test_prompts_usan_gachamon_y_aventura_nombra_comida():
     c = gachamon()
-    salvaje = aventura.Salvaje(
-        "chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10)
-    )
+    salvaje = aventura.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10, 15))
     charla = per.construir_prompt(c, T0, "Alan")
     jardin = per.prompt_jardin([c], T0)[0]
     viaje = per.prompt_aventura(

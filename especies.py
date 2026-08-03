@@ -675,7 +675,7 @@ def tirar_2d6(rng: random.Random) -> int:
 
 def tirar_stats_iniciales(
     especie: Especie, rng: random.Random | None = None
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, int]:
     """Stats al nacer: base de la especie + 2d6 tirado por separado en cada una.
 
     El 2d6 es una campana (media 7, casi siempre 6-8), así que dos criaturas de
@@ -687,6 +687,7 @@ def tirar_stats_iniciales(
         especie.fuerza + tirar_2d6(rng),
         especie.velocidad + tirar_2d6(rng),
         especie.salud + tirar_2d6(rng),
+        especie.ingenio + tirar_2d6(rng),
     )
 
 

@@ -13,7 +13,7 @@ import simulacion as sim
 import tienda
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 PEQUENA = cas.CATALOGO["pequena"]
 MEDIANA = cas.CATALOGO["mediana"]
