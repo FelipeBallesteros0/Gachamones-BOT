@@ -86,19 +86,25 @@ def test_ninguna_especie_repite_nombre():
     assert not repetidos, repetidos
 
 
+def test_todas_las_especies_tienen_ingenio_uniforme_por_rareza():
+    for especie in esp.ESPECIES.values():
+        esperado = 10 if especie.rareza == esp.RARA else 8
+        assert especie.ingenio == esperado, especie.clave
+
+
 def test_las_no_raras_estan_equilibradas():
-    """Comunes y poco comunes reparten los mismos 24 puntos: ninguna es mejor,
+    """Comunes y poco comunes reparten los mismos 32 puntos: ninguna es mejor,
     sólo distinta. Si alguien retoca la tabla, esto lo caza."""
     for especie in esp.ESPECIES.values():
         if especie.rareza != esp.RARA:
-            assert especie.total_base == 24, especie.clave
+            assert especie.total_base == 32, especie.clave
 
 
 def test_las_raras_son_mejores():
     raras = [e for e in esp.ESPECIES.values() if e.rareza == esp.RARA]
     assert raras
     for rara in raras:
-        assert rara.total_base == 30, rara.clave
+        assert rara.total_base == 40, rara.clave
 
 
 # --- Tirada de nacimiento --------------------------------------------------
