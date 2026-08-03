@@ -20,6 +20,7 @@ el orden original de dorsales.
 from __future__ import annotations
 
 import random
+import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -30,6 +31,7 @@ import simulacion as sim
 CARRERA = "carrera"
 SUMO = "sumo"
 TOTEM = "totem"
+LABERINTO = "laberinto"
 
 SALIDA = "SALIDA"
 TERRENO = "TERRENO"
@@ -41,9 +43,13 @@ CENTRO = "AL CENTRO"
 FORCEJEO = "FORCEJEO"
 HUIDA = "HUIDA"
 DESEMPATE = "DESEMPATE"
+SENALES = "SEÑALES"
+TRAZADO = "TRAZADO"
+NO_PERDERSE = "NO PERDERSE"
 FASES_CARRERA = (SALIDA, TERRENO, FONDO)
 FASES_SUMO = (POSICION, EMPUJE, AGUANTE)
 FASES_TOTEM = (CENTRO, FORCEJEO, HUIDA)
+FASES_LABERINTO = (SENALES, TRAZADO, NO_PERDERSE)
 
 CARA_DADO = 20
 ANCHO_PISTA = 10
@@ -61,11 +67,14 @@ CUANTOS_CABEN = {
     CARRERA: tuple(range(2, MAX_CORREDORES + 1)),
     SUMO: (2, 4),
     TOTEM: tuple(range(2, MAX_CORREDORES + 1)),
+    LABERINTO: tuple(range(2, MAX_CORREDORES + 1)),
 }
 # Con cuatro, el sumo se juega a torneo: dos semifinales y una final.
 CUANTOS_EN_TORNEO = 4
 
-NOMBRES = {CARRERA: "CARRERA", SUMO: "SUMO", TOTEM: "TÓTEM"}
+NOMBRES = {
+    CARRERA: "CARRERA", SUMO: "SUMO", TOTEM: "TÓTEM", LABERINTO: "LABERINTO",
+}
 # Qué estadísticas pone a prueba de verdad cada modalidad, en el orden de sus
 # fases. Van en tupla incluso cuando es una sola: el tótem juega las tres, y es
 # esta lista la que hace que las vetas y el entrenamiento cuenten lo que pasó.
@@ -73,6 +82,7 @@ STATS = {
     CARRERA: ("velocidad",),
     SUMO: ("fuerza",),
     TOTEM: ("velocidad", "fuerza", "salud"),
+    LABERINTO: ("ingenio",),
 }
 RONDAS_DEL_TORNEO = ("SEMIFINAL 1", "SEMIFINAL 2", "FINAL")
 
@@ -82,11 +92,13 @@ ARTICULOS = {
     CARRERA: "una CARRERA",
     SUMO: "un SUMO",
     TOTEM: "un ASALTO AL TÓTEM",
+    LABERINTO: "un LABERINTO DE ECOS",
 }
 REGLA_DEL_MARCADOR = {
     CARRERA: " puntos acumulados",
     SUMO: " en intercambios",
     TOTEM: " puntos de colocación",
+    LABERINTO: " puertas abiertas",
 }
 # Cómo se resume la modalidad al lanzar el reto, para que quien acepte sepa a
 # qué juega antes de pulsar.
@@ -96,6 +108,10 @@ REGLAS = {
     TOTEM: (
         "AL CENTRO, FORCEJEO y HUIDA; cada fase reparte puestos "
         "y gana quien más sume"
+    ),
+    LABERINTO: (
+        "SEÑALES, TRAZADO y NO PERDERSE contra el eco del laberinto; "
+        "gana quien abre más puertas"
     ),
 }
 
@@ -113,6 +129,7 @@ class Competidor:
     # La cara que tiene puesta al competir. Se trae hecha desde la criatura para
     # que el podio pueda dibujarla sin que este módulo deje de ser puro.
     animo: str = esp.NORMAL
+    ingenio: int = 0
 
     @property
     def color(self) -> str:
@@ -146,6 +163,12 @@ class Competidor:
             base = fuerza
         elif fase == HUIDA:
             base = self.salud
+        elif fase == SENALES:
+            base = self.ingenio
+        elif fase == TRAZADO:
+            base = round((7 * self.ingenio + 3 * velocidad) / 10)
+        elif fase == NO_PERDERSE:
+            base = round((7 * self.ingenio + 3 * self.salud) / 10)
         else:
             raise ValueError(f"fase desconocida: {fase}")
         return max(1, base + self.modificador)
@@ -166,6 +189,7 @@ class Ronda:
     # campo entero, con un cero en quien no tiró, para que todo lo que indexa
     # por dorsal —Carrera, Sumo y las sumas— siga funcionando igual.
     dorsales: tuple[int, ...] = ()
+    eco: int = 0
 
 
 def _crudos(rondas: Sequence[Ronda], cuantos: int) -> tuple[int, ...]:
@@ -278,6 +302,47 @@ def _orden_del_totem(
     ))
 
 
+def _puertas_del_laberinto(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[int, ...]:
+    oficiales = _oficiales(rondas)
+    return tuple(
+        sum(ronda.totales[i] > ronda.eco for ronda in oficiales)
+        for i in range(cuantos)
+    )
+
+
+def _claves_del_laberinto(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[tuple[int, int, tuple[int, ...]], ...]:
+    puertas = _puertas_del_laberinto(rondas, cuantos)
+    brutos = _crudos(_oficiales(rondas), cuantos)
+    sendas = [senda_de_desempate(rondas, i) for i in range(cuantos)]
+    return tuple(zip(puertas, brutos, sendas))
+
+
+def _empatados_del_laberinto(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[int, ...]:
+    claves = _claves_del_laberinto(rondas, cuantos)
+    return tuple(i for i in range(cuantos) if claves.count(claves[i]) > 1)
+
+
+def _orden_del_laberinto(
+    rondas: Sequence[Ronda], cuantos: int
+) -> tuple[int, ...]:
+    claves = _claves_del_laberinto(rondas, cuantos)
+    return tuple(sorted(
+        range(cuantos),
+        key=lambda i: (
+            -claves[i][0],
+            -claves[i][1],
+            tuple(-total for total in claves[i][2]),
+            i,
+        ),
+    ))
+
+
 @dataclass(frozen=True)
 class Resultado:
     tipo: str
@@ -296,10 +361,14 @@ class Resultado:
     def totales(self) -> tuple[int, ...]:
         """Puntos crudos acumulados, en orden de dorsal.
 
-        En Carrera los desempates son tramos de verdad y suman; en Tótem no lo
-        son, así que el bruto oficial se queda en las tres fases.
+        En Carrera los desempates son tramos de verdad y suman; en Tótem y
+        Laberinto no lo son, así que el bruto oficial se queda en sus fases.
         """
-        rondas = _oficiales(self.rondas) if self.tipo == TOTEM else self.rondas
+        rondas = (
+            _oficiales(self.rondas)
+            if self.tipo in (TOTEM, LABERINTO)
+            else self.rondas
+        )
         return _crudos(rondas, len(self.competidores))
 
     @property
@@ -311,6 +380,8 @@ class Resultado:
             return _puntos_de_colocacion(
                 _oficiales(self.rondas), len(self.competidores)
             )
+        if self.tipo == LABERINTO:
+            return _puertas_del_laberinto(self.rondas, len(self.competidores))
         return tuple(
             sum(ronda.ganador == i for ronda in self.rondas)
             for i in range(len(self.competidores))
@@ -429,7 +500,12 @@ def competidor_de(
         bonus_fuerza=bonus_fuerza,
         bonus_velocidad=bonus_velocidad,
         animo=criatura.animo_visual,
+        ingenio=criatura.ingenio,
     )
+
+
+def _base_del_eco(competidores: Sequence[Competidor], fase: str) -> int:
+    return round(statistics.median(c.base_en(fase) for c in competidores))
 
 
 def resolver(
@@ -512,6 +588,36 @@ def resolver(
 
         return Resultado(
             tipo, competidores, rondas, _orden_del_totem(rondas, cuantos)
+        )
+
+    if tipo == LABERINTO:
+        cuantos = len(competidores)
+        for fase in FASES_LABERINTO:
+            eco = _base_del_eco(competidores, fase) + rng.randint(1, CARA_DADO)
+            dados, totales = tirar(fase)
+            rondas.append(Ronda(dados, totales, fase, eco=eco))
+
+        def recorrer(quienes: tuple[int, ...]) -> Ronda:
+            dados = [0] * cuantos
+            totales = [0] * cuantos
+            for dorsal in quienes:
+                dado = rng.randint(1, CARA_DADO)
+                dados[dorsal] = dado
+                totales[dorsal] = competidores[dorsal].base_en(SENALES) + dado
+            return Ronda(
+                tuple(dados), tuple(totales), DESEMPATE, dorsales=quienes
+            )
+
+        desempates = 0
+        while desempates < MAX_DESEMPATES:
+            pendientes = _empatados_del_laberinto(rondas, cuantos)
+            if not pendientes:
+                break
+            rondas.append(recorrer(pendientes))
+            desempates += 1
+
+        return Resultado(
+            tipo, competidores, rondas, _orden_del_laberinto(rondas, cuantos)
         )
 
     marcadores = [0, 0]
