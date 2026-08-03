@@ -405,10 +405,10 @@ def test_transaccion_de_aventura_recarga_el_activo_y_confirma_antes_de_publicar(
 
 def test_ficha_muestra_vetas_impronta_y_conserva_ancho_ascii():
     mensaje = pantalla.render(
-        criatura(ten_fuerza=4.5, ten_velocidad=1.0, historial_vetas="FVS"), T0
+        criatura(ten_fuerza=4.5, ten_velocidad=1.0, historial_vetas="FVSI"), T0
     )
     assert "tensión" in mensaje and "próxima veta" not in mensaje
-    assert "impronta" in mensaje and "vetas: F·V·S" in mensaje
+    assert "impronta" in mensaje and "vetas: F·V·S·I" in mensaje
     linea_impronta = next(
         linea for linea in mensaje.splitlines() if "impronta" in linea
     )
@@ -630,6 +630,30 @@ def test_render_rupturas_etiqueta_la_veta_de_ingenio():
     assert "ING 8 → 9" in texto and "ahora ING en reposo" in texto
 
 
+def test_la_ficha_dibuja_el_anillo_real_de_cuatro_y_sus_cuatro_bandas():
+    """Sin monkeypatch: el anillo que sale en la ficha es el del dominio.
+
+    Los dos giros son los únicos posibles, así que basta con exigir que la
+    línea de impronta sea uno de ellos y que la de tensión nombre las cuatro
+    bandas en el orden canónico.
+    """
+    for criatura_id in range(1, 40):
+        mensaje = pantalla.render(criatura(id=criatura_id), T0)
+        impronta = next(
+            linea for linea in mensaje.splitlines() if "impronta" in linea
+        )
+        assert (
+            "anillo FUE→VEL→SAL→ING" in impronta
+            or "anillo FUE→ING→SAL→VEL" in impronta
+        ), impronta
+        tension = next(
+            linea for linea in mensaje.splitlines() if "tensión" in linea
+        )
+        assert [
+            trozo.split()[0] for trozo in tension.split("· ")[1:]
+        ] == ["FUE", "VEL", "SAL", "ING"], tension
+
+
 def test_las_descripciones_de_identidad_nombran_el_nudo_de_nogal():
     assert (
         pantalla.DESCRIPCIONES_IDENTIDAD["Nudo de nogal"]
@@ -745,7 +769,7 @@ def test_identidad_reconocida_aparece_sin_nuevo_descubrimiento():
 
 
 def test_cada_identidad_se_anuncia_con_su_descripcion():
-    """`pantalla` describe las cinco identidades que `simulacion` reconoce.
+    """`pantalla` describe las seis identidades que `simulacion` reconoce.
 
     El anuncio busca la descripción por el nombre de la identidad, así que un
     nombre sin pareja no fallaría en `simulacion`: reventaría al anunciarlo.
@@ -754,6 +778,7 @@ def test_cada_identidad_se_anuncia_con_su_descripcion():
         "FFFFVF": ("Corazón de roble", "fuerza"),
         "VVVVFV": ("Fibra de fresno", "velocidad"),
         "SSSSFS": ("Savia de olivo", "salud"),
+        "IIIIFI": ("Nudo de nogal", "ingenio"),
         "FVSFVS": ("Veta en espiral", "salud"),
         "FVFVFV": ("Veta trenzada", "velocidad"),
     }

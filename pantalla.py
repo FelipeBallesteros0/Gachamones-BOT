@@ -50,9 +50,8 @@ DESCRIPCIONES_IDENTIDAD = {
 }
 
 # Orden canónico de las estadísticas: las afinidades de la impronta y las
-# tensiones son tuplas posicionales que se leen en este mismo orden. El ingenio
-# ya figura aquí aunque `simulacion` siga trabajando con tres canales, para que
-# la ficha no reviente el día que la impronta traiga el cuarto.
+# tensiones son tuplas posicionales que se leen en este mismo orden, y la
+# rejilla de la ficha reparte estas cuatro etiquetas en dos filas.
 ETIQUETAS_STAT = {
     "fuerza": "FUE",
     "velocidad": "VEL",
@@ -127,24 +126,28 @@ def _fila_experiencia(criatura: sim.Criatura) -> str:
     return f"│{izq}{_c(barra, esp.CIAN)}{der}│"
 
 
-def _fila_stats(criatura: sim.Criatura) -> str:
-    """La fila de FUE / VEL / SAL, la misma en las tres pantallas.
+def _fila_stats(criatura: sim.Criatura) -> tuple[str, str]:
+    """La rejilla 2×2 —FUE / VEL arriba y SAL / ING abajo— de las tres pantallas.
 
-    El ancho del número sale de los propios valores en vez de estar fijo en dos
-    cifras: así, cuando una estadística pasa de 99, la fila apreta el hueco
-    entre columnas en vez de que `_fila()` recorte el último número. Con dos
-    cifras —el caso de siempre— el resultado es carácter por carácter el de
-    antes, así que ninguna criatura cambia de aspecto por esto.
+    Las cuatro no caben en una fila: con etiquetas de tres letras y el hueco de
+    siempre harían falta 29 columnas y `_fila()` recortaría el último número en
+    silencio. Repartidas en dos filas sobra sitio incluso con 999 en las cuatro.
+
+    El ancho del número sale del mayor de las **cuatro** y se comparte entre las
+    dos filas, así que las columnas caen alineadas una debajo de otra en vez de
+    bailar según qué pareja lleve la cifra más larga. Cada pareja se junta con
+    el hueco clásico de 3 y se centra entera, que es lo que deja las dos filas
+    simétricas sin tener que medir márgenes a mano.
     """
-    valores = (criatura.fuerza, criatura.velocidad, criatura.salud)
+    valores = (criatura.fuerza, criatura.velocidad, criatura.salud,
+               criatura.ingenio)
     ancho = max(2, len(str(max(valores))))
     piezas = [f"{etiqueta} {valor:>{ancho}}"
-              for etiqueta, valor in zip(("FUE", "VEL", "SAL"), valores)]
-    # Lo que sobra tras los dos espacios de los bordes se reparte entre los dos
-    # huecos. Con estadísticas de dos cifras da 3, que es la separación de toda
-    # la vida; con tres cifras da 1 y sigue cabiendo.
-    hueco = " " * max(1, (ANCHO - 2 - sum(len(p) for p in piezas)) // 2)
-    return _fila(" " + hueco.join(piezas) + " ")
+              for etiqueta, valor in zip(("FUE", "VEL", "SAL", "ING"), valores)]
+    return (
+        _fila((piezas[0] + "   " + piezas[1]).center(ANCHO)),
+        _fila((piezas[2] + "   " + piezas[3]).center(ANCHO)),
+    )
 
 
 def _lineas_arte(arte: str, color: str, sombrero: str = "") -> list[str]:
@@ -269,9 +272,9 @@ def _banda_tension(valor: float, umbral: float) -> str:
 
 def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
     impronta = sim.impronta_de(criatura)
-    # La impronta es quien sabe cuántos canales tiene la fisiología: con tres se
-    # dibuja carácter por carácter lo de siempre y con cuatro entra el ingenio,
-    # sin recortarlo ni adelantarlo cuando todavía no existe.
+    # La impronta es quien sabe cuántos canales tiene la fisiología, así que la
+    # ficha lee de ella cuántas etiquetas enseñar en vez de fijar el número
+    # aquí y quedarse corta o larga si el anillo cambia de tamaño.
     canales = tuple(ETIQUETAS_STAT)[:len(impronta.anillo)]
     anillo = "→".join(ETIQUETAS_STAT[stat] for stat in impronta.anillo)
     afinidades = " · ".join(
@@ -402,7 +405,7 @@ def render(
     cuerpo.append(_fila_barra("ÁNIMO", criatura.animo))
     cuerpo.append(_fila_barra("ASEO", criatura.limpieza))
     cuerpo.append("├" + "─" * ANCHO + "┤")
-    cuerpo.append(_fila_stats(criatura))
+    cuerpo.extend(_fila_stats(criatura))
     cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.append(_fila_experiencia(criatura))
     cuerpo.append("╰" + "─" * ANCHO + "╯")
@@ -503,7 +506,7 @@ def render_evolucion(
     cuerpo = ["╭" + "─" * ANCHO + "╮"]
     cuerpo += _lineas_arte(esp.arte_de(definicion, etapa, esp.FELIZ), definicion.color)
     cuerpo.append("├" + "─" * ANCHO + "┤")
-    cuerpo.append(_fila_stats(criatura))
+    cuerpo.extend(_fila_stats(criatura))
     cuerpo.append("╰" + "─" * ANCHO + "╯")
 
     ganado = ""
@@ -548,7 +551,7 @@ def render_revelacion(criatura: sim.Criatura, ahora: datetime) -> str:
     cuerpo = ["╭" + "─" * ANCHO + "╮"]
     cuerpo += _lineas_arte(esp.arte_de(definicion, esp.BEBE), definicion.color)
     cuerpo.append("├" + "─" * ANCHO + "┤")
-    cuerpo.append(_fila_stats(criatura))
+    cuerpo.extend(_fila_stats(criatura))
     cuerpo.append("╰" + "─" * ANCHO + "╯")
 
     rareza = "" if definicion.rareza == esp.COMUN else f" · **{definicion.rareza}**"

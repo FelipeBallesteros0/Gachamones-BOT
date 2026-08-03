@@ -31,7 +31,7 @@ def criatura(**cambios) -> sim.Criatura:
     base: dict[str, Any] = dict(
         id=1, usuario_id="u1", guild_id="g1", especie="pulpo", nombre="Prueba",
         nacida_en=T0, actualizada_en=T0,
-        base_fuerza=15, base_velocidad=15, base_salud=15,
+        base_fuerza=15, base_velocidad=15, base_salud=15, base_ingenio=15,
     )
     base.update(cambios)
     return sim.Criatura(**base)
@@ -91,20 +91,24 @@ def test_un_nombre_larguisimo_no_rompe_la_lapida():
 
 # --- La fila de estadísticas ------------------------------------------------
 
-def fila_stats(criatura_) -> str:
-    return next(l for l in lineas_del_marco(pantalla.render(criatura_, T0))
-                if "FUE" in l)
+def filas_stats(criatura_) -> list[str]:
+    """Las **dos** filas de la rejilla: FUE/VEL arriba y SAL/ING abajo."""
+    lineas = lineas_del_marco(pantalla.render(criatura_, T0))
+    primera = next(i for i, l in enumerate(lineas) if "FUE" in l)
+    return lineas[primera:primera + 2]
 
 
 def test_stats_de_tres_cifras_no_rompen_el_marco():
-    c = criatura(base_fuerza=120, base_velocidad=999, base_salud=100)
+    c = criatura(base_fuerza=120, base_velocidad=999, base_salud=100,
+                 base_ingenio=88)
     comprobar_marco(pantalla.render(c, T0 + timedelta(hours=48)))
 
 
 def test_el_marco_cuadra_con_cualquier_estadistica_hasta_el_tope():
     """Las tres pantallas que enseñan estadísticas, no sólo la principal."""
     for valor in (0, 9, 10, 99, 100, 500, sim.MAXIMO_STAT):
-        c = criatura(base_fuerza=valor, base_velocidad=valor, base_salud=valor)
+        c = criatura(base_fuerza=valor, base_velocidad=valor, base_salud=valor,
+                     base_ingenio=valor)
         comprobar_marco(pantalla.render(c, T0 + timedelta(hours=48)))
         comprobar_marco(pantalla.render_revelacion(c, T0))
         comprobar_marco(pantalla.render_evolucion(c, esp.NINO, ("fuerza",)))
@@ -113,18 +117,43 @@ def test_el_marco_cuadra_con_cualquier_estadistica_hasta_el_tope():
 def test_las_estadisticas_grandes_se_ven_enteras():
     """Regresión: el marco cuadraba *recortando*. Con tres cifras la fila medía
     29 y `_fila()` cortaba en 26, así que se veía «SAL 1» en vez de «SAL 100»."""
-    c = criatura(base_fuerza=sim.MAXIMO_STAT, base_velocidad=100, base_salud=123)
-    fila = fila_stats(c)
-    assert f"FUE {sim.MAXIMO_STAT}" in fila
-    assert "VEL 100" in fila
-    assert "SAL 123" in fila
+    c = criatura(base_fuerza=sim.MAXIMO_STAT, base_velocidad=100,
+                 base_salud=123, base_ingenio=88)
+    arriba, abajo = filas_stats(c)
+    assert f"FUE {sim.MAXIMO_STAT}" in arriba
+    assert "VEL 100" in arriba
+    assert "SAL 123" in abajo
+    assert "ING  88" in abajo
 
 
-def test_con_dos_cifras_la_fila_es_la_de_siempre():
-    """El ancho se calcula, pero el caso normal no puede cambiar de aspecto:
-    ninguna criatura real pasa de 99 y no queremos que se les mueva nada."""
-    c = criatura(base_fuerza=18, base_velocidad=22, base_salud=19)
-    assert fila_stats(c) == "│ FUE 18   VEL 22   SAL 19 │"
+def test_la_rejilla_de_stats_es_la_del_diseño():
+    """Las cuatro estadísticas en dos filas de 28 caracteres exactos.
+
+    Los literales son los del verificador del diseño, byte a byte: la rejilla
+    se centra entera y el ancho del número lo fija el mayor de las cuatro, así
+    que con dos cifras el hueco entre columnas es el de siempre y con tres se
+    reparte lo que queda sin que `_fila()` tenga que recortar nada.
+    """
+    dos_cifras = criatura(base_fuerza=11, base_velocidad=21, base_salud=11,
+                          base_ingenio=9)
+    assert filas_stats(dos_cifras) == [
+        "│     FUE 11   VEL 21      │",
+        "│     SAL 11   ING  9      │",
+    ]
+
+    tres_cifras = criatura(base_fuerza=999, base_velocidad=100, base_salud=123,
+                           base_ingenio=88)
+    assert filas_stats(tres_cifras) == [
+        "│    FUE 999   VEL 100     │",
+        "│    SAL 123   ING  88     │",
+    ]
+
+    con_cero = criatura(base_fuerza=0, base_velocidad=9, base_salud=10,
+                        base_ingenio=9)
+    assert filas_stats(con_cero) == [
+        "│     FUE  0   VEL  9      │",
+        "│     SAL 10   ING  9      │",
+    ]
 
 
 def test_el_dibujo_sale_centrado():
@@ -207,7 +236,7 @@ def test_la_experiencia_no_usa_los_colores_del_bienestar():
 
 def test_la_barra_de_experiencia_va_debajo_de_las_estadisticas():
     filas = lineas_del_marco(pantalla.render(criatura(), T0))
-    posicion_stats = next(i for i, l in enumerate(filas) if "FUE" in l)
+    posicion_stats = next(i for i, l in enumerate(filas) if "SAL" in l)
     posicion_exp = next(i for i, l in enumerate(filas) if "EXP" in l)
     assert posicion_exp > posicion_stats
 
