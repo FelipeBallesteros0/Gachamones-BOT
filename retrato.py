@@ -34,10 +34,17 @@ COLORES = {
 }
 COLOR_POR_DEFECTO = 0x8A8A8A
 
-# Lo que entra en la prueba. Una sola especie y una sola etapa: si esto crece
-# sin querer, se cuela en fichas para las que no hay dibujo.
-ESPECIE = "chispa"          # Pyro
-ETAPA = "adulto_grande"
+# Lo que entra en la prueba: las parejas de especie y etapa que tienen dibujo.
+# Se escriben a mano en vez de mirar qué carpetas hay porque es el cerrojo de
+# que esto siga acotado; una carpeta a medio llenar dejaría fichas sin imagen.
+CON_RETRATO = frozenset({
+    ("chispa", "adulto_grande"),        # Pyro
+    ("pedrusco", "adulto"),             # Geo
+    ("pedrusco", "adulto_grande"),
+    ("pollito", "adulto_grande"),       # Piollito
+    ("slime", "adulto"),                # Gelatín
+    ("slime", "adulto_grande"),
+})
 
 SIN_SOMBRERO = "sin"
 
@@ -50,11 +57,12 @@ def ruta_de(criatura: sim.Criatura) -> Path | None:
     retrato sin teñir sería peor que no enseñarlo: alguien pagó por tener su
     Pyro azul y lo vería rojo.
     """
-    if criatura.especie != ESPECIE or criatura.etapa != ETAPA or criatura.tinte:
+    if (criatura.especie, criatura.etapa) not in CON_RETRATO or criatura.tinte:
         return None
 
     sombrero = criatura.sombrero or SIN_SOMBRERO
-    ruta = ARTE / ESPECIE / ETAPA / f"{criatura.animo_visual}_{sombrero}.png"
+    ruta = (ARTE / criatura.especie / criatura.etapa
+            / f"{criatura.animo_visual}_{sombrero}.png")
     # Un sombrero sin dibujo no puede dejar la ficha sin imagen a medias: es
     # preferible caer al arte ASCII, que siempre está.
     return ruta if ruta.is_file() else None

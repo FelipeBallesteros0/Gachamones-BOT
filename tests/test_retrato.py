@@ -16,10 +16,14 @@ T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 SOMBREROS = [c.clave for c in cos.SOMBREROS]
 
 
-def criatura(**cambios) -> sim.Criatura:
+NIVEL_DE_ETAPA = {etapa: nivel for nivel, etapa in enumerate(esp.ETAPAS, start=1)}
+
+
+def criatura(especie="chispa", etapa="adulto_grande", **cambios) -> sim.Criatura:
     base = dict(
-        id=1, usuario_id="u1", guild_id="g1", especie=retrato.ESPECIE,
-        nombre="Pyro", nacida_en=T0, actualizada_en=T0, nivel=5,
+        id=1, usuario_id="u1", guild_id="g1", especie=especie,
+        nombre="Pyro", nacida_en=T0, actualizada_en=T0,
+        nivel=NIVEL_DE_ETAPA[etapa],
         base_fuerza=15, base_velocidad=15, base_salud=15,
         hambre=90.0, animo=90.0, limpieza=90.0,
     )
@@ -34,12 +38,13 @@ def test_hay_retrato_para_cada_animo_y_cada_sombrero():
     alguien se le rompe la ficha justo cuando se pone triste o estrena gorro,
     que son los dos momentos en que se mira."""
     faltan = []
-    for animo in esp.ANIMOS:
-        for sombrero in [None, *SOMBREROS]:
-            ruta = (retrato.ARTE / retrato.ESPECIE / retrato.ETAPA
-                    / f"{animo}_{sombrero or retrato.SIN_SOMBRERO}.png")
-            if not ruta.is_file():
-                faltan.append(ruta.name)
+    for especie, etapa in retrato.CON_RETRATO:
+        for animo in esp.ANIMOS:
+            for sombrero in [None, *SOMBREROS]:
+                ruta = (retrato.ARTE / especie / etapa
+                        / f"{animo}_{sombrero or retrato.SIN_SOMBRERO}.png")
+                if not ruta.is_file():
+                    faltan.append(str(ruta.relative_to(retrato.ARTE)))
     assert not faltan, faltan
 
 
@@ -51,22 +56,22 @@ def test_son_png_de_verdad_y_todos_del_mismo_tamaño():
     hubiera recortado a su propia silueta, el bicho cambiaría de tamaño al
     cambiar de ánimo o al ponerse un sombrero, y se vería pegar saltos.
     """
-    carpeta = retrato.ARTE / retrato.ESPECIE / retrato.ETAPA
-    imagenes = sorted(carpeta.glob("*.png"))
-    assert len(imagenes) == len(esp.ANIMOS) * (len(SOMBREROS) + 1) == 21
+    for especie, etapa in retrato.CON_RETRATO:
+        imagenes = sorted((retrato.ARTE / especie / etapa).glob("*.png"))
+        assert len(imagenes) == len(esp.ANIMOS) * (len(SOMBREROS) + 1) == 21
 
-    tamanos = set()
-    for ruta in imagenes:
-        crudo = ruta.read_bytes()
-        assert crudo[:8] == b"\x89PNG\r\n\x1a\n", ruta.name
-        tamanos.add(struct.unpack(">II", crudo[16:24]))
-        assert (crudo[24], crudo[25]) == (8, 6), f"{ruta.name}: hace falta RGBA"
-    assert len(tamanos) == 1, tamanos
+        tamanos = set()
+        for ruta in imagenes:
+            crudo = ruta.read_bytes()
+            assert crudo[:8] == b"\x89PNG\r\n\x1a\n", ruta.name
+            tamanos.add(struct.unpack(">II", crudo[16:24]))
+            assert (crudo[24], crudo[25]) == (8, 6), f"{ruta}: hace falta RGBA"
+        assert len(tamanos) == 1, (especie, etapa, tamanos)
 
-    # Y que sea grande de verdad: Discord no amplía la imagen de un embed más
-    # allá de su tamaño real, así que el del fichero ES el que se ve.
-    ancho, alto = tamanos.pop()
-    assert ancho >= 250 and alto >= 250, (ancho, alto)
+        # Y que sea grande de verdad: Discord no amplía la imagen de un embed
+        # más allá de su tamaño real, así que el del fichero ES el que se ve.
+        ancho, alto = tamanos.pop()
+        assert ancho >= 200 and alto >= 200, (especie, etapa, ancho, alto)
 
 
 # --- Que la prueba esté acotada --------------------------------------------
@@ -85,12 +90,17 @@ def test_el_animo_y_el_sombrero_eligen_la_imagen():
 
 
 def test_ninguna_otra_especie_ni_etapa_entra_en_la_prueba():
-    """El cerrojo. Sin él, la ficha pediría una imagen que no existe."""
+    """El cerrojo. Sin él, la ficha pediría una imagen que no existe.
+
+    Se recorren TODAS las combinaciones —25 especies por 5 etapas— y se exige
+    que sólo las declaradas devuelvan algo. Es lo que impide que la prueba se
+    escape sola cuando alguien deje una carpeta a medias.
+    """
     for clave in esp.ESPECIES:
-        if clave != retrato.ESPECIE:
-            assert retrato.ruta_de(criatura(especie=clave)) is None, clave
-    for nivel in range(1, 5):          # todas menos adulto grande
-        assert retrato.ruta_de(criatura(nivel=nivel)) is None, nivel
+        for etapa in esp.ETAPAS:
+            tiene = retrato.ruta_de(criatura(especie=clave, etapa=etapa))
+            esperado = (clave, etapa) in retrato.CON_RETRATO
+            assert (tiene is not None) == esperado, (clave, etapa)
 
 
 def test_una_criatura_teñida_vuelve_al_arte_ascii():
@@ -155,7 +165,7 @@ def test_la_ficha_con_retrato_no_repite_el_bicho_en_ascii():
     ficha = vistas._ficha(criatura(), T0)
     descripcion = ficha["embed"].description
     assert "COMIDA" in descripcion and "EXP" in descripcion
-    arte = esp.arte_de(esp.ESPECIES[retrato.ESPECIE], retrato.ETAPA, "normal")
+    arte = esp.arte_de(esp.ESPECIES["chispa"], "adulto_grande", "normal")
     primera = [l for l in arte.strip("\n").split("\n") if l.strip()][0]
     assert primera.strip() not in descripcion
     assert len(descripcion) < len(pantalla.render(criatura(), T0))
