@@ -3,7 +3,8 @@
 Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
 gachamones al azar —hay 25 en total; los otros 15 se encuentran por ahí—, se cuida con los botones bajo el mensaje y compite contra los
 de otras personas en carreras, peleas de sumo, asaltos al tótem y laberintos de
-ecos. Todo el arte es ASCII dentro de bloques de código: ni una sola imagen.
+ecos. El arte nace ASCII, dentro de bloques de código; las especies que ya
+tienen su retrato dibujado lo enseñan como imagen.
 
 ```
 ## 🐥 Pelusa
@@ -451,7 +452,10 @@ testean sin conexión. Los cogs son capas finas encima.
 | `equipo.py` | El menú para cambiar de gachamon activo. |
 | `aventura.py` | Biomas, el árbol de decisiones, hallazgos y las reacciones de un salvaje. |
 | `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
+| `retrato.py` | Qué criaturas tienen retrato en imagen y cuál les toca. |
 | `cogs/` | Los slash commands. |
+| `fuentes/` | Los dibujos de partida de los retratos: cuerpos, caras y sombreros. |
+| `herramientas/` | Lo que convierte `fuentes/` en `arte/`. No lo usa el bot. |
 
 **Cómo se guarda el arte.** Cinco etapas por veinticinco especies, con tres
 estados de ánimo cada una, serían 375 dibujos. Pero casi todos se diferencian
@@ -462,6 +466,24 @@ tres caras: **125 dibujos y los ánimos salen gratis**. Donde el ánimo cambia m
 completo en `excepciones`, que gana a la plantilla. Las tres caras de una
 especie tienen que medir lo mismo, o sustituir una por otra descuadraría el
 dibujo; hay un test que lo comprueba.
+
+**Los retratos en imagen.** Las especies que tienen dibujadas sus cinco formas
+enseñan un PNG en vez del arte ASCII; el resto sigue en ASCII y las teñidas
+también, porque el tinte pedirá una imagen por color. Quién entra lo decide una
+sola tupla, `retrato.CON_ETAPAS_COMPLETAS`.
+
+Los originales están en `fuentes/`: un cuerpo por especie y forma, tres caras y
+un sombrero por cosmético, todos sobre el mismo lienzo de 256×256, así que
+componer es apilar. `herramientas/componer.py` los apila, recorta cada forma a
+la caja que comparten sus veintiuna combinaciones —para que cambiar de humor o
+de sombrero no mueva al bicho dentro del embed— y amplía al doble. Eso último
+sólo sale bien porque **los dibujos no llevan bordes suavizados**: cada píxel es
+opaco del todo o transparente del todo, y duplicar no inventa ningún color.
+
+Los 1155 retratos ya compuestos viven en `arte/` y el bot se limita a elegir
+ruta: apilar tres capas a cada pulsación tardaría segundos en la Raspberry.
+Como todo es determinista, `herramientas/componer.py --comprobar` regenera sin
+escribir y avisa si algún retrato se quedó viejo respecto a su original.
 
 **El catálogo.** Veinticinco especies repartidas en diez biomas, pero **del
 huevo sólo salen diez**: las de siempre. Las quince nuevas hay que
