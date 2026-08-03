@@ -530,6 +530,52 @@ def test_la_ficha_se_republica_si_solo_se_movio_la_tension_de_ingenio():
     assert not cog_comp._ha_cambiado_la_ficha(antes, replace(antes))
 
 
+def test_disputar_un_laberinto_narra_beats_cierre_y_recibos(monkeypatch):
+    """El seam donde se juntan las tres capas: motor, economía y Discord.
+
+    Cada pieza tiene sus propias pruebas; ésta comprueba que el cog las une
+    para una modalidad que no existía cuando se escribió `disputar`.
+    """
+    nacer("u1")
+    nacer("u2")
+    resultado = laberinto("laberinto-disputa")
+    assert resultado.encuentro is not None
+
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
+    animados = []
+
+    async def animar(_canal, fotogramas, tipo):
+        animados.append((fotogramas, tipo))
+
+    cog = Competencias.__new__(Competencias)
+    cog._animar = animar
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    participantes = [
+        SimpleNamespace(id=1000 + n, mention=f"<@{u}>", display_name=u)
+        for n, u in enumerate(("u1", "u2"))
+    ]
+
+    asyncio.run(
+        cog.disputar(canal, participantes, comp.LABERINTO, "g1", "laberinto-disputa")
+    )
+
+    (fotogramas, tipo), = animados
+    assert tipo == comp.LABERINTO
+    assert len(fotogramas) >= len(comp.FASES_LABERINTO)
+    assert all("eco del pasillo" in fotograma for fotograma in fotogramas[:3])
+
+    mandados = [llamada.args[0] for llamada in canal.send.await_args_list]
+    resumen = mandados[0]
+    assert "puertas abiertas." in resumen
+    assert resumen.count("ingenio +1 entrenamiento") == 2
+    assert all(len(mandado) < 2000 for mandado in mandados)
+
+
 def test_el_laberinto_pone_cooldown_competir_a_todos():
     nacidas = (nacer("u1"), nacer("u2"))
 
