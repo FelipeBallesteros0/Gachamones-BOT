@@ -1,8 +1,9 @@
 """Qué criaturas tienen retrato dibujado y cuál les toca.
 
-**Esto es una prueba acotada.** Sólo Pyro, sólo en adulto grande y sólo sin
-teñir: todo lo demás sigue con el arte ASCII de siempre. El cerrojo vive aquí y
-en un solo sitio, así que ampliar o retirar la prueba es tocar este módulo.
+**Esto va por especies, no de golpe.** Sólo las que tienen dibujadas sus cinco
+formas, y sólo sin teñir: el resto sigue con el arte ASCII de siempre. El
+cerrojo vive aquí y en un solo sitio, así que sumar una especie recién dibujada
+—o retirarla— es tocar este módulo y nada más.
 
 No sabe de imágenes ni de Discord: mira una criatura y devuelve una ruta. Los
 retratos vienen **ya compuestos** —cuerpo, cara y sombrero apilados de
@@ -45,6 +46,10 @@ CON_ETAPAS_COMPLETAS = (
     "pollito",      # Piollito
     "pulpo",        # Octopul
     "slime",        # Gelatín
+    "fantasma",     # Duskhouse
+    "chatarra",     # Re-bot
+    "dragoncito",   # Tsushimon
+    "swampdon",     # Swampdón
 )
 CON_RETRATO = frozenset(
     (clave, etapa) for clave in CON_ETAPAS_COMPLETAS for etapa in esp.ETAPAS
