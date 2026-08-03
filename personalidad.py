@@ -849,6 +849,10 @@ def prompt_aventura(
         if percance is not None
         else "- No sufre ningún percance."
     )
+    # Las cuatro sendas obligan a acotar dos lecturas: sin esto, «prueba de
+    # salud» se narra como curarse y «prueba de ingenio» como un truco de magia.
+    glosario_salud = REGLAS_STAT["salud"]
+    glosario_ingenio = REGLAS_STAT["ingenio"]
     caracter = CARACTERES[criatura.caracter]
     # En campos y no en una frase, como el jardín. Servido como «Juan III, pyro
     # macho y perezoso» el modelo lo copiaba entero de aposición —«Juan III, ese
@@ -887,6 +891,8 @@ CÓMO NARRAR
 - El límite es para ti, no para contarlo: no escribas el recuento de palabras ni
   ninguna otra nota al final.
 - Cuenta los obstáculos en el orden dado y respeta si los superaron o no.
+- {glosario_salud}
+- {glosario_ingenio}
 - Empieza por lo que hacen, no por describir cómo son.
 - **No recites la ficha**: nada de decir de qué especie es, ni su género, ni su
   carácter. Quien lee ya lo tiene delante. Lo de arriba es para que el gachamon
@@ -936,9 +942,67 @@ def enumerar(nombres: tuple[str, ...]) -> str:
     return f"{', '.join(nombres[:-1])} {conjuncion} {nombres[-1]}"
 
 
+# Cómo se le describe al modelo el terreno de cada estadística: primero cómo se
+# presta cuando la favorece, después cómo se resiste cuando favorece a la otra.
+# Nunca dice fácil, difícil ni mejor: son hechos del sitio, y quien decide es
+# quien juega.
+FISICA_TERRENO = {
+    "fuerza": (
+        "se presta al cuerpo: lo que hay que empujar, cargar, aguantar o "
+        "levantar está a mano, bien plantado y con dónde apoyarse",
+        "lo que habría que mover, levantar o sostener es macizo, está encajado "
+        "o pesa más de lo que aparenta",
+    ),
+    "velocidad": (
+        "se presta al impulso: hay un hueco, un vano o un tramo despejado que "
+        "se cruza de una vez",
+        "la vía de correr, saltar o colarse se presenta estrecha, suelta, "
+        "resbaladiza o más lejos de lo que parece",
+    ),
+    "salud": (
+        "se presta al aguante: lo que hay que cruzar castiga el cuerpo —frío, "
+        "humo, corriente, cansancio— pero de forma sostenida y sin trampas",
+        "lo que exigiría aguantar castiga más de lo que aparenta y no da tregua",
+    ),
+    "ingenio": (
+        "se presta a la observación: hay señales, marcas o un patrón que se "
+        "repite y se deja leer",
+        "las señales están borradas o el patrón cambia antes de aprenderse",
+    ),
+}
+
+# El vocabulario de cada senda, el mismo que usan las escenas escritas.
+VERBOS_STAT = {
+    "fuerza": "empujar, romper, cargar, aguantar peso o levantar",
+    "velocidad": "correr, saltar, colarse, trepar o alcanzar",
+    "salud": (
+        "resistir el frío, el humo, la corriente o el cansancio, y sostener el "
+        "paso sin soltar"
+    ),
+    "ingenio": (
+        "observar señales, leer un patrón, recordar la ruta o improvisar un "
+        "mecanismo"
+    ),
+}
+
+# Las dos lecturas que hay que cerrar: salud no es curarse e ingenio no es
+# magia. Sólo se le dice la de las sendas activas, para no repetirle reglas de
+# algo que no va a escribir.
+REGLAS_STAT = {
+    "salud": (
+        "«salud» es aguante del cuerpo ante lo que castiga —frío, humo, "
+        "corriente, cansancio—: nunca curar, sanar ni atender a nadie."
+    ),
+    "ingenio": (
+        "«ingenio» es observar, recordar o improvisar con lo que hay: nunca "
+        "magia, ni adivinar, ni una respuesta que acierta sola."
+    ),
+}
+
+
 def prompt_escena(
     adonde: str, nivel: int, antes: str = "", *,
-    especies: tuple[str, ...], favorecida: str,
+    especies: tuple[str, ...], pareja: tuple[str, str], favorecida: str,
 ) -> tuple[str, str]:
     """El prompt para que el modelo invente el nodo del árbol.
 
@@ -946,31 +1010,29 @@ def prompt_escena(
     botones: si el modelo contesta prosa, no hay dónde ponerla. Quien llame
     valida la forma y se queda con las escenas escritas si no cuadra.
 
-    **El modelo pone el decorado y nada más.** Sólo conoce qué lado favorece el
-    terreno, sorteado sin mirar a la criatura, para que la física lo sostenga.
-    Nunca recibe stats, probabilidades, bandas ni dificultad numérica.
+    **El modelo pone el decorado y nada más.** Recibe las dos sendas ya
+    sorteadas y cuál de las dos favorece el terreno —sorteado sin mirar a la
+    criatura— para que la física lo sostenga. Nunca recibe stats,
+    probabilidades, bandas ni dificultad numérica, ni elige pareja ni resultado.
 
     `especies` son los nombres de quienes viven en el bioma, y va **obligatorio
     y por palabra clave**: sin él, el modelo se inventaba el nombre de la especie
     en cuanto la escena metía a otro gachamon, y salían nombres que no existen.
     Un censo que se cuela vacío en silencio sería el mismo fallo otra vez.
     """
-    if favorecida == "fuerza":
-        direccion_terreno = (
-            "Aquí el sitio se presta al cuerpo: lo que hay que empujar, cargar, "
-            "aguantar o levantar está a mano, bien plantado y con dónde "
-            "apoyarse. La vía de correr, saltar o colarse, en cambio, se "
-            "presenta estrecha, suelta, resbaladiza o más lejos de lo que parece."
-        )
-    elif favorecida == "velocidad":
-        direccion_terreno = (
-            "Aquí el sitio se presta al impulso: hay un hueco, un vano o un "
-            "tramo despejado que se cruza de una vez. Lo que habría que mover "
-            "o aguantar, en cambio, es macizo, está encajado o pesa más de lo "
-            "que aparenta."
-        )
-    else:
+    if favorecida not in pareja:
         raise ValueError(f"lado desconocido: {favorecida!r}")
+    acompanante = next(stat for stat in pareja if stat != favorecida)
+    direccion_terreno = (
+        f"Aquí el sitio {FISICA_TERRENO[favorecida][0]}. En cambio, "
+        f"{FISICA_TERRENO[acompanante][1]}."
+    )
+    claves_activas = "\n".join(
+        f'- "{stat}": la salida que pide {VERBOS_STAT[stat]}.' for stat in pareja
+    )
+    reglas = "".join(
+        f"\n- {REGLAS_STAT[stat]}" for stat in pareja if stat in REGLAS_STAT
+    )
 
     continuacion = (
         f"Esto es lo que acaba de pasar: {antes} Encadena con ello."
@@ -988,10 +1050,9 @@ def prompt_escena(
     sistema = f"""Inventas escenas para la excursión de un gachamon y de quien lo cuida, que han salido {adonde} JUNTOS.
 
 QUÉ TIENES QUE DEVOLVER
-Un único objeto JSON, sin nada más alrededor, con estas cuatro claves:
+Un único objeto JSON, sin nada más alrededor, con estas cuatro claves y ninguna otra:
 - "situacion": qué se encuentra. Una o dos frases, 25 palabras como máximo.
-- "fuerza": la salida que pide empujar, romper, cargar, aguantar o levantar.
-- "velocidad": la salida que pide correr, saltar, colarse, trepar o alcanzar.
+{claves_activas}
 - "volver": **irse sin meterse**: rodear, esperar, dejarlo estar, seguir camino.
   Nunca es otra forma de intervenir; si la lee alguien tiene que entender que
   ahí no pasa nada.
@@ -1021,7 +1082,7 @@ Aquí te puedes cruzar con: {enumerar(especies)}.
 
 CÓMO ESCRIBIRLO
 - {REGLA_ESPANOL_NEUTRO}
-- Las tres opciones tienen que ser posibles de verdad ante esa situación.
+- Las tres opciones tienen que ser posibles de verdad ante esa situación.{reglas}
 - No digas cuál es la buena ni si sale bien: eso lo deciden los dados después.
 - No menciones al gachamon, ni sus estadísticas, ni ninguna cifra.
 - Nada de markdown, emoji ni comentarios. Sólo el JSON.

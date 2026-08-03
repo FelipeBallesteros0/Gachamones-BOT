@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import pytest
+
 import aventura as av
 import especies as esp
 import personalidad as per
@@ -213,7 +215,8 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
         per.prompt_aventura(c, "al bosque", [], av.NADA)[0],
         per.prompt_salvaje(contexto_salvaje(salvaje, c))[0],
         per.prompt_escena(
-            "al bosque", 1, especies=censo(), favorecida=av.FUERZA
+            "al bosque", 1, especies=censo(),
+            pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
         )[0],
     )
 
@@ -339,27 +342,27 @@ def _textos_de_aventura(c, genero: str) -> list[str]:
     import aventura as av
 
     textos = []
-    pareja = (av.FUERZA, av.VELOCIDAD)
-    for bioma in av.BIOMAS.values():
+    for indice, bioma in enumerate(av.BIOMAS.values()):
+        # Una pareja distinta por bioma: el barrido de marcas «{o/a}» pasa así
+        # por las seis parejas y por las cuatro sendas.
+        pareja = av.PAREJAS[indice % len(av.PAREJAS)]
         terreno = av.tirar_terreno(bioma, pareja, random.Random(1))
         viaje = av.Viaje(
             bioma=bioma,
-            escena=av.escena_escrita(
-                bioma, pareja, terreno.favorecida, rng=random.Random(1)
-            ),
+            escena=av.escena_escrita(bioma, pareja, terreno.favorecida),
             terreno=terreno,
         )
-        for opcion in pareja:
+        for opcion in (pareja[0], av.complementaria(pareja)[0]):
             if not viaje.sigue:
                 break
+            siguiente = av.complementaria(viaje.terreno.pareja)
             siguiente_terreno = av.tirar_terreno(
-                bioma, pareja, random.Random(2)
+                bioma, siguiente, random.Random(2)
             )
             viaje = av.avanzar(
                 viaje, c, opcion,
                 av.escena_escrita(
-                    bioma, pareja, siguiente_terreno.favorecida,
-                    rng=random.Random(2),
+                    bioma, siguiente, siguiente_terreno.favorecida
                 ),
                 siguiente_terreno, random.Random(1),
             )
@@ -488,13 +491,19 @@ def test_la_semilla_vieja_es_justo_la_que_fallaba():
         per.frase_de_respaldo(c, vieja("qué te gustaría comer?"))
 
 
-def test_el_prompt_de_escena_pide_las_cuatro_claves_y_sitúa_el_bioma():
+@pytest.mark.parametrize("pareja", av.PAREJAS)
+def test_el_prompt_de_escena_pide_las_cuatro_claves_y_sitúa_el_bioma(pareja):
     sistema, peticion = per.prompt_escena(
-        "al Volcán", 1, especies=censo("volcan"), favorecida=av.FUERZA
+        "al Volcán", 1, especies=censo("volcan"),
+        pareja=pareja, favorecida=pareja[0],
     )
 
-    for clave in ("situacion", "fuerza", "velocidad", "volver"):
+    for clave in ("situacion", *pareja, "volver"):
         assert f'"{clave}"' in sistema
+    # Y nunca las claves de la pareja que no salió: si el modelo las escribiera,
+    # `escena_desde_json` no las aceptaría y la escena caería al respaldo.
+    for inactiva in av.complementaria(pareja):
+        assert f'"{inactiva}"' not in sistema
     assert "al Volcán" in sistema
     assert "JSON" in sistema
     assert "Es lo primero" in peticion
@@ -507,7 +516,8 @@ def test_el_prompt_de_escena_no_le_cuenta_al_modelo_quién_va():
     rápida, escribiría la opción que le conviene, y quien decide es quien juega.
     Además se le prohíbe expresamente adelantar el resultado."""
     sistema, _ = per.prompt_escena(
-        "al Bosque", 2, especies=censo(), favorecida=av.FUERZA
+        "al Bosque", 2, especies=censo(),
+        pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
     )
 
     assert "no digas cuál es la buena" in sistema.lower()
@@ -521,11 +531,12 @@ def test_en_el_segundo_nodo_es_donde_puede_aparecer_algo():
     era un ejemplo, y si se le nombra sólo eso, todas las escenas acaban siendo
     cofres."""
     _, primera = per.prompt_escena(
-        "al Bosque", 1, especies=censo(), favorecida=av.FUERZA
+        "al Bosque", 1, especies=censo(),
+        pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
     )
     _, segunda = per.prompt_escena(
         "al Bosque", 2, "Forzó la puerta.", especies=censo(),
-        favorecida=av.VELOCIDAD,
+        pareja=(av.SALUD, av.INGENIO), favorecida=av.INGENIO,
     )
 
     assert "algo que se lleve" in segunda and "algo que se lleve" not in primera
@@ -537,7 +548,8 @@ def test_el_prompt_de_escena_abre_la_mano_mas_alla_del_obstaculo():
     """Pedido tras jugarlo: cruzarse con alguien que te da algo, o que esté
     pasando una cosa, no sólo puertas trancadas."""
     sistema, _ = per.prompt_escena(
-        "al Bosque", 1, especies=censo(), favorecida=av.FUERZA
+        "al Bosque", 1, especies=censo(),
+        pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
     )
 
     assert "No sólo un obstáculo cerrado" in sistema

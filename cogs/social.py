@@ -308,9 +308,11 @@ torneo cuenta una competencia. Quien rechaza se cae del reto."""
 
 **Aventura**
 `/aventura` te lleva **a ti y a tu gachamon** a un bioma al azar, ante una escena \
-con **tres salidas**: 💪 fuerza, 💨 velocidad o 🚶 seguir camino. Las dos \
-primeras tiran `estadística + 1d20`; seguir camino no arriesga, pero tampoco \
-cuenta.
+con **tres salidas**: 🚶 seguir camino y **dos de las cuatro sendas** —💪 fuerza, \
+💨 velocidad, 🛡️ salud o 🧠 ingenio—, sorteadas para esa escena. Las dos sendas \
+tiran `estadística + 1d20`; seguir camino no arriesga, pero tampoco cuenta.
+La segunda escena trae **las otras dos**, así que en un viaje entero aparecen las \
+cuatro, cada una una sola vez.
 Son **{av.NIVELES_DE_AVENTURA} decisiones**: acertar te mete más adentro y \
 fallar cierra el viaje. Cuanto más hondo llegues, mejor lo que encuentras, y \
 sólo al fondo puede aparecer un **gachamon salvaje**. Si vuelve con vida gana \

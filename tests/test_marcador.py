@@ -134,7 +134,7 @@ def viaje_de(bioma="planicie", nodos=2):
             destino.dificultad + av.SESGO_TERRENO,
         ),
     )
-    escena = av.ESCENAS_ESCRITAS[bioma][av.FUERZA][0]
+    escena = av.escena_escrita(destino, (av.FUERZA, av.VELOCIDAD), av.FUERZA)
     pruebas = tuple(
         av.Prueba(obstaculo=f"tramo {i}", stat=av.FUERZA, base=10, dado=20,
                   dificultad=1)

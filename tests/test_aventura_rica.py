@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import random
 from dataclasses import replace
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -332,50 +333,113 @@ def test_json_solo_llena_las_etiquetas_de_la_pareja_decidida():
     ) is None
 
 
-def test_catalogo_es_exactamente_dos_mas_dos_por_bioma_y_respeta_evitar():
+def test_catalogo_cubre_las_cuatro_sendas_y_se_proyecta_en_las_seis_parejas():
     assert set(av.ESCENAS_ESCRITAS) == set(av.BIOMAS)
-    for clave, por_lado in av.ESCENAS_ESCRITAS.items():
-        assert set(por_lado) == {av.FUERZA, av.VELOCIDAD}
-        assert len(por_lado[av.FUERZA]) == len(por_lado[av.VELOCIDAD]) == 2
-        assert len(set(por_lado[av.FUERZA] + por_lado[av.VELOCIDAD])) == 4
+    for clave, por_favorecida in av.ESCENAS_ESCRITAS.items():
+        assert set(por_favorecida) == set(sim.ESTADISTICAS), clave
         bioma = av.BIOMAS[clave]
-        for lado in (av.FUERZA, av.VELOCIDAD):
-            vista = por_lado[lado][0]
-            for semilla in range(5):
-                assert av.escena_escrita(
-                    bioma, (av.FUERZA, av.VELOCIDAD), lado,
-                    vista, random.Random(semilla)
-                ) != vista
+        for pareja in av.PAREJAS:
+            for favorecida in pareja:
+                escena = av.escena_escrita(bioma, pareja, favorecida)
+                assert escena.pareja == pareja
+                assert escena.situacion == por_favorecida[favorecida].situacion
+                for opcion in escena.opciones:
+                    assert escena.etiqueta(opcion).strip()
 
 
 def test_prompt_escena_dirige_solo_la_fisica_del_lado_sin_filtrar_mecanica():
     especies = av.BIOMAS["bosque"].nombres_especies
     fuerza, _ = per.prompt_escena(
-        "al Bosque", 1, especies=especies, favorecida=av.FUERZA
+        "al Bosque", 1, especies=especies,
+        pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
     )
     velocidad, _ = per.prompt_escena(
-        "al Bosque", 1, especies=especies, favorecida=av.VELOCIDAD
+        "al Bosque", 1, especies=especies,
+        pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.VELOCIDAD,
+    )
+    salud, _ = per.prompt_escena(
+        "al Bosque", 1, especies=especies,
+        pareja=(av.SALUD, av.INGENIO), favorecida=av.SALUD,
+    )
+    ingenio, _ = per.prompt_escena(
+        "al Bosque", 1, especies=especies,
+        pareja=(av.SALUD, av.INGENIO), favorecida=av.INGENIO,
     )
 
     assert "se presta al cuerpo" in fuerza
     assert "se presta al impulso" not in fuerza
     assert "se presta al impulso" in velocidad
     assert "se presta al cuerpo" not in velocidad
+    assert "se presta al aguante" in salud
+    assert "se presta a la observación" not in salud
+    assert "se presta a la observación" in ingenio
+    assert "se presta al aguante" not in ingenio
+    # Salud es aguante y nunca curación; ingenio es leer y nunca magia. Las dos
+    # reglas viajan sólo cuando su senda está activa.
+    for prompt in (salud, ingenio):
+        assert "nunca curar, sanar ni atender a nadie" in prompt
+        assert "nunca magia" in prompt
     for prompt in (fuerza, velocidad):
+        assert "nunca curar, sanar ni atender a nadie" not in prompt
+        assert "nunca magia" not in prompt
+    for prompt in (fuerza, velocidad, salud, ingenio):
         for fuga in ("favorable", "pareja", "cuesta arriba", "temeraria", "probabilidad"):
             assert fuga not in prompt.casefold()
         assert "estadísticas" in prompt
 
 
-def test_prompt_escena_exige_favorecida_y_json_extra_no_mueve_mecanica():
+def test_prompt_escena_solo_nombra_la_pareja_activa_y_ninguna_cifra():
+    """El modelo pone texto en huecos ya decididos: ni elige pareja ni mecánica."""
+    bicho = criatura(fuerza=11, velocidad=22, base_salud=33, base_ingenio=44)
+    for pareja in av.PAREJAS:
+        for favorecida in pareja:
+            sistema, peticion = per.prompt_escena(
+                "al Bosque", 1, especies=av.BIOMAS["bosque"].nombres_especies,
+                pareja=pareja, favorecida=favorecida,
+            )
+            for activa in pareja:
+                assert f'"{activa}"' in sistema
+            for inactiva in av.complementaria(pareja):
+                assert f'"{inactiva}"' not in sistema
+            entero = sistema + peticion
+            assert bicho.nombre not in entero
+            # Ni las stats de nadie, ni el dado, ni la exigencia del terreno.
+            for fuga in ("11", "22", "33", "44", "1d20", "d20", "dificultad"):
+                assert fuga not in entero.casefold(), fuga
+    assert "criatura" not in inspect.signature(per.prompt_escena).parameters
+
+
+def test_prompt_escena_exige_pareja_y_favorecida_de_esa_pareja():
     with pytest.raises(TypeError):
         per.prompt_escena("al Bosque", 1, especies=("Piollito",))
-    salida = av.escena_desde_json('{"situacion":"Un muro.","fuerza":"Empujar",'
-    '"velocidad":"Trepar","volver":"Rodear","favorecida":"velocidad"}', (av.FUERZA, av.VELOCIDAD))
-    assert salida == av.Escena(
-        "Un muro.", (av.FUERZA, av.VELOCIDAD),
-        ("Empujar", "Trepar"), "Rodear",
+    with pytest.raises(TypeError):
+        per.prompt_escena(
+            "al Bosque", 1, especies=("Piollito",),
+            pareja=(av.SALUD, av.INGENIO),
+        )
+    with pytest.raises(ValueError):
+        per.prompt_escena(
+            "al Bosque", 1, especies=("Piollito",),
+            pareja=(av.SALUD, av.INGENIO), favorecida=av.FUERZA,
+        )
+
+
+@pytest.mark.parametrize("pareja", av.PAREJAS)
+def test_el_json_dinamico_llena_cada_pareja_y_lo_extra_no_mueve_nada(pareja):
+    crudo = (
+        '{"situacion":"Un paso.",'
+        f'"{pareja[0]}":"Primera salida","{pareja[1]}":"Segunda salida",'
+        '"volver":"Rodear","favorecida":"fuerza","dificultad":9,'
+        '"exito":true,"premio":"gemas"}'
     )
+
+    escena = av.escena_desde_json(crudo, pareja)
+
+    assert escena == av.Escena(
+        "Un paso.", pareja, ("Primera salida", "Segunda salida"), "Rodear",
+    )
+    # Con las claves de la otra pareja no cuadra nada y se cae al respaldo.
+    assert av.escena_desde_json(crudo, av.complementaria(pareja)) is None
 
 
 # --- Balance exacto, sin Monte Carlo --------------------------------------
@@ -432,9 +496,9 @@ def test_balance_exacto_conserva_acceso_y_no_crea_una_receta_unica():
 
 
 class RNGTraza:
-    def __init__(self):
+    def __init__(self, valores=(20, 0)):
         self.eventos = []
-        self.valores = iter((20, 0))
+        self.valores = iter(valores)
 
     def randint(self, minimo, maximo):
         self.eventos.append(("randint", minimo, maximo))
@@ -445,48 +509,180 @@ class RNGTraza:
         return opciones[0]
 
 
-def test_primer_roll_y_siguiente_terreno_comparten_un_edit_y_orden_rng(monkeypatch):
+def _vista_de(monkeypatch, viaje, bicho=None):
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
+    vista = cog_av.ViajeView(
+        Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
+        bicho or criatura(fuerza=99), viaje,
+    )
+    vista.mensaje = SimpleNamespace(edit=AsyncMock())
+    vista.cog.resolver = AsyncMock()
+    return vista
+
+
+def _pulsar(vista, indice=0, canal=None):
+    asyncio.run(vista.children[indice].callback(SimpleNamespace(
+        response=SimpleNamespace(defer=AsyncMock()), channel=canal,
+    )))
+
+
+def test_el_comando_sortea_bioma_pareja_y_lado_en_ese_orden(monkeypatch):
+    """La traza del comando: bioma, una de las seis parejas, y el lado del
+    terreno. Nada más: el respaldo ya no gasta dados."""
+    ahora = SimpleNamespace()
+    rng = RNGTraza(valores=(4, 1))
+    monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
+    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
+    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: criatura())
+    monkeypatch.setattr(cog_av.db, "avanzar", lambda c, _: c)
+    monkeypatch.setattr(cog_av.db, "guardar", lambda c: None)
+    monkeypatch.setattr(cog_av.db, "espera_de_persona", lambda *_: timedelta(0))
+    monkeypatch.setattr(cog_av.db, "poner_cooldown_persona", lambda *_: None)
+    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
+    monkeypatch.setattr(cog_av.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_av.vistas, "_canal_anterior", lambda *_: None)
+    abiertas = []
+
+    async def followup(*_, **kwargs):
+        abiertas.append(kwargs.get("view"))
+        return SimpleNamespace()
+
+    interaccion = SimpleNamespace(
+        id=987654321,
+        user=SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe"),
+        guild_id="g1",
+        response=SimpleNamespace(defer=AsyncMock()),
+        followup=SimpleNamespace(send=followup),
+        channel=SimpleNamespace(send=AsyncMock()),
+    )
+    cog = cog_av.Aventura.__new__(cog_av.Aventura)
+    cog.resolver = AsyncMock()
+
+    asyncio.run(getattr(cog_av.Aventura.aventura, "callback")(cog, interaccion))
+
+    assert rng.eventos == [
+        ("choice", len(av.BIOMAS)), ("randint", 0, 5), ("randint", 0, 1)
+    ]
+    viaje = abiertas[0].viaje
+    # `randint(0, 5) -> 4` es la quinta pareja canónica y `randint(0, 1) -> 1`
+    # su segundo lado.
+    assert viaje.terreno.pareja == av.PAREJAS[4] == (av.VELOCIDAD, av.INGENIO)
+    assert viaje.escena.pareja == viaje.terreno.pareja
+    assert viaje.terreno.favorecida == av.INGENIO
+
+
+def test_primer_roll_y_siguiente_terreno_comparten_un_edit_y_orden_rng(monkeypatch):
     rng = RNGTraza()
     monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
     bioma = av.BIOMAS["bosque"]
-    viaje = av.Viaje(bioma, escena(), terreno(),)
-    vista = cog_av.ViajeView(
-        Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
-        criatura(fuerza=99), viaje,
-    )
-    mensaje = SimpleNamespace(edit=AsyncMock())
-    vista.mensaje = mensaje
-    vista.cog.resolver = AsyncMock()
-    interaccion = SimpleNamespace(
-        response=SimpleNamespace(defer=AsyncMock()), channel=None,
-    )
+    vista = _vista_de(monkeypatch, av.Viaje(bioma, escena(), terreno()))
 
-    asyncio.run(vista.children[0].callback(interaccion))
+    _pulsar(vista)
 
-    mensaje.edit.assert_awaited_once()
-    contenido = mensaje.edit.await_args.kwargs["content"]
+    vista.mensaje.edit.assert_awaited_once()
+    contenido = vista.mensaje.edit.await_args.kwargs["content"]
     assert "✓ Mover la roca — 💪 99 + 20 = 119 / 22" in contenido
     assert vista.viaje.escena.situacion in contenido
     assert "pueden forjar marca" in contenido
-    assert rng.eventos[:3] == [
-        ("randint", 1, 20), ("randint", 0, 1), ("choice", 2)
+    # Sólo el dado de la prueba y el lado del terreno siguiente: el complemento
+    # no se sortea y el respaldo es determinista.
+    assert rng.eventos == [("randint", 1, 20), ("randint", 0, 1)]
+    assert vista.viaje.terreno.pareja == (av.SALUD, av.INGENIO)
+    assert vista.viaje.escena == av.escena_escrita(
+        bioma, (av.SALUD, av.INGENIO), vista.viaje.terreno.favorecida
+    )
+
+
+@pytest.mark.parametrize("pareja", av.PAREJAS)
+def test_el_segundo_nodo_es_la_complementaria_tras_acertar_y_tras_volver(
+    monkeypatch, pareja
+):
+    bioma = av.BIOMAS["bosque"]
+    inicial = av.Viaje(
+        bioma,
+        av.escena_escrita(bioma, pareja, pareja[0]),
+        av.Terreno(pareja, (bioma.dificultad - 2, bioma.dificultad + 2)),
+    )
+    complementaria = av.complementaria(pareja)
+    # Un viaje entero enseña las cuatro sendas, cada una una sola vez.
+    assert set(pareja).isdisjoint(complementaria)
+    assert sorted(pareja + complementaria) == sorted(sim.ESTADISTICAS)
+
+    for indice, valores in ((0, (20, 0)), (2, (0,))):
+        monkeypatch.setattr(
+            cog_av.random, "Random", lambda valores=valores: DadosFijos(valores)
+        )
+        vista = _vista_de(monkeypatch, inicial, bicho=criatura(
+            fuerza=99, velocidad=99, base_salud=99, base_ingenio=99
+        ))
+
+        _pulsar(vista, indice)
+
+        assert vista.viaje.terreno.pareja == complementaria
+        assert vista.viaje.escena.pareja == complementaria
+        assert vista.viaje.escena.opciones == complementaria + (av.VOLVER,)
+        # Volver no tira dado, así que tampoco deja prueba.
+        assert len(vista.viaje.pruebas) == (1 if indice == 0 else 0)
+
+
+def test_fallar_no_pide_ni_tira_el_segundo_nodo(monkeypatch):
+    """Fallar cierra el viaje ahí: ni dado del terreno ni escena que pedir."""
+    rng = RNGTraza(valores=(1,))
+    monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
+    pedir = AsyncMock()
+    monkeypatch.setattr(cog_av, "_pedir_escena", pedir)
+    bioma = av.BIOMAS["bosque"]
+    vista = _vista_de(
+        monkeypatch, av.Viaje(bioma, escena(), terreno()), bicho=criatura(fuerza=1)
+    )
+
+    _pulsar(vista, canal="canal")
+
+    pedir.assert_not_awaited()
+    assert rng.eventos == [("randint", 1, 20)]
+    assert not vista.viaje.sigue and vista.viaje.fallo
+    assert vista.viaje.terreno.pareja == (av.FUERZA, av.VELOCIDAD)
+    vista.cog.resolver.assert_awaited_once()
+
+
+@pytest.mark.parametrize("pareja", ((av.VELOCIDAD, av.INGENIO), (av.FUERZA, av.SALUD)))
+def test_los_botones_llevan_la_identidad_de_las_sendas_activas(monkeypatch, pareja):
+    bioma = av.BIOMAS["bosque"]
+    escena_larga = av.Escena(
+        "Un paso.", pareja,
+        ("A" * av.LARGO_ETIQUETA, "B" * av.LARGO_ETIQUETA), "Dar un rodeo",
+    )
+    terreno_dado = av.Terreno(pareja, (bioma.dificultad - 2, bioma.dificultad + 2))
+    vista = _vista_de(
+        monkeypatch, av.Viaje(bioma, escena_larga, terreno_dado),
+        bicho=criatura(fuerza=15, velocidad=15, base_salud=15, base_ingenio=15),
+    )
+
+    botones = list(vista.children)
+    assert len(botones) == 3
+    assert [str(boton.emoji) for boton in botones] == [
+        av.EMOJI_STAT[pareja[0]], av.EMOJI_STAT[pareja[1]], "🚶"
     ]
-    assert vista.viaje.escena in av.ESCENAS_ESCRITAS["bosque"][
-        vista.viaje.terreno.favorecida
+    assert [boton.style for boton in botones] == [
+        cog_av.ESTILO_OPCION[pareja[0]], cog_av.ESTILO_OPCION[pareja[1]],
+        cog_av.ESTILO_OPCION[av.VOLVER],
     ]
+    assert botones[2].label == "Dar un rodeo"
+    for indice, opcion in enumerate(pareja):
+        banda = av.banda_opcion(
+            getattr(vista.criatura, opcion), terreno_dado.exigencia(opcion)
+        )
+        assert botones[indice].label.endswith(f" · {banda}")
+    assert all(len(boton.label) <= cog_av.LARGO_BOTON for boton in botones)
 
 
 def test_botones_muestran_bandas_reales_y_siguen_bajo_el_tope(monkeypatch):
-    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
-    larga = escena()
     larga = replace(
-        larga, etiquetas=("F" * av.LARGO_ETIQUETA, "V" * av.LARGO_ETIQUETA)
+        escena(), etiquetas=("F" * av.LARGO_ETIQUETA, "V" * av.LARGO_ETIQUETA)
     )
     bioma = av.BIOMAS["bosque"]
-    vista = cog_av.ViajeView(
-        Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
-        criatura(), av.Viaje(bioma, larga, terreno()),
+    vista = _vista_de(
+        monkeypatch, av.Viaje(bioma, larga, terreno()), bicho=criatura()
     )
 
     etiquetas = [boton.label for boton in vista.children]
