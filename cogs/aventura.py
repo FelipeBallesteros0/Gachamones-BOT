@@ -96,6 +96,7 @@ async def _narrar(
     return texto
 
 
+_PAREJA_FV = (av.FUERZA, av.VELOCIDAD)  # pin transitorio hasta la fase 2
 EMOJI_OPCION = {av.FUERZA: "💪", av.VELOCIDAD: "💨", av.VOLVER: "🚶"}
 ESTILO_OPCION = {
     av.FUERZA: discord.ButtonStyle.danger,
@@ -107,7 +108,8 @@ LARGO_BOTON = 80  # lo que admite Discord en una etiqueta
 
 async def _pedir_escena(
     bioma: av.Bioma, nivel: int, antes: str, usuario_id: str, ahora,
-    rng: random.Random, evitar: av.Escena | None = None, *, favorecida: str,
+    rng: random.Random, evitar: av.Escena | None = None, *,
+    pareja: av.Pareja, favorecida: str,
 ) -> av.Escena:
     """La escena del nodo: la inventa el modelo y, si no puede, va una escrita.
 
@@ -115,7 +117,7 @@ async def _pedir_escena(
     algo que no cuadra, la aventura tiene que seguir igualmente. Un árbol que se
     queda sin escena deja a alguien con tres botones vacíos.
     """
-    escrita = av.escena_escrita(bioma, favorecida, evitar, rng)
+    escrita = av.escena_escrita(bioma, pareja, favorecida, evitar, rng)
     if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
         return escrita
 
@@ -127,7 +129,7 @@ async def _pedir_escena(
     crudo = await ia.generar_crudo(sistema, peticion)
     if not crudo:
         return escrita
-    return av.escena_desde_json(crudo) or escrita
+    return av.escena_desde_json(crudo, pareja) or escrita
 
 
 class ViajeView(discord.ui.View):
@@ -163,13 +165,10 @@ class ViajeView(discord.ui.View):
         etiqueta al escribir la clase, y aquí la escribe el modelo en marcha.
         """
         self.clear_items()
-        for opcion in av.OPCIONES_ESCENA:
+        for opcion in self.viaje.escena.opciones:
             etiqueta = self.viaje.escena.etiqueta(opcion)
             if opcion != av.VOLVER:
-                stat = (
-                    self.criatura.fuerza if opcion == av.FUERZA
-                    else self.criatura.velocidad
-                )
+                stat = getattr(self.criatura, opcion)
                 etiqueta += (
                     f" · {av.banda_opcion(stat, self.viaje.terreno.exigencia(opcion))}"
                 )
@@ -233,12 +232,12 @@ class ViajeView(discord.ui.View):
             beat = av.render_beat(prueba)
 
             if self.viaje.sigue:
-                terreno = av.tirar_terreno(self.viaje.bioma, rng)
+                terreno = av.tirar_terreno(self.viaje.bioma, _PAREJA_FV, rng)
                 escena = await _pedir_escena(
                     self.viaje.bioma, self.viaje.nivel + 1,
                     _continuacion(anterior.escena, opcion),
                     str(self.dueño.id), db.ahora_utc(), rng, anterior.escena,
-                    favorecida=terreno.favorecida,
+                    pareja=_PAREJA_FV, favorecida=terreno.favorecida,
                 )
                 self.viaje = replace(
                     self.viaje, escena=escena, terreno=terreno
@@ -587,10 +586,10 @@ class Aventura(commands.Cog):
         await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
         await interaccion.response.defer()
 
-        terreno = av.tirar_terreno(bioma, rng)
+        terreno = av.tirar_terreno(bioma, _PAREJA_FV, rng)
         escena = await _pedir_escena(
             bioma, 1, "", usuario_id, ahora, rng,
-            favorecida=terreno.favorecida,
+            pareja=_PAREJA_FV, favorecida=terreno.favorecida,
         )
         viaje = av.Viaje(bioma=bioma, escena=escena, terreno=terreno)
         vista = ViajeView(

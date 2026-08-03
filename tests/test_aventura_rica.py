@@ -40,14 +40,20 @@ def criatura(fuerza=15, velocidad=15, **cambios):
 
 
 def escena(nombre="Un paso estrecho."):
-    return av.Escena(nombre, "Mover la roca", "Cruzar el hueco", "Dar un rodeo")
+    return av.Escena(
+        nombre, (av.FUERZA, av.VELOCIDAD),
+        ("Mover la roca", "Cruzar el hueco"), "Dar un rodeo",
+    )
 
 
 def terreno(bioma="bosque", favorecida=av.FUERZA):
     dificultad = av.BIOMAS[bioma].dificultad
     return av.Terreno(
-        dificultad - 2 if favorecida == av.FUERZA else dificultad + 2,
-        dificultad - 2 if favorecida == av.VELOCIDAD else dificultad + 2,
+        (av.FUERZA, av.VELOCIDAD),
+        (
+            dificultad - 2 if favorecida == av.FUERZA else dificultad + 2,
+            dificultad - 2 if favorecida == av.VELOCIDAD else dificultad + 2,
+        ),
     )
 
 
@@ -60,16 +66,114 @@ def salvaje(
 # --- Terreno, riesgo y marca -----------------------------------------------
 
 
+def test_las_seis_parejas_cubren_las_cuatro_stats_con_complementos_disjuntos():
+    assert (av.FUERZA, av.VELOCIDAD, av.SALUD, av.INGENIO) == sim.ESTADISTICAS
+    assert av.PAREJAS == (
+        (av.FUERZA, av.VELOCIDAD),
+        (av.FUERZA, av.SALUD),
+        (av.FUERZA, av.INGENIO),
+        (av.VELOCIDAD, av.SALUD),
+        (av.VELOCIDAD, av.INGENIO),
+        (av.SALUD, av.INGENIO),
+    )
+    for pareja in av.PAREJAS:
+        complemento = av.complementaria(pareja)
+        assert set(pareja).isdisjoint(complemento)
+        assert set(pareja + complemento) == set(sim.ESTADISTICAS)
+
+
+def test_cada_indice_fijo_alcanza_una_pareja_sin_recibir_criatura():
+    assert tuple(av.tirar_pareja(DadosFijos([i])) for i in range(6)) == av.PAREJAS
+    assert "criatura" not in inspect.signature(av.tirar_pareja).parameters
+
+
+@pytest.mark.parametrize("pareja", av.PAREJAS)
+@pytest.mark.parametrize("bit", (0, 1))
+def test_terreno_alinea_exigencias_y_favor_con_cada_pareja(pareja, bit):
+    bioma = av.BIOMAS["bosque"]
+    terreno = av.tirar_terreno(bioma, pareja, DadosFijos([bit]))
+    baja, alta = bioma.dificultad - 2, bioma.dificultad + 2
+    esperadas = (baja, alta) if bit == 0 else (alta, baja)
+
+    assert terreno == av.Terreno(pareja, esperadas)
+    assert terreno.favorecida == pareja[bit]
+    assert tuple(terreno.exigencia(stat) for stat in pareja) == esperadas
+    inactiva = next(stat for stat in sim.ESTADISTICAS if stat not in pareja)
+    with pytest.raises(ValueError):
+        terreno.exigencia(inactiva)
+
+
+def test_terreno_rechaza_pareja_invalida_y_en_empate_favorece_la_segunda():
+    with pytest.raises(ValueError):
+        av.Terreno((av.FUERZA, av.FUERZA), (20, 24))
+    terreno = av.Terreno((av.SALUD, av.INGENIO), (24, 24))
+    assert terreno.favorecida == av.INGENIO
+
+
+def test_escena_ofrece_su_pareja_y_volver_y_rechaza_etiquetas_inactivas():
+    escena = av.Escena(
+        "La corriente aprieta.",
+        (av.SALUD, av.INGENIO),
+        ("Resistir la corriente", "Leer el ritmo del agua"),
+        "Buscar otro paso",
+    )
+
+    assert escena.opciones == (av.SALUD, av.INGENIO, av.VOLVER)
+    assert tuple(escena.etiqueta(opcion) for opcion in escena.opciones) == (
+        "Resistir la corriente", "Leer el ritmo del agua", "Buscar otro paso"
+    )
+    with pytest.raises(ValueError):
+        escena.etiqueta(av.FUERZA)
+
+
+def test_viaje_rechaza_escena_y_terreno_de_parejas_distintas():
+    bioma = av.BIOMAS["bosque"]
+    escena = av.Escena(
+        "Un paso.", (av.SALUD, av.INGENIO),
+        ("Resistir", "Observar"), "Volver",
+    )
+    terreno = av.Terreno((av.FUERZA, av.VELOCIDAD), (20, 24))
+
+    with pytest.raises(ValueError):
+        av.Viaje(bioma, escena, terreno)
+
+
 def test_terreno_se_sortea_ciego_y_aplica_menos_dos_mas_dos():
     bioma = av.BIOMAS["bosque"]
-    fuerza = av.tirar_terreno(bioma, DadosFijos([0]))
-    velocidad = av.tirar_terreno(bioma, DadosFijos([1]))
+    pareja = (av.FUERZA, av.VELOCIDAD)
+    fuerza = av.tirar_terreno(bioma, pareja, DadosFijos([0]))
+    velocidad = av.tirar_terreno(bioma, pareja, DadosFijos([1]))
 
-    assert fuerza == av.Terreno(bioma.dificultad - 2, bioma.dificultad + 2)
-    assert velocidad == av.Terreno(bioma.dificultad + 2, bioma.dificultad - 2)
+    assert fuerza == av.Terreno(
+        pareja, (bioma.dificultad - 2, bioma.dificultad + 2)
+    )
+    assert velocidad == av.Terreno(
+        pareja, (bioma.dificultad + 2, bioma.dificultad - 2)
+    )
     assert fuerza.favorecida == av.FUERZA
     assert velocidad.favorecida == av.VELOCIDAD
     assert "criatura" not in inspect.signature(av.tirar_terreno).parameters
+
+
+@pytest.mark.parametrize(
+    "stat,pareja",
+    (
+        (av.FUERZA, (av.FUERZA, av.VELOCIDAD)),
+        (av.VELOCIDAD, (av.FUERZA, av.VELOCIDAD)),
+        (av.SALUD, (av.SALUD, av.INGENIO)),
+        (av.INGENIO, (av.SALUD, av.INGENIO)),
+    ),
+)
+def test_resolver_usa_cada_una_de_las_cuatro_stats(stat, pareja):
+    bicho = criatura(fuerza=11, velocidad=22, base_salud=33, base_ingenio=44)
+    prueba = av.resolver_opcion(
+        bicho, av.Terreno(pareja, (20, 20)), stat, DadosFijos([7])
+    )
+
+    assert prueba is not None
+    assert prueba.stat == stat
+    assert prueba.base == getattr(bicho, stat)
+    assert prueba.dado == 7
 
 
 def test_probabilidad_y_bandas_salen_del_d20_real_clampado():
@@ -115,6 +219,45 @@ def test_beat_muestra_ecuacion_margen_y_marca_reales():
     assert av.render_beat(None) == "🚶 Prefirieron no meterse"
 
 
+def test_salud_e_ingenio_conservan_identidad_en_pista_beat_y_marco():
+    bicho = criatura(base_salud=15, base_ingenio=99)
+    terreno = av.Terreno((av.SALUD, av.INGENIO), (24, 24))
+    salud = av.Prueba("Resistir el humo", av.SALUD, 15, 5, 24)
+    ingenio = av.Prueba("Leer el patrón", av.INGENIO, 99, 5, 24)
+
+    assert av.pista_marcas(bicho, terreno).endswith("sólo la 🛡️")
+    assert "— 🛡️ 15 + 5" in av.render_beat(salud)
+    assert "— 🧠 99 + 5" in av.render_beat(ingenio)
+    marco = av.render_pruebas(
+        bicho, av.BIOMAS["bosque"], av.Salida((salud, ingenio)), dueño="Felipe"
+    )
+    assert "SAL" in marco and "ING" in marco
+
+
+def test_salud_e_ingenio_fluyen_por_pruebas_y_vetas_genericas():
+    salida = av.Salida((
+        av.Prueba("Resistir", av.SALUD, 20, 10, 24),
+        av.Prueba("Observar", av.INGENIO, 20, 10, 24),
+    ))
+
+    assert tuple(esfuerzo.stat for esfuerzo in av.esfuerzos_de_viaje(salida)) == (
+        av.SALUD, av.INGENIO
+    )
+
+
+def test_volver_en_salud_ingenio_no_tira_ni_deja_esfuerzo():
+    bioma = av.BIOMAS["bosque"]
+    pareja = (av.SALUD, av.INGENIO)
+    escena = av.Escena("Un paso.", pareja, ("Resistir", "Observar"), "Volver")
+    terreno = av.Terreno(pareja, (22, 26))
+    viaje = av.Viaje(bioma, escena, terreno)
+
+    despues = av.avanzar(viaje, criatura(), av.VOLVER, escena, terreno, DadosFijos([]))
+
+    assert despues.pruebas == ()
+    assert av.esfuerzos_de_viaje(despues.salida) == ()
+
+
 def test_volver_no_tira_y_escena_terreno_cambian_juntos():
     bioma = av.BIOMAS["bosque"]
     inicial = av.Viaje(bioma, escena(), terreno())
@@ -137,13 +280,19 @@ def test_volver_no_tira_y_escena_terreno_cambian_juntos():
 
 
 def test_pista_previa_enumera_ninguna_una_o_ambas_sin_prometarlas():
-    assert av.pista_marcas(criatura(99, 99), av.Terreno(24, 24)).endswith(
+    assert av.pista_marcas(
+        criatura(99, 99), av.Terreno((av.FUERZA, av.VELOCIDAD), (24, 24))
+    ).endswith(
         "ninguna"
     )
-    assert av.pista_marcas(criatura(15, 99), av.Terreno(24, 24)).endswith(
+    assert av.pista_marcas(
+        criatura(15, 99), av.Terreno((av.FUERZA, av.VELOCIDAD), (24, 24))
+    ).endswith(
         "sólo la 💪"
     )
-    assert av.pista_marcas(criatura(15, 15), av.Terreno(24, 24)).endswith(
+    assert av.pista_marcas(
+        criatura(15, 15), av.Terreno((av.FUERZA, av.VELOCIDAD), (24, 24))
+    ).endswith(
         "cualquiera de las dos"
     )
 
@@ -163,6 +312,26 @@ def test_resolver_usa_la_exigencia_del_terreno_real():
 # --- Catálogo y prompt de escena ------------------------------------------
 
 
+def test_json_solo_llena_las_etiquetas_de_la_pareja_decidida():
+    escena = av.escena_desde_json(
+        '{"situacion":"Una corriente helada.","salud":"Resistir el frío",'
+        '"ingenio":"Leer los remolinos","volver":"Buscar un vado",'
+        '"favorecida":"fuerza"}',
+        (av.SALUD, av.INGENIO),
+    )
+    assert escena == av.Escena(
+        "Una corriente helada.",
+        (av.SALUD, av.INGENIO),
+        ("Resistir el frío", "Leer los remolinos"),
+        "Buscar un vado",
+    )
+    assert av.escena_desde_json(
+        '{"situacion":"Un muro.","fuerza":"Empujar",'
+        '"velocidad":"Trepar","volver":"Rodear"}',
+        (av.SALUD, av.INGENIO),
+    ) is None
+
+
 def test_catalogo_es_exactamente_dos_mas_dos_por_bioma_y_respeta_evitar():
     assert set(av.ESCENAS_ESCRITAS) == set(av.BIOMAS)
     for clave, por_lado in av.ESCENAS_ESCRITAS.items():
@@ -174,7 +343,8 @@ def test_catalogo_es_exactamente_dos_mas_dos_por_bioma_y_respeta_evitar():
             vista = por_lado[lado][0]
             for semilla in range(5):
                 assert av.escena_escrita(
-                    bioma, lado, vista, random.Random(semilla)
+                    bioma, (av.FUERZA, av.VELOCIDAD), lado,
+                    vista, random.Random(semilla)
                 ) != vista
 
 
@@ -200,11 +370,12 @@ def test_prompt_escena_dirige_solo_la_fisica_del_lado_sin_filtrar_mecanica():
 def test_prompt_escena_exige_favorecida_y_json_extra_no_mueve_mecanica():
     with pytest.raises(TypeError):
         per.prompt_escena("al Bosque", 1, especies=("Piollito",))
-    salida = av.escena_desde_json(
-        '{"situacion":"Un muro.","fuerza":"Empujar",'
-        '"velocidad":"Trepar","volver":"Rodear","favorecida":"velocidad"}'
+    salida = av.escena_desde_json('{"situacion":"Un muro.","fuerza":"Empujar",'
+    '"velocidad":"Trepar","volver":"Rodear","favorecida":"velocidad"}', (av.FUERZA, av.VELOCIDAD))
+    assert salida == av.Escena(
+        "Un muro.", (av.FUERZA, av.VELOCIDAD),
+        ("Empujar", "Trepar"), "Rodear",
     )
-    assert salida == av.Escena("Un muro.", "Empujar", "Trepar", "Rodear")
 
 
 # --- Balance exacto, sin Monte Carlo --------------------------------------
@@ -229,17 +400,18 @@ def test_balance_exacto_conserva_acceso_y_no_crea_una_receta_unica():
         for dificultad in dificultades:
             probabilidades_por_lado = []
             for favorecida in (av.FUERZA, av.VELOCIDAD):
-                t = av.Terreno(
+                exigencias = (
                     dificultad - 2 if favorecida == av.FUERZA else dificultad + 2,
                     dificultad - 2 if favorecida == av.VELOCIDAD else dificultad + 2,
                 )
+                t = av.Terreno((av.FUERZA, av.VELOCIDAD), exigencias)
                 probabilidades = (
-                    av.probabilidad_opcion(fuerza, t.fuerza),
-                    av.probabilidad_opcion(velocidad, t.velocidad),
+                    av.probabilidad_opcion(fuerza, t.exigencia(av.FUERZA)),
+                    av.probabilidad_opcion(velocidad, t.exigencia(av.VELOCIDAD)),
                 )
                 tensiones = (
-                    tension_esperada(fuerza, t.fuerza),
-                    tension_esperada(velocidad, t.velocidad),
+                    tension_esperada(fuerza, t.exigencia(av.FUERZA)),
+                    tension_esperada(velocidad, t.exigencia(av.VELOCIDAD)),
                 )
                 ingenua = 0 if fuerza >= velocidad else 1
                 caza = max(range(2), key=lambda i: (probabilidades[i], i == ingenua))
@@ -308,8 +480,9 @@ def test_primer_roll_y_siguiente_terreno_comparten_un_edit_y_orden_rng(monkeypat
 def test_botones_muestran_bandas_reales_y_siguen_bajo_el_tope(monkeypatch):
     monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
     larga = escena()
-    larga = replace(larga, fuerza="F" * av.LARGO_ETIQUETA,
-                    velocidad="V" * av.LARGO_ETIQUETA)
+    larga = replace(
+        larga, etiquetas=("F" * av.LARGO_ETIQUETA, "V" * av.LARGO_ETIQUETA)
+    )
     bioma = av.BIOMAS["bosque"]
     vista = cog_av.ViajeView(
         Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",

@@ -339,23 +339,26 @@ def _textos_de_aventura(c, genero: str) -> list[str]:
     import aventura as av
 
     textos = []
+    pareja = (av.FUERZA, av.VELOCIDAD)
     for bioma in av.BIOMAS.values():
-        terreno = av.tirar_terreno(bioma, random.Random(1))
+        terreno = av.tirar_terreno(bioma, pareja, random.Random(1))
         viaje = av.Viaje(
             bioma=bioma,
             escena=av.escena_escrita(
-                bioma, terreno.favorecida, rng=random.Random(1)
+                bioma, pareja, terreno.favorecida, rng=random.Random(1)
             ),
             terreno=terreno,
         )
-        for opcion in (av.FUERZA, av.VELOCIDAD):
+        for opcion in pareja:
             if not viaje.sigue:
                 break
-            siguiente_terreno = av.tirar_terreno(bioma, random.Random(2))
+            siguiente_terreno = av.tirar_terreno(
+                bioma, pareja, random.Random(2)
+            )
             viaje = av.avanzar(
                 viaje, c, opcion,
                 av.escena_escrita(
-                    bioma, siguiente_terreno.favorecida,
+                    bioma, pareja, siguiente_terreno.favorecida,
                     rng=random.Random(2),
                 ),
                 siguiente_terreno, random.Random(1),

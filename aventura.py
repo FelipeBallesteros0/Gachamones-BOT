@@ -188,38 +188,69 @@ def tirar_percance(
 
 # --- El árbol de decisiones ------------------------------------------------
 
-# Cada escena ofrece las tres, siempre. El terreno favorece una de las dos
-# acciones sin mirar a la criatura; la banda visible sale después de sus stats.
-FUERZA = "fuerza"
-VELOCIDAD = "velocidad"
+# Cada escena ofrece dos stats activas y Volver. El terreno favorece una de las
+# dos sin mirar a la criatura; la banda visible sale después de sus stats.
+FUERZA, VELOCIDAD, SALUD, INGENIO = sim.ESTADISTICAS
 VOLVER = "volver"
-OPCIONES_ESCENA = (FUERZA, VELOCIDAD, VOLVER)
+Pareja = tuple[str, str]
+PAREJAS: tuple[Pareja, ...] = (
+    (FUERZA, VELOCIDAD),
+    (FUERZA, SALUD),
+    (FUERZA, INGENIO),
+    (VELOCIDAD, SALUD),
+    (VELOCIDAD, INGENIO),
+    (SALUD, INGENIO),
+)
 SESGO_TERRENO = 2
+
+
+def complementaria(pareja: Pareja) -> Pareja:
+    """Las dos stats restantes, en el orden canónico de la simulación."""
+    if pareja not in PAREJAS:
+        raise ValueError(f"pareja desconocida: {pareja!r}")
+    restantes = tuple(stat for stat in sim.ESTADISTICAS if stat not in pareja)
+    return restantes[0], restantes[1]
+
+
+def tirar_pareja(rng: random.Random | None = None) -> Pareja:
+    """Sortea uniformemente la pareja del primer nodo."""
+    return PAREJAS[(rng or random.Random()).randint(0, len(PAREJAS) - 1)]
 
 
 @dataclass(frozen=True)
 class Terreno:
-    fuerza: int
-    velocidad: int
+    pareja: Pareja
+    exigencias: tuple[int, int]
+
+    def __post_init__(self) -> None:
+        if self.pareja not in PAREJAS:
+            raise ValueError(f"pareja desconocida: {self.pareja!r}")
+        if len(self.exigencias) != 2:
+            raise ValueError("el terreno necesita dos exigencias")
 
     def exigencia(self, opcion: str) -> int:
-        if opcion not in (FUERZA, VELOCIDAD):
-            raise ValueError(f"opción sin exigencia: {opcion!r}")
-        return getattr(self, opcion)
+        try:
+            return self.exigencias[self.pareja.index(opcion)]
+        except ValueError as exc:
+            raise ValueError(f"opción sin exigencia: {opcion!r}") from exc
 
     @property
     def favorecida(self) -> str:
-        return FUERZA if self.fuerza < self.velocidad else VELOCIDAD
+        return (
+            self.pareja[0]
+            if self.exigencias[0] < self.exigencias[1]
+            else self.pareja[1]
+        )
 
 
 def tirar_terreno(
-    bioma: Bioma, rng: random.Random | None = None,
+    bioma: Bioma, pareja: Pareja, rng: random.Random | None = None,
 ) -> Terreno:
     """Sortea el lado favorecido sin recibir ni mirar a la criatura."""
-    favorecida = (FUERZA, VELOCIDAD)[(rng or random.Random()).randint(0, 1)]
+    bit = (rng or random.Random()).randint(0, 1)
     baja = bioma.dificultad - SESGO_TERRENO
     alta = bioma.dificultad + SESGO_TERRENO
-    return Terreno(baja, alta) if favorecida == FUERZA else Terreno(alta, baja)
+    return Terreno(pareja, (baja, alta) if bit == 0 else (alta, baja))
 
 
 def probabilidad_opcion(stat: int, exigencia: int) -> float:
@@ -250,15 +281,23 @@ def puede_dejar_marca(stat: int, exigencia: int) -> bool:
                for dado in range(1, CARA_DADO + 1))
 
 
+EMOJI_STAT = {
+    FUERZA: "💪",
+    VELOCIDAD: "💨",
+    SALUD: "🛡️",
+    INGENIO: "🧠",
+}
+
+
 def pista_marcas(criatura: sim.Criatura, terreno: Terreno) -> str:
-    fuerza = puede_dejar_marca(criatura.fuerza, terreno.fuerza)
-    velocidad = puede_dejar_marca(criatura.velocidad, terreno.velocidad)
-    if fuerza and velocidad:
+    posibles = [
+        stat for stat in terreno.pareja
+        if puede_dejar_marca(getattr(criatura, stat), terreno.exigencia(stat))
+    ]
+    if len(posibles) == 2:
         cuales = "cualquiera de las dos"
-    elif fuerza:
-        cuales = "sólo la 💪"
-    elif velocidad:
-        cuales = "sólo la 💨"
+    elif posibles:
+        cuales = f"sólo la {EMOJI_STAT[posibles[0]]}"
     else:
         cuales = "ninguna"
     return f"-# 🪵 pueden forjar marca: {cuales}"
@@ -279,7 +318,7 @@ def palabra_holgura(holgura: int) -> str:
 def render_beat(prueba: Prueba | None) -> str:
     if prueba is None:
         return "🚶 Prefirieron no meterse"
-    emoji = "💪" if prueba.stat == FUERZA else "💨"
+    emoji = EMOJI_STAT[prueba.stat]
     esfuerzo = sim.esfuerzo_de_aventura(prueba.stat, prueba.holgura)
     marca = esfuerzo.profunda or esfuerzo.bruto >= sim.UMBRAL_ESFUERZO
     huella = (
@@ -302,21 +341,30 @@ NIVELES_DE_AVENTURA = 2
 
 @dataclass(frozen=True)
 class Escena:
-    """La ficción de un nodo: qué pasa y cómo se llaman las tres salidas.
-
-    La escribe el modelo, pero **no decide nada**: quién pasa y quién no sale de
-    `stat + 1d20` contra la dificultad del bioma, igual que antes. Por eso el
-    texto puede venir de fuera sin que el juego deje de ser probable con dados
-    fijos.
-    """
+    """La ficción de un nodo, alineada con sus dos stats activas."""
 
     situacion: str
-    fuerza: str
-    velocidad: str
+    pareja: Pareja
+    etiquetas: tuple[str, str]
     volver: str
 
+    def __post_init__(self) -> None:
+        if self.pareja not in PAREJAS:
+            raise ValueError(f"pareja desconocida: {self.pareja!r}")
+        if len(self.etiquetas) != 2:
+            raise ValueError("la escena necesita dos etiquetas")
+
+    @property
+    def opciones(self) -> tuple[str, str, str]:
+        return self.pareja + (VOLVER,)
+
     def etiqueta(self, opcion: str) -> str:
-        return getattr(self, opcion)
+        if opcion == VOLVER:
+            return self.volver
+        try:
+            return self.etiquetas[self.pareja.index(opcion)]
+        except ValueError as exc:
+            raise ValueError(f"opción inactiva: {opcion!r}") from exc
 
 
 # Lo que cabe. Discord corta las etiquetas de botón en 80 caracteres y no avisa;
@@ -325,7 +373,7 @@ LARGO_ETIQUETA = 60
 LARGO_SITUACION = 160
 
 
-def escena_desde_json(crudo: str) -> Escena | None:
+def escena_desde_json(crudo: str, pareja: Pareja) -> Escena | None:
     """La escena que propuso el modelo, o `None` si no vale.
 
     Se valida entera antes de usarla porque el texto viene de fuera: si falta
@@ -333,6 +381,8 @@ def escena_desde_json(crudo: str) -> Escena | None:
     se pasa de largo, Discord rechaza el botón y la aventura se queda colgada.
     Devolver `None` es la señal para tirar de las escritas.
     """
+    if pareja not in PAREJAS:
+        raise ValueError(f"pareja desconocida: {pareja!r}")
     # Se busca el objeto en vez de exigir que la respuesta sea JSON a secas: el
     # modelo lo envuelve en un bloque de código o le pone una frase delante más
     # veces de las que uno querría, y eso no es motivo para quedarse sin escena.
@@ -348,8 +398,12 @@ def escena_desde_json(crudo: str) -> Escena | None:
         return None
 
     campos = {}
-    for clave, tope in (("situacion", LARGO_SITUACION), ("fuerza", LARGO_ETIQUETA),
-                        ("velocidad", LARGO_ETIQUETA), ("volver", LARGO_ETIQUETA)):
+    for clave, tope in (
+        ("situacion", LARGO_SITUACION),
+        (pareja[0], LARGO_ETIQUETA),
+        (pareja[1], LARGO_ETIQUETA),
+        ("volver", LARGO_ETIQUETA),
+    ):
         valor = datos.get(clave)
         if not isinstance(valor, str):
             return None
@@ -360,7 +414,17 @@ def escena_desde_json(crudo: str) -> Escena | None:
         # cumple una vez de cada dos: al lado de las escritas cantaba un botón
         # en minúscula junto a otros dos en mayúscula.
         campos[clave] = valor[0].upper() + valor[1:]
-    return Escena(**campos)
+    return Escena(
+        campos["situacion"], pareja,
+        (campos[pareja[0]], campos[pareja[1]]), campos["volver"],
+    )
+
+
+def _escena_fv(
+    situacion: str, fuerza: str, velocidad: str, volver: str,
+) -> Escena:
+    """Adaptador transitorio del catálogo F/V; la fase 2 lo reemplazará."""
+    return Escena(situacion, (FUERZA, VELOCIDAD), (fuerza, velocidad), volver)
 
 
 # Las escenas escritas a mano. Aunque las invente el modelo, hacen falta: es lo
@@ -374,180 +438,180 @@ def escena_desde_json(crudo: str) -> Escena | None:
 ESCENAS_ESCRITAS: dict[str, dict[str, tuple[Escena, Escena]]] = {
     "bosque": {
         FUERZA: (
-            Escena("Una puerta hinchada cede hacia afuera y tiene un tronco firme donde apoyar el hombro.",
+            _escena_fv("Una puerta hinchada cede hacia afuera y tiene un tronco firme donde apoyar el hombro.",
                    "Empujar la puerta", "Colarte por la ventana enredada",
                    "Seguir el sendero"),
-            Escena("El carro de un leñador está calzado, pero su eje quedó hundido en barro espeso.",
+            _escena_fv("El carro de un leñador está calzado, pero su eje quedó hundido en barro espeso.",
                    "Levantar el eje apoyándote", "Calzar la rueda entre raíces",
                    "Desearle suerte y seguir"),
         ),
         VELOCIDAD: (
-            Escena("Bajo un panal queda un tramo limpio; la rama que lo sostiene es gruesa y está muy alta.",
+            _escena_fv("Bajo un panal queda un tramo limpio; la rama que lo sostiene es gruesa y está muy alta.",
                    "Bajar la rama trabada", "Cruzar el tramo de un tirón",
                    "Dar un rodeo"),
-            Escena("Una rama enorme cruje lejos; el sendero queda recto, pero sujetarla exigiría arrancar raíces.",
+            _escena_fv("Una rama enorme cruje lejos; el sendero queda recto, pero sujetarla exigiría arrancar raíces.",
                    "Aguantar la rama enraizada", "Cruzar antes de que caiga",
                    "Refugiarte y esperar"),
         ),
     },
     "planicie": {
         FUERZA: (
-            Escena("La losa de un pozo sobresale y deja hueco para meter ambas manos; la cuerda cuelga muy lejos.",
+            _escena_fv("La losa de un pozo sobresale y deja hueco para meter ambas manos; la cuerda cuelga muy lejos.",
                    "Levantar la losa", "Alcanzar la cuerda de un salto",
                    "Dejarlo estar"),
-            Escena("Un rebaño entra por un paso angosto con una cerca firme a la espalda; el flanco está lleno de hoyos.",
+            _escena_fv("Un rebaño entra por un paso angosto con una cerca firme a la espalda; el flanco está lleno de hoyos.",
                    "Plantarte contra la cerca", "Esquivarlo por los hoyos",
                    "Tumbarte en la hierba"),
         ),
         VELOCIDAD: (
-            Escena("Una pastora ve entre los fardos un pasillo despejado hacia su oveja; cada fardo está empapado y pesa demasiado.",
+            _escena_fv("Una pastora ve entre los fardos un pasillo despejado hacia su oveja; cada fardo está empapado y pesa demasiado.",
                    "Apartar los fardos mojados", "Recorrer el pasillo corriendo",
                    "Decir que no la viste"),
-            Escena("Una lona vuela baja sobre campo abierto; el poste que la sujetaba está clavado hasta la piedra.",
+            _escena_fv("Una lona vuela baja sobre campo abierto; el poste que la sujetaba está clavado hasta la piedra.",
                    "Arrancar el poste clavado", "Atrapar la lona al vuelo",
                    "Dejar que se la lleve"),
         ),
     },
     "desierto": {
         FUERZA: (
-            Escena("Una columna sobresale con base redonda y sitio para hacer palanca; alrededor la arena se hunde al correr.",
+            _escena_fv("Una columna sobresale con base redonda y sitio para hacer palanca; alrededor la arena se hunde al correr.",
                    "Volcar la columna con palanca", "Saltar sobre la arena suelta",
                    "Buscar sombra"),
-            Escena("La caravana apoya un fardo en una tarima firme; las huellas ya se borran entre dunas separadas.",
+            _escena_fv("La caravana apoya un fardo en una tarima firme; las huellas ya se borran entre dunas separadas.",
                    "Cargar el fardo apoyado", "Seguir las huellas lejanas",
                    "Seguir tu camino"),
         ),
         VELOCIDAD: (
-            Escena("Al ceder el suelo queda un borde corto y limpio; sostenerlo exigiría cargar una placa entera de roca.",
+            _escena_fv("Al ceder el suelo queda un borde corto y limpio; sostenerlo exigiría cargar una placa entera de roca.",
                    "Sostener la placa de roca", "Saltar el borde de un impulso",
                    "Retroceder sobre tus huellas"),
-            Escena("Un cubo cuelga a un salto dentro del brocal; la cadena está encajada bajo un bloque macizo.",
+            _escena_fv("Un cubo cuelga a un salto dentro del brocal; la cadena está encajada bajo un bloque macizo.",
                    "Arrancar la cadena encajada", "Bajar y tomar el cubo",
                    "Seguir la duna"),
         ),
     },
     "ruinas": {
         FUERZA: (
-            Escena("El portón de bronce está entreabierto y tiene un puntal firme; la hiedra cuelga rota y lejos.",
+            _escena_fv("El portón de bronce está entreabierto y tiene un puntal firme; la hiedra cuelga rota y lejos.",
                    "Empujar desde el puntal", "Trepar por la hiedra rota",
                    "Rodear la muralla"),
-            Escena("Alguien quedó bajo una viga apoyada sobre un bloque firme; el suelo alrededor está cubierto de cascotes.",
+            _escena_fv("Alguien quedó bajo una viga apoyada sobre un bloque firme; el suelo alrededor está cubierto de cascotes.",
                    "Levantar la viga apoyada", "Sacar a alguien entre cascotes",
                    "Ir a buscar ayuda"),
         ),
         VELOCIDAD: (
-            Escena("Una bandada deja un hueco recto al girar; cerrarles el paso exigiría mover una estatua maciza.",
+            _escena_fv("Una bandada deja un hueco recto al girar; cerrarles el paso exigiría mover una estatua maciza.",
                    "Mover la estatua maciza", "Cruzar mientras dure el hueco",
                    "Esperar a que se calmen"),
-            Escena("Bajo una losa queda una rendija lisa y cercana; la argolla está fundida con toda la piedra.",
+            _escena_fv("Bajo una losa queda una rendija lisa y cercana; la argolla está fundida con toda la piedra.",
                    "Levantar la losa fundida", "Colarte por la rendija",
                    "Dejar la losa quieta"),
         ),
     },
     "cienaga": {
         FUERZA: (
-            Escena("La pasarela descansa junto a un tronco seco que encaja debajo; los tablones libres resbalan al pisarlos rápido.",
+            _escena_fv("La pasarela descansa junto a un tronco seco que encaja debajo; los tablones libres resbalan al pisarlos rápido.",
                    "Reforzarla con el tronco", "Cruzar los tablones mojados",
                    "Vadear por la orilla"),
-            Escena("La barca de un pescador tiene la popa contra suelo firme; el limo alrededor llega hasta las rodillas.",
+            _escena_fv("La barca de un pescador tiene la popa contra suelo firme; el limo alrededor llega hasta las rodillas.",
                    "Empujar desde suelo firme", "Sacar el limo a zancadas",
                    "Desearle suerte y seguir"),
         ),
         VELOCIDAD: (
-            Escena("La niebla aún deja un corredor recto entre juncos; arrancarlos requeriría sacar sus raíces del fango.",
+            _escena_fv("La niebla aún deja un corredor recto entre juncos; arrancarlos requeriría sacar sus raíces del fango.",
                    "Arrancar los juncos enraizados", "Cruzar antes de que cierre",
                    "Esperar que aclare"),
-            Escena("Algo se hunde y abre una franja de agua quieta; golpearlo exige levantar un tronco anegado.",
+            _escena_fv("Algo se hunde y abre una franja de agua quieta; golpearlo exige levantar un tronco anegado.",
                    "Levantar el tronco anegado", "Pasar por la franja quieta",
                    "Rodear la charca entera"),
         ),
     },
     "arrecife": {
         FUERZA: (
-            Escena("Las rocas sueltas tienen cantos para agarrarlas y apoyo seco; la próxima ola ya rompe muy cerca.",
+            _escena_fv("Las rocas sueltas tienen cantos para agarrarlas y apoyo seco; la próxima ola ya rompe muy cerca.",
                    "Apartar las rocas apoyadas", "Cruzar antes de la ola",
                    "Esperar a que baje"),
-            Escena("Una red queda al alcance sobre coral firme; desenredarla obliga a nadar entre corrientes cruzadas.",
+            _escena_fv("Una red queda al alcance sobre coral firme; desenredarla obliga a nadar entre corrientes cruzadas.",
                    "Tirar de la red apoyándote", "Desenredarla entre corrientes",
                    "Dejarla donde está"),
         ),
         VELOCIDAD: (
-            Escena("Una corriente recta lleva hasta una buceadora; la piedra que la atrapa está encajada en todo el arrecife.",
+            _escena_fv("Una corriente recta lleva hasta una buceadora; la piedra que la atrapa está encajada en todo el arrecife.",
                    "Levantar la piedra encajada", "Nadar con la corriente",
                    "Ir a buscar ayuda"),
-            Escena("Un banco de peces abre huecos amplios al girar; apartarlo exigiría empujar contra toda la corriente.",
+            _escena_fv("Un banco de peces abre huecos amplios al girar; apartarlo exigiría empujar contra toda la corriente.",
                    "Empujar contra la corriente", "Colarte por un hueco",
                    "Bordear el arrecife"),
         ),
     },
     "chatarral": {
         FUERZA: (
-            Escena("Una plancha cierra el paso apoyada de canto y deja sitio para el hombro; arriba sólo hay chapa suelta.",
+            _escena_fv("Una plancha cierra el paso apoyada de canto y deja sitio para el hombro; arriba sólo hay chapa suelta.",
                    "Volcar la plancha apoyada", "Trepar por la chapa suelta",
                    "Dar un rodeo largo"),
-            Escena("La pieza que busca un chatarrero está bajo una tapa con asa; rebuscar obliga a cruzar cables tensos.",
+            _escena_fv("La pieza que busca un chatarrero está bajo una tapa con asa; rebuscar obliga a cruzar cables tensos.",
                    "Levantar la tapa por el asa", "Rebuscar entre cables tensos",
                    "Decir que no la viste"),
         ),
         VELOCIDAD: (
-            Escena("El aceite arde en un extremo y deja una franja despejada; ahogarlo exigiría mover un depósito lleno.",
+            _escena_fv("El aceite arde en un extremo y deja una franja despejada; ahogarlo exigiría mover un depósito lleno.",
                    "Volcar el depósito lleno", "Apartar lo que arde rápido",
                    "Alejarte del humo"),
-            Escena("Un respiradero queda a un paso tras una cinta móvil; el portón está soldado a un marco macizo.",
+            _escena_fv("Un respiradero queda a un paso tras una cinta móvil; el portón está soldado a un marco macizo.",
                    "Reventar el marco soldado", "Colarte por el respiradero",
                    "Buscar otra entrada"),
         ),
     },
     "cumbre": {
         FUERZA: (
-            Escena("Una placa de hielo sobresale sobre roca firme y se puede golpear desde abajo; la cornisa exterior está pulida.",
+            _escena_fv("Una placa de hielo sobresale sobre roca firme y se puede golpear desde abajo; la cornisa exterior está pulida.",
                    "Romper el hielo apoyándote", "Cruzar la cornisa pulida",
                    "Bajar y rodear"),
-            Escena("Dos rocas dejan una cuña natural junto a una cabra; el otro acceso baja por nieve suelta.",
+            _escena_fv("Dos rocas dejan una cuña natural junto a una cabra; el otro acceso baja por nieve suelta.",
                    "Separar las rocas con cuña", "Bajar por la nieve suelta",
                    "Dejarla donde está"),
         ),
         VELOCIDAD: (
-            Escena("La ventisca deja visible una bajada recta al refugio; abrir camino exige mover nieve apelmazada.",
+            _escena_fv("La ventisca deja visible una bajada recta al refugio; abrir camino exige mover nieve apelmazada.",
                    "Mover la nieve apelmazada", "Correr por la bajada visible",
                    "Refugiarte tras una roca"),
-            Escena("El puente queda recto entre dos anclajes; su cuerda helada está rígida como una barra de hierro.",
+            _escena_fv("El puente queda recto entre dos anclajes; su cuerda helada está rígida como una barra de hierro.",
                    "Doblar la cuerda helada", "Cruzar de un tirón",
                    "Buscar el paso de abajo"),
         ),
     },
     "cavernas": {
         FUERZA: (
-            Escena("Los bloques del derrumbe descansan sobre una repisa firme; el hueco superior es estrecho y tiene grava suelta.",
+            _escena_fv("Los bloques del derrumbe descansan sobre una repisa firme; el hueco superior es estrecho y tiene grava suelta.",
                    "Apartar los bloques apoyados", "Colarte por el hueco suelto",
                    "Volver por donde entraste"),
-            Escena("El equipo de un espeleólogo tiene correas y apoyo para cargarlo; la salida queda tras cornisas mojadas.",
+            _escena_fv("El equipo de un espeleólogo tiene correas y apoyo para cargarlo; la salida queda tras cornisas mojadas.",
                    "Cargar el equipo con correas", "Guiarlo por cornisas mojadas",
                    "Marcar el sitio y avisar"),
         ),
         VELOCIDAD: (
-            Escena("Una corriente corta cruza el lago hasta la otra orilla; la roca para un puente está fundida al suelo.",
+            _escena_fv("Una corriente corta cruza el lago hasta la otra orilla; la roca para un puente está fundida al suelo.",
                    "Arrancar la roca del suelo", "Cruzar siguiendo la corriente",
                    "Bordearlo por la cornisa"),
-            Escena("Entre dos temblores queda un tramo despejado; las estalactitas forman una sola masa sobre la bóveda.",
+            _escena_fv("Entre dos temblores queda un tramo despejado; las estalactitas forman una sola masa sobre la bóveda.",
                    "Partir la masa de piedra", "Pasar durante la pausa",
                    "Esperar a que pare"),
         ),
     },
     "volcan": {
         FUERZA: (
-            Escena("La costra de lava tiene una grieta y roca firme para la palanca; el tramo para correr se deshace bajo los pies.",
+            _escena_fv("La costra de lava tiene una grieta y roca firme para la palanca; el tramo para correr se deshace bajo los pies.",
                    "Abrir la costra con palanca", "Cruzar la costra quebradiza",
                    "Bordear la colada"),
-            Escena("Un buscador descansa junto a una parihuela sólida; el agua está detrás de una ladera de ceniza suelta.",
+            _escena_fv("Un buscador descansa junto a una parihuela sólida; el agua está detrás de una ladera de ceniza suelta.",
                    "Cargarlo en la parihuela", "Correr por la ceniza suelta",
                    "Avisar en el poblado"),
         ),
         VELOCIDAD: (
-            Escena("La ceniza deja un corredor breve hacia el refugio; apartarla exige mover capas compactadas por el calor.",
+            _escena_fv("La ceniza deja un corredor breve hacia el refugio; apartarla exige mover capas compactadas por el calor.",
                    "Mover la ceniza compactada", "Cruzar por el corredor",
                    "Buscar refugio"),
-            Escena("Una grieta recta atraviesa el marco de obsidiana; la puerta es una sola pieza encajada en basalto.",
+            _escena_fv("Una grieta recta atraviesa el marco de obsidiana; la puerta es una sola pieza encajada en basalto.",
                    "Arrancar la puerta encajada", "Colarte por la grieta",
                    "Alejarte del calor"),
         ),
@@ -556,11 +620,13 @@ ESCENAS_ESCRITAS: dict[str, dict[str, tuple[Escena, Escena]]] = {
 
 
 def escena_escrita(
-    bioma: Bioma, favorecida: str, evitar: Escena | None = None,
-    rng: random.Random | None = None,
+    bioma: Bioma, pareja: Pareja, favorecida: str,
+    evitar: Escena | None = None, rng: random.Random | None = None,
 ) -> Escena:
-    """Una escena del lado sorteado, saltándose la que ya se enseñó."""
-    if favorecida not in (FUERZA, VELOCIDAD):
+    """Respaldo F/V transitorio, ya devuelto con la forma de escena nueva."""
+    if pareja != (FUERZA, VELOCIDAD):
+        raise ValueError("el catálogo de cuatro stats se completa en la fase 2")
+    if favorecida not in pareja:
         raise ValueError(f"lado desconocido: {favorecida!r}")
     posibles = [
         escena for escena in ESCENAS_ESCRITAS[bioma.clave][favorecida]
@@ -579,16 +645,14 @@ def resolver_opcion(
     """La tirada de una opción, o `None` si es la de volver, que nunca falla."""
     if opcion == VOLVER:
         return None
-    if opcion not in (FUERZA, VELOCIDAD):
-        raise ValueError(f"opción desconocida: {opcion!r}")
-
-    base = criatura.fuerza if opcion == FUERZA else criatura.velocidad
+    dificultad = terreno.exigencia(opcion)
+    base = getattr(criatura, opcion)
     return Prueba(
         obstaculo=obstaculo,
         stat=opcion,
         base=base,
         dado=(rng or random.Random()).randint(1, CARA_DADO),
-        dificultad=terreno.exigencia(opcion),
+        dificultad=dificultad,
     )
 
 
@@ -606,6 +670,10 @@ class Viaje:
     pruebas: tuple[Prueba, ...] = ()
     nivel: int = 0
     fallo: bool = False
+
+    def __post_init__(self) -> None:
+        if self.escena.pareja != self.terreno.pareja:
+            raise ValueError("la escena y el terreno deben usar la misma pareja")
 
     @property
     def nodos_superados(self) -> int:
@@ -1102,8 +1170,6 @@ def resumen_escrito(
 
 # --- El marco de las pruebas ------------------------------------------------
 
-ETIQUETA_STAT = {"fuerza": "FUE", "velocidad": "VEL"}
-
 
 def _anchos(salida: Salida) -> tuple[int, int]:
     """Medidos sobre las DOS pruebas, no fila a fila.
@@ -1143,7 +1209,7 @@ def render_pruebas(
         # justo el dato por el que se mira la fila.
         marca = "✓" if prueba.superada else "✗"
         cuerpo.append(pantalla.fila(
-            f" {marca} {ETIQUETA_STAT[prueba.stat]} "
+            f" {marca} {pantalla.ETIQUETAS_STAT[prueba.stat]} "
             f"{prueba.base:>{ancho_base}}+d20 {prueba.dado:>2} = "
             f"{prueba.total:>{ancho_total}}/{prueba.dificultad} "
         ))

@@ -85,10 +85,13 @@ def test_el_bioma_se_sortea_y_salen_todos():
 
 def terreno_de(bioma, favorecida=av.FUERZA):
     return av.Terreno(
-        bioma.dificultad - av.SESGO_TERRENO
-        if favorecida == av.FUERZA else bioma.dificultad + av.SESGO_TERRENO,
-        bioma.dificultad - av.SESGO_TERRENO
-        if favorecida == av.VELOCIDAD else bioma.dificultad + av.SESGO_TERRENO,
+        (av.FUERZA, av.VELOCIDAD),
+        (
+            bioma.dificultad - av.SESGO_TERRENO
+            if favorecida == av.FUERZA else bioma.dificultad + av.SESGO_TERRENO,
+            bioma.dificultad - av.SESGO_TERRENO
+            if favorecida == av.VELOCIDAD else bioma.dificultad + av.SESGO_TERRENO,
+        ),
     )
 
 
@@ -754,17 +757,19 @@ def test_lo_mas_probable_es_no_encontrar_salvaje():
 
     for _ in range(intentos):
         bioma = av.elegir_bioma(rng)
-        terreno = av.tirar_terreno(bioma, rng)
+        terreno = av.tirar_terreno(bioma, (av.FUERZA, av.VELOCIDAD), rng)
         viaje = av.Viaje(bioma=bioma, escena=escena_de_prueba(), terreno=terreno)
         while viaje.sigue:
             probabilidades = {
-                av.FUERZA: av.probabilidad_opcion(bicho.fuerza, viaje.terreno.fuerza),
-                av.VELOCIDAD: av.probabilidad_opcion(
-                    bicho.velocidad, viaje.terreno.velocidad
-                ),
+                stat: av.probabilidad_opcion(
+                    getattr(bicho, stat), viaje.terreno.exigencia(stat)
+                )
+                for stat in viaje.terreno.pareja
             }
             mejor = max(probabilidades, key=probabilidades.get)
-            siguiente_terreno = av.tirar_terreno(bioma, rng)
+            siguiente_terreno = av.tirar_terreno(
+                bioma, (av.FUERZA, av.VELOCIDAD), rng
+            )
             viaje = av.avanzar(
                 viaje, bicho, mejor, escena_de_prueba(), siguiente_terreno, rng
             )
@@ -1034,8 +1039,8 @@ def test_la_marca_sobrevive_aunque_los_numeros_crezcan():
 def escena_de_prueba(**cambios):
     base = dict(
         situacion="Una casa abandonada, la puerta trancada.",
-        fuerza="Forzar la puerta",
-        velocidad="Colarte por la ventana",
+        pareja=(av.FUERZA, av.VELOCIDAD),
+        etiquetas=("Forzar la puerta", "Colarte por la ventana"),
         volver="Seguir tu camino",
     )
     base.update(cambios)
@@ -1044,9 +1049,9 @@ def escena_de_prueba(**cambios):
 
 def test_cada_escena_ofrece_las_tres_opciones():
     """Fuerza, velocidad y volver. Sin las tres no hay decisión que tomar."""
-    assert av.OPCIONES_ESCENA == (av.FUERZA, av.VELOCIDAD, av.VOLVER)
     escena = escena_de_prueba()
-    for opcion in av.OPCIONES_ESCENA:
+    assert escena.opciones == (av.FUERZA, av.VELOCIDAD, av.VOLVER)
+    for opcion in escena.opciones:
         assert escena.etiqueta(opcion).strip(), opcion
 
 
@@ -1192,11 +1197,14 @@ def test_el_gachamon_dormido_solo_aparece_llegando_al_fondo():
 def test_una_escena_bien_formada_del_modelo_se_usa_tal_cual():
     escena = av.escena_desde_json(
         '{"situacion": "Un puente de cuerda.", "fuerza": "Tensar la cuerda",'
-        ' "velocidad": "Cruzar de un tirón", "volver": "Buscar un vado"}'
+        ' "velocidad": "Cruzar de un tirón", "volver": "Buscar un vado"}',
+        (av.FUERZA, av.VELOCIDAD),
     )
 
     assert escena == av.Escena(
-        "Un puente de cuerda.", "Tensar la cuerda", "Cruzar de un tirón",
+        "Un puente de cuerda.",
+        (av.FUERZA, av.VELOCIDAD),
+        ("Tensar la cuerda", "Cruzar de un tirón"),
         "Buscar un vado",
     )
 
@@ -1206,7 +1214,8 @@ def test_el_modelo_puede_envolver_el_json_en_un_bloque_de_codigo():
     sin escena."""
     escena = av.escena_desde_json(
         'Claro:\n```json\n{"situacion": "Un muro.", "fuerza": "Empujar",'
-        ' "velocidad": "Trepar", "volver": "Rodear"}\n```'
+        ' "velocidad": "Trepar", "volver": "Rodear"}\n```',
+        (av.FUERZA, av.VELOCIDAD),
     )
 
     assert escena is not None and escena.situacion == "Un muro."
@@ -1223,7 +1232,7 @@ def test_el_modelo_puede_envolver_el_json_en_un_bloque_de_codigo():
     ' "volver": "Rodear"}',
 ])
 def test_una_escena_mal_formada_no_pasa_el_filtro(crudo):
-    assert av.escena_desde_json(crudo) is None
+    assert av.escena_desde_json(crudo, (av.FUERZA, av.VELOCIDAD)) is None
 
 
 def test_una_etiqueta_larguisima_no_pasa_el_filtro():
@@ -1235,7 +1244,7 @@ def test_una_etiqueta_larguisima_no_pasa_el_filtro():
         ' "volver": "Rodear"}' % largo.strip()
     )
 
-    assert av.escena_desde_json(crudo) is None
+    assert av.escena_desde_json(crudo, (av.FUERZA, av.VELOCIDAD)) is None
 
 
 def test_toda_escena_escrita_cabe_en_un_boton_de_discord():
@@ -1244,7 +1253,7 @@ def test_toda_escena_escrita_cabe_en_un_boton_de_discord():
         assert por_lado, clave
         for escenas in por_lado.values():
             for escena in escenas:
-                for opcion in av.OPCIONES_ESCENA:
+                for opcion in escena.opciones:
                     etiqueta = escena.etiqueta(opcion)
                     assert etiqueta.strip(), (clave, opcion)
                     assert len(etiqueta) <= av.LARGO_ETIQUETA, (clave, etiqueta)
@@ -1261,7 +1270,8 @@ def test_la_escena_escrita_no_repite_la_que_acaba_de_verse():
 
     for semilla in range(20):
         assert av.escena_escrita(
-            bioma, av.FUERZA, ya_vista, random.Random(semilla)
+            bioma, (av.FUERZA, av.VELOCIDAD), av.FUERZA,
+            ya_vista, random.Random(semilla)
         ) != ya_vista
 
 
@@ -1276,7 +1286,7 @@ def test_si_el_modelo_devuelve_basura_la_aventura_sigue_con_una_escrita(monkeypa
     escena = asyncio.run(
         cog_av._pedir_escena(
             bioma, 1, "", "u1", None, random.Random(3),
-            favorecida=av.FUERZA,
+            pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
         )
     )
 
@@ -1292,7 +1302,7 @@ def test_sin_presupuesto_de_ia_no_se_llama_al_modelo(monkeypatch):
     escena = asyncio.run(
         cog_av._pedir_escena(
             av.BIOMAS["ruinas"], 1, "", "u1", None, random.Random(1),
-            favorecida=av.VELOCIDAD,
+            pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.VELOCIDAD,
         )
     )
 
@@ -1491,12 +1501,13 @@ def test_la_escena_del_modelo_sale_siempre_con_mayuscula_inicial():
     otros dos en mayúscula canta."""
     escena = av.escena_desde_json(
         '{"situacion": "un saco a tus pies.", "fuerza": "recoger el saco",'
-        ' "velocidad": "alcanzarlo antes del viento", "volver": "seguir"}'
+        ' "velocidad": "alcanzarlo antes del viento", "volver": "seguir"}',
+        (av.FUERZA, av.VELOCIDAD),
     )
     assert escena is not None
 
     assert escena.situacion.startswith("Un saco")
-    for opcion in av.OPCIONES_ESCENA:
+    for opcion in escena.opciones:
         etiqueta = escena.etiqueta(opcion)
         assert etiqueta[0].isupper(), etiqueta
 
