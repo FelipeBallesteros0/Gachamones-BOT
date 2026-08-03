@@ -85,10 +85,13 @@ def test_el_bioma_se_sortea_y_salen_todos():
 
 def terreno_de(bioma, favorecida=av.FUERZA):
     return av.Terreno(
-        bioma.dificultad - av.SESGO_TERRENO
-        if favorecida == av.FUERZA else bioma.dificultad + av.SESGO_TERRENO,
-        bioma.dificultad - av.SESGO_TERRENO
-        if favorecida == av.VELOCIDAD else bioma.dificultad + av.SESGO_TERRENO,
+        (av.FUERZA, av.VELOCIDAD),
+        (
+            bioma.dificultad - av.SESGO_TERRENO
+            if favorecida == av.FUERZA else bioma.dificultad + av.SESGO_TERRENO,
+            bioma.dificultad - av.SESGO_TERRENO
+            if favorecida == av.VELOCIDAD else bioma.dificultad + av.SESGO_TERRENO,
+        ),
     )
 
 
@@ -754,17 +757,19 @@ def test_lo_mas_probable_es_no_encontrar_salvaje():
 
     for _ in range(intentos):
         bioma = av.elegir_bioma(rng)
-        terreno = av.tirar_terreno(bioma, rng)
+        terreno = av.tirar_terreno(bioma, (av.FUERZA, av.VELOCIDAD), rng)
         viaje = av.Viaje(bioma=bioma, escena=escena_de_prueba(), terreno=terreno)
         while viaje.sigue:
             probabilidades = {
-                av.FUERZA: av.probabilidad_opcion(bicho.fuerza, viaje.terreno.fuerza),
-                av.VELOCIDAD: av.probabilidad_opcion(
-                    bicho.velocidad, viaje.terreno.velocidad
-                ),
+                stat: av.probabilidad_opcion(
+                    getattr(bicho, stat), viaje.terreno.exigencia(stat)
+                )
+                for stat in viaje.terreno.pareja
             }
             mejor = max(probabilidades, key=probabilidades.get)
-            siguiente_terreno = av.tirar_terreno(bioma, rng)
+            siguiente_terreno = av.tirar_terreno(
+                bioma, (av.FUERZA, av.VELOCIDAD), rng
+            )
             viaje = av.avanzar(
                 viaje, bicho, mejor, escena_de_prueba(), siguiente_terreno, rng
             )
@@ -1034,8 +1039,8 @@ def test_la_marca_sobrevive_aunque_los_numeros_crezcan():
 def escena_de_prueba(**cambios):
     base = dict(
         situacion="Una casa abandonada, la puerta trancada.",
-        fuerza="Forzar la puerta",
-        velocidad="Colarte por la ventana",
+        pareja=(av.FUERZA, av.VELOCIDAD),
+        etiquetas=("Forzar la puerta", "Colarte por la ventana"),
         volver="Seguir tu camino",
     )
     base.update(cambios)
@@ -1044,9 +1049,9 @@ def escena_de_prueba(**cambios):
 
 def test_cada_escena_ofrece_las_tres_opciones():
     """Fuerza, velocidad y volver. Sin las tres no hay decisión que tomar."""
-    assert av.OPCIONES_ESCENA == (av.FUERZA, av.VELOCIDAD, av.VOLVER)
     escena = escena_de_prueba()
-    for opcion in av.OPCIONES_ESCENA:
+    assert escena.opciones == (av.FUERZA, av.VELOCIDAD, av.VOLVER)
+    for opcion in escena.opciones:
         assert escena.etiqueta(opcion).strip(), opcion
 
 
@@ -1192,11 +1197,14 @@ def test_el_gachamon_dormido_solo_aparece_llegando_al_fondo():
 def test_una_escena_bien_formada_del_modelo_se_usa_tal_cual():
     escena = av.escena_desde_json(
         '{"situacion": "Un puente de cuerda.", "fuerza": "Tensar la cuerda",'
-        ' "velocidad": "Cruzar de un tirón", "volver": "Buscar un vado"}'
+        ' "velocidad": "Cruzar de un tirón", "volver": "Buscar un vado"}',
+        (av.FUERZA, av.VELOCIDAD),
     )
 
     assert escena == av.Escena(
-        "Un puente de cuerda.", "Tensar la cuerda", "Cruzar de un tirón",
+        "Un puente de cuerda.",
+        (av.FUERZA, av.VELOCIDAD),
+        ("Tensar la cuerda", "Cruzar de un tirón"),
         "Buscar un vado",
     )
 
@@ -1206,7 +1214,8 @@ def test_el_modelo_puede_envolver_el_json_en_un_bloque_de_codigo():
     sin escena."""
     escena = av.escena_desde_json(
         'Claro:\n```json\n{"situacion": "Un muro.", "fuerza": "Empujar",'
-        ' "velocidad": "Trepar", "volver": "Rodear"}\n```'
+        ' "velocidad": "Trepar", "volver": "Rodear"}\n```',
+        (av.FUERZA, av.VELOCIDAD),
     )
 
     assert escena is not None and escena.situacion == "Un muro."
@@ -1223,7 +1232,7 @@ def test_el_modelo_puede_envolver_el_json_en_un_bloque_de_codigo():
     ' "volver": "Rodear"}',
 ])
 def test_una_escena_mal_formada_no_pasa_el_filtro(crudo):
-    assert av.escena_desde_json(crudo) is None
+    assert av.escena_desde_json(crudo, (av.FUERZA, av.VELOCIDAD)) is None
 
 
 def test_una_etiqueta_larguisima_no_pasa_el_filtro():
@@ -1235,34 +1244,140 @@ def test_una_etiqueta_larguisima_no_pasa_el_filtro():
         ' "volver": "Rodear"}' % largo.strip()
     )
 
-    assert av.escena_desde_json(crudo) is None
+    assert av.escena_desde_json(crudo, (av.FUERZA, av.VELOCIDAD)) is None
 
 
 def test_toda_escena_escrita_cabe_en_un_boton_de_discord():
     """El respaldo no puede fallar por lo mismo que falla el modelo."""
-    for clave, por_lado in av.ESCENAS_ESCRITAS.items():
-        assert por_lado, clave
-        for escenas in por_lado.values():
-            for escena in escenas:
-                for opcion in av.OPCIONES_ESCENA:
-                    etiqueta = escena.etiqueta(opcion)
-                    assert etiqueta.strip(), (clave, opcion)
-                    assert len(etiqueta) <= av.LARGO_ETIQUETA, (clave, etiqueta)
-                assert len(escena.situacion) <= av.LARGO_SITUACION, clave
+    for clave, por_favorecida in av.ESCENAS_ESCRITAS.items():
+        assert por_favorecida, clave
+        for favorecida, base in por_favorecida.items():
+            for etiqueta in base.etiquetas + (base.volver,):
+                assert etiqueta.strip(), (clave, favorecida)
+                assert len(etiqueta) <= av.LARGO_ETIQUETA, (clave, etiqueta)
+            assert len(base.situacion) <= av.LARGO_SITUACION, clave
 
 
 def test_hay_escenas_escritas_para_todos_los_biomas():
     assert set(av.ESCENAS_ESCRITAS) == set(av.BIOMAS)
 
 
-def test_la_escena_escrita_no_repite_la_que_acaba_de_verse():
-    bioma = av.BIOMAS["bosque"]
-    ya_vista = av.ESCENAS_ESCRITAS["bosque"][av.FUERZA][0]
+def test_el_catalogo_es_una_base_por_bioma_y_estadistica_favorecida():
+    """Diez biomas por cuatro sendas: cuarenta bases, ni una combinación a mano.
 
-    for semilla in range(20):
-        assert av.escena_escrita(
-            bioma, av.FUERZA, ya_vista, random.Random(semilla)
-        ) != ya_vista
+    Cada base trae etiqueta para las cuatro, que es lo que deja proyectarla
+    sobre cualquiera de las seis parejas que la incluya.
+    """
+    assert len(av.ESCENAS_ESCRITAS) == len(av.BIOMAS) == 10
+    bases = [
+        base for por_favorecida in av.ESCENAS_ESCRITAS.values()
+        for base in por_favorecida.values()
+    ]
+    assert len(bases) == 40
+    for clave, por_favorecida in av.ESCENAS_ESCRITAS.items():
+        assert set(por_favorecida) == set(sim.ESTADISTICAS), clave
+        situaciones = {base.situacion for base in por_favorecida.values()}
+        assert len(situaciones) == 4, clave
+        for favorecida, base in por_favorecida.items():
+            assert base.etiqueta(favorecida) in base.etiquetas
+            assert len(set(base.etiquetas)) == 4, (clave, favorecida)
+            with pytest.raises(ValueError):
+                base.etiqueta("carisma")
+
+
+def test_la_escena_escrita_es_determinista_y_encaja_con_su_pareja():
+    """Sin `rng` ni escena que evitar: los dos nodos nunca comparten favorecida.
+
+    Se comprueban las 6 parejas × 2 lados × 10 biomas, o sea las 120
+    combinaciones que el catálogo cubre con 40 entradas.
+    """
+    for bioma in av.BIOMAS.values():
+        for pareja in av.PAREJAS:
+            for favorecida in pareja:
+                escena = av.escena_escrita(bioma, pareja, favorecida)
+                assert escena == av.escena_escrita(bioma, pareja, favorecida)
+                assert escena.pareja == pareja
+                assert escena.opciones == pareja + (av.VOLVER,)
+                base = av.ESCENAS_ESCRITAS[bioma.clave][favorecida]
+                assert escena.situacion == base.situacion
+                for opcion in pareja:
+                    assert escena.etiqueta(opcion) == base.etiqueta(opcion)
+            with pytest.raises(ValueError):
+                av.escena_escrita(bioma, pareja, av.complementaria(pareja)[0])
+
+
+def test_el_catalogo_no_confunde_salud_con_curar_ni_ingenio_con_magia():
+    """Las dos lecturas prohibidas, vigiladas con una lista corta y cerrada.
+
+    No juzga prosa: sólo que salud siga siendo aguante del cuerpo y que ingenio
+    no se convierta en un truco que acierta solo.
+    """
+    prohibidas = (
+        "curar", "sanar", "vendar", "poción", "remedio", "medicin",
+        "magia", "mágic", "hechizo", "conjuro", "adivinar", "encantamiento",
+        "profecía", "milagro",
+    )
+    for clave, por_favorecida in av.ESCENAS_ESCRITAS.items():
+        for favorecida, base in por_favorecida.items():
+            for texto in (base.situacion,) + base.etiquetas + (base.volver,):
+                plano = texto.casefold()
+                for palabra in prohibidas:
+                    assert palabra not in plano, (clave, favorecida, texto)
+                # Español neutro: se sale «a la Cumbre», nunca «salís».
+                assert not per.usa_formas_de_vosotros(texto), texto
+            for etiqueta in base.etiquetas + (base.volver,):
+                assert etiqueta[0].isupper(), (clave, etiqueta)
+
+
+def test_instantanea_de_la_escena_revisada_del_pozo_tapiado():
+    """Instantánea de una redacción revisada, no un juez de prosa en general.
+
+    La situación decía cuál de las tres tapas era la buena y el botón de
+    ingenio la abría: el acierto venía puesto y un dado bajo contradecía lo que
+    se acababa de leer. Se corrigió a mano dejando el rastro en la situación y
+    la lectura en el botón; esto clava esa copia por el asa pública. Otra
+    redacción de ingenio puede ser igual de válida: si esta cambia, que sea a
+    propósito y con la misma revisión.
+    """
+    escena = av.escena_escrita(
+        av.BIOMAS["desierto"], (av.FUERZA, av.INGENIO), av.INGENIO,
+    )
+    assert (escena.situacion, escena.etiqueta(av.INGENIO)) == (
+        "Un pozo tapiado tiene tres tapas iguales y la arena de alrededor está pisada de idas y venidas.",
+        "Leer las pisadas y ver a qué tapa vuelven",
+    )
+
+
+def test_instantanea_de_las_tres_proyecciones_de_la_barca_encallada():
+    """Instantánea de las tres parejas que leen la base de salud de la ciénaga.
+
+    La situación es de las dos sendas, no sólo de la favorecida: cuando decía
+    que sacar la barca *era* meterse en el agua, el botón de fuerza contradecía
+    la situación, y el de velocidad sacaba limo en vez de la barca. Aquí se
+    montan las tres proyecciones de una vez para ver que cada acompañante sigue
+    siendo una vía distinta sobre la misma dureza. El catálogo es respaldo
+    escrito a mano y determinista, así que se clavan las cadenas revisadas.
+    """
+    situacion = (
+        "A un pescador se le encalló la barca en el limo, y el agua de la "
+        "ciénaga está helada y el limo no suelta a la primera."
+    )
+    aguante = "Meterte en el agua fría hasta sacarla"
+    cienaga = av.BIOMAS["cienaga"]
+
+    con_fuerza = av.escena_escrita(cienaga, (av.FUERZA, av.SALUD), av.SALUD)
+    con_velocidad = av.escena_escrita(cienaga, (av.VELOCIDAD, av.SALUD), av.SALUD)
+    con_ingenio = av.escena_escrita(cienaga, (av.SALUD, av.INGENIO), av.SALUD)
+
+    for escena in (con_fuerza, con_velocidad, con_ingenio):
+        assert escena.situacion == situacion
+        assert escena.etiqueta(av.SALUD) == aguante
+
+    assert con_fuerza.etiqueta(av.FUERZA) == "Empujar la barca desde suelo firme"
+    assert con_velocidad.etiqueta(av.VELOCIDAD) == (
+        "Entrar y sacar la barca antes de que cale el frío"
+    )
+    assert con_ingenio.etiqueta(av.INGENIO) == "Hacer palanca con dos remos cruzados"
 
 
 def test_si_el_modelo_devuelve_basura_la_aventura_sigue_con_una_escrita(monkeypatch):
@@ -1275,12 +1390,14 @@ def test_si_el_modelo_devuelve_basura_la_aventura_sigue_con_una_escrita(monkeypa
 
     escena = asyncio.run(
         cog_av._pedir_escena(
-            bioma, 1, "", "u1", None, random.Random(3),
-            favorecida=av.FUERZA,
+            bioma, 1, "", "u1", None,
+            pareja=(av.FUERZA, av.VELOCIDAD), favorecida=av.FUERZA,
         )
     )
 
-    assert escena in av.ESCENAS_ESCRITAS["volcan"][av.FUERZA]
+    assert escena == av.escena_escrita(
+        bioma, (av.FUERZA, av.VELOCIDAD), av.FUERZA
+    )
 
 
 def test_sin_presupuesto_de_ia_no_se_llama_al_modelo(monkeypatch):
@@ -1291,13 +1408,15 @@ def test_sin_presupuesto_de_ia_no_se_llama_al_modelo(monkeypatch):
 
     escena = asyncio.run(
         cog_av._pedir_escena(
-            av.BIOMAS["ruinas"], 1, "", "u1", None, random.Random(1),
-            favorecida=av.VELOCIDAD,
+            av.BIOMAS["ruinas"], 1, "", "u1", None,
+            pareja=(av.SALUD, av.INGENIO), favorecida=av.INGENIO,
         )
     )
 
     llamadas.assert_not_awaited()
-    assert escena in av.ESCENAS_ESCRITAS["ruinas"][av.VELOCIDAD]
+    assert escena == av.escena_escrita(
+        av.BIOMAS["ruinas"], (av.SALUD, av.INGENIO), av.INGENIO
+    )
 
 
 # --- El árbol tal como se juega --------------------------------------------
@@ -1353,9 +1472,10 @@ def test_acertar_cambia_de_escena_sin_resolver_todavia(monkeypatch):
 
     resolver.assert_not_awaited()
     assert vista.viaje.nodos_superados == 1
-    assert vista.viaje.escena in av.ESCENAS_ESCRITAS["bosque"][
-        vista.viaje.terreno.favorecida
-    ]
+    assert vista.viaje.escena == av.escena_escrita(
+        av.BIOMAS["bosque"], vista.viaje.terreno.pareja,
+        vista.viaje.terreno.favorecida,
+    )
 
 
 def test_fallar_resuelve_la_aventura_ahi_mismo(monkeypatch):
@@ -1476,13 +1596,13 @@ def test_las_escenas_escritas_no_son_todas_puertas():
                    "pescador", "buceadora", "chatarrero", "cabra",
                    "espeleólogo")
 
-    for clave, por_lado in av.ESCENAS_ESCRITAS.items():
-        escenas = por_lado[av.FUERZA] + por_lado[av.VELOCIDAD]
-        assert len(escenas) == 4, clave
-        assert len(set(escenas)) == len(escenas), clave
+    for clave, por_favorecida in av.ESCENAS_ESCRITAS.items():
+        bases = tuple(por_favorecida.values())
+        assert len(bases) == 4, clave
+        assert len({base.situacion for base in bases}) == 4, clave
         assert any(
-            palabra.casefold() in escena.situacion.casefold()
-            for escena in escenas for palabra in con_alguien
+            palabra.casefold() in base.situacion.casefold()
+            for base in bases for palabra in con_alguien
         ), clave
 
 
@@ -1491,12 +1611,13 @@ def test_la_escena_del_modelo_sale_siempre_con_mayuscula_inicial():
     otros dos en mayúscula canta."""
     escena = av.escena_desde_json(
         '{"situacion": "un saco a tus pies.", "fuerza": "recoger el saco",'
-        ' "velocidad": "alcanzarlo antes del viento", "volver": "seguir"}'
+        ' "velocidad": "alcanzarlo antes del viento", "volver": "seguir"}',
+        (av.FUERZA, av.VELOCIDAD),
     )
     assert escena is not None
 
     assert escena.situacion.startswith("Un saco")
-    for opcion in av.OPCIONES_ESCENA:
+    for opcion in escena.opciones:
         etiqueta = escena.etiqueta(opcion)
         assert etiqueta[0].isupper(), etiqueta
 

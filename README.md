@@ -138,7 +138,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/sumo @alguien` | Reto de fuerza + 1d20. Con tres invitados es un torneo de cuatro: dos semifinales sorteadas y una final. |
 | `/totem @alguien` | Asalto al tótem: una fase de velocidad, otra de fuerza y otra de salud, cada una `estadística + 1d20`. Cada fase reparte puestos y gana quien más sume. De dos a cinco. |
 | `/laberinto @alguien` | Laberinto de Ecos: **SEÑALES**, **TRAZADO** y **NO PERDERSE**, las tres con ingenio. Cada fase se juega contra un eco común y gana quien más puertas abre. De dos a cinco. |
-| `/aventura` | Sal al campo con tu activo: dos decisiones —fuerza, velocidad o volverse— y quizá un objeto o un gachamon salvaje. |
+| `/aventura` | Sal al campo con tu activo: dos decisiones, cada una entre dos de las cuatro sendas —fuerza, velocidad, salud o ingenio— o volverse, y quizá un objeto o un gachamon salvaje. |
 | `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
 | `/cementerio` | Las que ya no están. |
@@ -165,10 +165,19 @@ ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
 **Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
 azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
 cumbre, ruinas, cavernas y volcán— y os planta delante una escena
-con **tres salidas**: fuerza, velocidad o volverse. Las dos primeras tiran
+con **tres salidas**: volverse y **dos de las cuatro sendas** —fuerza,
+velocidad, salud o ingenio—, sorteadas para esa escena. Las dos sendas tiran
 `stat + 1d20` contra la dificultad del bioma y **cuestan lo mismo**: si una fuera
 más barata, la otra no la elegiría nadie y la decisión sería un adorno. Volver no
 arriesga nada, pero tampoco cuenta como nodo superado.
+
+**Las cuatro sendas, dos por escena.** El primer nodo sortea una de las **seis
+parejas** posibles y el segundo trae siempre **la complementaria**, o sea las dos
+que faltan: en un viaje entero cada senda aparece **exactamente una vez**, y
+nunca hay que elegir entre las cuatro a la vez. El terreno favorece a una de las
+dos activas con `D−2` frente a `D+2`, sorteado **sin mirar al gachamon**. Salud
+es aguante del cuerpo —frío, humo, corriente, cansancio—, nunca curarse; ingenio
+es leer señales, recordar la ruta o improvisar, nunca magia.
 
 **La espera de 37 minutos es de la persona, no del gachamon**, y por eso vive en
 `cooldowns_persona` y no en `cooldowns`. Es la única que lo hace: cuidar y

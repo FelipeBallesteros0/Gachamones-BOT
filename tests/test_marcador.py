@@ -128,10 +128,13 @@ def viaje_de(bioma="planicie", nodos=2):
     """Un viaje ya cerrado, como el que llega a `resolver`."""
     destino = av.BIOMAS[bioma]
     terreno = av.Terreno(
-        destino.dificultad - av.SESGO_TERRENO,
-        destino.dificultad + av.SESGO_TERRENO,
+        (av.FUERZA, av.VELOCIDAD),
+        (
+            destino.dificultad - av.SESGO_TERRENO,
+            destino.dificultad + av.SESGO_TERRENO,
+        ),
     )
-    escena = av.ESCENAS_ESCRITAS[bioma][av.FUERZA][0]
+    escena = av.escena_escrita(destino, (av.FUERZA, av.VELOCIDAD), av.FUERZA)
     pruebas = tuple(
         av.Prueba(obstaculo=f"tramo {i}", stat=av.FUERZA, base=10, dado=20,
                   dificultad=1)
@@ -155,6 +158,29 @@ def test_el_viaje_apunta_la_aventura_el_bioma_y_los_nodos():
         logros.NODOS: 2,
         logros.clave_de_bioma("planicie"): 1,
     }
+
+
+def test_salud_e_ingenio_cruzan_la_economia_y_el_marcador_sin_caso_especial():
+    bicho = nacer()
+    bioma = av.BIOMAS["planicie"]
+    pareja = (av.SALUD, av.INGENIO)
+    escena = av.Escena(
+        "Un tramo exigente.", pareja,
+        ("Resistir el cansancio", "Observar las señales"), "Volver",
+    )
+    terreno = av.Terreno(pareja, (1, 1))
+    pruebas = (
+        av.Prueba("Resistir", av.SALUD, 10, 20, 1),
+        av.Prueba("Observar", av.INGENIO, 10, 20, 1),
+    )
+    viaje = av.Viaje(bioma, escena, terreno, pruebas=pruebas, nivel=2)
+
+    resultado = economia.ejecutar_viaje(
+        "u1", "g1", bicho.id, viaje.salida, T0, viaje=viaje
+    )
+
+    assert not resultado.problema
+    assert db.marcador(bicho.id)[logros.NODOS] == 2
 
 
 def test_volver_al_mismo_bioma_no_abre_uno_nuevo():

@@ -96,38 +96,47 @@ async def _narrar(
     return texto
 
 
-EMOJI_OPCION = {av.FUERZA: "💪", av.VELOCIDAD: "💨", av.VOLVER: "🚶"}
+# El emoji sale del dominio para que las cuatro sendas se vean igual aquí y en
+# las pistas del viaje; sólo Volver es de la vista, porque no es una senda.
+EMOJI_OPCION = {**av.EMOJI_STAT, av.VOLVER: "🚶"}
+# Con cuatro sendas y cuatro estilos de Discord, el gris queda reservado para
+# Volver —es su identidad de salida segura— y una pareja repite azul. Se asume:
+# lo que identifica la senda es el emoji y la banda de riesgo, no el color.
 ESTILO_OPCION = {
     av.FUERZA: discord.ButtonStyle.danger,
     av.VELOCIDAD: discord.ButtonStyle.primary,
+    av.SALUD: discord.ButtonStyle.success,
+    av.INGENIO: discord.ButtonStyle.primary,
     av.VOLVER: discord.ButtonStyle.secondary,
 }
 LARGO_BOTON = 80  # lo que admite Discord en una etiqueta
 
 
 async def _pedir_escena(
-    bioma: av.Bioma, nivel: int, antes: str, usuario_id: str, ahora,
-    rng: random.Random, evitar: av.Escena | None = None, *, favorecida: str,
+    bioma: av.Bioma, nivel: int, antes: str, usuario_id: str, ahora, *,
+    pareja: av.Pareja, favorecida: str,
 ) -> av.Escena:
     """La escena del nodo: la inventa el modelo y, si no puede, va una escrita.
 
     El respaldo se calcula siempre, antes de pedir nada: si el modelo devuelve
     algo que no cuadra, la aventura tiene que seguir igualmente. Un árbol que se
-    queda sin escena deja a alguien con tres botones vacíos.
+    queda sin escena deja a alguien con tres botones vacíos. Ya no consume
+    dados: el respaldo es determinista y los dos nodos de un viaje nunca
+    comparten estadística favorecida.
     """
-    escrita = av.escena_escrita(bioma, favorecida, evitar, rng)
+    escrita = av.escena_escrita(bioma, pareja, favorecida)
     if db.uso_ia_ultima_hora(usuario_id, ahora) >= config.LIMITE_CHARLA_POR_HORA:
         return escrita
 
     db.registrar_uso_ia(usuario_id, ahora)
     sistema, peticion = per.prompt_escena(
         bioma.adonde, nivel, antes, especies=bioma.nombres_especies,
-        favorecida=favorecida,
+        pareja=pareja, favorecida=favorecida,
     )
     crudo = await ia.generar_crudo(sistema, peticion)
     if not crudo:
         return escrita
-    return av.escena_desde_json(crudo) or escrita
+    return av.escena_desde_json(crudo, pareja) or escrita
 
 
 class ViajeView(discord.ui.View):
@@ -163,13 +172,10 @@ class ViajeView(discord.ui.View):
         etiqueta al escribir la clase, y aquí la escribe el modelo en marcha.
         """
         self.clear_items()
-        for opcion in av.OPCIONES_ESCENA:
+        for opcion in self.viaje.escena.opciones:
             etiqueta = self.viaje.escena.etiqueta(opcion)
             if opcion != av.VOLVER:
-                stat = (
-                    self.criatura.fuerza if opcion == av.FUERZA
-                    else self.criatura.velocidad
-                )
+                stat = getattr(self.criatura, opcion)
                 etiqueta += (
                     f" · {av.banda_opcion(stat, self.viaje.terreno.exigencia(opcion))}"
                 )
@@ -233,12 +239,16 @@ class ViajeView(discord.ui.View):
             beat = av.render_beat(prueba)
 
             if self.viaje.sigue:
-                terreno = av.tirar_terreno(self.viaje.bioma, rng)
+                # La pareja del segundo nodo no se sortea ni se guarda: son las
+                # dos estadísticas que no salieron en el primero. Vale igual tras
+                # Volver, que no tira dado pero deja el nodo anterior en mano.
+                pareja = av.complementaria(anterior.terreno.pareja)
+                terreno = av.tirar_terreno(self.viaje.bioma, pareja, rng)
                 escena = await _pedir_escena(
                     self.viaje.bioma, self.viaje.nivel + 1,
                     _continuacion(anterior.escena, opcion),
-                    str(self.dueño.id), db.ahora_utc(), rng, anterior.escena,
-                    favorecida=terreno.favorecida,
+                    str(self.dueño.id), db.ahora_utc(),
+                    pareja=pareja, favorecida=terreno.favorecida,
                 )
                 self.viaje = replace(
                     self.viaje, escena=escena, terreno=terreno
@@ -587,10 +597,13 @@ class Aventura(commands.Cog):
         await vistas.congelar(canal_anterior, criatura.pantalla_msg_id)
         await interaccion.response.defer()
 
-        terreno = av.tirar_terreno(bioma, rng)
+        # Las dos sendas del primer nodo salen uniformes de entre las seis
+        # parejas; el segundo nodo será la complementaria y no vuelve a sortear.
+        pareja = av.tirar_pareja(rng)
+        terreno = av.tirar_terreno(bioma, pareja, rng)
         escena = await _pedir_escena(
-            bioma, 1, "", usuario_id, ahora, rng,
-            favorecida=terreno.favorecida,
+            bioma, 1, "", usuario_id, ahora,
+            pareja=pareja, favorecida=terreno.favorecida,
         )
         viaje = av.Viaje(bioma=bioma, escena=escena, terreno=terreno)
         vista = ViajeView(

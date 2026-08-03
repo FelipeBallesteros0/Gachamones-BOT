@@ -63,6 +63,7 @@ def test_prompts_usan_gachamon_y_aventura_nombra_comida():
     )[0]
     escena = per.prompt_escena(
         "al bosque", 1, especies=aventura.BIOMAS["bosque"].nombres_especies,
+        pareja=(aventura.FUERZA, aventura.VELOCIDAD),
         favorecida=aventura.FUERZA,
     )[0]
     voz_salvaje = per.prompt_salvaje(contexto_salvaje(salvaje, c))[0]
@@ -213,6 +214,7 @@ def test_la_escena_solo_puede_nombrar_a_los_del_bioma():
     for clave, bioma in aventura.BIOMAS.items():
         sistema, _ = per.prompt_escena(
             bioma.adonde, 1, especies=bioma.nombres_especies,
+            pareja=(aventura.FUERZA, aventura.VELOCIDAD),
             favorecida=aventura.FUERZA,
         )
         for nombre in bioma.nombres_especies:
