@@ -1545,6 +1545,9 @@ def test_dos_semillas_iguales_dan_el_mismo_laberinto():
 CRUZA_UNO = [5, 10, 1]
 CRUZAN_DOS = [1, 10, 10]
 NO_CRUZA_NADIE = [20, 1, 1]
+# A iguala el eco exacto (10 + 10 = 20) y B se queda corto: el empate es del
+# eco, así que nadie cruza y nadie abre puerta.
+EMPATA_UNO = [10, 10, 1]
 
 
 def beats_de(guion):
@@ -1647,6 +1650,30 @@ def test_la_narracion_del_laberinto_cuenta_single_plural_y_nadie():
         "El eco confunde las señales: nadie cruza.",
         "Los pasillos se repiten: nadie avanza.",
         "El laberinto retiene a todos una vuelta más.",
+    ]
+
+
+def test_el_empate_con_el_eco_no_cruza_en_ninguna_de_las_tres_superficies():
+    """El empate lo gana el eco también en lo que se ve, no sólo al contar.
+
+    La marca, la narración y la clasificación parcial salen de tres sitios
+    distintos, así que hace falta el empate exacto para que las tres digan lo
+    mismo: aflojar cualquiera a `>=` enseñaría un `✓` y un «A descifra las
+    señales» encima de un cuadro donde A sigue con cero puertas.
+    """
+    fotogramas, _, resultado = beats_de(EMPATA_UNO * 3)
+    ronda = resultado.rondas[0]
+    assert ronda.totales[0] == ronda.eco and ronda.totales[1] < ronda.eco
+
+    primero = lineas(fotogramas[0])
+    marcas = [linea for linea in primero if "+d20" in linea]
+    assert marcas[0][1] == "✗" and "A" in marcas[0]
+    assert narraciones_de(fotogramas[:1]) == [
+        "El eco confunde las señales: nadie cruza.",
+    ]
+    assert [linea for linea in primero if "puerta" in linea] == [
+        "│ 1. A          0 puertas  │",
+        "│ 2. B          0 puertas  │",
     ]
 
 
