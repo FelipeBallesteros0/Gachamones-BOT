@@ -38,6 +38,13 @@ def competir(evento, cuando=T0, usuarios=("u1", "u2"), semilla=1):
     )
 
 
+def laberinto(evento, cuando=T0, usuarios=("u1", "u2"), rng=None):
+    return economia.ejecutar_competencia(
+        evento, usuarios, "g1", comp.LABERINTO,
+        cuando, rng or random.Random(1),
+    )
+
+
 def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
     recibo = economia.ReciboCompetencia(
         usuario_id="u1",
@@ -432,6 +439,119 @@ def test_el_replay_de_un_totem_conserva_premios_y_marcador_sin_tirar_dados():
     assert (
         db.criatura_activa("u1", "g1"), db.criatura_activa("u2", "g1")
     ) == primero.despues
+
+
+def test_el_laberinto_apunta_su_marcador_y_no_los_otros():
+    nacer("u1")
+    nacer("u2")
+
+    resultado = laberinto("laberinto-marcador")
+
+    assert resultado.encuentro is not None
+    campeon = resultado.despues[resultado.encuentro.orden[0]]
+    marcador = db.marcador(campeon.id)
+    assert marcador.get(lgr.LABERINTOS) == 1
+    assert all(
+        marcador.get(clave, 0) == 0
+        for clave in (lgr.CARRERAS, lgr.SUMOS, lgr.TOTEMS, lgr.TORNEOS)
+    )
+
+
+def test_el_replay_del_laberinto_conserva_premios_sin_tirar_dados():
+    class RngProhibido(random.Random):
+        def randint(self, a, b):
+            raise AssertionError("un replay no vuelve a tirar")
+
+    nacer("u1")
+    nacer("u2")
+    primero = laberinto("laberinto-replay", rng=random.Random(3))
+    laberinto("laberinto-posterior", T0 + timedelta(minutes=11))
+    saldos = tuple(economia.saldos(usuario, "g1") for usuario in ("u1", "u2"))
+    criaturas = tuple(
+        db.criatura_activa(usuario, "g1") for usuario in ("u1", "u2")
+    )
+
+    replay = laberinto("laberinto-replay", rng=RngProhibido())
+
+    assert replay.replay
+    assert replay.recibos == primero.recibos
+    assert tuple(
+        economia.saldos(usuario, "g1") for usuario in ("u1", "u2")
+    ) == saldos
+    assert tuple(
+        db.criatura_activa(usuario, "g1") for usuario in ("u1", "u2")
+    ) == criaturas
+
+
+def test_el_laberinto_entrena_solo_ingenio():
+    nacidas = (nacer("u1"), nacer("u2"))
+
+    resultado = laberinto("laberinto-entrena")
+
+    for dorsal, (antes, despues, recibo) in enumerate(zip(
+        nacidas, resultado.despues, resultado.recibos,
+    )):
+        assert despues.ent_ingenio == antes.ent_ingenio + 1
+        assert (
+            despues.ent_fuerza, despues.ent_velocidad, despues.ent_salud,
+        ) == (antes.ent_fuerza, antes.ent_velocidad, antes.ent_salud)
+        texto = cog_comp.texto_recibo_competencia(
+            recibo,
+            f"<@u{dorsal + 1}>",
+            gano=resultado.encuentro is not None
+            and dorsal == resultado.encuentro.orden[0],
+            stats=comp.STATS[comp.LABERINTO],
+            entrenada="ingenio",
+        )
+        assert "ingenio +1 entrenamiento" in texto
+
+
+def test_el_laberinto_deja_veta_de_ingenio():
+    uno = nacer("u1")
+    nacer("u2")
+    db.guardar(replace(uno, ten_ingenio=20.0))
+
+    resultado = laberinto("laberinto-veta")
+
+    sufijo = resultado.despues[0].historial_vetas.removeprefix(
+        resultado.antes[0].historial_vetas
+    )
+    assert sufijo
+    assert set(sufijo) == {"I"}
+
+
+def test_el_laberinto_pone_cooldown_competir_a_todos():
+    nacidas = (nacer("u1"), nacer("u2"))
+
+    laberinto("laberinto-cooldown")
+
+    assert all(
+        db.espera_de(criatura.id, sim.COMPETIR, T0) > timedelta(0)
+        for criatura in nacidas
+    )
+
+
+def test_el_laberinto_respeta_el_tope_diario_de_competencias():
+    nacer("u1")
+    nacer("u2")
+    resultados = [
+        laberinto(f"laberinto-tope-{i}", T0 + timedelta(minutes=11 * i))
+        for i in range(4)
+    ]
+
+    ultimo = resultados[-1]
+    assert all(recibo.topada for recibo in ultimo.recibos)
+    assert all(
+        "(tope)" in cog_comp.texto_recibo_competencia(
+            recibo,
+            f"<@u{dorsal + 1}>",
+            gano=ultimo.encuentro is not None
+            and dorsal == ultimo.encuentro.orden[0],
+            stats=comp.STATS[comp.LABERINTO],
+            entrenada="ingenio",
+        )
+        for dorsal, recibo in enumerate(ultimo.recibos)
+    )
 
 
 def test_sumo_paga_al_ganador_de_intercambios_y_el_replay_no_tira_dados():

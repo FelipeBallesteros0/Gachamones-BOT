@@ -304,8 +304,16 @@ def _cobrar_logros(
 
 
 def _contar_acreditadas(
-    con, usuario_id: str, guild_id: str, fecha: str, tipo: str
+    con, usuario_id: str, guild_id: str, fecha: str, tipo: str,
+    hasta: int | None = None,
 ) -> int:
+    if hasta is not None:
+        return con.execute(
+            "SELECT COUNT(*) FROM operaciones_economia "
+            "WHERE usuario_id = ? AND guild_id = ? AND fecha_utc = ? "
+            "AND tipo = ? AND resultado = 'acreditada' AND rowid <= ?",
+            (usuario_id, guild_id, fecha, tipo, hasta),
+        ).fetchone()[0]
     return con.execute(
         "SELECT COUNT(*) FROM operaciones_economia "
         "WHERE usuario_id = ? AND guild_id = ? AND fecha_utc = ? "
@@ -361,7 +369,7 @@ def _resolver_recompensa(
 
 def _registrar_recompensa(
     con, evento_id: str, usuario_id: str, guild_id: str, fecha: str,
-    tipo: str, monto: int, limite: int, solicitud: str,
+    tipo: str, monto: int, limite: int | None, solicitud: str,
 ) -> tuple[int, int, bool]:
     delta, usados, topada = _resolver_recompensa(
         con, usuario_id, guild_id, fecha, tipo, monto, limite
@@ -728,6 +736,7 @@ MARCADOR_DE_MODALIDAD = {
     comp.CARRERA: lgr.CARRERAS,
     comp.SUMO: lgr.SUMOS,
     comp.TOTEM: lgr.TOTEMS,
+    comp.LABERINTO: lgr.LABERINTOS,
 }
 
 
@@ -736,8 +745,8 @@ def _replay_competencia(
     guild_id: str, solicitud: str,
 ) -> ResultadoCompetencia | None:
     filas = con.execute(
-        "SELECT * FROM operaciones_economia WHERE evento_id = ? "
-        "AND guild_id = ? AND tipo = 'competencia'",
+        "SELECT rowid AS orden_ledger, * FROM operaciones_economia "
+        "WHERE evento_id = ? AND guild_id = ? AND tipo = 'competencia'",
         (evento_id, guild_id),
     ).fetchall()
     if not filas:
@@ -751,7 +760,8 @@ def _replay_competencia(
         if fila["solicitud"] != solicitud:
             raise RuntimeError("el evento de competencia pertenece a otro encuentro")
         evolucion = con.execute(
-            "SELECT resultado, delta_asciicoins FROM operaciones_economia "
+            "SELECT rowid AS orden_ledger, fecha_utc, resultado, "
+            "delta_asciicoins FROM operaciones_economia "
             "WHERE evento_id = ? AND usuario_id = ? AND guild_id = ? "
             "AND tipo = 'evolucion'",
             (evento_id, usuario_id, guild_id),
@@ -763,11 +773,13 @@ def _replay_competencia(
             delta_competencia=fila["delta_asciicoins"],
             delta_evolucion=delta_evolucion,
             usados=_contar_acreditadas(
-                con, usuario_id, guild_id, fila["fecha_utc"], "competencia"
+                con, usuario_id, guild_id, fila["fecha_utc"], "competencia",
+                fila["orden_ledger"],
             ),
             evolucion_usadas=(
                 _contar_acreditadas(
-                    con, usuario_id, guild_id, fila["fecha_utc"], "evolucion"
+                    con, usuario_id, guild_id, evolucion["fecha_utc"], "evolucion",
+                    evolucion["orden_ledger"],
                 ) if evolucion else 0
             ),
             topada=fila["resultado"] == "topada",
@@ -1233,6 +1245,7 @@ def comprar_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=estorbo,
             )
+        assert casa is not None
         if mueble.clave in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
@@ -1282,6 +1295,7 @@ def colocar_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=estorbo,
             )
+        assert casa is not None
         if mueble.clave not in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,

@@ -47,6 +47,7 @@ SUMOS = "sumos_ganados"
 # Aparte de `SUMOS` aunque las dos sean peleas: apuntarlos juntos cobraría
 # «Yokozuna» con tótems, y no habría forma de separarlos después.
 TOTEMS = "totems_ganados"
+LABERINTOS = "laberintos_ganados"
 TORNEOS = "torneos_ganados"
 AVENTURAS = "aventuras"
 NODOS = "nodos_superados"
@@ -151,12 +152,12 @@ def hechos_de(
     hechos.update({
         NIVEL: criatura.nivel,
         VICTORIAS: criatura.victorias,
-        DIAS_DE_VIDA: int(criatura.edad_horas(ahora) // 24),
+        DIAS_DE_VIDA: (ahora - criatura.nacida_en).days,
         BIOMAS_PISADOS: sum(
             1 for clave in marcador if clave.startswith(PREFIJO_BIOMA)
         ),
-        NACIO_EN_LA_ALFA: int(nacio_en_la_alfa),
-        SIGUE_VIVA: int(criatura.viva),
+        NACIO_EN_LA_ALFA: 1 if nacio_en_la_alfa else 0,
+        SIGUE_VIVA: 1 if criatura.viva else 0,
     })
     return hechos
 
@@ -170,9 +171,9 @@ def hechos_de_la_persona(
     salido una rara no deja de haber pasado porque se te muera.
     """
     hechos = dict(marcador)
-    hechos[TUVO_RARA] = int(any(
+    hechos[TUVO_RARA] = 1 if any(
         esp.ESPECIES[clave].rareza == esp.RARA for clave in especies
-    ))
+    ) else 0
     return hechos
 
 
