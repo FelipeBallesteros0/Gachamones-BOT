@@ -1408,6 +1408,33 @@ def test_cuidado_con_tension_no_dice_que_no_deja_marca(
     assert "permanecen quietas" not in aviso
 
 
+def test_el_eco_de_vetas_no_declara_quietud_si_cambio_ingenio():
+    """La marca sale de comparar las tensiones **enumeradas** del dominio.
+
+    Un esfuerzo que sólo toca el ingenio —lo único que emite el laberinto—
+    tiene que contar como movimiento. Con una enumeración de tres canales la
+    criatura se movería y las dos superficies dirían que está quieta.
+    """
+    antes = criatura(1, "Mia", True, "ficha")
+    despues, rupturas = sim.aplicar_evento(
+        antes, (sim.Esfuerzo("ingenio", 3.0, causa=sim.COMPETIR),), 0
+    )
+    marca = bool(rupturas or sim._tensiones(despues) != sim._tensiones(antes))
+    assert despues.ten_ingenio > antes.ten_ingenio
+    assert marca, "mover sólo el ingenio ya es mover las vetas"
+
+    eco = vistas._eco_vetas_cuidado(economia.ResultadoCuidado(
+        criatura=despues, mensaje="", rupturas=rupturas, marca=marca,
+    ))
+    assert eco == "-# Algo se pone en movimiento bajo sus vetas."
+    assert "permanecen quietas" not in eco
+
+    resumen = vistas._resumen_participante(sim.ResultadoAccion(
+        criatura=despues, mensaje="", rupturas=rupturas, marca=marca,
+    ))
+    assert "vetas quietas" not in resumen
+
+
 def test_cuidado_con_ruptura_deja_el_eco_al_anuncio_existente(
     bd_temporal, monkeypatch
 ):

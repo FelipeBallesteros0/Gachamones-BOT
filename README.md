@@ -19,10 +19,15 @@ es ASCII dentro de bloques de código: ni una sola imagen.
 │ ANIMO   ███████████░  92 │
 │ ASEO    ████████░░░░  70 │
 ├──────────────────────────┤
-│ FUE 11   VEL 21   SAL 11 │
+│     FUE 11   VEL 21      │
+│     SAL 11   ING  9      │
 ╰──────────────────────────╯
 [🍖 Alimentar] [🎮 Jugar] [🏋️ Entrenar] [🧼 Limpiar] [🔄 Actualizar]
 ```
+
+Son **cuatro estadísticas** —fuerza, velocidad, salud e ingenio— y salen en
+dos filas porque en una sola no caben sin recortar los números. Las cuatro se
+tiran al nacer, sobre la base de la especie.
 
 ## Puesta en marcha
 

@@ -520,6 +520,16 @@ def test_el_laberinto_deja_veta_de_ingenio():
     assert set(sufijo) == {"I"}
 
 
+def test_la_ficha_se_republica_si_solo_se_movio_la_tension_de_ingenio():
+    """El laberinto sólo tensa el ingenio: si la comparación se quedara en los
+    tres canales de siempre, la ficha nueva no llegaría a publicarse nunca."""
+    antes = nacer("u1")
+    despues = replace(antes, ten_ingenio=antes.ten_ingenio + 3.0)
+
+    assert cog_comp._ha_cambiado_la_ficha(antes, despues)
+    assert not cog_comp._ha_cambiado_la_ficha(antes, replace(antes))
+
+
 def test_el_laberinto_pone_cooldown_competir_a_todos():
     nacidas = (nacer("u1"), nacer("u2"))
 

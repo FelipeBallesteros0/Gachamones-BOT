@@ -86,8 +86,10 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
         antes.nivel != despues.nivel
         or antes.etapa != despues.etapa
         or antes.historial_vetas != despues.historial_vetas
-        or (antes.ten_fuerza, antes.ten_velocidad, antes.ten_salud)
-        != (despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud)
+        or (antes.ten_fuerza, antes.ten_velocidad, antes.ten_salud,
+            antes.ten_ingenio)
+        != (despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud,
+            despues.ten_ingenio)
     )
 
 
