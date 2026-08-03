@@ -200,6 +200,21 @@ def test_la_ayuda_dice_que_las_estadisticas_de_nacimiento_son_cuatro():
         assert stat in ayuda, stat
 
 
+def test_la_ayuda_mapea_cada_entrenamiento_sin_prometer_subida_inmediata():
+    ayuda = "\n".join(social.paginas_de_ayuda("Gachamones"))
+
+    for regla in (
+        "**Alimentar** → Salud +1 entrenamiento si no hay empacho.",
+        "**Jugar** → Velocidad +1 entrenamiento.",
+        "**Entrenar fuerza** → Fuerza +2 entrenamiento.",
+        "**Laberinto completado** → Ingenio +1 entrenamiento por participante.",
+    ):
+        assert regla in ayuda, regla
+    assert "puntos de entrenamiento" in ayuda
+    assert "raíz cuadrada" in ayuda
+    assert "no siempre cambia el número visible" in ayuda
+
+
 # --- Los nombres de las especies -------------------------------------------
 #
 # Jugando salió «un grupo de chispas», y Chispa dejó de existir el 31 de julio:

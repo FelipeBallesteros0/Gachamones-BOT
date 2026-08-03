@@ -77,7 +77,7 @@ def test_recibo_de_entrenamiento_detalla_efecto_costo_recompensa_y_tope():
     )
 
     assert vistas.texto_recibo_cuidado(resultado, sim.ENTRENAR) == (
-        "-# 🏋️ Entrenar · fuerza +2 entrenamiento · +3 XP · "
+        "-# 🏋️ Entrenar fuerza · fuerza +2 entrenamiento · +3 XP · "
         "coste base -15 comida · coste base -10 ánimo · "
         "🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
@@ -95,6 +95,7 @@ def test_recibos_de_cuidado_redondean_los_stats_vivos():
         mensaje="Ñam.",
         delta_asciicoins=1,
         usados=1,
+        ent_salud_ganada=1,
     )
 
     recibos = {
@@ -102,13 +103,15 @@ def test_recibos_de_cuidado_redondean_los_stats_vivos():
         for accion in (sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR)
     }
     assert recibos[sim.ALIMENTAR] == (
-        "-# 🍖 Alimentar · comida 90 · ánimo 100 · +1 XP · "
-        "🪙 +1 asciicoins · cuidado 1/12 UTC"
+        "-# 🍖 Alimentar · comida 90 · ánimo 100 · salud +1 entrenamiento · "
+        "+1 XP · 🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
     assert recibos[sim.JUGAR] == (
         "-# 🪀 Jugar · ánimo 100 · velocidad +1 entrenamiento · +2 XP · "
         "coste base -5 comida · 🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
+    empacho = replace(resultado, ent_salud_ganada=0)
+    assert "salud" not in vistas.texto_recibo_cuidado(empacho, sim.ALIMENTAR)
 
     decimal_vivo = re.compile(r"(?:comida|ánimo|aseo) -?\d+\.\d+")
     for recibo in recibos.values():
@@ -123,11 +126,11 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
         criatura=base,
         mensaje="Entrenamiento duro.",
         delta_asciicoins=0,
-        usados=economia.TOPE_CUIDADOS,
+        usados=5,
         topada=True,
     )
     assert vistas.texto_recibo_cuidado(topada, sim.ENTRENAR).endswith(
-        "🪙 +0 asciicoins · cuidado 12/12 UTC (tope)"
+        "🪙 +0 asciicoins (tope diario) · cuidado 5/12 UTC"
     )
 
     evolucion = economia.ResultadoCuidado(
@@ -141,7 +144,7 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
         topada=True,
     )
     assert vistas.texto_recibo_cuidado(evolucion, sim.ENTRENAR).endswith(
-        "🪙 +0 asciicoins · cuidado 12/12 UTC (tope) · "
+        "🪙 +0 asciicoins (tope diario) · cuidado 12/12 UTC · "
         "evolución +10 · 1/1 UTC"
     )
 
@@ -1302,8 +1305,8 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             "alimentar",
             sim.ALIMENTAR,
             {"hambre": 50.0, "animo": 70.0},
-            "-# 🍖 Alimentar · comida 80 · ánimo 70 · +1 XP · "
-            "🪙 +1 asciicoins · cuidado 1/12 UTC",
+            "-# 🍖 Alimentar · comida 80 · ánimo 70 · salud +1 entrenamiento · "
+            "+1 XP · 🪙 +1 asciicoins · cuidado 1/12 UTC",
         ),
         (
             "empacho",
@@ -1323,7 +1326,7 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             "entrenar",
             sim.ENTRENAR,
             {"hambre": 80.0, "animo": 70.0},
-            "-# 🏋️ Entrenar · fuerza +2 entrenamiento · +3 XP · "
+            "-# 🏋️ Entrenar fuerza · fuerza +2 entrenamiento · +3 XP · "
             "coste base -15 comida · coste base -10 ánimo · "
             "🪙 +1 asciicoins · cuidado 1/12 UTC",
         ),

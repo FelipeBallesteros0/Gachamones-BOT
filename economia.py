@@ -64,6 +64,7 @@ class ResultadoCuidado:
     etapa_anterior: str | None = None
     delta_asciicoins: int = 0
     delta_evolucion: int = 0
+    ent_salud_ganada: int = 0
     usados: int = 0
     limite: int = TOPE_CUIDADOS
     evolucion_usadas: int = 0
@@ -448,9 +449,9 @@ def otorgar_hallazgo(
 
 def _envolver_cuidado(
     resultado: sim.ResultadoAccion, *, delta: int = 0,
-    delta_evolucion: int = 0, usados: int = 0,
-    evolucion_usadas: int = 0, topada: bool = False,
-    sin_efecto: bool = False,
+    delta_evolucion: int = 0, ent_salud_ganada: int = 0,
+    usados: int = 0, evolucion_usadas: int = 0,
+    topada: bool = False, sin_efecto: bool = False,
 ) -> ResultadoCuidado:
     return ResultadoCuidado(
         criatura=resultado.criatura,
@@ -463,6 +464,7 @@ def _envolver_cuidado(
         etapa_anterior=resultado.etapa_anterior,
         delta_asciicoins=delta + delta_evolucion,
         delta_evolucion=delta_evolucion,
+        ent_salud_ganada=ent_salud_ganada,
         usados=usados,
         evolucion_usadas=evolucion_usadas,
         topada=topada,
@@ -560,6 +562,7 @@ def ejecutar_cuidado(
             resultado,
             delta=delta,
             delta_evolucion=delta_evolucion,
+            ent_salud_ganada=resultado.criatura.ent_salud - criatura.ent_salud,
             usados=usados,
             evolucion_usadas=evolucion_usadas,
             topada=topada,
