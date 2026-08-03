@@ -316,15 +316,14 @@ def test_subir_de_nivel_no_fuerza_crecimiento_si_todo_esta_topado():
         base_fuerza=sim.MAXIMO_STAT,
         base_velocidad=sim.MAXIMO_STAT,
         base_salud=sim.MAXIMO_STAT,
+        base_ingenio=sim.MAXIMO_STAT,
     )
 
     subida, rupturas = sim.aplicar_xp(apunto, 1)
 
-    assert (subida.fuerza, subida.velocidad, subida.salud) == (
-        sim.MAXIMO_STAT,
-        sim.MAXIMO_STAT,
-        sim.MAXIMO_STAT,
-    )
+    assert (
+        subida.fuerza, subida.velocidad, subida.salud, subida.ingenio,
+    ) == (sim.MAXIMO_STAT,) * 4
     assert rupturas == []
 
 

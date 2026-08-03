@@ -770,13 +770,13 @@ def test_el_mensaje_final_de_un_totem_de_cinco_cabe_en_un_mensaje_de_discord():
 def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
     """Integración: la evolución que confirma la transacción es la que crece.
 
-    Con fuerza y salud ya en el tope visible, la única que puede crecer es la
-    velocidad, y los tres esfuerzos del tótem no pueden dejarla sin veta.
+    Con fuerza, salud e ingenio ya en el tope visible, la única que puede
+    crecer es la velocidad, y el tótem no puede dejarla sin veta.
     """
     for usuario in ("u1", "u2"):
         nacida = db.crear(
             usuario, "g1", "pulpo", usuario,
-            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT, 15), T0,
+            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT, sim.MAXIMO_STAT), T0,
         )
         db.guardar(replace(
             nacida,
@@ -794,11 +794,11 @@ def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
     despues = resultado.despues[ganador]
 
     assert antes.etapa != despues.etapa
-    assert (antes.fuerza, antes.velocidad, antes.salud) == (
-        sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT
+    assert (antes.fuerza, antes.velocidad, antes.salud, antes.ingenio) == (
+        sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
     )
-    assert (despues.fuerza, despues.velocidad, despues.salud) == (
-        sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT
+    assert (despues.fuerza, despues.velocidad, despues.salud, despues.ingenio) == (
+        sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
     )
 
     rupturas = resultado.rupturas[ganador]
