@@ -735,7 +735,7 @@ def nombre_etapa(etapa: str, genero: str = MACHO) -> str:
 # --------------------------------------------------------------------------
 
 _registrar(Especie(
-    clave="swampdon", nombre="Swampdón", emoji="🐸", color=VERDE,
+    clave="swampdon", nombre="Swampdón", emoji="🟤", color=VERDE,
     fuerza=9, velocidad=4, salud=11, ingenio=8, rareza=COMUN, peso=0.0,
     descripcion="Un pegote de barro con ojos. Se hunde a propósito.",
     caras={FELIZ: "^v^", NORMAL: "o.o", MAL: "x_x"},
