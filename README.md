@@ -2,8 +2,8 @@
 
 Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
 gachamones al azar —hay 25 en total; los otros 15 se encuentran por ahí—, se cuida con los botones bajo el mensaje y compite contra los
-de otras personas en carreras, peleas de sumo y asaltos al tótem. Todo el arte
-es ASCII dentro de bloques de código: ni una sola imagen.
+de otras personas en carreras, peleas de sumo, asaltos al tótem y laberintos de
+ecos. Todo el arte es ASCII dentro de bloques de código: ni una sola imagen.
 
 ```
 ## 🐥 Pelusa
@@ -136,6 +136,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/carrera @alguien` | Reto de velocidad + 1d20. Admite hasta tres invitados más (cinco corriendo), y con tres o más termina en podio. |
 | `/sumo @alguien` | Reto de fuerza + 1d20. Con tres invitados es un torneo de cuatro: dos semifinales sorteadas y una final. |
 | `/totem @alguien` | Asalto al tótem: una fase de velocidad, otra de fuerza y otra de salud, cada una `estadística + 1d20`. Cada fase reparte puestos y gana quien más sume. De dos a cinco. |
+| `/laberinto @alguien` | Laberinto de Ecos: **SEÑALES**, **TRAZADO** y **NO PERDERSE**, las tres con ingenio. Cada fase se juega contra un eco común y gana quien más puertas abre. De dos a cinco. |
 | `/aventura` | Sal al campo con tu activo: dos decisiones —fuerza, velocidad o volverse— y quizá un objeto o un gachamon salvaje. |
 | `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
@@ -342,18 +343,34 @@ otras dos modalidades —el coste, el enfriamiento y la experiencia son los
 mismos—. Se lo lleva la más atrasada de las tres, así que asaltar a menudo
 equilibra al gachamon en vez de multiplicar su progreso.
 
-En los tres casos sólo el primero suma victoria y se lleva los +10; el resto, +4.
-Un torneo cuenta como **una sola competencia** para el coste y la experiencia,
-aunque los finalistas peleen dos veces.
+El **laberinto de ecos** es de dos a cinco y es el único donde el adversario no
+es el rival, sino el terreno. Son tres fases con **ingenio** —**SEÑALES** el
+ingenio a secas, **TRAZADO** 70 % ingenio y 30 % velocidad, **NO PERDERSE**
+70 % ingenio y 30 % salud—, y en cada una el pasillo devuelve un **eco**: la
+base del participante del medio más su propio 1d20, uno solo para toda la fase.
+Abre la puerta quien **supera** al eco; igualarlo no basta, así que una fase
+puede acabar sin que cruce nadie y eso también es parte del juego.
+
+Gana quien más **puertas** abre. Que el eco salga de la mediana y no del
+promedio es lo que impide invitar a alguien flojo para bajarlo: un participante
+débil no mueve la mediana, así que no le regala puertas a nadie. Sólo el
+ingenio deja **veta** aquí, y el punto de entrenamiento va también al ingenio,
+que es la única estadística que ningún cuidado sube.
+
+En las cuatro modalidades sólo el primero suma victoria y se lleva los +10; el
+resto, +4. Un torneo cuenta como **una sola competencia** para el coste y la
+experiencia, aunque los finalistas peleen dos veces.
 
 Los empates se deshacen distinto en cada modalidad. En la **carrera** se corre
 otro tramo **para todos**, porque allí el marcador es la suma y un tramo más la
 cambia. En el **sumo** se repite el intercambio empatado entre los dos que
 pelean. En el **asalto al tótem** se juega otro **FORCEJEO** sólo **entre los
 que siguen exactamente empatados**: quien ya quedó por delante no vuelve a
-tirar, así que un desempate ajeno no le puede cambiar el puesto. En los tres
-casos hay un tope de intentos y, si aun así no se deshace, decide el orden en
-que se entró al reto.
+tirar, así que un desempate ajeno no le puede cambiar el puesto. El **laberinto**
+lo deshace igual, con otra tirada de **SEÑALES** entre los empatados y sin eco:
+un desempate no es una fase, así que no reparte puertas ni suma al bruto
+oficial. En los cuatro casos hay un tope de intentos y, si aun así no se
+deshace, decide el orden en que se entró al reto.
 
 Al terminar, la pantalla sólo se republica a quien **suba de nivel o
 evolucione**. Al resto le queda la de antes con los números viejos, pero con los
@@ -424,7 +441,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `personalidad.py` | La voz de cada especie, los diez caracteres y cómo se le explica todo al modelo. |
 | `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. |
 | `simulacion.py` | Decaimiento, muerte, acciones de cuidado, estadísticas y niveles. |
-| `competir.py` | Resolución y narración de carreras, sumo y asaltos al tótem. |
+| `competir.py` | Resolución y narración de carreras, sumo, asaltos al tótem y laberintos de ecos. |
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
 | `pantalla.py` | Dibuja la pantalla como texto de Discord. |
 | `db.py` | SQLite. |

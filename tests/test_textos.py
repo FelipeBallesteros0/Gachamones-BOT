@@ -176,6 +176,29 @@ def test_la_ayuda_explica_las_tres_fases_del_asalto_al_totem():
     assert all(len(pagina) <= 2000 for pagina in paginas)
 
 
+def test_la_ayuda_explica_las_fases_del_laberinto():
+    """Quien lea la ayuda tiene que saber contra qué juega y cuándo cruza."""
+    paginas = social.paginas_de_ayuda("Gachamones")
+    ayuda = "\n".join(paginas)
+
+    assert "`/laberinto @alguien`" in ayuda
+    for fase in comp.FASES_LABERINTO:
+        assert f"**{fase}**" in ayuda, fase
+    assert "eco" in ayuda and "puertas" in ayuda
+    assert "participante del medio" in ayuda
+    assert "igualarlo no basta" in ayuda
+    assert f"Entran hasta {comp.MAX_CORREDORES}" in ayuda
+    assert all(len(pagina) <= 2000 for pagina in paginas)
+
+
+def test_la_ayuda_dice_que_las_estadisticas_de_nacimiento_son_cuatro():
+    ayuda = "\n".join(social.paginas_de_ayuda("Gachamones"))
+
+    assert "las cuatro" in ayuda
+    for stat in ("fuerza", "velocidad", "salud", "ingenio"):
+        assert stat in ayuda, stat
+
+
 # --- Los nombres de las especies -------------------------------------------
 #
 # Jugando salió «un grupo de chispas», y Chispa dejó de existir el 31 de julio:
