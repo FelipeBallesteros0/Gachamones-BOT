@@ -44,8 +44,20 @@ DESCRIPCIONES_IDENTIDAD = {
     "Corazón de roble": "la fuerza domina su historia",
     "Fibra de fresno": "la velocidad domina su historia",
     "Savia de olivo": "la salud domina su historia",
-    "Veta en espiral": "sus últimas vetas giran por las tres estadísticas",
+    "Nudo de nogal": "el ingenio domina su historia",
+    "Veta en espiral": "sus últimas vetas giran por tres caminos",
     "Veta trenzada": "sus últimas vetas alternan dos caminos",
+}
+
+# Orden canónico de las estadísticas: las afinidades de la impronta y las
+# tensiones son tuplas posicionales que se leen en este mismo orden. El ingenio
+# ya figura aquí aunque `simulacion` siga trabajando con tres canales, para que
+# la ficha no reviente el día que la impronta traiga el cuarto.
+ETIQUETAS_STAT = {
+    "fuerza": "FUE",
+    "velocidad": "VEL",
+    "salud": "SAL",
+    "ingenio": "ING",
 }
 
 RESET = "\x1b[0m"
@@ -257,20 +269,21 @@ def _banda_tension(valor: float, umbral: float) -> str:
 
 def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
     impronta = sim.impronta_de(criatura)
-    anillo = "→".join(
-        {"fuerza": "FUE", "velocidad": "VEL", "salud": "SAL"}[stat]
-        for stat in impronta.anillo
-    )
+    # La impronta es quien sabe cuántos canales tiene la fisiología: con tres se
+    # dibuja carácter por carácter lo de siempre y con cuatro entra el ingenio,
+    # sin recortarlo ni adelantarlo cuando todavía no existe.
+    canales = tuple(ETIQUETAS_STAT)[:len(impronta.anillo)]
+    anillo = "→".join(ETIQUETAS_STAT[stat] for stat in impronta.anillo)
     afinidades = " · ".join(
-        f"{etiqueta} {'↑' if afinidad > 0 else '↓'}"
-        for etiqueta, afinidad in zip(("FUE", "VEL", "SAL"), impronta.afinidades)
+        f"{ETIQUETAS_STAT[stat]} {'↑' if afinidad > 0 else '↓'}"
+        for stat, afinidad in zip(canales, impronta.afinidades)
         if afinidad
     ) or "sin afinidad"
     umbral = sim.umbral_veta(criatura)
     historial = criatura.historial_vetas
     anteriores = max(
         0,
-        criatura.niv_fuerza + criatura.niv_velocidad + criatura.niv_salud
+        sum(getattr(criatura, f"niv_{stat}") for stat in canales)
         - len(historial),
     )
     partes_trayectoria = []
@@ -284,9 +297,11 @@ def _lineas_vetas(criatura: sim.Criatura) -> tuple[str, ...]:
     trayectoria = " · ".join(partes_trayectoria) or "—"
     return (
         f"-# impronta · anillo {anillo} · afinidad {afinidades}",
-        f"-# 🪵 tensión · FUE {_banda_tension(criatura.ten_fuerza, umbral)}"
-        f" · VEL {_banda_tension(criatura.ten_velocidad, umbral)}"
-        f" · SAL {_banda_tension(criatura.ten_salud, umbral)}",
+        "-# 🪵 tensión · " + " · ".join(
+            f"{ETIQUETAS_STAT[stat]} "
+            f"{_banda_tension(getattr(criatura, f'ten_{stat}'), umbral)}"
+            for stat in canales
+        ),
         f"-# vetas: {trayectoria}",
     )
 
@@ -298,10 +313,9 @@ def render_rupturas(
     rupturas = tuple(rupturas)
     if not rupturas:
         return ""
-    etiquetas = {"fuerza": "FUE", "velocidad": "VEL", "salud": "SAL"}
-    nombres = " · ".join(etiquetas[r.stat] for r in rupturas)
+    nombres = " · ".join(ETIQUETAS_STAT[r.stat] for r in rupturas)
     cambios = " · ".join(
-        f"{etiquetas[ruptura.stat]} {ruptura.antes} → {ruptura.despues}"
+        f"{ETIQUETAS_STAT[ruptura.stat]} {ruptura.antes} → {ruptura.despues}"
         for ruptura in rupturas
     )
     causas = {
@@ -329,7 +343,7 @@ def render_rupturas(
         detalle += f" · por {origenes}"
     umbral = sim.umbral_veta(criatura)
     estado = " · ".join(
-        f"{etiquetas[ruptura.stat]} "
+        f"{ETIQUETAS_STAT[ruptura.stat]} "
         f"{_banda_tension(getattr(criatura, f'ten_{ruptura.stat}'), umbral)}"
         for ruptura in rupturas
     )

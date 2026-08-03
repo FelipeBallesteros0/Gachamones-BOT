@@ -3,6 +3,7 @@ import random
 import re
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 import aventura as av
@@ -435,6 +436,64 @@ def test_ficha_traduce_la_tension_a_cuatro_bandas_relativas():
         linea = next(linea for linea in mensaje.splitlines() if "tensión" in linea)
         assert linea.count(banda) == 3
         assert not re.search(r"\d", linea)
+
+
+def _impronta_de_cuatro(_criatura=None) -> SimpleNamespace:
+    """La impronta de cuatro canales que traerá A3, sin tocar el dominio.
+
+    Las afinidades van en el orden canónico —fuerza, velocidad, salud,
+    ingenio— y el anillo en el suyo propio, distinto a propósito: así una
+    ficha que confunda ambos órdenes no puede pasar la prueba.
+    """
+    return SimpleNamespace(
+        giro=1,
+        anillo=("fuerza", "salud", "ingenio", "velocidad"),
+        afinidades=(0.35, 0.0, -0.35, 0.35),
+    )
+
+
+def test_la_ficha_dibuja_el_cuarto_canal_de_la_impronta(monkeypatch):
+    monkeypatch.setattr(sim, "impronta_de", _impronta_de_cuatro)
+    c = criatura(ten_ingenio=16.0)
+    assert sim.umbral_veta(c) == 20.0
+
+    mensaje = pantalla.render(c, T0)
+
+    assert "anillo FUE→SAL→ING→VEL" in mensaje
+    assert "afinidad FUE ↑ · SAL ↓ · ING ↑" in mensaje
+    linea = next(linea for linea in mensaje.splitlines() if "tensión" in linea)
+    assert linea.endswith("· ING al borde")
+    bloque = mensaje.split("```ansi\n", 1)[1].split("\n```", 1)[0]
+    limpio = re.sub(r"\x1b\[[0-9;]*m", "", bloque)
+    assert {len(linea) for linea in limpio.splitlines()} == {pantalla.ANCHO + 2}
+
+
+def test_las_vetas_anteriores_cuentan_tambien_las_de_ingenio(monkeypatch):
+    monkeypatch.setattr(sim, "impronta_de", _impronta_de_cuatro)
+    mensaje = pantalla.render(
+        criatura(niv_fuerza=1, niv_ingenio=2, historial_vetas="F"), T0
+    )
+    assert "vetas: 2 anteriores sin trayectoria · F" in mensaje
+
+
+def test_render_rupturas_etiqueta_la_veta_de_ingenio():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="I", niv_ingenio=1),
+        (sim.Ruptura("ingenio", 20, 8, 9, causa=sim.ENTRENAR),),
+    )
+    assert "le ha salido una veta de ING" in texto
+    assert "ING 8 → 9" in texto and "ahora ING en reposo" in texto
+
+
+def test_las_descripciones_de_identidad_nombran_el_nudo_de_nogal():
+    assert (
+        pantalla.DESCRIPCIONES_IDENTIDAD["Nudo de nogal"]
+        == "el ingenio domina su historia"
+    )
+    assert (
+        pantalla.DESCRIPCIONES_IDENTIDAD["Veta en espiral"]
+        == "sus últimas vetas giran por tres caminos"
+    )
 
 
 def test_render_rupturas_anuncia_cascada_fuera_del_arte():
