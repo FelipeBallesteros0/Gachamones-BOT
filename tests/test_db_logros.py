@@ -8,7 +8,7 @@ import db
 import logros
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 @pytest.fixture(autouse=True)

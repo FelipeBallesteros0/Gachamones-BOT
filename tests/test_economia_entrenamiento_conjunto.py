@@ -12,7 +12,7 @@ import logros
 import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 @pytest.fixture(autouse=True)

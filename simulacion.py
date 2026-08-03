@@ -66,14 +66,17 @@ U0 = 20.0
 PASO = 4.0
 CASCADA = 0.5
 MAX_RUPTURAS_POR_SUCESO = 3
-ESTADISTICAS = ("fuerza", "velocidad", "salud")
-LETRAS_VETA = {"fuerza": "F", "velocidad": "V", "salud": "S"}
+ESTADISTICAS = ("fuerza", "velocidad", "salud", "ingenio")
+LETRAS_VETA = {
+    "fuerza": "F", "velocidad": "V", "salud": "S", "ingenio": "I",
+}
 UMBRAL_IDENTIDAD = 6
 VENTANA_SECUENCIA = 6
 IDENTIDADES_DOMINANTES = {
     "F": "Corazón de roble",
     "V": "Fibra de fresno",
     "S": "Savia de olivo",
+    "I": "Nudo de nogal",
 }
 
 
@@ -277,15 +280,19 @@ class Criatura:
     base_fuerza: int = 0
     base_velocidad: int = 0
     base_salud: int = 0
+    base_ingenio: int = 0
     ent_fuerza: int = 0
     ent_velocidad: int = 0
     ent_salud: int = 0
+    ent_ingenio: int = 0
     niv_fuerza: int = 0
     niv_velocidad: int = 0
     niv_salud: int = 0
+    niv_ingenio: int = 0
     ten_fuerza: float = 0.0
     ten_velocidad: float = 0.0
     ten_salud: float = 0.0
+    ten_ingenio: float = 0.0
     historial_vetas: str = ""
     xp: int = 0
     nivel: int = 1
@@ -335,6 +342,10 @@ class Criatura:
     @property
     def salud(self) -> int:
         return stat_final(self.base_salud, self.ent_salud, self.niv_salud)
+
+    @property
+    def ingenio(self) -> int:
+        return stat_final(self.base_ingenio, self.ent_ingenio, self.niv_ingenio)
 
     def edad_horas(self, ahora: datetime) -> float:
         return (ahora - self.nacida_en).total_seconds() / 3600.0
@@ -399,13 +410,13 @@ class Impronta:
     """Fisiología derivada de especie e id, nunca persistida."""
 
     giro: int
-    afinidades: tuple[float, float, float]
+    afinidades: tuple[float, ...]
 
     @property
-    def anillo(self) -> tuple[str, str, str]:
+    def anillo(self) -> tuple[str, ...]:
         return (
             ESTADISTICAS if self.giro == 1
-            else ("fuerza", "salud", "velocidad")
+            else ("fuerza", "ingenio", "salud", "velocidad")
         )
 
 
@@ -439,15 +450,25 @@ def impronta_de(criatura: Criatura) -> Impronta:
     crudas = tuple(rng.choice((-1, 0, 1)) for _ in ESTADISTICAS)
     media = sum(crudas) / len(crudas)
     afinidades = tuple(AFIN * (valor - media) for valor in crudas)
-    return Impronta(giro, (afinidades[0], afinidades[1], afinidades[2]))
+    return Impronta(giro, afinidades)
 
 
-def _vetas(criatura: Criatura) -> tuple[int, int, int]:
-    return criatura.niv_fuerza, criatura.niv_velocidad, criatura.niv_salud
+def _vetas(criatura: Criatura) -> tuple[int, ...]:
+    return (
+        criatura.niv_fuerza,
+        criatura.niv_velocidad,
+        criatura.niv_salud,
+        criatura.niv_ingenio,
+    )
 
 
-def _tensiones(criatura: Criatura) -> tuple[float, float, float]:
-    return criatura.ten_fuerza, criatura.ten_velocidad, criatura.ten_salud
+def _tensiones(criatura: Criatura) -> tuple[float, ...]:
+    return (
+        criatura.ten_fuerza,
+        criatura.ten_velocidad,
+        criatura.ten_salud,
+        criatura.ten_ingenio,
+    )
 
 
 def umbral_veta(criatura: Criatura) -> float:
@@ -473,10 +494,10 @@ def receptividad(criatura: Criatura, stat: str) -> float:
     """Multiplicador acoplado al historial de vetas e impronta."""
     indice = _indice_stat(stat)
     vetas = _vetas(criatura)
-    media = sum(vetas) / 3.0
+    media = sum(vetas) / len(ESTADISTICAS)
     impronta = impronta_de(criatura)
     anillo = impronta.anillo
-    anterior = anillo[(anillo.index(stat) - 1) % 3]
+    anterior = anillo[(anillo.index(stat) - 1) % len(anillo)]
     valor = BETA * (vetas[indice] - media)
     valor += impronta.afinidades[indice]
     valor -= GAMMA * vetas[_indice_stat(anterior)]
@@ -573,7 +594,7 @@ def _aplicar_rupturas(
         ]
         if not elegibles:
             break
-        # max estable con este orden: primero tensión, luego FUE, VEL, SAL.
+        # max estable con este orden: primero tensión, luego FUE, VEL, SAL, ING.
         stat = max(
             elegibles,
             key=lambda candidato: (tensiones[_indice_stat(candidato)],
@@ -588,8 +609,8 @@ def _aplicar_rupturas(
         antes = list(tensiones)
         anillo = impronta_de(estado).anillo
         posicion = anillo.index(stat)
-        siguiente = anillo[(posicion + 1) % 3]
-        anterior = anillo[(posicion - 1) % 3]
+        siguiente = anillo[(posicion + 1) % len(anillo)]
+        anterior = anillo[(posicion - 1) % len(anillo)]
         siguiente_i = _indice_stat(siguiente)
         anterior_i = _indice_stat(anterior)
         acoplamiento = CASCADA * umbral
@@ -618,9 +639,11 @@ def _aplicar_rupturas(
             niv_fuerza=vetas[0],
             niv_velocidad=vetas[1],
             niv_salud=vetas[2],
+            niv_ingenio=vetas[3],
             ten_fuerza=tensiones_nuevas[0],
             ten_velocidad=tensiones_nuevas[1],
             ten_salud=tensiones_nuevas[2],
+            ten_ingenio=tensiones_nuevas[3],
             historial_vetas=estado.historial_vetas + LETRAS_VETA[stat],
         )
         rupturas.append(Ruptura(
@@ -676,6 +699,7 @@ def emitir_tension(
         ten_fuerza=tensiones[0],
         ten_velocidad=tensiones[1],
         ten_salud=tensiones[2],
+        ten_ingenio=tensiones[3],
     )
     return _aplicar_rupturas(
         con_tension,
@@ -691,7 +715,12 @@ def _surge(nivel: int) -> float:
 
 def _emisiones_de_nivel(criatura: Criatura, nivel: int) -> tuple[Esfuerzo, ...]:
     definicion = criatura.def_especie
-    pesos = (definicion.fuerza, definicion.velocidad, definicion.salud)
+    pesos = (
+        definicion.fuerza,
+        definicion.velocidad,
+        definicion.salud,
+        definicion.ingenio,
+    )
     total = sum(pesos)
     surge = _surge(nivel)
     return tuple(
@@ -755,7 +784,7 @@ def aplicar_evento(
     del rng  # La firma conserva compatibilidad; VETAS no tira dados de crecimiento.
     estado = criatura
     rupturas: list[Ruptura] = []
-    reservada = int(
+    reservada = (
         estado.xp + ganada >= xp_para_subir(estado.nivel)
         and _queda_algo_visible_por_crecer(estado)
     )
@@ -908,6 +937,7 @@ def avanzar(
         ten_fuerza=max(0.0, criatura.ten_fuerza * factor_tension),
         ten_velocidad=max(0.0, criatura.ten_velocidad * factor_tension),
         ten_salud=max(0.0, criatura.ten_salud * factor_tension),
+        ten_ingenio=max(0.0, criatura.ten_ingenio * factor_tension),
         actualizada_en=ahora,
     )
 

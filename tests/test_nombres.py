@@ -49,9 +49,7 @@ def test_el_modal_invalido_responde_en_privado_y_no_muta_la_bd(
     monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
     monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
     db.inicializar()
-    db.crear(
-        "u1", "g1", "pulpo", "Prueba", (15, 15, 15), ahora,
-    )
+    db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), ahora,)
     enviados = []
 
     class Respuesta:
@@ -96,11 +94,9 @@ def montar_plantel(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
     monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
     db.inicializar()
-    activa = db.crear("u1", "g1", "pulpo", "Vieja", (15, 15, 15), ahora)
-    recluta = db.crear(
-        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, (15, 15, 15), ahora,
-        activa=False,
-    )
+    activa = db.crear("u1", "g1", "pulpo", "Vieja", (15, 15, 15, 15), ahora)
+    recluta = db.crear("u1", "g1", "michi", sim.NOMBRE_PENDIENTE, (15, 15, 15, 15), ahora,
+    activa=False,)
     return activa, recluta
 
 

@@ -11,6 +11,7 @@ despeja con una fórmula cerrada, y el bucle que mata criaturas se reduce a un
 """
 from __future__ import annotations
 
+import logging
 import random
 import sqlite3
 from collections.abc import Collection
@@ -27,6 +28,8 @@ import logros as lgr
 import objetos as obj
 import personalidad as per
 import simulacion as sim
+
+logger = logging.getLogger(__name__)
 
 RUTA: Path = config.RUTA_BD
 
@@ -93,15 +96,19 @@ CREATE TABLE IF NOT EXISTS criaturas (
     base_fuerza INTEGER NOT NULL,
     base_velocidad INTEGER NOT NULL,
     base_salud INTEGER NOT NULL,
+    base_ingenio INTEGER NOT NULL DEFAULT 0,
     ent_fuerza INTEGER NOT NULL DEFAULT 0,
     ent_velocidad INTEGER NOT NULL DEFAULT 0,
     ent_salud INTEGER NOT NULL DEFAULT 0,
+    ent_ingenio INTEGER NOT NULL DEFAULT 0,
     niv_fuerza INTEGER NOT NULL DEFAULT 0,
     niv_velocidad INTEGER NOT NULL DEFAULT 0,
     niv_salud INTEGER NOT NULL DEFAULT 0,
+    niv_ingenio INTEGER NOT NULL DEFAULT 0,
     ten_fuerza REAL NOT NULL DEFAULT 0,
     ten_velocidad REAL NOT NULL DEFAULT 0,
     ten_salud REAL NOT NULL DEFAULT 0,
+    ten_ingenio REAL NOT NULL DEFAULT 0,
     historial_vetas TEXT NOT NULL DEFAULT '',
     xp INTEGER NOT NULL DEFAULT 0,
     nivel INTEGER NOT NULL DEFAULT 1,
@@ -324,10 +331,11 @@ CAMPOS = (
     "usuario_id", "guild_id", "especie", "nombre", "genero", "caracter",
     "nacida_en", "actualizada_en",
     "muerta_en", "causa_muerte", "avisada", "hambre", "animo", "limpieza",
-    "base_fuerza", "base_velocidad", "base_salud",
-    "ent_fuerza", "ent_velocidad", "ent_salud",
-    "niv_fuerza", "niv_velocidad", "niv_salud",
-    "ten_fuerza", "ten_velocidad", "ten_salud", "historial_vetas",
+    "base_fuerza", "base_velocidad", "base_salud", "base_ingenio",
+    "ent_fuerza", "ent_velocidad", "ent_salud", "ent_ingenio",
+    "niv_fuerza", "niv_velocidad", "niv_salud", "niv_ingenio",
+    "ten_fuerza", "ten_velocidad", "ten_salud", "ten_ingenio",
+    "historial_vetas",
     "xp", "nivel", "victorias", "derrotas", "pantalla_msg_id", "canal_id",
     "activa", "tinte", "sombrero", "marco", "titulo",
 )
@@ -355,6 +363,10 @@ MIGRACIONES = (
     # Las que ya existían son la única de su dueño, así que el DEFAULT 1 las deja
     # activas y no hace falta rellenar nada fila a fila.
     ("activa", "ALTER TABLE criaturas ADD COLUMN activa INTEGER NOT NULL DEFAULT 1"),
+    ("base_ingenio", "ALTER TABLE criaturas ADD COLUMN base_ingenio INTEGER NOT NULL DEFAULT 0"),
+    ("ent_ingenio", "ALTER TABLE criaturas ADD COLUMN ent_ingenio INTEGER NOT NULL DEFAULT 0"),
+    ("niv_ingenio", "ALTER TABLE criaturas ADD COLUMN niv_ingenio INTEGER NOT NULL DEFAULT 0"),
+    ("ten_ingenio", "ALTER TABLE criaturas ADD COLUMN ten_ingenio REAL NOT NULL DEFAULT 0"),
     ("ten_fuerza", "ALTER TABLE criaturas ADD COLUMN ten_fuerza REAL NOT NULL DEFAULT 0"),
     ("ten_velocidad", "ALTER TABLE criaturas ADD COLUMN ten_velocidad REAL NOT NULL DEFAULT 0"),
     ("ten_salud", "ALTER TABLE criaturas ADD COLUMN ten_salud REAL NOT NULL DEFAULT 0"),
@@ -567,6 +579,21 @@ def _migrar(con: sqlite3.Connection) -> None:
             f"WHERE {columna} IS NOT NULL"
         )
 
+    for clave, definicion in esp.ESPECIES.items():
+        con.execute(
+            "UPDATE criaturas SET base_ingenio = ? "
+            "WHERE especie = ? AND base_ingenio = 0",
+            (definicion.ingenio + 7, clave),
+        )
+    restantes = con.execute(
+        "SELECT COUNT(*) c FROM criaturas WHERE base_ingenio = 0"
+    ).fetchone()["c"]
+    if restantes:
+        logger.warning(
+            "%d criaturas de especie desconocida reciben ingenio 15", restantes
+        )
+        con.execute("UPDATE criaturas SET base_ingenio = 15 WHERE base_ingenio = 0")
+
 
 def ahora_utc() -> datetime:
     return datetime.now(timezone.utc)
@@ -746,7 +773,7 @@ def crear(
     guild_id: str,
     especie: str,
     nombre: str,
-    stats: tuple[int, int, int],
+    stats: tuple[int, int, int, int],
     ahora: datetime,
     genero: str = esp.MACHO,
     caracter: str = esp.CARACTER_POR_DEFECTO,
@@ -772,13 +799,13 @@ def crear(
     - **Una sola activa** lo sigue imponiendo el índice único, que hace saltar
       `sqlite3.IntegrityError`: es la defensa contra dos `/huevo` a la vez.
     """
-    fuerza, velocidad, salud = stats
+    fuerza, velocidad, salud, ingenio = stats
     nueva = sim.Criatura(
         id=0, usuario_id=usuario_id, guild_id=guild_id, especie=especie,
         nombre=nombre, genero=genero, caracter=caracter,
         nacida_en=ahora, actualizada_en=ahora,
         base_fuerza=fuerza, base_velocidad=velocidad, base_salud=salud,
-        canal_id=canal_id, activa=activa,
+        base_ingenio=ingenio, canal_id=canal_id, activa=activa,
     )
     valores = _a_valores(nueva)
     columnas = list(valores)

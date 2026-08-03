@@ -20,7 +20,7 @@ def bd_temporal(tmp_path, monkeypatch):
 
 
 def test_dos_cuidados_simultaneos_solo_aplican_un_efecto_y_un_cooldown():
-    db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     with ThreadPoolExecutor(max_workers=2) as ejecutor:
         resultados = list(ejecutor.map(
             lambda evento: economia.ejecutar_cuidado(
@@ -40,7 +40,7 @@ def test_dos_cuidados_simultaneos_solo_aplican_un_efecto_y_un_cooldown():
 
 
 def test_fallo_al_guardar_cooldown_revierte_criatura_y_premio():
-    original = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    original = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     with db.conectar() as con:
         con.execute(
             "CREATE TRIGGER abortar_cooldown BEFORE INSERT ON cooldowns "
@@ -63,7 +63,7 @@ def test_rechazos_sin_mutacion_no_escriben_recibo():
 
 
 def test_cuidado_registra_la_muerte_al_avanzar_sin_recibo():
-    criatura = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    criatura = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     resultado = economia.ejecutar_cuidado(
         "tarde", "u1", "g1", sim.JUGAR, T0 + timedelta(days=10)
     )
@@ -75,7 +75,7 @@ def test_cuidado_registra_la_muerte_al_avanzar_sin_recibo():
 
 
 def test_alimentar_con_hambre_se_salta_el_cooldown_en_la_misma_transaccion():
-    criatura = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    criatura = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     db.guardar(replace(criatura, hambre=50.0))
     db.poner_cooldown(criatura.id, sim.ALIMENTAR, T0)
 

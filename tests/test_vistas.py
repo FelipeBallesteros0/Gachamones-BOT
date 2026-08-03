@@ -29,7 +29,7 @@ SIN_RETRATO = next(
 )
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 def criatura(id_, nombre, activa, pantalla_msg_id) -> sim.Criatura:
@@ -517,6 +517,7 @@ def test_selector_de_gestion_delega_una_vez_al_helper_actual(
         (comp.CARRERA, 4, "entre 1 y 4 rivales"),
         (comp.SUMO, 3, "1 o 3 rivales"),
         (comp.TOTEM, 4, "entre 1 y 4 rivales"),
+        (comp.LABERINTO, 4, "entre 1 y 4 rivales"),
     ],
 )
 def test_cada_modalidad_abre_seleccion_privada_con_sus_cantidades(
@@ -540,7 +541,22 @@ def test_cada_modalidad_abre_seleccion_privada_con_sus_cantidades(
     assert selector.max_values == maximo
 
 
-@pytest.mark.parametrize("tipo", [comp.CARRERA, comp.SUMO, comp.TOTEM])
+def test_el_menu_social_ofrece_el_laberinto():
+    """La opción tiene que existir y despachar por el camino genérico."""
+    menu = next(
+        hijo for hijo in vistas.PantallaView().children
+        if hijo.custom_id == "tama:desafiar"
+    )
+    opciones = {opcion.value: opcion.label for opcion in menu.options}
+
+    assert opciones[comp.LABERINTO] == "Laberinto de Ecos"
+    assert comp.LABERINTO in comp.CUANTOS_CABEN
+    assert vistas.MenuSeleccionRivales(comp.LABERINTO).max_values == 4
+
+
+@pytest.mark.parametrize(
+    "tipo", [comp.CARRERA, comp.SUMO, comp.TOTEM, comp.LABERINTO]
+)
 def test_seleccion_de_rivales_termina_en_el_seam_canonico(tipo):
     rivales = [SimpleNamespace(id="u2"), SimpleNamespace(id="u3")]
     retar = AsyncMock()
@@ -1406,6 +1422,33 @@ def test_cuidado_con_tension_no_dice_que_no_deja_marca(
     aviso = llamada.kwargs["aviso"]
     assert "Algo se pone en movimiento bajo sus vetas." in aviso
     assert "permanecen quietas" not in aviso
+
+
+def test_el_eco_de_vetas_no_declara_quietud_si_cambio_ingenio():
+    """La marca sale de comparar las tensiones **enumeradas** del dominio.
+
+    Un esfuerzo que sólo toca el ingenio —lo único que emite el laberinto—
+    tiene que contar como movimiento. Con una enumeración de tres canales la
+    criatura se movería y las dos superficies dirían que está quieta.
+    """
+    antes = criatura(1, "Mia", True, "ficha")
+    despues, rupturas = sim.aplicar_evento(
+        antes, (sim.Esfuerzo("ingenio", 3.0, causa=sim.COMPETIR),), 0
+    )
+    marca = bool(rupturas or sim._tensiones(despues) != sim._tensiones(antes))
+    assert despues.ten_ingenio > antes.ten_ingenio
+    assert marca, "mover sólo el ingenio ya es mover las vetas"
+
+    eco = vistas._eco_vetas_cuidado(economia.ResultadoCuidado(
+        criatura=despues, mensaje="", rupturas=rupturas, marca=marca,
+    ))
+    assert eco == "-# Algo se pone en movimiento bajo sus vetas."
+    assert "permanecen quietas" not in eco
+
+    resumen = vistas._resumen_participante(sim.ResultadoAccion(
+        criatura=despues, mensaje="", rupturas=rupturas, marca=marca,
+    ))
+    assert "vetas quietas" not in resumen
 
 
 def test_cuidado_con_ruptura_deja_el_eco_al_anuncio_existente(

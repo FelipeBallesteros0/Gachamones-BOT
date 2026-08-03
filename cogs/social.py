@@ -260,8 +260,11 @@ El primer salto cae en un día; llegar a la forma final cuesta cerca de un mes. 
 Cada evolución reparte estadísticas y, al subir salud, aguanta más sin comer.
 
 **Estadísticas**
-Al nacer: base de la especie + 2d6 en cada una. Jugar sube velocidad, entrenar \
-sube fuerza, comer sube salud — con rendimientos decrecientes.
+Al nacer se tiran **las cuatro**: base de la especie + 2d6 en fuerza, \
+velocidad, salud e ingenio. Jugar sube velocidad, entrenar sube fuerza, comer \
+sube salud — con rendimientos decrecientes.
+-# El **ingenio** no lo sube ningún cuidado: crece jugando `/laberinto` y con \
+lo que reparte cada subida de nivel.
 
 **Quién le ha tocado ser**
 Al salir del huevo se sortean también su **género** (♂️ o ♀️, mitad y mitad) y \
@@ -288,6 +291,13 @@ así que premia al gachamon completo. Asaltan hasta {comp.MAX_CORREDORES}; con \
 tres o más hay podio.
 -# Las tres dejan **veta**, pero el entrenamiento es **un punto** como en las \
 otras dos, y se lo lleva la estadística más atrasada.
+`/laberinto @alguien` — **puertas abiertas contra el eco**: **SEÑALES** \
+(ingenio + 1d20), **TRAZADO** (70 % ingenio + 30 % velocidad + 1d20) y \
+**NO PERDERSE** (70 % ingenio + 30 % salud + 1d20). El eco tira la base del \
+participante del medio + 1d20 y abre la puerta quien **lo supera**: igualarlo \
+no basta, así que puede no cruzar nadie. Entran hasta {comp.MAX_CORREDORES}; \
+con tres o más hay podio.
+-# El adversario es el pasillo, no el rival: gana quien más puertas abre.
 -# El buen ánimo suma un poco; tener poca comida resta. Sólo el primero suma \
 victoria; el \
 torneo cuenta una competencia. Quien rechaza se cae del reto."""

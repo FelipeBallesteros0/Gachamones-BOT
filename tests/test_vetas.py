@@ -3,6 +3,7 @@ import random
 import re
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 import aventura as av
@@ -27,6 +28,7 @@ def criatura(**cambios) -> sim.Criatura:
         base_fuerza=15,
         base_velocidad=15,
         base_salud=15,
+        base_ingenio=15,
     )
     datos.update(cambios)
     return sim.Criatura(**datos)
@@ -38,7 +40,7 @@ def test_impronta_es_determinista_y_no_se_persiste():
     segunda = sim.impronta_de(c)
     assert primera == segunda
     assert primera.giro in (-1, 1)
-    assert len(primera.afinidades) == 3
+    assert len(primera.afinidades) == 4
     assert c.historial_vetas == ""
 
 
@@ -52,8 +54,8 @@ def test_impulso_refuerza_y_la_veta_anterior_proyecta_sombra():
     c = criatura()
     objetivo = "fuerza"
     anillo = sim.impronta_de(c).anillo
-    anterior = anillo[(anillo.index(objetivo) - 1) % 3]
-    siguiente = anillo[(anillo.index(objetivo) + 1) % 3]
+    anterior = anillo[(anillo.index(objetivo) - 1) % len(anillo)]
+    siguiente = anillo[(anillo.index(objetivo) + 1) % len(anillo)]
     propia = replace(c, niv_fuerza=1)
     con_anterior = replace(c, **{f"niv_{anterior}": 1})
     con_siguiente = replace(c, **{f"niv_{siguiente}": 1})
@@ -126,11 +128,12 @@ def test_emision_profunda_multiplica_y_no_deja_tension_negativa():
 
 
 def test_decaimiento_de_tension_es_lazy_y_no_toca_reservas_ni_muertas():
-    c = criatura(ten_fuerza=20, ten_velocidad=10, ten_salud=5)
+    c = criatura(ten_fuerza=20, ten_velocidad=10, ten_salud=5, ten_ingenio=8)
     una = sim.avanzar(c, T0 + timedelta(hours=18))
     assert una.ten_fuerza == 10
     assert una.ten_velocidad == 5
     assert una.ten_salud == 2.5
+    assert una.ten_ingenio == 4
     assert sim.avanzar(una, T0 + timedelta(hours=18)) == una
     reserva = replace(c, activa=False)
     muerta = replace(c, muerta_en=T0, causa_muerte="hambre")
@@ -145,12 +148,12 @@ def test_umbral_global_y_rupturas_deterministas_con_maximo_tres():
     assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
     assert rupturas[0].stat == "fuerza"
     assert len(marcada.historial_vetas) == 3
-    assert min(marcada.ten_fuerza, marcada.ten_velocidad, marcada.ten_salud) >= 0
+    assert min(getattr(marcada, f"ten_{stat}") for stat in sim.ESTADISTICAS) >= 0
     assert sim.umbral_veta(marcada) == 32
 
 
 def test_cascada_marca_la_ruptura_arrastrada_y_no_la_que_alimenta():
-    origen, siguiente, _ = sim.impronta_de(criatura()).anillo
+    origen, siguiente = sim.impronta_de(criatura()).anillo[:2]
     tensiones = {f"ten_{stat}": 0.0 for stat in sim.ESTADISTICAS}
     tensiones[f"ten_{origen}"] = 20.0
     tensiones[f"ten_{siguiente}"] = 14.0
@@ -162,7 +165,7 @@ def test_cascada_marca_la_ruptura_arrastrada_y_no_la_que_alimenta():
 
 
 def test_el_tope_no_anuncia_una_cascada_que_queda_pendiente():
-    origen, siguiente, _ = sim.impronta_de(criatura()).anillo
+    origen, siguiente = sim.impronta_de(criatura()).anillo[:2]
     tensiones = {f"ten_{stat}": 0.0 for stat in sim.ESTADISTICAS}
     tensiones[f"ten_{origen}"] = 72.0
 
@@ -344,7 +347,7 @@ def test_margen_de_sumo_respeta_el_ultimo_combate_del_torneo():
 def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "RUTA", tmp_path / "vetas.db")
     db.inicializar()
-    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     modificada = replace(
         c, ten_fuerza=2.5, ten_velocidad=1.25, ten_salud=0.5,
         historial_vetas="FVS",
@@ -353,7 +356,7 @@ def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
     assert db.criatura_activa("u1", "g1") == modificada
     recuperada = db.criatura_activa("u1", "g1")
     assert recuperada is not None and recuperada.historial_vetas == "FVS"
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", (15, 15, 15), T0, activa=False)
+    reserva = db.crear("u1", "g1", "pulpo", "Reserva", (15, 15, 15, 15), T0, activa=False)
     dormida = sim.avanzar(reserva, T0 + timedelta(days=3))
     assert dormida == reserva
 
@@ -361,7 +364,7 @@ def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
 def test_migracion_conserva_niveles_y_anade_defaults_vetas(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "RUTA", tmp_path / "legacy.db")
     db.inicializar()
-    veterana = db.crear("u1", "g1", "pulpo", "Veterana", (15, 15, 15), T0)
+    veterana = db.crear("u1", "g1", "pulpo", "Veterana", (15, 15, 15, 15), T0)
     db.guardar(replace(
         veterana, niv_fuerza=4, niv_velocidad=2, niv_salud=1
     ))
@@ -389,7 +392,7 @@ def test_transaccion_de_aventura_recarga_el_activo_y_confirma_antes_de_publicar(
 ):
     monkeypatch.setattr(db, "RUTA", tmp_path / "aventura.db")
     db.inicializar()
-    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    c = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     db.guardar(replace(c, hambre=50.0))
     salida = av.Salida((av.Prueba("f", "fuerza", 15, 10, 20),))
     resultado = economia.ejecutar_viaje("u1", "g1", c.id, salida, T0)
@@ -402,10 +405,10 @@ def test_transaccion_de_aventura_recarga_el_activo_y_confirma_antes_de_publicar(
 
 def test_ficha_muestra_vetas_impronta_y_conserva_ancho_ascii():
     mensaje = pantalla.render(
-        criatura(ten_fuerza=4.5, ten_velocidad=1.0, historial_vetas="FVS"), T0
+        criatura(ten_fuerza=4.5, ten_velocidad=1.0, historial_vetas="FVSI"), T0
     )
     assert "tensión" in mensaje and "próxima veta" not in mensaje
-    assert "impronta" in mensaje and "vetas: F·V·S" in mensaje
+    assert "impronta" in mensaje and "vetas: F·V·S·I" in mensaje
     linea_impronta = next(
         linea for linea in mensaje.splitlines() if "impronta" in linea
     )
@@ -429,12 +432,237 @@ def test_ficha_traduce_la_tension_a_cuatro_bandas_relativas():
     for tension, banda in casos:
         mensaje = pantalla.render(
             replace(base, ten_fuerza=tension, ten_velocidad=tension,
-                    ten_salud=tension),
+                    ten_salud=tension, ten_ingenio=tension),
             T0,
         )
         linea = next(linea for linea in mensaje.splitlines() if "tensión" in linea)
-        assert linea.count(banda) == 3
+        assert linea.count(banda) == 4
         assert not re.search(r"\d", linea)
+
+
+def test_el_anillo_tiene_cuatro_pasos_en_ambos_giros():
+    improntas = {
+        sim.impronta_de(criatura(id=criatura_id)).giro:
+        sim.impronta_de(criatura(id=criatura_id))
+        for criatura_id in range(1, 100)
+    }
+
+    assert set(improntas) == {-1, 1}
+    for impronta in improntas.values():
+        assert set(impronta.anillo) == set(sim.ESTADISTICAS)
+        assert len(impronta.anillo) == len(impronta.afinidades) == 4
+    assert improntas[1].anillo == sim.ESTADISTICAS
+    assert improntas[-1].anillo == ("fuerza", "ingenio", "salud", "velocidad")
+
+
+def test_la_impronta_conserva_el_orden_de_tiradas_con_ingenio_al_final():
+    for especie, criatura_id in (("pulpo", 1), ("dragoncito", 7), ("pollito", 19)):
+        semilla = f"{especie}:{criatura_id}"
+        rng = random.Random(semilla)
+        giro = rng.choice((1, -1))
+        crudas = tuple(rng.choice((-1, 0, 1)) for _ in range(4))
+        media = sum(crudas) / 4
+
+        vieja = random.Random(semilla)
+        assert vieja.choice((1, -1)) == giro
+        assert tuple(vieja.choice((-1, 0, 1)) for _ in range(3)) == crudas[:3]
+
+        impronta = sim.impronta_de(criatura(especie=especie, id=criatura_id))
+        assert impronta.giro == giro
+        assert impronta.afinidades == tuple(
+            sim.AFIN * (valor - media) for valor in crudas
+        )
+
+
+def test_ninguna_flecha_se_invierte_por_la_recalibracion():
+    muestras = 0
+    for especie in sorted(sim.esp.ESPECIES):
+        for criatura_id in range(1, 11):
+            rng = random.Random(f"{especie}:{criatura_id}")
+            rng.choice((1, -1))
+            crudas = tuple(rng.choice((-1, 0, 1)) for _ in range(4))
+            media_vieja = sum(crudas[:3]) / 3
+            media_nueva = sum(crudas) / 4
+            for valor in crudas[:3]:
+                vieja = sim.AFIN * (valor - media_vieja)
+                nueva = sim.AFIN * (valor - media_nueva)
+                assert vieja * nueva >= 0
+                assert abs(vieja - nueva) <= 0.175 + 1e-9
+            muestras += 1
+    assert muestras >= 200
+
+
+def test_la_cascada_de_salud_alimenta_al_ingenio():
+    c = next(
+        criatura(id=criatura_id)
+        for criatura_id in range(1, 100)
+        if sim.impronta_de(criatura(id=criatura_id)).giro == 1
+    )
+
+    marcada, rupturas = sim.romper_vetas(replace(c, ten_salud=20), 1)
+
+    assert [ruptura.stat for ruptura in rupturas] == ["salud"]
+    assert marcada.ten_ingenio == sim.CASCADA * 20
+    assert marcada.ten_fuerza == 0
+
+
+def test_la_sombra_de_fuerza_lee_las_vetas_de_ingenio():
+    c = next(
+        criatura(id=criatura_id)
+        for criatura_id in range(1, 100)
+        if sim.impronta_de(criatura(id=criatura_id)).giro == 1
+    )
+    assert sim.receptividad(replace(c, niv_ingenio=1), "fuerza") < sim.receptividad(
+        c, "fuerza"
+    )
+
+
+def test_el_surge_de_nivel_reparte_un_cuarto_al_ingenio():
+    for especie in ("pulpo", "dragoncito"):
+        emisiones = sim._emisiones_de_nivel(criatura(especie=especie), 2)
+        ingenio = next(emision for emision in emisiones if emision.stat == "ingenio")
+        assert ingenio.bruto == sim._surge(2) * 0.25
+        assert ingenio.forzar
+
+
+def test_las_identidades_legadas_no_cambian():
+    casos = {
+        "": None,
+        "FFFFF": None,
+        "FFFFVS": "Corazón de roble",
+        "VVVVSV": "Fibra de fresno",
+        "SSSSFS": "Savia de olivo",
+        "FVSFVS": "Veta en espiral",
+        "VSFVSF": "Veta en espiral",
+        "SFVSFV": "Veta en espiral",
+        "FSVFSV": "Veta en espiral",
+        "SVFSVF": "Veta en espiral",
+        "VFSVFS": "Veta en espiral",
+        "FVFVFV": "Veta trenzada",
+        "VSVSVS": "Veta trenzada",
+        "FFVVSS": None,
+        "FFFVVVSSS": None,
+        "FFVVSSV": None,
+        "FVSFVSFFFFFF": "Veta en espiral",
+    }
+    assert {historial: sim.identidad_de(historial) for historial in casos} == casos
+
+
+def test_nudo_de_nogal_se_reconoce_una_sola_vez():
+    assert sim.identidad_de("IIIIII") == "Nudo de nogal"
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="IIIIII", niv_ingenio=6),
+        (sim.Ruptura("ingenio", 40, 5, 6, causa=sim.ENTRENAR),),
+    )
+    assert texto.count("El pasado toma forma") == 1
+    assert "Nudo de nogal" in texto
+
+
+def test_la_tension_de_ingenio_decae_con_la_misma_semivida():
+    c = criatura(ten_ingenio=18)
+    assert sim.avanzar(c, T0 + timedelta(hours=18)).ten_ingenio == 9
+    reserva = replace(c, activa=False)
+    assert sim.avanzar(reserva, T0 + timedelta(days=2)) == reserva
+
+
+def test_la_reserva_de_crecimiento_cuenta_al_ingenio_como_visible():
+    antes = criatura(
+        xp=sim.xp_para_subir(1) - 1,
+        base_fuerza=sim.MAXIMO_STAT,
+        base_velocidad=sim.MAXIMO_STAT,
+        base_salud=sim.MAXIMO_STAT,
+        base_ingenio=50,
+    )
+
+    despues, rupturas = sim.aplicar_xp(antes, 1)
+
+    assert despues.ingenio == antes.ingenio + 1
+    assert any(
+        ruptura.stat == "ingenio" and ruptura.causa == "nivel"
+        for ruptura in rupturas
+    )
+
+
+def _impronta_de_cuatro(_criatura=None) -> SimpleNamespace:
+    """La impronta de cuatro canales que traerá A3, sin tocar el dominio.
+
+    Las afinidades van en el orden canónico —fuerza, velocidad, salud,
+    ingenio— y el anillo en el suyo propio, distinto a propósito: así una
+    ficha que confunda ambos órdenes no puede pasar la prueba.
+    """
+    return SimpleNamespace(
+        giro=1,
+        anillo=("fuerza", "salud", "ingenio", "velocidad"),
+        afinidades=(0.35, 0.0, -0.35, 0.35),
+    )
+
+
+def test_la_ficha_dibuja_el_cuarto_canal_de_la_impronta(monkeypatch):
+    monkeypatch.setattr(sim, "impronta_de", _impronta_de_cuatro)
+    c = criatura(ten_ingenio=16.0)
+    assert sim.umbral_veta(c) == 20.0
+
+    mensaje = pantalla.render(c, T0)
+
+    assert "anillo FUE→SAL→ING→VEL" in mensaje
+    assert "afinidad FUE ↑ · SAL ↓ · ING ↑" in mensaje
+    linea = next(linea for linea in mensaje.splitlines() if "tensión" in linea)
+    assert linea.endswith("· ING al borde")
+    bloque = mensaje.split("```ansi\n", 1)[1].split("\n```", 1)[0]
+    limpio = re.sub(r"\x1b\[[0-9;]*m", "", bloque)
+    assert {len(linea) for linea in limpio.splitlines()} == {pantalla.ANCHO + 2}
+
+
+def test_las_vetas_anteriores_cuentan_tambien_las_de_ingenio(monkeypatch):
+    monkeypatch.setattr(sim, "impronta_de", _impronta_de_cuatro)
+    mensaje = pantalla.render(
+        criatura(niv_fuerza=1, niv_ingenio=2, historial_vetas="F"), T0
+    )
+    assert "vetas: 2 anteriores sin trayectoria · F" in mensaje
+
+
+def test_render_rupturas_etiqueta_la_veta_de_ingenio():
+    texto = pantalla.render_rupturas(
+        criatura(historial_vetas="I", niv_ingenio=1),
+        (sim.Ruptura("ingenio", 20, 8, 9, causa=sim.ENTRENAR),),
+    )
+    assert "le ha salido una veta de ING" in texto
+    assert "ING 8 → 9" in texto and "ahora ING en reposo" in texto
+
+
+def test_la_ficha_dibuja_el_anillo_real_de_cuatro_y_sus_cuatro_bandas():
+    """Sin monkeypatch: el anillo que sale en la ficha es el del dominio.
+
+    Los dos giros son los únicos posibles, así que basta con exigir que la
+    línea de impronta sea uno de ellos y que la de tensión nombre las cuatro
+    bandas en el orden canónico.
+    """
+    for criatura_id in range(1, 40):
+        mensaje = pantalla.render(criatura(id=criatura_id), T0)
+        impronta = next(
+            linea for linea in mensaje.splitlines() if "impronta" in linea
+        )
+        assert (
+            "anillo FUE→VEL→SAL→ING" in impronta
+            or "anillo FUE→ING→SAL→VEL" in impronta
+        ), impronta
+        tension = next(
+            linea for linea in mensaje.splitlines() if "tensión" in linea
+        )
+        assert [
+            trozo.split()[0] for trozo in tension.split("· ")[1:]
+        ] == ["FUE", "VEL", "SAL", "ING"], tension
+
+
+def test_las_descripciones_de_identidad_nombran_el_nudo_de_nogal():
+    assert (
+        pantalla.DESCRIPCIONES_IDENTIDAD["Nudo de nogal"]
+        == "el ingenio domina su historia"
+    )
+    assert (
+        pantalla.DESCRIPCIONES_IDENTIDAD["Veta en espiral"]
+        == "sus últimas vetas giran por tres caminos"
+    )
 
 
 def test_render_rupturas_anuncia_cascada_fuera_del_arte():
@@ -541,7 +769,7 @@ def test_identidad_reconocida_aparece_sin_nuevo_descubrimiento():
 
 
 def test_cada_identidad_se_anuncia_con_su_descripcion():
-    """`pantalla` describe las cinco identidades que `simulacion` reconoce.
+    """`pantalla` describe las seis identidades que `simulacion` reconoce.
 
     El anuncio busca la descripción por el nombre de la identidad, así que un
     nombre sin pareja no fallaría en `simulacion`: reventaría al anunciarlo.
@@ -550,6 +778,7 @@ def test_cada_identidad_se_anuncia_con_su_descripcion():
         "FFFFVF": ("Corazón de roble", "fuerza"),
         "VVVVFV": ("Fibra de fresno", "velocidad"),
         "SSSSFS": ("Savia de olivo", "salud"),
+        "IIIIFI": ("Nudo de nogal", "ingenio"),
         "FVSFVS": ("Veta en espiral", "salud"),
         "FVFVFV": ("Veta trenzada", "velocidad"),
     }
@@ -677,7 +906,7 @@ def test_fallo_al_guardar_viaje_revierte_tension_y_desgaste(
 ):
     monkeypatch.setattr(db, "RUTA", tmp_path / "rollback.db")
     db.inicializar()
-    original = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15), T0)
+    original = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
     salida = av.Salida((av.Prueba("f", "fuerza", 15, 10, 20),))
 
     def fallar(*_):
@@ -707,8 +936,8 @@ def test_el_totem_deja_una_sola_marca_de_entrenamiento_y_veta_en_las_tres():
         for stat in sim.ESTADISTICAS
     }
     assert sum(subidas.values()) == sim.ENTRENAMIENTO_POR_COMPETIR
-    assert sorted(subidas.values()) == [0, 0, 1]
-    for stat in sim.ESTADISTICAS:
+    assert sorted(subidas.values()) == [0, 0, 0, 1]
+    for stat in comp.STATS[comp.TOTEM]:
         assert getattr(despues, f"ten_{stat}") > getattr(antes, f"ten_{stat}")
 
 
@@ -769,6 +998,7 @@ def _al_borde_de_evolucionar_con_dos_topes() -> sim.Criatura:
         base_fuerza=sim.MAXIMO_STAT,
         base_velocidad=50,
         base_salud=sim.MAXIMO_STAT,
+        base_ingenio=sim.MAXIMO_STAT,
         ent_fuerza=1,
         ent_velocidad=1,
         ent_salud=1,
@@ -779,7 +1009,9 @@ def _al_borde_de_evolucionar_con_dos_topes() -> sim.Criatura:
 def test_el_totem_no_se_come_la_veta_que_hace_crecer_al_evolucionar():
     """Tres esfuerzos no pueden dejar sin sitio a la veta de la subida."""
     antes = _al_borde_de_evolucionar_con_dos_topes()
-    assert _visibles(antes) == (sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT)
+    assert _visibles(antes) == (
+        sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
+    )
 
     despues, rupturas = sim.aplicar_competencia(
         antes, True, comp.STATS[comp.TOTEM], margen=0
@@ -787,7 +1019,9 @@ def test_el_totem_no_se_come_la_veta_que_hace_crecer_al_evolucionar():
 
     assert despues.nivel == antes.nivel + 1
     assert despues.etapa != antes.etapa
-    assert _visibles(despues) == (sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT)
+    assert _visibles(despues) == (
+        sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
+    )
 
     assert len(rupturas) <= sim.MAX_RUPTURAS_POR_SUCESO
     assert any(ruptura.causa == "nivel" for ruptura in rupturas)
@@ -811,7 +1045,9 @@ def test_la_carrera_y_el_sumo_siguen_creciendo_igual_al_evolucionar():
             antes, True, comp.STATS[tipo], margen=0
         )
         assert despues.etapa != antes.etapa, tipo
-        assert _visibles(despues) == (sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT), tipo
+        assert _visibles(despues) == (
+            sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
+        ), tipo
 
 
 def test_una_subida_con_todo_al_tope_no_aparta_ninguna_veta():
@@ -822,9 +1058,11 @@ def test_una_subida_con_todo_al_tope_no_aparta_ninguna_veta():
         base_fuerza=sim.MAXIMO_STAT,
         base_velocidad=sim.MAXIMO_STAT,
         base_salud=sim.MAXIMO_STAT,
+        base_ingenio=sim.MAXIMO_STAT,
         ten_fuerza=100.0,
         ten_velocidad=100.0,
         ten_salud=100.0,
+        ten_ingenio=100.0,
     )
 
     despues, rupturas = sim.aplicar_competencia(
@@ -832,7 +1070,7 @@ def test_una_subida_con_todo_al_tope_no_aparta_ninguna_veta():
     )
 
     assert despues.nivel == antes.nivel + 1
-    assert _visibles(despues) == _visibles(antes) == (sim.MAXIMO_STAT,) * 3
+    assert _visibles(despues) == _visibles(antes) == (sim.MAXIMO_STAT,) * 4
     assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
     assert all(ruptura.causa == sim.COMPETIR for ruptura in rupturas)
 
@@ -840,8 +1078,8 @@ def test_una_subida_con_todo_al_tope_no_aparta_ninguna_veta():
 def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
     """La reserva se suelta **dentro** de la emisión que hace crecer.
 
-    Una identidad concreta —`P1`, con anillo fuerza → salud → velocidad— y las
-    dos tensiones justo por debajo del umbral: la subida de nivel rompe primero
+    Una identidad concreta —`P1`, con anillo fuerza → ingenio → salud →
+    velocidad— y las dos tensiones justo por debajo del umbral: la subida rompe primero
     velocidad, después salud —que es la que crece a la vista, 998 → 999— y esa
     ruptura arrastra a velocidad otra vez. Si el hueco apartado se soltara sólo
     entre emisiones, esa tercera ruptura se quedaría fuera y el suceso acabaría
@@ -854,17 +1092,22 @@ def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
         base_fuerza=sim.MAXIMO_STAT,
         base_velocidad=sim.MAXIMO_STAT,
         base_salud=998,
+        base_ingenio=sim.MAXIMO_STAT,
         ten_fuerza=0.0,
-        ten_velocidad=34.0,
+        ten_velocidad=36.0,
         ten_salud=33.0,
     )
-    assert sim.impronta_de(antes).anillo == ("fuerza", "salud", "velocidad")
-    assert _visibles(antes) == (sim.MAXIMO_STAT, sim.MAXIMO_STAT, 998)
+    assert sim.impronta_de(antes).anillo == (
+        "fuerza", "ingenio", "salud", "velocidad",
+    )
+    assert _visibles(antes) == (
+        sim.MAXIMO_STAT, sim.MAXIMO_STAT, 998, sim.MAXIMO_STAT,
+    )
 
     despues, rupturas = sim.aplicar_xp(antes, 1)
 
     assert despues.nivel == 2
-    assert _visibles(despues) == (sim.MAXIMO_STAT,) * 3
+    assert _visibles(despues) == (sim.MAXIMO_STAT,) * 4
     assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
     assert [ruptura.stat for ruptura in rupturas] == [
         "velocidad", "salud", "velocidad",
@@ -876,5 +1119,8 @@ def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
     # Y no queda tensión elegible por culpa de la reserva.
     umbral = sim.umbral_veta(despues)
     assert max(
-        despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud
+        despues.ten_fuerza,
+        despues.ten_velocidad,
+        despues.ten_salud,
+        despues.ten_ingenio,
     ) < umbral

@@ -86,8 +86,10 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
         antes.nivel != despues.nivel
         or antes.etapa != despues.etapa
         or antes.historial_vetas != despues.historial_vetas
-        or (antes.ten_fuerza, antes.ten_velocidad, antes.ten_salud)
-        != (despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud)
+        or (antes.ten_fuerza, antes.ten_velocidad, antes.ten_salud,
+            antes.ten_ingenio)
+        != (despues.ten_fuerza, despues.ten_velocidad, despues.ten_salud,
+            despues.ten_ingenio)
     )
 
 
@@ -374,6 +376,29 @@ class Competencias(commands.Cog):
             interaccion, (usuario, usuario2, usuario3, usuario4), comp.TOTEM
         )
 
+    @app_commands.command(
+        name="laberinto",
+        description="Reta al Laberinto de Ecos: SEÑALES, TRAZADO y NO PERDERSE",
+    )
+    @app_commands.describe(
+        usuario="A quién quieres retar",
+        usuario2="Otro más (opcional)",
+        usuario3="Otro más (opcional)",
+        usuario4="Otro más (opcional)",
+    )
+    @comun.solo_en_el_canal()
+    async def laberinto(
+        self,
+        interaccion: discord.Interaction,
+        usuario: discord.User,
+        usuario2: discord.User | None = None,
+        usuario3: discord.User | None = None,
+        usuario4: discord.User | None = None,
+    ):
+        await self._retar(
+            interaccion, (usuario, usuario2, usuario3, usuario4), comp.LABERINTO
+        )
+
     async def _retar(
         self,
         interaccion: discord.Interaction,
@@ -559,9 +584,11 @@ class Competencias(commands.Cog):
         self, canal: discord.abc.Messageable, fotogramas: list[str], tipo: str
     ) -> None:
         """Manda el primer fotograma y edita ese mismo mensaje con los demás."""
+        # El tótem y el laberinto son tres fases con escena y narración, no
+        # tramos de una carrera: hay que darle tiempo a leerlas.
         espera = (
             SEGUNDOS_ENTRE_FASES_TOTEM
-            if tipo == comp.TOTEM else SEGUNDOS_ENTRE_TRAMOS
+            if tipo in (comp.TOTEM, comp.LABERINTO) else SEGUNDOS_ENTRE_TRAMOS
         )
         mensaje = await canal.send(fotogramas[0])
         for fotograma in fotogramas[1:]:

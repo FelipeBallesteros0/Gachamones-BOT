@@ -19,7 +19,7 @@ import simulacion as sim
 from cogs.competencias import Competencias
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
-STATS = (15, 15, 15)
+STATS = (15, 15, 15, 15)
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +35,13 @@ def nacer(usuario, activa=True):
 def competir(evento, cuando=T0, usuarios=("u1", "u2"), semilla=1):
     return economia.ejecutar_competencia(
         evento, usuarios, "g1", comp.CARRERA, cuando, random.Random(semilla)
+    )
+
+
+def laberinto(evento, cuando=T0, usuarios=("u1", "u2"), rng=None):
+    return economia.ejecutar_competencia(
+        evento, usuarios, "g1", comp.LABERINTO,
+        cuando, rng or random.Random(1),
     )
 
 
@@ -434,6 +441,175 @@ def test_el_replay_de_un_totem_conserva_premios_y_marcador_sin_tirar_dados():
     ) == primero.despues
 
 
+def test_el_laberinto_apunta_su_marcador_y_no_los_otros():
+    nacer("u1")
+    nacer("u2")
+
+    resultado = laberinto("laberinto-marcador")
+
+    assert resultado.encuentro is not None
+    campeon = resultado.despues[resultado.encuentro.orden[0]]
+    marcador = db.marcador(campeon.id)
+    assert marcador.get(lgr.LABERINTOS) == 1
+    assert all(
+        marcador.get(clave, 0) == 0
+        for clave in (lgr.CARRERAS, lgr.SUMOS, lgr.TOTEMS, lgr.TORNEOS)
+    )
+
+
+def test_el_replay_del_laberinto_conserva_premios_sin_tirar_dados():
+    class RngProhibido(random.Random):
+        def randint(self, a, b):
+            raise AssertionError("un replay no vuelve a tirar")
+
+    nacer("u1")
+    nacer("u2")
+    primero = laberinto("laberinto-replay", rng=random.Random(3))
+    laberinto("laberinto-posterior", T0 + timedelta(minutes=11))
+    saldos = tuple(economia.saldos(usuario, "g1") for usuario in ("u1", "u2"))
+    criaturas = tuple(
+        db.criatura_activa(usuario, "g1") for usuario in ("u1", "u2")
+    )
+
+    replay = laberinto("laberinto-replay", rng=RngProhibido())
+
+    assert replay.replay
+    assert replay.recibos == primero.recibos
+    assert tuple(
+        economia.saldos(usuario, "g1") for usuario in ("u1", "u2")
+    ) == saldos
+    assert tuple(
+        db.criatura_activa(usuario, "g1") for usuario in ("u1", "u2")
+    ) == criaturas
+
+
+def test_el_laberinto_entrena_solo_ingenio():
+    nacidas = (nacer("u1"), nacer("u2"))
+
+    resultado = laberinto("laberinto-entrena")
+
+    for dorsal, (antes, despues, recibo) in enumerate(zip(
+        nacidas, resultado.despues, resultado.recibos,
+    )):
+        assert despues.ent_ingenio == antes.ent_ingenio + 1
+        assert (
+            despues.ent_fuerza, despues.ent_velocidad, despues.ent_salud,
+        ) == (antes.ent_fuerza, antes.ent_velocidad, antes.ent_salud)
+        texto = cog_comp.texto_recibo_competencia(
+            recibo,
+            f"<@u{dorsal + 1}>",
+            gano=resultado.encuentro is not None
+            and dorsal == resultado.encuentro.orden[0],
+            stats=comp.STATS[comp.LABERINTO],
+            entrenada="ingenio",
+        )
+        assert "ingenio +1 entrenamiento" in texto
+
+
+def test_el_laberinto_deja_veta_de_ingenio():
+    uno = nacer("u1")
+    nacer("u2")
+    db.guardar(replace(uno, ten_ingenio=20.0))
+
+    resultado = laberinto("laberinto-veta")
+
+    sufijo = resultado.despues[0].historial_vetas.removeprefix(
+        resultado.antes[0].historial_vetas
+    )
+    assert sufijo
+    assert set(sufijo) == {"I"}
+
+
+def test_la_ficha_se_republica_si_solo_se_movio_la_tension_de_ingenio():
+    """El laberinto sólo tensa el ingenio: si la comparación se quedara en los
+    tres canales de siempre, la ficha nueva no llegaría a publicarse nunca."""
+    antes = nacer("u1")
+    despues = replace(antes, ten_ingenio=antes.ten_ingenio + 3.0)
+
+    assert cog_comp._ha_cambiado_la_ficha(antes, despues)
+    assert not cog_comp._ha_cambiado_la_ficha(antes, replace(antes))
+
+
+def test_disputar_un_laberinto_narra_beats_cierre_y_recibos(monkeypatch):
+    """El seam donde se juntan las tres capas: motor, economía y Discord.
+
+    Cada pieza tiene sus propias pruebas; ésta comprueba que el cog las une
+    para una modalidad que no existía cuando se escribió `disputar`.
+    """
+    nacer("u1")
+    nacer("u2")
+    resultado = laberinto("laberinto-disputa")
+    assert resultado.encuentro is not None
+
+    monkeypatch.setattr(
+        cog_comp.economia, "ejecutar_competencia", lambda *_: resultado
+    )
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(cog_comp.vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
+    animados = []
+
+    async def animar(_canal, fotogramas, tipo):
+        animados.append((fotogramas, tipo))
+
+    cog = Competencias.__new__(Competencias)
+    cog._animar = animar
+    canal = SimpleNamespace(id="canal", send=AsyncMock())
+    participantes = [
+        SimpleNamespace(id=1000 + n, mention=f"<@{u}>", display_name=u)
+        for n, u in enumerate(("u1", "u2"))
+    ]
+
+    asyncio.run(
+        cog.disputar(canal, participantes, comp.LABERINTO, "g1", "laberinto-disputa")
+    )
+
+    (fotogramas, tipo), = animados
+    assert tipo == comp.LABERINTO
+    assert len(fotogramas) >= len(comp.FASES_LABERINTO)
+    assert all("eco del pasillo" in fotograma for fotograma in fotogramas[:3])
+
+    mandados = [llamada.args[0] for llamada in canal.send.await_args_list]
+    resumen = mandados[0]
+    assert "puertas abiertas." in resumen
+    assert resumen.count("ingenio +1 entrenamiento") == 2
+    assert all(len(mandado) < 2000 for mandado in mandados)
+
+
+def test_el_laberinto_pone_cooldown_competir_a_todos():
+    nacidas = (nacer("u1"), nacer("u2"))
+
+    laberinto("laberinto-cooldown")
+
+    assert all(
+        db.espera_de(criatura.id, sim.COMPETIR, T0) > timedelta(0)
+        for criatura in nacidas
+    )
+
+
+def test_el_laberinto_respeta_el_tope_diario_de_competencias():
+    nacer("u1")
+    nacer("u2")
+    resultados = [
+        laberinto(f"laberinto-tope-{i}", T0 + timedelta(minutes=11 * i))
+        for i in range(4)
+    ]
+
+    ultimo = resultados[-1]
+    assert all(recibo.topada for recibo in ultimo.recibos)
+    assert all(
+        "(tope)" in cog_comp.texto_recibo_competencia(
+            recibo,
+            f"<@u{dorsal + 1}>",
+            gano=ultimo.encuentro is not None
+            and dorsal == ultimo.encuentro.orden[0],
+            stats=comp.STATS[comp.LABERINTO],
+            entrenada="ingenio",
+        )
+        for dorsal, recibo in enumerate(ultimo.recibos)
+    )
+
+
 def test_sumo_paga_al_ganador_de_intercambios_y_el_replay_no_tira_dados():
     class Dados(random.Random):
         def __init__(self):
@@ -770,13 +946,13 @@ def test_el_mensaje_final_de_un_totem_de_cinco_cabe_en_un_mensaje_de_discord():
 def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
     """Integración: la evolución que confirma la transacción es la que crece.
 
-    Con fuerza y salud ya en el tope visible, la única que puede crecer es la
-    velocidad, y los tres esfuerzos del tótem no pueden dejarla sin veta.
+    Con fuerza, salud e ingenio ya en el tope visible, la única que puede
+    crecer es la velocidad, y el tótem no puede dejarla sin veta.
     """
     for usuario in ("u1", "u2"):
         nacida = db.crear(
             usuario, "g1", "pulpo", usuario,
-            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT), T0,
+            (sim.MAXIMO_STAT, 50, sim.MAXIMO_STAT, sim.MAXIMO_STAT), T0,
         )
         db.guardar(replace(
             nacida,
@@ -794,11 +970,11 @@ def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
     despues = resultado.despues[ganador]
 
     assert antes.etapa != despues.etapa
-    assert (antes.fuerza, antes.velocidad, antes.salud) == (
-        sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT
+    assert (antes.fuerza, antes.velocidad, antes.salud, antes.ingenio) == (
+        sim.MAXIMO_STAT, 51, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
     )
-    assert (despues.fuerza, despues.velocidad, despues.salud) == (
-        sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT
+    assert (despues.fuerza, despues.velocidad, despues.salud, despues.ingenio) == (
+        sim.MAXIMO_STAT, 52, sim.MAXIMO_STAT, sim.MAXIMO_STAT,
     )
 
     rupturas = resultado.rupturas[ganador]

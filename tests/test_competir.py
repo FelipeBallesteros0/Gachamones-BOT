@@ -39,7 +39,7 @@ class DadosFijos(random.Random):
 
 def competidor(
     nombre="A", especie="pulpo", stat=10, modificador=0, animo=esp.NORMAL,
-    *, fuerza=None, velocidad=None, salud=None,
+    *, fuerza=None, velocidad=None, salud=None, ingenio=None,
     bonus_fuerza=0, bonus_velocidad=0,
 ):
     return comp.Competidor(
@@ -48,6 +48,7 @@ def competidor(
         fuerza=stat if fuerza is None else fuerza,
         velocidad=stat if velocidad is None else velocidad,
         salud=stat if salud is None else salud,
+        ingenio=stat if ingenio is None else ingenio,
         modificador=modificador,
         bonus_fuerza=bonus_fuerza,
         bonus_velocidad=bonus_velocidad,
@@ -234,14 +235,14 @@ def test_competidor_de_conserva_stats_bonus_y_estado_visual():
     criatura = sim.Criatura(
         id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
         nacida_en=T0, actualizada_en=T0,
-        base_fuerza=30, base_velocidad=5, base_salud=10,
+        base_fuerza=30, base_velocidad=5, base_salud=10, base_ingenio=47,
         hambre=90.0, animo=90.0,
     )
     c = comp.competidor_de(
         criatura, bonus_fuerza=7, bonus_velocidad=4
     )
 
-    assert (c.fuerza, c.velocidad, c.salud) == (30, 5, 10)
+    assert (c.fuerza, c.velocidad, c.salud, c.ingenio) == (30, 5, 10, 47)
     assert (c.bonus_fuerza, c.bonus_velocidad) == (7, 4)
     assert c.modificador == 2
     assert c.cara == esp.ESPECIES["pulpo"].caras[esp.FELIZ]
@@ -1167,8 +1168,8 @@ def test_el_totem_de_cinco_cabe_en_un_mensaje_de_discord():
 
 
 def test_cada_modalidad_esta_en_todas_las_tablas():
-    """Media modalidad cableada es un KeyError en producción, no un test rojo."""
-    modalidades = {comp.CARRERA, comp.SUMO, comp.TOTEM}
+    """Ninguna modalidad puede quedarse a medias: sin dibujante no se narra."""
+    modalidades = {comp.CARRERA, comp.SUMO, comp.TOTEM, comp.LABERINTO}
     for tabla in (
         comp.NOMBRES, comp.STATS, comp.CUANTOS_CABEN, comp.ARTICULOS,
         comp.REGLAS, comp.REGLA_DEL_MARCADOR, comp.DIBUJANTES,
@@ -1384,3 +1385,327 @@ def test_los_desempates_del_totem_van_por_ramas_y_no_por_un_marcador_sumado():
     ]
     assert [linea.split()[2] for linea in puestos] == ["A", "D", "C", "B"]
     assert [linea.split()[-2] for linea in puestos] == ["12"] * 4
+
+
+# --- Laberinto de Ecos -----------------------------------------------------
+
+def test_el_laberinto_tira_primero_el_eco_y_despues_los_dorsales():
+    dos = [competidor("A", stat=10), competidor("B", stat=10)]
+    _, resultado = combate(
+        dos, comp.LABERINTO, DadosFijos([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    )
+
+    assert [ronda.eco for ronda in resultado.rondas] == [11, 14, 17]
+    assert [ronda.dados for ronda in resultado.rondas] == [
+        (2, 3), (5, 6), (8, 9),
+    ]
+
+
+def test_la_base_del_eco_es_la_mediana_redondeada_a_par():
+    assert comp._base_del_eco(
+        [competidor(ingenio=30), competidor(ingenio=26), competidor(ingenio=22)],
+        comp.SENALES,
+    ) == 26
+    assert comp._base_del_eco(
+        [competidor(ingenio=30), competidor(ingenio=30), competidor(ingenio=5)],
+        comp.SENALES,
+    ) == 30
+    assert comp._base_del_eco(
+        [competidor(ingenio=31), competidor(ingenio=30)], comp.SENALES,
+    ) == 30
+
+
+def test_el_empate_de_puerta_lo_gana_el_eco():
+    dos = (competidor("A"), competidor("B"))
+    resultado = comp.Resultado(
+        comp.LABERINTO,
+        dos,
+        [comp.Ronda((10, 11), (20, 21), comp.SENALES, eco=20)],
+        (1, 0),
+    )
+    assert resultado.marcadores == (0, 1)
+
+
+def test_las_fases_del_laberinto_mezclan_y_redondean_a_par():
+    c = competidor(ingenio=5, velocidad=10, salud=5)
+    assert c.base_en(comp.SENALES) == 5
+    assert c.base_en(comp.TRAZADO) == 6
+    assert competidor(ingenio=10, salud=5).base_en(comp.NO_PERDERSE) == 8
+
+    afinado = competidor(
+        ingenio=5, velocidad=10, salud=5,
+        bonus_velocidad=4, modificador=2,
+    )
+    assert afinado.base_en(comp.SENALES) == 7
+    assert afinado.base_en(comp.TRAZADO) == 10
+    assert afinado.base_en(comp.NO_PERDERSE) == 7
+
+
+def test_las_puertas_ordenan_antes_que_los_totales():
+    rondas = [
+        comp.Ronda((1, 1), (21, 20), comp.SENALES, eco=20),
+        comp.Ronda((1, 1), (21, 20), comp.TRAZADO, eco=20),
+        comp.Ronda((1, 1), (0, 100), comp.NO_PERDERSE, eco=20),
+    ]
+    assert comp._orden_del_laberinto(rondas, 2) == (0, 1)
+    resultado = comp.Resultado(
+        comp.LABERINTO, (competidor("A"), competidor("B")), rondas, (0, 1)
+    )
+    assert resultado.marcadores == (2, 1)
+    assert resultado.totales == (42, 140)
+
+
+def test_el_desempate_del_laberinto_es_una_senda_entre_empatados():
+    tres = [competidor(nombre, stat=10) for nombre in "ABC"]
+    _, resultado = combate(
+        tres, comp.LABERINTO,
+        DadosFijos([10, 5, 5, 1] * 3 + [6, 4]),
+    )
+
+    desempate = resultado.rondas[-1]
+    assert desempate.fase == comp.DESEMPATE
+    assert desempate.dorsales == (0, 1)
+    assert desempate.dados[2] == desempate.totales[2] == 0
+    assert resultado.totales == (45, 45, 33)
+    assert resultado.marcadores == (0, 0, 0)
+
+
+def test_el_desempate_resuelve_todos_los_grupos_y_no_solo_el_podio():
+    cinco = [competidor(nombre, stat=10) for nombre in "ABCDE"]
+    dados = DadosFijos(
+        [10, 6, 6, 3, 3, 1] * 3 + [4, 2, 3, 3] + [1, 6]
+    )
+    encuentro, resultado = combate(cinco, comp.LABERINTO, dados)
+
+    desempates = [
+        ronda for ronda in resultado.rondas if ronda.fase == comp.DESEMPATE
+    ]
+    assert [ronda.dorsales for ronda in desempates] == [
+        (0, 1, 2, 3), (2, 3),
+    ]
+    assert encuentro.orden == (0, 1, 3, 2, 4)
+    assert dados.i == 18 + 4 + 2
+
+
+def test_los_desempates_del_laberinto_tienen_tope_y_fallback():
+    dos = [competidor("A", stat=10), competidor("B", stat=10)]
+    _, resultado = combate(dos, comp.LABERINTO, DadosFijos([7]))
+
+    assert resultado.desempates == comp.MAX_DESEMPATES
+    assert len(resultado.rondas) == (
+        len(comp.FASES_LABERINTO) + comp.MAX_DESEMPATES
+    )
+    assert resultado.orden == (0, 1)
+
+
+def test_el_laberinto_admite_de_dos_a_cinco_y_nunca_torneo():
+    for cuantos in range(2, comp.MAX_CORREDORES + 1):
+        encuentro = comp.enfrentar(
+            [competidor(f"C{i}", stat=10 + i) for i in range(cuantos)],
+            comp.LABERINTO,
+            DadosFijos([10]),
+        )
+        assert len(encuentro.combates) == 1
+        assert not encuentro.es_torneo
+
+    espera_error([competidor("Solo")], comp.LABERINTO,
+                 "un laberinto de uno debería estar prohibido")
+    espera_error([competidor(f"C{i}") for i in range(6)], comp.LABERINTO,
+                 "un laberinto de seis debería estar prohibido")
+
+
+def test_margen_de_devuelve_la_distancia_en_totales_del_laberinto():
+    encuentro, resultado = combate(
+        [competidor("A", stat=10), competidor("B", stat=10)],
+        comp.LABERINTO,
+        DadosFijos([10, 9, 1, 10, 8, 2, 10, 7, 3]),
+    )
+    perdedor = encuentro.orden[-1]
+    ganador = encuentro.orden[0]
+    assert comp.margen_de(encuentro, perdedor) == abs(
+        resultado.totales[perdedor] - resultado.totales[ganador]
+    )
+
+
+def test_dos_semillas_iguales_dan_el_mismo_laberinto():
+    tres = [competidor(nombre, stat=10 + i) for i, nombre in enumerate("ABC")]
+    uno = comp.enfrentar(tres, comp.LABERINTO, random.Random(37))
+    dos = comp.enfrentar(tres, comp.LABERINTO, random.Random(37))
+    distinto = comp.enfrentar(tres, comp.LABERINTO, random.Random(38))
+
+    assert uno == dos
+    assert uno != distinto
+
+
+# --- Beats del Laberinto ---------------------------------------------------
+
+# Con dos competidores de stat 10 la base del eco es 10 en las tres fases, así
+# que el guion de cada beat es `[dado del eco, dado de A, dado de B]` y decide
+# quién cruza sin más aritmética.
+CRUZA_UNO = [5, 10, 1]
+CRUZAN_DOS = [1, 10, 10]
+NO_CRUZA_NADIE = [20, 1, 1]
+# A iguala el eco exacto (10 + 10 = 20) y B se queda corto: el empate es del
+# eco, así que nadie cruza y nadie abre puerta.
+EMPATA_UNO = [10, 10, 1]
+
+
+def beats_de(guion):
+    """Los beats de un laberinto de dos con el guion de dados dado."""
+    dos = [competidor("A", stat=10), competidor("B", stat=10)]
+    encuentro, resultado = combate(dos, comp.LABERINTO, DadosFijos(guion))
+    return comp.fotogramas_de(encuentro)[0], encuentro, resultado
+
+
+def narraciones_de(fotogramas):
+    return [f.rsplit("```", 1)[1].strip() for f in fotogramas]
+
+
+def test_las_escenas_del_laberinto_miden_quince_por_tres():
+    assert set(comp.ESCENAS_LABERINTO) == set(comp.FASES_LABERINTO)
+    for fase, escena in comp.ESCENAS_LABERINTO.items():
+        assert len(escena) == comp.ALTO_ESCENA, fase
+        assert {len(linea) for linea in escena} == {comp.ANCHO_ESCENA}, fase
+
+
+def test_cada_beat_del_laberinto_cuadra_el_marco():
+    rng = random.Random(0)
+    for cuantos in range(2, comp.MAX_CORREDORES + 1):
+        for _ in range(30):
+            corredores = [
+                competidor(
+                    nombre=rng.choice(["Bartolomeo", "Yo", "X" * 24]),
+                    especie=rng.choice(list(esp.ESPECIES)),
+                    stat=rng.randint(1, sim.MAXIMO_STAT),
+                    modificador=rng.randint(-5, 2),
+                    animo=rng.choice(esp.ANIMOS),
+                )
+                for _ in range(cuantos)
+            ]
+            e = comp.enfrentar(corredores, comp.LABERINTO, rng)
+            for fotograma in comp.fotogramas_de(e)[0]:
+                for linea in lineas(fotograma):
+                    assert len(linea) == pantalla.ANCHO + 2, repr(linea)
+                    assert linea[0] in "╭├╰│", repr(linea)
+                    assert linea[-1] in "╮┤╯│", repr(linea)
+
+
+def test_el_beat_muestra_el_eco_y_las_marcas():
+    fotogramas, _, resultado = beats_de(CRUZA_UNO * 3)
+    primero = lineas(fotogramas[0])
+
+    eco = next(linea for linea in primero if "eco del pasillo" in linea)
+    assert eco == f"│ eco del pasillo {resultado.rondas[0].eco:>7}  │"
+    marcas = [linea for linea in primero if "+d20" in linea]
+    assert len(marcas) == 2
+    assert marcas[0][1] == "✓" and "A" in marcas[0]
+    assert marcas[1][1] == "✗" and "B" in marcas[1]
+
+
+def test_el_beat_clasifica_las_puertas_abiertas_hasta_ese_momento():
+    fotogramas, _, _ = beats_de(CRUZA_UNO * 3)
+    ultimo = lineas(fotogramas[-1])
+
+    puestos = [linea for linea in ultimo if "puerta" in linea]
+    assert puestos == [
+        "│ 1. A          3 puertas  │",
+        "│ 2. B          0 puertas  │",
+    ]
+    primero = lineas(fotogramas[0])
+    assert [linea for linea in primero if "puerta" in linea] == [
+        "│ 1. A          1 puerta   │",
+        "│ 2. B          0 puertas  │",
+    ]
+
+
+def test_el_beat_de_desempate_no_finge_un_eco_ni_reparte_marcas():
+    """Un desempate no es una fase: no tiene eco, así que no hay puerta que
+    marcar. Enseñar `eco 0` con todo el mundo cruzando sería mentira."""
+    fotogramas, _, resultado = beats_de(CRUZAN_DOS * 3)
+    assert resultado.rondas[-1].fase == comp.DESEMPATE
+
+    ultimo = lineas(fotogramas[-1])
+    assert not any("eco del pasillo" in linea for linea in ultimo)
+    assert all(linea[1] not in "✓✗" for linea in ultimo)
+    assert narraciones_de(fotogramas[-1:]) == [""]
+
+
+def test_la_narracion_del_laberinto_cuenta_single_plural_y_nadie():
+    solos, _, _ = beats_de(CRUZA_UNO * 3)
+    assert narraciones_de(solos)[:3] == [
+        "A descifra las señales.",
+        "A traza la ruta sin dudar.",
+        "A sale del laberinto y su eco se apaga.",
+    ]
+
+    juntos, _, _ = beats_de(CRUZAN_DOS * 3)
+    assert narraciones_de(juntos)[:3] == [
+        "A y B descifran las señales a la vez.",
+        "A y B trazan rutas parejas.",
+        "A y B salen a la vez.",
+    ]
+
+    nadie, _, _ = beats_de(NO_CRUZA_NADIE * 3)
+    assert narraciones_de(nadie)[:3] == [
+        "El eco confunde las señales: nadie cruza.",
+        "Los pasillos se repiten: nadie avanza.",
+        "El laberinto retiene a todos una vuelta más.",
+    ]
+
+
+def test_el_empate_con_el_eco_no_cruza_en_ninguna_de_las_tres_superficies():
+    """El empate lo gana el eco también en lo que se ve, no sólo al contar.
+
+    La marca, la narración y la clasificación parcial salen de tres sitios
+    distintos, así que hace falta el empate exacto para que las tres digan lo
+    mismo: aflojar cualquiera a `>=` enseñaría un `✓` y un «A descifra las
+    señales» encima de un cuadro donde A sigue con cero puertas.
+    """
+    fotogramas, _, resultado = beats_de(EMPATA_UNO * 3)
+    ronda = resultado.rondas[0]
+    assert ronda.totales[0] == ronda.eco and ronda.totales[1] < ronda.eco
+
+    primero = lineas(fotogramas[0])
+    marcas = [linea for linea in primero if "+d20" in linea]
+    assert marcas[0][1] == "✗" and "A" in marcas[0]
+    assert narraciones_de(fotogramas[:1]) == [
+        "El eco confunde las señales: nadie cruza.",
+    ]
+    assert [linea for linea in primero if "puerta" in linea] == [
+        "│ 1. A          0 puertas  │",
+        "│ 2. B          0 puertas  │",
+    ]
+
+
+def test_el_beat_adversarial_de_cinco_cabe_en_discord():
+    largo = "M" * sim.LARGO_MAXIMO_NOMBRE
+    cinco = [
+        competidor(largo, stat=sim.MAXIMO_STAT, modificador=2) for _ in range(5)
+    ]
+    e = comp.enfrentar(cinco, comp.LABERINTO, DadosFijos([7]))
+
+    for fotograma in comp.fotogramas_de(e)[0]:
+        assert len(fotograma) <= 2000, len(fotograma)
+    assert len(comp.resumen(e)) <= 2000
+
+
+def test_el_cierre_de_dos_jugadores_nombra_las_puertas_abiertas():
+    _, encuentro, _ = beats_de(CRUZA_UNO * 3)
+    cierre = comp.resumen(encuentro)
+
+    assert "por 3–0 puertas abiertas." in cierre
+    assert "🏆 **A** gana a **B**" in cierre
+
+
+def test_el_reto_del_laberinto_se_anuncia_por_su_nombre():
+    for cuantos in comp.CUANTOS_CABEN[comp.LABERINTO]:
+        assert comp.como_se_llama(comp.LABERINTO, cuantos) == (
+            "un LABERINTO DE ECOS"
+        )
+
+
+def test_el_laberinto_de_tres_o_mas_cierra_con_podio():
+    tres = [competidor(nombre, stat=10 + i * 5) for i, nombre in enumerate("ABC")]
+    encuentro = comp.enfrentar(tres, comp.LABERINTO, DadosFijos([10, 9, 8, 7]))
+
+    assert "🥇" in comp.resumen(encuentro)

@@ -86,19 +86,25 @@ def test_ninguna_especie_repite_nombre():
     assert not repetidos, repetidos
 
 
+def test_todas_las_especies_tienen_ingenio_uniforme_por_rareza():
+    for especie in esp.ESPECIES.values():
+        esperado = 10 if especie.rareza == esp.RARA else 8
+        assert especie.ingenio == esperado, especie.clave
+
+
 def test_las_no_raras_estan_equilibradas():
-    """Comunes y poco comunes reparten los mismos 24 puntos: ninguna es mejor,
+    """Comunes y poco comunes reparten los mismos 32 puntos: ninguna es mejor,
     sólo distinta. Si alguien retoca la tabla, esto lo caza."""
     for especie in esp.ESPECIES.values():
         if especie.rareza != esp.RARA:
-            assert especie.total_base == 24, especie.clave
+            assert especie.total_base == 32, especie.clave
 
 
 def test_las_raras_son_mejores():
     raras = [e for e in esp.ESPECIES.values() if e.rareza == esp.RARA]
     assert raras
     for rara in raras:
-        assert rara.total_base == 30, rara.clave
+        assert rara.total_base == 40, rara.clave
 
 
 # --- Tirada de nacimiento --------------------------------------------------
@@ -115,21 +121,25 @@ def test_stats_iniciales_son_base_mas_2d6():
     rng = random.Random(99)
     pollito = esp.ESPECIES["pollito"]
     for _ in range(2_000):
-        fue, vel, sal = esp.tirar_stats_iniciales(pollito, rng)
+        fue, vel, sal, ing = esp.tirar_stats_iniciales(pollito, rng)
         assert pollito.fuerza + 2 <= fue <= pollito.fuerza + 12
         assert pollito.velocidad + 2 <= vel <= pollito.velocidad + 12
         assert pollito.salud + 2 <= sal <= pollito.salud + 12
+        assert pollito.ingenio + 2 <= ing <= pollito.ingenio + 12
 
 
 def test_cada_stat_se_tira_por_separado():
-    """Si las tres compartieran tirada saldrían siempre con el mismo bonus."""
-    rng = random.Random(3)
-    pulpo = esp.ESPECIES["pulpo"]  # base 8/8/8, así que el bonus se ve directo
-    distintas = sum(
-        1 for _ in range(500)
-        if len(set(esp.tirar_stats_iniciales(pulpo, rng))) > 1
-    )
-    assert distintas > 400
+    class DadosFijos(random.Random):
+        def __init__(self):
+            super().__init__()
+            self.valores = iter((1, 2, 2, 3, 3, 4, 4, 5))
+
+        def randint(self, a, b):
+            assert (a, b) == (1, 6)
+            return next(self.valores)
+
+    pulpo = esp.ESPECIES["pulpo"]
+    assert esp.tirar_stats_iniciales(pulpo, DadosFijos()) == (11, 13, 15, 17)
 
 
 # --- Las cinco etapas ------------------------------------------------------
