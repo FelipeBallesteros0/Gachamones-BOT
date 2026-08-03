@@ -236,6 +236,11 @@ def test_las_fichas_anteriores_conservan_sus_acciones_persistentes():
         "tama:personalizar",
         "tama:entrenar_juntos",
     ]
+    boton_entrenar = cast(discord.ui.Button, vista.children[-1])
+    assert (boton_entrenar.label, boton_entrenar.custom_id) == (
+        "Entrenar fuerza juntos",
+        "tama:entrenar_juntos",
+    )
 
 
 def test_la_vista_congelada_no_acepta_clics():

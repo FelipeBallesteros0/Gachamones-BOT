@@ -253,7 +253,7 @@ la anterior apagada.
 la estadística de salud alarga ese margen.
 
 **Crecer**
-Cuidarlo da experiencia: alimentar +1, jugar +2, entrenar +3. Ganar una \
+Cuidarlo da experiencia: alimentar +1, jugar +2, entrenar fuerza +3. Ganar una \
 competencia da +10. Cada nivel es una **evolución** y le cambia el dibujo:
 -# cría → niño → adolescente → adulto → adulto grande
 El primer salto cae en un día; llegar a la forma final cuesta cerca de un mes. \

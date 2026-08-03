@@ -210,6 +210,7 @@ def test_la_ayuda_mapea_cada_entrenamiento_sin_prometer_subida_inmediata():
         "**Laberinto completado** → Ingenio +1 entrenamiento por participante.",
     ):
         assert regla in ayuda, regla
+    assert "alimentar +1, jugar +2, entrenar fuerza +3" in ayuda
     assert "puntos de entrenamiento" in ayuda
     assert "raíz cuadrada" in ayuda
     assert "no siempre cambia el número visible" in ayuda

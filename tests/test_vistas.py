@@ -268,9 +268,27 @@ def test_menu_entrenamiento_conjunto_acusa_antes_de_publicar_y_anuncia_ambos(
     assert publicacion[1][:3] == (canal, participantes[0].criatura, T0)
     aviso = publicacion[2]["aviso"]
     assert "**Mia** + **Lúa**" in aviso
-    assert "+2 XP · +1 fuerza · -10 comida · -5 ánimo" in aviso
+    assert "+2 XP · fuerza +1 entrenamiento · -10 comida · -5 ánimo" in aviso
     assert aviso.count("cuidado 1/12 UTC") == 1
     assert [evento[1][1].id for evento in eventos[3:]] == [1, 2]
+
+
+def test_recibo_conjunto_separa_el_tope_monetario_del_contador_de_cuidado():
+    activa = criatura(1, "Mia", True, "ficha")
+    reserva = criatura(2, "Lúa", False, None)
+    resultado = economia.ResultadoEntrenamientoConjunto(
+        participantes=(
+            sim.aplicar_entrenamiento_conjunto(activa),
+            sim.aplicar_entrenamiento_conjunto(reserva),
+        ),
+        topada=True,
+        usados=5,
+    )
+
+    recibo = vistas.texto_resultado_entrenamiento_conjunto(resultado)
+
+    assert "🪙 +0 asciicoins (tope diario) · cuidado 5/12 UTC" in recibo
+    assert "cuidado 5/12 UTC (tope)" not in recibo
 
 
 @pytest.mark.parametrize(
@@ -287,7 +305,7 @@ def test_menu_entrenamiento_conjunto_acusa_antes_de_publicar_y_anuncia_ambos(
         (
             economia.ResultadoEntrenamientoConjunto(problema="reserva_caduca"),
             "Ese compañero ya no está disponible. "
-            "Abre «Entrenar juntos» otra vez.",
+            "Abre «Entrenar fuerza juntos» otra vez.",
         ),
     ],
 )
@@ -346,7 +364,7 @@ def test_menu_entrenamiento_conjunto_falla_cerrado_si_el_valor_no_fue_capturado(
 
     respuesta.edit_message.assert_awaited_once_with(
         content="Ese compañero ya no está disponible. "
-        "Abre «Entrenar juntos» otra vez.",
+        "Abre «Entrenar fuerza juntos» otra vez.",
         view=None,
     )
 
