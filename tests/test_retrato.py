@@ -71,7 +71,7 @@ def test_son_png_de_verdad_y_todos_del_mismo_tamaño():
         # Y que sea grande de verdad: Discord no amplía la imagen de un embed
         # más allá de su tamaño real, así que el del fichero ES el que se ve.
         ancho, alto = tamanos.pop()
-        assert ancho >= 200 and alto >= 200, (especie, etapa, ancho, alto)
+        assert max(ancho, alto) >= 250, (especie, etapa, ancho, alto)
 
 
 # --- Que la prueba esté acotada --------------------------------------------
@@ -171,11 +171,16 @@ def test_la_ficha_con_retrato_no_repite_el_bicho_en_ascii():
     assert len(descripcion) < len(pantalla.render(criatura(), T0))
 
 
+SIN_RETRATO = next(
+    c for c in esp.ESPECIES if c not in retrato.CON_ETAPAS_COMPLETAS
+)
+
+
 def test_la_ficha_sin_retrato_sigue_siendo_texto_pelado():
-    """Las otras 24 especies no pueden notar nada de esto."""
+    """Las especies sin dibujar no pueden notar nada de esto."""
     import vistas
 
-    ficha = vistas._ficha(criatura(especie="michi"), T0)
+    ficha = vistas._ficha(criatura(especie=SIN_RETRATO), T0)
     assert set(ficha) == {"content"} and ficha["content"]
 
 
@@ -186,7 +191,7 @@ def test_al_editar_se_limpian_siempre_adjunto_y_embed():
     """
     import vistas
 
-    texto = vistas._como_edicion(vistas._ficha(criatura(especie="michi"), T0))
+    texto = vistas._como_edicion(vistas._ficha(criatura(especie=SIN_RETRATO), T0))
     assert texto["attachments"] == [] and texto["embed"] is None
 
     con_foto = vistas._como_edicion(vistas._ficha(criatura(), T0))

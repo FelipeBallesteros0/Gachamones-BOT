@@ -34,17 +34,21 @@ COLORES = {
 }
 COLOR_POR_DEFECTO = 0x8A8A8A
 
-# Lo que entra en la prueba: las parejas de especie y etapa que tienen dibujo.
-# Se escriben a mano en vez de mirar qué carpetas hay porque es el cerrojo de
-# que esto siga acotado; una carpeta a medio llenar dejaría fichas sin imagen.
-CON_RETRATO = frozenset({
-    ("chispa", "adulto_grande"),        # Pyro
-    ("pedrusco", "adulto"),             # Geo
-    ("pedrusco", "adulto_grande"),
-    ("pollito", "adulto_grande"),       # Piollito
-    ("slime", "adulto"),                # Gelatín
-    ("slime", "adulto_grande"),
-})
+# Las especies que ya tienen dibujadas SUS CINCO FORMAS. Se declaran a mano y no
+# mirando qué carpetas hay: es el cerrojo de que esto siga acotado, y una
+# carpeta a medio llenar dejaría fichas pidiendo una imagen que no está.
+CON_ETAPAS_COMPLETAS = (
+    "brote",        # Magora
+    "chispa",       # Pyro
+    "michi",        # Purreon
+    "pedrusco",     # Geo
+    "pollito",      # Piollito
+    "pulpo",        # Octopul
+    "slime",        # Gelatín
+)
+CON_RETRATO = frozenset(
+    (clave, etapa) for clave in CON_ETAPAS_COMPLETAS for etapa in esp.ETAPAS
+)
 
 SIN_SOMBRERO = "sin"
 

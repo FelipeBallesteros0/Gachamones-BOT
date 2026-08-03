@@ -15,9 +15,18 @@ import competir as comp
 import db
 import economia
 import equipo
+import especies as esp
 import pantalla
+import retrato
 import simulacion as sim
 import vistas
+
+# Un bicho SIN retrato dibujado. Estos tests miran la ficha de TEXTO; si la
+# especie tuviera imagen, la ficha sería un embed y dejarían de comprobar lo
+# suyo. Se busca en vez de fijarse para que dibujar más especies no los rompa.
+SIN_RETRATO = next(
+    c for c in esp.ESPECIES if c not in retrato.CON_ETAPAS_COMPLETAS
+)
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 STATS = (15, 15, 15)
@@ -25,7 +34,8 @@ STATS = (15, 15, 15)
 
 def criatura(id_, nombre, activa, pantalla_msg_id) -> sim.Criatura:
     return sim.Criatura(
-        id=id_, usuario_id="u1", guild_id="g1", especie="pulpo", nombre=nombre,
+        id=id_, usuario_id="u1", guild_id="g1", especie=SIN_RETRATO,
+        nombre=nombre,
         nacida_en=T0, actualizada_en=T0,
         base_fuerza=15, base_velocidad=15, base_salud=15,
         hambre=80.0, animo=80.0, activa=activa,
@@ -139,7 +149,7 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
 def test_abrir_entrenamiento_conjunto_filtra_y_captura_reservas_elegibles(
     bd_temporal, monkeypatch
 ):
-    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     elegible = db.crear(
         "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
     )
@@ -170,7 +180,7 @@ def test_abrir_entrenamiento_conjunto_filtra_y_captura_reservas_elegibles(
 def test_abrir_entrenamiento_conjunto_rechaza_ficha_caduca_o_sin_reservas(
     bd_temporal
 ):
-    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar_pantalla(activa.id, "ficha", "canal")
     interaccion, respuesta, _ = interaccion_de(mensaje_id="otra")
 
@@ -617,7 +627,7 @@ def test_cog_de_competencias_ausente_falla_sin_crash():
 
 
 def test_entrenamiento_conjunto_reutiliza_el_rechazo_de_ficha_ajena(bd_temporal):
-    ajena = db.crear("u2", "g1", "pulpo", "Ajena", STATS, T0)
+    ajena = db.crear("u2", "g1", SIN_RETRATO, "Ajena", STATS, T0)
     db.guardar_pantalla(ajena.id, "ficha", "canal")
     interaccion, respuesta, _ = interaccion_de()
 
@@ -633,7 +643,7 @@ def test_entrenamiento_conjunto_reutiliza_el_rechazo_de_ficha_ajena(bd_temporal)
 def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
     bd_temporal, monkeypatch
 ):
-    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     reserva = db.crear(
         "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
     )
@@ -664,7 +674,7 @@ def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
 def test_muerte_lazy_congela_ficha_activa_autoritativa_y_no_toca_reserva(
     bd_temporal, monkeypatch
 ):
-    activa = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     reserva = db.crear(
         "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
     )
@@ -824,7 +834,7 @@ def menu_de_plantel(plantel, elegido, canal):
 
 def test_congelar_va_al_canal_guardado_de_la_ficha_y_no_al_de_la_orden(bd_temporal):
     """Los menús sólo saben desde dónde se les abrió; la ficha sabe dónde está."""
-    mia = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    mia = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar_pantalla(mia.id, "555", "111")
     guardado, actual = dos_canales("111", "222")
 
@@ -840,9 +850,9 @@ def test_cambiar_de_activo_publica_ficha_canonica_en_el_canal_actual(
 ):
     """La ficha vieja se congela donde estaba y la nueva nace donde se eligió."""
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
-    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0, canal_id="111")
     db.guardar_pantalla(anterior.id, "555", "111")
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    reserva = db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
     guardado, actual = dos_canales("111", "222")
 
     menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
@@ -875,10 +885,10 @@ def test_cambiar_activo_congela_la_ficha_vieja_de_la_que_regresa(
     bd_temporal, monkeypatch
 ):
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
-    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0, canal_id="111")
     db.guardar_pantalla(anterior.id, "555", "111")
     reserva = db.crear(
-        "u1", "g1", "pulpo", "Reserva", STATS, T0, canal_id="111", activa=False
+        "u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, canal_id="111", activa=False
     )
     db.guardar_pantalla(reserva.id, "777", "111")
     guardado, actual = dos_canales("111", "222")
@@ -903,9 +913,9 @@ def test_cambiar_de_activo_congela_en_hilo_y_publica_en_canal_actual(
 ):
     """Un hilo es un canal más donde jugar, y `get_channel` no lo encuentra."""
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
-    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0, canal_id="111")
     db.guardar_pantalla(anterior.id, "555", "111")
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    reserva = db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
     hilo, actual = dos_canales("111", "222", en_hilo=True)
 
     menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
@@ -921,9 +931,9 @@ def test_cambiar_de_activo_congela_en_hilo_y_publica_en_canal_actual(
 
 def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temporal):
     """Una ficha vieja con un canal que no es un número no rompe el menú."""
-    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0)
+    anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0)
     db.guardar_pantalla(anterior.id, "555", "canal-viejo")
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    reserva = db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
     _, actual = dos_canales("111", "222")
 
     menu, interaccion = menu_de_plantel([anterior, reserva], reserva, actual)
@@ -940,9 +950,9 @@ def test_si_el_canal_no_deja_publicar_el_cambio_sigue_hecho_y_acusado(
 ):
     """Sin permiso para escribir queda el `/mascota` de la respuesta efímera."""
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
-    anterior = db.crear("u1", "g1", "pulpo", "Anterior", STATS, T0, canal_id="111")
+    anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0, canal_id="111")
     db.guardar_pantalla(anterior.id, "555", "111")
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    reserva = db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
     guardado, actual = dos_canales("111", "222")
     actual.send = AsyncMock(side_effect=discord.HTTPException(
         SimpleNamespace(status=403, reason="Forbidden"), "Missing Permissions"
@@ -1147,8 +1157,8 @@ def test_responder_y_publicar_no_consultan_saldo_para_una_lapida(monkeypatch):
 def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
     bd_temporal, monkeypatch
 ):
-    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
-    db.crear("u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False)
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
     economia.saldos("u1", "g1")
     with db.conectar() as con:
         con.execute(
@@ -1206,7 +1216,7 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
 def test_actualizar_que_descubre_muerte_edita_la_misma_ficha_sin_botones(
     bd_temporal, monkeypatch
 ):
-    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar_pantalla(criatura.id, "ficha", "canal")
     ahora = T0 + timedelta(days=10)
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
@@ -1238,9 +1248,9 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
 ):
     ahora = T0 + timedelta(days=10)
     if caso == "muerta-tras-ascenso":
-        antigua = db.crear("u1", "g1", "pulpo", "Antigua", STATS, T0)
+        antigua = db.crear("u1", "g1", SIN_RETRATO, "Antigua", STATS, T0)
         reserva = db.crear(
-            "u1", "g1", "pulpo", "Reserva", STATS, T0, activa=False
+            "u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False
         )
         db.guardar_pantalla(antigua.id, "ficha", "canal")
         db.guardar(sim.avanzar(antigua, ahora))
@@ -1314,7 +1324,7 @@ def test_cuidado_publica_resultado_real_y_recibo_unificado(
     bd_temporal, monkeypatch, caso, accion, estado, recibo
 ):
     criatura = replace(
-        db.crear("u1", "g1", "pulpo", "Mia", STATS, T0), **estado
+        db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0), **estado
     )
     db.guardar(criatura)
     db.guardar_pantalla(criatura.id, "ficha", "canal")
@@ -1353,7 +1363,7 @@ def test_cuidado_sin_efecto_responde_en_privado_sin_congelar_ni_publicar(
     bd_temporal, monkeypatch
 ):
     """Limpiar a quien ya está limpia no genera ficha: sólo el aviso privado."""
-    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar_pantalla(criatura.id, "ficha", "canal")
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
     congelar = AsyncMock()
@@ -1380,7 +1390,7 @@ def test_cuidado_sin_efecto_responde_en_privado_sin_congelar_ni_publicar(
 def test_cuidado_con_tension_no_dice_que_no_deja_marca(
     bd_temporal, monkeypatch
 ):
-    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar(replace(criatura, hambre=40.0))
     db.guardar_pantalla(criatura.id, "ficha", "canal")
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
@@ -1401,7 +1411,7 @@ def test_cuidado_con_tension_no_dice_que_no_deja_marca(
 def test_cuidado_con_ruptura_deja_el_eco_al_anuncio_existente(
     bd_temporal, monkeypatch
 ):
-    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar(replace(
         criatura, hambre=40.0,
         ten_fuerza=19.0, ten_velocidad=19.0, ten_salud=19.0,
@@ -1431,7 +1441,7 @@ def test_cuidado_con_ruptura_deja_el_eco_al_anuncio_existente(
 def test_cuidado_normal_congela_publica_y_replay_responde_privado(
     bd_temporal, monkeypatch
 ):
-    criatura = db.crear("u1", "g1", "pulpo", "Mia", STATS, T0)
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar_pantalla(criatura.id, "ficha", "canal")
     ahora = T0 + timedelta(hours=6)
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
