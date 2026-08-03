@@ -43,19 +43,30 @@ def test_hay_retrato_para_cada_animo_y_cada_sombrero():
     assert not faltan, faltan
 
 
-def test_son_png_de_verdad_y_del_tamaño_del_lienzo():
+def test_son_png_de_verdad_y_todos_del_mismo_tamaño():
     """Un PNG mal escrito no se ve en Discord y no avisa. Se comprueba la firma
-    y la cabecera, que es donde vive el tamaño."""
+    y la cabecera, que es donde vive el tamaño.
+
+    Que midan **todos lo mismo** importa tanto como que existan: si cada uno se
+    hubiera recortado a su propia silueta, el bicho cambiaría de tamaño al
+    cambiar de ánimo o al ponerse un sombrero, y se vería pegar saltos.
+    """
     carpeta = retrato.ARTE / retrato.ESPECIE / retrato.ETAPA
     imagenes = sorted(carpeta.glob("*.png"))
     assert len(imagenes) == len(esp.ANIMOS) * (len(SOMBREROS) + 1) == 21
 
+    tamanos = set()
     for ruta in imagenes:
         crudo = ruta.read_bytes()
         assert crudo[:8] == b"\x89PNG\r\n\x1a\n", ruta.name
-        ancho, alto = struct.unpack(">II", crudo[16:24])
-        assert (ancho, alto) == (256, 256), (ruta.name, ancho, alto)
+        tamanos.add(struct.unpack(">II", crudo[16:24]))
         assert (crudo[24], crudo[25]) == (8, 6), f"{ruta.name}: hace falta RGBA"
+    assert len(tamanos) == 1, tamanos
+
+    # Y que sea grande de verdad: Discord no amplía la imagen de un embed más
+    # allá de su tamaño real, así que el del fichero ES el que se ve.
+    ancho, alto = tamanos.pop()
+    assert ancho >= 250 and alto >= 250, (ancho, alto)
 
 
 # --- Que la prueba esté acotada --------------------------------------------
@@ -132,7 +143,7 @@ def test_la_ficha_con_retrato_ata_la_miniatura_a_su_adjunto():
     assert ficha["content"] is None, "con retrato el texto va dentro del embed"
 
     adjunto = ficha["file"]
-    assert ficha["embed"].thumbnail.url == f"attachment://{adjunto.filename}"
+    assert ficha["embed"].image.url == f"attachment://{adjunto.filename}"
     assert adjunto.filename.endswith(".png")
 
 

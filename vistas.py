@@ -946,10 +946,14 @@ def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
         description=pantalla.render(criatura, ahora, sin_arte=True, **kw),
         colour=retrato.color_de(criatura),
     )
+    # Imagen y no miniatura: Discord topa las miniaturas en 80×80 y el bicho se
+    # veía diminuto. La imagen se pinta a tamaño real —302×374— a cambio de ir
+    # debajo del marco, porque en un embed la imagen siempre es lo último.
+    #
     # El nombre sale de `retrato` en los dos sitios a propósito: si la URL y el
-    # adjunto no coinciden, la miniatura sale vacía y no falla nada en ningún
+    # adjunto no coinciden, la imagen sale vacía y no falla nada en ningún
     # registro, así que no hay forma de enterarse salvo mirándolo.
-    embed.set_thumbnail(url=f"attachment://{nombre}")
+    embed.set_image(url=f"attachment://{nombre}")
     return {"content": None, "embed": embed,
             "file": discord.File(ruta, filename=nombre)}
 
