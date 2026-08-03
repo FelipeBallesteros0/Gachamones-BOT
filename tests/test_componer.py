@@ -9,19 +9,15 @@ sus originales: eso son cien segundos de CPU y no cabe en la suite. Para eso
 está `herramientas/componer.py --comprobar`, que se pasa antes de desplegar.
 """
 import pathlib
-import sys
 
 import pytest
 
 import cosmeticos as cos
 import especies as esp
 import retrato
+from herramientas import componer, png
 
 RAIZ = pathlib.Path(__file__).parent.parent
-sys.path.insert(0, str(RAIZ / "herramientas"))
-
-import componer  # noqa: E402
-import png  # noqa: E402
 
 
 # --- Que no falte ningún original ------------------------------------------
@@ -45,13 +41,54 @@ def test_cada_especie_con_retrato_tiene_sus_cinco_originales():
 
 
 def test_estan_las_caras_y_todos_los_sombreros():
-    """Las capas se comparten entre especies: si falta una, no falla un retrato
+    """Las capas globales se comparten: si falta una, no falla un retrato
     sino todos."""
     faltan = [ruta.relative_to(RAIZ) for ruta in (
         *(componer.FUENTES / "caras" / a for a in componer.CARAS.values()),
         *(componer.FUENTES / "sombreros" / f"{s.clave}.png" for s in cos.SOMBREROS),
     ) if not ruta.is_file()]
     assert not faltan, f"falta la capa: {faltan}"
+
+
+CAPAS_GEO = (
+    ("caras", "face_1.png"),
+    ("caras", "face_2.png"),
+    ("caras", "face_3.png"),
+    ("sombreros", "aureola.png"),
+    ("sombreros", "chistera.png"),
+    ("sombreros", "cinta.png"),
+    ("sombreros", "corona.png"),
+    ("sombreros", "cuernos.png"),
+    ("sombreros", "laurel.png"),
+)
+
+
+@pytest.mark.parametrize(("carpeta", "archivo"), CAPAS_GEO)
+def test_geo_usa_sus_nueve_capas_especificas(carpeta, archivo):
+    assert componer.ruta_de_capa(carpeta, 'geo', archivo) == (
+        componer.FUENTES / carpeta / 'geo' / archivo
+    )
+
+
+def test_otra_especie_conserva_las_capas_globales():
+    assert componer.ruta_de_capa('caras', 'pyro', 'face_1.png') == (
+        componer.FUENTES / 'caras' / 'face_1.png'
+    )
+    assert componer.ruta_de_capa('sombreros', 'pyro', 'aureola.png') == (
+        componer.FUENTES / 'sombreros' / 'aureola.png'
+    )
+
+
+def test_una_capa_especifica_ausente_vuelve_a_la_global(tmp_path, monkeypatch):
+    global_ = tmp_path / 'caras' / 'face_2.png'
+    global_.parent.mkdir()
+    global_.touch()
+    especifica = tmp_path / 'caras' / 'geo' / 'face_1.png'
+    especifica.parent.mkdir()
+    especifica.touch()
+    monkeypatch.setattr(componer, 'FUENTES', tmp_path)
+
+    assert componer.ruta_de_capa('caras', 'geo', 'face_2.png') == global_
 
 
 def test_hay_una_cara_por_animo():

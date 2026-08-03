@@ -47,8 +47,9 @@ CARAS = {esp.FELIZ: "face_1.png", esp.NORMAL: "face_2.png", esp.MAL: "face_3.png
 # Las formas se llamaron así al dibujarlas y el juego las llama de otra manera.
 # Renombrar los 55 originales rompería la costumbre de quien dibuja, y esta es
 # la única tabla que queda: la de especies se deduce sola.
-FORMA_ARCHIVO = dict(zip(esp.ETAPAS,
-                         ("cria", "niño", "adolecente", "adulto", "adulto_grande")))
+FORMA_ARCHIVO: dict[str, str] = dict(zip(
+    esp.ETAPAS, ("cria", "niño", "adolecente", "adulto", "adulto_grande")
+))
 
 # Un respiro alrededor del dibujo para que no quede pegado al borde del embed.
 # Va antes de doblar, así que en la imagen final son cuatro píxeles.
@@ -115,6 +116,11 @@ def ruta_del_cuerpo(nombre: str, etapa: str) -> pathlib.Path:
     return FUENTES / "cuerpos" / f"{nombre}_body_{FORMA_ARCHIVO[etapa]}.png"
 
 
+def ruta_de_capa(carpeta: str, nombre: str, archivo: str) -> pathlib.Path:
+    especifica = FUENTES / carpeta / nombre / archivo
+    return especifica if especifica.is_file() else FUENTES / carpeta / archivo
+
+
 def retratos(nombre: str):
     """Los 21 retratos de cada forma, ya recortados al mismo encuadre.
 
@@ -122,10 +128,12 @@ def retratos(nombre: str):
     a la suya, cambiar de humor o ponerse un sombrero movería al bicho dentro
     del embed y parecería que da saltos.
     """
-    caras = {animo: png.leer(FUENTES / "caras" / archivo)
+    caras = {animo: png.leer(ruta_de_capa("caras", nombre, archivo))
              for animo, archivo in CARAS.items()}
-    sombreros = {s.clave: png.leer(FUENTES / "sombreros" / f"{s.clave}.png")
-                 for s in cos.SOMBREROS}
+    sombreros = {
+        s.clave: png.leer(ruta_de_capa("sombreros", nombre, f"{s.clave}.png"))
+        for s in cos.SOMBREROS
+    }
 
     for etapa in esp.ETAPAS:
         cuerpo = png.leer(ruta_del_cuerpo(nombre, etapa))
