@@ -77,7 +77,7 @@ def test_recibo_de_entrenamiento_detalla_efecto_costo_recompensa_y_tope():
     )
 
     assert vistas.texto_recibo_cuidado(resultado, sim.ENTRENAR) == (
-        "-# 🏋️ Entrenar · fuerza +2 entrenamiento · +3 XP · "
+        "-# 🏋️ Entrenar fuerza · fuerza +2 entrenamiento · +3 XP · "
         "coste base -15 comida · coste base -10 ánimo · "
         "🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
@@ -95,6 +95,7 @@ def test_recibos_de_cuidado_redondean_los_stats_vivos():
         mensaje="Ñam.",
         delta_asciicoins=1,
         usados=1,
+        ent_salud_ganada=1,
     )
 
     recibos = {
@@ -102,13 +103,15 @@ def test_recibos_de_cuidado_redondean_los_stats_vivos():
         for accion in (sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR)
     }
     assert recibos[sim.ALIMENTAR] == (
-        "-# 🍖 Alimentar · comida 90 · ánimo 100 · +1 XP · "
-        "🪙 +1 asciicoins · cuidado 1/12 UTC"
+        "-# 🍖 Alimentar · comida 90 · ánimo 100 · salud +1 entrenamiento · "
+        "+1 XP · 🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
     assert recibos[sim.JUGAR] == (
         "-# 🪀 Jugar · ánimo 100 · velocidad +1 entrenamiento · +2 XP · "
         "coste base -5 comida · 🪙 +1 asciicoins · cuidado 1/12 UTC"
     )
+    empacho = replace(resultado, ent_salud_ganada=0)
+    assert "salud" not in vistas.texto_recibo_cuidado(empacho, sim.ALIMENTAR)
 
     decimal_vivo = re.compile(r"(?:comida|ánimo|aseo) -?\d+\.\d+")
     for recibo in recibos.values():
@@ -123,11 +126,11 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
         criatura=base,
         mensaje="Entrenamiento duro.",
         delta_asciicoins=0,
-        usados=economia.TOPE_CUIDADOS,
+        usados=5,
         topada=True,
     )
     assert vistas.texto_recibo_cuidado(topada, sim.ENTRENAR).endswith(
-        "🪙 +0 asciicoins · cuidado 12/12 UTC (tope)"
+        "🪙 +0 asciicoins (tope diario) · cuidado 5/12 UTC"
     )
 
     evolucion = economia.ResultadoCuidado(
@@ -141,7 +144,7 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
         topada=True,
     )
     assert vistas.texto_recibo_cuidado(evolucion, sim.ENTRENAR).endswith(
-        "🪙 +0 asciicoins · cuidado 12/12 UTC (tope) · "
+        "🪙 +0 asciicoins (tope diario) · cuidado 12/12 UTC · "
         "evolución +10 · 1/1 UTC"
     )
 
@@ -265,9 +268,27 @@ def test_menu_entrenamiento_conjunto_acusa_antes_de_publicar_y_anuncia_ambos(
     assert publicacion[1][:3] == (canal, participantes[0].criatura, T0)
     aviso = publicacion[2]["aviso"]
     assert "**Mia** + **Lúa**" in aviso
-    assert "+2 XP · +1 fuerza · -10 comida · -5 ánimo" in aviso
+    assert "+2 XP · fuerza +1 entrenamiento · -10 comida · -5 ánimo" in aviso
     assert aviso.count("cuidado 1/12 UTC") == 1
     assert [evento[1][1].id for evento in eventos[3:]] == [1, 2]
+
+
+def test_recibo_conjunto_separa_el_tope_monetario_del_contador_de_cuidado():
+    activa = criatura(1, "Mia", True, "ficha")
+    reserva = criatura(2, "Lúa", False, None)
+    resultado = economia.ResultadoEntrenamientoConjunto(
+        participantes=(
+            sim.aplicar_entrenamiento_conjunto(activa),
+            sim.aplicar_entrenamiento_conjunto(reserva),
+        ),
+        topada=True,
+        usados=5,
+    )
+
+    recibo = vistas.texto_resultado_entrenamiento_conjunto(resultado)
+
+    assert "🪙 +0 asciicoins (tope diario) · cuidado 5/12 UTC" in recibo
+    assert "cuidado 5/12 UTC (tope)" not in recibo
 
 
 @pytest.mark.parametrize(
@@ -284,7 +305,7 @@ def test_menu_entrenamiento_conjunto_acusa_antes_de_publicar_y_anuncia_ambos(
         (
             economia.ResultadoEntrenamientoConjunto(problema="reserva_caduca"),
             "Ese compañero ya no está disponible. "
-            "Abre «Entrenar juntos» otra vez.",
+            "Abre «Entrenar fuerza juntos» otra vez.",
         ),
     ],
 )
@@ -343,7 +364,7 @@ def test_menu_entrenamiento_conjunto_falla_cerrado_si_el_valor_no_fue_capturado(
 
     respuesta.edit_message.assert_awaited_once_with(
         content="Ese compañero ya no está disponible. "
-        "Abre «Entrenar juntos» otra vez.",
+        "Abre «Entrenar fuerza juntos» otra vez.",
         view=None,
     )
 
@@ -1302,8 +1323,8 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             "alimentar",
             sim.ALIMENTAR,
             {"hambre": 50.0, "animo": 70.0},
-            "-# 🍖 Alimentar · comida 80 · ánimo 70 · +1 XP · "
-            "🪙 +1 asciicoins · cuidado 1/12 UTC",
+            "-# 🍖 Alimentar · comida 80 · ánimo 70 · salud +1 entrenamiento · "
+            "+1 XP · 🪙 +1 asciicoins · cuidado 1/12 UTC",
         ),
         (
             "empacho",
@@ -1323,7 +1344,7 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             "entrenar",
             sim.ENTRENAR,
             {"hambre": 80.0, "animo": 70.0},
-            "-# 🏋️ Entrenar · fuerza +2 entrenamiento · +3 XP · "
+            "-# 🏋️ Entrenar fuerza · fuerza +2 entrenamiento · +3 XP · "
             "coste base -15 comida · coste base -10 ánimo · "
             "🪙 +1 asciicoins · cuidado 1/12 UTC",
         ),

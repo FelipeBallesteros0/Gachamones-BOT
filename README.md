@@ -23,7 +23,7 @@ tienen su retrato dibujado lo enseñan como imagen.
 │     FUE 11   VEL 21      │
 │     SAL 11   ING  9      │
 ╰──────────────────────────╯
-[🍖 Alimentar] [🎮 Jugar] [🏋️ Entrenar] [🧼 Limpiar] [🔄 Actualizar]
+[🍖 Alimentar] [🎮 Jugar] [🏋️ Entrenar fuerza] [🧼 Limpiar] [🔄 Actualizar]
 ```
 
 Son **cuatro estadísticas** —fuerza, velocidad, salud e ingenio— y salen en

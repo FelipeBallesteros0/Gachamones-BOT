@@ -94,7 +94,7 @@ class MenuSocial(discord.ui.Select):
                     label="Laberinto de Ecos", value=comp.LABERINTO
                 ),
                 discord.SelectOption(
-                    label="Entrenar juntos", value="entrenar_juntos"
+                    label="Entrenar fuerza juntos", value="entrenar_juntos"
                 ),
             ],
         )
@@ -258,7 +258,7 @@ class PantallaView(discord.ui.View):
         await _ejecutar(interaccion, sim.JUGAR)
 
     @discord.ui.button(
-        label="Entrenar", emoji="🏋️", row=0,
+        label="Entrenar fuerza", emoji="🏋️", row=0,
         style=discord.ButtonStyle.primary, custom_id="tama:entrenar"
     )
     async def entrenar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
@@ -328,7 +328,7 @@ class PantallaAnteriorView(discord.ui.View):
             await tienda.abrir_personalizacion(interaccion, republicar_ficha)
 
     @discord.ui.button(
-        label="Entrenar juntos", emoji="🤝", row=1,
+        label="Entrenar fuerza juntos", emoji="🤝", row=1,
         style=discord.ButtonStyle.primary, custom_id="tama:entrenar_juntos"
     )
     async def entrenar_juntos(
@@ -362,10 +362,11 @@ def texto_resultado_entrenamiento_conjunto(
         raise ValueError("el resultado conjunto no tiene dos participantes")
     activo, reserva = resultado.participantes
     cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
-    cap = f"cuidado {resultado.usados}/{resultado.limite} UTC"
+    recompensa = 0 if resultado.topada else cuidado
+    monedas = f"🪙 +{recompensa} asciicoins"
     if resultado.topada:
-        cap += " (tope)"
-    recibo = [f"🪙 +{cuidado} asciicoins", cap]
+        monedas += " (tope diario)"
+    recibo = [monedas, f"cuidado {resultado.usados}/{resultado.limite} UTC"]
     if activo.evoluciono or reserva.evoluciono:
         evolucion = (
             f"evolución +{resultado.delta_evolucion} · "
@@ -380,7 +381,8 @@ def texto_resultado_entrenamiento_conjunto(
     return "\n".join((
         "🏋️ Entrenamiento conjunto: "
         f"**{activo.criatura.nombre}** + **{reserva.criatura.nombre}**.",
-        "-# Cada participante: +2 XP · +1 fuerza · -10 comida · -5 ánimo",
+        "-# Cada participante: +2 XP · fuerza +1 entrenamiento · "
+        "-10 comida · -5 ánimo",
         f"-# {activo.criatura.nombre}: {_resumen_participante(activo)} · "
         f"{reserva.criatura.nombre}: {_resumen_participante(reserva)}",
         pantalla.recibo(*recibo),
@@ -413,7 +415,7 @@ class MenuEntrenamientoConjunto(discord.ui.Select):
         if reserva is None:
             await interaction.response.edit_message(
                 content="Ese compañero ya no está disponible. "
-                "Abre «Entrenar juntos» otra vez.",
+                "Abre «Entrenar fuerza juntos» otra vez.",
                 view=None,
             )
             return
@@ -435,7 +437,7 @@ class MenuEntrenamientoConjunto(discord.ui.Select):
         elif resultado.problema == "reserva_caduca":
             texto = (
                 "Ese compañero ya no está disponible. "
-                "Abre «Entrenar juntos» otra vez."
+                "Abre «Entrenar fuerza juntos» otra vez."
             )
         elif resultado.problema == "cooldown":
             if resultado.bloqueada is None or resultado.espera is None:
@@ -828,12 +830,16 @@ def _efecto_recibo_cuidado(
 ) -> tuple[str, ...]:
     xp = f"+{sim.XP_POR_CUIDADO[accion]} XP"
     if accion == sim.ALIMENTAR:
-        return (
+        partes = [
             "🍖 Alimentar",
             f"comida {round(resultado.criatura.hambre)}",
             f"ánimo {round(resultado.criatura.animo)}",
-            xp,
-        )
+        ]
+        if resultado.ent_salud_ganada:
+            partes.append(
+                f"salud +{resultado.ent_salud_ganada:g} entrenamiento"
+            )
+        return *partes, xp
 
     efecto = sim.EFECTOS_CUIDADO[accion]
     if accion == sim.JUGAR:
@@ -846,7 +852,7 @@ def _efecto_recibo_cuidado(
         )
     if accion == sim.ENTRENAR:
         return (
-            "🏋️ Entrenar",
+            "🏋️ Entrenar fuerza",
             f"fuerza +{efecto['ent_fuerza']:g} entrenamiento",
             xp,
             f"coste base {efecto['hambre']:g} comida",
@@ -862,13 +868,13 @@ def texto_recibo_cuidado(
 ) -> str:
     cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
     recompensa = 0 if resultado.topada else cuidado
-    cap = f"cuidado {resultado.usados}/{resultado.limite} UTC"
+    monedas = f"🪙 +{recompensa} asciicoins"
     if resultado.topada:
-        cap += " (tope)"
+        monedas += " (tope diario)"
     partes = [
         *_efecto_recibo_cuidado(resultado, accion),
-        f"🪙 +{recompensa} asciicoins",
-        cap,
+        monedas,
+        f"cuidado {resultado.usados}/{resultado.limite} UTC",
     ]
     if resultado.evoluciono:
         partes.extend((

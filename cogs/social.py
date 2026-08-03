@@ -246,14 +246,14 @@ sólo te los encuentras en `/aventura`.
 -# {del_campo_txt}
 
 **Cuidarlo**
-Los botones bajo la pantalla: 🍖 alimentar, 🎮 jugar, 🏋️ entrenar, 🧼 limpiar, \
-🔄 actualizar. Cada acción publica una pantalla nueva abajo y deja la anterior \
-apagada.
+Los botones bajo la pantalla: 🍖 alimentar, 🎮 jugar, 🏋️ entrenar fuerza, \
+🧼 limpiar, 🔄 actualizar. Cada acción publica una pantalla nueva abajo y deja \
+la anterior apagada.
 -# Si la comida llega a 0, **se muere**. Aguanta unas {horas} h sin comer; \
 la estadística de salud alarga ese margen.
 
 **Crecer**
-Cuidarlo da experiencia: alimentar +1, jugar +2, entrenar +3. Ganar una \
+Cuidarlo da experiencia: alimentar +1, jugar +2, entrenar fuerza +3. Ganar una \
 competencia da +10. Cada nivel es una **evolución** y le cambia el dibujo:
 -# cría → niño → adolescente → adulto → adulto grande
 El primer salto cae en un día; llegar a la forma final cuesta cerca de un mes. \
@@ -261,10 +261,12 @@ Cada evolución reparte estadísticas y, al subir salud, aguanta más sin comer.
 
 **Estadísticas**
 Al nacer se tiran **las cuatro**: base de la especie + 2d6 en fuerza, \
-velocidad, salud e ingenio. Jugar sube velocidad, entrenar sube fuerza, comer \
-sube salud — con rendimientos decrecientes.
--# El **ingenio** no lo sube ningún cuidado: crece jugando `/laberinto` y con \
-lo que reparte cada subida de nivel.
+velocidad, salud e ingenio. Las acciones dan puntos de entrenamiento:
+-# **Alimentar** → Salud +1 entrenamiento si no hay empacho. **Jugar** → \
+Velocidad +1 entrenamiento. **Entrenar fuerza** → Fuerza +2 entrenamiento.
+-# **Laberinto completado** → Ingenio +1 entrenamiento por participante. La \
+estadística visible usa raíz cuadrada: hay rendimientos decrecientes y una \
+acción no siempre cambia el número visible.
 
 **Quién le ha tocado ser**
 Al salir del huevo se sortean también su **género** (♂️ o ♀️, mitad y mitad) y \

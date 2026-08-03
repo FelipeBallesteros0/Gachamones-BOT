@@ -119,7 +119,7 @@ def test_la_pantalla_persistente_tiene_la_estructura_aprobada():
     botones = vista.children[:4]
     assert all(isinstance(hijo, discord.ui.Button) for hijo in botones)
     assert [hijo.label for hijo in botones] == [
-        "Alimentar", "Jugar", "Entrenar", "Limpiar"
+        "Alimentar", "Jugar", "Entrenar fuerza", "Limpiar"
     ]
     assert [str(hijo.emoji) for hijo in botones] == ["🍖", "🎮", "🏋️", "🧼"]
     assert [hijo.row for hijo in botones] == [0, 0, 0, 0]
@@ -134,7 +134,7 @@ def test_la_pantalla_persistente_tiene_la_estructura_aprobada():
         ("Sumo", comp.SUMO),
         ("Asalto al Tótem", comp.TOTEM),
         ("Laberinto de Ecos", comp.LABERINTO),
-        ("Entrenar juntos", "entrenar_juntos"),
+        ("Entrenar fuerza juntos", "entrenar_juntos"),
     ]
     assert not any(op.default for op in social.options)
 
@@ -236,6 +236,11 @@ def test_las_fichas_anteriores_conservan_sus_acciones_persistentes():
         "tama:personalizar",
         "tama:entrenar_juntos",
     ]
+    boton_entrenar = cast(discord.ui.Button, vista.children[-1])
+    assert (boton_entrenar.label, boton_entrenar.custom_id) == (
+        "Entrenar fuerza juntos",
+        "tama:entrenar_juntos",
+    )
 
 
 def test_la_vista_congelada_no_acepta_clics():
