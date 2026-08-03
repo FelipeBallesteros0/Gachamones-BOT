@@ -235,14 +235,14 @@ def test_competidor_de_conserva_stats_bonus_y_estado_visual():
     criatura = sim.Criatura(
         id=1, usuario_id="u", guild_id="g", especie="pulpo", nombre="X",
         nacida_en=T0, actualizada_en=T0,
-        base_fuerza=30, base_velocidad=5, base_salud=10,
+        base_fuerza=30, base_velocidad=5, base_salud=10, base_ingenio=47,
         hambre=90.0, animo=90.0,
     )
     c = comp.competidor_de(
         criatura, bonus_fuerza=7, bonus_velocidad=4
     )
 
-    assert (c.fuerza, c.velocidad, c.salud) == (30, 5, 10)
+    assert (c.fuerza, c.velocidad, c.salud, c.ingenio) == (30, 5, 10, 47)
     assert (c.bonus_fuerza, c.bonus_velocidad) == (7, 4)
     assert c.modificador == 2
     assert c.cara == esp.ESPECIES["pulpo"].caras[esp.FELIZ]
