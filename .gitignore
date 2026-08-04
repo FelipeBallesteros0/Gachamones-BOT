@@ -13,6 +13,11 @@ __pycache__/
 # Preferencias privadas de Claude por worktree.
 CLAUDE.local.md
 
+# Servidores MCP locales. Lleva rutas de una máquina concreta —dónde está el
+# clon de aseprite-mcp y dónde el ejecutable de Aseprite—, así que cada quien
+# tiene el suyo y no se comparte.
+.mcp.json
+
 # Las mascotas de cada servidor.
 *.db
 
