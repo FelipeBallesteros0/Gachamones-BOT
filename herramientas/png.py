@@ -34,6 +34,19 @@ class Imagen:
         self.pixeles[i:i + 4] = bytes(rgba)
 
 
+def medidas(ruta: pathlib.Path) -> tuple[int, int]:
+    """El ancho y el alto, leyendo sólo la cabecera.
+
+    Existe para poder comprobar tamaños de muchos ficheros sin pagar el
+    descifrado entero: `leer()` deshace los filtros píxel a píxel y en una suite
+    de pruebas eso se nota. El IHDR va siempre justo tras la firma de 8 bytes.
+    """
+    cabecera = ruta.read_bytes()[:24]
+    if cabecera[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"{ruta.name} no es un PNG")
+    return struct.unpack(">II", cabecera[16:24])
+
+
 def leer(ruta: pathlib.Path) -> Imagen:
     """Decodifica un PNG RGBA de 8 bits.
 
