@@ -32,6 +32,11 @@ T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
 
 
+@pytest.fixture(autouse=True)
+def estilo_imagen(monkeypatch):
+    monkeypatch.setattr(db, "estilo_de_ficha", lambda *_: "imagen")
+
+
 def criatura(id_, nombre, activa, pantalla_msg_id) -> sim.Criatura:
     return sim.Criatura(
         id=id_, usuario_id="u1", guild_id="g1", especie=SIN_RETRATO,
@@ -1075,7 +1080,9 @@ def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
 def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
     viva = criatura(1, "Mia", True, None)
     esperas = Mock(return_value={})
+    estilo = Mock(return_value="imagen")
     monkeypatch.setattr(db, "esperas_de_ficha", esperas)
+    monkeypatch.setattr(db, "estilo_de_ficha", estilo)
     monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
     monkeypatch.setattr(db, "plantel", Mock(return_value=[viva]))
     monkeypatch.setattr(db, "guardar_pantalla", Mock())
@@ -1091,16 +1098,20 @@ def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
     )
     asyncio.run(vistas.responder_pantalla(interaccion, viva, T0))
     esperas.assert_called_once_with(viva, T0, pantalla.ACCIONES_EN_FICHA)
+    estilo.assert_called_once_with(viva.usuario_id, viva.guild_id)
 
     esperas.reset_mock()
+    estilo.reset_mock()
     canal = SimpleNamespace(
         id="canal",
         send=AsyncMock(return_value=SimpleNamespace(id="publicada")),
     )
     asyncio.run(vistas.publicar_pantalla(cast(Any, canal), viva, T0))
     esperas.assert_called_once_with(viva, T0, pantalla.ACCIONES_EN_FICHA)
+    estilo.assert_called_once_with(viva.usuario_id, viva.guild_id)
 
     esperas.reset_mock()
+    estilo.reset_mock()
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
     monkeypatch.setattr(db, "criatura_por_pantalla", Mock(return_value=viva))
     monkeypatch.setattr(
@@ -1111,6 +1122,7 @@ def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):
     interaccion, _, _ = interaccion_de()
     asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
     esperas.assert_called_once_with(viva, T0, pantalla.ACCIONES_EN_FICHA)
+    estilo.assert_called_once_with(viva.usuario_id, viva.guild_id)
 
 
 def test_responder_y_publicar_pasan_el_saldo_de_la_persona_y_servidor(monkeypatch):

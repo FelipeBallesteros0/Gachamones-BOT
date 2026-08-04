@@ -401,10 +401,77 @@ def test_el_menu_de_poner_solo_lista_lo_que_tienes():
     assert {o.value for o in menu.options} == {"corona", "tinte_rojo"}
 
 
+def test_el_selector_de_estilo_ofrece_imagen_y_ascii_con_el_actual_marcado():
+    menu = tienda.MenuEstiloFicha("imagen")
+    opciones = {opcion.value: opcion for opcion in menu.options}
+
+    assert menu.placeholder == "Estilo de ficha…"
+    assert set(opciones) == {"imagen", "ascii"}
+    assert opciones["imagen"].label == "Imagen"
+    descripcion = opciones["imagen"].description
+    assert descripcion is not None and "retrato" in descripcion
+    assert opciones["ascii"].label == "ASCII clásico"
+    assert opciones["imagen"].default
+    assert not opciones["ascii"].default
+
+
+def test_elegir_estilo_persiste_confirma_y_republica_una_vez():
+    import asyncio
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from unittest.mock import AsyncMock
+
+    criatura = nacer()
+    refrescar = AsyncMock()
+    editar = AsyncMock()
+    menu = tienda.MenuEstiloFicha("imagen", refrescar)
+    menu._values = ["ascii"]
+    interaccion = cast(Any, SimpleNamespace(
+        user=SimpleNamespace(id="u1"),
+        guild_id="g1",
+        response=SimpleNamespace(edit_message=editar),
+    ))
+
+    asyncio.run(menu.callback(interaccion))
+
+    assert db.estilo_de_ficha("u1", "g1") == "ascii"
+    editar.assert_awaited_once()
+    llamada = editar.await_args
+    assert llamada is not None
+    assert "ASCII clásico" in llamada.kwargs["content"]
+    assert llamada.kwargs["view"] is None
+    refrescar.assert_awaited_once_with(interaccion, criatura)
+
+
+def test_personalizar_siempre_ofrece_estilo_aunque_el_ropero_este_vacio():
+    import asyncio
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from unittest.mock import AsyncMock
+
+    nacer()
+    responder = AsyncMock()
+    interaccion = cast(Any, SimpleNamespace(
+        user=SimpleNamespace(id="u1"),
+        guild_id="g1",
+        response=SimpleNamespace(send_message=responder),
+    ))
+
+    asyncio.run(tienda.abrir_personalizacion(interaccion))
+
+    llamada = responder.await_args
+    assert llamada is not None
+    vista = llamada.kwargs["view"]
+    assert len(vista.children) == 1
+    assert isinstance(vista.children[0], tienda.MenuEstiloFicha)
+
+
 def test_personalizar_dice_lo_que_lleva_y_cuanto_tienes():
     nacer()
     con_gemas(200)
-    assert "ropero está vacío" in tienda.texto_de_personalizacion("u1", "g1")
+    vacio = tienda.texto_de_personalizacion("u1", "g1")
+    assert "ropero está vacío" in vacio
+    assert "Estilo de ficha: **Imagen**" in vacio
 
     comprar(CORONA)
     texto = tienda.texto_de_personalizacion("u1", "g1")

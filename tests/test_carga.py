@@ -263,7 +263,9 @@ def criatura_de_prueba(**cambios) -> sim.Criatura:
     return sim.Criatura(**base)
 
 
-def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch, bd_temporal):
+def test_mascota_ajena_default_imagen_muestra_geo_sin_controles(
+    monkeypatch, bd_temporal
+):
     from types import SimpleNamespace
     from typing import Any, cast
     from unittest.mock import AsyncMock, Mock
@@ -273,12 +275,15 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch, bd_temporal):
     from cogs import mascota as cog_mascota
 
     ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    criatura = criatura_de_prueba(usuario_id="2", actualizada_en=ahora)
+    criatura = criatura_de_prueba(
+        usuario_id="2", especie="pedrusco", nombre="Geo", actualizada_en=ahora
+    )
     esperas = Mock(return_value={
         accion: timedelta(minutes=1) for accion in pantalla.ACCIONES_EN_FICHA
     })
     saldos = Mock(return_value=economia.Saldos(asciicoins=34, asciigems=0))
     render = Mock(wraps=pantalla.render)
+    db.guardar_estilo_de_ficha("1", "g1", "ascii")
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
     monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
     monkeypatch.setattr(db, "esperas_de_ficha", esperas)
@@ -298,26 +303,63 @@ def test_mascota_ajena_viva_muestra_las_seis_esperas(monkeypatch, bd_temporal):
     callback = cast(Any, cog_mascota.Mascota.mascota.callback)
     asyncio.run(callback(cog, interaccion, rival))
 
-    # Se le pasa la criatura entera y no su id: la espera de aventura es de la
-    # persona, y hacen falta su `usuario_id` y su `guild_id` para encontrarla.
-    esperas.assert_called_once_with(
-        criatura, ahora,
-        (
-            sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR,
-            sim.LIMPIAR, sim.COMPETIR, sim.AVENTURA,
-        ),
-    )
+    esperas.assert_called_once_with(criatura, ahora, pantalla.ACCIONES_EN_FICHA)
     saldos.assert_called_once_with("2", "g1")
     assert render.call_args.kwargs["esperas"] == esperas.return_value
     assert render.call_args.kwargs["asciicoins"] == 34
+    assert render.call_args.kwargs["sin_arte"] is True
     llamada = respuesta.await_args
     assert llamada is not None
-    contenido = llamada.args[0]
-    assert all(
-        icono in contenido for icono in ("🍖", "🎮", "🏋️", "🧼", "🏁", "🧭")
-    )
-    assert "🪙 34 asciicoins" in contenido
+    assert llamada.kwargs["content"] is None
+    assert llamada.kwargs["embed"].description
+    assert llamada.kwargs["file"].filename.endswith(".png")
     assert "view" not in llamada.kwargs
+
+
+def test_mascota_ajena_ascii_gana_a_la_preferencia_imagen_del_visitante(
+    monkeypatch, bd_temporal
+):
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from unittest.mock import AsyncMock, Mock
+
+    import economia
+    import pantalla
+    from cogs import mascota as cog_mascota
+
+    ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    criatura = criatura_de_prueba(
+        usuario_id="2", especie="pedrusco", nombre="Geo", actualizada_en=ahora
+    )
+    db.guardar_estilo_de_ficha("1", "g1", "imagen")
+    db.guardar_estilo_de_ficha("2", "g1", "ascii")
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
+    monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
+    monkeypatch.setattr(db, "esperas_de_ficha", Mock(return_value={}))
+    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(
+        economia, "saldos", Mock(return_value=economia.Saldos(34, 0))
+    )
+    render = Mock(wraps=pantalla.render)
+    monkeypatch.setattr(pantalla, "render", render)
+
+    respuesta = AsyncMock()
+    interaccion = cast(discord.Interaction, SimpleNamespace(
+        user=SimpleNamespace(id=1),
+        guild_id="g1",
+        response=SimpleNamespace(send_message=respuesta),
+    ))
+    rival = cast(discord.User, UsuarioFalso(2))
+    cog = cog_mascota.Mascota.__new__(cog_mascota.Mascota)
+
+    callback = cast(Any, cog_mascota.Mascota.mascota.callback)
+    asyncio.run(callback(cog, interaccion, rival))
+
+    llamada = respuesta.await_args
+    assert llamada is not None
+    assert set(llamada.kwargs) == {"content"}
+    assert "Geo" in llamada.kwargs["content"]
+    assert "sin_arte" not in render.call_args.kwargs
 
 
 def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_temporal):
@@ -336,6 +378,7 @@ def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_te
         hambre=1.0,
     )
     saldos = Mock(side_effect=AssertionError("una lápida no consulta saldo"))
+    estilo = Mock(side_effect=AssertionError("una lápida no consulta estilo"))
     guardar = Mock()
     render = Mock(wraps=pantalla.render)
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
@@ -343,6 +386,7 @@ def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_te
     monkeypatch.setattr(db, "guardar", guardar)
     monkeypatch.setattr(db, "esperas_de_ficha", Mock(return_value={}))
     monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
+    monkeypatch.setattr(db, "estilo_de_ficha", estilo)
     monkeypatch.setattr(economia, "saldos", saldos)
     monkeypatch.setattr(pantalla, "render", render)
 
@@ -359,14 +403,15 @@ def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_te
     asyncio.run(callback(cog, interaccion, rival))
 
     saldos.assert_not_called()
+    estilo.assert_not_called()
     lapida = guardar.call_args.args[0]
     assert not lapida.viva
     assert render.call_args.args[0] == lapida
     assert render.call_args.kwargs["asciicoins"] is None
     llamada = respuesta.await_args
     assert llamada is not None
-    contenido = llamada.args[0]
-    assert "asciicoins" not in contenido
+    assert set(llamada.kwargs) == {"content"}
+    assert "asciicoins" not in llamada.kwargs["content"]
 
 
 def test_el_aviso_de_hambre_para_competir_concuerda():

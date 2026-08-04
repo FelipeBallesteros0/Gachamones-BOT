@@ -165,19 +165,17 @@ class Mascota(commands.Cog):
         if not propia:
             # Sin botones: no es tuya, no la puedes cuidar. Los efectos sí se
             # ven: saber que el rival va dopado es parte de la gracia.
-            await interaccion.response.send_message(
-                pantalla.render(
-                    criatura, ahora,
-                    esperas=db.esperas_de_ficha(
-                        criatura, ahora, pantalla.ACCIONES_EN_FICHA
-                    ),
-                    efectos=db.efectos_activos(criatura.id, ahora),
-                    asciicoins=(
-                        economia.saldos(criatura.usuario_id, criatura.guild_id).asciicoins
-                        if criatura.viva else None
-                    ),
-                )
-            )
+            await interaccion.response.send_message(**vistas._ficha(
+                criatura, ahora,
+                esperas=db.esperas_de_ficha(
+                    criatura, ahora, pantalla.ACCIONES_EN_FICHA
+                ),
+                efectos=db.efectos_activos(criatura.id, ahora),
+                asciicoins=(
+                    economia.saldos(criatura.usuario_id, criatura.guild_id).asciicoins
+                    if criatura.viva else None
+                ),
+            ))
             return
 
         await vistas.responder_pantalla(interaccion, criatura, ahora)
