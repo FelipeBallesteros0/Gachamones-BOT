@@ -939,9 +939,9 @@ def _canal_anterior(canal: discord.abc.Messageable, criatura: sim.Criatura):
 def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
     """Los argumentos con los que se pinta una ficha.
 
-    Casi siempre es el texto de siempre. Para las criaturas que tienen retrato
-    dibujado —qué especies, en `retrato.py`— es un embed con la imagen y el
-    marco sin el dibujo, que ya se ve en la foto.
+    En modo Imagen, las criaturas con retrato dibujado —qué especies, en
+    `retrato.py`— usan un embed con la imagen y el marco sin el dibujo. En modo
+    ASCII, sin asset o muertas, se devuelve siempre el texto completo.
 
     El PNG se manda tal cual está en `arte/`: aquí no se compone ni se escribe
     nada. `discord.File` lo abre, lo sube y lo cierra.
@@ -949,7 +949,12 @@ def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
     Devuelve un diccionario porque `send` y `edit_message` no piden el adjunto
     con el mismo nombre; de eso se encarga `_como_edicion`.
     """
-    ruta = retrato.ruta_de(criatura) if criatura.viva else None
+    ruta = (
+        retrato.ruta_de(criatura)
+        if criatura.viva
+        and db.estilo_de_ficha(criatura.usuario_id, criatura.guild_id) == "imagen"
+        else None
+    )
     if ruta is None:
         return {"content": pantalla.render(criatura, ahora, **kw)}
 

@@ -6,8 +6,12 @@ y no escribe nada en ningún registro—, así que aquí se comprueba antes.
 import struct
 from dataclasses import replace
 from datetime import datetime, timezone
+from typing import Any
+
+import pytest
 
 import cosmeticos as cos
+import db
 import especies as esp
 import retrato
 import simulacion as sim
@@ -19,8 +23,13 @@ SOMBREROS = [c.clave for c in cos.SOMBREROS]
 NIVEL_DE_ETAPA = {etapa: nivel for nivel, etapa in enumerate(esp.ETAPAS, start=1)}
 
 
+@pytest.fixture(autouse=True)
+def estilo_imagen(monkeypatch):
+    monkeypatch.setattr(db, "estilo_de_ficha", lambda *_: "imagen")
+
+
 def criatura(especie="chispa", etapa="adulto_grande", **cambios) -> sim.Criatura:
-    base = dict(
+    base: dict[str, Any] = dict(
         id=1, usuario_id="u1", guild_id="g1", especie=especie,
         nombre="Pyro", nacida_en=T0, actualizada_en=T0,
         nivel=NIVEL_DE_ETAPA[etapa],

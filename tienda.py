@@ -362,15 +362,22 @@ def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
     tengo = len(db.ropero(usuario_id, guild_id))
     if criatura is None:
         return "## 🎨 Personalizar\n-# No tienes ningún gachamon activo."
+    estilo = (
+        "Imagen"
+        if db.estilo_de_ficha(usuario_id, guild_id) == "imagen"
+        else "ASCII clásico"
+    )
     if not tengo:
         return (
             f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
+            f"Estilo de ficha: **{estilo}**\n"
             "Tu ropero está vacío. Cómprale algo en 🛒 **Tienda**.\n"
             f"-# {obj.EMOJI_GEMA} asciigems: "
             f"**{economia.saldos(usuario_id, guild_id).asciigems}**"
         )
     return (
         f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
+        f"Estilo de ficha: **{estilo}**\n"
         f"{_lo_que_lleva(criatura)}\n"
         f"-# En tu ropero: **{tengo}** "
         f"{'pieza' if tengo == 1 else 'piezas'}. Lo que le quites vuelve ahí."
@@ -1102,6 +1109,45 @@ class MenuQuitarCosmetico(discord.ui.Select):
         )
 
 
+class MenuEstiloFicha(discord.ui.Select):
+    """Cómo verá todo el servidor las fichas de la persona."""
+
+    def __init__(self, actual: str, refrescar=None):
+        self.refrescar = refrescar
+        super().__init__(
+            placeholder="Estilo de ficha…",
+            options=[
+                discord.SelectOption(
+                    label="Imagen",
+                    value="imagen",
+                    description="Usa el retrato cuando esté disponible.",
+                    emoji="🖼️",
+                    default=actual == "imagen",
+                ),
+                discord.SelectOption(
+                    label="ASCII clásico",
+                    value="ascii",
+                    description="Siempre muestra el arte ASCII clásico.",
+                    emoji="⌨️",
+                    default=actual == "ascii",
+                ),
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        usuario_id, guild_id = str(interaction.user.id), str(interaction.guild_id)
+        estilo = self.values[0]
+        db.guardar_estilo_de_ficha(usuario_id, guild_id, estilo)
+        criatura = db.criatura_activa(usuario_id, guild_id)
+        nombre = "Imagen" if estilo == "imagen" else "ASCII clásico"
+        await interaction.response.edit_message(
+            content=f"✅ Estilo público de ficha: **{nombre}**.",
+            view=None,
+        )
+        if criatura is not None and self.refrescar is not None:
+            await self.refrescar(interaction, criatura)
+
+
 async def _contestar(
     interaccion: discord.Interaction,
     aviso: str,
@@ -1118,7 +1164,7 @@ class VistaConMenu(discord.ui.View):
     """Uno o varios desplegables sueltos. Caduca solo: no sobrevive a nada.
 
     Discord admite cinco filas por mensaje y un desplegable ocupa una entera, así
-    que aquí caben cinco. La tienda usa dos y la personalización otros dos.
+    que aquí caben cinco. La tienda usa dos y la personalización hasta tres.
     """
 
     def __init__(self, *menus: discord.ui.Select):
@@ -1164,6 +1210,9 @@ async def abrir_personalizacion(
 
     menus: list[discord.ui.Select] = []
     if criatura is not None:
+        menus.append(MenuEstiloFicha(
+            db.estilo_de_ficha(usuario_id, guild_id), refrescar
+        ))
         if tengo:
             menus.append(MenuPonerCosmetico(tengo, refrescar))
         if any(getattr(criatura, tipo) for tipo in cos.TIPOS):

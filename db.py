@@ -234,6 +234,15 @@ CREATE TABLE IF NOT EXISTS ropero (
     PRIMARY KEY (usuario_id, guild_id, cosmetico)
 );
 
+-- Cómo quiere cada persona que todo el servidor vea sus fichas. Sin fila se
+-- usa Imagen; sólo se guarda una elección explícita desde Personalizar.
+CREATE TABLE IF NOT EXISTS estilos_ficha (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    estilo TEXT NOT NULL CHECK (estilo IN ('imagen', 'ascii')),
+    PRIMARY KEY (usuario_id, guild_id)
+);
+
 -- Dónde vive el plantel de cada persona. `casa` a NULL es no tener casa propia,
 -- y entonces manda `refugio_hasta`: en el futuro sigue en el refugio y en el
 -- pasado se ha quedado a la intemperie. Los tres estados salen de estos dos
@@ -1344,6 +1353,31 @@ def anotar_logro_de_persona_en(
         (usuario_id, guild_id, clave, cuando.isoformat()),
     )
     return bool(cursor.rowcount)
+
+
+# --- El estilo público de la ficha ----------------------------------------
+
+def estilo_de_ficha(usuario_id: str, guild_id: str) -> str:
+    """La elección pública de la persona; Imagen si nunca eligió."""
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT estilo FROM estilos_ficha "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchone()
+    return fila["estilo"] if fila is not None else "imagen"
+
+
+def guardar_estilo_de_ficha(usuario_id: str, guild_id: str, estilo: str) -> None:
+    if estilo not in ("imagen", "ascii"):
+        raise ValueError(f"Estilo de ficha inválido: {estilo}")
+    with conectar() as con:
+        con.execute(
+            "INSERT INTO estilos_ficha (usuario_id, guild_id, estilo) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT (usuario_id, guild_id) DO UPDATE SET estilo = excluded.estilo",
+            (usuario_id, guild_id, estilo),
+        )
 
 
 # --- El ropero -------------------------------------------------------------
