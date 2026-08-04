@@ -50,28 +50,30 @@ def test_estan_las_caras_y_todos_los_sombreros():
     assert not faltan, f"falta la capa: {faltan}"
 
 
-CAPAS_GEO = (
-    ("caras", "face_1.png"),
-    ("caras", "face_2.png"),
-    ("caras", "face_3.png"),
-    ("sombreros", "aureola.png"),
-    ("sombreros", "chistera.png"),
-    ("sombreros", "cinta.png"),
-    ("sombreros", "corona.png"),
-    ("sombreros", "cuernos.png"),
-    ("sombreros", "laurel.png"),
-)
+SOMBREROS_GEO = ("aureola.png", "chistera.png", "cinta.png",
+                 "corona.png", "cuernos.png", "laurel.png")
 
 
-@pytest.mark.parametrize(("carpeta", "archivo"), CAPAS_GEO)
-def test_geo_usa_sus_nueve_capas_especificas(carpeta, archivo):
-    assert componer.ruta_de_capa(carpeta, 'geo', archivo) == (
-        componer.FUENTES / carpeta / 'geo' / archivo
+@pytest.mark.parametrize("archivo", SOMBREROS_GEO)
+def test_geo_usa_sus_seis_sombreros_propios(archivo):
+    assert componer.ruta_de_capa('sombreros', 'geo', archivo) == (
+        componer.FUENTES / 'sombreros' / 'geo' / archivo
+    )
+
+
+@pytest.mark.parametrize("forma", tuple(componer.FORMA_ARCHIVO.values()))
+@pytest.mark.parametrize("archivo", ("face_1.png", "face_2.png", "face_3.png"))
+def test_geo_usa_una_cara_propia_por_forma(archivo, forma):
+    """Los cinco cuerpos de Geo son dibujos distintos, no el mismo agrandado:
+    una bola, un cubo en tres cuartos y un pedrusco con patas. Los ojos no caen
+    en el mismo sitio en los tres, así que cada forma lleva sus tres caras."""
+    assert componer.ruta_de_capa('caras', 'geo', archivo, forma) == (
+        componer.FUENTES / 'caras' / 'geo' / forma / archivo
     )
 
 
 def test_otra_especie_conserva_las_capas_globales():
-    assert componer.ruta_de_capa('caras', 'pyro', 'face_1.png') == (
+    assert componer.ruta_de_capa('caras', 'pyro', 'face_1.png', 'cria') == (
         componer.FUENTES / 'caras' / 'face_1.png'
     )
     assert componer.ruta_de_capa('sombreros', 'pyro', 'aureola.png') == (
@@ -79,16 +81,25 @@ def test_otra_especie_conserva_las_capas_globales():
     )
 
 
-def test_una_capa_especifica_ausente_vuelve_a_la_global(tmp_path, monkeypatch):
-    global_ = tmp_path / 'caras' / 'face_2.png'
-    global_.parent.mkdir()
-    global_.touch()
-    especifica = tmp_path / 'caras' / 'geo' / 'face_1.png'
-    especifica.parent.mkdir()
-    especifica.touch()
+def test_la_capa_se_busca_de_lo_concreto_a_lo_general(tmp_path, monkeypatch):
+    """Por forma, por especie y global, en ese orden."""
     monkeypatch.setattr(componer, 'FUENTES', tmp_path)
+    glob = tmp_path / 'caras' / 'face_1.png'
+    glob.parent.mkdir()
+    glob.touch()
+    assert componer.ruta_de_capa('caras', 'geo', 'face_1.png', 'cria') == glob
 
-    assert componer.ruta_de_capa('caras', 'geo', 'face_2.png') == global_
+    especie = tmp_path / 'caras' / 'geo' / 'face_1.png'
+    especie.parent.mkdir()
+    especie.touch()
+    assert componer.ruta_de_capa('caras', 'geo', 'face_1.png', 'cria') == especie
+
+    forma = tmp_path / 'caras' / 'geo' / 'cria' / 'face_1.png'
+    forma.parent.mkdir()
+    forma.touch()
+    assert componer.ruta_de_capa('caras', 'geo', 'face_1.png', 'cria') == forma
+    # Y la de otra forma sigue cayendo a la de la especie.
+    assert componer.ruta_de_capa('caras', 'geo', 'face_1.png', 'adulto') == especie
 
 
 def test_cada_especie_apila_capas_del_mismo_tamaño():
@@ -115,8 +126,10 @@ def test_cada_especie_apila_capas_del_mismo_tamaño():
         capas = {
             ruta: png.medidas(ruta)
             for ruta in (
-                *(componer.ruta_de_capa("caras", nombre, a)
-                  for a in componer.CARAS.values()),
+                *(componer.ruta_de_capa("caras", nombre, a,
+                                        componer.FORMA_ARCHIVO[etapa])
+                  for a in componer.CARAS.values()
+                  for etapa in esp.ETAPAS),
                 *(componer.ruta_de_capa("sombreros", nombre, f"{s.clave}.png")
                   for s in cos.SOMBREROS),
             )

@@ -119,7 +119,20 @@ def ruta_del_cuerpo(nombre: str, etapa: str) -> pathlib.Path:
     return FUENTES / "cuerpos" / f"{nombre}_body_{FORMA_ARCHIVO[etapa]}.png"
 
 
-def ruta_de_capa(carpeta: str, nombre: str, archivo: str) -> pathlib.Path:
+def ruta_de_capa(carpeta: str, nombre: str, archivo: str,
+                 forma: str | None = None) -> pathlib.Path:
+    """La capa más concreta que exista, de las tres que puede haber.
+
+    Por forma, por especie o global, en ese orden. Lo de **por forma** hace
+    falta desde que los cuerpos de una misma especie dejaron de ser el mismo
+    dibujo agrandado: si la cría es una bola y el adulto un pedrusco con patas,
+    los ojos no caen en el mismo sitio, y una sola cara para las cinco formas
+    obligaría a dejarles a todas el hueco donde le conviene a la peor.
+    """
+    if forma is not None:
+        por_forma = FUENTES / carpeta / nombre / forma / archivo
+        if por_forma.is_file():
+            return por_forma
     especifica = FUENTES / carpeta / nombre / archivo
     return especifica if especifica.is_file() else FUENTES / carpeta / archivo
 
@@ -131,8 +144,6 @@ def retratos(nombre: str):
     a la suya, cambiar de humor o ponerse un sombrero movería al bicho dentro
     del embed y parecería que da saltos.
     """
-    caras = {animo: png.leer(ruta_de_capa("caras", nombre, archivo))
-             for animo, archivo in CARAS.items()}
     sombreros = {
         s.clave: png.leer(ruta_de_capa("sombreros", nombre, f"{s.clave}.png"))
         for s in cos.SOMBREROS
@@ -140,6 +151,12 @@ def retratos(nombre: str):
 
     for etapa in esp.ETAPAS:
         cuerpo = png.leer(ruta_del_cuerpo(nombre, etapa))
+        # Las caras se leen DENTRO del bucle: pueden ser distintas en cada
+        # forma, y quien no tenga las suyas cae a las de su especie o a las
+        # globales sin enterarse.
+        caras = {animo: png.leer(
+                     ruta_de_capa("caras", nombre, archivo, FORMA_ARCHIVO[etapa]))
+                 for animo, archivo in CARAS.items()}
         piezas: dict[tuple[str, str], png.Imagen] = {}
         comun = None
         for animo, cara in caras.items():
