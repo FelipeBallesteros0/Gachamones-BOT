@@ -263,6 +263,7 @@ def ejecutar_aventura_final(
 
     monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
     monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
+    monkeypatch.setattr(cog_av.db, "estilo_de_ficha", lambda *_: "ascii")
     monkeypatch.setattr(cog_av.av, "tirar_hallazgo", lambda *_: hallazgo)
     monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: percance)
     # Lo que se encuentra por el suelo se fija igual que lo demás: estos tests
@@ -329,8 +330,11 @@ def ejecutar_aventura_final(
 
     monkeypatch.setattr(cog_av, "EncuentroView", VistaFalsa)
 
-    async def enviar(mensaje, **kwargs):
-        eventos.append(("canal", mensaje, kwargs.get("view")))
+    async def enviar(mensaje=None, **kwargs):
+        eventos.append((
+            "canal", mensaje if mensaje is not None else kwargs.get("content"),
+            kwargs.get("view"),
+        ))
         return SimpleNamespace()
 
     canal = SimpleNamespace(id=202, send=enviar)

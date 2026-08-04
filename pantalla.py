@@ -492,7 +492,7 @@ def render_lapida(criatura: sim.Criatura, ahora: datetime) -> str:
 
 def render_evolucion(
     criatura: sim.Criatura, etapa_anterior: str, subidas: tuple[str, ...] = (),
-    *, rupturas: tuple[sim.Ruptura, ...] = (),
+    *, rupturas: tuple[sim.Ruptura, ...] = (), sin_arte: bool = False,
 ) -> str:
     """El anuncio de que la criatura ha cambiado de etapa.
 
@@ -504,8 +504,11 @@ def render_evolucion(
     ultima = etapa == esp.ETAPAS[-1]
 
     cuerpo = ["╭" + "─" * ANCHO + "╮"]
-    cuerpo += _lineas_arte(esp.arte_de(definicion, etapa, esp.FELIZ), definicion.color)
-    cuerpo.append("├" + "─" * ANCHO + "┤")
+    if not sin_arte:
+        cuerpo += _lineas_arte(
+            esp.arte_de(definicion, etapa, esp.FELIZ), definicion.color
+        )
+        cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.extend(_fila_stats(criatura))
     cuerpo.append("╰" + "─" * ANCHO + "╯")
 
@@ -540,7 +543,9 @@ def render_evolucion(
     return "\n".join(partes)
 
 
-def render_revelacion(criatura: sim.Criatura, ahora: datetime) -> str:
+def render_revelacion(
+    criatura: sim.Criatura, ahora: datetime, *, sin_arte: bool = False
+) -> str:
     """Lo que sale del cascarón, antes de tener nombre.
 
     Enseña la especie y la tirada de estadísticas, que es lo emocionante de
@@ -549,8 +554,9 @@ def render_revelacion(criatura: sim.Criatura, ahora: datetime) -> str:
     definicion = criatura.def_especie
 
     cuerpo = ["╭" + "─" * ANCHO + "╮"]
-    cuerpo += _lineas_arte(esp.arte_de(definicion, esp.BEBE), definicion.color)
-    cuerpo.append("├" + "─" * ANCHO + "┤")
+    if not sin_arte:
+        cuerpo += _lineas_arte(esp.arte_de(definicion, esp.BEBE), definicion.color)
+        cuerpo.append("├" + "─" * ANCHO + "┤")
     cuerpo.extend(_fila_stats(criatura))
     cuerpo.append("╰" + "─" * ANCHO + "╯")
 
