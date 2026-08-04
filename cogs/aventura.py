@@ -698,8 +698,8 @@ class Aventura(commands.Cog):
             return
 
         if criatura_avanzada.etapa != cansada.etapa:
-            await canal.send(pantalla.render_evolucion(
-                cansada, criatura_avanzada.etapa
+            await canal.send(**vistas.presentacion(
+                cansada, pantalla.render_evolucion, criatura_avanzada.etapa
             ))
         elif criatura_avanzada.nivel != cansada.nivel:
             await canal.send(

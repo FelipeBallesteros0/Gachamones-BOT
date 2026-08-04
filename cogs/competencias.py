@@ -547,8 +547,8 @@ class Competencias(commands.Cog):
         ):
             if antes.etapa != nueva.etapa:
                 await canal.send(f"{usuario.mention}")
-                await canal.send(pantalla.render_evolucion(
-                    nueva, antes.etapa
+                await canal.send(**vistas.presentacion(
+                    nueva, pantalla.render_evolucion, antes.etapa
                 ))
             elif antes.nivel != nueva.nivel:
                 await canal.send(

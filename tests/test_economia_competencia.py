@@ -549,7 +549,8 @@ def test_disputar_un_laberinto_narra_beats_cierre_y_recibos(monkeypatch):
     monkeypatch.setattr(cog_comp.vistas, "publicar_pantalla", AsyncMock())
     animados = []
 
-    async def animar(_canal, fotogramas, tipo):
+    async def animar(canal, fotogramas, tipo):
+        del canal
         animados.append((fotogramas, tipo))
 
     cog = Competencias.__new__(Competencias)
@@ -818,7 +819,10 @@ def test_competencia_congela_todas_las_fichas_antes_de_animar_y_no_repite(
     assert eventos[-1][0] == "publicar"
     assert eventos[-1][2] == {"ya_congelada": "ficha-1"}
     assert not any(
-        "👀" in llamada.args[0] for llamada in canal.send.await_args_list
+        "👀" in (
+            llamada.args[0] if llamada.args else llamada.kwargs.get("content") or ""
+        )
+        for llamada in canal.send.await_args_list
     )
 
 

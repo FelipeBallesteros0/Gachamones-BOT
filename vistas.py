@@ -804,8 +804,8 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
     if resultado.evoluciono:
         etapa_anterior = resultado.etapa_anterior
         assert etapa_anterior is not None
-        await canal.send(pantalla.render_evolucion(
-            resultado.criatura, etapa_anterior
+        await canal.send(**presentacion(
+            resultado.criatura, pantalla.render_evolucion, etapa_anterior
         ))
     if resultado.rupturas:
         await canal.send(
@@ -936,19 +936,8 @@ def _canal_anterior(canal: discord.abc.Messageable, criatura: sim.Criatura):
     return guild.get_channel_or_thread(guardado) or canal
 
 
-def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
-    """Los argumentos con los que se pinta una ficha.
-
-    En modo Imagen, las criaturas con retrato dibujado —qué especies, en
-    `retrato.py`— usan un embed con la imagen y el marco sin el dibujo. En modo
-    ASCII, sin asset o muertas, se devuelve siempre el texto completo.
-
-    El PNG se manda tal cual está en `arte/`: aquí no se compone ni se escribe
-    nada. `discord.File` lo abre, lo sube y lo cierra.
-
-    Devuelve un diccionario porque `send` y `edit_message` no piden el adjunto
-    con el mismo nombre; de eso se encarga `_como_edicion`.
-    """
+def presentacion(criatura: sim.Criatura, renderizador, *args, **kw) -> dict:
+    """Aplica la preferencia Imagen/ASCII a cualquier ficha de una criatura."""
     ruta = (
         retrato.ruta_de(criatura)
         if criatura.viva
@@ -956,11 +945,11 @@ def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
         else None
     )
     if ruta is None:
-        return {"content": pantalla.render(criatura, ahora, **kw)}
+        return {"content": renderizador(criatura, *args, **kw)}
 
     nombre = retrato.nombre_del_adjunto(ruta)
     embed = discord.Embed(
-        description=pantalla.render(criatura, ahora, sin_arte=True, **kw),
+        description=renderizador(criatura, *args, sin_arte=True, **kw),
         colour=retrato.color_de(criatura),
     )
     # Imagen y no miniatura: Discord topa las miniaturas en 80×80 y el bicho se
@@ -973,6 +962,11 @@ def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
     embed.set_image(url=f"attachment://{nombre}")
     return {"content": None, "embed": embed,
             "file": discord.File(ruta, filename=nombre)}
+
+
+def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:
+    """Los argumentos con los que se pinta la ficha canónica."""
+    return presentacion(criatura, pantalla.render, ahora, **kw)
 
 
 def _como_edicion(ficha: dict) -> dict:

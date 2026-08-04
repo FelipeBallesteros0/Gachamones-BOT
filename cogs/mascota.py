@@ -76,7 +76,9 @@ class HuevoView(discord.ui.View):
             return
 
         await interaccion.response.edit_message(
-            content=pantalla.render_revelacion(criatura, ahora),
+            **vistas._como_edicion(vistas.presentacion(
+                criatura, pantalla.render_revelacion, ahora
+            )),
             view=vistas.NombrarView(),
         )
         # Marcar el mensaje como suyo, para que nadie más pulse «Ponerle nombre».
