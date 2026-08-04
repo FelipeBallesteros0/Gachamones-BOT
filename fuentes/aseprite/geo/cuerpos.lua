@@ -49,19 +49,29 @@ local function azar(semilla)
   end
 end
 
--- Las cinco formas. La coronilla apenas sube (52 -> 44) y lo que crece es el
--- ancho: así una sola imagen de sombrero se apoya en las cinco, y además es
--- como crece en el arte ASCII. Siempre más ancho que alto.
+-- **Perspectiva caballera.** La cara de delante se dibuja en verdadera forma y
+-- la profundidad se arrastra a 45 grados hacia arriba y a la derecha. Así el
+-- pedrusco deja de ser una silueta recortada y pasa a ser un volumen con tres
+-- planos: frente, tapa y costado.
+--
+-- El fondo (`hondo`) está atado por dos sitios y por eso es corto:
+--   * la cara va sobre el FRENTE, y el hueco empieza en y=53, así que el
+--     frente no puede empezar más abajo de ahí;
+--   * la tapa sube `hondo` píxeles por encima del frente, y ahí es donde se
+--     posan los sombreros, que son una sola imagen para las cinco formas.
+--
+-- Las cinco formas. La cima del volumen queda entre y=44 y y=46 —una banda
+-- estrecha a propósito— y lo que crece es el ancho, como en el arte ASCII.
 local FORMAS = {
-  { nombre = "cria",          cx = 64, rx = 23, alto = 34, suelo = 88,  semilla = 11,
+  { nombre = "cria",          cx = 64, rx = 23, alto = 42, hondo = 5, suelo = 88,  semilla = 11,
     grietas = 0, liquen = 0, patas = false },
-  { nombre = "niño",          cx = 63, rx = 29, alto = 40, suelo = 92,  semilla = 23,
+  { nombre = "niño",          cx = 63, rx = 29, alto = 47, hondo = 6, suelo = 92,  semilla = 23,
     grietas = 1, liquen = 1, patas = false },
-  { nombre = "adolecente",    cx = 65, rx = 36, alto = 46, suelo = 96,  semilla = 37,
+  { nombre = "adolecente",    cx = 65, rx = 36, alto = 51, hondo = 7, suelo = 96,  semilla = 37,
     grietas = 2, liquen = 2, patas = false },
-  { nombre = "adulto",        cx = 63, rx = 44, alto = 52, suelo = 100, semilla = 51,
+  { nombre = "adulto",        cx = 63, rx = 44, alto = 56, hondo = 8, suelo = 100, semilla = 51,
     grietas = 3, liquen = 3, patas = true },
-  { nombre = "adulto_grande", cx = 64, rx = 52, alto = 60, suelo = 106, semilla = 67,
+  { nombre = "adulto_grande", cx = 64, rx = 52, alto = 62, hondo = 8, suelo = 106, semilla = 67,
     grietas = 4, liquen = 5, patas = true },
 }
 
@@ -77,6 +87,12 @@ end
 -- diferentes y la piedra deja de ser simétrica.
 local function contorno(forma)
   local r = azar(forma.semilla)
+  -- El frente ocupa el hueco que deja la profundidad: el arrastre a 45 grados
+  -- se lleva `hondo` hacia arriba y otro tanto hacia la derecha, y entre los
+  -- dos completan la caja que ocupa el bicho.
+  local rxf = forma.rx - forma.hondo / 2
+  local cxf = forma.cx - forma.hondo / 2
+  local altof = forma.alto - forma.hondo
   local vs = {}
   for k = 0, VERTICES do
     local t = k / VERTICES
@@ -90,8 +106,8 @@ local function contorno(forma)
     local rr = (0.88 + r() * 0.22) * recogida
     local ra = 0.86 + r() * 0.22
     vs[#vs + 1] = {
-      x = forma.cx + forma.rx * math.cos(ang) * rr,
-      y = forma.suelo - forma.alto * altura * ra,
+      x = cxf + rxf * math.cos(ang) * rr,
+      y = forma.suelo - altof * altura * ra,
     }
   end
   vs[1].y = forma.suelo
@@ -139,34 +155,54 @@ local function dibujar(forma)
     end
   end
 
-  local dentro = {}
+  -- La cara de delante, en verdadera forma.
+  local frente = {}
   for x = izq, der do
     if techo[x] then
-      dentro[x] = {}
-      for y = techo[x], forma.suelo do dentro[x][y] = true end
+      frente[x] = {}
+      for y = techo[x], forma.suelo do frente[x][y] = true end
     end
   end
 
-  -- 1. Sombreado por CARAS PLANAS, que es como se dibuja una piedra en
-  -- pixelart. Un degradado en diagonal —lo que había antes— barre el bloque
-  -- entero y lo convierte en una cuña; lo que hace leer «pedrusco» es que
-  -- distintos planos tengan distinto tono, cada uno liso.
-  --
-  --   * arriba, la cara de cada faceta del contorno: cuanto más vuelta al
-  --     cielo, más clara;
-  --   * abajo, dos flancos separados por una junta quebrada, el de la
-  --     izquierda iluminado y el de la derecha en sombra;
-  --   * y el asiento, en el tono más oscuro.
+  -- 1. El VOLUMEN, en perspectiva caballera: se arrastra el frente a 45 grados
+  -- arriba y a la derecha, y lo que barre por el camino son la tapa y el
+  -- costado. Tres planos, cada uno de un tono liso —eso es lo que se lee como
+  -- volumen; un degradado sólo se lee como mancha.
+  local dentro = {}
+  for x = izq, der do
+    if frente[x] then
+      for y = techo[x], forma.suelo do
+        for t = 0, forma.hondo do
+          local ax, ay = x + t, y - t
+          if ax >= 0 and ax < LIENZO and ay >= 0 then
+            dentro[ax] = dentro[ax] or {}
+            dentro[ax][ay] = true
+          end
+        end
+      end
+    end
+  end
+
+  -- El borde derecho del frente, para saber qué queda de costado.
+  local derecha = {}
+  for x = izq, der do
+    if frente[x] then
+      for y in pairs(frente[x]) do
+        if derecha[y] == nil or x > derecha[y] then derecha[y] = x end
+      end
+    end
+  end
+
   local ancho = der - izq
 
   local function tono_de_faceta(i)
     local p = pendiente[i] or 1
-    if p < 0.30 then return C.brillo      -- casi plana: mira al cielo
-    elseif p < 0.75 then return C.veta
-    else return C.claro end               -- casi vertical: apenas la roza
+    if p < 0.30 then return C.claro       -- casi plana
+    elseif p < 0.75 then return C.claro
+    else return C.base end                -- casi vertical: le llega menos luz
   end
 
-  -- La junta entre los dos flancos: una línea quebrada, no recta, para que no
+  -- La junta entre los dos flancos del frente: quebrada, no recta, para que no
   -- parta la piedra en dos mitades limpias.
   local junta = {}
   local jx = izq + ancho * (0.52 + r() * 0.12)
@@ -175,25 +211,42 @@ local function dibujar(forma)
     if y % 4 == 0 then jx = jx + (r() * 3 - 1.2) end
   end
 
-  for x = izq, der do
+  for x = 0, LIENZO - 1 do
     if dentro[x] then
-      local fondo = forma.suelo - techo[x]
-      local capa = math.max(3, math.floor(fondo * 0.42))
-      for y = techo[x], forma.suelo do
-        local hondo = y - techo[x]
+      for y in pairs(dentro[x]) do
         local c
-        if hondo < capa then
-          c = tono_de_faceta(faceta[x])
-        elseif y > forma.suelo - 4 then
-          c = C.sombra                    -- el asiento
-        elseif x < junta[y] then
-          c = C.claro                     -- flanco a la luz
+        if frente[x] and frente[x][y] then
+          -- El frente: mira de canto a la luz, así que va en los tonos medios,
+          -- con las facetas del contorno marcando planos y el asiento oscuro.
+          local fondo = forma.suelo - techo[x]
+          local capa = math.max(3, math.floor(fondo * 0.42))
+          if y - techo[x] < capa then c = tono_de_faceta(faceta[x])
+          elseif y > forma.suelo - 4 then c = C.sombra
+          elseif x < junta[y] then c = C.claro
+          else c = C.base end
+        elseif techo[x] ~= nil and y < techo[x] then
+          c = C.brillo                    -- la tapa: mira al cielo
         else
-          c = C.base                      -- flanco a la sombra
+          -- Todo lo demás del arrastre es costado, incluida la franja a la
+          -- derecha del frente, donde ya no hay contorno que consultar. Con la
+          -- condición al revés esa franja se iba a la tapa y el bicho salía
+          -- envuelto en una capucha clara.
+          c = C.sombra
         end
         img:drawPixel(x, y, px(c))
       end
     end
+  end
+
+  -- La arista donde se doblan frente y tapa. Sin ella los dos planos se tocan
+  -- por un cambio de tono y el volumen no acaba de leerse.
+  for x = izq, der do
+    if techo[x] then
+      img:drawPixel(x, techo[x], px(C.veta))
+    end
+  end
+  for y = 0, LIENZO - 1 do
+    if derecha[y] then img:drawPixel(derecha[y], y, px(C.base)) end
   end
 
   -- 2. Aristas internas: desde algunos vértices del contorno baja un quiebro
@@ -202,12 +255,12 @@ local function dibujar(forma)
   local aristas = 2 + math.floor(forma.rx / 24)
   for a = 1, aristas do
     local x = izq + math.floor((a / (aristas + 1)) * ancho + (r() * 10 - 5))
-    if dentro[x] then
+    if frente[x] then
       local y = techo[x]
       local caida = math.floor((forma.suelo - y) * (0.45 + r() * 0.35))
       local sesgo = (r() < 0.5) and -1 or 1
       for paso = 1, caida do
-        if dentro[x] and dentro[x][y] and not en_la_cara(x, y) then
+        if frente[x] and frente[x][y] and not en_la_cara(x, y) then
           img:drawPixel(x, y, px(C.sombra))
         end
         y = y + 1
@@ -225,7 +278,7 @@ local function dibujar(forma)
     local largo = 4 + math.floor(r() * (forma.rx * 0.4))
     local sube = (r() < 0.5)
     for paso = 1, largo do
-      if dentro[x] and dentro[x][y] and not en_la_cara(x, y) then
+      if frente[x] and frente[x][y] and not en_la_cara(x, y) then
         img:drawPixel(x, y, px(C.veta))
       end
       x = x + 1
@@ -237,7 +290,7 @@ local function dibujar(forma)
   for _ = 1, math.floor(ancho * 1.5) do
     local x = izq + math.floor(r() * ancho)
     local y = math.floor(r() * LIENZO)
-    if dentro[x] and dentro[x][y] and not en_la_cara(x, y) then
+    if frente[x] and frente[x][y] and not en_la_cara(x, y) then
       img:drawPixel(x, y, px(r() < 0.5 and C.veta or C.sombra))
     end
   end
@@ -245,11 +298,11 @@ local function dibujar(forma)
   -- 5. Fracturas: bajan desde la arista de arriba, torciéndose.
   for f = 1, forma.grietas do
     local x = izq + math.floor((f / (forma.grietas + 1)) * ancho)
-    if dentro[x] then
+    if frente[x] then
       local y = techo[x] + 1
       local largo = math.floor((forma.suelo - y) * (0.4 + r() * 0.4))
       for _ = 1, largo do
-        if dentro[x] and dentro[x][y] and not en_la_cara(x, y) then
+        if frente[x] and frente[x][y] and not en_la_cara(x, y) then
           img:drawPixel(x, y, px(C.contorno))
         end
         y = y + 1
@@ -267,7 +320,7 @@ local function dibujar(forma)
     for dy = 0, 2 do
       for dx = -2, 2 do
         local ax, ay = x + dx, y + dy
-        if dentro[ax] and dentro[ax][ay] and not en_la_cara(ax, ay)
+        if frente[ax] and frente[ax][ay] and not en_la_cara(ax, ay)
             and (dx * dx + dy * dy) <= 5 then
           img:drawPixel(ax, ay, px(r() < 0.6 and C.liquen or C.liquen2))
         end

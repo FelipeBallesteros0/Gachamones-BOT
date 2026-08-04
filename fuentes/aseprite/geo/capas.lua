@@ -34,7 +34,29 @@ local function lienzo()
   return Image(LIENZO, LIENZO, ColorMode.RGB)
 end
 
+-- El cuerpo va en perspectiva caballera, así que la tapa donde se posan los
+-- sombreros no está encima del frente: está corrida `CABALLERA` píxeles arriba
+-- y a la derecha. Los sombreros se dibujan centrados y se corren aquí, en un
+-- solo sitio, en vez de meter el desplazamiento en las coordenadas de cada uno.
+local CABALLERA = 3
+
+local function correr(img, dx, dy)
+  local salida = Image(LIENZO, LIENZO, ColorMode.RGB)
+  for y = 0, LIENZO - 1 do
+    for x = 0, LIENZO - 1 do
+      local ax, ay = x - dx, y - dy
+      if ax >= 0 and ay >= 0 and ax < LIENZO and ay < LIENZO then
+        salida:drawPixel(x, y, img:getPixel(ax, ay))
+      end
+    end
+  end
+  return salida
+end
+
 local function guardar(img, carpeta, archivo)
+  if carpeta == "sombreros" then
+    img = correr(img, CABALLERA, -CABALLERA)
+  end
   local sprite = Sprite(LIENZO, LIENZO, ColorMode.RGB)
   sprite.cels[1].image = img
   sprite.cels[1].position = Point(0, 0)
@@ -160,68 +182,65 @@ end
 
 local function cinta()
   local img = lienzo()
-  -- Una **cinta de tela con una rosa**, no una banda de karate. La cinta es
-  -- estrecha y de raso; el peso está en la flor, que va a un lado.
-  local raso, raso2 = px(0xD8, 0x62, 0x8E), px(0xA8, 0x3C, 0x66)
-  local petalo = px(0xD8, 0x3C, 0x50)
-  local petalo2 = px(0xA8, 0x24, 0x38)
-  local corazon = px(0xF0, 0x8A, 0x9A)
-  local hoja, hoja2 = px(0x4E, 0x8E, 0x46), px(0x36, 0x66, 0x30)
+  -- Un **lazo de raso**, de los de pelo: dos bucles, el nudo en medio y dos
+  -- cabos largos colgando, con la punta cortada en pico. Tres rojos para el
+  -- raso —brillo, cuerpo y pliegue—, que es lo que le da el satinado.
+  local raso  = px(0xC8, 0x2A, 0x3C)
+  local raso2 = px(0x96, 0x1C, 0x2C)
+  local luz   = px(0xE8, 0x5A, 0x66)
 
-  -- La cinta: tres píxeles de tela, con el brillo del raso arriba y el pliegue
-  -- oscuro abajo. Con dos parecía un hilo, y la flor encima un chupachups.
-  for x = 47, 81 do
-    img:drawPixel(x, FRENTE, raso)
-    img:drawPixel(x, FRENTE + 1, raso)
-    img:drawPixel(x, FRENTE + 2, raso2)
-  end
+  -- Cargado a la derecha y algo alto: los bucles pasan por encima del ojo
+  -- derecho —que va de x=67 a x=76, y de y=58 a y=66— pero por arriba, y los
+  -- dos cabos cuelgan ya fuera de esa franja.
+  local nx, ny = 79, FRENTE - 3
 
-  -- Los dos cabos que cuelgan por el lado izquierdo, uno más largo, con la
-  -- punta en pico como la tela cortada al bies.
-  for i = 0, 8 do
-    local x = 49 - math.floor(i * 0.45)
-    img:drawPixel(x, FRENTE + 3 + i, raso)
-    img:drawPixel(x + 1, FRENTE + 3 + i, raso2)
-  end
-  for i = 0, 5 do
-    local x = 53 + math.floor(i * 0.5)
-    img:drawPixel(x, FRENTE + 3 + i, raso)
-    img:drawPixel(x + 1, FRENTE + 3 + i, raso2)
-  end
-
-  -- La rosa, encima de la cinta y a la derecha. Se dibuja como una espiral de
-  -- pétalos que se cierra: es el remolino, y no lo redondo, lo que hace que se
-  -- lea rosa en vez de bola roja.
-  local rx, ry = 71, FRENTE - 2
-  for dy = -5, 5 do
-    for dx = -5, 5 do
-      local d = dx * dx + dy * dy
-      if d <= 27 then
-        img:drawPixel(rx + dx, ry + dy, (d > 16) and petalo2 or petalo)
+  -- Los dos bucles. Cada uno es un triángulo redondeado que sale del nudo, con
+  -- el filo de arriba iluminado y el pliegue de abajo en el rojo hondo.
+  for lado = 0, 1 do
+    local dir = (lado == 0) and -1 or 1
+    for i = 1, 13 do
+      local alto = math.floor(7 * math.sin(i / 13 * math.pi)) + 1
+      for g = -alto, alto do
+        local x, y = nx + dir * i, ny + g
+        if g < -alto + 2 then img:drawPixel(x, y, luz)
+        elseif g > alto - 2 then img:drawPixel(x, y, raso2)
+        else img:drawPixel(x, y, raso) end
+      end
+      -- El hueco del bucle: la tela da la vuelta y por dentro se ve el fondo.
+      if i > 4 and i < 11 then
+        local hueco = math.floor(3 * math.sin((i - 4) / 7 * math.pi))
+        for g = -hueco, hueco do
+          img:drawPixel(nx + dir * i, ny + g, 0)
+        end
       end
     end
   end
-  -- La espiral: tres arcos que giran hacia dentro.
-  local espiral = {
-    { -3, -1 }, { -2, -2 }, { -1, -3 }, { 1, -3 }, { 2, -2 }, { 3, -1 },
-    { 3, 1 }, { 2, 2 }, { 0, 3 }, { -2, 2 },
-  }
-  for i, p in ipairs(espiral) do
-    img:drawPixel(rx + p[1], ry + p[2], (i % 2 == 0) and petalo2 or corazon)
-  end
-  img:drawPixel(rx, ry, corazon)
-  img:drawPixel(rx - 1, ry - 1, corazon)
-  img:drawPixel(rx + 1, ry, petalo2)
 
-  -- Dos hojas asomando por debajo de la flor, hacia los lados.
-  for i = 0, 4 do
-    img:drawPixel(rx - 6 - i, ry + 4 + math.floor(i / 2), hoja)
-    img:drawPixel(rx - 6 - i, ry + 5 + math.floor(i / 2), hoja2)
-    img:drawPixel(rx + 6 + i, ry + 4 + math.floor(i / 2), hoja)
-    img:drawPixel(rx + 6 + i, ry + 5 + math.floor(i / 2), hoja2)
+  -- El nudo, que es lo que ata los dos bucles y los cabos.
+  rect(img, nx - 3, ny - 4, nx + 3, ny + 4, raso)
+  rect(img, nx - 3, ny - 4, nx + 3, ny - 3, luz)
+  rect(img, nx - 3, ny + 3, nx + 3, ny + 4, raso2)
+
+  -- Los dos cabos, largos y algo separados, con la punta en pico.
+  for cabo = 0, 1 do
+    local dx = (cabo == 0) and -3 or 3
+    local largo = (cabo == 0) and 26 or 20
+    for i = 0, largo do
+      local x = nx + dx + math.floor(i * (cabo == 0 and -0.16 or 0.20))
+      local y = ny + 5 + i
+      local ancho = 3
+      -- La punta se corta en pico, como la tela al bies.
+      if i > largo - 4 then ancho = 3 - (i - (largo - 4)) end
+      for g = -ancho, ancho do
+        if g <= -ancho + 1 then img:drawPixel(x + g, y, luz)
+        elseif g >= ancho - 1 then img:drawPixel(x + g, y, raso2)
+        else img:drawPixel(x + g, y, raso) end
+      end
+    end
   end
   return img
 end
+
 
 local function corona()
   local img = lienzo()
