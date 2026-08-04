@@ -25,7 +25,10 @@ local function px(r, g, b) return app.pixelColor.rgba(r, g, b, 255) end
 
 local NEGRO  = px(0x2A, 0x2D, 0x33)
 local HUNDIDO = px(0x45, 0x4A, 0x52)
-local LUZ    = px(0xC6, 0xCD, 0xD6)
+-- El filo de luz de las cuencas va en un gris medio, no en el más claro de la
+-- paleta: a casi blanco, la boca salía como una barra encendida que se comía
+-- la ficha entera.
+local LUZ    = px(0x9C, 0xA4, 0xAE)
 
 local function lienzo()
   return Image(LIENZO, LIENZO, ColorMode.RGB)
@@ -58,7 +61,8 @@ end
 -- es la única altura donde una cinta se apoya en las CINCO formas: los cinco
 -- cuerpos tienen el filo de arriba entre y=44 y y=52.
 local OJO_IZQ, OJO_DER, OJO_Y, OJO_W, OJO_H = 51, 67, 58, 10, 9
-local BOCA_X0, BOCA_X1, BOCA_Y = 55, 72, 71
+-- Más corta que antes: una grieta, no una raja de lado a lado.
+local BOCA_X0, BOCA_X1, BOCA_Y = 57, 70, 71
 
 local function cuenca(img, ox, oy, ancho, alto)
   rect(img, ox, oy, ox + ancho - 1, oy + alto - 1, HUNDIDO)
@@ -71,12 +75,12 @@ end
 local function boca(img, tipo)
   for x = BOCA_X0, BOCA_X1 do
     local dy = 0
-    local extremo = (x < BOCA_X0 + 4 or x > BOCA_X1 - 4)
+    local extremo = (x < BOCA_X0 + 3 or x > BOCA_X1 - 3)
     if tipo == "sonrisa" and extremo then dy = -1 end
     if tipo == "pena" and extremo then dy = 1 end
+    -- Una sola fila oscura y un filo de luz fino: es una grieta en la piedra.
     img:drawPixel(x, BOCA_Y + dy, NEGRO)
-    img:drawPixel(x, BOCA_Y + dy + 1, NEGRO)
-    img:drawPixel(x, BOCA_Y + dy + 2, LUZ)
+    img:drawPixel(x, BOCA_Y + dy + 1, LUZ)
   end
 end
 
@@ -156,15 +160,66 @@ end
 
 local function cinta()
   local img = lienzo()
-  local rojo, oscuro = px(0xC4, 0x3C, 0x3C), px(0x8E, 0x24, 0x24)
-  -- Ancha y ceñida a la frente, en la franja 49-55: la única donde toca a las
-  -- cinco formas sin taparle los ojos. Antes iba más ancha que la piedra y más
-  -- abajo, y se leía como una venda sobre la cara.
-  rect(img, 50, FRENTE - 1, 78, FRENTE + 5, rojo)
-  for x = 50, 78 do img:drawPixel(x, FRENTE + 5, oscuro) end
-  -- El nudo, a un lado, para que no quede simétrico y aburrido.
-  rect(img, 74, FRENTE - 3, 82, FRENTE + 7, rojo)
-  rect(img, 76, FRENTE, 80, FRENTE + 4, oscuro)
+  -- Una **cinta de tela con una rosa**, no una banda de karate. La cinta es
+  -- estrecha y de raso; el peso está en la flor, que va a un lado.
+  local raso, raso2 = px(0xD8, 0x62, 0x8E), px(0xA8, 0x3C, 0x66)
+  local petalo = px(0xD8, 0x3C, 0x50)
+  local petalo2 = px(0xA8, 0x24, 0x38)
+  local corazon = px(0xF0, 0x8A, 0x9A)
+  local hoja, hoja2 = px(0x4E, 0x8E, 0x46), px(0x36, 0x66, 0x30)
+
+  -- La cinta: tres píxeles de tela, con el brillo del raso arriba y el pliegue
+  -- oscuro abajo. Con dos parecía un hilo, y la flor encima un chupachups.
+  for x = 47, 81 do
+    img:drawPixel(x, FRENTE, raso)
+    img:drawPixel(x, FRENTE + 1, raso)
+    img:drawPixel(x, FRENTE + 2, raso2)
+  end
+
+  -- Los dos cabos que cuelgan por el lado izquierdo, uno más largo, con la
+  -- punta en pico como la tela cortada al bies.
+  for i = 0, 8 do
+    local x = 49 - math.floor(i * 0.45)
+    img:drawPixel(x, FRENTE + 3 + i, raso)
+    img:drawPixel(x + 1, FRENTE + 3 + i, raso2)
+  end
+  for i = 0, 5 do
+    local x = 53 + math.floor(i * 0.5)
+    img:drawPixel(x, FRENTE + 3 + i, raso)
+    img:drawPixel(x + 1, FRENTE + 3 + i, raso2)
+  end
+
+  -- La rosa, encima de la cinta y a la derecha. Se dibuja como una espiral de
+  -- pétalos que se cierra: es el remolino, y no lo redondo, lo que hace que se
+  -- lea rosa en vez de bola roja.
+  local rx, ry = 71, FRENTE - 2
+  for dy = -5, 5 do
+    for dx = -5, 5 do
+      local d = dx * dx + dy * dy
+      if d <= 27 then
+        img:drawPixel(rx + dx, ry + dy, (d > 16) and petalo2 or petalo)
+      end
+    end
+  end
+  -- La espiral: tres arcos que giran hacia dentro.
+  local espiral = {
+    { -3, -1 }, { -2, -2 }, { -1, -3 }, { 1, -3 }, { 2, -2 }, { 3, -1 },
+    { 3, 1 }, { 2, 2 }, { 0, 3 }, { -2, 2 },
+  }
+  for i, p in ipairs(espiral) do
+    img:drawPixel(rx + p[1], ry + p[2], (i % 2 == 0) and petalo2 or corazon)
+  end
+  img:drawPixel(rx, ry, corazon)
+  img:drawPixel(rx - 1, ry - 1, corazon)
+  img:drawPixel(rx + 1, ry, petalo2)
+
+  -- Dos hojas asomando por debajo de la flor, hacia los lados.
+  for i = 0, 4 do
+    img:drawPixel(rx - 6 - i, ry + 4 + math.floor(i / 2), hoja)
+    img:drawPixel(rx - 6 - i, ry + 5 + math.floor(i / 2), hoja2)
+    img:drawPixel(rx + 6 + i, ry + 4 + math.floor(i / 2), hoja)
+    img:drawPixel(rx + 6 + i, ry + 5 + math.floor(i / 2), hoja2)
+  end
   return img
 end
 
