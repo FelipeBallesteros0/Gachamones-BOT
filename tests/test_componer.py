@@ -63,12 +63,16 @@ def test_geo_usa_sus_seis_sombreros_propios(archivo):
 
 @pytest.mark.parametrize("forma", tuple(componer.FORMA_ARCHIVO.values()))
 @pytest.mark.parametrize("archivo", ("face_1.png", "face_2.png", "face_3.png"))
-def test_geo_usa_una_cara_propia_por_forma(archivo, forma):
-    """Los cinco cuerpos de Geo son dibujos distintos, no el mismo agrandado:
-    una bola, un cubo en tres cuartos y un pedrusco con patas. Los ojos no caen
-    en el mismo sitio en los tres, así que cada forma lleva sus tres caras."""
+def test_geo_usa_sus_tres_caras_en_las_cinco_formas(archivo, forma):
+    """Las mismas tres caras le sirven a las cinco formas.
+
+    No estaba garantizado: los cinco cuerpos son dibujos distintos —una bola,
+    dos cubos en tres cuartos y dos pedruscos con patas—, y que un solo par de
+    ojos caiga sobre superficie en los cinco es cosa de dónde se colocaron. El
+    generador admite caras por forma si algún día hace falta; hoy no hace.
+    """
     assert componer.ruta_de_capa('caras', 'geo', archivo, forma) == (
-        componer.FUENTES / 'caras' / 'geo' / forma / archivo
+        componer.FUENTES / 'caras' / 'geo' / archivo
     )
 
 
