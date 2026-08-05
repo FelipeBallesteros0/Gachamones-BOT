@@ -141,19 +141,22 @@ def retratos(nombre: str):
     a la suya, cambiar de humor o ponerse un sombrero movería al bicho dentro
     del embed y parecería que da saltos.
     """
-    sombreros = {
-        s.clave: png.leer(ruta_de_capa("sombreros", nombre, f"{s.clave}.png"))
-        for s in cos.SOMBREROS
-    }
-
     for etapa in esp.ETAPAS:
+        forma = FORMA_ARCHIVO[etapa]
         cuerpo = png.leer(ruta_del_cuerpo(nombre, etapa))
-        # Las caras se leen DENTRO del bucle: pueden ser distintas en cada
-        # forma, y quien no tenga las suyas cae a las de su especie o a las
-        # globales sin enterarse.
-        caras = {animo: png.leer(
-                     ruta_de_capa("caras", nombre, archivo, FORMA_ARCHIVO[etapa]))
+        # Caras y sombreros se leen DENTRO del bucle porque pueden ser
+        # distintos en cada forma. Un pollito que pasa de bola con pelusa a
+        # gallo espigado no tiene la cabeza a la misma altura ni del mismo
+        # ancho en las cinco, así que ni los ojos ni la corona valen igual.
+        # Quien no tenga los suyos cae a los de su especie o a los globales sin
+        # enterarse, así que esto no le cuesta nada a las especies de siempre.
+        caras = {animo: png.leer(ruta_de_capa("caras", nombre, archivo, forma))
                  for animo, archivo in CARAS.items()}
+        sombreros = {
+            s.clave: png.leer(
+                ruta_de_capa("sombreros", nombre, f"{s.clave}.png", forma))
+            for s in cos.SOMBREROS
+        }
         piezas: dict[tuple[str, str], png.Imagen] = {}
         comun = None
         for animo, cara in caras.items():

@@ -76,6 +76,23 @@ def test_geo_usa_sus_tres_caras_en_las_cinco_formas(archivo, forma):
     )
 
 
+@pytest.mark.parametrize("forma", tuple(componer.FORMA_ARCHIVO.values()))
+@pytest.mark.parametrize("carpeta,archivo", [
+    ("caras", "face_1.png"), ("caras", "face_2.png"), ("caras", "face_3.png"),
+    ("sombreros", "aureola.png"), ("sombreros", "chistera.png"),
+    ("sombreros", "cinta.png"), ("sombreros", "corona.png"),
+    ("sombreros", "cuernos.png"), ("sombreros", "laurel.png"),
+])
+def test_piollito_lleva_capas_propias_en_cada_forma(carpeta, archivo, forma):
+    """Piollito cambia de silueta en cada evolución —de bola con pelusa a
+    pájaro espigado— y ni la cabeza ni los ojos quedan a la misma altura. Por
+    eso lleva sus nueve capas repetidas para las cinco formas, sombreros
+    incluidos, y no sólo las caras."""
+    assert componer.ruta_de_capa(carpeta, 'piollito', archivo, forma) == (
+        componer.FUENTES / carpeta / 'piollito' / forma / archivo
+    )
+
+
 def test_otra_especie_conserva_las_capas_globales():
     assert componer.ruta_de_capa('caras', 'pyro', 'face_1.png', 'cria') == (
         componer.FUENTES / 'caras' / 'face_1.png'
@@ -133,8 +150,10 @@ def test_cada_especie_apila_capas_del_mismo_tamaño():
                                         componer.FORMA_ARCHIVO[etapa])
                   for a in componer.CARAS.values()
                   for etapa in esp.ETAPAS),
-                *(componer.ruta_de_capa("sombreros", nombre, f"{s.clave}.png")
-                  for s in cos.SOMBREROS),
+                *(componer.ruta_de_capa("sombreros", nombre, f"{s.clave}.png",
+                                        componer.FORMA_ARCHIVO[etapa])
+                  for s in cos.SOMBREROS
+                  for etapa in esp.ETAPAS),
             )
         }
         tamaños = set(cuerpos.values()) | set(capas.values())
