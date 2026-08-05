@@ -109,9 +109,8 @@ def test_la_capa_se_busca_de_lo_concreto_a_lo_general(tmp_path, monkeypatch):
 def test_cada_especie_apila_capas_del_mismo_tamaño():
     """Apilar capas de distinto tamaño es un `ValueError` a media generación.
 
-    Puede pasar de verdad ahora que las especies se van pasando a un lienzo de
-    128: `ruta_de_capa()` cae a la capa **global** cuando la especie no tiene la
-    suya, y las globales siguen siendo de 256. A una especie ya convertida a la
+    Puede pasar de verdad: `ruta_de_capa()` cae a la capa **global** cuando la
+    especie no tiene la suya, así que a una especie dibujada en otro lienzo a la
     que le falte un solo sombrero propio, el generador le revienta.
 
     Comprobarlo aquí cuesta unas decenas de cabeceras y convierte ese fallo en
@@ -209,26 +208,22 @@ def test_el_margen_es_el_que_llevan_los_retratos_ya_compuestos():
     assert componer.MARGEN == 2
 
 
-def test_recortar_no_amplia_ni_mueve_el_pixel():
-    """1:1. Un píxel del original es un píxel del retrato, en su sitio.
-
-    Esto ampliaba ×2 cuando los originales eran de 256. Con el pixelart de 128
-    lo que se dibuja es lo que se ve; si algún día vuelve a ampliar, el dibujo
-    dejará de decidirse píxel a píxel y este test lo cazará.
-    """
+def test_ampliar_al_doble_repite_el_pixel_sin_inventar_colores():
+    """Vecino más cercano: cada píxel se convierte en un cuadrado de 2×2 del
+    mismo color. Es lo que deja dibujar pequeño y que se vea grande, ya que
+    Discord no amplía la imagen de un embed más allá de su tamaño real."""
     imagen = png.Imagen.vacia(8, 8)
     imagen.poner(4, 4, (10, 20, 30, 255))
 
-    recorte = componer.recortar(imagen, (4, 4, 4, 4))
+    doble = componer.recortar_y_doblar(imagen, (4, 4, 4, 4))
 
-    lado = 1 + 2 * componer.MARGEN
-    assert (recorte.ancho, recorte.alto) == (lado, lado)
-    colores = {recorte.pixel(x, y) for y in range(lado) for x in range(lado)}
+    lado = (1 + 2 * componer.MARGEN) * 2
+    assert (doble.ancho, doble.alto) == (lado, lado)
+    colores = {doble.pixel(x, y) for y in range(lado) for x in range(lado)}
     assert colores == {(10, 20, 30, 255), (0, 0, 0, 0)}
-    assert recorte.pixel(componer.MARGEN, componer.MARGEN) == (10, 20, 30, 255)
-    # Y sólo ése: nada de cuadrados de 2×2.
-    assert sum(1 for y in range(lado) for x in range(lado)
-               if recorte.pixel(x, y)[3]) == 1
+    esquina = componer.MARGEN * 2
+    assert all(doble.pixel(esquina + dx, esquina + dy) == (10, 20, 30, 255)
+               for dx in (0, 1) for dy in (0, 1))
 
 
 def test_el_margen_sobrante_no_se_sale_del_lienzo():
@@ -237,10 +232,10 @@ def test_el_margen_sobrante_no_se_sale_del_lienzo():
     imagen = png.Imagen.vacia(4, 4)
     imagen.poner(0, 0, (255, 255, 255, 255))
 
-    recorte = componer.recortar(imagen, (0, 0, 0, 0))
+    doble = componer.recortar_y_doblar(imagen, (0, 0, 0, 0))
 
-    assert recorte.pixel(0, 0) == (0, 0, 0, 0)
-    assert recorte.pixel(componer.MARGEN, componer.MARGEN) == (255, 255, 255, 255)
+    assert doble.pixel(0, 0) == (0, 0, 0, 0)
+    assert doble.pixel(componer.MARGEN * 2, componer.MARGEN * 2) == (255, 255, 255, 255)
 
 
 # --- El códec ---------------------------------------------------------------

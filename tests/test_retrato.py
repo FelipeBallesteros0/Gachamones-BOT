@@ -77,15 +77,10 @@ def test_son_png_de_verdad_y_todos_del_mismo_tamaño():
             assert (crudo[24], crudo[25]) == (8, 6), f"{ruta}: hace falta RGBA"
         assert len(tamanos) == 1, (especie, etapa, tamanos)
 
-        # Que no salga una miniatura por accidente. **Discord no amplía la
-        # imagen de un embed más allá de su tamaño real**, así que el del
-        # fichero ES el que se ve, y aquí no hay margen: los retratos van 1:1
-        # desde un original de 128, sin la ampliación ×2 que hubo antes. El
-        # suelo es flojo a propósito —el más pequeño hoy anda por 157— y sólo
-        # caza el caso de que algo salga ridículo; lo de si se ven bien de
-        # tamaño es una decisión de diseño, no algo que pueda medir un test.
+        # Y que sea grande de verdad: Discord no amplía la imagen de un embed
+        # más allá de su tamaño real, así que el del fichero ES el que se ve.
         ancho, alto = tamanos.pop()
-        assert max(ancho, alto) >= 120, (especie, etapa, ancho, alto)
+        assert max(ancho, alto) >= 250, (especie, etapa, ancho, alto)
 
 
 # --- Que la prueba esté acotada --------------------------------------------

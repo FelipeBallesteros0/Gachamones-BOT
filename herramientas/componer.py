@@ -54,12 +54,6 @@ FORMA_ARCHIVO: dict[str, str] = dict(zip(
 # Un respiro alrededor del dibujo para que no quede pegado al borde del embed.
 MARGEN = 2
 
-# El lienzo en el que se dibuja desde el pixelart. Las especies que todavía
-# vienen de los originales viejos son de 256 y se componen igual; lo que no se
-# puede es mezclar los dos tamaños dentro de una misma especie, porque apilar
-# capas de distinto tamaño es un error. Lo vigila un test.
-LIENZO = 128
-
 
 def sin_tildes(texto: str) -> str:
     descompuesto = unicodedata.normalize("NFD", texto.lower())
@@ -86,12 +80,13 @@ def unir(a, b):
     return min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])
 
 
-def recortar(imagen: png.Imagen, caja) -> png.Imagen:
-    """Recorta a la caja, con su margen alrededor. Sin ampliar: 1:1.
+def recortar_y_doblar(imagen: png.Imagen, caja) -> png.Imagen:
+    """Recorta a la caja —con margen— y amplía al doble por vecino más cercano.
 
-    Hubo un tiempo en que esto ampliaba ×2, porque los originales eran de 256 y
-    se querían ver grandes. Con el pixelart de 128 lo que se dibuja es lo que se
-    ve, píxel a píxel, y ampliar sólo escondería las decisiones del dibujo.
+    Duplicar así no inventa ni un color: cada píxel se convierte en un cuadrado
+    de 2×2 del mismo color. Es lo que permite dibujar pequeño y que se vea
+    grande en Discord, que no amplía la imagen de un embed más allá de su
+    tamaño real.
     """
     x0, y0, x1, y1 = caja
     x0 -= MARGEN
@@ -100,7 +95,7 @@ def recortar(imagen: png.Imagen, caja) -> png.Imagen:
     y1 += MARGEN
     ancho, alto = x1 - x0 + 1, y1 - y0 + 1
 
-    salida = png.Imagen.vacia(ancho, alto)
+    salida = png.Imagen.vacia(ancho * 2, alto * 2)
     for y in range(alto):
         for x in range(ancho):
             # El margen puede caerse fuera del lienzo si el dibujo llega al
@@ -111,7 +106,9 @@ def recortar(imagen: png.Imagen, caja) -> png.Imagen:
             pixel = imagen.pixel(ox, oy)
             if pixel[3] == 0:
                 continue
-            salida.poner(x, y, pixel)
+            for dy in (0, 1):
+                for dx in (0, 1):
+                    salida.poner(x * 2 + dx, y * 2 + dy, pixel)
     return salida
 
 
@@ -169,7 +166,7 @@ def retratos(nombre: str):
                 caja = caja_con_tinta(imagen)
                 comun = caja if comun is None else unir(comun, caja)
         for (animo, sombrero), imagen in piezas.items():
-            yield etapa, animo, sombrero, recortar(imagen, comun)
+            yield etapa, animo, sombrero, recortar_y_doblar(imagen, comun)
 
 
 def nombres_disponibles() -> dict[str, str]:

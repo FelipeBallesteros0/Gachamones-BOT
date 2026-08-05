@@ -482,21 +482,18 @@ también, porque el tinte pedirá una imagen por color. Quién entra lo decide u
 sola tupla, `retrato.CON_ETAPAS_COMPLETAS`.
 
 Los originales están en `fuentes/`: un cuerpo por especie y forma, tres caras y
-un sombrero por cosmético, todos sobre el mismo lienzo, así que componer es
-apilar. `herramientas/componer.py` los apila y recorta cada forma a la caja que
-comparten sus veintiuna combinaciones, para que cambiar de humor o de sombrero
-no mueva al bicho dentro del embed. **No amplía**: lo que se dibuja es lo que se
-ve, píxel a píxel.
+un sombrero por cosmético, todos sobre el mismo lienzo de 256×256, así que
+componer es apilar. `herramientas/componer.py` los apila, recorta cada forma a
+la caja que comparten sus veintiuna combinaciones —para que cambiar de humor o
+de sombrero no mueva al bicho dentro del embed— y **amplía al doble**, porque
+Discord no agranda la imagen de un embed más allá de su tamaño real.
 
-El lienzo está pasando de 256×256 a **128×128**, especie a especie, según se van
-rehaciendo los dibujos en pixelart. Lo que no se puede es mezclar los dos
-tamaños **dentro de una misma especie**: apilar capas que no miden lo mismo es
-un error, y `ruta_de_capa()` cae a la capa global —todavía de 256— cuando la
-especie no tiene la suya. Hay un test que lo vigila.
-
-Los dibujos **no llevan bordes suavizados**: cada píxel es opaco del todo o
-transparente del todo. Ya no es un requisito técnico, es lo que separa el
-pixelart de una ilustración borrosa.
+Cada capa se busca **de lo concreto a lo general**: por forma, por especie y
+global. Lo de por forma hace falta cuando los cinco cuerpos de una especie son
+dibujos distintos y no el mismo agrandado, porque entonces los ojos no caen en
+el mismo sitio. Lo que no se puede es mezclar tamaños **dentro de una misma
+especie**: apilar capas que no miden lo mismo es un error, y hay un test que lo
+vigila.
 
 Los 1155 retratos ya compuestos viven en `arte/` y el bot se limita a elegir
 ruta: apilar tres capas a cada pulsación tardaría segundos en la Raspberry.
