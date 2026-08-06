@@ -372,7 +372,7 @@ más rápido, pero **no puede matarlo**: la comida se queda en \
 
 **El huerto**
 Tu casa trae bancales —{" · ".join(f"**{cas.CATALOGO[c].nombre}** {n}" for c, n in hue.BANCALES.items())}— y con 🌱 **Huerto** en `/casa` se siembra. \
-Cada semilla (🪙 {obj.CATALOGO["semilla"].precio}) tarda **{hue.HORAS_DE_CULTIVO} h**, o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} si la riegas, y sale un **poroto de color al azar**.
+Cada semilla (🪙 {obj.CATALOGO["semilla"].precio}) tarda **{hue.HORAS_DE_CULTIVO} h**, o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} si la riegas, y salen de **{hue.POROTOS_POR_COSECHA[0]} a {hue.POROTOS_POR_COSECHA[1]} porotos del mismo color**, al azar.
 -# Con **{hue.POROTOS_POR_SOPAIPILLA} porotos del mismo color** cocinas una sopaipilla. Al comérsela, tu gachamon gana el **mismo bonus de fuerza y de velocidad** durante {obj.MINUTOS_DE_EFECTO} min — y el dado sale de si le gusta ese color: **1d12** el favorito de su carácter, **1d4** el que detesta.
 -# Por eso te sobrarán colores y te faltarán otros: se regalan por el buzón.
 

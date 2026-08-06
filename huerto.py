@@ -28,6 +28,14 @@ EMOJI_COLOR = {
     "rojo": "🔴", "azul": "🔵", "verde": "🟢", "rosa": "🩷", "amarillo": "🟡",
 }
 
+# El plural de cada color, escrito entero. Cuatro hacen «-s» y «azul» hace
+# «azules», así que una regla tendría una excepción de cinco: sale más barato
+# la tabla, y además es la única forma de que el mensaje concuerde bien.
+PLURAL_COLOR = {
+    "rojo": "rojos", "azul": "azules", "verde": "verdes",
+    "rosa": "rosas", "amarillo": "amarillos",
+}
+
 # A qué sabe cada color según el carácter, del que más le gusta al que menos.
 # Se escribe entero y no se deduce de una rueda de colores: es una tabla de
 # gustos, y lo que la hace divertida es que no siga ninguna regla adivinable.
@@ -50,6 +58,11 @@ HORAS_DE_CULTIVO = 8
 HORAS_QUE_AHORRA_REGAR = 3
 
 POROTOS_POR_SOPAIPILLA = 3
+
+# Cuántos porotos da una cosecha, extremos incluidos. Con uno solo, y siendo el
+# color al azar entre cinco, una sopaipilla pedía del orden de quince cosechas:
+# demasiado poco para ocho horas de espera por bancal.
+POROTOS_POR_COSECHA = (2, 4)
 
 # Cuántos bancales da cada casa, por su clave. El refugio no tiene huerto: no es
 # tuyo. Se guarda por clave y no por `casas.Casa` a propósito: así este módulo no
@@ -85,6 +98,15 @@ def clave_de_sopaipilla(color: str) -> str:
 
 def tirar_color(rng: random.Random | None = None) -> str:
     return (rng or random.Random()).choice(COLORES)
+
+
+def tirar_cuantos(rng: random.Random | None = None) -> int:
+    """Cuántos porotos da esta cosecha. Todos serán del mismo color.
+
+    El RNG se inyecta como en `tirar_color`: en las pruebas se fija y el
+    resultado deja de depender del azar.
+    """
+    return (rng or random.Random()).randint(*POROTOS_POR_COSECHA)
 
 
 @dataclass(frozen=True)

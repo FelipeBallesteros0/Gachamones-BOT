@@ -940,9 +940,18 @@ def texto_resultado_huerto(resultado: economia.ResultadoHuerto, ahora) -> str:
         return f"❌ {resultado.problema}"
     if resultado.cosechado:
         poroto = obj.CATALOGO[resultado.cosechado]
+        # El singular se conserva aunque hoy no salga nunca: `POROTOS_POR_COSECHA`
+        # es una constante y podría volver a incluir el 1.
+        if resultado.cuantos == 1:
+            salido = f"Ha salido un **{poroto.nombre}**"
+            donde = "Ya está en tu 🎒 **Mochila**"
+        else:
+            plural = hue.PLURAL_COLOR[poroto.color]
+            salido = (f"Han salido **{resultado.cuantos} porotos {plural}**")
+            donde = "Ya están en tu 🎒 **Mochila**"
         return (
-            f"{poroto.emoji} Ha salido un **{poroto.nombre}**.\n"
-            "-# Ya está en tu 🎒 **Mochila**. El bancal queda libre."
+            f"{poroto.emoji} {salido}.\n"
+            f"-# {donde}. El bancal queda libre."
         )
     faltan = hue.Bancal(resultado.bancal)
     espera = _cuando(

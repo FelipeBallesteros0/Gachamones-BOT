@@ -1365,6 +1365,7 @@ class ResultadoHuerto:
     ok: bool = False
     bancal: int = 0
     cosechado: str | None = None        # la clave del poroto que salió
+    cuantos: int = 0                    # cuántos, todos de ese mismo color
     listo_en: datetime | None = None
     problema: str | None = None
 
@@ -1443,10 +1444,13 @@ def cosechar(
     usuario_id: str, guild_id: str, bancal: int,
     ahora: datetime | None = None, rng=None,
 ) -> ResultadoHuerto:
-    """Recoge el poroto y deja el bancal en barbecho.
+    """Recoge la cosecha y deja el bancal en barbecho.
 
     **El color se sortea aquí y no al sembrar**: así no hay forma de mirar lo que
     va a salir ni de replantar hasta que salga el que interesa.
+
+    Salen varios porotos y **todos del mismo color**: se tira una vez y esa
+    tirada vale para la mata entera, que es lo que se espera de una planta.
     """
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
@@ -1466,9 +1470,12 @@ def cosechar(
             )
 
         clave = hue.clave_de_poroto(hue.tirar_color(rng))
-        db.guardar_en_la_mochila_en(con, usuario_id, guild_id, clave)
+        cuantos = hue.tirar_cuantos(rng)
+        db.guardar_en_la_mochila_en(con, usuario_id, guild_id, clave, cuantos)
         db.arrancar_en(con, usuario_id, guild_id, bancal)
-        return ResultadoHuerto(ok=True, bancal=bancal, cosechado=clave)
+        return ResultadoHuerto(
+            ok=True, bancal=bancal, cosechado=clave, cuantos=cuantos
+        )
 
 
 @dataclass(frozen=True)

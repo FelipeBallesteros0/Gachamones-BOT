@@ -224,7 +224,10 @@ _registrar(Objeto(
     nombre="Semilla de poroto",
     emoji="🌱",
     precio=15,
-    descripcion="Se planta en el huerto de tu casa. Sale un poroto de color al azar.",
+    descripcion=(
+        f"Se planta en el huerto de tu casa. Salen de {hue.POROTOS_POR_COSECHA[0]} "
+        f"a {hue.POROTOS_POR_COSECHA[1]} porotos, todos del mismo color al azar."
+    ),
 ))
 
 for _color in hue.COLORES:

@@ -1068,7 +1068,7 @@ def test_no_se_riega_lo_que_no_esta_plantado():
     assert "no hay nada" in economia.regar("u1", "g1", 1, T0).problema
 
 
-def test_cosechar_da_un_poroto_y_deja_el_bancal_libre():
+def test_cosechar_da_varios_porotos_y_deja_el_bancal_libre():
     con_huerto()
     economia.plantar("u1", "g1", 1, T0)
     listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
@@ -1079,8 +1079,54 @@ def test_cosechar_da_un_poroto_y_deja_el_bancal_libre():
     assert resultado.cosechado in {
         hue.clave_de_poroto(c) for c in hue.COLORES
     }
-    assert db.inventario("u1", "g1")[resultado.cosechado] == 1
+    # En la mochila entran **exactamente** los que dice el resultado: ni uno
+    # suelto, ni el doble por guardar dos veces.
+    assert db.inventario("u1", "g1")[resultado.cosechado] == resultado.cuantos
     assert not bancales()[0].plantado
+
+
+def test_la_cosecha_da_de_dos_a_cuatro():
+    """Los números van clavados y no leídos de la constante.
+
+    Deducirlos de `POROTOS_POR_COSECHA` haría el test circular: cambiar la
+    constante movería a la vez lo que se comprueba, y nadie se enteraría de que
+    el huerto pasó a dar uno o siete.
+    """
+    assert hue.POROTOS_POR_COSECHA == (2, 4)
+
+
+def test_la_cosecha_siempre_cae_dentro_del_rango():
+    """Y con varias semillas distintas, no con una sola tirada afortunada."""
+    con_huerto(semillas=60)
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+    minimo, maximo = hue.POROTOS_POR_COSECHA
+    vistos = set()
+    for semilla in range(40):
+        economia.plantar("u1", "g1", 1, T0)
+        cuantos = economia.cosechar(
+            "u1", "g1", 1, listo, random.Random(semilla)
+        ).cuantos
+        assert minimo <= cuantos <= maximo, cuantos
+        vistos.add(cuantos)
+    # Y no siempre el mismo número, o el rango sería de adorno.
+    assert len(vistos) > 1
+
+
+def test_los_porotos_de_una_cosecha_son_todos_del_mismo_color():
+    """Se tira el color una vez para la mata entera. Se comprueba mirando el
+    inventario: si cada poroto tirara el suyo, habría varias claves."""
+    con_huerto()
+    economia.plantar("u1", "g1", 1, T0)
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+
+    resultado = economia.cosechar("u1", "g1", 1, listo, random.Random(7))
+
+    porotos = {
+        clave: cuantos
+        for clave, cuantos in db.inventario("u1", "g1").items()
+        if clave.startswith("poroto_")
+    }
+    assert porotos == {resultado.cosechado: resultado.cuantos}
 
 
 def test_no_se_cosecha_antes_de_tiempo():
@@ -1091,6 +1137,31 @@ def test_no_se_cosecha_antes_de_tiempo():
 
     assert not resultado.ok and "Todavía no" in resultado.problema
     assert bancales()[0].plantado
+
+
+def test_el_mensaje_de_la_cosecha_cuenta_y_concuerda():
+    """«2 porotos azules», no «2 porotos azuls» ni «2 Poroto azul».
+
+    Los cinco colores no hacen el plural igual —«azul» hace «azules»— y el
+    número va delante, así que aquí es donde se rompería sin que fallara nada.
+    """
+    import tienda
+
+    for color in hue.COLORES:
+        clave = hue.clave_de_poroto(color)
+        varios = tienda.texto_resultado_huerto(
+            economia.ResultadoHuerto(ok=True, bancal=1, cosechado=clave, cuantos=3),
+            T0,
+        )
+        assert f"3 porotos {hue.PLURAL_COLOR[color]}" in varios, varios
+        assert "están en tu" in varios
+
+        uno = tienda.texto_resultado_huerto(
+            economia.ResultadoHuerto(ok=True, bancal=1, cosechado=clave, cuantos=1),
+            T0,
+        )
+        assert f"un **Poroto {color}**" in uno, uno
+        assert "está en tu" in uno
 
 
 def test_el_color_se_sortea_al_cosechar_y_no_al_sembrar():
