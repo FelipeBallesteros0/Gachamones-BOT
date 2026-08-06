@@ -108,10 +108,23 @@ def test_piollito_y_magora_llevan_capas_propias_en_cada_forma(carpeta, archivo, 
 
 
 def test_una_especie_sin_capas_propias_usa_las_globales():
-    assert retrato._ruta_de_capa("caras", "chispa", "face_1.png", "cria") == (
+    """La especie se busca, no se escribe a mano.
+
+    Estaba clavada a Pyro y el test se cayó el día que Pyro estrenó capas
+    propias, que es justo lo que se espera que vaya pasando con las once.
+    """
+    sin_propias = next(
+        (c for c in retrato.CON_ETAPAS_COMPLETAS
+         if not (retrato.FUENTES / "caras" / retrato._nombre_de_archivo(c)).exists()),
+        None,
+    )
+    if sin_propias is None:
+        pytest.skip("ya todas las especies con retrato tienen capas propias")
+
+    assert retrato._ruta_de_capa("caras", sin_propias, "face_1.png", "cria") == (
         retrato.FUENTES / "caras" / "face_1.png"
     )
-    assert retrato._ruta_de_capa("sombreros", "chispa", "aureola.png", "cria") == (
+    assert retrato._ruta_de_capa("sombreros", sin_propias, "aureola.png", "cria") == (
         retrato.FUENTES / "sombreros" / "aureola.png"
     )
 
