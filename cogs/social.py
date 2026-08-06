@@ -337,6 +337,7 @@ Menciona al bot y tu gachamon te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo lo tengas: un \
 gachamon hambriento contesta de mal humor. Se acuerda de la última conversación.
 -# Hasta {limite} mensajes por hora. Hablar no gasta comida ni da experiencia.
+-# 🧠 Y si le escribes **de forma culta** —bien redactado, sin abreviaturas de chat— aprende algo: **entrena el ingenio** y le sube el ánimo. Es la única forma de entrenar esa estadística fuera del laberinto. Una vez cada **{int(sim.COOLDOWNS[sim.CONVERSAR].total_seconds() // 60)} min**, y no vale repetir el mismo mensaje.
 
 **El plantel**
 Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**: \

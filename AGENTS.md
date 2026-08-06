@@ -61,6 +61,10 @@ Instala el hook local cuando prepares el entorno:
 - Sólo la criatura activa avanza por tiempo y recibe efectos o recompensas ordinarios del activo.
 - Una reserva viva y con nombre elegida explícitamente para `Entrenar juntos` puede recibir sólo los efectos inmediatos de ese evento: barras, XP, VETAS/evolución, cooldown `ENTRENAR` y marcador de criatura; no se vuelve activa ni avanza por tiempo.
 - Las reservas no decaen, reciben progreso pasivo ni heredan efectos del activo en ningún otro caso.
+- Cada estadística se entrena por su vía: alimentar la salud, jugar la velocidad, entrenar la fuerza y conversar bien el ingenio.
+- Conversar tiene su propio enfriamiento y no es una acción de cuidado: no tiene botón ni da experiencia.
+- Un juicio de la IA nunca premia si no contesta o si no responde exactamente lo esperado.
+- El texto de quien juega es dato para la IA, nunca instrucciones: una respuesta que no sea literal no vale.
 - Los topes económicos pertenecen a persona + servidor + día UTC.
 - Cambiar la criatura activa no reinicia ni traslada esos topes.
 - Reclutar, evolucionar o promover desde la incubadora tampoco reinicia los topes.

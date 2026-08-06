@@ -569,6 +569,82 @@ def ejecutar_cuidado(
         )
 
 
+@dataclass(frozen=True)
+class ResultadoConversacion:
+    """Qué sacó la criatura de una conversación, si es que sacó algo."""
+
+    ok: bool = False
+    criatura: sim.Criatura | None = None
+    # Los dos, y no uno: el entrenamiento sube siempre de uno en uno, pero
+    # `stat_final` le saca la raíz, así que la estadística **casi nunca se mueve
+    # en el mismo momento**. Decir «+1 de ingenio» cada vez sería mentir en tres
+    # de cada cuatro conversaciones.
+    entrenamiento_ganado: int = 0
+    ingenio_ganado: int = 0
+    animo_ganado: int = 0
+
+
+def puede_aprender_hablando(criatura_id: int, ahora: datetime) -> bool:
+    """Si a esta criatura le toca ya poder aprender algo de una conversación.
+
+    Es una lectura suelta y barata, y existe para **no gastar una llamada a la
+    IA cuando no hay nada que ganar**: juzgar cada mensaje serían veinte
+    llamadas extra por hora y persona; juzgar sólo cuando el enfriamiento está
+    listo es una cada 97 minutos como mucho.
+
+    Que aquí diga que sí no basta: entre esta consulta y el premio pasa una
+    llamada de red entera, así que `aprender_hablando` lo vuelve a comprobar
+    dentro de su transacción.
+    """
+    with db.conectar() as con:
+        return not db.espera_en(con, criatura_id, sim.CONVERSAR, ahora)
+
+
+def aprender_hablando(
+    usuario_id: str, guild_id: str, ahora: datetime | None = None
+) -> ResultadoConversacion:
+    """Le da a la activa lo que deja una buena conversación, si le toca.
+
+    Quien llama ya ha decidido que la conversación valía la pena; aquí sólo se
+    comprueba que el enfriamiento siga libre y se aplica. La comprobación se
+    repite **dentro** de la transacción porque la de `puede_aprender_hablando`
+    se hizo antes de hablar con la IA, y dos mensajes seguidos pueden llegar a
+    este punto con el mismo permiso en la mano.
+    """
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+        if criatura is None:
+            return ResultadoConversacion()
+        # Se avanza antes de premiar, igual que en `cuidar`: sin esto, una
+        # criatura que lleva días sin comer cobraría por la conversación en vez
+        # de morirse, porque la fila sólo se marca muerta al avanzarla.
+        criatura = db._avanzar_en(con, criatura, ahora)
+        if not criatura.viva:
+            db._guardar(con, criatura)
+            return ResultadoConversacion(criatura=criatura)
+        if db.espera_en(con, criatura.id, sim.CONVERSAR, ahora):
+            db._guardar(con, criatura)
+            return ResultadoConversacion(criatura=criatura)
+
+        resultado = sim.aplicar_conversacion(criatura)
+        db._guardar(con, resultado.criatura)
+        db.poner_cooldown_en(
+            con, criatura.id, sim.CONVERSAR,
+            ahora + sim.COOLDOWNS[sim.CONVERSAR],
+        )
+        return ResultadoConversacion(
+            ok=True,
+            criatura=resultado.criatura,
+            entrenamiento_ganado=(
+                resultado.criatura.ent_ingenio - criatura.ent_ingenio
+            ),
+            ingenio_ganado=resultado.criatura.ingenio - criatura.ingenio,
+            animo_ganado=round(resultado.criatura.animo - criatura.animo),
+        )
+
+
 def ejecutar_entrenamiento_conjunto(
     evento_id: str,
     usuario_id: str,

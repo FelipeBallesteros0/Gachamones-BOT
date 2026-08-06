@@ -16,6 +16,7 @@ from discord.ext import commands
 
 import config
 import db
+import economia
 import ia
 import simulacion as sim
 
@@ -71,12 +72,16 @@ class Charla(commands.Cog):
 
         db.registrar_uso_ia(str(mensaje.author.id), ahora)
 
+        # Se carga antes de contestar y se reutiliza abajo: sirve de memoria
+        # para el modelo y, de paso, para no premiar el mismo párrafo dos veces.
+        historial = db.historial(criatura.id)
+
         async with mensaje.channel.typing():
             respuesta, de_la_ia = await ia.responder(
                 criatura=criatura,
                 ahora=ahora,
                 dueño=mensaje.author.display_name,
-                historial=db.historial(criatura.id),
+                historial=historial,
                 mensaje=texto,
                 # La semilla tiene que AVANZAR con cada mensaje. Antes era
                 # `victorias + derrotas + len(texto)`, que no avanza: a una
@@ -98,11 +103,48 @@ class Charla(commands.Cog):
             log.info("Respaldo servido a %s (%s): la IA no contestó",
                      mensaje.author.display_name, criatura.nombre)
 
+        premio = await self._premio_por_hablar_bien(
+            criatura, texto, historial, ahora
+        )
         await mensaje.reply(
-            self._formatear(criatura, respuesta), mention_author=False
+            self._formatear(criatura, respuesta) + premio, mention_author=False
         )
 
     # -- ayudas -------------------------------------------------------------
+
+    async def _premio_por_hablar_bien(
+        self, criatura: sim.Criatura, texto: str, historial, ahora
+    ) -> str:
+        """Lo que se añade al pie si de esta conversación ha aprendido algo.
+
+        El orden importa y es de más barato a más caro: primero las reglas —que
+        no cuestan nada—, luego el enfriamiento —una lectura—, y **sólo al final
+        se le pregunta al modelo**. Así la llamada extra ocurre como mucho una
+        vez cada enfriamiento y no una por mensaje.
+        """
+        if not sim.merece_juicio(texto, historial):
+            return ""
+        if not economia.puede_aprender_hablando(criatura.id, ahora):
+            return ""
+        if not await ia.juzgar_elocuencia(texto):
+            return ""
+
+        premio = economia.aprender_hablando(
+            criatura.usuario_id, criatura.guild_id, ahora
+        )
+        if not premio.ok:
+            return ""
+
+        # Se dice lo que de verdad ha pasado: el entrenamiento sube siempre,
+        # pero `stat_final` le saca la raíz, así que la estadística sólo se
+        # mueve de vez en cuando. Anunciar «+1 de ingenio» siempre sería mentir.
+        subida = (
+            f"Ingenio **+{premio.ingenio_ganado}**"
+            if premio.ingenio_ganado
+            else f"Entrenamiento de ingenio **+{premio.entrenamiento_ganado}**"
+        )
+        animo = f" · ánimo **+{premio.animo_ganado}**" if premio.animo_ganado else ""
+        return f"\n-# ✨ Le has hecho pensar. {subida}{animo}"
 
     def _va_conmigo(self, mensaje: discord.Message) -> bool:
         if mensaje.author.bot or mensaje.guild is None:

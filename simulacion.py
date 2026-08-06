@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 import random
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from random import Random as _RandomImpronta
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -113,6 +113,11 @@ LIMPIAR = "limpiar"
 ACTUALIZAR = "actualizar"
 COMPETIR = "competir"
 AVENTURA = "aventura"
+# Hablarle bien. No es un cuidado con botón: se conversa mencionando al bot, y
+# lo que trae aquí es el enfriamiento, que es lo que impide que veinte mensajes
+# por hora entrenen el ingenio veinte veces más rápido de lo que entrena fuerza
+# un botón cada dos horas.
+CONVERSAR = "conversar"
 
 # La regla es que **ninguno sea múltiplo de otro**, y hay un test que la vigila.
 # No es un capricho: antes eran 30, 30, 60, 120 y 10 —todos múltiplos de 10, dos
@@ -139,6 +144,10 @@ COOLDOWNS = {
     # Salir al campo es más lento que una pelea. 37 es primo, así que cumple la
     # regla de arriba sin tener que comprobar nada a mano.
     AVENTURA: timedelta(minutes=37),
+    # Lo que tarda en volver a aprender algo de una conversación. Primo, como los
+    # demás. Queda algo por debajo de los 113 de entrenar a propósito: escribir
+    # un párrafo que valga la pena cuesta más que pulsar un botón.
+    CONVERSAR: timedelta(minutes=97),
 }
 
 # Las cuatro acciones de cuidado; son la consulta por defecto de db.esperas.
@@ -221,6 +230,46 @@ EFECTO_ENTRENAMIENTO_CONJUNTO = {
     "animo": -5,
     "ent_fuerza": 1,
 }
+
+# Lo que deja una conversación de la que ha aprendido algo. Es el único sitio
+# donde sube `ent_ingenio`: hasta ahora la cuarta estadística sólo crecía al
+# nacer y con las VETAS de un laberinto, así que quien no compitiera en
+# laberintos no la veía subir nunca.
+#
+# No cuesta hambre —conversar no es esfuerzo físico— y sube el ánimo, porque le
+# gusta que le hablen bien. El freno lo pone el enfriamiento, no el castigo.
+EFECTO_CONVERSACION = {"animo": 5, "ent_ingenio": 1}
+
+# Cuántas palabras hacen falta para que merezca la pena juzgar un mensaje. No
+# mide si está bien escrito —de eso ya se encarga el modelo—, sólo evita gastar
+# una llamada en «hola» o en un emoji suelto, que no van a ganar nunca.
+PALABRAS_MINIMAS_PARA_APRENDER = 8
+
+
+def merece_juicio(texto: str, historial: Sequence[Mapping[str, str]]) -> bool:
+    """Si vale la pena preguntarle al modelo si ese mensaje es culto.
+
+    Dos filtros, y los dos son de reglas y no de estilo:
+
+    - **Largo mínimo**: en menos de `PALABRAS_MINIMAS_PARA_APRENDER` palabras no
+      cabe nada que premiar, y preguntar cuesta una llamada.
+    - **Que no sea lo mismo de antes**: juzgar por IA en vez de por reglas deja
+      un agujero —pegar el mismo párrafo bonito cada vez que vence el
+      enfriamiento—, y el historial que la charla ya tiene cargado lo tapa
+      gratis. Se compara sin mayúsculas ni espacios de sobra, porque cambiarle
+      una letra a la copia no la convierte en una conversación nueva.
+
+    Función pura y con el historial como argumento para poder probarla sin
+    Discord, sin base de datos y sin red.
+    """
+    if len(texto.split()) < PALABRAS_MINIMAS_PARA_APRENDER:
+        return False
+    dicho = " ".join(texto.split()).casefold()
+    return not any(
+        turno.get("role") == "user"
+        and " ".join(turno.get("content", "").split()).casefold() == dicho
+        for turno in historial
+    )
 EFECTO_EMPACHO = {"hambre": 10, "animo": -15}
 
 # Dónde cambia de color una barra. Viven aquí, en las reglas, y no en
@@ -1042,6 +1091,28 @@ def aplicar_accion(
         marca=bool(rupturas or _tensiones(crecida) != _tensiones(bruto.criatura)),
         etapa_anterior=criatura.etapa if ganada else None,
     )
+
+
+def aplicar_conversacion(criatura: Criatura) -> ResultadoAccion:
+    """Lo que le deja una conversación de la que ha sacado algo.
+
+    Va por su cuenta y no por `aplicar_accion` porque no es un cuidado: no tiene
+    botón, no está en `ACCIONES_DE_CUIDADO` y no da experiencia. Lo único que
+    hace es lo que dice `EFECTO_CONVERSACION`, y quien decide si hubo
+    conversación aprovechable es otro —aquí ya viene decidido—.
+    """
+    if not criatura.viva:
+        return ResultadoAccion(
+            criatura, "Tu gachamon ya no está entre nosotros.", ok=False
+        )
+
+    efecto = EFECTO_CONVERSACION
+    nueva = replace(
+        criatura,
+        animo=_limitar(criatura.animo + efecto["animo"]),
+        ent_ingenio=criatura.ent_ingenio + efecto["ent_ingenio"],
+    )
+    return ResultadoAccion(nueva, "Le has hecho pensar.")
 
 
 def aplicar_entrenamiento_conjunto(criatura: Criatura) -> ResultadoAccion:
