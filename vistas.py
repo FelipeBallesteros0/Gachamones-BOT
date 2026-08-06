@@ -12,6 +12,7 @@ Discord siempre permite: no hace falta el permiso «Gestionar mensajes».
 """
 from __future__ import annotations
 
+import io
 import logging
 from dataclasses import replace
 from typing import cast
@@ -938,30 +939,32 @@ def _canal_anterior(canal: discord.abc.Messageable, criatura: sim.Criatura):
 
 def presentacion(criatura: sim.Criatura, renderizador, *args, **kw) -> dict:
     """Aplica la preferencia Imagen/ASCII a cualquier ficha de una criatura."""
-    ruta = (
-        retrato.ruta_de(criatura)
+    datos = (
+        retrato.imagen_de(criatura)
         if criatura.viva
         and db.estilo_de_ficha(criatura.usuario_id, criatura.guild_id) == "imagen"
         else None
     )
-    if ruta is None:
+    if datos is None:
         return {"content": renderizador(criatura, *args, **kw)}
 
-    nombre = retrato.nombre_del_adjunto(ruta)
+    nombre = retrato.nombre_del_adjunto(criatura)
     embed = discord.Embed(
         description=renderizador(criatura, *args, sin_arte=True, **kw),
         colour=retrato.color_de(criatura),
     )
     # Imagen y no miniatura: Discord topa las miniaturas en 80×80 y el bicho se
-    # veía diminuto. La imagen se pinta a tamaño real —302×374— a cambio de ir
-    # debajo del marco, porque en un embed la imagen siempre es lo último.
+    # veía diminuto. La imagen se pinta a tamaño real a cambio de ir debajo del
+    # marco, porque en un embed la imagen siempre es lo último.
     #
     # El nombre sale de `retrato` en los dos sitios a propósito: si la URL y el
     # adjunto no coinciden, la imagen sale vacía y no falla nada en ningún
     # registro, así que no hay forma de enterarse salvo mirándolo.
     embed.set_image(url=f"attachment://{nombre}")
+    # El retrato se arma en memoria, así que el adjunto va de un buzón de bytes
+    # y no de un fichero: en el disco sólo viven las capas.
     return {"content": None, "embed": embed,
-            "file": discord.File(ruta, filename=nombre)}
+            "file": discord.File(io.BytesIO(datos), filename=nombre)}
 
 
 def _ficha(criatura: sim.Criatura, ahora, **kw) -> dict:

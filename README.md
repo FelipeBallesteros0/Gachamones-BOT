@@ -463,8 +463,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
 | `retrato.py` | Qué criaturas tienen retrato en imagen y cuál les toca. |
 | `cogs/` | Los slash commands. |
-| `fuentes/` | Los dibujos de partida de los retratos: cuerpos, caras y sombreros. |
-| `herramientas/` | Lo que convierte `fuentes/` en `arte/`. No lo usa el bot. |
+| `fuentes/` | Las capas de los retratos: cuerpos, caras y sombreros. |
 
 **Cómo se guarda el arte.** Cinco etapas por veinticinco especies, con tres
 estados de ánimo cada una, serían 375 dibujos. Pero casi todos se diferencian
@@ -481,24 +480,29 @@ enseñan un PNG en vez del arte ASCII; el resto sigue en ASCII y las teñidas
 también, porque el tinte pedirá una imagen por color. Quién entra lo decide una
 sola tupla, `retrato.CON_ETAPAS_COMPLETAS`.
 
-Los originales están en `fuentes/`: un cuerpo por especie y forma, tres caras y
-un sombrero por cosmético, todos sobre el mismo lienzo de 256×256, así que
-componer es apilar. `herramientas/componer.py` los apila, recorta cada forma a
-la caja que comparten sus veintiuna combinaciones —para que cambiar de humor o
-de sombrero no mueva al bicho dentro del embed— y **amplía al doble**, porque
-Discord no agranda la imagen de un embed más allá de su tamaño real.
+En el repositorio viven **sólo las capas**, en `fuentes/`: un cuerpo por especie
+y forma, tres caras y un cosmético por sombrero, todos sobre el mismo lienzo de
+256×256, así que componer es apilar. El retrato **se arma en el momento de
+enseñarlo**: se apilan las tres capas, se recorta a la caja que comparten las
+veintiuna combinaciones de esa forma —para que cambiar de humor o de sombrero no
+mueva al bicho dentro del embed— y se amplía al doble, porque Discord no agranda
+la imagen de un embed más allá de su tamaño real.
 
 Cada capa se busca **de lo concreto a lo general**: por forma, por especie y
 global. Lo de por forma hace falta cuando los cinco cuerpos de una especie son
-dibujos distintos y no el mismo agrandado, porque entonces los ojos no caen en
-el mismo sitio. Lo que no se puede es mezclar tamaños **dentro de una misma
-especie**: apilar capas que no miden lo mismo es un error, y hay un test que lo
-vigila.
+dibujos distintos y no el mismo agrandado, porque entonces ni los ojos ni la
+coronilla caen donde antes. Lo que no se puede es mezclar tamaños **dentro de
+una misma especie**: apilar capas que no miden lo mismo revienta, y hay un test
+que lo vigila.
 
-Los 1155 retratos ya compuestos viven en `arte/` y el bot se limita a elegir
-ruta: apilar tres capas a cada pulsación tardaría segundos en la Raspberry.
-Como todo es determinista, `herramientas/componer.py --comprobar` regenera sin
-escribir y avisa si algún retrato se quedó viejo respecto a su original.
+Antes se guardaban los 1155 retratos ya compuestos, y se dejaron de guardar
+cuando la cuenta empezó a doler: eran 27 MB camino de los 180 según se
+redibujaban las especies, y se clonaban enteros en cada despliegue. Componer al
+vuelo se pudo gracias a **Pillow**, y esa es la única razón de que sea
+dependencia: medido en la Raspberry, apilar tres capas de 256×256 cuesta **1,7 s
+en Python puro y 72 ms con Pillow**. Lo primero congelaba el bot en cada
+pulsación. Encima hay una caché en memoria de los últimos 128 retratos armados,
+porque pulsar un botón vuelve a pintar la misma combinación una y otra vez.
 
 **El catálogo.** Veinticinco especies repartidas en diez biomas, pero **del
 huevo sólo salen diez**: las de siempre. Las quince nuevas hay que

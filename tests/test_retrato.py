@@ -1,14 +1,20 @@
 """El retrato dibujado: que exista, que esté acotado y que llegue entero.
 
-Los fallos de un adjunto en Discord son silenciosos —una miniatura rota no se ve
-y no escribe nada en ningún registro—, así que aquí se comprueba antes.
+Los fallos de un adjunto en Discord son silenciosos —una imagen rota no se ve y
+no escribe nada en ningún registro—, así que aquí se comprueba antes.
+
+Desde que se compone al vuelo, «que exista» ya no es que haya un fichero: es que
+las capas estén y que apilarlas dé una imagen. Lo segundo cuesta unos 40 ms por
+retrato, así que se comprueba sobre una muestra y no sobre las 1155
+combinaciones; de que no falte ninguna capa se encarga `test_capas.py`.
 """
-import struct
+import io
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
 import pytest
+from PIL import Image
 
 import cosmeticos as cos
 import db
@@ -42,60 +48,58 @@ def criatura(especie="chispa", etapa="adulto_grande", **cambios) -> sim.Criatura
 
 # --- Que estén los 21 ------------------------------------------------------
 
-def test_hay_retrato_para_cada_animo_y_cada_sombrero():
-    """Tres ánimos por siete estados de sombrero. Que falte uno significa que a
-    alguien se le rompe la ficha justo cuando se pone triste o estrena gorro,
-    que son los dos momentos en que se mira."""
+def test_hay_capas_para_cada_animo_y_cada_sombrero():
+    """Tres ánimos por siete estados de sombrero. Que falte una capa significa
+    que a alguien se le rompe la ficha justo cuando se pone triste o estrena
+    gorro, que son los dos momentos en que se mira."""
     faltan = []
     for especie, etapa in retrato.CON_RETRATO:
-        for animo in esp.ANIMOS:
-            for sombrero in [None, *SOMBREROS]:
-                ruta = (retrato.ARTE / especie / etapa
-                        / f"{animo}_{sombrero or retrato.SIN_SOMBRERO}.png")
-                if not ruta.is_file():
-                    faltan.append(str(ruta.relative_to(retrato.ARTE)))
+        forma = retrato.FORMA_ARCHIVO[etapa]
+        rutas = [retrato._ruta_del_cuerpo(especie, etapa)]
+        rutas += [retrato._ruta_de_capa("caras", especie, a, forma)
+                  for a in retrato.CARAS.values()]
+        rutas += [retrato._ruta_de_capa("sombreros", especie, f"{s}.png", forma)
+                  for s in SOMBREROS]
+        faltan += [str(r) for r in rutas if not r.is_file()]
     assert not faltan, faltan
 
 
-def test_son_png_de_verdad_y_todos_del_mismo_tamaño():
-    """Un PNG mal escrito no se ve en Discord y no avisa. Se comprueba la firma
-    y la cabecera, que es donde vive el tamaño.
+def test_ningun_retrato_sale_diminuto():
+    """Discord no amplía la imagen de un embed más allá de su tamaño real, así
+    que el tamaño al que se compone ES el que se ve.
 
-    Que midan **todos lo mismo** importa tanto como que existan: si cada uno se
-    hubiera recortado a su propia silueta, el bicho cambiaría de tamaño al
-    cambiar de ánimo o al ponerse un sombrero, y se vería pegar saltos.
+    Se mira la caja en vez de componer las 55 formas: el retrato mide justo el
+    doble de la caja, y calcularla cuesta una décima parte.
     """
-    for especie, etapa in retrato.CON_RETRATO:
-        imagenes = sorted((retrato.ARTE / especie / etapa).glob("*.png"))
-        assert len(imagenes) == len(esp.ANIMOS) * (len(SOMBREROS) + 1) == 21
-
-        tamanos = set()
-        for ruta in imagenes:
-            crudo = ruta.read_bytes()
-            assert crudo[:8] == b"\x89PNG\r\n\x1a\n", ruta.name
-            tamanos.add(struct.unpack(">II", crudo[16:24]))
-            assert (crudo[24], crudo[25]) == (8, 6), f"{ruta}: hace falta RGBA"
-        assert len(tamanos) == 1, (especie, etapa, tamanos)
-
-        # Y que sea grande de verdad: Discord no amplía la imagen de un embed
-        # más allá de su tamaño real, así que el del fichero ES el que se ve.
-        ancho, alto = tamanos.pop()
+    for especie, etapa in sorted(retrato.CON_RETRATO):
+        x0, y0, x1, y1 = retrato._caja(especie, etapa)
+        ancho, alto = (x1 - x0) * 2, (y1 - y0) * 2
         assert max(ancho, alto) >= 250, (especie, etapa, ancho, alto)
+
+
+def test_el_retrato_es_un_png_rgba_de_verdad():
+    """Un PNG mal escrito no se ve en Discord y no avisa."""
+    datos = retrato.imagen_de(criatura())
+    assert datos is not None
+    assert datos[:8] == b"\x89PNG\r\n\x1a\n"
+    with Image.open(io.BytesIO(datos)) as imagen:
+        assert imagen.mode == "RGBA"
 
 
 # --- Que la prueba esté acotada --------------------------------------------
 
 def test_pyro_adulto_grande_tiene_retrato():
-    assert retrato.ruta_de(criatura()) is not None
+    assert retrato.imagen_de(criatura()) is not None
 
 
 def test_el_animo_y_el_sombrero_eligen_la_imagen():
     hambriento = criatura(hambre=5.0, animo=5.0)
-    assert retrato.ruta_de(hambriento) != retrato.ruta_de(criatura())
+    assert retrato.imagen_de(hambriento) != retrato.imagen_de(criatura())
 
     for clave in SOMBREROS:
-        con = retrato.ruta_de(criatura(sombrero=clave))
-        assert con is not None and con.name.endswith(f"_{clave}.png"), clave
+        bicho = criatura(sombrero=clave)
+        assert retrato.imagen_de(bicho) is not None, clave
+        assert retrato.nombre_del_adjunto(bicho).endswith(f"_{clave}.png"), clave
 
 
 def test_ninguna_otra_especie_ni_etapa_entra_en_la_prueba():
@@ -107,7 +111,7 @@ def test_ninguna_otra_especie_ni_etapa_entra_en_la_prueba():
     """
     for clave in esp.ESPECIES:
         for etapa in esp.ETAPAS:
-            tiene = retrato.ruta_de(criatura(especie=clave, etapa=etapa))
+            tiene = retrato.imagen_de(criatura(especie=clave, etapa=etapa))
             esperado = (clave, etapa) in retrato.CON_RETRATO
             assert (tiene is not None) == esperado, (clave, etapa)
 
@@ -117,23 +121,31 @@ def test_una_criatura_teñida_vuelve_al_arte_ascii():
     pagó por tener su Pyro azul y lo vería rojo. El tinte se resolverá con una
     imagen por color, y hasta entonces estos vuelven a ASCII."""
     for tinte in (c.clave for c in cos.TINTES):
-        assert retrato.ruta_de(criatura(tinte=tinte)) is None, tinte
+        assert retrato.imagen_de(criatura(tinte=tinte)) is None, tinte
 
 
 def test_un_sombrero_sin_dibujo_no_deja_la_ficha_a_medias():
     """Si mañana se añade un sombrero y falta su imagen, la ficha cae al arte
     ASCII en vez de quedarse sin nada."""
-    assert retrato.ruta_de(criatura(sombrero="sombrero_que_no_existe")) is None
+    assert retrato.imagen_de(criatura(sombrero="sombrero_que_no_existe")) is None
 
 
 # --- Que llegue entero a Discord -------------------------------------------
 
-def test_el_nombre_del_adjunto_sale_del_mismo_sitio_que_la_ruta():
+def test_el_nombre_del_adjunto_distingue_las_veintiuna_combinaciones():
     """Es el fallo clásico de los embeds: si `attachment://x.png` no cuadra con
-    el nombre del fichero enviado, la miniatura sale vacía y no falla nada."""
-    ruta = retrato.ruta_de(criatura())
-    assert ruta is not None
-    assert retrato.nombre_del_adjunto(ruta) == ruta.name
+    el nombre del adjunto, la imagen sale vacía y no falla nada.
+
+    Y ahora hay un motivo más: Discord cachea por nombre, así que dos retratos
+    distintos con el mismo nombre podrían enseñarse cruzados.
+    """
+    nombres = set()
+    for animo, hambre in (("feliz", 90.0), ("mal", 5.0)):
+        for sombrero in [None, *SOMBREROS]:
+            bicho = criatura(hambre=hambre, animo=hambre, sombrero=sombrero)
+            nombres.add(retrato.nombre_del_adjunto(bicho))
+    assert len(nombres) == 2 * (len(SOMBREROS) + 1)
+    assert all(n.endswith(".png") for n in nombres)
 
 
 def test_el_borde_lleva_el_color_de_la_especie():
