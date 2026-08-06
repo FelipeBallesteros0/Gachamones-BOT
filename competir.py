@@ -127,8 +127,13 @@ class Competidor:
     velocidad: int
     salud: int
     modificador: int = 0
+    # Lo que suman las pociones y las sopaipillas en curso. Están las cuatro
+    # porque el tótem se juega con salud y el laberinto con ingenio: sin ellas,
+    # un efecto que las tocara se vería en la ficha y no haría nada en la pista.
     bonus_fuerza: int = 0
     bonus_velocidad: int = 0
+    bonus_salud: int = 0
+    bonus_ingenio: int = 0
     # La cara que tiene puesta al competir. Se trae hecha desde la criatura para
     # que el podio pueda dibujarla sin que este módulo deje de ser puro.
     animo: str = esp.NORMAL
@@ -146,18 +151,20 @@ class Competidor:
         """Aporte de la fase sin dado, con el estado aplicado una sola vez."""
         fuerza = self.fuerza + self.bonus_fuerza
         velocidad = self.velocidad + self.bonus_velocidad
+        salud = self.salud + self.bonus_salud
+        ingenio = self.ingenio + self.bonus_ingenio
         if fase == SALIDA:
             base = velocidad
         elif fase == TERRENO:
             base = round((7 * velocidad + 3 * fuerza) / 10)
         elif fase == FONDO:
-            base = round((7 * velocidad + 3 * self.salud) / 10)
+            base = round((7 * velocidad + 3 * salud) / 10)
         elif fase == POSICION:
             base = round((7 * fuerza + 3 * velocidad) / 10)
         elif fase == EMPUJE:
             base = fuerza
         elif fase == AGUANTE:
-            base = round((7 * fuerza + 3 * self.salud) / 10)
+            base = round((7 * fuerza + 3 * salud) / 10)
         elif fase == CENTRO:
             # El tótem no mezcla: cada asalto pone a prueba una estadística
             # entera, y es el reparto de puestos el que premia ser completo.
@@ -165,13 +172,13 @@ class Competidor:
         elif fase == FORCEJEO:
             base = fuerza
         elif fase == HUIDA:
-            base = self.salud
+            base = salud
         elif fase == SENALES:
-            base = self.ingenio
+            base = ingenio
         elif fase == TRAZADO:
-            base = round((7 * self.ingenio + 3 * velocidad) / 10)
+            base = round((7 * ingenio + 3 * velocidad) / 10)
         elif fase == NO_PERDERSE:
-            base = round((7 * self.ingenio + 3 * self.salud) / 10)
+            base = round((7 * ingenio + 3 * salud) / 10)
         else:
             raise ValueError(f"fase desconocida: {fase}")
         return max(1, base + self.modificador)
@@ -491,6 +498,8 @@ def competidor_de(
     *,
     bonus_fuerza: int = 0,
     bonus_velocidad: int = 0,
+    bonus_salud: int = 0,
+    bonus_ingenio: int = 0,
 ) -> Competidor:
     """La criatura vista como competidor, sin consultar persistencia."""
     return Competidor(
@@ -502,6 +511,8 @@ def competidor_de(
         modificador=modificador_por_estado(criatura.hambre, criatura.animo),
         bonus_fuerza=bonus_fuerza,
         bonus_velocidad=bonus_velocidad,
+        bonus_salud=bonus_salud,
+        bonus_ingenio=bonus_ingenio,
         animo=criatura.animo_visual,
         ingenio=criatura.ingenio,
     )

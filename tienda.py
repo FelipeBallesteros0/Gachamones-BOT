@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import replace
+from datetime import timedelta
 
 import discord
 
@@ -76,9 +77,16 @@ def texto_del_inventario(usuario_id: str, guild_id: str) -> str:
         f"{obj.CATALOGO[clave].emoji} **{obj.CATALOGO[clave].nombre}** ×{cuantos}"
         for clave, cuantos in sorted(tengo.items())
     )
+    fuera = len([c for c in tengo if c in obj.CATALOGO]) - len(
+        lo_que_cabe_en_el_menu(tengo)
+    )
+    aviso = (
+        f"\n-# En el menú caben {MAX_OPCIONES}: **{fuera}** se han quedado "
+        "fuera. Gasta algo y vuelven a salir."
+    ) if fuera else ""
     return (
         f"## 🎒 Mochila\n{lineas}\n"
-        f"-# {_saldos(usuario_id, guild_id)}\n-# Elige abajo para usar."
+        f"-# {_saldos(usuario_id, guild_id)}\n-# Elige abajo para usar.{aviso}"
     )
 
 
@@ -126,15 +134,29 @@ def usar(
         )
 
     if objeto.es_sopaipilla:
-        caras = hue.caras_de(criatura.caracter, objeto.color)
-        gusto = hue.le_gusta(criatura.caracter, objeto.color)
-        # Un solo dado para las dos estadísticas: es un plato, no dos pociones.
+        # El arcoíris no tiene color, así que no hay gusto que consultar: su
+        # dado se decidió al cocinarla y lo trae escrito. Lo que comparte con las
+        # de color es lo de siempre: **un solo dado** para todas las
+        # estadísticas que toque, porque es un plato y no varias pociones.
+        arcoiris = objeto.color == hue.ARCOIRIS
+        caras = (
+            objeto.caras if arcoiris
+            else hue.caras_de(criatura.caracter, objeto.color)
+        )
+        stats = sim.ESTADISTICAS if arcoiris else ("fuerza", "velocidad")
         bonus = (rng or random.Random()).randint(1, caras)
-        for stat in ("fuerza", "velocidad"):
+        for stat in stats:
             db.poner_efecto(criatura.id, stat, bonus, ahora)
+        if arcoiris:
+            return (
+                f"{objeto.emoji} **{criatura.nombre}** se come una sopaipilla "
+                f"{hue.NOMBRE_ARCOIRIS}.\n"
+                f"-# **+{bonus}** en las cuatro estadísticas (1d{caras}) durante "
+                f"{obj.MINUTOS_DE_EFECTO} minutos."
+            )
         return (
             f"{objeto.emoji} **{criatura.nombre}** se come una sopaipilla "
-            f"{objeto.color} — {gusto}.\n"
+            f"{objeto.color} — {hue.le_gusta(criatura.caracter, objeto.color)}.\n"
             f"-# **+{bonus}** de fuerza y de velocidad (1d{caras}) durante "
             f"{obj.MINUTOS_DE_EFECTO} minutos."
         )
@@ -227,17 +249,38 @@ class RenombrarModal(discord.ui.Modal, title="Ponle otro nombre"):
 
 # --- Los desplegables ------------------------------------------------------
 
+# El tope de opciones de un desplegable de Discord.
+MAX_OPCIONES = 25
+
+
+def lo_que_cabe_en_el_menu(tengo: dict[str, int]) -> list[str]:
+    """Qué claves entran en el desplegable de la mochila, y en qué orden.
+
+    En el catálogo hay más de treinta cosas y aquí caben 25: con la mochila muy
+    surtida, Discord rechazaba el mensaje **entero** con un 400 y `/mochila`
+    dejaba de abrirse. Ya pasaba antes de que existiera el arcoíris; lo que hizo
+    el huerto fue acercarlo, porque cada color es un objeto más.
+
+    Primero va lo que se usa —el menú se llama «¿Qué usas?»—, así que lo que
+    queda fuera son los ingredientes, que al elegirlos no hacen nada. El texto
+    del mensaje los sigue listando todos, y avisa si alguno no cupo.
+    """
+    claves = [clave for clave in sorted(tengo) if clave in obj.CATALOGO]
+    # Estable: dentro de cada grupo se conserva el orden alfabético de arriba.
+    claves.sort(key=lambda clave: not obj.CATALOGO[clave].se_usa_en_mochila)
+    return claves[:MAX_OPCIONES]
+
+
 class MenuInventario(discord.ui.Select):
     def __init__(self, tengo: dict[str, int], congelar=None):
         opciones = [
             discord.SelectOption(
-                label=f"{obj.CATALOGO[clave].nombre} ×{cuantos}",
+                label=f"{obj.CATALOGO[clave].nombre} ×{tengo[clave]}",
                 value=clave,
                 description=obj.CATALOGO[clave].descripcion[:100],
                 emoji=obj.CATALOGO[clave].emoji,
             )
-            for clave, cuantos in sorted(tengo.items())
-            if clave in obj.CATALOGO
+            for clave in lo_que_cabe_en_el_menu(tengo)
         ]
         super().__init__(placeholder="¿Qué usas?", options=opciones)
         self.congelar = congelar
@@ -917,20 +960,31 @@ def texto_del_huerto(usuario_id: str, guild_id: str, ahora) -> str:
 
     lineas = []
     for bancal in db.huerto_de(usuario_id, guild_id, cuantos):
+        # Qué crece en cada uno. Antes no se podía decir porque siempre era lo
+        # mismo; ahora que se siembran porotos, no decirlo obligaría a acordarse.
+        sembrado = obj.CATALOGO.get(bancal.sembrado)
+        que = f" {sembrado.emoji}" if sembrado else ""
         if not bancal.plantado:
             lineas.append(f"`{bancal.numero}` 🟫 en barbecho")
         elif bancal.listo(ahora):
-            lineas.append(f"`{bancal.numero}` 🌾 **listo para cosechar**")
+            lineas.append(f"`{bancal.numero}`{que} 🌾 **listo para cosechar**")
         else:
             regado = " · regado" if bancal.regado else ""
-            lineas.append(f"`{bancal.numero}` 🌱 {_cuando(bancal, ahora)}{regado}")
+            lineas.append(
+                f"`{bancal.numero}`{que} 🌱 {_cuando(bancal, ahora)}{regado}"
+            )
 
-    semillas = db.inventario(usuario_id, guild_id).get("semilla", 0)
+    mochila = db.inventario(usuario_id, guild_id)
+    tengo = [
+        f"{obj.CATALOGO[clave].emoji}{mochila[clave]}"
+        for clave in hue.plantables(mochila)
+    ]
     return (
         f"## 🌱 Huerto de {hogar.casa.nombre}\n" + "\n".join(lineas) +
-        f"\n-# Semillas: **{semillas}** · tarda {hue.HORAS_DE_CULTIVO} h, "
-        f"o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} h si lo riegas.\n"
-        f"-# Sale un poroto de color al azar. Con "
+        f"\n-# Para sembrar: {' '.join(tengo) if tengo else '**nada**'} · tarda "
+        f"{hue.HORAS_DE_CULTIVO} h, o "
+        f"{hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} h si lo riegas.\n"
+        f"-# El color lo hereda lo que siembres; la semilla lo sortea. Con "
         f"{hue.POROTOS_POR_SOPAIPILLA} del mismo color se cocina una sopaipilla."
     )
 
@@ -941,25 +995,71 @@ def texto_resultado_huerto(resultado: economia.ResultadoHuerto, ahora) -> str:
     if resultado.cosechado:
         poroto = obj.CATALOGO[resultado.cosechado]
         # El singular se conserva aunque hoy no salga nunca: `POROTOS_POR_COSECHA`
-        # es una constante y podría volver a incluir el 1.
+        # es una constante y podría volver a incluir el 1. Y con el arcoíris
+        # puede quedar en uno aunque el lote fuera de dos.
         if resultado.cuantos == 1:
             salido = f"Ha salido un **{poroto.nombre}**"
-            donde = "Ya está en tu 🎒 **Mochila**"
         else:
-            plural = hue.PLURAL_COLOR[poroto.color]
-            salido = (f"Han salido **{resultado.cuantos} porotos {plural}**")
-            donde = "Ya están en tu 🎒 **Mochila**"
+            plural = hue.plural_de(poroto.color)
+            salido = f"Han salido **{resultado.cuantos} porotos {plural}**"
+        donde = "Ya está" if resultado.cuantos == 1 else "Ya están"
+        if resultado.arcoiris:
+            # Se anuncia aparte y con su propio renglón: es lo raro de la
+            # cosecha, y mezclarlo en la misma frase lo dejaría en una coma.
+            arcoiris = obj.CATALOGO[hue.clave_de_poroto(hue.ARCOIRIS)]
+            return (
+                f"{poroto.emoji} {salido}… y **un {arcoiris.nombre.lower()}** "
+                f"{hue.EMOJI_ARCOIRIS}\n"
+                f"-# Todo en tu 🎒 **Mochila**. El bancal queda libre."
+            )
         return (
             f"{poroto.emoji} {salido}.\n"
-            f"-# {donde}. El bancal queda libre."
+            f"-# {donde} en tu 🎒 **Mochila**. El bancal queda libre."
         )
-    faltan = hue.Bancal(resultado.bancal)
+    # `_cuando` mide desde el bancal, así que se arma uno cuyo `listo_en` sea
+    # exactamente el que devolvió la operación. Antes se deducía si estaba
+    # regado comparando contra `hue.Bancal(numero).listo_en()`, que sin
+    # `plantado_en` es **siempre `None`**: todo salía distinto, todo se daba por
+    # regado y plantar decía «le faltan 5 h» cuando faltaban 8.
     espera = _cuando(
-        hue.Bancal(resultado.bancal, ahora,
-                   regado=resultado.listo_en != faltan.listo_en()),
+        hue.Bancal(
+            resultado.bancal,
+            resultado.listo_en - timedelta(hours=hue.HORAS_DE_CULTIVO),
+        ),
         ahora,
     )
     return f"🌱 Bancal `{resultado.bancal}`: {espera}."
+
+
+class MenuQueSembrar(discord.ui.Select):
+    """Qué se siembra al plantar, y lo recuerda mientras el menú siga abierto.
+
+    Va aparte de `MenuHuerto` porque meterlo dentro serían tres bancales por
+    todo lo sembrable —del orden de veinte renglones— para decir dos cosas. Así
+    se elige una vez y vale para los tres bancales seguidos.
+    """
+
+    def __init__(self, mochila: dict[str, int], elegido: str | None = None):
+        claves = hue.plantables(mochila)
+        # Si lo elegido se acabó —o no había nada elegido— manda lo primero de la
+        # lista, que es la semilla si la hay. Nunca queda apuntando a lo que ya
+        # no está.
+        self.elegido = elegido if elegido in claves else next(iter(claves), None)
+        opciones = [
+            discord.SelectOption(
+                label=obj.CATALOGO[clave].nombre,
+                value=clave,
+                description=f"tienes {mochila[clave]}",
+                emoji=obj.CATALOGO[clave].emoji,
+                default=clave == self.elegido,
+            )
+            for clave in claves
+        ]
+        super().__init__(placeholder="Qué siembras…", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        # Sólo apunta la elección y se redibuja: elegir qué sembrar no siembra.
+        await _responder_huerto(interaccion, sembrar=self.values[0])
 
 
 class MenuHuerto(discord.ui.Select):
@@ -969,8 +1069,9 @@ class MenuHuerto(discord.ui.Select):
     veces; así cada renglón dice lo único que se puede hacer con él.
     """
 
-    def __init__(self, bancales: list[hue.Bancal], ahora):
+    def __init__(self, bancales: list[hue.Bancal], ahora, sembrar=None):
         self.ahora = ahora
+        self.sembrar = sembrar
         opciones = []
         for bancal in bancales:
             if not bancal.plantado:
@@ -992,12 +1093,14 @@ class MenuHuerto(discord.ui.Select):
         accion, numero = self.values[0].split(":")
         usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
         ahora = db.ahora_utc()
-        hacer = {
-            "plantar": economia.plantar,
-            "regar": economia.regar,
-            "cosechar": economia.cosechar,
-        }[accion]
-        resultado = hacer(usuario_id, guild_id, int(numero), ahora)
+        if accion == "plantar":
+            resultado = economia.plantar(
+                usuario_id, guild_id, int(numero), ahora,
+                self.sembrar or hue.SEMILLA,
+            )
+        else:
+            hacer = {"regar": economia.regar, "cosechar": economia.cosechar}[accion]
+            resultado = hacer(usuario_id, guild_id, int(numero), ahora)
         await interaccion.response.edit_message(
             content=texto_resultado_huerto(resultado, ahora), view=None
         )
@@ -1008,15 +1111,15 @@ class MenuCocina(discord.ui.Select):
 
     def __init__(self, mochila: dict[str, int]):
         opciones = []
-        for color in hue.COLORES:
+        for color in hue.COCINABLES:
             cuantos = mochila.get(hue.clave_de_poroto(color), 0)
             if cuantos < hue.POROTOS_POR_SOPAIPILLA:
                 continue
             opciones.append(discord.SelectOption(
-                label=f"Sopaipilla {color}",
+                label=f"Sopaipilla {hue.nombre_de(color)}",
                 value=color,
                 description=f"gasta {hue.POROTOS_POR_SOPAIPILLA} de {cuantos}",
-                emoji=hue.EMOJI_COLOR[color],
+                emoji=hue.emoji_de(color),
             ))
         super().__init__(placeholder="Cocinar…", options=opciones)
 
@@ -1027,31 +1130,66 @@ class MenuCocina(discord.ui.Select):
         if not resultado.ok:
             aviso = f"❌ {resultado.problema}"
         else:
+            coletilla = (
+                f"**+1d{resultado.sopaipilla.caras} en las cuatro "
+                "estadísticas**, y el dado ya está echado"
+                if resultado.sopaipilla.color == hue.ARCOIRIS
+                else "cuánto suba depende de si a tu gachamon le gusta el color"
+            )
             aviso = (
                 f"{resultado.sopaipilla.emoji} Cocinada una "
                 f"**{resultado.sopaipilla.nombre}**.\n"
-                "-# Dásela desde 🎒 **Mochila**: cuánto suba depende de si a tu "
-                "gachamon le gusta el color."
+                f"-# Dásela desde 🎒 **Mochila**: {coletilla}."
             )
         await interaccion.response.edit_message(content=aviso, view=None)
+
+
+def menus_del_huerto(
+    usuario_id: str, guild_id: str, ahora, sembrar: str | None = None
+) -> list[discord.ui.Select]:
+    """Los desplegables del huerto, en orden de lectura.
+
+    Primero qué se siembra, porque es el ajuste, y debajo lo que se hace con
+    cada bancal, que es lo que lo usa.
+    """
+    hogar = db.hogar_leido(usuario_id, guild_id, ahora)
+    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
+    if not cuantos:
+        return []
+
+    mochila = db.inventario(usuario_id, guild_id)
+    menus: list[discord.ui.Select] = []
+    que_sembrar = MenuQueSembrar(mochila, sembrar)
+    del_huerto = MenuHuerto(
+        db.huerto_de(usuario_id, guild_id, cuantos), ahora, que_sembrar.elegido
+    )
+    if que_sembrar.options:
+        menus.append(que_sembrar)
+    if del_huerto.options:
+        menus.append(del_huerto)
+    cocina = MenuCocina(mochila)
+    if cocina.options:
+        menus.append(cocina)
+    return menus
+
+
+async def _responder_huerto(
+    interaccion: discord.Interaction, sembrar: str | None = None
+) -> None:
+    """Redibuja el huerto sin cerrarlo, conservando qué se va a sembrar."""
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    ahora = db.ahora_utc()
+    menus = menus_del_huerto(usuario_id, guild_id, ahora, sembrar)
+    await interaccion.response.edit_message(
+        content=texto_del_huerto(usuario_id, guild_id, ahora),
+        view=VistaConMenu(*menus) if menus else None,
+    )
 
 
 async def abrir_huerto(interaccion: discord.Interaction) -> None:
     usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
     ahora = db.ahora_utc()
-    hogar = db.hogar_leido(usuario_id, guild_id, ahora)
-    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
-    mochila = db.inventario(usuario_id, guild_id)
-
-    menus: list[discord.ui.Select] = []
-    if cuantos:
-        del_huerto = MenuHuerto(db.huerto_de(usuario_id, guild_id, cuantos), ahora)
-        if del_huerto.options:
-            menus.append(del_huerto)
-        cocina = MenuCocina(mochila)
-        if cocina.options:
-            menus.append(cocina)
-
+    menus = menus_del_huerto(usuario_id, guild_id, ahora)
     await interaccion.response.send_message(
         texto_del_huerto(usuario_id, guild_id, ahora),
         view=VistaConMenu(*menus) if menus else None,

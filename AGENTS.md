@@ -89,8 +89,11 @@ Instala el hook local cuando prepares el entorno:
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.
 - El huerto es de la casa: el refugio no tiene bancales.
-- El color del poroto se sortea al cosechar, nunca al sembrar.
-- Una sopaipilla da el mismo bonus a fuerza y velocidad, y no se acumula.
+- El color de la cosecha lo hereda lo sembrado; sólo la semilla y el arcoíris lo sortean.
+- El arcoíris no es un color: no se sortea, no tiene afinidad y no está en `COLORES`.
+- De una cosecha sale como mucho un arcoíris, y sustituye a uno del lote en vez de sumarse.
+- Una sopaipilla da el mismo bonus en todas las estadísticas que toque, y no se acumula.
+- El dado de una sopaipilla de color sale del carácter al comerla; el del arcoíris se sortea al cocinarla y va en su clave.
 - Lo que no se vende no sale de botín ni ocupa sitio en la tienda.
 - Casi todos los logros son de la criatura y se pierden con ella.
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.

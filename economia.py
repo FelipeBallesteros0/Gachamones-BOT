@@ -867,12 +867,12 @@ def ejecutar_competencia(
             [
                 comp.competidor_de(
                     criatura,
-                    bonus_fuerza=db.efecto_activo_en(
-                        con, criatura.id, "fuerza", ahora
-                    ),
-                    bonus_velocidad=db.efecto_activo_en(
-                        con, criatura.id, "velocidad", ahora
-                    ),
+                    **{
+                        f"bonus_{stat}": db.efecto_activo_en(
+                            con, criatura.id, stat, ahora
+                        )
+                        for stat in sim.ESTADISTICAS
+                    },
                 )
                 for criatura in criaturas
             ],
@@ -1364,8 +1364,10 @@ class ResultadoHuerto:
 
     ok: bool = False
     bancal: int = 0
+    sembrado: str | None = None         # la clave de lo que se acaba de sembrar
     cosechado: str | None = None        # la clave del poroto que salió
     cuantos: int = 0                    # cuántos, todos de ese mismo color
+    arcoiris: bool = False              # y si además salió uno arcoíris
     listo_en: datetime | None = None
     problema: str | None = None
 
@@ -1384,9 +1386,15 @@ def _huerto_abierto(
 
 
 def plantar(
-    usuario_id: str, guild_id: str, bancal: int, ahora: datetime | None = None
+    usuario_id: str, guild_id: str, bancal: int, ahora: datetime | None = None,
+    que: str = hue.SEMILLA,
 ) -> ResultadoHuerto:
-    """Gasta una semilla y la siembra. El color se sortea al cosechar."""
+    """Gasta lo que se siembre y lo siembra.
+
+    `que` va **después de `ahora`** y con valor por defecto porque hay bastante
+    código que llama a esto por posición; así seguir sembrando semillas se
+    escribe igual que antes.
+    """
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1400,15 +1408,22 @@ def plantar(
             return ResultadoHuerto(
                 bancal=bancal, problema="En ese bancal ya hay algo creciendo."
             )
-        if not db.gastar_en(con, usuario_id, guild_id, "semilla"):
+        objeto = obj.CATALOGO.get(que)
+        if objeto is None:
+            return ResultadoHuerto(bancal=bancal, problema="Eso no se siembra.")
+        if not db.gastar_en(con, usuario_id, guild_id, que):
+            # Con el nombre entero en vez de concordar en género: «ninguna
+            # semilla» y «ningún poroto rojo» pedían dos frases para decir lo
+            # mismo, y la lista de cosas sembrables sólo va a crecer.
+            pista = " Cómpralas en 🛒 **Tienda**." if que == hue.SEMILLA else ""
             return ResultadoHuerto(
                 bancal=bancal,
-                problema="No te queda ninguna semilla. Cómpralas en 🛒 **Tienda**.",
+                problema=f"Ya no te queda {objeto.emoji} **{objeto.nombre}**.{pista}",
             )
 
-        db.plantar_en(con, usuario_id, guild_id, bancal, ahora)
+        db.plantar_en(con, usuario_id, guild_id, bancal, ahora, que)
         return ResultadoHuerto(
-            ok=True, bancal=bancal,
+            ok=True, bancal=bancal, sembrado=que,
             listo_en=hue.Bancal(bancal, ahora).listo_en(),
         )
 
@@ -1446,11 +1461,14 @@ def cosechar(
 ) -> ResultadoHuerto:
     """Recoge la cosecha y deja el bancal en barbecho.
 
-    **El color se sortea aquí y no al sembrar**: así no hay forma de mirar lo que
-    va a salir ni de replantar hasta que salga el que interesa.
+    **El color lo hereda lo sembrado**, y sólo se sortea cuando lo sembrado no
+    tiene ninguno: la semilla de la tienda y el arcoíris. Sembrar un poroto rojo
+    y recoger azules sería no entender qué se plantó.
 
-    Salen varios porotos y **todos del mismo color**: se tira una vez y esa
-    tirada vale para la mata entera, que es lo que se espera de una planta.
+    Salen varios y **todos del mismo color**: se tira una vez y esa tirada vale
+    para la mata entera, que es lo que se espera de una planta. Aparte va el
+    arcoíris, que sale de cualquier cosecha, sustituye a uno del lote y no cambia
+    cuántos recoges.
     """
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
@@ -1469,12 +1487,27 @@ def cosechar(
                 problema="Todavía no está listo.",
             )
 
-        clave = hue.clave_de_poroto(hue.tirar_color(rng))
-        cuantos = hue.tirar_cuantos(rng)
-        db.guardar_en_la_mochila_en(con, usuario_id, guild_id, clave, cuantos)
+        color = hue.color_sembrado(elegido.sembrado) or hue.tirar_color(rng)
+        clave = hue.clave_de_poroto(color)
+        lote = hue.tirar_cuantos(rng)
+        arcoiris = hue.tirar_arcoiris(rng)
+
+        # El arcoíris **sustituye** a uno del lote, no se suma: lo raro es que
+        # salga, no que la cosecha rinda más de la cuenta.
+        normales = lote - 1 if arcoiris else lote
+        if normales:
+            db.guardar_en_la_mochila_en(
+                con, usuario_id, guild_id, clave, normales
+            )
+        if arcoiris:
+            db.guardar_en_la_mochila_en(
+                con, usuario_id, guild_id,
+                hue.clave_de_poroto(hue.ARCOIRIS), 1,
+            )
         db.arrancar_en(con, usuario_id, guild_id, bancal)
         return ResultadoHuerto(
-            ok=True, bancal=bancal, cosechado=clave, cuantos=cuantos
+            ok=True, bancal=bancal, cosechado=clave, cuantos=normales,
+            arcoiris=arcoiris,
         )
 
 
@@ -1486,15 +1519,21 @@ class ResultadoCocina:
 
 
 def cocinar(
-    usuario_id: str, guild_id: str, color: str, ahora: datetime | None = None
+    usuario_id: str, guild_id: str, color: str, ahora: datetime | None = None,
+    rng=None,
 ) -> ResultadoCocina:
-    """Cambia porotos de un color por una sopaipilla de ese color."""
-    if color not in hue.COLORES:
+    """Cambia porotos de un color por una sopaipilla de ese color.
+
+    El arcoíris se cuece igual y cuesta lo mismo que los demás: lo que lo hace
+    raro es encontrarlo, no cocinarlo. Lo que sí cambia es que **su dado se tira
+    aquí**, porque no tiene color del que sacarlo; las de color lo consultan al
+    comerse, en la tabla de gustos de quien se la come.
+    """
+    if color not in hue.COCINABLES:
         raise ValueError(f"color de poroto desconocido: {color!r}")
 
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        sopaipilla = obj.CATALOGO[hue.clave_de_sopaipilla(color)]
         if not db.gastar_en(
             con, usuario_id, guild_id, hue.clave_de_poroto(color),
             hue.POROTOS_POR_SOPAIPILLA,
@@ -1505,9 +1544,13 @@ def cocinar(
             return ResultadoCocina(
                 problema=(
                     f"Hacen falta {hue.POROTOS_POR_SOPAIPILLA} porotos "
-                    f"{color} y tienes {tengo}."
+                    f"{hue.plural_de(color)} y tienes {tengo}."
                 ),
             )
+        # El dado se tira con los porotos ya gastados: así una cocina que falla
+        # por falta de ingredientes no consume una tirada.
+        caras = hue.tirar_caras_de_arcoiris(rng) if color == hue.ARCOIRIS else 0
+        sopaipilla = obj.CATALOGO[hue.clave_de_sopaipilla(color, caras)]
         db.guardar_en_la_mochila_en(
             con, usuario_id, guild_id, sopaipilla.clave
         )

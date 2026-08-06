@@ -24,10 +24,17 @@ def test_estan_los_objetos_pedidos():
     """Una poción de comida, cinco tamaños por cada estadística, los dos
     reinicios de enfriamiento, la placa con nombre, las golosinas, el ticket del
     refugio y la semilla. Y aparte, lo que no se vende: un poroto y una
-    sopaipilla por color."""
+    sopaipilla por color, y el arcoíris —que no es un color pero se cosecha y se
+    cuece igual— con **una sopaipilla por cada tamaño de dado**, porque el suyo
+    se sortea al cocinarlo y hay que recordarlo."""
     a_la_venta = [o for o in obj.CATALOGO.values() if o.se_vende]
     assert len(a_la_venta) == 17
-    assert len(obj.CATALOGO) == 17 + 2 * len(hue.COLORES)
+    assert len(obj.CATALOGO) == (
+        17                                  # lo que se vende
+        + 2 * len(hue.COLORES)              # poroto y sopaipilla por color
+        + 1                                 # el poroto arcoíris
+        + len(hue.CARAS_DE_ARCOIRIS)        # y su sopaipilla, una por dado
+    )
 
     caras = sorted(o.caras for o in obj.CATALOGO.values() if o.stat == "fuerza")
     assert caras == [4, 6, 8, 10, 12]
@@ -160,7 +167,9 @@ def test_todo_objeto_hace_al_menos_una_cosa():
     es ingrediente— y la semilla se planta en el huerto, no se usa desde la
     mochila. Lo que se vende sin efecto y sin uso sí sería un timo.
     """
-    ingredientes = {hue.clave_de_poroto(c) for c in hue.COLORES} | {"semilla"}
+    ingredientes = {
+        hue.clave_de_poroto(c) for c in hue.COCINABLES
+    } | {hue.SEMILLA}
     for clave, objeto in obj.CATALOGO.items():
         if clave in ingredientes:
             continue
@@ -209,3 +218,40 @@ def test_las_golosinas_alimentan_menos_que_la_pocion():
     pocion = obj.CATALOGO["pocion_comida"]
     assert 0 < golosinas.alimenta < pocion.alimenta
     assert golosinas.precio < pocion.precio
+
+
+# --- Que la mochila quepa en un desplegable ---------------------------------
+
+def test_el_menu_de_la_mochila_nunca_se_pasa_del_tope_de_discord():
+    """Regresión: `MenuInventario` no tenía tope y en el catálogo hay más de
+    treinta cosas. Con la mochila muy surtida, Discord rechazaba el mensaje
+    entero con un 400 y `/mochila` dejaba de abrirse.
+
+    Se prueba con **todo** el catálogo encima, que es el peor caso posible y el
+    que crece cada vez que se añade un objeto.
+    """
+    import tienda
+
+    todo = dict.fromkeys(obj.CATALOGO, 1)
+    assert len(todo) > tienda.MAX_OPCIONES, "el catálogo ya no desborda el menú"
+
+    cabe = tienda.lo_que_cabe_en_el_menu(todo)
+
+    assert len(cabe) == tienda.MAX_OPCIONES
+    assert len(set(cabe)) == len(cabe)
+
+    # Lo primero que se cae son los ingredientes: elegirlos no hacía nada de
+    # todos modos, y el menú se llama «¿Qué usas?». Con el catálogo entero
+    # encima siguen sobrando usables —hay 26 y caben 25—, así que lo que se
+    # exige es que **ninguno** salga antes que un ingrediente.
+    usables = [c for c in todo if obj.CATALOGO[c].se_usa_en_mochila]
+    assert sum(obj.CATALOGO[c].se_usa_en_mochila for c in cabe) == min(
+        len(usables), tienda.MAX_OPCIONES
+    )
+
+
+def test_una_mochila_normal_entra_entera_y_sin_aviso():
+    import tienda
+
+    poca = {"golosinas": 2, "pocion_comida": 1, hue.clave_de_poroto("rojo"): 3}
+    assert set(tienda.lo_que_cabe_en_el_menu(poca)) == set(poca)

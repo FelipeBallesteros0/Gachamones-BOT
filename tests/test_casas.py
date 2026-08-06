@@ -1012,7 +1012,8 @@ def test_sin_semillas_no_se_planta():
 
     resultado = economia.plantar("u1", "g1", 1, T0)
 
-    assert not resultado.ok and "semilla" in resultado.problema
+    assert not resultado.ok
+    assert objs.CATALOGO[hue.SEMILLA].nombre in resultado.problema
     assert not bancales()[0].plantado
 
 
@@ -1096,16 +1097,20 @@ def test_la_cosecha_da_de_dos_a_cuatro():
 
 
 def test_la_cosecha_siempre_cae_dentro_del_rango():
-    """Y con varias semillas distintas, no con una sola tirada afortunada."""
+    """Y con varias semillas distintas, no con una sola tirada afortunada.
+
+    Se cuenta el lote **entero**, arcoíris incluido: cuando sale uno sustituye a
+    un poroto de color en vez de sumarse, así que una cosecha afortunada no
+    rinde más que una normal.
+    """
     con_huerto(semillas=60)
     listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
     minimo, maximo = hue.POROTOS_POR_COSECHA
     vistos = set()
     for semilla in range(40):
         economia.plantar("u1", "g1", 1, T0)
-        cuantos = economia.cosechar(
-            "u1", "g1", 1, listo, random.Random(semilla)
-        ).cuantos
+        recogido = economia.cosechar("u1", "g1", 1, listo, random.Random(semilla))
+        cuantos = recogido.cuantos + recogido.arcoiris
         assert minimo <= cuantos <= maximo, cuantos
         vistos.add(cuantos)
     # Y no siempre el mismo número, o el rango sería de adorno.
@@ -1114,12 +1119,19 @@ def test_la_cosecha_siempre_cae_dentro_del_rango():
 
 def test_los_porotos_de_una_cosecha_son_todos_del_mismo_color():
     """Se tira el color una vez para la mata entera. Se comprueba mirando el
-    inventario: si cada poroto tirara el suyo, habría varias claves."""
+    inventario: si cada poroto tirara el suyo, habría varias claves.
+
+    El arcoíris se apaga a mano en vez de confiar en que la semilla del RNG no
+    lo saque: es la única clave más que puede aparecer aquí legítimamente, y
+    dejarlo al azar volvería este test un misterio el día que salga.
+    """
     con_huerto()
     economia.plantar("u1", "g1", 1, T0)
     listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
 
-    resultado = economia.cosechar("u1", "g1", 1, listo, random.Random(7))
+    resultado = economia.cosechar(
+        "u1", "g1", 1, listo, DadosDelHuerto(arcoiris=False, color="rosa")
+    )
 
     porotos = {
         clave: cuantos
@@ -1164,9 +1176,10 @@ def test_el_mensaje_de_la_cosecha_cuenta_y_concuerda():
         assert "está en tu" in uno
 
 
-def test_el_color_se_sortea_al_cosechar_y_no_al_sembrar():
-    """Si saliera al sembrar se podría mirar y replantar hasta que tocara el
-    color que interesa."""
+def test_la_semilla_sortea_el_color_al_cosechar_y_no_al_sembrar():
+    """La semilla es la única que sortea, y lo hace **al cosechar**: si saliera
+    al sembrar se podría mirar y replantar hasta que tocara el color que
+    interesa. Sembrar un poroto sí decide el color, pero porque ya lo traía."""
     con_huerto()
     listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
     salidos = set()
@@ -1176,6 +1189,203 @@ def test_el_color_se_sortea_al_cosechar_y_no_al_sembrar():
             db.guardar_en_la_mochila_en(con, "u1", "g1", "semilla", 1)
         salidos.add(economia.cosechar("u1", "g1", 1, listo).cosechado)
     assert len(salidos) > 1
+
+
+# --- Sembrar porotos, y el arcoíris ---
+
+class DadosDelHuerto:
+    """Un RNG de mentira: se le dice si sale arcoíris, cuántos y de qué color.
+
+    Con `random.Random` haría falta buscar una semilla que diera cada caso, y
+    eso ata el test a la implementación del generador: el día que cambie el
+    orden de las tiradas, el test miente en vez de fallar.
+    """
+
+    def __init__(self, arcoiris: bool, cuantos: int = 3, color: str = "verde"):
+        self.arcoiris = arcoiris
+        self.cuantos = cuantos
+        self.color = color
+
+    def random(self) -> float:
+        # `tirar_arcoiris` compara con `<`, así que 0.0 siempre sale y 1.0 nunca.
+        return 0.0 if self.arcoiris else 1.0
+
+    def randint(self, a: int, b: int) -> int:
+        return self.cuantos
+
+    def choice(self, opciones):
+        return self.color
+
+
+def sembrar_y_cosechar(que, rng=None, color_sembrado="rojo"):
+    """Deja en la mochila lo que se va a sembrar, lo siembra y lo cosecha."""
+    con_casa("grande")
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", que, 1)
+    plantado = economia.plantar("u1", "g1", 1, T0, que)
+    assert plantado.ok, plantado.problema
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+    return economia.cosechar("u1", "g1", 1, listo, rng)
+
+
+def test_sembrar_un_poroto_gasta_ese_poroto_y_la_cosecha_sale_de_su_color():
+    """Lo que pedía el cambio: el color lo hereda lo sembrado."""
+    rojo = hue.clave_de_poroto("rojo")
+    con_casa("grande")
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", rojo, 2)
+
+    plantado = economia.plantar("u1", "g1", 1, T0, rojo)
+
+    assert plantado.ok and plantado.sembrado == rojo
+    assert db.inventario("u1", "g1")[rojo] == 1     # se gastó uno de los dos
+
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+    # Con el color forzado a verde en el RNG: si se sorteara, saldría verde.
+    recogido = economia.cosechar(
+        "u1", "g1", 1, listo, DadosDelHuerto(arcoiris=False, color="verde")
+    )
+    assert recogido.cosechado == rojo
+
+
+def test_no_se_siembra_lo_que_no_tienes_y_no_se_gasta_nada():
+    con_huerto(semillas=3)
+    azul = hue.clave_de_poroto("azul")
+
+    resultado = economia.plantar("u1", "g1", 1, T0, azul)
+
+    assert not resultado.ok
+    assert objs.CATALOGO[azul].nombre in resultado.problema
+    # Ni se plantó ni se tocó la semilla, que sí tenía.
+    assert not bancales()[0].plantado
+    assert db.inventario("u1", "g1")[hue.SEMILLA] == 3
+
+
+def test_lo_que_no_es_sembrable_no_se_siembra():
+    """Sin esto, una clave inventada acabaría en la columna `sembrado` y la
+    cosecha caería en el sorteo sin que nadie supiera por qué."""
+    con_huerto()
+
+    resultado = economia.plantar("u1", "g1", 1, T0, "piedra")
+
+    assert not resultado.ok and not bancales()[0].plantado
+
+
+def test_de_la_cosecha_sale_un_solo_arcoiris_y_el_resto_del_color():
+    """Uno, y **sustituyendo** a un poroto del lote: una cosecha con suerte no
+    rinde más que una normal, sólo mejor."""
+    recogido = sembrar_y_cosechar(
+        hue.clave_de_poroto("rojo"), DadosDelHuerto(arcoiris=True, cuantos=3)
+    )
+
+    assert recogido.arcoiris
+    assert recogido.cuantos == 2                    # 3 del lote, uno cambiado
+    mochila = db.inventario("u1", "g1")
+    assert mochila[hue.clave_de_poroto("rojo")] == 2
+    assert mochila[hue.clave_de_poroto(hue.ARCOIRIS)] == 1
+
+
+def test_sin_suerte_no_sale_ningun_arcoiris():
+    recogido = sembrar_y_cosechar(
+        hue.clave_de_poroto("rojo"), DadosDelHuerto(arcoiris=False, cuantos=3)
+    )
+
+    assert not recogido.arcoiris and recogido.cuantos == 3
+    assert hue.clave_de_poroto(hue.ARCOIRIS) not in db.inventario("u1", "g1")
+
+
+def test_la_probabilidad_del_arcoiris_esta_clavada():
+    """Con literales y no leyendo la constante: deducir de ella lo que se espera
+    haría que cambiarla moviera también la portería, y el test no protegería
+    nada. Si esto falla es que alguien tocó el equilibrio a propósito.
+    """
+    assert hue.PROBABILIDAD_ARCOIRIS == 0.05
+    assert sorted(hue.CARAS_DE_ARCOIRIS) == [4, 6, 8, 10, 12]
+    assert hue.tirar_arcoiris(DadosDelHuerto(arcoiris=True))
+    assert not hue.tirar_arcoiris(DadosDelHuerto(arcoiris=False))
+
+
+def test_el_arcoiris_se_siembra_pero_da_un_color_al_azar():
+    """Se puede plantar —es un poroto— pero no tiene color que heredar, así que
+    cae en el sorteo igual que la semilla."""
+    recogido = sembrar_y_cosechar(
+        hue.clave_de_poroto(hue.ARCOIRIS),
+        DadosDelHuerto(arcoiris=False, cuantos=2, color="amarillo"),
+    )
+
+    assert recogido.cosechado == hue.clave_de_poroto("amarillo")
+
+
+def test_el_arcoiris_no_es_un_color():
+    """Está fuera de `COLORES` a propósito: si entrara, se sortearía como uno
+    más y habría que darle sitio en la tabla de gustos de cada carácter."""
+    assert hue.ARCOIRIS not in hue.COLORES
+    assert hue.ARCOIRIS in hue.COCINABLES
+    assert hue.color_sembrado(hue.clave_de_poroto(hue.ARCOIRIS)) is None
+    assert hue.color_sembrado(hue.SEMILLA) is None
+    assert hue.color_sembrado(hue.clave_de_poroto("rojo")) == "rojo"
+    for _ in range(50):
+        assert hue.tirar_color() != hue.ARCOIRIS
+
+
+def test_lo_sembrado_sobrevive_a_una_base_de_antes_del_cambio():
+    """El caso que puede romper un huerto que esté creciendo ahora mismo: esos
+    bancales se plantaron cuando la columna no existía, y tienen que seguir
+    comportándose como se plantaron —semilla, y color al azar al cosechar—.
+    """
+    con_casa("grande")
+    with db.conectar() as con:
+        con.execute("DROP TABLE huerto")
+        con.execute(
+            "CREATE TABLE huerto ("
+            "usuario_id TEXT NOT NULL, guild_id TEXT NOT NULL, "
+            "bancal INTEGER NOT NULL, plantado_en TEXT NOT NULL, "
+            "regado INTEGER NOT NULL DEFAULT 0, "
+            "PRIMARY KEY (usuario_id, guild_id, bancal))"
+        )
+        con.execute(
+            "INSERT INTO huerto VALUES ('u1', 'g1', 1, ?, 0)", (T0.isoformat(),)
+        )
+        con.commit()
+        db._migrar(con)
+
+    bancal = bancales()[0]
+    assert bancal.plantado and bancal.sembrado == hue.SEMILLA
+
+    listo = T0 + timedelta(hours=hue.HORAS_DE_CULTIVO)
+    recogido = economia.cosechar(
+        "u1", "g1", 1, listo, DadosDelHuerto(arcoiris=False, color="verde")
+    )
+    assert recogido.ok
+    assert recogido.cosechado == hue.clave_de_poroto("verde")
+
+
+def test_el_mensaje_de_la_cosecha_canta_el_arcoiris():
+    recogido = sembrar_y_cosechar(
+        hue.clave_de_poroto("rojo"), DadosDelHuerto(arcoiris=True, cuantos=3)
+    )
+
+    texto = tienda.texto_resultado_huerto(recogido, T0)
+
+    assert hue.NOMBRE_ARCOIRIS in texto and "2 porotos rojos" in texto
+
+
+def test_el_menu_ofrece_sembrar_lo_que_llevas_y_nada_mas():
+    mochila = {
+        hue.SEMILLA: 2,
+        hue.clave_de_poroto("rojo"): 5,
+        hue.clave_de_poroto(hue.ARCOIRIS): 1,
+        "golosinas": 9,                     # no se siembra
+    }
+
+    assert hue.plantables(mochila) == [
+        hue.SEMILLA,
+        hue.clave_de_poroto("rojo"),
+        hue.clave_de_poroto(hue.ARCOIRIS),
+    ]
+    assert hue.plantables({"golosinas": 9}) == []
+    # Cero en la mochila es no tenerlo: se queda una fila a 0 al gastar el último.
+    assert hue.plantables({hue.SEMILLA: 0}) == []
 
 
 # --- Cocinar ---
@@ -1229,6 +1439,99 @@ def test_la_sopaipilla_sube_fuerza_y_velocidad_a_la_vez():
     assert set(efectos) == {"fuerza", "velocidad"}
     assert efectos["fuerza"] == efectos["velocidad"]
     assert f"+{efectos['fuerza']}" in aviso
+
+
+@pytest.mark.parametrize("caras", hue.CARAS_DE_ARCOIRIS)
+def test_la_sopaipilla_arcoiris_sube_las_cuatro_con_su_dado(caras):
+    """Lo mismo que la de color —un plato, un solo dado— pero en las cuatro, y
+    con el dado que le tocó al cocinarla en vez de con el del carácter."""
+    bicho = nacer(especie="chispa")
+
+    aviso = tienda.usar(
+        bicho, objs.CATALOGO[hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)], T0,
+        random.Random(3),
+    )
+
+    efectos = {
+        stat: bonus for stat, (bonus, _) in
+        db.efectos_activos(bicho.id, T0).items()
+    }
+    assert set(efectos) == set(sim.ESTADISTICAS)
+    assert len(set(efectos.values())) == 1      # el mismo número en las cuatro
+    assert 1 <= efectos["salud"] <= caras
+    assert f"+{efectos['salud']}" in aviso and f"1d{caras}" in aviso
+
+
+def test_el_dado_del_arcoiris_es_el_suyo_y_no_el_del_caracter():
+    """No tiene color, así que no hay tabla de gustos que consultar: se come con
+    el dado que traiga escrito, le toque el carácter que le toque."""
+    from dataclasses import replace
+
+    import personalidad as per
+
+    class DadoEspia:
+        def __init__(self):
+            self.caras = None
+
+        def randint(self, a, b):
+            self.caras = b
+            return b
+
+    # Una criatura sola, cambiándole el carácter: sólo hay una activa por
+    # persona y servidor, y lo que se mira aquí es el dado, no la criatura.
+    bicho = nacer()
+    for caracter in per.CARACTERES:
+        for caras in hue.CARAS_DE_ARCOIRIS:
+            espia = DadoEspia()
+            tienda.usar(
+                replace(bicho, caracter=caracter),
+                objs.CATALOGO[hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)],
+                T0, espia,
+            )
+            assert espia.caras == caras, (caracter, caras)
+
+
+def test_el_dado_del_arcoiris_se_sortea_al_cocinarlo():
+    """Es lo que se pidió: cocinarlo también se juega. Salen los cinco tamaños,
+    y con el mismo reparto que las de color —ninguno cargado hacia el 12—.
+    """
+    salidos = []
+    for vuelta in range(60):
+        with db.conectar() as con:
+            db.guardar_en_la_mochila_en(
+                con, "u1", "g1", hue.clave_de_poroto(hue.ARCOIRIS),
+                hue.POROTOS_POR_SOPAIPILLA,
+            )
+        cocinada = economia.cocinar(
+            "u1", "g1", hue.ARCOIRIS, T0, random.Random(vuelta)
+        )
+        assert cocinada.ok
+        salidos.append(cocinada.sopaipilla.caras)
+
+    assert set(salidos) == set(hue.CARAS_DE_ARCOIRIS)
+    # Cada sopaipilla guarda su dado: si la clave no lo llevara, todas las de la
+    # mochila serían la misma y el sorteo no habría servido de nada.
+    mochila = db.inventario("u1", "g1")
+    for caras in hue.CARAS_DE_ARCOIRIS:
+        clave = hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)
+        assert mochila[clave] == salidos.count(caras), caras
+
+
+def test_una_cocina_que_falla_no_gasta_una_tirada_de_dado():
+    """El dado se tira con los porotos ya gastados. Si se tirara antes, quien no
+    llegara a tres porotos iría corriendo el sorteo sin cocinar nada."""
+    class DadoQueChilla:
+        def choice(self, opciones):
+            raise AssertionError("no debería tirarse el dado sin cocinar")
+
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(
+            con, "u1", "g1", hue.clave_de_poroto(hue.ARCOIRIS), 2
+        )
+
+    fallida = economia.cocinar("u1", "g1", hue.ARCOIRIS, T0, DadoQueChilla())
+
+    assert not fallida.ok and "y tienes 2" in fallida.problema
 
 
 def test_el_dado_de_la_sopaipilla_sale_del_caracter():
@@ -1292,6 +1595,25 @@ def test_el_huerto_dice_lo_que_le_falta_a_cada_bancal():
     assert "le faltan 2 h" in texto                # el otro
 
 
+def test_el_mensaje_de_plantar_dice_las_horas_de_verdad():
+    """Regresión: se deducía si estaba regado comparando el `listo_en` contra el
+    de un `Bancal` sin `plantado_en`, cuyo `listo_en()` es **siempre `None`**.
+    Todo salía distinto, todo se daba por regado y plantar anunciaba las horas
+    del bancal regado —5— cuando faltaban las 8 enteras.
+    """
+    con_huerto()
+
+    plantado = economia.plantar("u1", "g1", 1, T0)
+    assert f"le faltan {hue.HORAS_DE_CULTIVO} h" in tienda.texto_resultado_huerto(
+        plantado, T0
+    )
+
+    # Y regar sí adelanta: desde el momento de regar quedan las que ahorra.
+    regado = economia.regar("u1", "g1", 1, T0)
+    quedan = hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR
+    assert f"le faltan {quedan} h" in tienda.texto_resultado_huerto(regado, T0)
+
+
 def test_el_huerto_del_refugio_lo_dice_y_no_ofrece_menu():
     assert "El refugio no tiene huerto" in tienda.texto_del_huerto("u1", "g1", T0)
 
@@ -1310,6 +1632,67 @@ def test_el_menu_del_huerto_ofrece_lo_que_toca_en_cada_bancal():
         "cosechar:2",     # regado y listo a las 5 h
         "plantar:3",      # en barbecho
     }
+
+
+def test_el_menu_de_siembra_empieza_en_la_semilla_y_recuerda_lo_elegido():
+    """Va aparte del de bancales para no escribir tres bancales por siete cosas
+    sembrables. El precio de separarlo es que hay que acordarse de la elección
+    entre un desplegable y el otro, y eso es lo que se comprueba aquí."""
+    con_huerto(semillas=2)
+    rojo = hue.clave_de_poroto("rojo")
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", rojo, 4)
+    mochila = db.inventario("u1", "g1")
+
+    de_partida = tienda.MenuQueSembrar(mochila)
+    assert de_partida.elegido == hue.SEMILLA
+    assert [o.value for o in de_partida.options] == [hue.SEMILLA, rojo]
+    assert [o.default for o in de_partida.options] == [True, False]
+
+    elegido = tienda.MenuQueSembrar(mochila, rojo)
+    assert elegido.elegido == rojo
+    assert [o.default for o in elegido.options] == [False, True]
+
+    # Si se acabó lo que estaba elegido, no se queda apuntando a lo que no está.
+    assert tienda.MenuQueSembrar({hue.SEMILLA: 1}, rojo).elegido == hue.SEMILLA
+    assert tienda.MenuQueSembrar({}).elegido is None
+
+
+def test_el_menu_del_huerto_siembra_lo_que_diga_el_de_siembra():
+    """El cable entre los dos desplegables: sin él, elegir un poroto no haría
+    nada y se seguiría plantando la semilla sin decírselo a nadie."""
+    con_huerto(semillas=1)
+    rojo = hue.clave_de_poroto("rojo")
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", rojo, 1)
+
+    menus = tienda.menus_del_huerto("u1", "g1", T0, sembrar=rojo)
+
+    del_huerto = next(m for m in menus if isinstance(m, tienda.MenuHuerto))
+    assert del_huerto.sembrar == rojo
+    # Y sin decir nada, la semilla: es lo que se plantaba antes de todo esto.
+    por_defecto = tienda.menus_del_huerto("u1", "g1", T0)
+    assert next(
+        m for m in por_defecto if isinstance(m, tienda.MenuHuerto)
+    ).sembrar == hue.SEMILLA
+
+
+def test_la_cocina_ofrece_el_arcoiris_cuando_te_llegan():
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(
+            con, "u1", "g1", hue.clave_de_poroto(hue.ARCOIRIS),
+            hue.POROTOS_POR_SOPAIPILLA,
+        )
+
+    menu = tienda.MenuCocina(db.inventario("u1", "g1"))
+    assert {o.value for o in menu.options} == {hue.ARCOIRIS}
+
+    resultado = economia.cocinar("u1", "g1", hue.ARCOIRIS, T0, random.Random(1))
+    assert resultado.ok
+    mochila = db.inventario("u1", "g1")
+    assert mochila[resultado.sopaipilla.clave] == 1
+    assert resultado.sopaipilla.caras in hue.CARAS_DE_ARCOIRIS
+    assert mochila.get(hue.clave_de_poroto(hue.ARCOIRIS), 0) == 0
 
 
 def test_la_cocina_solo_ofrece_los_colores_que_te_llegan():

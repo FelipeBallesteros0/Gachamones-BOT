@@ -220,13 +220,14 @@ def aplicar_a_la_criatura(objeto: Objeto, criatura: sim.Criatura) -> sim.Criatur
 # se pueden regalar por el buzón, que es media gracia de tener colores.
 
 _registrar(Objeto(
-    clave="semilla",
+    clave=hue.SEMILLA,
     nombre="Semilla de poroto",
     emoji="🌱",
     precio=15,
     descripcion=(
         f"Se planta en el huerto de tu casa. Salen de {hue.POROTOS_POR_COSECHA[0]} "
-        f"a {hue.POROTOS_POR_COSECHA[1]} porotos, todos del mismo color al azar."
+        f"a {hue.POROTOS_POR_COSECHA[1]} porotos, todos del mismo color al azar. "
+        "Es la única forma de conseguir un color que no tengas."
     ),
 ))
 
@@ -237,8 +238,8 @@ for _color in hue.COLORES:
         emoji=hue.EMOJI_COLOR[_color],
         precio=0,
         descripcion=(
-            f"Ingrediente. Con {hue.POROTOS_POR_SOPAIPILLA} se cocina una "
-            f"sopaipilla {_color}."
+            f"Con {hue.POROTOS_POR_SOPAIPILLA} se cocina una sopaipilla "
+            f"{_color}. Y se puede sembrar: da más porotos {hue.PLURAL_COLOR[_color]}."
         ),
         color=_color,
         se_vende=False,
@@ -253,6 +254,45 @@ for _color in hue.COLORES:
             "depende de si a tu gachamon le gusta el color."
         ),
         color=_color,
+        es_sopaipilla=True,
+        se_vende=False,
+    ))
+
+# El arcoíris va **fuera del bucle** porque no es un color: no se sortea, no
+# tiene sitio en la tabla de gustos y sembrarlo no hereda nada. Comparte con los
+# demás lo que sí es igual —cuántos hacen falta y que no se vende—, y se separa
+# en lo que no.
+_registrar(Objeto(
+    clave=hue.clave_de_poroto(hue.ARCOIRIS),
+    nombre=f"Poroto {hue.NOMBRE_ARCOIRIS}",
+    emoji=hue.EMOJI_ARCOIRIS,
+    precio=0,
+    descripcion=(
+        f"Sale en cualquier cosecha, uno de cada {1 / hue.PROBABILIDAD_ARCOIRIS:.0f} "
+        f"y nunca más de uno. Con {hue.POROTOS_POR_SOPAIPILLA} se cocina la "
+        f"sopaipilla arcoíris, y su dado —de 1d{min(hue.CARAS_DE_ARCOIRIS)} a "
+        f"1d{max(hue.CARAS_DE_ARCOIRIS)}— sale al cocinarla. Sembrarlo da "
+        "porotos de un color al azar."
+    ),
+    color=hue.ARCOIRIS,
+    se_vende=False,
+))
+# Cinco y no una: el dado se sortea **al cocinarla**, y de ahí a que alguien se
+# la coma sólo queda la clave del objeto para recordarlo. Es la misma forma que
+# tienen las pociones de la tienda, que también son cinco por estadística.
+for _caras in hue.CARAS_DE_ARCOIRIS:
+    _registrar(Objeto(
+        clave=hue.clave_de_sopaipilla(hue.ARCOIRIS, _caras),
+        nombre=f"Sopaipilla {hue.NOMBRE_ARCOIRIS} 1d{_caras}",
+        emoji=hue.EMOJI_ARCOIRIS,
+        precio=0,
+        descripcion=(
+            f"+1d{_caras} en **las cuatro** estadísticas durante "
+            f"{MINUTOS_DE_EFECTO} min. El dado salió al cocinarla, no depende "
+            "del carácter."
+        ),
+        color=hue.ARCOIRIS,
+        caras=_caras,
         es_sopaipilla=True,
         se_vende=False,
     ))

@@ -989,3 +989,69 @@ def test_un_totem_que_evoluciona_publica_veta_de_nivel_y_crecimiento_visible():
     assert db.criatura_activa(
         resultado.recibos[ganador].usuario_id, "g1"
     ) == despues
+
+
+# --- Que el bonus de una poción llegue a las cuatro estadísticas -------------
+#
+# Hasta que existió la sopaipilla arcoíris, ningún objeto tocaba salud ni
+# ingenio, así que `ejecutar_competencia` sólo leía fuerza y velocidad. Un
+# efecto en las otras dos se habría guardado, se habría pintado en la ficha y no
+# habría hecho **nada** en el tótem ni en el laberinto: la peor clase de fallo,
+# el que se ve y miente.
+
+def test_el_competidor_acepta_un_bonus_por_cada_estadistica():
+    """`ejecutar_competencia` los pasa por nombre recorriendo
+    `sim.ESTADISTICAS`. Si aquí faltara uno, la competencia entera reventaría
+    con un `TypeError` la primera vez que alguien compitiera."""
+    import inspect
+
+    firma = inspect.signature(comp.competidor_de).parameters
+    for stat in sim.ESTADISTICAS:
+        assert f"bonus_{stat}" in firma, stat
+
+
+def test_la_competencia_recoge_el_efecto_de_las_cuatro_estadisticas():
+    """La mitad de arriba de la tubería: lo que hay guardado llega a la pista.
+
+    Se mira el competidor que se armó y no el resultado de la carrera porque
+    competir **cambia a la criatura** —experiencia y vetas—, así que correr dos
+    veces para comparar no aísla el efecto: la segunda tirada ya no es la misma
+    criatura.
+    """
+    bicho = nacer("u1")
+    nacer("u2")
+    puestos = {"fuerza": 11, "velocidad": 22, "salud": 33, "ingenio": 44}
+    for stat, cuanto in puestos.items():
+        db.poner_efecto(bicho.id, stat, cuanto, T0)
+
+    encuentro = economia.ejecutar_competencia(
+        "evento", ("u1", "u2"), "g1", comp.TOTEM, T0, random.Random(7)
+    ).encuentro
+
+    corredor = encuentro.competidores[0]
+    for stat, cuanto in puestos.items():
+        assert getattr(corredor, f"bonus_{stat}") == cuanto, stat
+
+
+@pytest.mark.parametrize(
+    "stat, fase",
+    [
+        ("fuerza", comp.EMPUJE),
+        ("velocidad", comp.SALIDA),
+        ("salud", comp.HUIDA),
+        ("ingenio", comp.SENALES),
+    ],
+)
+def test_el_bonus_de_cada_estadistica_cuenta_en_su_fase(stat, fase):
+    """La mitad de abajo: una vez en la pista, el bonus suma.
+
+    Cada fase de las elegidas se juega con **una sola estadística entera y sin
+    mezclar**, así que el aporte tiene que subir exactamente lo que se puso.
+    """
+    bicho = nacer("u1")
+    ventaja = 40
+
+    sin_efecto = comp.competidor_de(bicho).base_en(fase)
+    con_efecto = comp.competidor_de(bicho, **{f"bonus_{stat}": ventaja})
+
+    assert con_efecto.base_en(fase) == sin_efecto + ventaja

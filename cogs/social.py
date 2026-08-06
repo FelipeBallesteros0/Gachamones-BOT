@@ -370,11 +370,20 @@ más rápido, pero **no puede matarlo**: la comida se queda en \
 {int(cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)}. El 🎟️ **ticket del refugio** \
 (🪙 {obj.CATALOGO["ticket_refugio"].precio}) te devuelve una semana bajo techo.
 
+"""
+
+    # Se partió al hacerse sembrable el poroto: la casa sola ya llenaba la
+    # página, y el huerto necesitaba sitio para explicar de dónde sale cada
+    # color. Va con los vecinos porque es lo mismo: los colores que te faltan
+    # salen del buzón.
+    tu_huerto = f"""## 🌱 El huerto y los vecinos
+
 **El huerto**
 Tu casa trae bancales —{" · ".join(f"**{cas.CATALOGO[c].nombre}** {n}" for c, n in hue.BANCALES.items())}— y con 🌱 **Huerto** en `/casa` se siembra. \
-Cada semilla (🪙 {obj.CATALOGO["semilla"].precio}) tarda **{hue.HORAS_DE_CULTIVO} h**, o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} si la riegas, y salen de **{hue.POROTOS_POR_COSECHA[0]} a {hue.POROTOS_POR_COSECHA[1]} porotos del mismo color**, al azar.
--# Con **{hue.POROTOS_POR_SOPAIPILLA} porotos del mismo color** cocinas una sopaipilla. Al comérsela, tu gachamon gana el **mismo bonus de fuerza y de velocidad** durante {obj.MINUTOS_DE_EFECTO} min — y el dado sale de si le gusta ese color: **1d12** el favorito de su carácter, **1d4** el que detesta.
--# Por eso te sobrarán colores y te faltarán otros: se regalan por el buzón.
+Lo que siembres tarda **{hue.HORAS_DE_CULTIVO} h**, o {hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} si lo riegas, y salen de **{hue.POROTOS_POR_COSECHA[0]} a {hue.POROTOS_POR_COSECHA[1]} porotos**. \
+**El color lo hereda lo sembrado**: siembra uno rojo y salen rojos. Sólo la 🌱 **semilla** (🪙 {obj.CATALOGO[hue.SEMILLA].precio}) lo sortea, así que es por ahí —o por el buzón— por donde entra un color que no tengas.
+-# Con **{hue.POROTOS_POR_SOPAIPILLA} porotos del mismo color** cocinas una sopaipilla: da el **mismo bonus de fuerza y de velocidad** durante {obj.MINUTOS_DE_EFECTO} min, y el dado sale de si le gusta ese color: **1d12** el favorito de su carácter, **1d4** el que detesta.
+-# {hue.EMOJI_ARCOIRIS} De cualquier cosecha puede salir **un poroto {hue.NOMBRE_ARCOIRIS}**, uno de cada {1 / hue.PROBABILIDAD_ARCOIRIS:.0f} y nunca dos. Su sopaipilla sube **las cuatro estadísticas**, y el dado —de 1d{min(hue.CARAS_DE_ARCOIRIS)} a 1d{max(hue.CARAS_DE_ARCOIRIS)}— se sortea **al cocinarla**, no lo pone el carácter.
 
 **Vecinos**
 `/visitar @alguien` — su casa y sus gachamones, y el botón 🎁 para dejarle algo \
@@ -438,8 +447,8 @@ a quien quieras con 🎨 **Personalizar**.
 otro. No tocan ninguna estadística — son sólo para presumir."""
 
     return (
-        tu_criatura, que_hacer, salir_al_campo, tus_cosas, tu_casa, tu_dinero,
-        tus_gemas,
+        tu_criatura, que_hacer, salir_al_campo, tus_cosas, tu_casa, tu_huerto,
+        tu_dinero, tus_gemas,
     )
 
 

@@ -284,6 +284,9 @@ CREATE TABLE IF NOT EXISTS huerto (
     bancal INTEGER NOT NULL,
     plantado_en TEXT NOT NULL,
     regado INTEGER NOT NULL DEFAULT 0,
+    -- Qué se sembró, por su clave de objeto. El color de la cosecha lo hereda de
+    -- aquí, salvo la semilla y el arcoíris, que lo sortean.
+    sembrado TEXT NOT NULL DEFAULT 'semilla',
     PRIMARY KEY (usuario_id, guild_id, bancal)
 );
 
@@ -398,6 +401,11 @@ MIGRACIONES_DE_TABLAS = (
     # sin preguntar.
     ("hogar", "publica",
      "ALTER TABLE hogar ADD COLUMN publica INTEGER NOT NULL DEFAULT 1"),
+    # Antes sólo se sembraban semillas, así que no había nada que guardar. El
+    # `DEFAULT` deja a los bancales que ya estaban creciendo tal y como se
+    # plantaron: semilla, y color al azar al cosechar. Ninguna fila que tocar.
+    ("huerto", "sembrado",
+     "ALTER TABLE huerto ADD COLUMN sembrado TEXT NOT NULL DEFAULT 'semilla'"),
 )
 
 
@@ -1517,7 +1525,7 @@ def _huerto_de(
     filas = {
         f["bancal"]: f
         for f in con.execute(
-            "SELECT bancal, plantado_en, regado FROM huerto "
+            "SELECT bancal, plantado_en, regado, sembrado FROM huerto "
             "WHERE usuario_id = ? AND guild_id = ?",
             (usuario_id, guild_id),
         ).fetchall()
@@ -1531,20 +1539,23 @@ def _huerto_de(
                 datetime.fromisoformat(fila["plantado_en"]) if fila else None
             ),
             regado=bool(fila["regado"]) if fila else False,
+            sembrado=fila["sembrado"] if fila else hue.SEMILLA,
         ))
     return bancales
 
 
 def plantar_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str,
-    bancal: int, ahora: datetime,
+    bancal: int, ahora: datetime, que: str = hue.SEMILLA,
 ) -> None:
     con.execute(
-        "INSERT INTO huerto (usuario_id, guild_id, bancal, plantado_en, regado) "
-        "VALUES (?, ?, ?, ?, 0) "
+        "INSERT INTO huerto "
+        "(usuario_id, guild_id, bancal, plantado_en, regado, sembrado) "
+        "VALUES (?, ?, ?, ?, 0, ?) "
         "ON CONFLICT(usuario_id, guild_id, bancal) DO UPDATE SET "
-        "plantado_en = excluded.plantado_en, regado = 0",
-        (usuario_id, guild_id, bancal, ahora.isoformat()),
+        "plantado_en = excluded.plantado_en, regado = 0, "
+        "sembrado = excluded.sembrado",
+        (usuario_id, guild_id, bancal, ahora.isoformat(), que),
     )
 
 
