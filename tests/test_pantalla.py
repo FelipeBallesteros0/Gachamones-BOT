@@ -1,7 +1,8 @@
 """El marco no se descuadra jamás: ni con dibujos raros ni con nombres largos."""
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import especies as esp
 import pantalla
@@ -98,15 +99,40 @@ def filas_stats(criatura_) -> list[str]:
     return lineas[primera:primera + 2]
 
 
+def filas_stats_de(fuerza, velocidad, salud, ingenio) -> list[str]:
+    """Las dos filas montadas a mano, sin pasar por una criatura.
+
+    `sim.MAXIMO_STAT` deja las estadísticas en dos cifras, así que una criatura
+    ya **no puede** producir tres. La rejilla sí sabe dibujarlas —el ancho lo
+    saca del mayor de las cuatro— y eso hay que seguir vigilándolo: la regresión
+    que guarda es de verdad —el marco cuadraba *recortando*, y se veía «SAL 1»
+    en vez de «SAL 100»— y volvería a estar viva el día que el tope suba.
+
+    `_fila_stats` sólo lee las cuatro estadísticas, así que un doble basta y no
+    hay que fabricar una criatura imposible.
+    """
+    doble = SimpleNamespace(
+        fuerza=fuerza, velocidad=velocidad, salud=salud, ingenio=ingenio
+    )
+    return list(pantalla._fila_stats(cast(Any, doble)))
+
+
 def test_stats_de_tres_cifras_no_rompen_el_marco():
-    c = criatura(base_fuerza=120, base_velocidad=999, base_salud=100,
-                 base_ingenio=88)
-    comprobar_marco(pantalla.render(c, T0 + timedelta(hours=48)))
+    """Con el doble, porque `sim.MAXIMO_STAT` ya no deja llegar a tres cifras.
+    Se sigue vigilando para que subir el tope no vuelva a romper el marco."""
+    for fila in filas_stats_de(120, 999, 100, 88):
+        assert len(fila) == pantalla.ANCHO + 2, repr(fila)
+        assert fila[0] == "│" and fila[-1] == "│", repr(fila)
 
 
 def test_el_marco_cuadra_con_cualquier_estadistica_hasta_el_tope():
-    """Las tres pantallas que enseñan estadísticas, no sólo la principal."""
-    for valor in (0, 9, 10, 99, 100, 500, sim.MAXIMO_STAT):
+    """Las tres pantallas que enseñan estadísticas, no sólo la principal.
+
+    Los valores son los que una estadística puede tomar de verdad: por encima
+    del tope, `stat_final` los recorta y probarlos sería probar el recorte dos
+    veces en vez de probar el marco.
+    """
+    for valor in (0, 9, 10, sim.MAXIMO_STAT):
         c = criatura(base_fuerza=valor, base_velocidad=valor, base_salud=valor,
                      base_ingenio=valor)
         comprobar_marco(pantalla.render(c, T0 + timedelta(hours=48)))
@@ -117,10 +143,8 @@ def test_el_marco_cuadra_con_cualquier_estadistica_hasta_el_tope():
 def test_las_estadisticas_grandes_se_ven_enteras():
     """Regresión: el marco cuadraba *recortando*. Con tres cifras la fila medía
     29 y `_fila()` cortaba en 26, así que se veía «SAL 1» en vez de «SAL 100»."""
-    c = criatura(base_fuerza=sim.MAXIMO_STAT, base_velocidad=100,
-                 base_salud=123, base_ingenio=88)
-    arriba, abajo = filas_stats(c)
-    assert f"FUE {sim.MAXIMO_STAT}" in arriba
+    arriba, abajo = filas_stats_de(999, 100, 123, 88)
+    assert "FUE 999" in arriba
     assert "VEL 100" in arriba
     assert "SAL 123" in abajo
     assert "ING  88" in abajo
@@ -141,9 +165,9 @@ def test_la_rejilla_de_stats_es_la_del_diseño():
         "│     SAL 11   ING  9      │",
     ]
 
-    tres_cifras = criatura(base_fuerza=999, base_velocidad=100, base_salud=123,
-                           base_ingenio=88)
-    assert filas_stats(tres_cifras) == [
+    # Con el doble: el tope las deja en dos cifras, pero la rejilla tiene que
+    # seguir sabiendo repartir tres el día que suba.
+    assert filas_stats_de(999, 100, 123, 88) == [
         "│    FUE 999   VEL 100     │",
         "│    SAL 123   ING  88     │",
     ]

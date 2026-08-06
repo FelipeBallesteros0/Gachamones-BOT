@@ -420,10 +420,15 @@ class Criatura:
 
 # --- Stats y niveles -------------------------------------------------------
 
-# Techo de FUE / VEL / SAL. Tres cifras es lo que cabe en el marco, y jugando
-# no se alcanza ni de lejos (una criatura veterana anda por 20), así que esto
-# es una red: sin tope, las estadísticas crecerían hasta desbordar el dibujo.
-MAXIMO_STAT = 999
+# Techo de las cuatro estadísticas. Antes era 999, que no topaba nada: se nace
+# con 26 como mucho —14 de la mejor especie más 2d6— y llegar allí pedía un
+# crecimiento que el juego no da. Un techo que nadie puede tocar no es un techo,
+# es un número grande.
+#
+# 99 sí acota, y de paso deja la ficha en dos cifras para siempre. Lo que recorta
+# es **lo que se ve**: `ent_` y `niv_` siguen subiendo por debajo, así que ni se
+# pierde progreso ni haría falta migrar nada si algún día vuelve a subir.
+MAXIMO_STAT = 99
 
 
 def stat_final(base: int, entrenamiento: int, bonus_nivel: int) -> int:
@@ -434,10 +439,10 @@ def stat_final(base: int, entrenamiento: int, bonus_nivel: int) -> int:
     no dispara a nadie, y el 1d20 de las competencias sigue pesando más que la
     diferencia entre dos criaturas cuidadas.
 
-    El tope se aplica aquí porque esta función es el embudo por el que pasan
-    `fuerza`, `velocidad` y `salud`: topando una vez queda topado todo lo que
-    las consume. Los contadores `ent_` y `niv_` siguen subiendo por dentro,
-    simplemente dejan de notarse.
+    El tope se aplica aquí porque esta función es el embudo por el que pasan las
+    cuatro estadísticas: topando una vez queda topado todo lo que las consume.
+    Los contadores `ent_` y `niv_` siguen subiendo por dentro, simplemente dejan
+    de notarse.
     """
     return min(MAXIMO_STAT, base + math.isqrt(max(0, entrenamiento)) + bonus_nivel)
 
@@ -799,7 +804,7 @@ def _completar_veta_de_nivel(
     )
     # Se rompe **por ahí**: subirla al umbral no basta si otra estadística ya
     # topada acumula más tensión, y entonces la veta de la subida se iría a un
-    # 999 -> 999 que no se ve.
+    # `MAXIMO_STAT -> MAXIMO_STAT` que no se ve.
     return _aplicar_rupturas(al_umbral, limite, "nivel", preferida=stat)
 
 

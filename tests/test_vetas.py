@@ -1080,7 +1080,8 @@ def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
 
     Una identidad concreta —`P1`, con anillo fuerza → ingenio → salud →
     velocidad— y las dos tensiones justo por debajo del umbral: la subida rompe primero
-    velocidad, después salud —que es la que crece a la vista, 998 → 999— y esa
+    velocidad, después salud —que es la que crece a la vista, justo por debajo
+    del tope y hasta él— y esa
     ruptura arrastra a velocidad otra vez. Si el hueco apartado se soltara sólo
     entre emisiones, esa tercera ruptura se quedaría fuera y el suceso acabaría
     con una tensión elegible pendiente y un hueco muerto.
@@ -1091,7 +1092,7 @@ def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
         xp=sim.xp_para_subir(1) - 1,
         base_fuerza=sim.MAXIMO_STAT,
         base_velocidad=sim.MAXIMO_STAT,
-        base_salud=998,
+        base_salud=sim.MAXIMO_STAT - 1,
         base_ingenio=sim.MAXIMO_STAT,
         ten_fuerza=0.0,
         ten_velocidad=36.0,
@@ -1101,7 +1102,7 @@ def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
         "fuerza", "ingenio", "salud", "velocidad",
     )
     assert _visibles(antes) == (
-        sim.MAXIMO_STAT, sim.MAXIMO_STAT, 998, sim.MAXIMO_STAT,
+        sim.MAXIMO_STAT, sim.MAXIMO_STAT, sim.MAXIMO_STAT - 1, sim.MAXIMO_STAT,
     )
 
     despues, rupturas = sim.aplicar_xp(antes, 1)
@@ -1115,7 +1116,7 @@ def test_la_veta_que_hace_crecer_suelta_el_hueco_para_su_propia_cascada():
     assert [ruptura.cascada for ruptura in rupturas] == [False, False, True]
     assert all(ruptura.causa == "nivel" for ruptura in rupturas)
     # La segunda es la que crece a la vista y suelta el hueco de la tercera.
-    assert (rupturas[1].antes, rupturas[1].despues) == (998, sim.MAXIMO_STAT)
+    assert (rupturas[1].antes, rupturas[1].despues) == (sim.MAXIMO_STAT - 1, sim.MAXIMO_STAT)
     # Y no queda tensión elegible por culpa de la reserva.
     umbral = sim.umbral_veta(despues)
     assert max(

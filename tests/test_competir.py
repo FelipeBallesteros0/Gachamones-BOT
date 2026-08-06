@@ -37,6 +37,16 @@ class DadosFijos(random.Random):
         return None
 
 
+# Un número deliberadamente **por encima** de `sim.MAXIMO_STAT`. Estas filas —la
+# del corredor y las del podio— se montan a mano por el color de la pista, así
+# que pasarse de ancho no recorta: rompe el marco. `competidor()` construye el
+# `Competidor` directamente, sin pasar por `stat_final`, de modo que aquí se
+# puede apretar con más de lo que el juego da hoy. Y hay que hacerlo: si estos
+# tests se ataran al tope, bajarlo los volvería vacíos y subirlo volvería a
+# romper el marco sin que nadie se enterara.
+STAT_DESORBITADA = 999
+
+
 def competidor(
     nombre="A", especie="pulpo", stat=10, modificador=0, animo=esp.NORMAL,
     *, fuerza=None, velocidad=None, salud=None, ingenio=None,
@@ -553,7 +563,7 @@ def test_los_marcos_de_competencia_nunca_se_descuadran():
                     competidor(
                         nombre=rng.choice(["Bartolomeo", "Yo", "X" * 24]),
                         especie=rng.choice(list(esp.ESPECIES)),
-                        stat=rng.randint(1, sim.MAXIMO_STAT),
+                        stat=rng.randint(1, STAT_DESORBITADA),
                         modificador=rng.randint(-5, 2),
                         animo=rng.choice(esp.ANIMOS),
                     )
@@ -573,8 +583,8 @@ def test_la_fila_del_corredor_aguanta_marcadores_de_cuatro_cifras():
 
     El modificador va a +2 a propósito: `base` puede pasar del tope aunque la
     estadística esté topada, así que los anchos no pueden darlo por hecho."""
-    a = competidor("Bartolomeo", stat=sim.MAXIMO_STAT, modificador=2)
-    b = competidor("Yo", stat=sim.MAXIMO_STAT, modificador=2)
+    a = competidor("Bartolomeo", stat=STAT_DESORBITADA, modificador=2)
+    b = competidor("Yo", stat=STAT_DESORBITADA, modificador=2)
     for tipo in (comp.CARRERA, comp.SUMO):
         e, r = combate([a, b], tipo, DadosFijos([20, 19]))
         assert r.totales[0] > 999, r.totales  # si no, el test no prueba nada
@@ -621,7 +631,7 @@ def test_un_combate_normal_se_dibuja_igual_que_siempre():
 def test_el_total_del_tramo_se_ve_entero():
     """Regresión: la fila del dado se pasaba de ancho y se recortaba justo el
     total, que es el número que importa."""
-    for stat in (99, sim.MAXIMO_STAT):
+    for stat in (99, STAT_DESORBITADA):
         a = competidor("Bartolomeo", stat=stat, modificador=2)
         e, r = combate([a, competidor("B", stat=stat)], comp.SUMO,
                        DadosFijos([20, 19]))
@@ -795,7 +805,7 @@ def test_el_podio_no_se_descuadra():
                 competidor(
                     nombre=rng.choice([largo, "Yo", "Juan III"]),
                     especie=rng.choice(list(esp.ESPECIES)),
-                    stat=rng.randint(1, sim.MAXIMO_STAT),
+                    stat=rng.randint(1, STAT_DESORBITADA),
                     modificador=2,
                     animo=rng.choice(esp.ANIMOS),
                 )
@@ -806,7 +816,7 @@ def test_el_podio_no_se_descuadra():
                 assert len(linea) == pantalla.ANCHO + 2, repr(linea)
 
     # Y el caso extremo de verdad: todos empatados hasta agotar los desempates.
-    iguales = [competidor(largo, stat=sim.MAXIMO_STAT, modificador=2)
+    iguales = [competidor(largo, stat=STAT_DESORBITADA, modificador=2)
                for _ in range(5)]
     e = comp.enfrentar(iguales, comp.CARRERA, DadosFijos([7]))
     assert e.combates[0].totales[0] > 9999  # cinco cifras: el marcador aprieta
@@ -903,7 +913,7 @@ def test_el_cuadro_no_se_descuadra():
             competidor(
                 nombre=rng.choice([largo, "Yo", "Bartolomeo"]),
                 especie=rng.choice(list(esp.ESPECIES)),
-                stat=rng.randint(1, sim.MAXIMO_STAT),
+                stat=rng.randint(1, STAT_DESORBITADA),
                 modificador=2,
                 animo=rng.choice(esp.ANIMOS),
             )
@@ -914,7 +924,7 @@ def test_el_cuadro_no_se_descuadra():
             assert len(linea) == pantalla.ANCHO + 2, repr(linea)
 
     # Todos iguales: desempates hasta el tope y marcadores de cinco cifras.
-    iguales = [competidor(largo, stat=sim.MAXIMO_STAT, modificador=2)
+    iguales = [competidor(largo, stat=STAT_DESORBITADA, modificador=2)
                for _ in range(4)]
     e = comp.enfrentar(iguales, comp.SUMO, DadosFijos([7]))
     for linea in lineas(comp.cuadro(e)):
@@ -1158,7 +1168,7 @@ def test_la_escena_del_totem_cabe_entera_en_el_marco():
 def test_el_totem_de_cinco_cabe_en_un_mensaje_de_discord():
     largo = "M" * 24  # vistas.LARGO_MAXIMO_NOMBRE
     cinco = [
-        competidor(largo, stat=sim.MAXIMO_STAT, modificador=2) for _ in range(5)
+        competidor(largo, stat=STAT_DESORBITADA, modificador=2) for _ in range(5)
     ]
     e = comp.enfrentar(cinco, comp.TOTEM, DadosFijos([7]))
 
@@ -1576,7 +1586,7 @@ def test_cada_beat_del_laberinto_cuadra_el_marco():
                 competidor(
                     nombre=rng.choice(["Bartolomeo", "Yo", "X" * 24]),
                     especie=rng.choice(list(esp.ESPECIES)),
-                    stat=rng.randint(1, sim.MAXIMO_STAT),
+                    stat=rng.randint(1, STAT_DESORBITADA),
                     modificador=rng.randint(-5, 2),
                     animo=rng.choice(esp.ANIMOS),
                 )
@@ -1680,7 +1690,7 @@ def test_el_empate_con_el_eco_no_cruza_en_ninguna_de_las_tres_superficies():
 def test_el_beat_adversarial_de_cinco_cabe_en_discord():
     largo = "M" * sim.LARGO_MAXIMO_NOMBRE
     cinco = [
-        competidor(largo, stat=sim.MAXIMO_STAT, modificador=2) for _ in range(5)
+        competidor(largo, stat=STAT_DESORBITADA, modificador=2) for _ in range(5)
     ]
     e = comp.enfrentar(cinco, comp.LABERINTO, DadosFijos([7]))
 

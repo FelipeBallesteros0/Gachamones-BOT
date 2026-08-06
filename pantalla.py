@@ -131,7 +131,9 @@ def _fila_stats(criatura: sim.Criatura) -> tuple[str, str]:
 
     Las cuatro no caben en una fila: con etiquetas de tres letras y el hueco de
     siempre harían falta 29 columnas y `_fila()` recortaría el último número en
-    silencio. Repartidas en dos filas sobra sitio incluso con 999 en las cuatro.
+    silencio. Repartidas en dos filas sobra sitio incluso con tres cifras en las
+    cuatro, que es más de lo que `sim.MAXIMO_STAT` deja llegar hoy: el ancho se
+    calcula igualmente, para que subir el tope no vuelva a romper el marco.
 
     El ancho del número sale del mayor de las **cuatro** y se comparte entre las
     dos filas, así que las columnas caen alineadas una debajo de otra en vez de

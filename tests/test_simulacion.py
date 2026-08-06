@@ -173,10 +173,15 @@ def test_el_bonus_de_nivel_suma_entero():
 
 
 def test_las_estadisticas_tienen_techo():
-    """Sin tope crecerían hasta desbordar el marco, que es de tres cifras."""
+    """El número va clavado con un literal, no leído de la constante: es él lo
+    que este test guarda, y deducirlo de ella movería la portería al cambiarla.
+
+    Bajó de 999 a 99 porque 999 no topaba nada —se nace con 26 como mucho— y un
+    techo que nadie puede tocar no es un techo.
+    """
+    assert sim.MAXIMO_STAT == 99
     assert sim.stat_final(30, 1_000_000, 5000) == sim.MAXIMO_STAT
     assert sim.stat_final(sim.MAXIMO_STAT, 0, 1) == sim.MAXIMO_STAT
-    assert sim.MAXIMO_STAT == 999
 
 
 def test_el_techo_no_toca_nada_por_debajo_de_el():
