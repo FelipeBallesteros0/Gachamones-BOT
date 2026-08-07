@@ -1,6 +1,7 @@
-"""Ranking, cementerio, ayuda y utilidades de prueba."""
+"""Ranking, cementerio, el manual publicado y utilidades de prueba."""
 from __future__ import annotations
 
+import logging
 import random
 from datetime import datetime, timedelta
 
@@ -28,6 +29,8 @@ import personalidad as per
 import simulacion as sim
 import tienda
 import vistas
+
+log = logging.getLogger(__name__)
 
 # Enfriamiento por servidor, para que el jardín no se pueda machacar. Se guarda
 # en memoria: con dos minutos no merece la pena tocar la base de datos, y que
@@ -453,10 +456,90 @@ otro. No tocan ninguna estadística — son sólo para presumir."""
     )
 
 
+async def _mensaje_publicado(canal, canal_id: str, indice: int):
+    """El mensaje donde vive esa página, o `None` si hay que publicarla.
+
+    Devuelve `None` tanto si nunca se publicó como si el mensaje apuntado ya no
+    está: borrar el canal a mano no es un error, es la forma de pedirle al bot
+    que lo rehaga en el siguiente arranque.
+    """
+    guardado = db.publicacion_en(canal_id, indice)
+    if not guardado:
+        return None
+    try:
+        return await canal.fetch_message(int(guardado))
+    except discord.NotFound:
+        return None
+
+
+async def publicar_manual(canal, paginas) -> None:
+    """Deja esas páginas en el canal, una por mensaje y **editando en el sitio**.
+
+    Editar y no volver a publicar es lo único que mantiene el canal legible: si
+    publicara, cada despliegue dejaría ocho mensajes más y en una semana el
+    manual estaría repetido veinte veces.
+
+    Y sólo se edita lo que ha cambiado. Un arranque sin cambios en el texto no
+    toca nada: ni una llamada a la API ni un «editado» en el canal.
+
+    Recibe el canal como argumento —en vez de buscarlo— para poder probarla sin
+    Discord, igual que `ia.py` recibe el transporte.
+    """
+    canal_id = str(canal.id)
+    for indice, texto in enumerate(paginas):
+        mensaje = await _mensaje_publicado(canal, canal_id, indice)
+        if mensaje is None:
+            nuevo = await canal.send(texto)
+            db.guardar_publicacion(canal_id, indice, str(nuevo.id))
+        elif mensaje.content != texto:
+            await mensaje.edit(content=texto)
+
+
 class Social(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._ultimo_jardin: dict[str, object] = {}
+        # Canales cuyo manual ya se ha dejado al día en este proceso.
+        # `on_ready` se dispara también al reconectar, y el texto sólo cambia al
+        # desplegar —que reinicia—, así que repasarlo una vez por arranque basta.
+        # Se apunta el que sale bien: el que falle se reintenta al reconectar.
+        self._manual_al_dia: set[int] = set()
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """Deja el manual al día en cada canal de info.
+
+        Nada de esto puede tumbar el bot: un canal mal puesto, sin permisos o
+        caído deja un aviso en el registro y el bot sigue funcionando. Es el
+        mismo trato que `bot.py` le da a un servidor donde no puede registrar
+        comandos.
+        """
+        for canal_id in config.CANALES_INFO:
+            if canal_id in self._manual_al_dia:
+                continue
+            canal = self.bot.get_channel(canal_id)
+            if canal is None:
+                log.warning(
+                    "No veo el canal de info %s. ¿Está el bot en ese servidor "
+                    "y tiene permiso para verlo?", canal_id,
+                )
+                continue
+            paginas = paginas_de_ayuda(self.bot.user.display_name)
+            try:
+                await publicar_manual(canal, paginas)
+            except discord.Forbidden:
+                log.warning(
+                    "Sin permiso para mantener el manual en #%s. Le hace falta "
+                    "Ver canal, Enviar mensajes y Leer el historial.",
+                    getattr(canal, "name", canal_id),
+                )
+            except discord.HTTPException:
+                log.warning("Fallo publicando el manual en el canal %s",
+                            canal_id, exc_info=True)
+            else:
+                self._manual_al_dia.add(canal_id)
+                log.info("Manual al día en #%s (%d páginas)",
+                         getattr(canal, "name", canal_id), len(paginas))
 
     @app_commands.command(name="jardin", description="Mira a todos los gachamones del servidor juntos")
     @comun.solo_en_el_canal()
@@ -731,15 +814,6 @@ class Social(commands.Cog):
         await equipo.abrir_plantel(
             interaccion, vistas.congelar, vistas.bautizar, vistas.publicar_pantalla
         )
-
-    @app_commands.command(name="ayuda", description="Cómo funciona el bot")
-    @comun.solo_en_el_canal()
-    async def ayuda(self, interaccion: discord.Interaction) -> None:
-        primera, *resto = paginas_de_ayuda(interaccion.client.user.display_name)
-        await interaccion.response.send_message(primera, ephemeral=True)
-        for pagina in resto:
-            await interaccion.followup.send(pagina, ephemeral=True)
-
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Social(bot))

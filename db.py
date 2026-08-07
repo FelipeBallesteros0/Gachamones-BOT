@@ -243,6 +243,22 @@ CREATE TABLE IF NOT EXISTS estilos_ficha (
     PRIMARY KEY (usuario_id, guild_id)
 );
 
+-- Qué mensaje del canal de info es cada página del manual. Se apunta para poder
+-- **editarlas** en cada arranque en vez de publicarlas otra vez: sin esto, cada
+-- despliegue dejaría ocho mensajes más y el canal sería un vertedero.
+--
+-- Se guarda el id en vez de rastrear el historial del canal porque rastrear
+-- adivina: basta con que alguien escriba o borre algo para que el orden deje de
+-- ser fiable y el bot reescriba la página equivocada. Si el mensaje apuntado ya
+-- no está, se publica otro y se apunta el suyo, así que vaciar el canal a mano
+-- lo arregla en el siguiente arranque en vez de romperlo.
+CREATE TABLE IF NOT EXISTS publicaciones (
+    canal_id TEXT NOT NULL,
+    indice INTEGER NOT NULL,
+    mensaje_id TEXT NOT NULL,
+    PRIMARY KEY (canal_id, indice)
+);
+
 -- Dónde vive el plantel de cada persona. `casa` a NULL es no tener casa propia,
 -- y entonces manda `refugio_hasta`: en el futuro sigue en el refugio y en el
 -- pasado se ha quedado a la intemperie. Los tres estados salen de estos dos
@@ -884,6 +900,31 @@ def guardar_pantalla(
                 "UPDATE criaturas SET pantalla_msg_id = ?, canal_id = ? WHERE id = ?",
                 (mensaje_id, canal_id, criatura_id),
             )
+
+
+# --- El manual publicado en su canal ---------------------------------------
+
+def publicacion_en(canal_id: str, indice: int) -> str | None:
+    """El id del mensaje donde vive esa página, o `None` si aún no se publicó."""
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT mensaje_id FROM publicaciones "
+            "WHERE canal_id = ? AND indice = ?",
+            (canal_id, indice),
+        ).fetchone()
+    return fila["mensaje_id"] if fila else None
+
+
+def guardar_publicacion(canal_id: str, indice: int, mensaje_id: str) -> None:
+    """Apunta en qué mensaje quedó esa página. Sustituye lo que hubiera."""
+    with conectar() as con:
+        con.execute(
+            "INSERT INTO publicaciones (canal_id, indice, mensaje_id) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(canal_id, indice) DO UPDATE SET "
+            "mensaje_id = excluded.mensaje_id",
+            (canal_id, indice, mensaje_id),
+        )
 
 
 def pendientes_de_morir(ahora: datetime) -> list[sim.Criatura]:

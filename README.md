@@ -142,8 +142,13 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
 | `/cementerio` | Las que ya no están. |
-| `/ayuda` | Resumen de las reglas. |
-| `@Gachamon <lo que sea>` | Hablar con tu criatura. Te contesta en su propio carácter. |
+| `@Gachamon <lo que sea>` | Hablar con tu criatura. Te contesta en su propio carácter. Si le escribes de forma culta, le entrena el ingenio. |
+
+Las reglas no están en ningún comando: el bot las **publica y mantiene al día**
+en el canal que le indiques con `CANAL_INFO_ID`. Cada arranque repasa esas
+páginas y edita las que hayan cambiado, así que el manual sale de las mismas
+constantes que el juego y no puede desfasarse. Un servidor sin ese canal se
+queda sin manual, así que ponle uno a cada uno.
 
 ## Reglas
 

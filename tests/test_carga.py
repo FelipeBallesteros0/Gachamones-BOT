@@ -24,9 +24,11 @@ from vistas import (
     PantallaView,
 )
 
+# Sin `ayuda`: el manual dejó de ser un comando efímero y vive publicado en su
+# canal, donde el bot lo mantiene al día solo.
 COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "totem", "laberinto",
-    "ranking", "cementerio", "ayuda",
+    "ranking", "cementerio",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
     "casa", "visitar", "buzon",
 }
@@ -838,44 +840,6 @@ def test_la_ayuda_no_dice_que_solo_cabe_una():
     texto = "\n".join(paginas_de_ayuda("Gachamon")).lower()
     for mentira in ("una viva a la vez", "una sola criatura", "sólo una criatura"):
         assert mentira not in texto, mentira
-
-
-def test_la_ayuda_se_manda_en_varios_mensajes():
-    """La primera va en la respuesta a la interacción y el resto de seguimiento:
-    si alguien vuelve a juntarlas en una sola, Discord la rechazaría."""
-    import cogs.social as social
-
-    enviados = []
-
-    class Respuesta:
-        async def send_message(self, contenido, **kw):
-            enviados.append(("respuesta", contenido, kw))
-
-    class Seguimiento:
-        async def send(self, contenido, **kw):
-            enviados.append(("seguimiento", contenido, kw))
-
-    class Interaccion:
-        response = Respuesta()
-        followup = Seguimiento()
-
-        class client:
-            class user:
-                display_name = "Gachamon"
-
-    cog = social.Social.__new__(social.Social)
-    asyncio.run(social.Social.ayuda.callback(cog, Interaccion()))
-
-    destinos = [d for d, _, _ in enviados]
-    assert destinos[0] == "respuesta", "la primera va como respuesta a la interacción"
-    assert set(destinos[1:]) == {"seguimiento"}, destinos
-    assert len(destinos) == len(social.paginas_de_ayuda("Gachamon"))
-    # Las dos en privado: si la segunda se colara pública, la ayuda de uno
-    # aparecería en el canal de todos.
-    assert all(kw.get("ephemeral") for _, _, kw in enviados), enviados
-    assert [c for _, c, _ in enviados] == list(
-        social.paginas_de_ayuda("Gachamon")
-    )
 
 
 def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):

@@ -66,6 +66,16 @@ CANAL_PRINCIPAL = CANALES[0] if CANALES else 0
 # le invite: cada uno lleva sus propias mascotas y su propio ranking.
 GUILDS = _lista_enteros("GUILD_ID")
 
+# Canales donde el bot mantiene el manual, separados por comas. Ahí publica las
+# páginas de `paginas_de_ayuda()` y las **edita en el sitio** en cada arranque,
+# así que no pueden quedarse desfasadas: el texto sale de las mismas constantes
+# que el juego.
+#
+# Es opcional, y sin él no se publica nada: en local no hay canal, y un servidor
+# sin canal de info sigue funcionando igual. Admite varios porque cada servidor
+# necesita el suyo —un canal vive en un servidor y sólo lo ve quien está en él—.
+CANALES_INFO = _lista_enteros("CANAL_INFO_ID")
+
 RUTA_BD = Path(os.environ.get("RUTA_BD", RAIZ / "tamagotchi.db"))
 
 # --- IA: que las criaturas hablen ------------------------------------------

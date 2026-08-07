@@ -55,6 +55,9 @@ Instala el hook local cuando prepares el entorno:
 
 ## Invariantes del dominio
 
+- El manual del juego lo publica el bot en su canal desde `paginas_de_ayuda()`, y no hay comando que lo enseñe.
+- El manual se edita en el sitio y nunca se republica: un arranque sin cambios no toca el canal.
+- Ningún mensaje que el bot publique puede pasar de los 2000 caracteres de Discord.
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
 - El tamaño máximo del plantel de una persona por servidor lo fija `db.MAXIMO_PLANTEL`.
 - Si el plantel no está vacío, hay exactamente una criatura activa.
