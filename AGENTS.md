@@ -81,9 +81,14 @@ Instala el hook local cuando prepares el entorno:
 - Los asciigems se gastan sólo en cosméticos, que no tocan ninguna estadística.
 - Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.
 - Nadie empieza en la calle: sin casa propia se vive en el refugio.
-- El hogar es de la persona y en él vive todo su plantel vivo.
-- Una persona tiene como mucho una casa por servidor, y lo impone el esquema.
-- De casa sólo se sube de tamaño; para bajar hay que vender primero.
+- Una persona tiene como mucho `casas.MAXIMO_CASAS` casas por servidor.
+- Cada gachamon vive en una casa concreta de su dueño, o en el refugio si no cabe en ninguna.
+- El aforo frena que entre uno más, nunca desaloja a quien ya estaba dentro.
+- El refugio no tiene aforo: es adonde va quien no cabe, así que no puede llenarse.
+- El ritmo y la comodidad de un gachamon salen de **su** casa, no de la mejor de su dueño.
+- De cada casa sólo se sube de tamaño; para bajar hay que venderla primero.
+- Mejorar una casa conserva su identidad: sus inquilinos, sus muebles y sus bancales se quedan.
+- El reloj del refugio es de la persona y sólo se renueva al vender la última casa.
 - Vender una casa es una devolución y no una ganancia: no pasa por el tope diario.
 - Vender no destruye muebles: se descuelgan y se guardan.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`.
@@ -97,7 +102,8 @@ Instala el hook local cuando prepares el entorno:
 - Visitar una casa sólo mira: nunca le empieza a nadie su estancia en el refugio.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.
-- El huerto es de la casa: el refugio no tiene bancales.
+- El huerto es de cada casa: sus bancales se numeran dentro de ella y el refugio no tiene.
+- Vender una casa manda a sus inquilinos al refugio, guarda sus muebles y pierde lo plantado en ella; a las demás no las toca.
 - El color de la cosecha lo hereda lo sembrado; sólo la semilla y el arcoíris lo sortean.
 - El arcoíris no es un color: no se sortea, no tiene afinidad y no está en `COLORES`.
 - De una cosecha sale como mucho un arcoíris, y sustituye a uno del lote en vez de sumarse.

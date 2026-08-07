@@ -259,15 +259,16 @@ CREATE TABLE IF NOT EXISTS publicaciones (
     PRIMARY KEY (canal_id, indice)
 );
 
--- Dónde vive el plantel de cada persona. `casa` a NULL es no tener casa propia,
--- y entonces manda `refugio_hasta`: en el futuro sigue en el refugio y en el
--- pasado se ha quedado a la intemperie. Los tres estados salen de estos dos
--- datos y no de una columna aparte, que podría contradecirlos.
+-- El reloj del refugio de cada persona, y si deja mirar lo suyo. Sus casas van
+-- aparte, en `casas_propias`: aquí sólo queda lo que es de la persona y no de
+-- una casa concreta. Sin ninguna casa manda `refugio_hasta` —en el futuro sigue
+-- en el refugio, en el pasado se ha quedado a la intemperie—, y por eso ese
+-- reloj sobrevive a comprarlas y venderlas.
 CREATE TABLE IF NOT EXISTS hogar (
     usuario_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
-    casa TEXT,
     refugio_hasta TEXT NOT NULL,
+    publica INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (usuario_id, guild_id)
 );
 
@@ -291,19 +292,36 @@ CREATE TABLE IF NOT EXISTS buzon (
     recogido INTEGER NOT NULL DEFAULT 0
 );
 
--- Los bancales del huerto. Uno por número dentro de tu casa: cuántos tienes lo
--- decide su tamaño, así que mudarte a una mayor te da sitio y las filas viejas
--- siguen valiendo. Sin fila es barbecho.
+-- Los bancales del huerto. Uno por número **dentro de cada casa**: cuántos tiene
+-- lo decide su tamaño, así que mejorarla da sitio y las filas viejas siguen
+-- valiendo. Sin fila es barbecho.
+--
+-- `casa_id` entra en la clave y no es un adorno: sin él, los bancales se
+-- numerarían de corrido entre todas tus casas y vender una renumeraría los de
+-- las demás, con lo plantado cambiando de sitio solo.
 CREATE TABLE IF NOT EXISTS huerto (
     usuario_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
+    casa_id INTEGER NOT NULL,
     bancal INTEGER NOT NULL,
     plantado_en TEXT NOT NULL,
     regado INTEGER NOT NULL DEFAULT 0,
     -- Qué se sembró, por su clave de objeto. El color de la cosecha lo hereda de
     -- aquí, salvo la semilla y el arcoíris, que lo sortean.
     sembrado TEXT NOT NULL DEFAULT 'semilla',
-    PRIMARY KEY (usuario_id, guild_id, bancal)
+    PRIMARY KEY (usuario_id, guild_id, casa_id, bancal)
+);
+
+-- Cada casa que alguien tiene, una por fila. Es lo que rompe el «una casa por
+-- persona» que antes imponía la clave primaria de `hogar`, y el `id` hace falta
+-- porque ahora se pueden tener dos del mismo tamaño y los gachamones, los
+-- muebles y los bancales apuntan a una en concreto, no a «la mediana».
+CREATE TABLE IF NOT EXISTS casas_propias (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    casa TEXT NOT NULL,
+    comprada_en TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS mobiliario (
@@ -365,7 +383,7 @@ CAMPOS = (
     "ten_fuerza", "ten_velocidad", "ten_salud", "ten_ingenio",
     "historial_vetas",
     "xp", "nivel", "victorias", "derrotas", "pantalla_msg_id", "canal_id",
-    "activa", "tinte", "sombrero", "marco", "titulo",
+    "activa", "tinte", "sombrero", "marco", "titulo", "casa_id",
 )
 
 
@@ -407,6 +425,9 @@ MIGRACIONES = (
     ("sombrero", "ALTER TABLE criaturas ADD COLUMN sombrero TEXT"),
     ("marco", "ALTER TABLE criaturas ADD COLUMN marco TEXT"),
     ("titulo", "ALTER TABLE criaturas ADD COLUMN titulo TEXT"),
+    # En qué casa de su dueño vive. `NULL` es el refugio, que es adonde va quien
+    # no cabe en ninguna. Lo rellena `_migrar_casas` para las que ya existían.
+    ("casa_id", "ALTER TABLE criaturas ADD COLUMN casa_id INTEGER"),
 )
 
 # Lo mismo, para tablas que no son `criaturas`. Van aparte porque `MIGRACIONES`
@@ -422,7 +443,36 @@ MIGRACIONES_DE_TABLAS = (
     # plantaron: semilla, y color al azar al cosechar. Ninguna fila que tocar.
     ("huerto", "sembrado",
      "ALTER TABLE huerto ADD COLUMN sembrado TEXT NOT NULL DEFAULT 'semilla'"),
+    # En qué casa cuelga cada mueble. Se sigue teniendo uno de cada por persona
+    # —eso lo impone la clave primaria y no cambia—; lo nuevo es elegir dónde.
+    # `NULL` con `colocado = 1` es lo que deja `_migrar_casas` a quien no tenía
+    # casa, y `_mobiliario_de` lo trata como guardado.
+    ("mobiliario", "casa_id", "ALTER TABLE mobiliario ADD COLUMN casa_id INTEGER"),
 )
+
+# La tabla `hogar` tal como queda tras `_migrar_casas`, sin la columna `casa`.
+DDL_HOGAR = """
+CREATE TABLE hogar (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    refugio_hasta TEXT NOT NULL,
+    publica INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (usuario_id, guild_id)
+)
+"""
+
+DDL_HUERTO = """
+CREATE TABLE huerto (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    casa_id INTEGER NOT NULL,
+    bancal INTEGER NOT NULL,
+    plantado_en TEXT NOT NULL,
+    regado INTEGER NOT NULL DEFAULT 0,
+    sembrado TEXT NOT NULL DEFAULT 'semilla',
+    PRIMARY KEY (usuario_id, guild_id, casa_id, bancal)
+)
+"""
 
 
 def inicializar() -> None:
@@ -432,6 +482,10 @@ def inicializar() -> None:
         con.commit()
         _migrar_monederos(con)
         _migrar_operaciones(con)
+        # Después de `_migrar`, que es quien añade `criaturas.casa_id` y
+        # `mobiliario.casa_id`: esta migración los rellena, así que tienen que
+        # existir antes.
+        _migrar_casas(con)
         con.executescript(SCHEMA_INDICES)
 
 
@@ -499,6 +553,91 @@ def _migrar_operaciones(con: sqlite3.Connection) -> None:
         f"SELECT {columnas} FROM operaciones_legacy"
     )
     con.execute("DROP TABLE operaciones_legacy")
+    con.commit()
+
+
+def _migrar_casas(con: sqlite3.Connection) -> None:
+    """Pasa de «una casa por persona» a varias, una sola vez.
+
+    Es la segunda migración del proyecto que mueve datos —tras la de
+    `operaciones_economia`—, así que va sola en su transacción y con su test
+    sobre filas de verdad. Dos tablas hay que recrearlas porque SQLite no deja
+    quitar una columna de una clave primaria ni añadirla:
+
+    * `hogar` pierde `casa`, que se lleva `casas_propias`.
+    * `huerto` gana `casa_id` en la clave, para que los bancales se numeren
+      dentro de cada casa y vender una no renumere los de las demás.
+
+    **Nadie pierde su sitio.** Cada casa que hubiera pasa a ser una fila de
+    `casas_propias`, y todo lo de esa persona —sus gachamones vivos, sus
+    bancales y sus muebles colgados— queda apuntado a ella, aunque sean más
+    gachamones de los que ahora caben: el aforo frena las mudanzas nuevas, no
+    desaloja a quien ya estaba.
+
+    Que ya haya corrido se detecta mirando si `hogar` conserva la columna
+    `casa`, que es la señal que no se puede falsear.
+    """
+    con.execute("BEGIN IMMEDIATE")
+    if "casa" not in _columnas(con, "hogar"):        # ya migrada
+        con.commit()
+        return
+
+    # La tabla vieja no tiene dónde apuntar la casa. Se le añade suelta para
+    # poder rellenarla, y al final se recrea entera con la clave nueva.
+    if "casa_id" not in _columnas(con, "huerto"):
+        con.execute("ALTER TABLE huerto ADD COLUMN casa_id INTEGER")
+
+    for fila in con.execute(
+        "SELECT usuario_id, guild_id, casa, refugio_hasta FROM hogar "
+        "WHERE casa IS NOT NULL"
+    ).fetchall():
+        usuario_id, guild_id = fila["usuario_id"], fila["guild_id"]
+        cursor = con.execute(
+            "INSERT INTO casas_propias (usuario_id, guild_id, casa, comprada_en) "
+            "VALUES (?, ?, ?, ?)",
+            (usuario_id, guild_id, fila["casa"], fila["refugio_hasta"]),
+        )
+        casa_id = cursor.lastrowid
+        con.execute(
+            "UPDATE criaturas SET casa_id = ? "
+            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
+            (casa_id, usuario_id, guild_id),
+        )
+        con.execute(
+            "UPDATE huerto SET casa_id = ? WHERE usuario_id = ? AND guild_id = ?",
+            (casa_id, usuario_id, guild_id),
+        )
+        con.execute(
+            "UPDATE mobiliario SET casa_id = ? "
+            "WHERE usuario_id = ? AND guild_id = ? AND colocado = 1",
+            (casa_id, usuario_id, guild_id),
+        )
+
+    # `hogar` sin `casa`. Se copia `publica` sólo si la tabla vieja la tenía:
+    # una base anterior a esa migración no la lleva, y el DEFAULT la deja en 1,
+    # que es lo mismo que hacía su propia migración.
+    tenia_publica = "publica" in _columnas(con, "hogar")
+    columnas = "usuario_id, guild_id, refugio_hasta"
+    if tenia_publica:
+        columnas += ", publica"
+    con.execute("ALTER TABLE hogar RENAME TO hogar_legacy")
+    con.execute(DDL_HOGAR)
+    con.execute(
+        f"INSERT INTO hogar ({columnas}) SELECT {columnas} FROM hogar_legacy"
+    )
+    con.execute("DROP TABLE hogar_legacy")
+
+    # `huerto` con `casa_id` en la clave. Lo que quede sin casa —bancales de
+    # quien no tenía— se tira: era tierra de una casa que no existe.
+    con.execute("ALTER TABLE huerto RENAME TO huerto_legacy")
+    con.execute(DDL_HUERTO)
+    con.execute(
+        "INSERT INTO huerto "
+        "(usuario_id, guild_id, casa_id, bancal, plantado_en, regado, sembrado) "
+        "SELECT usuario_id, guild_id, casa_id, bancal, plantado_en, regado, "
+        "sembrado FROM huerto_legacy WHERE casa_id IS NOT NULL"
+    )
+    con.execute("DROP TABLE huerto_legacy")
     con.commit()
 
 
@@ -671,6 +810,26 @@ def _a_valores(criatura: sim.Criatura) -> dict:
 
 
 # --- Criaturas -------------------------------------------------------------
+
+def _primera_casa_con_sitio(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> int | None:
+    """La primera casa suya donde quepa uno más, o `None` si no cabe en ninguna.
+
+    En orden de compra, que es el que quien juega reconoce. `None` significa el
+    refugio, que es adonde va quien no cabe.
+    """
+    dentro = inquilinos_en(con, usuario_id, guild_id)
+    for fila in con.execute(
+        "SELECT id, casa FROM casas_propias "
+        "WHERE usuario_id = ? AND guild_id = ? ORDER BY id",
+        (usuario_id, guild_id),
+    ):
+        casa = cas.CATALOGO.get(fila["casa"])
+        if casa and dentro.get(fila["id"], 0) < casa.aforo:
+            return fila["id"]
+    return None
+
 
 def criatura_activa(usuario_id: str, guild_id: str) -> sim.Criatura | None:
     """La que recibe los comandos y los botones. Puede haber otras esperando."""
@@ -857,6 +1016,17 @@ def crear(
             raise ValueError(
                 f"{usuario_id} ya tiene {cuantas} gachamones vivos en {guild_id}"
             )
+
+        # Nace en la primera casa con sitio. Sin esto llegaría al refugio
+        # aunque su dueño tenga tres casas medio vacías, y tendría que mudarlo a
+        # mano cada vez: el reparto es para decidir dónde va, no para tener que
+        # colocar a cada recién llegado.
+        casa_id = _primera_casa_con_sitio(con, usuario_id, guild_id)
+        valores["casa_id"] = casa_id
+        # Y se refleja en lo que se devuelve: si sólo fuera a la fila, quien
+        # llama tendría en la mano una criatura que dice vivir en el refugio
+        # mientras la base dice otra cosa.
+        nueva = replace(nueva, casa_id=casa_id)
 
         cursor = con.execute(
             f"INSERT INTO criaturas ({', '.join(columnas)}) VALUES ({marcadores})",
@@ -1485,8 +1655,8 @@ def _hogar_de(
     hogar = _hogar_leido(con, usuario_id, guild_id, ahora)
     if not _hay_hogar(con, usuario_id, guild_id):
         con.execute(
-            "INSERT INTO hogar (usuario_id, guild_id, casa, refugio_hasta) "
-            "VALUES (?, ?, NULL, ?)",
+            "INSERT INTO hogar (usuario_id, guild_id, refugio_hasta) "
+            "VALUES (?, ?, ?)",
             (usuario_id, guild_id, hogar.refugio_hasta.isoformat()),
         )
     return hogar
@@ -1532,23 +1702,61 @@ def _hogar_leido(
     gachamon con `/mascota @alguien`.
     """
     fila = con.execute(
-        "SELECT casa, refugio_hasta, publica FROM hogar "
+        "SELECT refugio_hasta, publica FROM hogar "
         "WHERE usuario_id = ? AND guild_id = ?",
         (usuario_id, guild_id),
     ).fetchone()
+    casas = _casas_de(con, usuario_id, guild_id)
     if fila is None:
-        return cas.Hogar(casa=None, refugio_hasta=cas.estancia_desde(ahora))
-    mobiliario = _mobiliario(con, usuario_id, guild_id)
+        return cas.Hogar(
+            casas=casas, refugio_hasta=cas.estancia_desde(ahora)
+        )
     return cas.Hogar(
-        casa=cas.buscar(fila["casa"]),
+        casas=casas,
         refugio_hasta=datetime.fromisoformat(fila["refugio_hasta"]),
-        puestos=tuple(c for c, puesto in mobiliario.items() if puesto),
         publica=bool(fila["publica"]),
     )
 
 
+def _casas_de(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> tuple[cas.CasaPropia, ...]:
+    """Las casas de alguien con sus muebles dentro, en orden de compra.
+
+    El orden es el de `id` y no el de tamaño: es el que quien juega reconoce
+    —«la primera que compré»— y el que hace que los menús no le bailen debajo
+    del dedo al comprar otra.
+
+    Una casa cuya clave ya no esté en el catálogo se salta: si algún día se
+    retira un tamaño, nadie se queda con una casa que el juego no sabe dibujar.
+    """
+    muebles: dict[int, list[str]] = {}
+    for fila in con.execute(
+        "SELECT mueble, casa_id FROM mobiliario "
+        "WHERE usuario_id = ? AND guild_id = ? AND colocado = 1 "
+        "AND casa_id IS NOT NULL",
+        (usuario_id, guild_id),
+    ):
+        muebles.setdefault(fila["casa_id"], []).append(fila["mueble"])
+
+    propias = []
+    for fila in con.execute(
+        "SELECT id, casa FROM casas_propias "
+        "WHERE usuario_id = ? AND guild_id = ? ORDER BY id",
+        (usuario_id, guild_id),
+    ):
+        casa = cas.CATALOGO.get(fila["casa"])
+        if casa is None:
+            continue
+        propias.append(cas.CasaPropia(
+            id=fila["id"], casa=casa,
+            puestos=tuple(muebles.get(fila["id"], ())),
+        ))
+    return tuple(propias)
+
+
 def huerto_de(
-    usuario_id: str, guild_id: str, cuantos: int
+    usuario_id: str, guild_id: str, casa_id: int, cuantos: int
 ) -> list[hue.Bancal]:
     """Los bancales que da tu casa, plantados o en barbecho.
 
@@ -1557,24 +1765,26 @@ def huerto_de(
     —que hoy no se puede— los de más se quedarían fuera sin borrar nada.
     """
     with conectar() as con:
-        return _huerto_de(con, usuario_id, guild_id, cuantos)
+        return _huerto_de(con, usuario_id, guild_id, casa_id, cuantos)
 
 
 def _huerto_de(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str, cuantos: int
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, casa_id: int,
+    cuantos: int,
 ) -> list[hue.Bancal]:
     filas = {
         f["bancal"]: f
         for f in con.execute(
             "SELECT bancal, plantado_en, regado, sembrado FROM huerto "
-            "WHERE usuario_id = ? AND guild_id = ?",
-            (usuario_id, guild_id),
+            "WHERE usuario_id = ? AND guild_id = ? AND casa_id = ?",
+            (usuario_id, guild_id, casa_id),
         ).fetchall()
     }
     bancales = []
     for numero in range(1, cuantos + 1):
         fila = filas.get(numero)
         bancales.append(hue.Bancal(
+            casa_id=casa_id,
             numero=numero,
             plantado_en=(
                 datetime.fromisoformat(fila["plantado_en"]) if fila else None
@@ -1587,36 +1797,39 @@ def _huerto_de(
 
 def plantar_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str,
-    bancal: int, ahora: datetime, que: str = hue.SEMILLA,
+    casa_id: int, bancal: int, ahora: datetime, que: str = hue.SEMILLA,
 ) -> None:
     con.execute(
         "INSERT INTO huerto "
-        "(usuario_id, guild_id, bancal, plantado_en, regado, sembrado) "
-        "VALUES (?, ?, ?, ?, 0, ?) "
-        "ON CONFLICT(usuario_id, guild_id, bancal) DO UPDATE SET "
+        "(usuario_id, guild_id, casa_id, bancal, plantado_en, regado, sembrado) "
+        "VALUES (?, ?, ?, ?, ?, 0, ?) "
+        "ON CONFLICT(usuario_id, guild_id, casa_id, bancal) DO UPDATE SET "
         "plantado_en = excluded.plantado_en, regado = 0, "
         "sembrado = excluded.sembrado",
-        (usuario_id, guild_id, bancal, ahora.isoformat(), que),
+        (usuario_id, guild_id, casa_id, bancal, ahora.isoformat(), que),
     )
 
 
 def regar_en(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str, bancal: int
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, casa_id: int,
+    bancal: int,
 ) -> None:
     con.execute(
         "UPDATE huerto SET regado = 1 "
-        "WHERE usuario_id = ? AND guild_id = ? AND bancal = ?",
-        (usuario_id, guild_id, bancal),
+        "WHERE usuario_id = ? AND guild_id = ? AND casa_id = ? AND bancal = ?",
+        (usuario_id, guild_id, casa_id, bancal),
     )
 
 
 def arrancar_en(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str, bancal: int
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, casa_id: int,
+    bancal: int,
 ) -> None:
     """Deja el bancal en barbecho. Se llama al cosechar."""
     con.execute(
-        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ? AND bancal = ?",
-        (usuario_id, guild_id, bancal),
+        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ? "
+        "AND casa_id = ? AND bancal = ?",
+        (usuario_id, guild_id, casa_id, bancal),
     )
 
 
@@ -1690,42 +1903,146 @@ def _avanzar_en(
     `BEGIN IMMEDIATE` ajeno se quedaría esperando a sí misma.
     """
     hogar = _hogar_leido(con, criatura.usuario_id, criatura.guild_id, ahora)
-    return sim.avanzar(criatura, ahora, cas.ritmo_de(hogar, ahora))
+    # El ritmo sale de **su** casa y no de las de su dueño: con varias, dos
+    # gachamones de la misma persona pueden vivir en sitios distintos, y quien
+    # no cabe en ninguna está en el refugio aunque el dueño tenga tres.
+    return sim.avanzar(
+        criatura, ahora, cas.ritmo_de(hogar, ahora, criatura.casa_id)
+    )
 
 
-def vaciar_la_casa_en(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
+def vender_la_casa_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, casa_id: int,
+    ahora: datetime,
 ) -> int:
-    """Te deja sin casa y de vuelta en el refugio. Devuelve muebles guardados.
+    """Quita **esa** casa y recoloca lo que había dentro. Devuelve los muebles
+    guardados.
 
-    Los muebles **no se destruyen**, sólo se descuelgan: es el mismo invariante
-    que al retirarlos uno a uno. Lo plantado sí se pierde, porque la tierra era
-    de la casa y los bancales los daba su tamaño.
+    Tres cosas hay que recoger, y las tres en esta misma transacción:
+
+    * **Sus inquilinos** se van al refugio —`casa_id` a `NULL`—. Sin esto
+      apuntarían a una casa que ya no existe, y aunque `casa_por_id` lo trata
+      como refugio, dejar punteros rotos en la base es pedir un fallo raro más
+      adelante.
+    * **Sus muebles** se descuelgan y se guardan: retirar uno nunca lo destruye,
+      que es el invariante de siempre.
+    * **Lo plantado en sus bancales se pierde**, porque la tierra era de esa
+      casa. Los bancales de las otras no se tocan, y por eso el borrado va por
+      `casa_id` y no por persona.
+
+    El reloj del refugio **no se toca**: es de la persona, y quien vende una de
+    tres casas no se ha quedado sin techo.
     """
     con.execute(
-        "UPDATE hogar SET casa = NULL, refugio_hasta = ? "
-        "WHERE usuario_id = ? AND guild_id = ?",
-        (cas.estancia_desde(ahora).isoformat(), usuario_id, guild_id),
+        "UPDATE criaturas SET casa_id = NULL "
+        "WHERE usuario_id = ? AND guild_id = ? AND casa_id = ?",
+        (usuario_id, guild_id, casa_id),
     )
     guardados = con.execute(
-        "UPDATE mobiliario SET colocado = 0 "
-        "WHERE usuario_id = ? AND guild_id = ? AND colocado = 1",
-        (usuario_id, guild_id),
+        "UPDATE mobiliario SET colocado = 0, casa_id = NULL "
+        "WHERE usuario_id = ? AND guild_id = ? AND casa_id = ?",
+        (usuario_id, guild_id, casa_id),
     ).rowcount
     con.execute(
-        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ?",
-        (usuario_id, guild_id),
+        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ? AND casa_id = ?",
+        (usuario_id, guild_id, casa_id),
     )
+    con.execute("DELETE FROM casas_propias WHERE id = ?", (casa_id,))
+
+    # Vender la **última** devuelve la semana entera de refugio: quien se queda
+    # sin nada no puede acabar en la calle de golpe. Vendiendo una de tres no
+    # pasa nada de eso —sigue teniendo techo—, y así el reloj no se puede
+    # refrescar comprando y vendiendo una casa barata en bucle.
+    quedan = con.execute(
+        "SELECT COUNT(*) AS n FROM casas_propias "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchone()["n"]
+    if not quedan:
+        con.execute(
+            "UPDATE hogar SET refugio_hasta = ? "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (cas.estancia_desde(ahora).isoformat(), usuario_id, guild_id),
+        )
     return guardados
 
 
-def mudar_en(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str
-) -> None:
-    """Le pone la casa. La fila ya existe: la crea `_hogar_de` al mirarla."""
+def anadir_casa_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str,
+    ahora: datetime,
+) -> int:
+    """Le añade una casa y devuelve su id, que es con lo que se la referencia."""
+    cursor = con.execute(
+        "INSERT INTO casas_propias (usuario_id, guild_id, casa, comprada_en) "
+        "VALUES (?, ?, ?, ?)",
+        (usuario_id, guild_id, clave, ahora.isoformat()),
+    )
+    return int(cursor.lastrowid or 0)
+
+
+def mejorar_casa_en(con: sqlite3.Connection, casa_id: int, clave: str) -> None:
+    """Cambia el tamaño de una casa sin moverle nada de lo que hay dentro.
+
+    Los inquilinos, los muebles y los bancales apuntan al `id`, que no cambia,
+    así que mejorar es de verdad una obra y no una mudanza.
+    """
     con.execute(
-        "UPDATE hogar SET casa = ? WHERE usuario_id = ? AND guild_id = ?",
-        (clave, usuario_id, guild_id),
+        "UPDATE casas_propias SET casa = ? WHERE id = ?", (clave, casa_id)
+    )
+
+
+def inquilinos_de(usuario_id: str, guild_id: str) -> dict[int | None, int]:
+    """Cuántos gachamones vivos hay en cada casa, para las pantallas."""
+    with conectar() as con:
+        return inquilinos_en(con, usuario_id, guild_id)
+
+
+def inquilinos_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> dict[int | None, int]:
+    """Cuántos gachamones vivos hay en cada casa. `None` es el refugio."""
+    return {
+        fila["casa_id"]: fila["cuantos"]
+        for fila in con.execute(
+            "SELECT casa_id, COUNT(*) AS cuantos FROM criaturas "
+            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL "
+            "GROUP BY casa_id",
+            (usuario_id, guild_id),
+        )
+    }
+
+
+def acoger_a_los_sin_casa_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, casa_id: int,
+    aforo: int,
+) -> int:
+    """Mete en esa casa a los que estén sin ninguna, hasta llenarla.
+
+    Los más viejos primero, que es el orden en que se ven en todas partes.
+    Devuelve cuántos entraron.
+    """
+    sitio = aforo - inquilinos_en(con, usuario_id, guild_id).get(casa_id, 0)
+    if sitio <= 0:
+        return 0
+    sin_casa = [
+        fila["id"] for fila in con.execute(
+            "SELECT id FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+            "AND muerta_en IS NULL AND casa_id IS NULL ORDER BY id LIMIT ?",
+            (usuario_id, guild_id, sitio),
+        )
+    ]
+    for criatura_id in sin_casa:
+        con.execute(
+            "UPDATE criaturas SET casa_id = ? WHERE id = ?", (casa_id, criatura_id)
+        )
+    return len(sin_casa)
+
+
+def mudar_criatura_en(
+    con: sqlite3.Connection, criatura_id: int, casa_id: int | None
+) -> None:
+    con.execute(
+        "UPDATE criaturas SET casa_id = ? WHERE id = ?", (casa_id, criatura_id)
     )
 
 
@@ -1755,23 +2072,30 @@ def puestos(usuario_id: str, guild_id: str) -> tuple[str, ...]:
 
 def comprar_mueble_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str,
-    clave: str, colocado: bool,
+    clave: str, colocado: bool, casa_id: int | None = None,
 ) -> None:
     con.execute(
-        "INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado) "
-        "VALUES (?, ?, ?, ?)",
-        (usuario_id, guild_id, clave, int(colocado)),
+        "INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado, casa_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (usuario_id, guild_id, clave, int(colocado),
+         casa_id if colocado else None),
     )
 
 
 def colocar_mueble_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str,
-    clave: str, dentro: bool,
+    clave: str, dentro: bool, casa_id: int | None = None,
 ) -> None:
+    """Cuelga o descuelga un mueble, y en cuál de tus casas.
+
+    Al retirarlo se borra también la casa: un mueble guardado no está en
+    ninguna parte, y dejarle la casa vieja haría que reaparecer allí al volver a
+    colocarlo pareciera magia.
+    """
     con.execute(
-        "UPDATE mobiliario SET colocado = ? "
+        "UPDATE mobiliario SET colocado = ?, casa_id = ? "
         "WHERE usuario_id = ? AND guild_id = ? AND mueble = ?",
-        (int(dentro), usuario_id, guild_id, clave),
+        (int(dentro), casa_id if dentro else None, usuario_id, guild_id, clave),
     )
 
 

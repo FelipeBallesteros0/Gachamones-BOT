@@ -530,36 +530,42 @@ def texto_de_la_mudanza(nombre: str, resultado: economia.ResultadoMudanza) -> st
 VENDER = "vender"
 
 
-def texto_de_la_venta(hogar: cas.Hogar, mobiliario: dict[str, bool]) -> str:
+def texto_de_la_venta(propia: cas.CasaPropia, inquilinos: int) -> str:
     """Lo que te darían y lo que pierdes, antes de confirmar."""
-    casa = hogar.casa
-    puestos = sum(1 for dentro in mobiliario.values() if dentro)
+    casa = propia.casa
     aviso = (
         f"## 🏷️ ¿Vender {casa.nombre}?\n"
         f"Te dan **{cas.lo_que_dan_por(casa)}** 🪙 — el "
-        f"{cas.PORCENTAJE_DE_REVENTA} % de los {casa.precio} que costó.\n"
-        f"-# Vuelves al refugio con los {cas.DIAS_DE_REFUGIO} días enteros."
+        f"{cas.PORCENTAJE_DE_REVENTA} % de los {casa.precio} que costó."
     )
-    if puestos:
+    if propia.puestos:
         aviso += (
-            f"\n-# Tus **{puestos}** muebles se guardan: no se pierde ninguno."
+            f"\n-# Tus **{len(propia.puestos)}** muebles de ahí se guardan: no "
+            "se pierde ninguno."
         )
-    aviso += "\n-# ⚠️ **Lo que tengas plantado en el huerto se pierde.**"
+    if inquilinos:
+        aviso += (
+            f"\n-# ⚠️ Los **{inquilinos}** gachamones que viven ahí se van al "
+            "refugio."
+        )
+    aviso += "\n-# ⚠️ **Lo plantado en sus bancales se pierde.**"
     return aviso
 
 
 class ConfirmarVenta(discord.ui.View):
-    """El segundo clic. Se pierde el 20 % y el huerto, así que no puede pasar
-    por un resbalón sobre un desplegable."""
+    """El segundo clic. Se pierde el 20 %, el huerto de esa casa y el sitio de
+    quien viva dentro, así que no puede pasar por un resbalón sobre un
+    desplegable."""
 
-    def __init__(self):
+    def __init__(self, casa_id: int):
         super().__init__(timeout=SEGUNDOS_DE_MENU)
+        self.casa_id = casa_id
 
     @discord.ui.button(label="Vender", emoji="🏷️",
                        style=discord.ButtonStyle.danger)
     async def vender(self, interaccion: discord.Interaction, boton) -> None:
         resultado = economia.vender_casa(
-            str(interaccion.user.id), str(interaccion.guild_id)
+            str(interaccion.user.id), str(interaccion.guild_id), self.casa_id
         )
         if not resultado.ok:
             await interaccion.response.edit_message(
@@ -569,73 +575,110 @@ class ConfirmarVenta(discord.ui.View):
 
         aviso = (
             f"🏷️ Vendida **{resultado.casa.nombre}** por "
-            f"**{resultado.cobrado}** 🪙. Te quedan **{resultado.saldo}**.\n"
-            f"-# De vuelta al refugio. Cómprate otra cuando quieras: con la casa "
-            "vendida puedes elegir cualquier tamaño."
+            f"**{resultado.cobrado}** 🪙. Te quedan **{resultado.saldo}**."
         )
+        if resultado.desalojados:
+            aviso += (
+                f"\n-# **{resultado.desalojados}** gachamones se han ido al "
+                "refugio. Búscales sitio con 🏠 **Mudar** en `/casa`."
+            )
         if resultado.guardados:
             aviso += f"\n-# **{resultado.guardados}** muebles esperando en tu armario."
         await interaccion.response.edit_message(content=aviso, view=None)
 
 
 class MenuCasas(discord.ui.Select):
-    """Las tres casas. Marca la tuya y las que se te han quedado pequeñas."""
+    """Comprar otra, mejorar una tuya, o venderla.
+
+    Las tres cosas en un desplegable porque son la misma decisión —qué hago con
+    mis casas— y separarlas obligaría a adivinar en cuál de tres menús está lo
+    que se busca. Caben de sobra: como mucho tres casas tuyas para vender, tres
+    del catálogo para comprar y las mejoras posibles de cada una.
+    """
 
     def __init__(self, hogar: cas.Hogar | None = None):
-        tuya = hogar.casa if hogar else None
+        casas = hogar.casas if hogar else ()
         opciones = []
-        if tuya is not None:
-            # Primera, y no perdida entre las tres: es lo único distinto que
-            # puede hacer aquí quien ya tiene casa.
+
+        # Primero lo que sólo puede hacer quien ya tiene casa: mejorarla. Va
+        # arriba porque mejorar cuesta la diferencia y casi siempre es lo que
+        # conviene frente a comprar otra.
+        for propia in casas:
+            for casa in cas.CATALOGO.values():
+                if not cas.puede_mejorarse_a(propia, casa):
+                    continue
+                cuesta = casa.precio - cas.lo_que_dan_por(propia.casa)
+                opciones.append(discord.SelectOption(
+                    label=f"Mejorar tu {propia.casa.nombre} a {casa.nombre}",
+                    value=f"mejorar:{propia.id}:{casa.clave}",
+                    description=(
+                        f"🪙 {cuesta} · aforo {casa.aforo} · "
+                        f"{hue.BANCALES[casa.clave]} bancales"
+                    ),
+                    emoji="⬆️",
+                ))
+
+        if not casas or len(casas) < cas.MAXIMO_CASAS:
+            for clave, casa in cas.CATALOGO.items():
+                opciones.append(discord.SelectOption(
+                    label=f"{casa.nombre} — 🪙 {casa.precio}",
+                    value=f"comprar:{clave}",
+                    description=(
+                        f"Aforo {casa.aforo} · {hue.BANCALES[clave]} bancales · "
+                        f"{casa.huecos} muebles"
+                    ),
+                    emoji="🏠",
+                ))
+
+        for propia in casas:
             opciones.append(discord.SelectOption(
-                label=f"Vender {tuya.nombre} — 🪙 +{cas.lo_que_dan_por(tuya)}",
-                value=VENDER,
+                label=f"Vender tu {propia.casa.nombre} — 🪙 +"
+                      f"{cas.lo_que_dan_por(propia.casa)}",
+                value=f"vender:{propia.id}",
                 description=f"El {cas.PORCENTAJE_DE_REVENTA} % de lo que costó",
                 emoji="🏷️",
-            ))
-        for clave, casa in cas.CATALOGO.items():
-            if tuya is not None and casa.tamano < tuya.tamano:
-                etiqueta = f"{casa.nombre} — se te quedó pequeña"
-            elif tuya is not None and casa.tamano == tuya.tamano:
-                etiqueta = f"{casa.nombre} — aquí vives"
-            else:
-                etiqueta = f"{casa.nombre} — 🪙 {casa.precio}"
-            opciones.append(discord.SelectOption(
-                label=etiqueta,
-                value=clave,
-                description=(
-                    f"Comodidad {casa.comodidad}, hasta {casa.techo} · "
-                    f"{casa.huecos} muebles"
-                ),
-                emoji="🏠",
             ))
         super().__init__(placeholder="🏠 Casas", options=opciones)
 
     async def callback(self, interaccion: discord.Interaction) -> None:
         usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
-        if self.values[0] == VENDER:
+        accion, _, resto = self.values[0].partition(":")
+        ahora = db.ahora_utc()
+
+        if accion == "vender":
             # Elegir vender **no vende**: enseña la cuenta y pide el segundo
             # clic. Lo que se pierde no se recupera comprando otra vez.
-            ahora = db.ahora_utc()
+            casa_id = int(resto)
+            hogar = db.hogar_leido(usuario_id, guild_id, ahora)
+            propia = hogar.casa_por_id(casa_id)
+            if propia is None:
+                await interaccion.response.edit_message(
+                    content="❌ Esa casa ya no es tuya.", view=None
+                )
+                return
             await interaccion.response.edit_message(
                 content=texto_de_la_venta(
-                    db.hogar_leido(usuario_id, guild_id, ahora),
-                    db.mobiliario(usuario_id, guild_id),
+                    propia, db.inquilinos_de(usuario_id, guild_id).get(casa_id, 0)
                 ),
-                view=ConfirmarVenta(),
+                view=ConfirmarVenta(casa_id),
             )
             return
 
-        casa = cas.CATALOGO[self.values[0]]
-        resultado = economia.comprar_casa(usuario_id, guild_id, casa)
+        mejorar, _, clave = resto.rpartition(":")
+        casa = cas.CATALOGO[clave]
+        resultado = economia.comprar_casa(
+            usuario_id, guild_id, casa, ahora,
+            mejorar=int(mejorar) if mejorar else None,
+        )
         if not resultado.ok:
             await interaccion.response.edit_message(
                 content=f"❌ {resultado.problema}", view=None
             )
             return
 
+        que_paso = "Has mejorado a" if resultado.desde else "Te has comprado"
         await interaccion.response.edit_message(
-            content=f"🏠 Te has mudado a **{casa.nombre}**. Míralo con `/casa`.",
+            content=f"🏠 {que_paso} **{casa.nombre}**. Míralo con `/casa`.",
             view=None,
         )
         # El anuncio va al canal y después de que cierre la transacción: mudarse
@@ -755,22 +798,33 @@ class MenuRetirarMueble(discord.ui.Select):
         )
 
 
-def texto_de_amueblar(usuario_id: str, guild_id: str, ahora) -> str:
+def texto_de_amueblar(
+    usuario_id: str, guild_id: str, ahora, casa_id: int | None = None
+) -> str:
     hogar = db.hogar_de(usuario_id, guild_id, ahora)
     mobiliario = db.mobiliario(usuario_id, guild_id)
-    if hogar.casa is None:
+    if not hogar.casas:
         return (
             "## 🪑 Amueblar\n-# El refugio no se puede amueblar: es de todos. "
             "Cómprate una casa en 🛒 **Tienda**."
         )
-    dentro = [c for c, puesto in mobiliario.items() if puesto]
-    guardados = len(mobiliario) - len(dentro)
+    propia = hogar.casa_por_id(casa_id) if casa_id else hogar.casas[0]
+    if propia is None:
+        return "## 🪑 Amueblar\n-# Esa casa no es tuya."
+    guardados = sum(1 for puesto in mobiliario.values() if not puesto)
+    # Los muebles son de la persona y las casas son varias, así que hay que
+    # decir en cuál se está amueblando y cuántos están puestos en otra.
+    en_otras = sum(
+        len(otra.puestos) for otra in hogar.casas if otra.id != propia.id
+    )
+    pie = f"-# Guardados: **{guardados}**. Lo que retires se guarda, no se pierde."
+    if en_otras:
+        pie += f"\n-# Y **{en_otras}** puestos en tus otras casas."
     return (
-        f"## 🪑 Amueblar {hogar.casa.nombre}\n"
-        f"Comodidad **{cas.comodidad_de(hogar.casa, dentro)}**"
-        f"/{hogar.casa.techo} · {len(dentro)}/{hogar.casa.huecos} huecos\n"
-        f"{_lo_que_hay_dentro(mobiliario)}\n"
-        f"-# Guardados: **{guardados}**. Lo que retires se guarda, no se pierde."
+        f"## 🪑 Amueblar {propia.casa.nombre}\n"
+        f"Comodidad **{propia.comodidad}**"
+        f"/{propia.casa.techo} · {len(propia.puestos)}/{propia.casa.huecos} huecos\n"
+        f"{_lo_que_hay_dentro(mobiliario)}\n{pie}"
     )
 
 
@@ -949,30 +1003,46 @@ def _cuando(bancal: hue.Bancal, ahora) -> str:
     return f"le faltan {horas:.0f} h"
 
 
+def titulo_del_huerto(hogar: cas.Hogar) -> str:
+    """«Huerto de Casa grande» con una, «Tu huerto» con varias."""
+    if len(hogar.casas) == 1:
+        return f"Huerto de {hogar.casas[0].casa.nombre}"
+    return "Tu huerto"
+
+
 def texto_del_huerto(usuario_id: str, guild_id: str, ahora) -> str:
     hogar = db.hogar_leido(usuario_id, guild_id, ahora)
-    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
-    if not cuantos:
+    if not hogar.casas:
         return (
             "## 🌱 Huerto\n-# El refugio no tiene huerto. Cómprate una casa en "
             "🛒 **Tienda**."
         )
 
+    # Una sección por casa: los bancales se numeran dentro de cada una, así que
+    # una lista corrida repetiría el `1` y no habría forma de saber cuál es cuál.
     lineas = []
-    for bancal in db.huerto_de(usuario_id, guild_id, cuantos):
-        # Qué crece en cada uno. Antes no se podía decir porque siempre era lo
-        # mismo; ahora que se siembran porotos, no decirlo obligaría a acordarse.
-        sembrado = obj.CATALOGO.get(bancal.sembrado)
-        que = f" {sembrado.emoji}" if sembrado else ""
-        if not bancal.plantado:
-            lineas.append(f"`{bancal.numero}` 🟫 en barbecho")
-        elif bancal.listo(ahora):
-            lineas.append(f"`{bancal.numero}`{que} 🌾 **listo para cosechar**")
-        else:
-            regado = " · regado" if bancal.regado else ""
-            lineas.append(
-                f"`{bancal.numero}`{que} 🌱 {_cuando(bancal, ahora)}{regado}"
-            )
+    varias = len(hogar.casas) > 1
+    for propia in hogar.casas:
+        if varias:
+            lineas.append(f"**{propia.casa.nombre}**")
+        for bancal in db.huerto_de(
+            usuario_id, guild_id, propia.id,
+            hue.bancales_de(propia.casa.clave),
+        ):
+            # Qué crece en cada uno. Antes no se podía decir porque siempre era
+            # lo mismo; ahora que se siembran porotos, no decirlo obligaría a
+            # acordarse.
+            sembrado = obj.CATALOGO.get(bancal.sembrado)
+            que = f" {sembrado.emoji}" if sembrado else ""
+            if not bancal.plantado:
+                lineas.append(f"`{bancal.numero}` 🟫 en barbecho")
+            elif bancal.listo(ahora):
+                lineas.append(f"`{bancal.numero}`{que} 🌾 **listo para cosechar**")
+            else:
+                regado = " · regado" if bancal.regado else ""
+                lineas.append(
+                    f"`{bancal.numero}`{que} 🌱 {_cuando(bancal, ahora)}{regado}"
+                )
 
     mochila = db.inventario(usuario_id, guild_id)
     tengo = [
@@ -980,7 +1050,7 @@ def texto_del_huerto(usuario_id: str, guild_id: str, ahora) -> str:
         for clave in hue.plantables(mochila)
     ]
     return (
-        f"## 🌱 Huerto de {hogar.casa.nombre}\n" + "\n".join(lineas) +
+        f"## 🌱 {titulo_del_huerto(hogar)}\n" + "\n".join(lineas) +
         f"\n-# Para sembrar: {' '.join(tengo) if tengo else '**nada**'} · tarda "
         f"{hue.HORAS_DE_CULTIVO} h, o "
         f"{hue.HORAS_DE_CULTIVO - hue.HORAS_QUE_AHORRA_REGAR} h si lo riegas.\n"
@@ -1069,9 +1139,14 @@ class MenuHuerto(discord.ui.Select):
     veces; así cada renglón dice lo único que se puede hacer con él.
     """
 
-    def __init__(self, bancales: list[hue.Bancal], ahora, sembrar=None):
+    def __init__(self, bancales: list[hue.Bancal], ahora, sembrar=None,
+                 hogar: cas.Hogar | None = None):
         self.ahora = ahora
         self.sembrar = sembrar
+        # De qué casa es cada bancal, para poder decirlo en la etiqueta: con
+        # varias casas los números se repiten y «Regar el bancal 1» sería
+        # ambiguo. Con una sola no se dice nada, que es el caso de casi todos.
+        casas = {c.id: c.casa.nombre for c in (hogar.casas if hogar else ())}
         opciones = []
         for bancal in bancales:
             if not bancal.plantado:
@@ -1082,28 +1157,174 @@ class MenuHuerto(discord.ui.Select):
                 accion, etiqueta, emoji = "regar", "Regar", "💧"
             else:
                 continue                    # regado y creciendo: nada que hacer
+            donde = f" · {casas[bancal.casa_id]}" if len(casas) > 1 else ""
             opciones.append(discord.SelectOption(
-                label=f"{etiqueta} el bancal {bancal.numero}",
-                value=f"{accion}:{bancal.numero}",
+                label=f"{etiqueta} el bancal {bancal.numero}{donde}"[:100],
+                value=f"{accion}:{bancal.casa_id}:{bancal.numero}",
                 emoji=emoji,
             ))
         super().__init__(placeholder="El huerto…", options=opciones)
 
     async def callback(self, interaccion: discord.Interaction) -> None:
-        accion, numero = self.values[0].split(":")
+        accion, casa_id, numero = self.values[0].split(":")
         usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
         ahora = db.ahora_utc()
         if accion == "plantar":
             resultado = economia.plantar(
                 usuario_id, guild_id, int(numero), ahora,
-                self.sembrar or hue.SEMILLA,
+                self.sembrar or hue.SEMILLA, int(casa_id),
             )
         else:
             hacer = {"regar": economia.regar, "cosechar": economia.cosechar}[accion]
-            resultado = hacer(usuario_id, guild_id, int(numero), ahora)
+            resultado = hacer(
+                usuario_id, guild_id, int(numero), ahora, casa_id=int(casa_id)
+            )
         await interaccion.response.edit_message(
             content=texto_resultado_huerto(resultado, ahora), view=None
         )
+
+
+class MenuMudar(discord.ui.Select):
+    """A qué casa se muda cada gachamon.
+
+    Un solo desplegable con **una fila por gachamon y destino** sería el plantel
+    entero por tres casas. Así que se elige primero a quién se mueve, y el
+    destino sale en el segundo menú: el mismo reparto que el huerto usa para
+    «qué siembras» y «qué bancal».
+    """
+
+    def __init__(self, vivos, hogar: cas.Hogar, elegido: int | None = None):
+        self.hogar = hogar
+        self.elegido = elegido if any(c.id == elegido for c in vivos) else (
+            vivos[0].id if vivos else None
+        )
+        casas = {c.id: c.casa.nombre for c in hogar.casas}
+        opciones = [
+            discord.SelectOption(
+                label=sim.nombre_visible(criatura)[:100],
+                value=str(criatura.id),
+                description=(
+                    casas.get(criatura.casa_id, "En el refugio")
+                    if criatura.casa_id else "En el refugio"
+                ),
+                emoji=criatura.def_especie.emoji,
+                default=criatura.id == self.elegido,
+            )
+            for criatura in vivos[:25]
+        ]
+        super().__init__(placeholder="¿A quién mudas?", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        await _responder_casa(interaccion, mudar=int(self.values[0]))
+
+
+class MenuDestino(discord.ui.Select):
+    """Adónde va el gachamon elegido, con la ocupación de cada casa a la vista.
+
+    El refugio va siempre: es lo que permite vaciar una casa antes de venderla,
+    y sin él quien llene las tres se quedaría sin poder mover a nadie.
+    """
+
+    def __init__(self, hogar: cas.Hogar, dentro: dict, criatura_id: int | None):
+        self.criatura_id = criatura_id
+        opciones = []
+        for propia in hogar.casas:
+            ocupada = dentro.get(propia.id, 0)
+            lleno = ocupada >= propia.casa.aforo
+            opciones.append(discord.SelectOption(
+                label=f"{propia.casa.nombre} — {ocupada}/{propia.casa.aforo}"
+                      + (" · llena" if lleno else ""),
+                value=str(propia.id),
+                description=f"Comodidad {propia.comodidad}",
+                emoji="🏠",
+            ))
+        opciones.append(discord.SelectOption(
+            label="Al refugio",
+            value="refugio",
+            description=f"Comodidad {cas.EL_REFUGIO.comodidad}, sin muebles",
+            emoji="🏚️",
+        ))
+        super().__init__(placeholder="…y adónde", options=opciones)
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        if self.criatura_id is None:
+            await interaccion.response.edit_message(
+                content="❌ Elige antes a quién mudas.", view=None
+            )
+            return
+        destino = None if self.values[0] == "refugio" else int(self.values[0])
+        resultado = economia.mudar_gachamon(
+            str(interaccion.user.id), str(interaccion.guild_id),
+            self.criatura_id, destino,
+        )
+        if not resultado.ok:
+            await interaccion.response.edit_message(
+                content=f"❌ {resultado.problema}", view=None
+            )
+            return
+        donde = resultado.casa.nombre if resultado.casa else "el refugio"
+        await interaccion.response.edit_message(
+            content=(
+                f"🏠 **{sim.nombre_visible(resultado.criatura)}** se muda a "
+                f"**{donde}**."
+            ),
+            view=None,
+        )
+
+
+def menus_de_mudanza(
+    usuario_id: str, guild_id: str, ahora, mudar: int | None = None
+) -> list[discord.ui.Select]:
+    """Los dos desplegables de mudar, o ninguno si no hay nada que mover."""
+    hogar = db.hogar_leido(usuario_id, guild_id, ahora)
+    if not hogar.casas:
+        return []
+    vivos = db.plantel(usuario_id, guild_id)
+    if not vivos:
+        return []
+    quien = MenuMudar(vivos, hogar, mudar)
+    dentro = db.inquilinos_de(usuario_id, guild_id)
+    return [quien, MenuDestino(hogar, dentro, quien.elegido)]
+
+
+async def _responder_casa(
+    interaccion: discord.Interaction, mudar: int | None = None
+) -> None:
+    """Redibuja los menús de mudanza conservando a quién se iba a mover."""
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    ahora = db.ahora_utc()
+    menus = menus_de_mudanza(usuario_id, guild_id, ahora, mudar)
+    await interaccion.response.edit_message(
+        content=texto_de_la_mudanza_pendiente(usuario_id, guild_id, ahora),
+        view=VistaConMenu(*menus) if menus else None,
+    )
+
+
+def texto_de_la_mudanza_pendiente(usuario_id: str, guild_id: str, ahora) -> str:
+    """La ocupación de cada casa, que es lo que hace falta para decidir."""
+    hogar = db.hogar_leido(usuario_id, guild_id, ahora)
+    dentro = db.inquilinos_de(usuario_id, guild_id)
+    if not hogar.casas:
+        return "## 🏠 Mudar\n-# No tienes ninguna casa. Cómprate una en 🛒 **Tienda**."
+    lineas = [
+        f"🏠 **{propia.casa.nombre}** · "
+        f"{dentro.get(propia.id, 0)}/{propia.casa.aforo}"
+        for propia in hogar.casas
+    ]
+    if dentro.get(None):
+        lineas.append(f"🏚️ **En el refugio** · {dentro[None]}")
+    return "## 🏠 Mudar\n" + "\n".join(lineas)
+
+
+async def abrir_mudanza(interaccion: discord.Interaction) -> None:
+    usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
+    ahora = db.ahora_utc()
+    menus = menus_de_mudanza(usuario_id, guild_id, ahora)
+    await interaccion.response.send_message(
+        texto_de_la_mudanza_pendiente(usuario_id, guild_id, ahora),
+        view=VistaConMenu(*menus) if menus else None,
+        ephemeral=True,
+    )
 
 
 class MenuCocina(discord.ui.Select):
@@ -1153,16 +1374,19 @@ def menus_del_huerto(
     cada bancal, que es lo que lo usa.
     """
     hogar = db.hogar_leido(usuario_id, guild_id, ahora)
-    cuantos = hue.bancales_de(hogar.casa.clave if hogar.casa else None)
-    if not cuantos:
+    if not hogar.casas:
         return []
 
+    bancales = []
+    for propia in hogar.casas:
+        bancales += db.huerto_de(
+            usuario_id, guild_id, propia.id,
+            hue.bancales_de(propia.casa.clave),
+        )
     mochila = db.inventario(usuario_id, guild_id)
     menus: list[discord.ui.Select] = []
     que_sembrar = MenuQueSembrar(mochila, sembrar)
-    del_huerto = MenuHuerto(
-        db.huerto_de(usuario_id, guild_id, cuantos), ahora, que_sembrar.elegido
-    )
+    del_huerto = MenuHuerto(bancales, ahora, que_sembrar.elegido, hogar)
     if que_sembrar.options:
         menus.append(que_sembrar)
     if del_huerto.options:

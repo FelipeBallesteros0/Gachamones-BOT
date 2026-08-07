@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jardin
 import simulacion as sim
@@ -56,6 +56,12 @@ class Casa:
     # distinto a propósito: `/casa` es lo que se mira, y tener casa propia se
     # tiene que notar de un vistazo sin leer el pie.
     cobertizo: bool = False
+    # Cuántos gachamones viven dentro. Coincide con `huecos` a propósito: un
+    # número menos que recordar, y la lectura sale sola —una casa pequeña tiene
+    # sitio para tres cosas, sean muebles o inquilinos—. El refugio se queda en
+    # 0, que aquí significa **sin límite**: es adonde va quien no cabe en
+    # ninguna parte, así que no puede llenarse.
+    aforo: int = 0
 
 
 EL_REFUGIO = Casa(
@@ -67,11 +73,18 @@ EL_REFUGIO = Casa(
 CATALOGO: dict[str, Casa] = {
     casa.clave: casa
     for casa in (
-        Casa("pequena", "Casa pequeña", 200, 80, 3, 100, 3, 1),
-        Casa("mediana", "Casa mediana", 500, 85, 6, 125, 4, 2),
-        Casa("grande", "Casa grande", 1200, 90, 10, 150, 5, 3),
+        Casa("pequena", "Casa pequeña", 200, 80, 3, 100, 3, 1, aforo=3),
+        Casa("mediana", "Casa mediana", 500, 85, 6, 125, 4, 2, aforo=6),
+        Casa("grande", "Casa grande", 1200, 90, 10, 150, 5, 3, aforo=10),
     )
 }
+
+# Cuántas casas puede tener alguien a la vez. Tres, y el número sale de una
+# restricción de Discord y no del gusto: los bancales del huerto se listan uno
+# por fila en un desplegable, que admite 25 opciones. Tres casas grandes son 21
+# bancales y caben; con una cuarta se pasaría y el menú del huerto reventaría
+# justo para quien más ha invertido en él.
+MAXIMO_CASAS = 3
 
 
 def buscar(clave: str | None) -> Casa | None:
@@ -84,52 +97,100 @@ def buscar(clave: str | None) -> Casa | None:
 
 
 @dataclass(frozen=True)
-class Hogar:
-    """Dónde vive alguien ahora mismo.
+class CasaPropia:
+    """Una casa concreta de alguien: cuál es, y qué tiene puesto dentro.
 
-    `casa` a `None` significa sin casa propia, y entonces manda `refugio_hasta`:
-    en el futuro es que sigue en el refugio, y en el pasado que se ha quedado a
-    la intemperie.
+    Lleva `id` porque ahora se pueden tener varias del mismo tamaño y hay que
+    poder distinguirlas: los gachamones y los muebles apuntan a una en concreto,
+    no a «la mediana».
     """
 
-    casa: Casa | None
-    refugio_hasta: datetime
-    # Los muebles que hay dentro. El refugio no admite ninguno —tiene cero
-    # huecos— y `comodidad_de` lo respeta por su techo, así que no hace falta
-    # comprobarlo aparte.
+    id: int
+    casa: Casa
+    # Los muebles que hay dentro. Se sigue teniendo **uno de cada por persona**;
+    # lo que se elige es en cuál de tus casas cuelga.
     puestos: tuple[str, ...] = ()
-    # Si otros pueden verla con `/visitar`. Nace abierta, como todo lo demás del
+
+    @property
+    def comodidad(self) -> int:
+        return comodidad_de(self.casa, self.puestos)
+
+    def caben_mas_inquilinos(self, cuantos_dentro: int) -> bool:
+        return cuantos_dentro < self.casa.aforo
+
+
+@dataclass(frozen=True)
+class Hogar:
+    """Todo lo que alguien tiene donde vivir.
+
+    Sin ninguna casa manda `refugio_hasta`: en el futuro es que sigue en el
+    refugio, y en el pasado que se ha quedado a la intemperie. Ese reloj es **de
+    la persona** y no de una casa, y por eso sobrevive a comprarlas y venderlas.
+    """
+
+    casas: tuple[CasaPropia, ...] = ()
+    refugio_hasta: datetime = datetime.min.replace(tzinfo=timezone.utc)
+    # Si otros pueden verlo con `/visitar`. Nace abierto, como todo lo demás del
     # bot: `/mascota @alguien` y `/jardin` ya enseñan lo de cualquiera.
     publica: bool = True
 
     def estado(self, ahora: datetime) -> str:
-        if self.casa is not None:
+        """En qué situación está la **persona**, no un gachamon suyo."""
+        if self.casas:
             return PROPIA
         return REFUGIO if ahora < self.refugio_hasta else INTEMPERIE
 
-    def donde(self, ahora: datetime) -> Casa:
-        """Dónde vive de hecho. A la intemperie no hay comodidad que valga."""
-        return self.casa or EL_REFUGIO
+    def casa_por_id(self, casa_id: int | None) -> CasaPropia | None:
+        """La casa de ese id, si sigue siendo suya.
 
-    def comodidad(self, ahora: datetime) -> int:
-        """Lo cómodo que es esto de verdad, muebles incluidos."""
-        if self.estado(ahora) == INTEMPERIE:
+        Devuelve `None` para un id desconocido y no revienta: una criatura puede
+        apuntar a una casa que se acaba de vender, y eso significa que vive en el
+        refugio, no que haya un error.
+        """
+        if casa_id is None:
+            return None
+        return next((c for c in self.casas if c.id == casa_id), None)
+
+    def donde_vive(self, casa_id: int | None) -> Casa:
+        """En qué casa vive de hecho ese gachamon. Sin casa, el refugio."""
+        propia = self.casa_por_id(casa_id)
+        return propia.casa if propia else EL_REFUGIO
+
+    def estado_de(self, casa_id: int | None, ahora: datetime) -> str:
+        """La situación de un gachamon concreto.
+
+        No es la de la persona: quien tiene casa pero no le cabe este gachamon
+        lo tiene en el refugio, y si además se le acabó la estancia, a la
+        intemperie. Es lo que hace que repartirlos importe.
+        """
+        if self.casa_por_id(casa_id) is not None:
+            return PROPIA
+        return REFUGIO if ahora < self.refugio_hasta else INTEMPERIE
+
+    def comodidad_de(self, casa_id: int | None, ahora: datetime) -> int:
+        """Lo cómodo que vive ese gachamon, muebles incluidos."""
+        if self.estado_de(casa_id, ahora) == INTEMPERIE:
             return 0
-        return comodidad_de(self.donde(ahora), self.puestos)
+        propia = self.casa_por_id(casa_id)
+        return propia.comodidad if propia else EL_REFUGIO.comodidad
+
+    def puede_comprar_otra(self) -> bool:
+        return len(self.casas) < MAXIMO_CASAS
 
 
 def estancia_desde(ahora: datetime) -> datetime:
     return ahora + timedelta(days=DIAS_DE_REFUGIO)
 
 
-def puede_mudarse_a(hogar: Hogar, casa: Casa) -> bool:
-    """Sólo se sube de tamaño. Comprar lo que ya tienes no es una mudanza.
+def puede_mejorarse_a(propia: CasaPropia, casa: Casa) -> bool:
+    """Mejorar **esa** casa. Sólo se sube de tamaño.
 
-    Bajar se hace vendiendo primero: sin casa, esto vuelve a admitir cualquiera.
-    Así el 20 % que se pierde al vender es explícito y no una sorpresa dentro de
-    una compra.
+    Bajar se hace vendiéndola primero, y así el 20 % que se pierde es explícito
+    en vez de una sorpresa dentro de una compra. La regla es la de siempre; lo
+    único que cambia es que ahora se aplica a una casa concreta y no a «la
+    casa», porque se pueden tener varias y cada una se mejora por su cuenta.
     """
-    return casa.tamano > (hogar.casa.tamano if hogar.casa else 0)
+    return casa.tamano > propia.casa.tamano
 
 
 # Lo que dan por una casa usada. El 20 % que se pierde es lo que evita comprar y
@@ -230,16 +291,23 @@ ALIVIO_MAXIMO_DE_ANIMO = 0.25
 SUELO_DE_HAMBRE_A_LA_INTEMPERIE = 25.0
 
 
-def ritmo_de(hogar: Hogar, ahora: datetime) -> sim.Ritmo:
-    """Cómo le pasa el tiempo a quien vive aquí."""
-    if hogar.estado(ahora) == INTEMPERIE:
+def ritmo_de(
+    hogar: Hogar, ahora: datetime, casa_id: int | None = None
+) -> sim.Ritmo:
+    """Cómo le pasa el tiempo al gachamon que vive en esa casa.
+
+    El ritmo es **suyo y no de su dueño**: con varias casas, dos gachamones de
+    la misma persona pueden vivir en sitios distintos, y quien no cabe en
+    ninguna está en el refugio aunque su dueño tenga tres.
+    """
+    if hogar.estado_de(casa_id, ahora) == INTEMPERIE:
         return sim.Ritmo(
             hambre=PENALIZACION_INTEMPERIE,
             animo=PENALIZACION_INTEMPERIE,
             limpieza=PENALIZACION_INTEMPERIE,
             suelo_de_hambre=SUELO_DE_HAMBRE_A_LA_INTEMPERIE,
         )
-    return sim.Ritmo(animo=alivio_de_animo(hogar.comodidad(ahora)))
+    return sim.Ritmo(animo=alivio_de_animo(hogar.comodidad_de(casa_id, ahora)))
 
 
 def alivio_de_animo(comodidad: int) -> float:

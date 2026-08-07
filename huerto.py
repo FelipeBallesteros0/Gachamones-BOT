@@ -107,7 +107,16 @@ POROTOS_POR_COSECHA = (2, 4)
 # tuyo. Se guarda por clave y no por `casas.Casa` a propósito: así este módulo no
 # importa `casas`, y `objetos` —que sí importa éste— no acaba arrastrando la pila
 # entera de dibujo por la cadena `casas → jardin → pantalla`.
-BANCALES = {"pequena": 1, "mediana": 2, "grande": 3}
+# Los saltos son grandes —y no 1/2/3— desde que se puede tener más de una casa.
+# Con el huerto por casa, apilar pequeñas era la forma óptima de conseguir
+# bancales: dos costaban 400 y daban los mismos 2 que la mediana de 500, así que
+# la mediana no la compraba nadie. Y no había precio que lo arreglara, porque dos
+# pequeñas igualan también su aforo y sus huecos.
+#
+# Con 1/3/7 mejorar gana en todos los cruces sin tocar un solo precio: la mediana
+# (500) da 3 donde dos pequeñas (400) dan 2, y la grande (1200) da 7 donde dos
+# medianas (1000) dan 6. Hay un test que recorre esas combinaciones.
+BANCALES = {"pequena": 1, "mediana": 3, "grande": 7}
 
 
 def bancales_de(clave_de_casa: str | None) -> int:
@@ -224,6 +233,10 @@ class Bancal:
     # Qué se sembró, por su clave de objeto. Va al final y con valor por defecto
     # porque hay sitios que construyen el bancal por posición.
     sembrado: str = SEMILLA
+    # De qué casa es esta tierra. Con varias casas los números se repiten —cada
+    # una empieza por su bancal 1—, así que el par (casa, número) es lo único
+    # que identifica un bancal de verdad.
+    casa_id: int = 0
 
     @property
     def plantado(self) -> bool:

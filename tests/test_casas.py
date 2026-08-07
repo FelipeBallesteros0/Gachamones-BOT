@@ -48,6 +48,23 @@ def hogar(usuario="u1", ahora=T0):
     return db.hogar_de(usuario, "g1", ahora)
 
 
+def un_hogar(casa=None, ahora=T0, puestos=(), id_=1):
+    """Un hogar con **una sola casa**, que es el caso de casi todos los tests.
+
+    Desde que se pueden tener varias, `Hogar` lleva una tupla de `CasaPropia` y
+    ya no una `Casa` suelta; esto evita repetir el envoltorio en cada test.
+    `casa` a `None` es no tener ninguna: refugio o intemperie según `ahora`.
+    """
+    casas = () if casa is None else (cas.CasaPropia(id_, casa, tuple(puestos)),)
+    return cas.Hogar(casas=casas, refugio_hasta=ahora)
+
+
+def la_casa_de(usuario="u1", ahora=T0):
+    """La primera casa de alguien, o `None`. Sustituye al viejo `hogar().casa`."""
+    casas = db.hogar_de(usuario, "g1", ahora).casas
+    return casas[0].casa if casas else None
+
+
 # --- Nadie en la calle -----------------------------------------------------
 
 def test_nadie_se_queda_sin_hogar():
@@ -55,7 +72,7 @@ def test_nadie_se_queda_sin_hogar():
     refugio y con la semana entera por delante."""
     suyo = hogar()
 
-    assert suyo.casa is None
+    assert not suyo.casas
     assert suyo.estado(T0) == cas.REFUGIO
     assert suyo.refugio_hasta == T0 + timedelta(days=cas.DIAS_DE_REFUGIO)
 
@@ -80,13 +97,13 @@ def test_la_estancia_no_se_reinicia_al_volver_a_mirar():
 def test_al_acabarse_la_estancia_se_queda_a_la_intemperie():
     suyo = hogar()
     assert suyo.estado(suyo.refugio_hasta + timedelta(seconds=1)) == cas.INTEMPERIE
-    assert suyo.comodidad(suyo.refugio_hasta + timedelta(seconds=1)) == 0
+    assert suyo.comodidad_de(1, suyo.refugio_hasta + timedelta(seconds=1)) == 0
 
 
 def test_el_hogar_es_de_cada_persona_y_servidor():
     db.hogar_de("u1", "g1", T0)
-    assert db.hogar_de("u2", "g1", T0).casa is None
-    assert db.hogar_de("u1", "g2", T0).casa is None
+    assert db.hogar_de("u2", "g1", T0).casas == ()
+    assert db.hogar_de("u1", "g2", T0).casas == ()
 
 
 # --- Comprar y mudarse -----------------------------------------------------
@@ -101,35 +118,41 @@ def test_comprar_cobra_y_te_muda():
     assert resultado.casa == MEDIANA
     assert resultado.desde is None            # venía del refugio
     assert monedas() == 1000 - MEDIANA.precio
-    assert hogar().casa == MEDIANA
+    assert la_casa_de() == MEDIANA
     assert hogar().estado(T0) == cas.PROPIA
 
 
-def test_comprar_una_casa_menor_no_cobra_ni_te_muda():
-    """El mismo cerrojo que el doble clic del ropero: comprar lo que ya tienes,
-    o algo peor, no puede cobrar."""
+def test_mejorar_a_una_igual_o_peor_no_cobra_ni_cambia_nada():
+    """El mismo cerrojo que el doble clic del ropero. Ahora se aplica a **una
+    casa concreta**: comprar una pequeña teniendo una grande ya no es un error,
+    es comprarse otra casa; lo que no se puede es *mejorar* hacia abajo."""
     con_monedas(3000)
     economia.comprar_casa("u1", "g1", GRANDE, T0)
+    suya = id_de_la_casa()
     saldo = monedas()
 
     for casa in (PEQUENA, MEDIANA, GRANDE):
-        resultado = economia.comprar_casa("u1", "g1", casa, T0)
+        resultado = economia.comprar_casa("u1", "g1", casa, T0, mejorar=suya)
         assert not resultado.ok, casa.clave
-        assert "Ya vives" in resultado.problema
+        assert "no se puede empeorar" in resultado.problema
 
     assert monedas() == saldo
-    assert hogar().casa == GRANDE
+    assert la_casa_de() == GRANDE
 
 
-def test_mudarse_a_una_mayor_dice_de_donde_vienes():
+def test_mejorar_dice_de_donde_vienes_y_cuesta_la_diferencia():
+    """Mejorar cobra sólo lo que va de una a otra: al precio entero saldría más
+    caro que vender y comprar, y no mejoraría nadie."""
     con_monedas(3000)
     economia.comprar_casa("u1", "g1", PEQUENA, T0)
+    suya = id_de_la_casa()
 
-    resultado = economia.comprar_casa("u1", "g1", GRANDE, T0)
+    resultado = economia.comprar_casa("u1", "g1", GRANDE, T0, mejorar=suya)
 
-    assert resultado.ok
-    assert resultado.desde == PEQUENA
-    assert monedas() == 3000 - PEQUENA.precio - GRANDE.precio
+    assert resultado.ok and resultado.desde == PEQUENA
+    assert resultado.casa_id == suya, "mejorar conserva la casa, no crea otra"
+    cuesta = GRANDE.precio - cas.lo_que_dan_por(PEQUENA)
+    assert monedas() == 3000 - PEQUENA.precio - cuesta
 
 
 def test_sin_monedas_suficientes_no_se_muda_nadie():
@@ -140,7 +163,7 @@ def test_sin_monedas_suficientes_no_se_muda_nadie():
     assert not resultado.ok
     assert "faltan 1 asciicoins" in resultado.problema
     assert monedas() == PEQUENA.precio - 1
-    assert hogar().casa is None
+    assert la_casa_de() is None
 
 
 def test_el_saldo_nunca_se_queda_en_negativo():
@@ -248,7 +271,7 @@ def test_la_casa_cabe_en_un_mensaje_de_discord():
     """Con diez el jardín ya mide más de mil caracteres; el tejado y el suelo
     tienen que dejarlo por debajo del tope de Discord."""
     texto = social.texto_de_la_casa(
-        cas.Hogar(GRANDE, T0), [_criatura(i) for i in range(10)], "Felipe", T0
+        un_hogar(GRANDE, T0), [_criatura(i) for i in range(10)], "Felipe", T0
     )
     assert len(texto) < 2000
 
@@ -286,7 +309,7 @@ def test_el_refugio_dice_cuanto_queda_y_la_intemperie_que_se_acabo():
 def test_la_comodidad_se_enseña_sin_porcentaje():
     """Deja de ser un porcentaje al subir los techos por encima de 100: quien
     viera «118 %» pensaría que hay un fallo."""
-    texto = social.texto_de_la_casa(cas.Hogar(GRANDE, T0), [], "Felipe", T0)
+    texto = social.texto_de_la_casa(un_hogar(GRANDE, T0), [], "Felipe", T0)
     assert f"**{GRANDE.comodidad}**/{GRANDE.techo}" in texto
     assert "%" not in texto
 
@@ -294,7 +317,9 @@ def test_la_comodidad_se_enseña_sin_porcentaje():
 def test_la_mudanza_se_canta_diciendo_de_donde_vienes():
     con_monedas(3000)
     del_refugio = economia.comprar_casa("u1", "g1", PEQUENA, T0)
-    subiendo = economia.comprar_casa("u1", "g1", GRANDE, T0)
+    subiendo = economia.comprar_casa(
+        "u1", "g1", GRANDE, T0, mejorar=id_de_la_casa()
+    )
 
     assert "se trasladó del refugio a su nueva **Casa pequeña**" in (
         tienda.texto_de_la_mudanza("Felipe", del_refugio)
@@ -321,17 +346,23 @@ def test_la_tienda_sigue_cabiendo_en_los_limites_con_las_casas():
     assert len(obj.CATALOGO) + len(cos.CATALOGO) + len(cas.CATALOGO) > 25
 
 
-def test_el_desplegable_marca_donde_vives_y_lo_que_se_te_quedo_pequeño():
+def test_el_desplegable_ofrece_mejorar_comprar_y_vender():
+    """Las tres cosas que se pueden hacer con las casas, en un solo menú: son la
+    misma decisión y separarlas obligaría a adivinar en cuál de tres está."""
     con_monedas(3000)
     economia.comprar_casa("u1", "g1", MEDIANA, T0)
+    suya = id_de_la_casa()
 
-    por_valor = {
-        o.value: o.label for o in tienda.MenuCasas(hogar()).options
-    }
+    opciones = tienda.MenuCasas(hogar()).options
+    por_valor = {o.value: o.label for o in opciones}
 
-    assert "se te quedó pequeña" in por_valor["pequena"]
-    assert "aquí vives" in por_valor["mediana"]
-    assert f"🪙 {GRANDE.precio}" in por_valor["grande"]
+    # Mejorar sólo a lo que es mayor, y diciendo lo que cuesta la diferencia.
+    assert f"mejorar:{suya}:grande" in por_valor
+    assert f"mejorar:{suya}:pequena" not in por_valor
+    assert f"mejorar:{suya}:mediana" not in por_valor
+    # Comprar otra sigue estando, porque aún no llega al tope.
+    assert f"🪙 {GRANDE.precio}" in por_valor["comprar:grande"]
+    assert f"vender:{suya}" in por_valor
 
 
 # --- Los muebles -----------------------------------------------------------
@@ -493,7 +524,7 @@ def test_no_se_puede_colocar_mas_de_lo_que_caben():
     assert "No cabe" in resultado.problema and str(PEQUENA.huecos) in resultado.problema
 
 
-def test_al_mudarte_a_una_mayor_caben_los_que_estaban_guardados():
+def test_al_mejorar_a_una_mayor_caben_los_que_estaban_guardados():
     """Lo que hace que subir de casa valga para algo más que el número."""
     con_casa("pequena")
     for mueble in mejores(PEQUENA.huecos):
@@ -501,7 +532,7 @@ def test_al_mudarte_a_una_mayor_caben_los_que_estaban_guardados():
     comprar_m(FELPUDO)
     assert not economia.colocar_mueble("u1", "g1", FELPUDO, T0).ok
 
-    economia.comprar_casa("u1", "g1", MEDIANA, T0)
+    economia.comprar_casa("u1", "g1", MEDIANA, T0, mejorar=id_de_la_casa())
     resultado = economia.colocar_mueble("u1", "g1", FELPUDO, T0)
 
     assert resultado.ok
@@ -542,9 +573,7 @@ def test_la_casa_enseña_la_comodidad_real_y_los_muebles():
     con_casa("pequena")
     comprar_m(CHIMENEA)
 
-    texto = social.texto_de_la_casa(
-        hogar(), [], "Felipe", T0, db.puestos("u1", "g1")
-    )
+    texto = social.texto_de_la_casa(hogar(), [], "Felipe", T0)
 
     assert f"**{PEQUENA.comodidad + CHIMENEA.comodidad}**/{PEQUENA.techo}" in texto
     assert f"1/{PEQUENA.huecos} huecos" in texto
@@ -554,8 +583,7 @@ def test_la_casa_enseña_la_comodidad_real_y_los_muebles():
 def test_la_casa_con_diez_gachamones_y_diez_muebles_cabe_en_discord():
     """El peor caso: la casa grande llena de bichos y de muebles."""
     texto = social.texto_de_la_casa(
-        cas.Hogar(GRANDE, T0), [_criatura(i) for i in range(10)], "Felipe", T0,
-        tuple(m.clave for m in mejores(GRANDE.huecos)),
+        un_hogar(GRANDE, T0), [_criatura(i) for i in range(10)], "Felipe", T0,
     )
     assert len(texto) < 2000
 
@@ -619,13 +647,13 @@ def _tras(horas, ritmo=sim.RITMO_BAJO_TECHO, **estado):
 def test_bajo_techo_el_tiempo_pasa_como_siempre():
     """El ritmo por defecto **es** el de quien tiene techo: quien olvide pasarlo
     se queda con el comportamiento de antes y nunca con uno peor."""
-    hogar = cas.Hogar(None, T0 + timedelta(days=1))       # refugio
+    hogar = un_hogar(None, T0 + timedelta(days=1))       # refugio
     assert cas.ritmo_de(hogar, T0) == sim.Ritmo()
     assert _tras(10, cas.ritmo_de(hogar, T0)) == _tras(10)
 
 
 def test_a_la_intemperie_todo_cae_un_cuarto_mas_rapido():
-    fuera = cas.ritmo_de(cas.Hogar(None, T0), T0 + timedelta(days=1))
+    fuera = cas.ritmo_de(un_hogar(None, T0), T0 + timedelta(days=1), 1)
 
     normal, crudo = _tras(10), _tras(10, fuera)
 
@@ -638,7 +666,7 @@ def test_a_la_intemperie_todo_cae_un_cuarto_mas_rapido():
 def test_la_intemperie_no_puede_matar():
     """Lo decidido: acelera, pero nadie pierde un gachamon para siempre por no
     haber comprado casa. Ni en un mes a la intemperie."""
-    fuera = cas.ritmo_de(cas.Hogar(None, T0), T0 + timedelta(days=1))
+    fuera = cas.ritmo_de(un_hogar(None, T0), T0 + timedelta(days=1), 1)
 
     tras_un_mes = _tras(24 * 30, fuera, hambre=30.0)
 
@@ -669,10 +697,10 @@ def test_la_comodidad_frena_el_animo_hasta_un_cuarto():
 
 
 def test_la_mejor_casa_conserva_mas_animo_que_el_refugio():
-    mejor = cas.Hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos)))
-    refugio = cas.Hogar(None, T0 + timedelta(days=1))
+    mejor = un_hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos)))
+    refugio = un_hogar(None, T0 + timedelta(days=1))
 
-    en_casa = _tras(24, cas.ritmo_de(mejor, T0))
+    en_casa = _tras(24, cas.ritmo_de(mejor, T0, 1))
     en_refugio = _tras(24, cas.ritmo_de(refugio, T0))
 
     assert en_casa.animo > en_refugio.animo
@@ -682,16 +710,16 @@ def test_la_mejor_casa_conserva_mas_animo_que_el_refugio():
 
 
 def test_los_muebles_cuentan_para_el_ritmo():
-    vacia = cas.Hogar(GRANDE, T0)
-    llena = cas.Hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos)))
+    vacia = un_hogar(GRANDE, T0)
+    llena = un_hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos)))
 
-    assert cas.ritmo_de(llena, T0).animo < cas.ritmo_de(vacia, T0).animo
+    assert cas.ritmo_de(llena, T0, 1).animo < cas.ritmo_de(vacia, T0, 1).animo
 
 
 def test_las_de_la_incubadora_siguen_congeladas_vivan_donde_vivan():
     """El invariante que no se toca: si las de reserva decayeran, con diez por
     persona se morirían hiciera lo que hiciera su dueño."""
-    fuera = cas.ritmo_de(cas.Hogar(None, T0), T0 + timedelta(days=1))
+    fuera = cas.ritmo_de(un_hogar(None, T0), T0 + timedelta(days=1), 1)
     guardada = _viva(activa=False)
 
     assert sim.avanzar(guardada, T0 + timedelta(days=30), fuera) == guardada
@@ -802,7 +830,8 @@ def test_cerrar_la_casa_no_la_toca_por_dentro():
     db.abrir_o_cerrar_la_casa("u1", "g1", False, T0)
 
     suyo = hogar()
-    assert suyo.casa == MEDIANA and suyo.puestos == ("chimenea",)
+    assert [c.casa for c in suyo.casas] == [MEDIANA]
+    assert suyo.casas[0].puestos == ("chimenea",)
 
 
 def test_mirar_la_casa_de_otro_no_le_estrena_el_refugio():
@@ -940,8 +969,17 @@ def con_huerto(clave="grande", semillas=10):
         db.guardar_en_la_mochila_en(con, "u1", "g1", "semilla", semillas)
 
 
+def id_de_la_casa(usuario="u1", ahora=T0):
+    """El id de su primera casa. Con varias, cada bancal y cada mueble apuntan
+    a una en concreto, así que hace falta para casi todo."""
+    casas = db.hogar_de(usuario, "g1", ahora).casas
+    return casas[0].id if casas else 0
+
+
 def bancales(usuario="u1", clave="grande"):
-    return db.huerto_de(usuario, "g1", hue.bancales_de(clave))
+    return db.huerto_de(
+        usuario, "g1", id_de_la_casa(usuario), hue.bancales_de(clave)
+    )
 
 
 # --- La tabla de gustos ---
@@ -1334,17 +1372,21 @@ def test_lo_sembrado_sobrevive_a_una_base_de_antes_del_cambio():
     comportándose como se plantaron —semilla, y color al azar al cosechar—.
     """
     con_casa("grande")
+    casa = id_de_la_casa()
     with db.conectar() as con:
+        # Sin `sembrado`, como estaba antes; `casa_id` sí, que es de la
+        # migración de las casas múltiples y ya la cubre `test_migracion_casas`.
         con.execute("DROP TABLE huerto")
         con.execute(
             "CREATE TABLE huerto ("
             "usuario_id TEXT NOT NULL, guild_id TEXT NOT NULL, "
-            "bancal INTEGER NOT NULL, plantado_en TEXT NOT NULL, "
-            "regado INTEGER NOT NULL DEFAULT 0, "
-            "PRIMARY KEY (usuario_id, guild_id, bancal))"
+            "casa_id INTEGER NOT NULL, bancal INTEGER NOT NULL, "
+            "plantado_en TEXT NOT NULL, regado INTEGER NOT NULL DEFAULT 0, "
+            "PRIMARY KEY (usuario_id, guild_id, casa_id, bancal))"
         )
         con.execute(
-            "INSERT INTO huerto VALUES ('u1', 'g1', 1, ?, 0)", (T0.isoformat(),)
+            "INSERT INTO huerto VALUES ('u1', 'g1', ?, 1, ?, 0)",
+            (casa, T0.isoformat()),
         )
         con.commit()
         db._migrar(con)
@@ -1625,13 +1667,17 @@ def test_el_menu_del_huerto_ofrece_lo_que_toca_en_cada_bancal():
     economia.regar("u1", "g1", 2, T0)
 
     a_las_seis = T0 + timedelta(hours=6)
+    casa = id_de_la_casa()
     menu = tienda.MenuHuerto(bancales(), a_las_seis)
 
-    assert {o.value for o in menu.options} == {
-        "regar:1",        # plantado, sin regar, aún creciendo
-        "cosechar:2",     # regado y listo a las 5 h
-        "plantar:3",      # en barbecho
+    # El valor lleva la casa además del número: con varias, los números se
+    # repiten y regar «el bancal 1» sería ambiguo.
+    esperado = {f"regar:{casa}:1", f"cosechar:{casa}:2"}
+    esperado |= {
+        f"plantar:{casa}:{n}"
+        for n in range(3, hue.bancales_de("grande") + 1)
     }
+    assert {o.value for o in menu.options} == esperado
 
 
 def test_el_menu_de_siembra_empieza_en_la_semilla_y_recuerda_lo_elegido():
@@ -1737,22 +1783,26 @@ def test_todo_lo_que_hace_pasar_el_tiempo_mira_el_hogar():
 
 # --- Vender la casa --------------------------------------------------------
 
-def vender(usuario="u1", ahora=T0):
-    return economia.vender_casa(usuario, "g1", ahora)
+def vender(usuario="u1", ahora=T0, casa_id=None):
+    return economia.vender_casa(
+        usuario, "g1", id_de_la_casa(usuario) if casa_id is None else casa_id,
+        ahora,
+    )
 
 
-def test_solo_se_tiene_una_casa():
-    """Lo impone la clave primaria de `hogar` con una sola columna `casa`, y
-    hasta ahora no lo decía ningún test. Comprar tres deja una: la última."""
+def test_se_pueden_tener_hasta_tres_casas():
+    """Y ni una más: tres grandes son 21 bancales y el menú del huerto lleva una
+    fila por bancal, con las 25 opciones que admite un desplegable de Discord."""
     con_monedas(9000)
     for clave in ("pequena", "mediana", "grande"):
-        economia.comprar_casa("u1", "g1", cas.CATALOGO[clave], T0)
+        assert economia.comprar_casa("u1", "g1", cas.CATALOGO[clave], T0).ok
 
-    assert hogar().casa == GRANDE
-    with db.conectar() as con:
-        assert con.execute(
-            "SELECT COUNT(*) FROM hogar WHERE usuario_id='u1' AND guild_id='g1'"
-        ).fetchone()[0] == 1
+    suyas = db.hogar_de("u1", "g1", T0).casas
+    assert [c.casa.clave for c in suyas] == ["pequena", "mediana", "grande"]
+
+    cuarta = economia.comprar_casa("u1", "g1", PEQUENA, T0)
+    assert not cuarta.ok and str(cas.MAXIMO_CASAS) in cuarta.problema
+    assert len(db.hogar_de("u1", "g1", T0).casas) == cas.MAXIMO_CASAS
 
 
 def test_vender_devuelve_el_ochenta_por_ciento():
@@ -1764,7 +1814,7 @@ def test_vender_devuelve_el_ochenta_por_ciento():
     assert resultado.ok and resultado.casa == GRANDE
     assert resultado.cobrado == GRANDE.precio * cas.PORCENTAJE_DE_REVENTA // 100
     assert monedas() == saldo + resultado.cobrado
-    assert hogar().casa is None
+    assert la_casa_de() is None
 
 
 def test_la_venta_no_pasa_por_el_bote_diario():
@@ -1815,7 +1865,11 @@ def test_en_el_refugio_no_hay_nada_que_vender():
     assert monedas() == 500
 
 
-def test_vender_devuelve_al_refugio_con_la_semana_entera():
+def test_vender_la_ultima_devuelve_al_refugio_con_la_semana_entera():
+    """Sólo la última: quien se queda sin nada no puede acabar en la calle de
+    golpe. Vendiendo una de varias sigue teniendo techo y el reloj no se toca,
+    que es lo que impide refrescarlo comprando y vendiendo una barata en bucle.
+    """
     con_casa("pequena")
     mas_tarde = T0 + timedelta(days=30)
 
@@ -1859,16 +1913,17 @@ def test_los_muebles_guardados_se_vuelven_a_poner_en_la_casa_nueva():
 
 
 def test_vender_es_el_camino_para_bajar_de_casa():
-    """`puede_mudarse_a` sigue prohibiendo bajar de golpe; vendiendo primero se
+    """`puede_mejorarse_a` sigue prohibiendo bajar de golpe; vendiendo primero se
     puede, y el 20 % perdido queda a la vista en vez de escondido en la compra."""
     con_casa("grande", monedas=5000)
-    assert not economia.comprar_casa("u1", "g1", PEQUENA, T0).ok
+    suya = id_de_la_casa()
+    assert not economia.comprar_casa("u1", "g1", PEQUENA, T0, mejorar=suya).ok
 
     saldo = monedas()
     cobrado = vender().cobrado
     bajada = economia.comprar_casa("u1", "g1", PEQUENA, T0)
 
-    assert bajada.ok and hogar().casa == PEQUENA
+    assert bajada.ok and la_casa_de() == PEQUENA
     assert monedas() == saldo + cobrado - PEQUENA.precio
 
 
@@ -1891,21 +1946,26 @@ def test_lo_que_dan_es_entero_por_todas_las_casas():
 # --- Lo que se ve al vender ------------------------------------------------
 
 def test_el_menu_ofrece_vender_solo_si_tienes_casa():
-    assert tienda.VENDER not in {o.value for o in tienda.MenuCasas(hogar()).options}
+    sin_casa = {o.value for o in tienda.MenuCasas(hogar()).options}
+    assert not any(v.startswith("vender:") for v in sin_casa)
 
     con_casa("mediana")
     opciones = tienda.MenuCasas(hogar()).options
+    vender = [o for o in opciones if o.value.startswith("vender:")]
 
-    assert opciones[0].value == tienda.VENDER          # la primera, no perdida
-    assert str(cas.lo_que_dan_por(MEDIANA)) in opciones[0].label
+    assert len(vender) == 1, "una opción por casa tuya"
+    assert str(cas.lo_que_dan_por(MEDIANA)) in vender[0].label
 
 
 def test_el_aviso_de_la_venta_dice_lo_que_se_pierde():
     con_huerto("grande")
+    nacer("Kuro")
     comprar_m(CHIMENEA)
+    propia = db.hogar_de("u1", "g1", T0).casas[0]
 
-    texto = tienda.texto_de_la_venta(hogar(), db.mobiliario("u1", "g1"))
+    texto = tienda.texto_de_la_venta(propia, inquilinos=1)
 
     assert str(cas.lo_que_dan_por(GRANDE)) in texto
     assert "se guardan" in texto
-    assert "huerto se pierde" in texto
+    assert "se pierde" in texto
+    assert "al refugio" in texto, "hay que avisar de que echa a quien vive ahí"

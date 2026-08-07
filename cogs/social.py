@@ -110,36 +110,64 @@ def texto_de_la_casa(
     vivos: list[sim.Criatura],
     persona: str,
     ahora: datetime,
-    puestos: tuple[str, ...] = (),
 ) -> str:
-    """El hogar con todos los vivos dentro, sea propio o el refugio."""
-    estado = hogar.estado(ahora)
-    donde = hogar.donde(ahora)
-    if estado == cas.PROPIA:
-        titulo = f"## 🏠 {donde.nombre} de {persona}"
-        muebles = [cas.MUEBLES[c] for c in puestos if c in cas.MUEBLES]
+    """Todas sus casas, cada una con quién vive dentro, y el refugio al final.
+
+    Se dibuja una por una y no todo junto porque ahora **cada gachamon vive en
+    una**: verlos amontonados en un solo cuadro escondería justo lo que este
+    comando tiene que enseñar, que es quién está dónde y a quién le falta sitio.
+
+    Quien no cabe en ninguna sale al final, en el refugio o a la intemperie. Ese
+    bloque sólo aparece si hay alguien ahí: a quien tenga a todos alojados no le
+    hace falta que le recuerden que existe el refugio.
+    """
+    por_casa: dict[int | None, list[sim.Criatura]] = {}
+    for criatura in vivos:
+        # El `id` que no sea de una casa suya cuenta como refugio: es lo que
+        # pasa el rato entre vender una casa y refrescar la pantalla.
+        propia = hogar.casa_por_id(criatura.casa_id)
+        por_casa.setdefault(propia.id if propia else None, []).append(criatura)
+
+    bloques = []
+    for propia in hogar.casas:
+        dentro = por_casa.get(propia.id, [])
+        muebles = [cas.MUEBLES[c] for c in propia.puestos if c in cas.MUEBLES]
         pie = (
-            f"-# Comodidad **{cas.comodidad_de(donde, puestos)}**/{donde.techo} · "
-            f"{len(muebles)}/{donde.huecos} huecos · "
-            f"{len(vivos)} viviendo aquí."
+            f"-# Comodidad **{propia.comodidad}**/{propia.casa.techo} · "
+            f"{len(muebles)}/{propia.casa.huecos} huecos · "
+            f"**{len(dentro)}/{propia.casa.aforo}** viviendo aquí."
         )
         if muebles:
             pie += "\n-# " + " ".join(m.emoji for m in muebles)
-    elif estado == cas.REFUGIO:
-        quedan = max(0, (hogar.refugio_hasta - ahora).days)
-        titulo = f"## 🏚️ {persona}, en el refugio"
-        pie = (
-            f"-# Comodidad {donde.comodidad}, y no se puede decorar. "
-            f"Quedan **{quedan}** días de estancia: cómprate una casa en "
-            "🛒 **Tienda**."
+        bloques.append(
+            f"### 🏠 {propia.casa.nombre}\n"
+            f"{cas.render(dentro, propia.casa)}\n{pie}"
         )
-    else:
-        titulo = f"## 🌧️ {persona}, a la intemperie"
-        pie = (
-            "-# Se acabó la estancia en el refugio. Cómprate una casa en "
-            "🛒 **Tienda**."
+
+    fuera = por_casa.get(None, [])
+    if fuera or not hogar.casas:
+        en_refugio = hogar.estado_de(None, ahora) == cas.REFUGIO
+        if en_refugio:
+            quedan = max(0, (hogar.refugio_hasta - ahora).days)
+            pie = (
+                f"-# Comodidad {cas.EL_REFUGIO.comodidad}, y no se puede "
+                f"decorar. Quedan **{quedan}** días de estancia."
+            )
+            cabecera = "### 🏚️ En el refugio"
+        else:
+            pie = "-# Se acabó la estancia. Aquí todo baja más rápido."
+            cabecera = "### 🌧️ A la intemperie"
+        bloques.append(
+            f"{cabecera}\n{cas.render(fuera, cas.EL_REFUGIO)}\n{pie}"
         )
-    return f"{titulo}\n{cas.render(vivos, donde)}\n{pie}"
+
+    titulo = (
+        f"## 🏠 Las casas de {persona}" if len(hogar.casas) > 1
+        else f"## 🏠 El hogar de {persona}"
+    )
+    if not hogar.casas:
+        titulo = f"## 🏚️ {persona}, sin casa propia"
+    return titulo + "\n" + "\n".join(bloques)
 
 
 class CasaView(discord.ui.View):
@@ -176,6 +204,12 @@ class CasaView(discord.ui.View):
     async def huerto(self, interaccion: discord.Interaction, boton) -> None:
         if await self._es_tuya(interaccion):
             await tienda.abrir_huerto(interaccion)
+
+    @discord.ui.button(label="Mudar", emoji="🏠",
+                       style=discord.ButtonStyle.secondary)
+    async def mudar(self, interaccion: discord.Interaction, boton) -> None:
+        if await self._es_tuya(interaccion):
+            await tienda.abrir_mudanza(interaccion)
 
     @discord.ui.button(style=discord.ButtonStyle.secondary)
     async def visitas(self, interaccion: discord.Interaction, boton) -> None:
@@ -797,8 +831,7 @@ class Social(commands.Cog):
 
         await interaccion.response.send_message(
             texto_de_la_casa(
-                hogar, db.plantel(suyo, suyo_id), usuario.display_name, ahora,
-                hogar.puestos,
+                hogar, db.plantel(suyo, suyo_id), usuario.display_name, ahora
             ),
             view=VisitaView(suyo, usuario.display_name),
         )

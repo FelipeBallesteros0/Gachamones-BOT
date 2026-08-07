@@ -353,6 +353,10 @@ class Criatura:
     # Canal donde se atendió por última vez. Con el bot en varios canales, es
     # ahí donde llegan los avisos de hambre y muerte: donde estabas jugando.
     canal_id: str | None = None
+    # En cuál de las casas de su dueño vive. `None` es el refugio, que es adonde
+    # va quien no cabe en ninguna. Es de la criatura y no de la persona porque
+    # con varias casas dos gachamones del mismo dueño viven en sitios distintos.
+    casa_id: int | None = None
     # Si ya se avisó de que está en las últimas. Se reinicia al alimentarla,
     # para que el aviso no se repita cada cuarto de hora ni se pierda si la
     # criatura vuelve a caer al mismo punto días después.
