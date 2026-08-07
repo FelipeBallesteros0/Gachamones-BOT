@@ -603,12 +603,14 @@ def test_aplicar_opcion_narra_el_cambio_mecanico_real(
 def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
     """La barra que se ve es el camino hasta unirse, no la confianza cruda.
 
-    El umbral vive en `av.CONFIANZA_PARA_UNIRSE`; enseñar `confianza/100`
-    dejaba un encuentro ya ganado en un engañoso 90 %. Se redondea con
-    `round()` a entero: 20 sobre 90 son 22,2 y se ven como 22 %.
+    El umbral vive en `av.CONFIANZA_PARA_UNIRSE`; enseñar `confianza/100` con
+    un umbral menor dejaba un encuentro ya ganado en un engañoso 90 %. Se
+    redondea con `round()` a entero.
 
-    Los valores esperados dan por hecho el umbral actual (90); si se mueve,
-    este test hay que rehacerlo a mano, que para eso es la palanca.
+    Con el umbral en 100 la cuenta coincide con la confianza cruda, así que
+    este test sólo se nota si vuelve a bajar. Los valores dan por hecho el
+    umbral actual; si se mueve, hay que rehacerlos a mano —que para eso es la
+    palanca—.
     """
     monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
     dueño = SimpleNamespace(id="u1", display_name="Felipe")
@@ -622,13 +624,11 @@ def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
             )
             return vista.texto()
 
-        assert av.CONFIANZA_PARA_UNIRSE == 90, "el test asume el umbral actual"
+        assert av.CONFIANZA_PARA_UNIRSE == 100, "el test asume el umbral actual"
 
-        assert "confianza 22%" in texto(av.confianza_inicial(0))
-        assert "confianza 50%" in texto(45)
+        assert "confianza 20%" in texto(av.confianza_inicial(0))
+        assert "confianza 45%" in texto(45)
         assert "confianza 100%" in texto(av.CONFIANZA_PARA_UNIRSE)
-        # La confianza cruda llega a 100 aunque unirse pida sólo 90.
-        assert "confianza 100%" in texto(100)
         assert "confianza 0%" in texto(0)
 
         assert "/100" not in texto(av.confianza_inicial(0))
@@ -945,18 +945,18 @@ def _tasa(estrategia, confianza=40, tiradas=400):
 def test_leerle_el_caracter_sigue_notandose():
     """Los números de la confianza están medidos, no puestos a ojo.
 
-    **El «no garantiza» se soltó a propósito el 2026-07-31.** Antes este test
-    exigía que jugando bien no se pasara del 97 %, porque con los primeros
-    números elegir la mejor opción reclutaba siempre y el encuentro no tenía
-    riesgo. Al bajar el listón de confianza de 100 a 90 —para que unirse costara
-    menos, que es lo que se pidió— vuelve al 100 %, y eso ahora es una decisión,
-    no una regresión: **no lo aprietes otra vez sin hablarlo**.
+    **El «no garantiza» volvió al subir el plantel a 25.** El 2026-07-31 se
+    bajó el listón de 100 a 90 para que unirse costara menos, y el precio
+    asumido fue que jugando bien se reclutaba el 100 % de las veces: el
+    encuentro dejaba de tener riesgo. Con veinticinco huecos que llenar eso
+    convertía reclutar en un trámite largo, así que el listón volvió a 100 y con
+    él la posibilidad de fallar aunque juegues perfecto.
 
-    Lo que sí sigue siendo obligatorio es que **leerle el carácter se note**. Si
-    alguien toca las reacciones y a ciegas empieza a salir tan bien como jugando
-    bien, la mecánica se habrá quedado en una tirada disfrazada, y eso es lo que
-    este test vigila. Mira tasas y no números concretos: se pueden retocar
-    mientras la propiedad aguante.
+    Medido: jugando bien sale el 93 % y a ciegas el 22 %. Los dos números se
+    pueden retocar; lo que **no** puede caerse es que leerle el carácter se
+    note. Si alguien toca las reacciones y a ciegas empieza a salir tan bien
+    como jugando bien, la mecánica se habrá quedado en una tirada disfrazada, y
+    eso es lo que este test vigila.
     """
     mejor = lambda c, r: max(av.OPCIONES, key=lambda o: av.REACCIONES[c][o])
     azar = lambda c, r: r.choice(av.OPCIONES)
@@ -964,11 +964,15 @@ def test_leerle_el_caracter_sigue_notandose():
     bien = _tasa(mejor)
     ciegas = _tasa(azar)
 
-    assert bien >= 0.90, f"jugando bien sale el {bien:.0%}"
-    assert 0.35 <= ciegas <= 0.55, (
-        f"a ciegas sale el {ciegas:.0%}. Por abajo es lo que se pidió al bajar "
-        f"el listón —antes era 27 % y costaba demasiado—; por arriba, que "
-        f"quedarse uno no puede ser lo normal."
+    assert 0.85 <= bien < 1.0, (
+        f"jugando bien sale el {bien:.0%}. Por abajo, saberse la tabla tiene "
+        f"que servir de algo; por arriba, **no puede ser seguro** — que lo "
+        f"fuera es justo lo que se corrigió al volver el listón a 100."
+    )
+    assert 0.15 <= ciegas <= 0.30, (
+        f"a ciegas sale el {ciegas:.0%}. Por abajo, encontrarse uno no puede "
+        f"ser una pérdida de tiempo; por arriba, quedárselo sin mirar el "
+        f"carácter no puede ser lo normal."
     )
     assert bien > ciegas * 2, "leerle el carácter tiene que notarse"
 

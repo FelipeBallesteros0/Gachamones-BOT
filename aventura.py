@@ -1051,16 +1051,23 @@ ETIQUETAS = {
     ESPERAR: ("🧘", "Esperar quieto"),
 }
 
-# Cuánta confianza hay que reunir para que se una. Bajó de 100 a 90 el
-# 2026-07-31 porque costaba demasiado: a ciegas se reclutaba un 27 % de los
-# encuentros y ahora un 42 %. Es la palanca de dificultad del reclutamiento, y
-# la única que hace falta tocar para apretarlo o aflojarlo.
+# Cuánta confianza hay que reunir para que se una. Es la palanca de dificultad
+# del reclutamiento, y la única que hace falta tocar para apretarlo o aflojarlo.
 #
-# Tiene un coste asumido: con 90, quien se sabe la tabla de caracteres recluta
-# el 100 % de las veces. Antes el tope estaba puesto justamente para que no
-# fuera seguro; se soltó a conciencia. Ver
-# `test_leerle_el_caracter_sigue_notandose`.
-CONFIANZA_PARA_UNIRSE = 90
+# Ha ido y vuelto, y las dos veces por una razón medida:
+#
+# * **100 → 90** el 2026-07-31, porque costaba demasiado: a ciegas se reclutaba
+#   el 22 % de los encuentros.
+# * **90 → 100** al subir el plantel a 25. Con 90, quien se sabía la tabla de
+#   caracteres reclutaba el **100 %** de las veces y el encuentro dejaba de
+#   tener riesgo; con veinticinco huecos que llenar, eso convertía la fase de
+#   reclutar en un trámite largo en vez de en una apuesta.
+#
+# Medido ahora: jugando bien sale el **93 %** y a ciegas el **22 %**. Volver a
+# tocarlo es legítimo, pero hazlo con los números delante y no a ojo — ver
+# `test_leerle_el_caracter_sigue_notandose`, que vigila que leerle el carácter
+# se siga notando pase lo que pase con este número.
+CONFIANZA_PARA_UNIRSE = 100
 PACIENCIA_INICIAL = 4
 CARA_DADO_CONFIANZA = 8
 
