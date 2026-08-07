@@ -1565,7 +1565,12 @@ def test_el_menu_del_plantel_aguanta_el_plantel_lleno():
     menu = equipo.MenuPlantel(lleno)
     texto = equipo.texto_del_plantel(lleno)
 
-    assert len(menu.options) == db.MAXIMO_PLANTEL <= 25
+    # El 25 es el tope de opciones de un desplegable de Discord, y desde que
+    # el plantel llegó a 25 este menú va **justo**, sin un hueco de margen:
+    # subir `MAXIMO_PLANTEL` obliga antes a paginarlo. Va con literal para que
+    # cambiar la constante no mueva también la portería.
+    assert len(menu.options) == db.MAXIMO_PLANTEL
+    assert db.MAXIMO_PLANTEL <= 25
     assert all(1 <= len(o.label) <= 100 for o in menu.options)
     assert all(len(o.description) <= 100 for o in menu.options)
     assert len(texto) < 2000, len(texto)

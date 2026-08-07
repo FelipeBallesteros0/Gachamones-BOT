@@ -228,33 +228,11 @@ def _sin_color(texto):
     return [l for l in ANSI.sub("", texto).splitlines() if not l.startswith("```")]
 
 
-def _eje(linea):
-    marcas = [i for i, ch in enumerate(linea) if ch in "/\\╭╮╰╯│"]
-    return (marcas[0] + marcas[-1]) / 2 if marcas else None
-
-
-@pytest.mark.parametrize("cuantos", [0, 1, 3, 5, 6, 10])
-def test_el_tejado_va_centrado_sobre_el_marco(cuantos):
-    """Es de donde han salido todos los descuadres de este proyecto: centrar el
-    adorno sobre su propio eje en vez de sobre el del dibujo. Se mide el ancho
-    visible, sin los códigos de color."""
-    vivos = [_criatura(i) for i in range(cuantos)]
-    for casa in (cas.EL_REFUGIO, *cas.CATALOGO.values()):
-        lineas = _sin_color(cas.render(vivos, casa))
-        ejes = {_eje(l) for l in lineas if _eje(l) is not None}
-        assert len(ejes) == 1, (casa.clave, cuantos, sorted(ejes))
-
-
-def test_todas_las_lineas_del_marco_miden_lo_mismo():
-    lineas = _sin_color(cas.render([_criatura(i) for i in range(4)], GRANDE))
-    marco = [l for l in lineas if l.startswith(("╭", "│", "╰"))]
-    assert {len(l) for l in marco} == {jardin.ANCHO + 2}
-
-
-def test_el_tejado_crece_con_la_casa():
-    altos = [len(cas.tejado(c)) for c in
-             sorted(cas.CATALOGO.values(), key=lambda c: c.tamano)]
-    assert altos == sorted(altos) and altos[0] < altos[-1]
+# Aquí vivían los tests del tejado y del marco de la casa. Se fueron con el
+# dibujo: `/casa` lista y ya no dibuja, porque con veinticinco gachamones
+# repartidos en tres casas el cuadro medía 3847 caracteres y Discord admite
+# 2000. El arte ASCII de la ficha, del jardín y de las competencias sigue con
+# sus tests intactos, que es donde sigue habiendo arte.
 
 
 def _criatura(i):
@@ -580,12 +558,30 @@ def test_la_casa_enseña_la_comodidad_real_y_los_muebles():
     assert CHIMENEA.emoji in texto
 
 
-def test_la_casa_con_diez_gachamones_y_diez_muebles_cabe_en_discord():
-    """El peor caso: la casa grande llena de bichos y de muebles."""
+def test_la_casa_con_el_plantel_entero_cabe_en_discord():
+    """El peor caso de verdad, y el motivo de que `/casa` deje de dibujar: con
+    el plantel lleno el cuadro medía 3847 caracteres y Discord admite 2000."""
+    todos = [_criatura(i) for i in range(db.MAXIMO_PLANTEL)]
     texto = social.texto_de_la_casa(
-        un_hogar(GRANDE, T0), [_criatura(i) for i in range(10)], "Felipe", T0,
+        un_hogar(GRANDE, T0, tuple(m.clave for m in mejores(GRANDE.huecos))),
+        todos, "Felipe", T0,
     )
-    assert len(texto) < 2000
+    assert len(texto) < 2000, len(texto)
+    # Y con el plantel repartido en tres casas, que es cuando más cabeceras hay.
+    hogar_lleno = cas.Hogar(
+        casas=tuple(
+            cas.CasaPropia(i + 1, GRANDE, tuple(m.clave for m in mejores(10)))
+            for i in range(cas.MAXIMO_CASAS)
+        ),
+        refugio_hasta=T0,
+    )
+    from dataclasses import replace
+    repartidos = [
+        replace(c, casa_id=(i % (cas.MAXIMO_CASAS + 1)) or None)
+        for i, c in enumerate(todos)
+    ]
+    texto = social.texto_de_la_casa(hogar_lleno, repartidos, "Felipe", T0)
+    assert len(texto) < 2000, len(texto)
 
 
 def test_amueblar_en_el_refugio_lo_dice_y_no_ofrece_menu():
@@ -1969,3 +1965,58 @@ def test_el_aviso_de_la_venta_dice_lo_que_se_pierde():
     assert "se guardan" in texto
     assert "se pierde" in texto
     assert "al refugio" in texto, "hay que avisar de que echa a quien vive ahí"
+
+
+# --- La casa se lista, no se dibuja ----------------------------------------
+
+def test_la_casa_dice_quien_vive_en_cada_una():
+    """Lo único que esta pantalla tiene que contestar: quién está dónde."""
+    from dataclasses import replace
+
+    hogar_dos = cas.Hogar(
+        casas=(cas.CasaPropia(1, PEQUENA), cas.CasaPropia(2, GRANDE)),
+        refugio_hasta=T0 + timedelta(days=7),
+    )
+    dentro = replace(_criatura(0), nombre="Granito", casa_id=1)
+    otra = replace(_criatura(1), nombre="Kuro", casa_id=2)
+    sin_sitio = replace(_criatura(2), nombre="Perdido", casa_id=None)
+
+    texto = social.texto_de_la_casa(
+        hogar_dos, [dentro, otra, sin_sitio], "Felipe", T0
+    )
+
+    pequena, grande, refugio = texto.split("### ")[1:]
+    assert "Granito" in pequena and "Kuro" not in pequena
+    assert "Kuro" in grande and "Granito" not in grande
+    assert "Perdido" in refugio
+    assert f"**1/{PEQUENA.aforo}**" in pequena, "la ocupación, a la vista"
+
+
+def test_la_casa_ya_no_dibuja_nada():
+    """Se quitó a propósito: con el plantel lleno el cuadro medía 3847
+    caracteres. El arte ASCII sigue en la ficha, el jardín y las competencias.
+    """
+    texto = social.texto_de_la_casa(
+        un_hogar(GRANDE, T0), [_criatura(0)], "Felipe", T0
+    )
+
+    assert "```" not in texto, "sin bloque de código no hay dibujo"
+    assert not hasattr(cas, "render") and not hasattr(cas, "tejado")
+
+
+def test_el_refugio_solo_sale_si_hay_alguien_fuera():
+    """A quien tenga a todos alojados no hace falta recordarle que existe."""
+    from dataclasses import replace
+
+    hogar_uno = cas.Hogar(
+        casas=(cas.CasaPropia(1, GRANDE),), refugio_hasta=T0 + timedelta(days=7)
+    )
+    dentro = replace(_criatura(0), casa_id=1)
+
+    con_todos = social.texto_de_la_casa(hogar_uno, [dentro], "Felipe", T0)
+    con_uno_fuera = social.texto_de_la_casa(
+        hogar_uno, [dentro, replace(_criatura(1), casa_id=None)], "Felipe", T0
+    )
+
+    assert "refugio" not in con_todos.lower()
+    assert "refugio" in con_uno_fuera.lower()

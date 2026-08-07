@@ -126,6 +126,7 @@ Instala el hook local cuando prepares el entorno:
 ## Arte ASCII
 
 El arte ASCII es comportamiento del producto, no decoración prescindible.
+`/casa` es la excepción y lo es a propósito: **lista y no dibuja**, porque con el plantel lleno el cuadro se pasaba del tope de un mensaje de Discord.
 Conserva anchos, espacios, alineación, marcos y sustituciones de caras.
 No normalices espacios ni reformatees dibujos automáticamente.
 Ejecuta siempre los tests de arte y pantalla cuando cambies texto o renderizado.

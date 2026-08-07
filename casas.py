@@ -17,7 +17,6 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-import jardin
 import simulacion as sim
 
 # Cuánto dura la estancia en el refugio. Empieza a contar la primera vez que se
@@ -25,7 +24,6 @@ import simulacion as sim
 # encuentra gastado.
 DIAS_DE_REFUGIO = 7
 
-SUELO = "═"          # tablas, en vez de la tierra del jardín
 
 # Lo máximo que puede sumar un mueble. Es lo que hace que los techos de abajo
 # sean alcanzables: con muebles de +6, la casa pequeña se quedaría a dos puntos
@@ -48,14 +46,9 @@ class Casa:
     comodidad: int      # la de partida, antes de amueblar
     huecos: int         # cuántos muebles caben
     techo: int          # hasta dónde puede llegar la comodidad amueblada
-    alto_tejado: int
     # Cuánto manda a la hora de mudarse: sólo se puede subir. El refugio es 0,
     # así que salir de él siempre es subir.
     tamano: int
-    # El refugio es un cobertizo largo y no una casa a dos aguas. Se dibuja
-    # distinto a propósito: `/casa` es lo que se mira, y tener casa propia se
-    # tiene que notar de un vistazo sin leer el pie.
-    cobertizo: bool = False
     # Cuántos gachamones viven dentro. Coincide con `huecos` a propósito: un
     # número menos que recordar, y la lectura sale sola —una casa pequeña tiene
     # sitio para tres cosas, sean muebles o inquilinos—. El refugio se queda en
@@ -66,16 +59,15 @@ class Casa:
 
 EL_REFUGIO = Casa(
     clave=REFUGIO, nombre="Refugio", precio=0,
-    comodidad=75, huecos=0, techo=75, alto_tejado=2, tamano=0,
-    cobertizo=True,
+    comodidad=75, huecos=0, techo=75, tamano=0,
 )
 
 CATALOGO: dict[str, Casa] = {
     casa.clave: casa
     for casa in (
-        Casa("pequena", "Casa pequeña", 200, 80, 3, 100, 3, 1, aforo=3),
-        Casa("mediana", "Casa mediana", 500, 85, 6, 125, 4, 2, aforo=6),
-        Casa("grande", "Casa grande", 1200, 90, 10, 150, 5, 3, aforo=10),
+        Casa("pequena", "Casa pequeña", 200, 80, 3, 100, 1, aforo=3),
+        Casa("mediana", "Casa mediana", 500, 85, 6, 125, 2, aforo=6),
+        Casa("grande", "Casa grande", 1200, 90, 10, 150, 3, aforo=10),
     )
 }
 
@@ -320,67 +312,3 @@ def alivio_de_animo(comodidad: int) -> float:
     de_mas = max(0, comodidad - EL_REFUGIO.comodidad)
     margen = mejor - EL_REFUGIO.comodidad
     return 1.0 - ALIVIO_MAXIMO_DE_ANIMO * min(1.0, de_mas / margen)
-
-
-# --- El dibujo -------------------------------------------------------------
-
-def _centrado(pieza: str, ancho: int) -> str:
-    """La pieza puesta sobre el eje del marco **con sus bordes**.
-
-    Sobre `ancho + 2` y no sobre `ancho`: el `╭` de la izquierda corre el
-    interior una columna, así que centrando sobre el hueco el adorno queda una
-    columna a la izquierda de la casa. Es medio carácter, y se ve.
-    """
-    return " " * max(0, (ancho + 2 - len(pieza)) // 2) + pieza
-
-
-def tejado(casa: Casa, ancho: int = jardin.ANCHO) -> list[str]:
-    """El tejado de una casa, centrado sobre el eje del marco.
-
-    El refugio lleva un cobertizo largo y plano; las casas, dos aguas que crecen
-    con el tamaño.
-    """
-    if casa.cobertizo:
-        ala = (ancho * 2 // 3) // 2 * 2      # par, para que el centrado sea exacto
-        # La cumbrera se centra con el mismo ancho que el alero —los espacios
-        # cuentan— y se le quita el sobrante al final: un espacio en blanco no se
-        # ve, pero se copia y se pega con el dibujo.
-        return [
-            _centrado(" " + "_" * ala + " ", ancho).rstrip(),
-            _centrado("/" + "_" * ala + "\\", ancho),
-        ]
-    return _dos_aguas(casa.alto_tejado, ancho)
-
-
-def _dos_aguas(alto: int, ancho: int) -> list[str]:
-    """Un tejado a dos aguas, centrado sobre el eje del marco.
-
-    Se dibuja y no se escribe a mano justamente por eso: el eje sale del ancho
-    que se le pase, así que no puede quedar descuadrado respecto del marco que
-    lleva debajo. Es la clase de descuadre que ha salido una y otra vez en este
-    proyecto, y siempre por centrar el adorno sobre su propio eje y no sobre el
-    del dibujo.
-
-    Cada agua se abre **de cuatro en cuatro** para que la pieza mida siempre un
-    número par de columnas. Con un ancho impar, el `//2` del centrado la tira
-    media columna a la izquierda y el tejado sale torcido fila a fila. Es lo que
-    salió al probarlo, y hay un test que lo vigila sobre los tres tamaños.
-    """
-    lineas = []
-    for fila in range(alto):
-        hueco = 4 * fila
-        relleno = ("_" if fila == alto - 1 else " ") * hueco
-        agua = f"/{relleno}\\"          # ancho = 2 + hueco, siempre par
-        lineas.append(_centrado(agua, ancho))
-    return lineas
-
-
-def render(
-    criaturas: list[sim.Criatura], casa: Casa, ancho: int = jardin.ANCHO
-) -> str:
-    """El hogar con todos los que viven dentro."""
-    cuerpo = tejado(casa, ancho)
-    cuerpo.append("╭" + "─" * ancho + "╮")
-    cuerpo += jardin.cuerpo_de(criaturas, ancho, SUELO, "No vive nadie aquí.")
-    cuerpo.append("╰" + "─" * ancho + "╯")
-    return "```ansi\n" + "\n".join(cuerpo) + "\n```"

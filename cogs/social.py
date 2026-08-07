@@ -105,21 +105,29 @@ def panel_de_logros(
     )
 
 
+def _lista_de(criaturas: list[sim.Criatura]) -> str:
+    """Los nombres con su emoji, separados por puntos. Vacío si no hay nadie."""
+    return " · ".join(
+        f"{c.def_especie.emoji} {sim.nombre_visible(c)}" for c in criaturas
+    ) or "-# Vacía."
+
+
 def texto_de_la_casa(
     hogar: cas.Hogar,
     vivos: list[sim.Criatura],
     persona: str,
     ahora: datetime,
 ) -> str:
-    """Todas sus casas, cada una con quién vive dentro, y el refugio al final.
+    """Todas sus casas, con quién vive en cada una y quién se quedó fuera.
 
-    Se dibuja una por una y no todo junto porque ahora **cada gachamon vive en
-    una**: verlos amontonados en un solo cuadro escondería justo lo que este
-    comando tiene que enseñar, que es quién está dónde y a quién le falta sitio.
+    **Se lista y no se dibuja**, que es lo contrario de lo que hace el resto del
+    bot. El motivo es el plantel: con veinticinco gachamones repartidos en tres
+    casas, el dibujo medía 3847 caracteres —Discord admite 2000— y encima
+    respondía peor que una lista a lo único que esta pantalla tiene que
+    contestar, que es **quién vive dónde y a quién le falta sitio**.
 
-    Quien no cabe en ninguna sale al final, en el refugio o a la intemperie. Ese
-    bloque sólo aparece si hay alguien ahí: a quien tenga a todos alojados no le
-    hace falta que le recuerden que existe el refugio.
+    El arte ASCII sigue en su sitio en la ficha, en `/jardin` y en las
+    competencias; lo que se retiró es el tejado de la casa, y sólo eso.
     """
     por_casa: dict[int | None, list[sim.Criatura]] = {}
     for criatura in vivos:
@@ -132,41 +140,36 @@ def texto_de_la_casa(
     for propia in hogar.casas:
         dentro = por_casa.get(propia.id, [])
         muebles = [cas.MUEBLES[c] for c in propia.puestos if c in cas.MUEBLES]
-        pie = (
-            f"-# Comodidad **{propia.comodidad}**/{propia.casa.techo} · "
-            f"{len(muebles)}/{propia.casa.huecos} huecos · "
-            f"**{len(dentro)}/{propia.casa.aforo}** viviendo aquí."
-        )
+        pie = f"-# {len(muebles)}/{propia.casa.huecos} huecos"
         if muebles:
-            pie += "\n-# " + " ".join(m.emoji for m in muebles)
+            pie += " " + "".join(m.emoji for m in muebles)
         bloques.append(
-            f"### 🏠 {propia.casa.nombre}\n"
-            f"{cas.render(dentro, propia.casa)}\n{pie}"
+            f"### 🏠 {propia.casa.nombre} · **{len(dentro)}/{propia.casa.aforo}** · "
+            f"comodidad **{propia.comodidad}**/{propia.casa.techo}\n"
+            f"{_lista_de(dentro)}\n{pie}"
         )
 
     fuera = por_casa.get(None, [])
     if fuera or not hogar.casas:
-        en_refugio = hogar.estado_de(None, ahora) == cas.REFUGIO
-        if en_refugio:
+        if hogar.estado_de(None, ahora) == cas.REFUGIO:
             quedan = max(0, (hogar.refugio_hasta - ahora).days)
+            cabecera = f"### 🏚️ En el refugio · **{len(fuera)}**"
             pie = (
-                f"-# Comodidad {cas.EL_REFUGIO.comodidad}, y no se puede "
-                f"decorar. Quedan **{quedan}** días de estancia."
+                f"-# Comodidad {cas.EL_REFUGIO.comodidad} y no se puede decorar. "
+                f"Quedan **{quedan}** días de estancia."
             )
-            cabecera = "### 🏚️ En el refugio"
         else:
-            pie = "-# Se acabó la estancia. Aquí todo baja más rápido."
-            cabecera = "### 🌧️ A la intemperie"
-        bloques.append(
-            f"{cabecera}\n{cas.render(fuera, cas.EL_REFUGIO)}\n{pie}"
-        )
+            cabecera = f"### 🌧️ A la intemperie · **{len(fuera)}**"
+            pie = "-# Se acabó la estancia. Aquí todo les baja más rápido."
+        bloques.append(f"{cabecera}\n{_lista_de(fuera)}\n{pie}")
 
-    titulo = (
-        f"## 🏠 Las casas de {persona}" if len(hogar.casas) > 1
-        else f"## 🏠 El hogar de {persona}"
-    )
     if not hogar.casas:
         titulo = f"## 🏚️ {persona}, sin casa propia"
+    else:
+        titulo = (
+            f"## 🏠 Las casas de {persona}" if len(hogar.casas) > 1
+            else f"## 🏠 El hogar de {persona}"
+        )
     return titulo + "\n" + "\n".join(bloques)
 
 
