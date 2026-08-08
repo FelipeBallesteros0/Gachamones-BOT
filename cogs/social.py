@@ -359,10 +359,13 @@ Son **{av.NIVELES_DE_AVENTURA} decisiones**: acertar te mete más adentro y \
 fallar cierra el viaje. Cuanto más hondo llegues, mejor lo que encuentras, y \
 sólo al fondo puede aparecer un **gachamon salvaje**. Si vuelve con vida gana \
 **+{sim.XP_AVENTURA} XP**; si muere por el desgaste, no.
-Convencerlo va por turnos: hablarle, **golosinas**, presumir o esperar quieto. \
-**Cada carácter reacciona distinto**, y lo que le molesta le gasta el doble de \
-paciencia. Al unirse **no trae nombre**: se lo pones tú, y hasta entonces no \
-sale de la incubadora.
+Convencerlo va por turnos y con **dos barras**: hay que llenar la confianza \
+sin llenar el recelo, en {av.PACIENCIA_INICIAL} jugadas. 🎭 Presumir y 🍬 golosinas \
+convencen mucho pero **levantan mucho recelo**; 💬 hablar es lo seguro; 🧘 esperar \
+casi no convence pero **lo calma**. **Cada carácter reacciona distinto**, así que \
+machacar su opción favorita lo espanta: hay que empujar y dejarle respirar. Al \
+unirse **no trae nombre**: se lo pones tú, y hasta entonces no sale de la \
+incubadora.
 -# Es la única forma de tener un segundo o un tercer gachamon. Con el equipo \
 lleno se sale igual, pero sólo se encuentran objetos.
 -# 🧭 El descanso entre viajes es **tuyo**, no del gachamon: cambiar de activo \

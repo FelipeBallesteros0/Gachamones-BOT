@@ -75,6 +75,9 @@ Instala el hook local cuando prepares el entorno:
 - Reclutar, evolucionar o promover desde la incubadora tampoco reinicia los topes.
 - El replay idempotente de un evento conserva sus resultados monetarios congelados.
 - No vuelvas a sortear, recalcular ni duplicar dinero al reprocesar el mismo evento.
+- Reclutar se juega con dos ejes: llenar la confianza sin llenar el recelo.
+- Un empujón cuesta siempre el mismo recelo: acertar con el carácter da más confianza, nunca menos guardia.
+- El carácter manda en un eje por opción — en los empujones sobre la confianza, en esperar sobre el recelo.
 - Los asciigems se ganan con los logros y, muy de vez en cuando, en una aventura.
 - El tope diario de asciicoins es uno solo y vale para todo lo que se gana, hallazgos incluidos.
 - Los asciigems no tienen tope diario.

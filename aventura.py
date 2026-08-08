@@ -1068,20 +1068,62 @@ ETIQUETAS = {
 # `test_leerle_el_caracter_sigue_notandose`, que vigila que leerle el carácter
 # se siga notando pase lo que pase con este número.
 CONFIANZA_PARA_UNIRSE = 100
-PACIENCIA_INICIAL = 4
-CARA_DADO_CONFIANZA = 8
+
+# Si el recelo llega aquí, se larga. Es el segundo eje, y existe porque con uno
+# solo el encuentro se resolvía con un `argmax`: probabas una opción, la pista
+# te decía si le gustaba, y repetías esa misma hasta ganar. **Medido, repetir la
+# mejor reclutaba en 9 de los 10 caracteres.**
+#
+# Con dos ejes en tensión hay que llenar la confianza SIN llenar el recelo, y
+# como lo que más confianza da es lo que más recelo levanta, machacar la mejor
+# opción te delata. El bucle que funciona es empujar y dejar respirar.
+RECELO_QUE_ESPANTA = 100
+
+# Turnos que dura el encuentro. Subió de 4 a 6 con el recelo: con dos barras que
+# gestionar, cuatro jugadas no daban para alternar ni una vez.
+PACIENCIA_INICIAL = 6
+CARA_DADO_CONFIANZA = 6
 
 # Cuánto suma cada opción antes del carácter y del dado.
 #
-# Los números están medidos, no puestos a ojo. Con los primeros que probé,
-# **jugar la mejor opción reclutaba el 100 % de las veces en los diez
-# caracteres**: aprendida la tabla, el encuentro dejaba de tener riesgo, que es
-# justo lo que la paciencia venía a evitar. Simulando 2000 encuentros por ajuste
-# se buscó un punto donde jugar bien casi siempre salga y jugar a ciegas no:
+# Los números están medidos, no puestos a ojo: se recorrió una rejilla de 2673
+# combinaciones simulando 1200 encuentros cada una, con el reparto real de
+# confianza inicial. Sobre 6000 encuentros, el punto elegido da:
 #
-#     jugando la mejor opción ......... 84 %
-#     pulsando al azar ................ 23 %
-BASE = {HABLAR: 6, GOLOSINAS: 13, PRESUMIR: 6, ESPERAR: 5}
+#     empujando y dejando respirar .... 87 %
+#     pulsando al azar ................ 34 %
+#     repitiendo la mejor opción ...... 31 %
+#
+# **La tercera línea es la que importa**: antes repetir la mejor reclutaba en 9
+# de los 10 caracteres, y ahora sale peor que pulsar al azar. Ninguna
+# combinación de la rejilla lograba a la vez que jugar bien pasara del 85 % y
+# que el azar bajara del 30 %: para que lo primero salga hay que ser generoso, y
+# entonces al azar también le toca de vez en cuando. Se eligió proteger a quien
+# juega bien.
+BASE = {HABLAR: 4, GOLOSINAS: 5, PRESUMIR: 4, ESPERAR: 9}
+
+# Lo que cada opción levanta de recelo antes del carácter. **Aquí está el juego
+# nuevo**: el riesgo es de la opción y no sólo del bicho, así que las que más
+# confianza dan son las que más desconfianza siembran.
+#
+#   🎭 presumir  — el empujón caro: mucha confianza, mucho recelo.
+#   🍬 golosinas — empujón, y además gasta una golosina de tu mochila.
+#   💬 hablar    — el relleno seguro: poco de lo uno y poco de lo otro.
+#   🧘 esperar   — el respiro: casi no convence, pero LO BAJA.
+RECELO = {HABLAR: 6, GOLOSINAS: 34, PRESUMIR: 36, ESPERAR: -34}
+
+# **El carácter manda en un eje por opción, y ésa es la regla que sostiene todo
+# el sistema.**
+#
+#   * En los empujones manda sobre la **confianza**: acertar convence más, pero
+#     el recelo cuesta lo mismo pase lo que pase. Si acertar además abaratara el
+#     recelo, repetir la favorita volvería a ser la jugada óptima y no habríamos
+#     arreglado nada, sólo movido el problema de sitio.
+#   * En esperar manda sobre el **recelo**: a un miedoso quedarse quieto le
+#     tranquiliza mucho más que a un travieso, pero la confianza que da es la
+#     misma para todos. Con el carácter puesto también aquí, a un miedoso se le
+#     ganaba repitiendo esperar —su favorita, sin recelo y sin nada que
+#     gestionar—, que era el mismo agujero por otra puerta.
 
 # Lo que le suma o le resta a cada carácter cada opción. Es el corazón de que el
 # salvaje tenga personalidad: un gruñón no se gana como un cariñoso. Un valor
@@ -1112,17 +1154,35 @@ def confianza_inicial(superadas: int) -> int:
 class Encuentro:
     salvaje: Salvaje
     confianza: int = 20
+    recelo: int = 0
     paciencia: int = PACIENCIA_INICIAL
     # Lo que acaba de pasar, para narrarlo.
     ultimo_cambio: int = 0
+    ultimo_recelo: int = 0
 
     @property
     def se_une(self) -> bool:
         return self.confianza >= CONFIANZA_PARA_UNIRSE
 
     @property
+    def se_asusta(self) -> bool:
+        """Se le llenó el recelo. Es perder por empujar demasiado."""
+        return self.recelo >= RECELO_QUE_ESPANTA and not self.se_une
+
+    @property
+    def se_aburre(self) -> bool:
+        """Se acabaron los turnos. Es perder por no arriesgar lo suficiente."""
+        return self.paciencia <= 0 and not self.se_une and not self.se_asusta
+
+    @property
     def se_larga(self) -> bool:
-        return self.paciencia <= 0 and not self.se_une
+        """Se fue sin unirse, por el motivo que sea.
+
+        Las dos causas se distinguen aparte porque la narración las cuenta
+        distinto: no es lo mismo espantarlo que aburrirlo, y quien juega necesita
+        saber cuál de las dos cosas hizo para corregir.
+        """
+        return self.se_asusta or self.se_aburre
 
     @property
     def sigue(self) -> bool:
@@ -1139,18 +1199,58 @@ def aplicar_opcion(
     """
     rng = rng or random.Random()
     reaccion = REACCIONES[encuentro.salvaje.caracter][opcion]
-    cambio = BASE[opcion] + reaccion + rng.randint(1, CARA_DADO_CONFIANZA)
+    cambio = confianza_de(opcion, reaccion) + rng.randint(1, CARA_DADO_CONFIANZA)
+    recelo = recelo_de(opcion, reaccion)
 
-    # Una opción que le sienta mal gasta el doble de paciencia: es lo que obliga
-    # a elegir en vez de repetir la misma hasta ganar.
-    gasto = 2 if reaccion < 0 else 1
-
+    # Un turno es un turno, le guste o no. El gasto doble por elegir mal era el
+    # parche anti-repetición de cuando sólo había un eje; ahora ese trabajo lo
+    # hace el recelo, y cobrarlo dos veces castigaría dos veces lo mismo.
     return replace(
         encuentro,
         confianza=max(0, min(100, encuentro.confianza + cambio)),
-        paciencia=encuentro.paciencia - gasto,
+        recelo=max(0, min(RECELO_QUE_ESPANTA, encuentro.recelo + recelo)),
+        paciencia=encuentro.paciencia - 1,
         ultimo_cambio=cambio,
+        ultimo_recelo=recelo,
     )
+
+
+def confianza_de(opcion: str, reaccion: int) -> int:
+    """Cuánta confianza da esa opción, antes del dado.
+
+    **Esperar no lleva el carácter**, y ésa es la pieza que hace que el sistema
+    funcione. Con él puesto, a un miedoso —que adora que lo dejen en paz— le
+    ganabas repitiendo esperar: su mejor opción era el respiro, no levantaba
+    recelo y no había nada que gestionar. Quedarse quieto **calma** mucho a
+    quien es asustadizo, pero no se gana su confianza sin hacer nada, así que su
+    carácter influye en el otro eje y no en éste.
+    """
+    if RECELO[opcion] <= 0:
+        return BASE[opcion]
+    return BASE[opcion] + reaccion
+
+
+def recelo_de(opcion: str, reaccion: int) -> int:
+    """Cuánto recelo levanta esa opción con esa reacción.
+
+    Lo que le gusta le baja la guardia, pero **un empujón nunca sale gratis**:
+    por mucho que acierte, sigue costando `RECELO_MINIMO_AL_EMPUJAR`. Sin ese
+    suelo, el carácter podría dejar en cero el recelo de su opción favorita y
+    repetirla volvería a ser la jugada óptima.
+
+    Esperar es la excepción y por eso el suelo no le aplica: su trabajo es
+    justamente bajar el recelo, y acertar con él tiene que bajarlo más.
+    """
+    base = RECELO[opcion]
+    if base > 0:
+        # Un empujón cuesta lo que cuesta: acertar con el carácter da más
+        # confianza, no menos guardia. Si además lo abaratara, repetir la
+        # favorita volvería a ser la jugada óptima y no habríamos arreglado
+        # nada — sólo movido el problema de sitio.
+        return base
+    # Calmarse sí depende del carácter, y es donde vive su mitad del juego: a
+    # un miedoso quedarse quieto le tranquiliza mucho más que a un travieso.
+    return base - reaccion
 
 
 def le_gusta(salvaje: Salvaje, opcion: str) -> bool:
@@ -1158,20 +1258,23 @@ def le_gusta(salvaje: Salvaje, opcion: str) -> bool:
 
 
 def narrar_opcion(antes: Encuentro, opcion: str, despues: Encuentro) -> str:
-    """Da una pista fija del cambio real, sin revelar carácter ni delta crudo."""
+    """Lo que movió la jugada, con los dos números.
+
+    Se enseñan crudos y no en palabras: con dos barras que gestionar hay que
+    poder echar la cuenta de cuántos empujones caben antes de espantarlo, y
+    «se pone a la defensiva» no da para eso. El carácter sigue oculto — lo que
+    se ve es el efecto, no la tabla.
+    """
     emoji, etiqueta = ETIQUETAS[opcion]
-    if despues.se_larga and not antes.se_larga:
-        pista = "Su paciencia se agota."
-    elif (
-        despues.confianza < antes.confianza
-        or despues.paciencia < antes.paciencia - 1
-    ):
-        pista = "Se pone a la defensiva."
-    elif despues.confianza > antes.confianza:
-        pista = "Ahora confía más."
-    else:
-        pista = "No termina de decidirse."
-    return f"-# {emoji} {etiqueta} · {pista}"
+    if despues.se_asusta and not antes.se_asusta:
+        return f"-# {emoji} {etiqueta} · **Lo has espantado.**"
+    if despues.se_aburre and not antes.se_aburre:
+        return f"-# {emoji} {etiqueta} · **Se cansa de esperar y se va.**"
+    partes = [f"confianza {despues.confianza - antes.confianza:+d}"]
+    recelo = despues.recelo - antes.recelo
+    if recelo:
+        partes.append(f"recelo {recelo:+d}")
+    return f"-# {emoji} {etiqueta} · " + " · ".join(partes)
 
 
 MAX_HISTORIAL_ENCUENTRO = 4

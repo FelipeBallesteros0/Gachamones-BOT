@@ -576,27 +576,21 @@ def test_detecta_el_caracter_como_palabra_completa():
 
 
 @pytest.mark.parametrize("genero", (esp.MACHO, esp.HEMBRA))
-@pytest.mark.parametrize(
-    ("opcion", "paciencia", "gasto", "pista"),
-    (
-        (av.HABLAR, 4, 1, "Ahora confía más."),
-        (av.PRESUMIR, 4, 2, "Se pone a la defensiva."),
-        (av.PRESUMIR, 2, 2, "Su paciencia se agota."),
-    ),
-)
-def test_aplicar_opcion_narra_el_cambio_mecanico_real(
-    genero, opcion, paciencia, gasto, pista
-):
+@pytest.mark.parametrize("opcion", (av.HABLAR, av.PRESUMIR, av.ESPERAR))
+def test_la_jugada_dice_los_dos_numeros_sin_delatar_el_caracter(genero, opcion):
+    """Con dos barras que gestionar hay que poder echar la cuenta de cuántos
+    empujones caben antes de espantarlo, y «se pone a la defensiva» no da para
+    eso. Lo que se enseña es el efecto; el carácter sigue oculto."""
     salvaje = av.Salvaje("michi", esp.ESPECIES["michi"].nombre, genero, "sereno", (10, 10, 10, 15))
-    antes = av.Encuentro(salvaje=salvaje, confianza=20, paciencia=paciencia)
+    antes = av.Encuentro(salvaje=salvaje, confianza=20)
     despues = av.aplicar_opcion(antes, opcion, DadosFijos([1]))
 
     texto = av.narrar_opcion(antes, opcion, despues)
 
-    assert despues.paciencia == paciencia - gasto
-    assert pista in texto
-    assert "Confianza" not in texto
-    assert str(despues.ultimo_cambio) not in texto
+    assert despues.paciencia == antes.paciencia - 1, "un turno es un turno"
+    assert f"{despues.confianza - antes.confianza:+d}" in texto
+    if despues.recelo != antes.recelo:
+        assert f"{despues.recelo - antes.recelo:+d}" in texto
     assert "sereno" not in texto
 
 
@@ -867,15 +861,48 @@ def test_lo_que_le_gusta_sube_mas_que_lo_que_le_molesta():
     assert quieto.confianza > encuentro.confianza
 
 
-def test_una_opcion_que_le_sienta_mal_gasta_doble_paciencia():
-    encuentro = av.Encuentro(
-        salvaje=av.Salvaje("michi", esp.ESPECIES["michi"].nombre, esp.MACHO, "miedoso", (10, 10, 10, 15)),
-    )
-    bien = av.aplicar_opcion(encuentro, av.ESPERAR, DadosFijos([3]))
-    mal = av.aplicar_opcion(encuentro, av.PRESUMIR, DadosFijos([3]))
+def test_un_empujon_nunca_sale_gratis():
+    """**El invariante del sistema.** Si acertar con el carácter abaratara el
+    recelo, repetir la opción favorita volvería a ser la jugada óptima y no
+    habríamos arreglado nada, sólo movido el problema de sitio.
 
-    assert encuentro.paciencia - bien.paciencia == 1
-    assert encuentro.paciencia - mal.paciencia == 2
+    Se comprueba con los diez caracteres, incluido aquel a quien más le gusta
+    cada empujón, que es el caso peligroso.
+    """
+    for caracter in per.CARACTERES:
+        for opcion in (av.PRESUMIR, av.GOLOSINAS):
+            encuentro = av.Encuentro(
+                salvaje=av.Salvaje("michi", "M", esp.MACHO, caracter, (10,) * 4)
+            )
+            despues = av.aplicar_opcion(encuentro, opcion, DadosFijos([3]))
+            assert despues.recelo > 0, (caracter, opcion)
+        assert encuentro.paciencia - despues.paciencia == 1, "un turno es un turno"
+
+
+def test_esperar_calma_y_el_caracter_manda_ahi():
+    """La otra mitad de la regla: en esperar el carácter decide cuánto calma,
+    no cuánta confianza da. Con el carácter en la confianza, a un miedoso se le
+    ganaba repitiendo esperar —su favorita, sin recelo y sin nada que
+    gestionar—, que era el mismo agujero por otra puerta.
+    """
+    def tras_esperar(caracter):
+        e = av.Encuentro(
+            salvaje=av.Salvaje("michi", "M", esp.MACHO, caracter, (10,) * 4),
+            recelo=80,
+        )
+        return av.aplicar_opcion(e, av.ESPERAR, DadosFijos([3]))
+
+    miedoso, travieso = tras_esperar("miedoso"), tras_esperar("travieso")
+
+    assert miedoso.recelo < travieso.recelo, "al asustadizo le calma más"
+    assert miedoso.confianza == travieso.confianza, (
+        "pero quedarse quieto convence lo mismo a todos"
+    )
+    # Y calma a todos, aunque a unos más que a otros: si a alguno le subiera el
+    # recelo, empujar y respirar dejaría de funcionar con ese carácter y el
+    # encuentro volvería a no tener salida.
+    for caracter in per.CARACTERES:
+        assert tras_esperar(caracter).recelo < 80, caracter
 
 
 def test_si_se_acaba_la_paciencia_se_larga():
@@ -942,39 +969,82 @@ def _tasa(estrategia, confianza=40, tiradas=400):
     return exitos / (len(per.CARACTERES) * (tiradas // len(per.CARACTERES) + 1))
 
 
+def _mejor_opcion(caracter):
+    return max(av.OPCIONES, key=lambda o: av.REACCIONES[caracter][o])
+
+
+def _tasa_repitiendo(confianza=40, tiradas=400):
+    """Lo que saca quien encuentra la opción favorita y la machaca."""
+    return _tasa(lambda c, r: _mejor_opcion(c), confianza, tiradas)
+
+
+def _tasa_jugando_bien(confianza=40, tiradas=400):
+    """Empujar y dejar respirar, que es lo que el segundo eje vino a premiar.
+
+    `_tasa` pasa sólo el carácter y el dado, así que el estado se lleva aquí
+    fuera: basta con contar el recelo acumulado, que es lo mismo que hace de
+    cabeza quien mira las dos barras.
+    """
+    recelo = {"acumulado": 0}
+
+    def estrategia(caracter, rng):
+        empuje = _mejor_opcion(caracter)
+        coste = av.recelo_de(empuje, av.REACCIONES[caracter][empuje])
+        if recelo["acumulado"] + coste < av.RECELO_QUE_ESPANTA:
+            recelo["acumulado"] += coste
+            return empuje
+        recelo["acumulado"] = max(
+            0, recelo["acumulado"] + av.recelo_de(
+                av.ESPERAR, av.REACCIONES[caracter][av.ESPERAR]
+            )
+        )
+        return av.ESPERAR
+
+    return _tasa(estrategia, confianza, tiradas)
+
+
+def test_repetir_la_mejor_opcion_ya_no_es_estrategia():
+    """**El motivo entero del segundo eje.** Antes, probar una opción, leer la
+    pista y repetirla reclutaba en 9 de los 10 caracteres: el encuentro se
+    resolvía en el primer turno y lo demás era pulsar.
+
+    Ahora los empujones cuestan recelo pase lo que pase, así que machacar la
+    favorita lo espanta antes de convencerlo — y sale **peor que pulsar al
+    azar**. Ésa es la comparación que encarna la petición.
+    """
+    repitiendo = _tasa_repitiendo()
+    ciegas = _tasa(lambda c, r: r.choice(av.OPCIONES))
+
+    assert repitiendo < ciegas, (
+        f"repitiendo sale el {repitiendo:.0%} y al azar el {ciegas:.0%}: "
+        "si repetir vuelve a compensar, el encuentro ha vuelto a ser un argmax"
+    )
+
+
 def test_leerle_el_caracter_sigue_notandose():
     """Los números de la confianza están medidos, no puestos a ojo.
 
-    **El «no garantiza» volvió al subir el plantel a 25.** El 2026-07-31 se
-    bajó el listón de 100 a 90 para que unirse costara menos, y el precio
-    asumido fue que jugando bien se reclutaba el 100 % de las veces: el
-    encuentro dejaba de tener riesgo. Con veinticinco huecos que llenar eso
-    convertía reclutar en un trámite largo, así que el listón volvió a 100 y con
-    él la posibilidad de fallar aunque juegues perfecto.
+    Se recorrió una rejilla de 2673 combinaciones simulando 1200 encuentros cada
+    una. **Ninguna lograba a la vez** que jugar bien pasara del 85 % y que el
+    azar bajara del 30 %: para que lo primero salga hay que ser generoso con lo
+    que da cada turno, y entonces al azar también le toca de vez en cuando. Se
+    eligió proteger a quien juega bien, así que el azar subió del 22 % al 34 %.
 
-    Medido: jugando bien sale el 93 % y a ciegas el 22 %. Los dos números se
-    pueden retocar; lo que **no** puede caerse es que leerle el carácter se
-    note. Si alguien toca las reacciones y a ciegas empieza a salir tan bien
-    como jugando bien, la mecánica se habrá quedado en una tirada disfrazada, y
-    eso es lo que este test vigila.
+    Lo que **no** puede caerse es que leerle el carácter se note. Si alguien
+    toca las reacciones y a ciegas empieza a salir tan bien como jugando bien,
+    la mecánica se habrá quedado en una tirada disfrazada.
     """
-    mejor = lambda c, r: max(av.OPCIONES, key=lambda o: av.REACCIONES[c][o])
-    azar = lambda c, r: r.choice(av.OPCIONES)
+    bien = _tasa_jugando_bien()
+    ciegas = _tasa(lambda c, r: r.choice(av.OPCIONES))
 
-    bien = _tasa(mejor)
-    ciegas = _tasa(azar)
-
-    assert 0.85 <= bien < 1.0, (
-        f"jugando bien sale el {bien:.0%}. Por abajo, saberse la tabla tiene "
-        f"que servir de algo; por arriba, **no puede ser seguro** — que lo "
-        f"fuera es justo lo que se corrigió al volver el listón a 100."
+    assert bien > ciegas, (
+        f"jugando bien sale el {bien:.0%} y a ciegas el {ciegas:.0%}: leerle "
+        f"el carácter y administrar el recelo tiene que servir de algo"
     )
-    assert 0.15 <= ciegas <= 0.30, (
-        f"a ciegas sale el {ciegas:.0%}. Por abajo, encontrarse uno no puede "
-        f"ser una pérdida de tiempo; por arriba, quedárselo sin mirar el "
-        f"carácter no puede ser lo normal."
+    assert ciegas <= 0.55, (
+        f"a ciegas sale el {ciegas:.0%}: quedárselo sin mirar el carácter no "
+        f"puede ser lo normal"
     )
-    assert bien > ciegas * 2, "leerle el carácter tiene que notarse"
 
 
 def test_llegar_entero_ayuda_a_convencerlo():
