@@ -1617,11 +1617,66 @@ def ropero(usuario_id: str, guild_id: str) -> frozenset[str]:
 def _ropero(
     con: sqlite3.Connection, usuario_id: str, guild_id: str
 ) -> frozenset[str]:
+    """Todo lo que tiene, lleve puesto lo que lleve.
+
+    Es el cerrojo contra el doble cobro: `comprar_cosmetico` mira aquí para no
+    volver a cobrar algo que ya es tuyo. Para saber qué se puede poner **ahora**
+    está `_ropero_disponible`, que es otra pregunta.
+    """
     filas = con.execute(
         "SELECT cosmetico FROM ropero WHERE usuario_id = ? AND guild_id = ?",
         (usuario_id, guild_id),
     ).fetchall()
     return frozenset(f["cosmetico"] for f in filas)
+
+
+def ropero_disponible(usuario_id: str, guild_id: str) -> frozenset[str]:
+    with conectar() as con:
+        return _ropero_disponible(con, usuario_id, guild_id)
+
+
+def _ropero_disponible(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> frozenset[str]:
+    """Lo que tiene **menos lo que ya llevan puesto sus gachamones vivos**.
+
+    Se calcula en vez de guardarse, y ahí está la gracia: si al ponerse una
+    pieza se moviera de sitio, habría que devolverla también al morir, y la
+    muerte se consuma en media docena de lugares —el bucle de la muerte,
+    `cuidar`, la charla…—. Olvidar uno perdería una pieza de sesenta gemas sin
+    dejar rastro. Calculándolo, morirse la devuelve solo, porque el muerto deja
+    de contar aquí.
+
+    El muerto **conserva su columna**, así que en el cementerio se le sigue
+    viendo vestido: vuelve la pieza, se queda el recuerdo.
+    """
+    puestos = {
+        fila[tipo]
+        for tipo in cos.TIPOS
+        for fila in con.execute(
+            f"SELECT {tipo} FROM criaturas WHERE usuario_id = ? "
+            f"AND guild_id = ? AND muerta_en IS NULL AND {tipo} IS NOT NULL",
+            (usuario_id, guild_id),
+        )
+    }
+    return _ropero(con, usuario_id, guild_id) - puestos
+
+
+def quien_lleva(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str,
+    tipo: str,
+) -> str | None:
+    """El nombre del gachamon vivo que lleva esa pieza, si la lleva alguno.
+
+    Para poder decir «lo lleva Kuro» en vez del genérico «no lo tienes», que
+    ahora sería mentira: sí lo tiene, lo que pasa es que está puesto.
+    """
+    fila = con.execute(
+        f"SELECT nombre FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+        f"AND muerta_en IS NULL AND {tipo} = ?",
+        (usuario_id, guild_id, clave),
+    ).fetchone()
+    return fila["nombre"] if fila else None
 
 
 def guardar_en_el_ropero_en(

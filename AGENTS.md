@@ -122,6 +122,9 @@ Instala el hook local cuando prepares el entorno:
 - Los asciigems de cualquier logro van siempre al monedero de la persona.
 - Un gachamon lleva como mucho un cosmético de cada tipo, y lo impone el esquema.
 - Tener un cosmético y llevarlo puesto son dos cosas distintas.
+- Una pieza está libre o la lleva **un solo gachamon vivo**: no se puede duplicar poniéndosela a dos.
+- Lo disponible del ropero se calcula —lo que tienes menos lo puesto—, no se guarda: por eso morirse devuelve la pieza sola.
+- Un gachamon muerto conserva su aspecto en el cementerio aunque su pieza haya vuelto al ropero.
 - El ropero es de la persona y sobrevive a todo su plantel.
 - Quitarle un cosmético a un gachamon nunca lo destruye: vuelve al ropero.
 - Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de su tabla.

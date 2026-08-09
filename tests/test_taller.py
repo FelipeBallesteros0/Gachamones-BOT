@@ -473,9 +473,20 @@ def test_personalizar_dice_lo_que_lleva_y_cuanto_tienes():
     assert "ropero está vacío" in vacio
     assert "Estilo de ficha: **Imagen**" in vacio
 
+    # Comprarla se la pone al activo, así que **libre no queda ninguna**: el
+    # contador cuenta lo que se puede poner ahora, no la colección.
     comprar(CORONA)
-    texto = tienda.texto_de_personalizacion("u1", "g1")
-    assert "Corona" in texto and "Mia" in texto and "**1** pieza" in texto
+    puesta = tienda.texto_de_personalizacion("u1", "g1")
+    assert "Corona" in puesta and "Mia" in puesta
+    assert "están puestas" in puesta
+    assert "ropero está vacío" not in puesta, (
+        "tenerlo todo puesto no es no tener nada, y decírselo sería mentirle"
+    )
+
+    # Y al quitársela vuelve a estar libre, sin haberla perdido.
+    economia.quitar_cosmetico("u1", "g1", CORONA.tipo)
+    quitada = tienda.texto_de_personalizacion("u1", "g1")
+    assert "**1** pieza" in quitada
 
 
 def test_personalizar_sin_gachamon_lo_dice():
@@ -532,3 +543,99 @@ def test_las_gemas_de_los_logros_pagan_un_cosmetico():
 
     assert resultado.ok
     assert resultado.saldo == recibo.saldo - CORONA.precio
+
+
+# --- Una pieza, un gachamon ------------------------------------------------
+#
+# El fallo que motivó esto: comprar un sombrero y ponérselo NO lo sacaba del
+# ropero, así que se le podía poner también al siguiente. Una Corona de 60 gemas
+# acababa puesta en tres gachamones a la vez.
+
+def test_lo_puesto_no_se_le_puede_poner_a_otro():
+    """**El fallo del informe.** Es el test que lo encarna."""
+    primero = nacer(nombre="Uno")
+    segundo = nacer(nombre="Dos", activa=False)
+    con_gemas(200)
+    comprar(CORONA)                       # se la pone a Uno al comprarla
+
+    db.activar(segundo.id, "u1", "g1", T0)
+    resultado = poner(CORONA)
+
+    assert not resultado.ok
+    assert "Uno" in resultado.problema, "y se dice quién la lleva, no «no la tienes»"
+    assert db.criatura_activa("u1", "g1").sombrero is None
+    assert primero.id != segundo.id
+
+
+@pytest.mark.parametrize("cosmetico", [
+    next(c for c in cos.CATALOGO.values() if c.tipo == tipo) for tipo in cos.TIPOS
+])
+def test_pasa_con_los_cuatro_tipos_no_solo_con_el_sombrero(cosmetico):
+    """`_vestir_en` es genérica, así que el fallo lo tenían los cuatro."""
+    nacer(nombre="Uno")
+    otro = nacer(nombre="Dos", activa=False)
+    con_gemas(500)
+    comprar(cosmetico)
+
+    db.activar(otro.id, "u1", "g1", T0)
+
+    assert cosmetico.clave not in db.ropero_disponible("u1", "g1")
+    assert not economia.equipar_cosmetico("u1", "g1", cosmetico).ok
+
+
+def test_quitarsela_la_deja_libre_otra_vez():
+    """No se pierde: sale del ropero mientras la lleva puesta y vuelve al
+    quitársela. Es lo que ya prometía el recibo."""
+    nacer(nombre="Uno")
+    otro = nacer(nombre="Dos", activa=False)
+    con_gemas(200)
+    comprar(CORONA)
+    assert CORONA.clave not in db.ropero_disponible("u1", "g1")
+
+    economia.quitar_cosmetico("u1", "g1", CORONA.tipo)
+
+    assert CORONA.clave in db.ropero_disponible("u1", "g1")
+    db.activar(otro.id, "u1", "g1", T0)
+    assert poner(CORONA).ok, "y ahora sí se le puede poner al otro"
+
+
+def test_al_morir_la_pieza_vuelve_al_ropero_y_el_muerto_sigue_vestido():
+    """Se calcula en vez de guardarse, y por eso morirse la devuelve solo: si
+    hubiera que devolverla a mano, la muerte se consuma en media docena de
+    sitios y olvidar uno perdería sesenta gemas sin dejar rastro."""
+    muerto = nacer(nombre="Uno")
+    con_gemas(200)
+    comprar(CORONA)
+    assert CORONA.clave not in db.ropero_disponible("u1", "g1")
+
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' "
+            "WHERE id = ?", (T0.isoformat(), muerto.id),
+        )
+        con.commit()
+
+    assert CORONA.clave in db.ropero_disponible("u1", "g1")
+    with db.conectar() as con:
+        fila = con.execute(
+            "SELECT sombrero FROM criaturas WHERE id = ?", (muerto.id,)
+        ).fetchone()
+    assert fila["sombrero"] == CORONA.clave, (
+        "el muerto se sigue viendo vestido en el cementerio"
+    )
+
+
+def test_comprar_dos_veces_sigue_sin_cobrar_dos_veces_aunque_la_lleve_puesta():
+    """El caso que este cambio puede romper sin que se note: el cerrojo del
+    doble cobro mira **lo que tienes**, no lo que está libre. Con lo libre,
+    comprar otra corona llevando puesta la primera volvería a cobrar 60 gemas.
+    """
+    nacer()
+    con_gemas(200)
+    comprar(CORONA)
+    saldo = gemas()
+
+    repetida = comprar(CORONA)
+
+    assert not repetida.ok
+    assert gemas() == saldo, "no se cobra de nuevo lo que ya es tuyo"

@@ -402,9 +402,14 @@ def _lo_que_lleva(criatura: sim.Criatura | None) -> str:
 
 def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
     criatura = db.criatura_activa(usuario_id, guild_id)
-    tengo = len(db.ropero(usuario_id, guild_id))
     if criatura is None:
         return "## 🎨 Personalizar\n-# No tienes ningún gachamon activo."
+    # Dos cuentas y no una: **lo que tienes** y **lo que está libre**. Desde que
+    # una pieza puesta deja de poder ponerse en otro, tener cero libres no
+    # significa no tener nada — puede ser que lo lleves todo encima, y decirle a
+    # ése que su ropero está vacío y se compre algo sería mentirle.
+    tengo = len(db.ropero(usuario_id, guild_id))
+    libres = len(db.ropero_disponible(usuario_id, guild_id))
     estilo = (
         "Imagen"
         if db.estilo_de_ficha(usuario_id, guild_id) == "imagen"
@@ -418,12 +423,16 @@ def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
             f"-# {obj.EMOJI_GEMA} asciigems: "
             f"**{economia.saldos(usuario_id, guild_id).asciigems}**"
         )
+    pie = (
+        f"-# Libres en tu ropero: **{libres}** "
+        f"{'pieza' if libres == 1 else 'piezas'}. Lo que le quites vuelve ahí."
+        if libres
+        else "-# Tus **{}** piezas están puestas. Quítale alguna para moverla.".format(tengo)
+    )
     return (
         f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
         f"Estilo de ficha: **{estilo}**\n"
-        f"{_lo_que_lleva(criatura)}\n"
-        f"-# En tu ropero: **{tengo}** "
-        f"{'pieza' if tengo == 1 else 'piezas'}. Lo que le quites vuelve ahí."
+        f"{_lo_que_lleva(criatura)}\n{pie}"
     )
 
 
@@ -1577,7 +1586,7 @@ async def abrir_personalizacion(
     """Poner y quitar lo que ya tienes. Aquí no se cobra nada."""
     usuario_id, guild_id = str(interaccion.user.id), str(interaccion.guild_id)
     criatura = db.criatura_activa(usuario_id, guild_id)
-    tengo = db.ropero(usuario_id, guild_id)
+    tengo = db.ropero_disponible(usuario_id, guild_id)
 
     menus: list[discord.ui.Select] = []
     if criatura is not None:

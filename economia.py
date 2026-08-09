@@ -1843,10 +1843,16 @@ def cocinar(
 def equipar_cosmetico(
     usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico
 ) -> ResultadoCosmetico:
-    """Le pone al activo algo que ya tienes. No cobra nada.
+    """Le pone al activo algo que tengas **libre**. No cobra nada.
 
-    Exige tenerlo en el ropero, y eso se comprueba **dentro** de la transacción:
-    un menú abierto hace dos minutos puede ofrecer algo que ya no está.
+    Libre y no sólo «tuyo»: una pieza la lleva un gachamon vivo o ninguno, así
+    que la que ya está puesta en otro no se puede duplicar. Se comprueba
+    **dentro** de la transacción porque un menú abierto hace dos minutos puede
+    ofrecer algo que entretanto se ha puesto otro.
+
+    El orden de las comprobaciones importa: primero si el activo ya la lleva.
+    Al revés, ponerle lo que ya tiene puesto respondería «no lo tienes» —porque
+    lo puesto no está entre lo libre—, que es falso y desconcertante.
     """
     if cos.CATALOGO.get(cosmetico.clave) != cosmetico:
         raise ValueError("el cosmético no coincide con el catálogo actual")
@@ -1859,15 +1865,25 @@ def equipar_cosmetico(
             return ResultadoCosmetico(
                 saldo=saldo, problema="No tienes ningún gachamon activo."
             )
-        if cosmetico.clave not in db._ropero(con, usuario_id, guild_id):
-            return ResultadoCosmetico(
-                criatura=criatura, saldo=saldo,
-                problema=f"No tienes **{cosmetico.nombre}** en tu ropero.",
-            )
         if getattr(criatura, cosmetico.tipo) == cosmetico.clave:
             return ResultadoCosmetico(
                 criatura=criatura, saldo=saldo,
                 problema=f"{sim.nombre_visible(criatura)} ya lo lleva puesto.",
+            )
+        if cosmetico.clave not in db._ropero_disponible(con, usuario_id, guild_id):
+            # Se distingue no tenerlo de tenerlo puesto en otro: son problemas
+            # distintos y se arreglan distinto —uno se compra, el otro se quita—.
+            lo_lleva = db.quien_lleva(
+                con, usuario_id, guild_id, cosmetico.clave, cosmetico.tipo
+            )
+            return ResultadoCosmetico(
+                criatura=criatura, saldo=saldo,
+                problema=(
+                    f"**{cosmetico.nombre}** lo lleva **{lo_lleva}**. "
+                    "Quítaselo primero."
+                    if lo_lleva
+                    else f"No tienes **{cosmetico.nombre}** en tu ropero."
+                ),
             )
 
         vestido, sustituido = _vestir_en(
