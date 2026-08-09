@@ -127,15 +127,24 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
     base = criatura(1, "Mia", True, "ficha")
     evolucionada = replace(base, nivel=5)
 
-    topada = economia.ResultadoCuidado(
+    # Con cuidados de sobra (5 de 12), lo que frenó fue el bote del día.
+    por_el_bote = economia.ResultadoCuidado(
         criatura=base,
         mensaje="Entrenamiento duro.",
         delta_asciicoins=0,
         usados=5,
         topada=True,
     )
-    assert vistas.texto_recibo_cuidado(topada, sim.ENTRENAR).endswith(
-        "🪙 +0 asciicoins (tope diario) · cuidado 5/12 UTC"
+    assert vistas.texto_recibo_cuidado(por_el_bote, sim.ENTRENAR).endswith(
+        "🪙 +0 asciicoins (bote diario lleno) · cuidado 5/12 UTC"
+    )
+
+    # Y con los doce gastados, el freno es el de la actividad. Distinguirlos
+    # importa porque se arreglan distinto: el de cuidados se esquiva compitiendo
+    # o saliendo de aventura, y el bote no se esquiva.
+    por_la_actividad = replace(por_el_bote, usados=economia.TOPE_CUIDADOS)
+    assert vistas.texto_recibo_cuidado(por_la_actividad, sim.ENTRENAR).endswith(
+        "🪙 +0 asciicoins (tope de cuidados) · cuidado 12/12 UTC"
     )
 
     evolucion = economia.ResultadoCuidado(
@@ -149,7 +158,7 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
         topada=True,
     )
     assert vistas.texto_recibo_cuidado(evolucion, sim.ENTRENAR).endswith(
-        "🪙 +0 asciicoins (tope diario) · cuidado 12/12 UTC · "
+        "🪙 +0 asciicoins (tope de cuidados) · cuidado 12/12 UTC · "
         "evolución +10 · 1/1 UTC"
     )
 
@@ -292,7 +301,7 @@ def test_recibo_conjunto_separa_el_tope_monetario_del_contador_de_cuidado():
 
     recibo = vistas.texto_resultado_entrenamiento_conjunto(resultado)
 
-    assert "🪙 +0 asciicoins (tope diario) · cuidado 5/12 UTC" in recibo
+    assert "🪙 +0 asciicoins (bote diario lleno) · cuidado 5/12 UTC" in recibo
     assert "cuidado 5/12 UTC (tope)" not in recibo
 
 

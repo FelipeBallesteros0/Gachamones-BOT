@@ -366,7 +366,15 @@ def texto_resultado_entrenamiento_conjunto(
     recompensa = 0 if resultado.topada else cuidado
     monedas = f"🪙 +{recompensa} asciicoins"
     if resultado.topada:
-        monedas += " (tope diario)"
+        # Se dice CUÁL de los dos topes frenó: el de la actividad se esquiva
+        # haciendo otra cosa que también pague, y el bote no. Con la misma
+        # coletilla para los dos no había forma de saber qué hacer.
+        monedas += (
+            " (tope de cuidados)"
+            if economia.freno_de(resultado.usados, resultado.limite)
+            == economia.FRENO_ACTIVIDAD
+            else " (bote diario lleno)"
+        )
     recibo = [monedas, f"cuidado {resultado.usados}/{resultado.limite} UTC"]
     if activo.evoluciono or reserva.evoluciono:
         evolucion = (
@@ -871,7 +879,15 @@ def texto_recibo_cuidado(
     recompensa = 0 if resultado.topada else cuidado
     monedas = f"🪙 +{recompensa} asciicoins"
     if resultado.topada:
-        monedas += " (tope diario)"
+        # Se dice CUÁL de los dos topes frenó: el de la actividad se esquiva
+        # haciendo otra cosa que también pague, y el bote no. Con la misma
+        # coletilla para los dos no había forma de saber qué hacer.
+        monedas += (
+            " (tope de cuidados)"
+            if economia.freno_de(resultado.usados, resultado.limite)
+            == economia.FRENO_ACTIVIDAD
+            else " (bote diario lleno)"
+        )
     partes = [
         *_efecto_recibo_cuidado(resultado, accion),
         monedas,

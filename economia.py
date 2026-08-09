@@ -344,6 +344,25 @@ def _ganado_hoy(con, usuario_id: str, guild_id: str, fecha: str) -> int:
     ).fetchone()[0]
 
 
+# Los dos motivos por los que un premio puede quedarse en cero, que hasta ahora
+# se contaban igual: el recibo decía «(tope diario)» viniera de donde viniera.
+# Son cosas distintas y se arreglan distinto — el de la actividad se esquiva
+# haciendo otra cosa que también pague, y el bote no se esquiva—, así que quien
+# lee el recibo necesita saber cuál de los dos le paró.
+FRENO_ACTIVIDAD = "actividad"
+FRENO_BOTE = "bote"
+
+
+def freno_de(usados: int, limite: int) -> str:
+    """Cuál de los dos topes dejó el premio en cero.
+
+    El de la actividad manda cuando los dos están agotados, y no es una
+    convención de este texto: `_resolver_recompensa` lo mira primero y devuelve
+    cero sin llegar a consultar lo que queda en el bote.
+    """
+    return FRENO_ACTIVIDAD if usados >= limite else FRENO_BOTE
+
+
 def _resolver_recompensa(
     con, usuario_id: str, guild_id: str, fecha: str,
     tipo: str, monto: int, limite: int | None,
