@@ -620,12 +620,16 @@ def test_la_confianza_se_muestra_como_porcentaje_del_umbral(monkeypatch):
 
         assert av.CONFIANZA_PARA_UNIRSE == 100, "el test asume el umbral actual"
 
-        assert "confianza 20%" in texto(av.confianza_inicial(0))
-        assert "confianza 45%" in texto(45)
-        assert "confianza 100%" in texto(av.CONFIANZA_PARA_UNIRSE)
-        assert "confianza 0%" in texto(0)
+        assert "Confianza" in texto(45) and "Recelo" in texto(45)
+        assert " 45%" in texto(45)
+        assert "100%" in texto(av.CONFIANZA_PARA_UNIRSE)
+        assert "  0%" in texto(0)
 
-        assert "/100" not in texto(av.confianza_inicial(0))
+        # Las dos barras miden lo mismo: si no, no se pueden comparar de un
+        # vistazo, que es justo para lo que están.
+        lineas = [l for l in texto(45).splitlines() if l.startswith("`")]
+        assert len(lineas) == 2, lineas
+        assert len({len(l) for l in lineas}) == 1, lineas
 
     asyncio.run(comprobar())
 

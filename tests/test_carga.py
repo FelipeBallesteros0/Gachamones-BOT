@@ -1043,3 +1043,33 @@ def test_ningun_boton_actua_sobre_la_pantalla_de_otro(bd_temporal):
             f"{componente_any.custom_id} deja actuar sobre la ficha de otra persona: "
             f"contestó {respuesta.avisos}"
         )
+
+
+def test_ningun_modulo_define_dos_veces_la_misma_clase():
+    """Regresión: un cambio dejó `EncuentroView` definida DOS veces en el mismo
+    fichero. Python se queda con la última, así que la versión nueva quedó
+    muerta y el bot siguió enseñando la vieja — desplegado y con los 1542 tests
+    en verde, porque ninguno miraba el fichero como texto.
+
+    Se revisa el árbol de sintaxis y no el texto: así no se cuela una definición
+    dentro de un `if` ni se confunde con una mención en un comentario.
+    """
+    import ast
+    import pathlib
+    from collections import Counter
+
+    raiz = pathlib.Path(__file__).resolve().parent.parent
+    ficheros = [
+        f for f in raiz.rglob("*.py")
+        if "venv" not in f.parts and ".git" not in f.parts
+    ]
+    assert ficheros, "sin ficheros que revisar esto no prueba nada"
+
+    for fichero in ficheros:
+        arbol = ast.parse(fichero.read_text(), filename=str(fichero))
+        cuenta = Counter(
+            nodo.name for nodo in arbol.body
+            if isinstance(nodo, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        )
+        repetidos = [n for n, veces in cuenta.items() if veces > 1]
+        assert not repetidos, f"{fichero.name} define dos veces: {repetidos}"

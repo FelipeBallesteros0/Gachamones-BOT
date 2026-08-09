@@ -324,16 +324,22 @@ def _contar_acreditadas(
 
 
 def _ganado_hoy(con, usuario_id: str, guild_id: str, fecha: str) -> int:
-    """Los asciicoins ya cobrados hoy, vengan de donde vengan.
+    """Los asciicoins ya cobrados hoy **jugando**.
 
     Sólo `acreditada`: las compras son `comprada` y llevan delta negativo, así
     que gastar no te devuelve sitio en el bote. El bote mide lo **ganado**, no
     lo que tienes.
+
+    Y **fuera los hallazgos de aventura**, que se cobran enteros y por su
+    cuenta. Sin esta cláusula, encontrarse diez monedas por el camino le
+    restaría diez a lo que se gane cuidando después — que es justo lo que se
+    quería quitar. Su fila sigue en el ledger porque es lo que impide pagar dos
+    veces el mismo viaje; lo que no hace es contar aquí.
     """
     return con.execute(
         "SELECT COALESCE(SUM(delta_asciicoins), 0) FROM operaciones_economia "
         "WHERE usuario_id = ? AND guild_id = ? AND fecha_utc = ? "
-        "AND resultado = 'acreditada'",
+        "AND resultado = 'acreditada' AND tipo <> 'aventura'",
         (usuario_id, guild_id, fecha),
     ).fetchone()[0]
 
@@ -389,16 +395,16 @@ def _registrar_recompensa(
 
 @dataclass(frozen=True)
 class ResultadoHallazgo:
-    """Lo que te has encontrado por el camino y lo que de eso te llevas."""
+    """Lo que te has encontrado por el camino.
 
-    monedas: int = 0        # lo que entró de verdad, ya recortado por el bote
-    monedas_vistas: int = 0  # lo que había en el suelo
+    Sin `monedas_vistas` ni `topado`: desde que los hallazgos salieron del bote
+    no hay diferencia entre lo que había en el suelo y lo que te llevas, así que
+    tener dos números invitaba a preguntarse cuál era cuál.
+    """
+
+    monedas: int = 0
     gemas: int = 0
     replay: bool = False
-
-    @property
-    def topado(self) -> bool:
-        return self.monedas_vistas > self.monedas
 
 
 def otorgar_hallazgo(
@@ -407,13 +413,19 @@ def otorgar_hallazgo(
 ) -> ResultadoHallazgo:
     """Paga lo encontrado en una aventura, en una sola transacción.
 
-    Las monedas pasan por el bote diario —un hallazgo puede salir topado y hay
-    que decirlo— y las gemas no: son otra moneda y otra economía, y al 0,5 % no
-    hacen falta frenos.
+    **Ni las monedas ni las gemas pasan por el bote diario**, y se cobran
+    enteras. Un hallazgo no es un sueldo: es un golpe de suerte, y antes se
+    cobraba dos veces mal — si habías llegado al tope no te daba nada, y si no,
+    te comía sitio de lo que ibas a ganar cuidando. Es el mismo trato que la
+    venta de una casa, por el mismo motivo: no se gana jugando.
 
-    La idempotencia sale de donde ya sale: la clave primaria del ledger sobre
-    `(evento_id, usuario_id, guild_id, tipo)`. Con la fila puesta, reprocesar el
-    mismo viaje no vuelve a pagar **ni monedas ni gemas**, aunque éstas no
+    Que no rompa la economía no es una impresión: sale al 4 % con 1–10 monedas,
+    o sea 0,22 por aventura, y con la espera de 37 minutos entre viajes ni
+    aventurando un día entero se llega a la mitad del bote.
+
+    La fila del ledger **se queda**, y no por el bote: es la clave primaria
+    sobre `(evento_id, usuario_id, guild_id, tipo)` lo que impide que reprocesar
+    el mismo viaje vuelva a pagar **ni monedas ni gemas**, aunque éstas no
     tengan ledger propio — van dentro de la misma transacción.
     """
     if not monedas and not gemas:
@@ -431,20 +443,32 @@ def otorgar_hallazgo(
         if ya_estaba is not None:
             return ResultadoHallazgo(replay=True)
 
-        delta, _, _ = _registrar_recompensa(
-            con, evento_id, usuario_id, guild_id, fecha, "aventura",
-            monedas, None, json.dumps({"monedas": monedas, "gemas": gemas}),
-        )
+        _asegurar_monedero(con, usuario_id, guild_id)
+        if monedas:
+            con.execute(
+                "UPDATE monederos SET asciicoins = asciicoins + ? "
+                "WHERE usuario_id = ? AND guild_id = ?",
+                (monedas, usuario_id, guild_id),
+            )
         if gemas:
-            _asegurar_monedero(con, usuario_id, guild_id)
             con.execute(
                 "UPDATE monederos SET asciigems = asciigems + ? "
                 "WHERE usuario_id = ? AND guild_id = ?",
                 (gemas, usuario_id, guild_id),
             )
-        return ResultadoHallazgo(
-            monedas=delta, monedas_vistas=monedas, gemas=gemas
+        # La fila se apunta igual, y siempre como acreditada: es el cerrojo
+        # contra el doble pago, no una cuenta del bote. `_ganado_hoy` la ignora.
+        con.execute(
+            "INSERT INTO operaciones_economia "
+            "(evento_id, usuario_id, guild_id, tipo, fecha_utc, resultado, "
+            "delta_asciicoins, solicitud) "
+            "VALUES (?, ?, ?, 'aventura', ?, 'acreditada', ?, ?)",
+            (
+                evento_id, usuario_id, guild_id, fecha, monedas,
+                json.dumps({"monedas": monedas, "gemas": gemas}),
+            ),
         )
+        return ResultadoHallazgo(monedas=monedas, gemas=gemas)
 
 
 def _envolver_cuidado(

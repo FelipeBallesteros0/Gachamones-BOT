@@ -325,9 +325,11 @@ class EncuentroView(discord.ui.View):
 
     ANCHO_BARRA = 10
 
-    def _barra(self, valor: int, tope: int) -> str:
-        """Los mismos bloques que usa la ficha, para que el bot hable un idioma."""
-        llenas = max(0, min(self.ANCHO_BARRA, round(valor * self.ANCHO_BARRA / tope)))
+    def _barra(self, porcentaje: int) -> str:
+        """Los mismos bloques que la ficha, para que el bot hable un idioma."""
+        llenas = max(0, min(
+            self.ANCHO_BARRA, round(porcentaje * self.ANCHO_BARRA / 100)
+        ))
         return "█" * llenas + "░" * (self.ANCHO_BARRA - llenas)
 
     def texto(self, ultimo: str = "") -> str:
@@ -336,9 +338,16 @@ class EncuentroView(discord.ui.View):
         Se enseñan los números y no sólo pistas en palabras porque ahora hay
         algo que calcular: cuántos empujones caben antes de espantarlo. Con
         «se pone a la defensiva» no se puede echar esa cuenta.
+
+        Van dentro de acentos graves para que Discord los pinte a paso fijo: sin
+        eso las dos barras no quedan alineadas una debajo de la otra y se
+        pierde justo lo que se venía a enseñar, que es cuál va más llena.
         """
         salvaje = self.encuentro.salvaje
         definicion = salvaje.def_especie
+        # Lo que se enseña es el camino hasta unirse y hasta espantarlo, no los
+        # valores crudos: si el umbral cambiara, la barra seguiría diciendo la
+        # verdad sin tocar nada aquí.
         confianza = max(0, min(100, round(
             self.encuentro.confianza * 100 / av.CONFIANZA_PARA_UNIRSE
         )))
@@ -350,145 +359,9 @@ class EncuentroView(discord.ui.View):
             f"## {definicion.emoji} Un {definicion.nombre} salvaje "
             f"{pantalla.EMOJI_GENERO[salvaje.genero]}\n"
             f"-# carácter por descubrir · "
-            f"{'●' * turnos}{'○' * (av.PACIENCIA_INICIAL - turnos)} turnos\n"
-            f"`Confianza {self._barra(confianza, 100)} {confianza:>3}%`\n"
-            f"`Recelo    {self._barra(recelo, 100)} {recelo:>3}%`"
-        )
-        return f"{cabecera}\n{ultimo}" if ultimo else cabecera
-
-    async def interaction_check(self, interaccion: discord.Interaction) -> bool:
-        if interaccion.user.id != self.dueño.id:
-            await interaccion.response.send_message(
-                "Esa aventura no es tuya.", ephemeral=True
-            )
-            return False
-        return True
-
-    async def _elegir(self, opcion: str, interaccion: discord.Interaction) -> None:
-        await interaccion.response.defer()
-        async with self._resolucion:
-            if self._resuelto:
-                return
-            rng = random.Random()
-            anterior = self.viaje
-
-            # Se tira PRIMERO y se pide la escena después. Al revés se gastaría una
-            # llamada al modelo en la mitad de los viajes que terminan aquí mismo.
-            self.viaje = av.avanzar(
-                anterior, self.criatura, opcion, None, None, rng
-            )
-            prueba = (
-                self.viaje.pruebas[-1]
-                if len(self.viaje.pruebas) > len(anterior.pruebas)
-                else None
-            )
-            beat = av.render_beat(prueba)
-
-            if self.viaje.sigue:
-                # La pareja del segundo nodo no se sortea ni se guarda: son las
-                # dos estadísticas que no salieron en el primero. Vale igual tras
-                # Volver, que no tira dado pero deja el nodo anterior en mano.
-                pareja = av.complementaria(anterior.terreno.pareja)
-                terreno = av.tirar_terreno(self.viaje.bioma, pareja, rng)
-                escena = await _pedir_escena(
-                    self.viaje.bioma, self.viaje.nivel + 1,
-                    _continuacion(anterior.escena, opcion),
-                    str(self.dueño.id), db.ahora_utc(),
-                    pareja=pareja, favorecida=terreno.favorecida,
-                )
-                self.viaje = replace(
-                    self.viaje, escena=escena, terreno=terreno
-                )
-                self._poner_botones()
-                await self._editar(self.texto(beat), self)
-                return
-
-            self.stop()
-            await self._editar(self.texto(beat), None)
-            self._resuelto = True
-            await self.cog.resolver(
-                interaccion.channel, self.dueño, self.guild_id,
-                self.criatura, self.viaje, self.evento_id,
-            )
-
-    async def _editar(self, cuerpo: str, vista) -> None:
-        if self.mensaje is None:
-            return
-        try:
-            await self.mensaje.edit(content=cuerpo, view=vista)
-        except HTTPException:
-            log.warning("No se pudo actualizar la aventura", exc_info=True)
-
-    async def on_timeout(self) -> None:
-        """Dejarlo a medias cuenta como volverse: el viaje se cobra igual.
-
-        Si no se resolviera, quien se distrae se quedaría con el enfriamiento
-        puesto y sin nada a cambio, que es peor que volver con las manos vacías.
-        """
-        async with self._resolucion:
-            if self._resuelto or self.mensaje is None:
-                return
-            await self._editar(f"{self.texto()}\n\n⌛ Se hizo tarde y volvió.", None)
-            self._resuelto = True
-            await self.cog.resolver(
-                self.mensaje.channel, self.dueño, self.guild_id,
-                self.criatura, self.viaje, self.evento_id,
-            )
-
-
-def _continuacion(escena: av.Escena, opcion: str) -> str:
-    """Qué contarle al modelo de lo que acaba de pasar, para que encadene."""
-    if opcion == av.VOLVER:
-        return f"Ante «{escena.situacion}» prefirió no meterse y siguió camino."
-    return f"Ante «{escena.situacion}» eligió {escena.etiqueta(opcion).lower()}, y lo logró."
-
-
-class EncuentroView(discord.ui.View):
-    """El menú de convencer a un salvaje. Estado en memoria, como `RetoView`."""
-
-    def __init__(self, cog: "Aventura", dueño: discord.User, guild_id: str,
-                 criatura: sim.Criatura, encuentro: av.Encuentro):
-        super().__init__(timeout=SEGUNDOS_PARA_DECIDIR)
-        self.cog = cog
-        self.dueño = dueño
-        self.guild_id = guild_id
-        self.criatura = criatura
-        self.encuentro = encuentro
-        self.historial: tuple[av.EventoEncuentro, ...] = ()
-        self.mensaje: discord.Message | None = None
-        self._cerrado = False
-        self._refrescar_botones()
-
-    # -- estado -------------------------------------------------------------
-
-    def _refrescar_botones(self) -> None:
-        """Las golosinas sólo salen si te queda alguna."""
-        tiene = db.inventario(str(self.dueño.id), self.guild_id).get("golosinas", 0)
-        for hijo in self.children:
-            if isinstance(hijo, discord.ui.Button) and hijo.custom_id == "av:golosinas":
-                hijo.disabled = tiene <= 0
-                hijo.label = f"Golosinas ({tiene})"
-
-    def texto(self, ultimo: str = "") -> str:
-        salvaje = self.encuentro.salvaje
-        definicion = salvaje.def_especie
-        # Lo que se enseña es el camino hasta unirse, no la confianza cruda:
-        # con el umbral en 90, un encuentro ya ganado se veía al 90 %. Se
-        # redondea con `round()` y se recorta a 0..100 porque la confianza
-        # cruda sí llega a 100.
-        porcentaje = max(
-            0,
-            min(
-                100,
-                round(self.encuentro.confianza * 100 / av.CONFIANZA_PARA_UNIRSE),
-            ),
-        )
-        cabecera = (
-            f"## {definicion.emoji} Un {definicion.nombre} salvaje "
-            f"{pantalla.EMOJI_GENERO[salvaje.genero]}\n"
-            f"-# carácter por descubrir · confianza {porcentaje}% · "
-            f"paciencia {'●' * max(0, self.encuentro.paciencia)}"
-            f"{'○' * max(0, av.PACIENCIA_INICIAL - self.encuentro.paciencia)}"
+            f"{'●' * turnos}{'○' * max(0, av.PACIENCIA_INICIAL - turnos)} turnos\n"
+            f"`Confianza {self._barra(confianza)} {confianza:>3}%`\n"
+            f"`Recelo    {self._barra(recelo)} {recelo:>3}%`"
         )
         return f"{cabecera}\n{ultimo}" if ultimo else cabecera
 
@@ -786,17 +659,10 @@ class Aventura(commands.Cog):
         if recibo.gemas:
             partes.append(f"{obj.EMOJI_GEMA} **{recibo.gemas}** asciigems")
         if partes:
-            aviso = f"💰 Encuentras {' y '.join(partes)} por el camino."
-            if recibo.topado:
-                aviso += (
-                    f"\n-# De los {recibo.monedas_vistas} que había, el resto se "
-                    "sale de tu tope diario."
-                )
-            await canal.send(aviso)
-        elif recibo.topado:
+            # Sin coletillas sobre el tope: lo que se encuentra se cobra entero
+            # y no pasa por el bote, así que no hay nada que explicar.
             await canal.send(
-                f"💰 Encuentras {recibo.monedas_vistas} asciicoins, pero ya has "
-                "llegado a tu tope diario y se quedan donde estaban."
+                f"💰 Encuentras {' y '.join(partes)} por el camino."
             )
 
     async def resolver(

@@ -461,8 +461,8 @@ renueva a medianoche UTC.
 · 🏁 competir **+{eco.PREMIO_COMPETENCIA}** y **+{eco.PREMIO_GANADOR}** si ganas, \
 hasta {eco.TOPE_COMPETENCIAS} al día
 -# En `/aventura` te encuentras objetos gratis, a veces \
-**{av.MONEDAS_ENCONTRADAS[0]}–{av.MONEDAS_ENCONTRADAS[1]}** asciicoins —del \
-bote— y muy raramente **{av.GEMAS_ENCONTRADAS[0]}–{av.GEMAS_ENCONTRADAS[1]}** \
+**{av.MONEDAS_ENCONTRADAS[0]}–{av.MONEDAS_ENCONTRADAS[1]}** asciicoins —que \
+**no gastan tope**, son un golpe de suerte— y muy raramente **{av.GEMAS_ENCONTRADAS[0]}–{av.GEMAS_ENCONTRADAS[1]}** \
 {obj.EMOJI_GEMA}, que no tienen tope.
 
 -# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \

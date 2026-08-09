@@ -1820,12 +1820,18 @@ def test_la_venta_no_pasa_por_el_bote_diario():
     Una venta es una devolución, no una ganancia.
     """
     con_casa("grande")
-    # Se llena el bote del día antes de vender.
-    ganado = 0
-    i = 0
-    while ganado < economia.TOPE_DIARIO_ASCIICOINS:
-        ganado += economia.otorgar_hallazgo(f"h{i}", "u1", "g1", 10, 0, T0).monedas
-        i += 1
+    # Se llena el bote del día antes de vender. Se apunta la fila a mano y no
+    # con hallazgos, como se hacía antes: desde que salieron del bote no cuentan.
+    with db.conectar() as con:
+        con.execute(
+            "INSERT INTO operaciones_economia "
+            "(evento_id, usuario_id, guild_id, tipo, fecha_utc, resultado, "
+            "delta_asciicoins, solicitud) "
+            "VALUES ('lleno', 'u1', 'g1', 'competencia', '2026-01-01', "
+            "'acreditada', ?, '{}')",
+            (economia.TOPE_DIARIO_ASCIICOINS,),
+        )
+        con.commit()
     saldo = monedas()
 
     resultado = vender()

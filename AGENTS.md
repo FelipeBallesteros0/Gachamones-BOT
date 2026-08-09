@@ -79,7 +79,9 @@ Instala el hook local cuando prepares el entorno:
 - Un empujón cuesta siempre el mismo recelo: acertar con el carácter da más confianza, nunca menos guardia.
 - El carácter manda en un eje por opción — en los empujones sobre la confianza, en esperar sobre el recelo.
 - Los asciigems se ganan con los logros y, muy de vez en cuando, en una aventura.
-- El tope diario de asciicoins es uno solo y vale para todo lo que se gana, hallazgos incluidos.
+- El tope diario de asciicoins es uno solo y vale para todo lo que se gana jugando: cuidar, evolucionar y competir.
+- Lo que se encuentra en una aventura se cobra entero y fuera del tope: es un golpe de suerte, no un sueldo.
+- Un hallazgo deja igualmente su fila en el ledger, y no por el tope: es lo que impide pagar dos veces el mismo viaje.
 - Los asciigems no tienen tope diario.
 - Los asciigems se gastan sólo en cosméticos, que no tocan ninguna estadística.
 - Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.

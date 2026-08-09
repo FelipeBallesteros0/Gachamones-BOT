@@ -47,16 +47,29 @@ def cuidar(evento, accion=sim.ALIMENTAR, cuando=T0):
     return economia.ejecutar_cuidado(evento, "u1", "g1", accion, cuando)
 
 
-def llenar_el_bote(desde=0):
-    """Deja el bote a tope. Se llena con hallazgos y no cuidando, porque
-    cuidando **no se puede**: el tope de la actividad corta en 12."""
-    ganado = desde
-    i = 0
-    while ganado < economia.TOPE_DIARIO_ASCIICOINS:
-        recibo = economia.otorgar_hallazgo(f"lleno{i}", "u1", "g1", 10, 0, T0)
-        ganado += recibo.monedas
-        i += 1
-    return ganado
+def llenar_el_bote(deja_libre=0, fecha="2026-01-01"):
+    """Deja el bote a tope, o con ese hueco libre.
+
+    Se apunta una fila de competencia a mano en vez de jugar de verdad: ninguna
+    actividad sola llega a 20 —el tope de cuidados corta en 12— y encadenarlas
+    llenaría el test de ruido. Y **ya no se puede llenar con hallazgos**, que es
+    como se hacía antes: desde que salieron del bote no cuentan.
+    """
+    cuanto = economia.TOPE_DIARIO_ASCIICOINS - deja_libre
+    with db.conectar() as con:
+        con.execute(
+            "INSERT INTO operaciones_economia "
+            "(evento_id, usuario_id, guild_id, tipo, fecha_utc, resultado, "
+            "delta_asciicoins, solicitud) "
+            "VALUES ('lleno', 'u1', 'g1', 'competencia', ?, 'acreditada', ?, '{}')",
+            (fecha, cuanto),
+        )
+        con.execute(
+            "UPDATE monederos SET asciicoins = asciicoins + ? "
+            "WHERE usuario_id = 'u1' AND guild_id = 'g1'", (cuanto,),
+        )
+        con.commit()
+    return cuanto
 
 
 def filas_del_ledger(tipo=None):
@@ -69,45 +82,53 @@ def filas_del_ledger(tipo=None):
 
 # --- El bote --------------------------------------------------------------
 
-def test_el_bote_es_uno_solo_para_todo():
-    """Lo pedido: cuidar, competir y encontrar salen del mismo sitio.
-
-    Antes cada actividad tenía su propio contador y podían sumar 40 entre las
-    tres; ahora la primera que llegue a 20 deja secas a las demás.
-    """
+def test_el_bote_es_uno_solo_para_lo_que_se_gana_jugando():
+    """Cuidar, evolucionar y competir salen del mismo sitio: la primera que
+    llegue a 20 deja secas a las demás. Los hallazgos ya no, y por eso este
+    test se mide con cuidados y no con ellos, como se medía antes."""
     nacer()
     for i in range(economia.TOPE_CUIDADOS):
         cuidar(f"c{i}", cuando=T0 + timedelta(hours=i))
+
     assert ganado_hoy() == economia.TOPE_CUIDADOS      # 12 de los 20
 
-    # El hallazgo saca del mismo bote: de los 10 que había sólo caben 8.
+
+def test_lo_que_te_encuentras_no_toca_el_bote():
+    """**Lo pedido.** Un hallazgo no es un sueldo: es un golpe de suerte, y
+    antes se cobraba dos veces mal —si habías llegado al tope no daba nada, y si
+    no, te comía sitio de lo que ibas a ganar después—."""
+    nacer()
+    for i in range(economia.TOPE_CUIDADOS):
+        cuidar(f"c{i}", cuando=T0 + timedelta(hours=i))
+    antes_bote, antes_saldo = ganado_hoy(), monedas()
+
     recibo = economia.otorgar_hallazgo("v1", "u1", "g1", 10, 0, T0)
 
-    assert recibo.monedas == economia.TOPE_DIARIO_ASCIICOINS - economia.TOPE_CUIDADOS
-    assert recibo.topado
-    assert ganado_hoy() == economia.TOPE_DIARIO_ASCIICOINS
+    assert recibo.monedas == 10, "se cobra entero, no lo que quepa"
+    assert monedas() == antes_saldo + 10
+    assert ganado_hoy() == antes_bote, "y no le quita sitio a lo que se gane después"
 
 
 def test_se_cobra_lo_que_quepa_y_no_todo_o_nada():
-    """Con sitio para 3 y un hallazgo de 10, entran 3. Es lo que espera quien
-    lee «hasta 20 al día», y la fila queda `acreditada`, no `topada`."""
+    """Con sitio para 3 y un premio de 10, entran 3. Es lo que espera quien lee
+    «hasta 20 al día», y la fila queda `acreditada`, no `topada`.
+
+    Se mide con la evolución, que premia 10 de golpe: los hallazgos ya no valen
+    para esto porque no pasan por el bote.
+    """
     nacer()
-    libre = 3
-    llenar_el_bote()
-    with db.conectar() as con:            # se devuelven 3 al bote, a mano
-        con.execute(
-            "UPDATE operaciones_economia SET delta_asciicoins = delta_asciicoins - ? "
-            "WHERE evento_id = 'lleno0'", (libre,),
+    llenar_el_bote(deja_libre=3)
+
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        delta, _, topada = economia._registrar_recompensa(
+            con, "evo1", "u1", "g1", "2026-01-01", "evolucion",
+            economia.PREMIO_EVOLUCION, economia.TOPE_EVOLUCIONES, "{}",
         )
         con.commit()
 
-    recibo = economia.otorgar_hallazgo("v1", "u1", "g1", 10, 0, T0)
-
-    assert recibo.monedas == libre and recibo.monedas_vistas == 10
-    assert recibo.topado
+    assert delta == 3 and not topada, "entra lo que cabe, y la fila es acreditada"
     assert ganado_hoy() == economia.TOPE_DIARIO_ASCIICOINS
-    [fila] = [f for f in filas_del_ledger("aventura") if f["evento_id"] == "v1"]
-    assert fila["resultado"] == "acreditada" and fila["delta_asciicoins"] == libre
 
 
 def test_el_bote_se_renueva_cada_dia_utc():
@@ -132,30 +153,30 @@ def test_gastar_no_devuelve_sitio_en_el_bote():
     economia.comprar("compra1", "u1", "g1", obj.CATALOGO["golosinas"], T0)
 
     assert ganado_hoy() == economia.TOPE_DIARIO_ASCIICOINS
-    assert economia.otorgar_hallazgo("v1", "u1", "g1", 5, 0, T0).monedas == 0
 
 
 def test_el_bote_es_de_cada_persona_y_servidor():
     nacer()
     llenar_el_bote()
 
-    assert economia.otorgar_hallazgo("v1", "u2", "g1", 6, 0, T0).monedas == 6
-    assert economia.otorgar_hallazgo("v2", "u1", "g2", 6, 0, T0).monedas == 6
+    assert ganado_hoy("u2") == 0 and ganado_hoy("u1", "2026-01-02") == 0
 
 
 # --- Los hallazgos ---------------------------------------------------------
 
-def test_las_gemas_no_cuentan_en_el_bote():
-    """Es otra moneda y otra economía; y al 0,5 % no hacen falta frenos."""
+def test_ni_las_monedas_ni_las_gemas_del_hallazgo_miran_el_bote():
+    """Las gemas nunca lo miraron —otra moneda, otra economía— y desde este
+    cambio las monedas del hallazgo tampoco: con el bote lleno caen las dos."""
     nacer()
     llenar_el_bote()
-    antes = gemas()
+    antes_gemas, antes_monedas = gemas(), monedas()
 
     recibo = economia.otorgar_hallazgo("v1", "u1", "g1", 10, 4, T0)
 
-    assert recibo.monedas == 0          # el bote está lleno
-    assert recibo.gemas == 4            # las gemas caen igual
-    assert gemas() == antes + 4
+    assert (recibo.monedas, recibo.gemas) == (10, 4)
+    assert gemas() == antes_gemas + 4
+    assert monedas() == antes_monedas + 10
+    assert ganado_hoy() == economia.TOPE_DIARIO_ASCIICOINS, "el bote no se mueve"
 
 
 def test_el_mismo_viaje_no_paga_dos_veces():
