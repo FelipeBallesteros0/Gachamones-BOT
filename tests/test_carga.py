@@ -1073,3 +1073,37 @@ def test_ningun_modulo_define_dos_veces_la_misma_clase():
         )
         repetidos = [n for n, veces in cuenta.items() if veces > 1]
         assert not repetidos, f"{fichero.name} define dos veces: {repetidos}"
+
+
+def test_casa_y_visitar_se_pueden_ejecutar_de_verdad(bd_temporal):
+    """Regresión: `/casa` llamaba a `texto_de_la_casa` con un argumento de más
+    y reventaba con «Algo se ha roto por dentro» — desplegado, y con toda la
+    suite en verde, porque **ningún test invocaba el comando**.
+
+    Aquí se ejecutan de punta a punta contra una base de verdad y sin simular
+    `texto_de_la_casa`: si a la función le cambian los parámetros y algún sitio
+    de llamada se queda atrás, esto revienta como reventaba en Discord.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import cogs.social as social
+
+    ahora = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    db.crear("11", "22", "pulpo", "Kuro", (15, 15, 15, 15), ahora)
+
+    cog = social.Social.__new__(social.Social)
+    respuesta = AsyncMock()
+    yo = SimpleNamespace(id=11, display_name="Felipe")
+    interaccion = SimpleNamespace(
+        response=respuesta, followup=respuesta, user=yo, guild_id=22,
+    )
+
+    asyncio.run(social.Social.casa.callback(cog, interaccion))
+    otro = SimpleNamespace(id=99, display_name="Otra")
+    asyncio.run(social.Social.visitar.callback(cog, interaccion, otro))
+
+    assert respuesta.send_message.await_count == 2
+    # Y sale la casa de verdad, no un aviso de error.
+    primero = respuesta.send_message.await_args_list[0].args[0]
+    assert "Kuro" in primero and "roto por dentro" not in primero

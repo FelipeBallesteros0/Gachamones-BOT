@@ -2125,11 +2125,6 @@ def _mobiliario(
     return {f["mueble"]: bool(f["colocado"]) for f in filas}
 
 
-def puestos(usuario_id: str, guild_id: str) -> tuple[str, ...]:
-    """Sólo los que están dentro de la casa, que son los que dan comodidad."""
-    return tuple(c for c, dentro in mobiliario(usuario_id, guild_id).items() if dentro)
-
-
 def comprar_mueble_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str,
     clave: str, colocado: bool, casa_id: int | None = None,

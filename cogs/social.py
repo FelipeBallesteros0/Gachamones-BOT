@@ -808,7 +808,6 @@ class Social(commands.Cog):
                 db.plantel(usuario_id, guild_id),
                 interaccion.user.display_name,
                 ahora,
-                db.puestos(usuario_id, guild_id),
             ),
             view=CasaView(interaccion.user.id, hogar.publica),
         )
