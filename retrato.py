@@ -194,6 +194,15 @@ _armar = armar
 LADO_RELLENO = 256
 
 
+def _letra_que_cabe(pincel: ImageDraw.ImageDraw, texto: str) -> ImageFont.FreeTypeFont:
+    """La letra más grande (hasta 24) con la que el texto cabe en el lienzo."""
+    for tamano in range(24, 9, -1):
+        letra = ImageFont.load_default(size=tamano)
+        if pincel.textlength(texto, font=letra) <= LADO_RELLENO - 8:
+            break
+    return letra
+
+
 @functools.lru_cache(maxsize=RECORDADOS)
 def relleno(clave: str, etapa: str, animo: str) -> bytes:
     """Un dibujo provisional para la especie que aún no tiene arte.
@@ -232,9 +241,10 @@ def relleno(clave: str, etapa: str, animo: str) -> bytes:
         pincel.line((cx - ancho // 2, boca_y, cx + ancho // 2, boca_y),
                     fill=oscuro, width=4)
 
-    pincel.rectangle((0, 200, lado, lado), fill=(30, 30, 30, 230))
-    letra = ImageFont.load_default()
-    for fila, texto in ((206, especie.nombre.upper()), (232, "RELLENO")):
+    pincel.rectangle((0, 196, lado, lado), fill=(30, 30, 30, 230))
+    # La fuente por defecto de Pillow no trae la Ñ ni las vocales con tilde.
+    for fila, texto in ((198, _sin_tildes(especie.nombre).upper()), (226, "RELLENO")):
+        letra = _letra_que_cabe(pincel, texto)
         ancho_texto = pincel.textlength(texto, font=letra)
         pincel.text(((lado - ancho_texto) / 2, fila), texto, fill=(240, 240, 240, 255),
                     font=letra)
@@ -244,9 +254,20 @@ def relleno(clave: str, etapa: str, animo: str) -> bytes:
     return buzon.getvalue()
 
 
+# El código que decide qué imagen sale: qué especies tienen dibujo y cuáles
+# relleno, los colores, los nombres, los sombreros. Entra en la huella porque
+# cambiarlo cambia lo que sirve una misma dirección.
+ARCHIVOS_DE_CODIGO = tuple(
+    Path(__file__).parent / nombre
+    for nombre in ("retrato.py", "especies.py", "cosmeticos.py")
+)
+
+
 @functools.cache
 def version() -> str:
-    """Huella corta del contenido de `fuentes/`: nombres y bytes, nunca fechas.
+    """Huella corta de `fuentes/` y del código que decide la imagen.
+
+    Nombres y bytes, nunca fechas.
 
     Va en la dirección del retrato (`?v=`) para que, al redibujar una capa, la
     dirección cambie y nadie siga viendo el dibujo viejo en su caché.
@@ -254,6 +275,11 @@ def version() -> str:
     huella = hashlib.sha256()
     for archivo in sorted(p for p in FUENTES.rglob("*") if p.is_file()):
         huella.update(archivo.relative_to(FUENTES).as_posix().encode("utf-8"))
+        huella.update(b"\0")
+        huella.update(archivo.read_bytes())
+        huella.update(b"\0")
+    for archivo in ARCHIVOS_DE_CODIGO:
+        huella.update(archivo.name.encode("utf-8"))
         huella.update(b"\0")
         huella.update(archivo.read_bytes())
         huella.update(b"\0")

@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException as ErrorHTTP
 
 import db
 import economia
+import retrato
 from web import PREFIJO, cuenta, juego, retratos
 from web.sesion import Persona, persona_actual
 
@@ -47,6 +48,7 @@ def calcular_version(carpeta: Path = ESTATICOS) -> str:
 
 @asynccontextmanager
 async def _ciclo_de_vida(app: FastAPI):
+    retrato.version()  # se calcula al arrancar, no en la primera petición
     devolucion = economia.poner_al_dia(db.ahora_utc())
     if devolucion.piezas:
         log.info(
