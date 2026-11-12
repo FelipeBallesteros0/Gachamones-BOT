@@ -26,6 +26,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 import especies as esp
+import identidad
 
 # --- Ritmo -----------------------------------------------------------------
 
@@ -964,6 +965,11 @@ def avanzar(
     defecto va el de siempre, que es también el de quien tiene techo — así el
     `muere_en` guardado en la base sigue siendo exacto para todo el mundo salvo
     para quien esté a la intemperie, y a ése el hambre no lo puede matar.
+
+    Quien no tiene aviso de hambre (`identidad.sin_aviso_de_hambre`) baja las
+    barras como todos, pero con el hambre en 0 sigue viva: su dueño no tiene cómo
+    enterarse. Se decide aquí y no en `db.avanzar` porque hay sitios que llaman a
+    `avanzar` a secas, y ninguno puede matarla por olvido.
     """
     if not criatura.viva or not criatura.activa:
         return criatura
@@ -999,6 +1005,8 @@ def avanzar(
         actualizada_en=ahora,
     )
 
+    if hambre <= 0.0 and identidad.sin_aviso_de_hambre(criatura.usuario_id):
+        return replace(avanzada, hambre=0.0)
     if hambre <= 0.0:
         momento = momento_de_muerte(criatura)
         return replace(

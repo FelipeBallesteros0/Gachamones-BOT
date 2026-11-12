@@ -130,6 +130,9 @@ Instala el hook local cuando prepares el entorno:
 - Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de su tabla.
 - Desbloquear un logro y pagarlo ocurren en la misma transacción.
 - Los contadores del marcador suben dentro de la transacción que resuelve la acción.
+- Una identidad web es una persona más: su `usuario_id` no puede ser un id de Discord, y sólo `identidad.py` sabe reconocerla.
+- El gachamon de quien no tiene aviso de hambre no muere de hambre: la comida se queda en 0 y no se le guarda instante de muerte ni de aviso.
+- Esa excepción se pregunta siempre con `identidad.sin_aviso_de_hambre`, nunca mirando el id.
 
 ## Arte ASCII
 

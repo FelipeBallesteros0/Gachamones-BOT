@@ -24,6 +24,7 @@ import config
 import cosmeticos as cos
 import especies as esp
 import huerto as hue
+import identidad
 import logros as lgr
 import objetos as obj
 import personalidad as per
@@ -804,7 +805,14 @@ def _a_valores(criatura: sim.Criatura) -> dict:
     # A las de la incubadora se les dejan a NULL, y eso es lo único que hace
     # falta para que los bucles de muerte y de aviso las ignoren: los dos piden
     # `IS NOT NULL`, así que no hay que tocar ninguna de las dos consultas.
-    corre_el_tiempo = criatura.viva and criatura.activa
+    #
+    # Lo mismo vale para quien no tiene aviso de hambre (una identidad web): el
+    # hambre no la mata, así que no se le guarda instante de muerte ni de aviso.
+    corre_el_tiempo = (
+        criatura.viva
+        and criatura.activa
+        and not identidad.sin_aviso_de_hambre(criatura.usuario_id)
+    )
     datos["muere_en"] = (
         sim.momento_de_muerte(criatura).isoformat() if corre_el_tiempo else None
     )
