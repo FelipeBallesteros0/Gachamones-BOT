@@ -2505,12 +2505,13 @@ def difunto_pendiente(rowino_uid: int) -> sim.Criatura | None:
     return max(muertos, key=lambda c: c.muerta_en, default=None)
 
 
-def marcar_difuntos_vistos(rowino_uid: int, ahora: datetime) -> None:
+def marcar_difuntos_vistos(rowino_uid: int, hasta: datetime) -> None:
+    """Da por contadas las muertes de esa cuenta hasta ese instante."""
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         con.execute(
             "UPDATE cuentas_web SET difuntos_vistos_hasta = ? WHERE rowino_uid = ?",
-            (ahora.isoformat(), rowino_uid),
+            (hasta.isoformat(), rowino_uid),
         )
 
 
@@ -2662,9 +2663,9 @@ def canjear_codigo_de_vinculo(
             )
         else:
             con.execute(
-                "UPDATE cuentas_web SET usuario_id = ?, guild_id = ?, vinculada = 1 "
-                "WHERE rowino_uid = ?",
-                (usuario_id, guild_id, rowino_uid),
+                "UPDATE cuentas_web SET usuario_id = ?, guild_id = ?, vinculada = 1, "
+                "difuntos_vistos_hasta = ? WHERE rowino_uid = ?",
+                (usuario_id, guild_id, ahora.isoformat(), rowino_uid),
             )
         con.execute(
             "DELETE FROM vinculos_pendientes WHERE rowino_uid = ?", (rowino_uid,)

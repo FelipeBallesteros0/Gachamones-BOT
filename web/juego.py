@@ -18,6 +18,9 @@ def ver_estado(jugador: Jugador = Depends(jugador_actual)) -> dict:
 
 @router.post("/difunto/visto", dependencies=[Depends(con_cabecera)])
 def difunto_visto(jugador: Jugador = Depends(jugador_actual)) -> dict:
-    ahora = db.ahora_utc()
-    db.marcar_difuntos_vistos(jugador.persona.rowino_uid, ahora)
-    return estado.armar(jugador, ahora)
+    # Sólo se da por visto lo que ya estaba a la vista: una muerte que se
+    # descubra al armar el estado de esta misma petición se enseña antes.
+    pendiente = db.difunto_pendiente(jugador.persona.rowino_uid)
+    if pendiente is not None:
+        db.marcar_difuntos_vistos(jugador.persona.rowino_uid, pendiente.muerta_en)
+    return estado.armar(jugador, db.ahora_utc())

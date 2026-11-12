@@ -177,3 +177,63 @@ def test_cada_cual_ve_su_estado(cliente, monkeypatch):
     alta(cliente, 2, nombre="Ana")
     estado = cliente.get(ESTADO).json()
     assert estado["gachamon"] is None and estado["avatar"]["nombre"] == "Ana"
+
+
+def test_una_muerte_anterior_al_vinculo_no_es_noticia(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    entrar(cliente, 2)
+    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    muerto = nace(usuario=ANA_DISCORD, nombre="Viejo")
+    reloj.pasar(days=5)
+    db.guardar(db.avanzar(db.por_id(muerto.id), reloj.ahora))
+    reloj.pasar(days=5)
+    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora)
+    assert cliente.get(ESTADO).json()["difunto"] is None
+
+
+def test_marcar_visto_hasta_una_muerte_deja_pendiente_la_siguiente(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "dos.db")
+    db.inicializar()
+    db.crear_identidad_web(5, G, T0)
+    yo = identidad.de_cuenta_web(5)
+    primero = nace(usuario=yo, nombre="Uno")
+    segundo = nace(usuario=yo, nombre="Dos", activa=False)
+    m1, m2 = T0 + timedelta(days=1), T0 + timedelta(days=2)
+    db.guardar(replace(primero, muerta_en=m1, causa_muerte="hambre"))
+    db.guardar(replace(segundo, muerta_en=m2, causa_muerte="hambre"))
+    assert db.difunto_pendiente(5).nombre == "Dos"
+    db.marcar_difuntos_vistos(5, m1)
+    assert db.difunto_pendiente(5).nombre == "Dos"
+    db.marcar_difuntos_vistos(5, m2)
+    assert db.difunto_pendiente(5) is None
+
+
+def test_visto_sin_nada_pendiente_no_escribe(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR)
+    with db.conectar() as con:
+        fila = con.execute("SELECT difuntos_vistos_hasta FROM cuentas_web").fetchone()
+    assert fila[0] is None
+
+
+def test_visto_no_da_por_vista_una_muerte_que_se_descubre_en_la_misma_peticion(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    entrar(cliente, 2)
+    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, T0)
+    nace(usuario=ANA_DISCORD, nombre="Viejo")
+    reloj.pasar(days=5)
+    respuesta = cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR).json()
+    assert respuesta["difunto"]["nombre"] == "Viejo"
+
+
+def test_difunto_visto_exige_cabecera_sesion_y_cuenta(cliente):
+    url = "/gachamon/api/difunto/visto"
+    assert cliente.post(url, headers=ESCRIBIR).status_code == 401
+    entrar(cliente, 1)
+    assert cliente.post(url).status_code == 403
+    respuesta = cliente.post(url, headers=ESCRIBIR)
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"]["clave"] == "sin_cuenta"

@@ -134,3 +134,20 @@ def test_el_prefijo_vive_en_el_paquete_y_la_app_lo_sigue_exponiendo():
     import web.app
 
     assert web.PREFIJO == "/gachamon" == web.app.PREFIJO
+
+
+def test_un_error_http_sin_forma_propia_no_filtra_su_texto(tmp_path, monkeypatch):
+    import ayudas_web
+    from fastapi import HTTPException
+
+    with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
+        @cliente.app.get("/gachamon/api/prueba-418")
+        def _rara():
+            raise HTTPException(status_code=418, detail="texto interno")
+
+        respuesta = cliente.get("/gachamon/api/prueba-418")
+    assert respuesta.status_code == 418
+    assert respuesta.json() == {
+        "detail": {"clave": "error", "mensaje": "Algo salió mal."},
+    }
+    assert "texto interno" not in respuesta.text
