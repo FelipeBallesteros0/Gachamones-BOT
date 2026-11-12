@@ -119,6 +119,9 @@ AVENTURA = "aventura"
 # por hora entrenen el ingenio veinte veces más rápido de lo que entrena fuerza
 # un botón cada dos horas.
 CONVERSAR = "conversar"
+# Acariciarlo. Tampoco es un cuidado: no cuesta nada, no da experiencia y no
+# cuenta para ningún tope; sólo sube el ánimo, y el freno es su enfriamiento.
+ACARICIAR = "acariciar"
 
 # La regla es que **ninguno sea múltiplo de otro**, y hay un test que la vigila.
 # No es un capricho: antes eran 30, 30, 60, 120 y 10 —todos múltiplos de 10, dos
@@ -149,6 +152,11 @@ COOLDOWNS = {
     # demás. Queda algo por debajo de los 113 de entrenar a propósito: escribir
     # un párrafo que valga la pena cuesta más que pulsar un botón.
     CONVERSAR: timedelta(minutes=97),
+    # Acariciar es lo más barato que se le puede hacer, así que es lo más corto.
+    # Son 19 y no 20 por la misma regla: primo, y los primos no son múltiplo de
+    # nada. 20 habría sido múltiplo de COMPETIR (10) y sus ciclos coincidirían
+    # para siempre.
+    ACARICIAR: timedelta(minutes=19),
 }
 
 # Las cuatro acciones de cuidado; son la consulta por defecto de db.esperas.
@@ -240,6 +248,9 @@ EFECTO_ENTRENAMIENTO_CONJUNTO = {
 # No cuesta hambre —conversar no es esfuerzo físico— y sube el ánimo, porque le
 # gusta que le hablen bien. El freno lo pone el enfriamiento, no el castigo.
 EFECTO_CONVERSACION = {"animo": 5, "ent_ingenio": 1}
+
+# Lo que deja una caricia: ánimo y nada más. Sin hambre, sin experiencia.
+EFECTO_CARICIA = {"animo": 5}
 
 # Cuántas palabras hacen falta para que merezca la pena juzgar un mensaje. No
 # mide si está bien escrito —de eso ya se encarga el modelo—, sólo evita gastar
@@ -1130,6 +1141,24 @@ def aplicar_conversacion(criatura: Criatura) -> ResultadoAccion:
         ent_ingenio=criatura.ent_ingenio + efecto["ent_ingenio"],
     )
     return ResultadoAccion(nueva, "Le has hecho pensar.")
+
+
+def aplicar_caricia(criatura: Criatura) -> ResultadoAccion:
+    """Lo que le deja una caricia: `EFECTO_CARICIA` y nada más.
+
+    No es un cuidado (no está en `ACCIONES_DE_CUIDADO`): no da experiencia ni
+    toca más que el ánimo. Quien decide si ya toca acariciar es el
+    enfriamiento, y eso lo mira otro.
+    """
+    if not criatura.viva:
+        return ResultadoAccion(
+            criatura, "Tu gachamon ya no está entre nosotros.", ok=False
+        )
+
+    nueva = replace(
+        criatura, animo=_limitar(criatura.animo + EFECTO_CARICIA["animo"])
+    )
+    return ResultadoAccion(nueva, "Se ha quedado muy content{o/a} con la caricia.")
 
 
 def aplicar_entrenamiento_conjunto(criatura: Criatura) -> ResultadoAccion:

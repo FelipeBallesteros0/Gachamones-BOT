@@ -1354,6 +1354,43 @@ def regalar(usuario_id: str, guild_id: str, objeto: obj.Objeto) -> None:
         )
 
 
+@dataclass(frozen=True)
+class ResultadoCaricia:
+    ok: bool
+    criatura: sim.Criatura | None
+    espera: timedelta
+
+
+def acariciar(usuario_id: str, guild_id: str, ahora: datetime) -> ResultadoCaricia:
+    """Acaricia al gachamon activo, con su enfriamiento, en una sola transacción.
+
+    La criatura se avanza hasta `ahora` antes de nada. Si así resulta que murió
+    se guarda muerta y se contesta `ok=False` sin enfriamiento: sacar al relevo
+    de la incubadora no es cosa de la caricia. Antes de tiempo no se guarda
+    nada: la criatura que se devuelve va avanzada hasta `ahora`, pero en la
+    base sigue como estaba (el avance se recalcula igual la próxima vez).
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        criatura = criatura_activa_en(con, usuario_id, guild_id)
+        if criatura is None:
+            return ResultadoCaricia(False, None, timedelta(0))
+        criatura = _avanzar_en(con, criatura, ahora)
+        if not criatura.viva:
+            _guardar(con, criatura)
+            return ResultadoCaricia(False, criatura, timedelta(0))
+
+        espera = espera_en(con, criatura.id, sim.ACARICIAR, ahora)
+        if espera:
+            return ResultadoCaricia(False, criatura, espera)
+
+        acariciada = sim.aplicar_caricia(criatura).criatura
+        _guardar(con, acariciada)
+        duracion = sim.COOLDOWNS[sim.ACARICIAR]
+        poner_cooldown_en(con, criatura.id, sim.ACARICIAR, ahora + duracion)
+        return ResultadoCaricia(True, acariciada, duracion)
+
+
 # --- El buzón --------------------------------------------------------------
 
 LARGO_MAXIMO_NOTA = 140
