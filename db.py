@@ -1017,15 +1017,19 @@ def activa_al_dia(
     if avanzada.viva:
         return avanzada
 
-    # Se vuelve a leer dentro de la transacción: si el bot u otra petición ya la
-    # registraron muerta, no se escribe ni se apunta nada.
+    # Se vuelve a leer y a avanzar dentro de la transacción: si el bot u otra
+    # petición ya la registraron muerta, o la alimentaron entre medias, no se
+    # escribe ni se apunta nada; y lo que se guarda parte de la fila releída, no
+    # de la leída antes (que habría pisado, por ejemplo, `pantalla_msg_id`).
     apuntada = False
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         actual = criatura_en(con, avanzada.id)
         if actual is not None and actual.viva:
-            _guardar(con, avanzada)
-            apuntada = _apuntar_muerte(con, avanzada)
+            muerta = _avanzar_en(con, actual, ahora)
+            if not muerta.viva:
+                _guardar(con, muerta)
+                apuntada = _apuntar_muerte(con, muerta)
     # Sin meterlo en la transacción: abre su propia conexión.
     ascender_de_la_incubadora(usuario_id, guild_id, ahora)
     relevo = criatura_activa(usuario_id, guild_id)

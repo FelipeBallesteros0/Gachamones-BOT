@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import discord
+
 import config
 import db
 import identidad
@@ -73,10 +75,9 @@ def test_una_muerte_que_registro_el_bot_no_deja_apunte():
 
 def test_una_identidad_web_nunca_deja_apunte(monkeypatch):
     nace(usuario=WEB)
-    monkeypatch.setattr(
-        db, "avanzar",
-        lambda c, ahora: replace(c, muerta_en=ahora, causa_muerte="hambre"),
-    )
+    muere = lambda c, ahora: replace(c, muerta_en=ahora, causa_muerte="hambre")
+    monkeypatch.setattr(db, "avanzar", muere)
+    monkeypatch.setattr(db, "_avanzar_en", lambda con, c, ahora: muere(c, ahora))
     assert db.activa_al_dia(WEB, G, TARDE) is None
     assert apuntes() == []
 
@@ -129,6 +130,39 @@ def test_dos_a_la_vez_dejan_un_apunte_y_un_relevo():
     assert apuntes() == [(muerto.id, relevo.id)]
 
 
+def _justo_despues_de_leer(monkeypatch, que_pasa):
+    """`db.avanzar` es lo último que corre antes de que `activa_al_dia` abra su
+    transacción: lo que se haga aquí es lo que ocurre «entre medias»."""
+    original = db.avanzar
+    hecho = []
+
+    def envoltorio(criatura, ahora):
+        resultado = original(criatura, ahora)
+        if not hecho:
+            hecho.append(True)
+            que_pasa(resultado)
+        return resultado
+
+    monkeypatch.setattr(db, "avanzar", envoltorio)
+
+
+def test_si_el_bot_guarda_la_muerte_entre_medias_no_se_apunta(monkeypatch):
+    nace()
+    _justo_despues_de_leer(monkeypatch, db.guardar)   # lo que haría el bucle
+    db.activa_al_dia(ANA, G, TARDE)
+    assert apuntes() == []
+
+
+def test_la_muerte_se_guarda_sobre_la_fila_releida(monkeypatch):
+    muerto = nace()
+    _justo_despues_de_leer(
+        monkeypatch, lambda _: db.guardar_pantalla(muerto.id, "999", "5"))
+    db.activa_al_dia(ANA, G, TARDE)
+    fila = db.por_id(muerto.id)
+    assert fila.muerta_en is not None and fila.pantalla_msg_id == "999"
+    assert apuntes() == [(muerto.id, None)]
+
+
 # -- el bucle del bot ---------------------------------------------------------
 
 def correr_bucle(monkeypatch):
@@ -178,3 +212,30 @@ def test_una_base_sin_la_tabla_la_gana_al_inicializar():
         con.execute("DROP TABLE muertes_por_anunciar")
     db.inicializar()
     assert apuntes() == []
+
+
+def test_un_anuncio_que_falla_se_registra_y_no_se_reintenta(monkeypatch):
+    primera = nace(nombre="Primera")
+    segunda = nace(usuario="333333333333333333", nombre="Segunda")
+    db.activa_al_dia(ANA, G, TARDE)
+    db.activa_al_dia(segunda.usuario_id, G, TARDE)
+    assert len(apuntes()) == 2
+
+    fallo = discord.HTTPException(SimpleNamespace(status=500, reason="x"), "x")
+    enviar = AsyncMock(side_effect=[fallo, None, None])
+    monkeypatch.setattr(vistas, "congelar", AsyncMock())
+    monkeypatch.setattr(vistas, "publicar_pantalla", AsyncMock())
+    monkeypatch.setattr(config, "CANAL_PRINCIPAL", 1)
+    monkeypatch.setattr(db, "ahora_utc", lambda: TARDE)
+    canal = SimpleNamespace(send=enviar)
+    cog = cog_mascota.Mascota(SimpleNamespace(get_channel=lambda _: canal))
+    asyncio.run(cog_mascota.Mascota.revisar_muertes.coro(cog))
+
+    assert apuntes() == []
+    enviados = [c.args[0] for c in enviar.await_args_list]
+    assert any("**Segunda** ha muerto" in t for t in enviados)
+
+    enviar.reset_mock(side_effect=True)
+    asyncio.run(cog_mascota.Mascota.revisar_muertes.coro(cog))
+    assert enviar.await_count == 0
+    assert primera.id  # la que falló no vuelve

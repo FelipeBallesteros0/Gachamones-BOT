@@ -196,8 +196,12 @@ class Mascota(commands.Cog):
                 continue
 
             db.guardar(muerta)
-            # Si la web la apuntó en ese mismo instante, no se anuncia dos veces.
+            # Si la web la apuntó entre medias, no se anuncia dos veces.
             db.muerte_anunciada(muerta.id)
+            # Carrera que no se cubre: si la web ya la había registrado y sacado
+            # al relevo, `releva` sale `None` y ese relevo no se anuncia. La
+            # lista de pendientes se lee entera al principio y entre una y otra
+            # se esperan los envíos a Discord, así que puede durar segundos.
             # Si tenía compañeros esperando, sale uno: quedarse sin activo
             # teniendo dos en la incubadora sería desconcertante.
             releva = db.ascender_de_la_incubadora(
@@ -207,8 +211,6 @@ class Mascota(commands.Cog):
 
         # Las que registró la web, que no habla en Discord. Primero se borra el
         # apunte y después se anuncia: un anuncio que falla no se reintenta.
-        # Si el bucle y la web coinciden, el relevo ya salió y no se anuncia: es
-        # una carrera de milisegundos y no se cubre.
         for muerta, releva in db.muertes_por_anunciar():
             db.muerte_anunciada(muerta.id)
             await self._anunciar_muerte(muerta, releva, ahora)
