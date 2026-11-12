@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import pytest
 
 import cosmeticos as cos
+import db
 import economia
 import especies as esp
 import pantalla
@@ -67,10 +68,28 @@ def test_un_gachamon_con_piezas_retiradas_se_pinta_como_si_no_llevara_nada():
     assert pantalla.render(con_retiradas, T0) == pantalla.render(criatura(), T0)
 
 
-def test_una_pieza_retirada_no_se_puede_comprar():
+@pytest.fixture
+def bd_temporal(tmp_path, monkeypatch):
+    """Una base propia, sólo para la prueba que toca `economia`: el resto de
+    este fichero es dibujo puro y no debe crear bases."""
+    monkeypatch.setattr(db, "RUTA", tmp_path / "cosmeticos.db")
+    db.inicializar()
+
+
+def test_una_pieza_retirada_no_se_puede_comprar(bd_temporal):
+    with db.conectar() as con:
+        economia._asegurar_monedero(con, "u", "g")
+        con.execute(
+            "UPDATE monederos SET asciigems = 50 "
+            "WHERE usuario_id = 'u' AND guild_id = 'g'"
+        )
     retirada = cos.Cosmetico("tinte_rojo", cos.TINTE, "Rojo", esp.ROJO)
+
     with pytest.raises(ValueError):
         economia.comprar_cosmetico("u", "g", retirada)
+
+    assert economia.saldos("u", "g").asciigems == 50
+    assert db.ropero("u", "g") == frozenset()
 
 
 # --- El catálogo -----------------------------------------------------------
