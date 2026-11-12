@@ -70,11 +70,13 @@ REMOTO
 
 if [ -z "$SIN_TESTS" ]; then
     echo "==> Tests en la Pi (SIN_TESTS=1 para saltarlos)"
-    ssh "$PI" "cd '$DEST' && ./venv/bin/python -m pytest tests/ -q 2>&1 | tail -3"
+    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest tests/ -q 2>&1 | tail -3"
 fi
 
 # El servicio se toca al final y sólo si todo lo anterior salió bien: con
-# `set -e`, un fallo de los tests corta aquí y el bot sigue con la versión buena.
+# `set -e` aquí y `set -o pipefail` en la orden remota, una suite en rojo hace
+# que `ssh` devuelva el estado de pytest (y no el de `tail`), el guion corta y
+# el bot sigue con la versión buena.
 echo "==> Reiniciando el servicio"
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
