@@ -44,8 +44,7 @@ class Tamagotchi(commands.Bot):
         )
 
     async def setup_hook(self) -> None:
-        db.inicializar()
-        devolucion = economia.devolver_cosmeticos_retirados(db.ahora_utc())
+        devolucion = economia.poner_al_dia(db.ahora_utc())
         if devolucion.piezas:
             log.info(
                 "Devueltos marcos y tintes retirados: %d personas, %d piezas, %d gemas",

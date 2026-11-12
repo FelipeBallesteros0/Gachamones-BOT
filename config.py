@@ -83,6 +83,14 @@ CANALES_INFO = _lista_enteros("CANAL_INFO_ID")
 
 RUTA_BD = Path(os.environ.get("RUTA_BD", RAIZ / "tamagotchi.db"))
 
+# La web de Gachamon no tiene cuentas propias: entra con la sesión de Rowino.
+# La clave es la misma `SECRET_KEY` de Rowino, con la que firma su cookie, y la
+# base de Rowino sólo se lee para saber quién es esa cookie.
+ROWINO_SECRET_KEY = os.environ.get("ROWINO_SECRET_KEY", "").strip()
+RUTA_ROWINO_BD = Path(
+    os.environ.get("RUTA_ROWINO_BD", RAIZ.parent / "rowino_web" / "rowino.db")
+)
+
 # --- IA: que las criaturas hablen ------------------------------------------
 
 # NVIDIA cloud expone una API compatible con la de OpenAI.

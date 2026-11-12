@@ -20,3 +20,11 @@ def _sin_base_por_defecto(tmp_path, monkeypatch):
     después de ésta y la pisan.
     """
     monkeypatch.setattr(db, "RUTA", tmp_path / "no-existe" / "tamagotchi.db")
+
+
+@pytest.fixture
+def cliente(tmp_path, monkeypatch):
+    import ayudas_web
+
+    with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
+        yield cliente

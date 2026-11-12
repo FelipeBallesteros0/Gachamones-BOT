@@ -53,6 +53,13 @@ Instala el hook local cuando prepares el entorno:
 - No respondas en Discord sobre una mutación hasta que la transacción confirme el commit.
 - Mantén explícitos los límites entre dominio puro, persistencia y Discord.
 
+## La web
+
+- `web/` es otro adaptador fino, como los cogs: traduce peticiones y presenta resultados. No importa `discord` ni nada que lo importe.
+- El servicio web no guarda estado del juego en memoria: lo que cambie el bot tiene que verse en la siguiente petición.
+- Quién eres sale sólo de la cookie de sesión de Rowino. Ninguna ruta acepta un identificador de persona.
+- El bot y la web arrancan por `economia.poner_al_dia`, y nadie más prepara la base.
+
 ## Invariantes del dominio
 
 - El manual del juego lo publica el bot en su canal desde `paginas_de_ayuda()`, y no hay comando que lo enseñe.

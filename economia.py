@@ -284,6 +284,15 @@ def devolver_cosmeticos_retirados(ahora: datetime) -> ResumenDevolucion:
     return ResumenDevolucion(len(personas), piezas, total)
 
 
+def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
+    """El arranque: prepara la base y hace la devolución de lo retirado.
+
+    Lo llaman el bot y la web, y nadie más prepara la base fuera de las pruebas.
+    """
+    db.inicializar()
+    return devolver_cosmeticos_retirados(ahora)
+
+
 # --- Los logros y lo que pagan ----------------------------------------------
 
 @dataclass(frozen=True)
