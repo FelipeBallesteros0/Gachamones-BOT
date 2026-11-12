@@ -216,6 +216,74 @@ def saldos(usuario_id: str, guild_id: str) -> Saldos:
         return _saldos_en(con, usuario_id, guild_id)
 
 
+# --- La devolución de lo retirado ---------------------------------------------
+
+@dataclass(frozen=True)
+class ResumenDevolucion:
+    personas: int
+    piezas: int
+    gemas: int
+
+
+def devolver_cosmeticos_retirados(ahora: datetime) -> ResumenDevolucion:
+    """Devuelve las gemas de lo retirado, lo saca de los roperos y de los gachamones.
+
+    Corre en cada arranque y la segunda vez no hace nada. Todo va bajo un único
+    `BEGIN IMMEDIATE`: pagar y anotar en `devoluciones` son lo mismo, y sólo
+    cobra quien consigue que la fila entre (`rowcount`), así que ni dos
+    arranques a la vez ni una pieza que reaparezca pagan dos veces. No pasa por
+    `operaciones_economia`: una devolución no es una ganancia.
+    """
+    claves = tuple(cos.RETIRADOS)
+    marcas = ", ".join("?" for _ in claves)
+    personas: set[tuple[str, str]] = set()
+    piezas = total = 0
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        # 1. Lo retirado que aún lleva puesto algún gachamon pasa al ropero.
+        for columna in cos.TIPOS_RETIRADOS:
+            con.execute(
+                f"INSERT OR IGNORE INTO ropero (usuario_id, guild_id, cosmetico) "
+                f"SELECT usuario_id, guild_id, {columna} FROM criaturas "
+                f"WHERE {columna} IN ({marcas})",
+                claves,
+            )
+        # 2. Se paga una vez por persona y pieza.
+        filas = con.execute(
+            "SELECT usuario_id, guild_id, cosmetico FROM ropero "
+            f"WHERE cosmetico IN ({marcas})",
+            claves,
+        ).fetchall()
+        for fila in filas:
+            gemas = cos.RETIRADOS[fila["cosmetico"]]
+            entro = con.execute(
+                "INSERT OR IGNORE INTO devoluciones "
+                "(usuario_id, guild_id, cosmetico, gemas, devuelta_en) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (fila["usuario_id"], fila["guild_id"], fila["cosmetico"],
+                 gemas, ahora.isoformat()),
+            ).rowcount
+            if not entro:
+                continue
+            _asegurar_monedero(con, fila["usuario_id"], fila["guild_id"])
+            con.execute(
+                "UPDATE monederos SET asciigems = asciigems + ? "
+                "WHERE usuario_id = ? AND guild_id = ?",
+                (gemas, fila["usuario_id"], fila["guild_id"]),
+            )
+            personas.add((fila["usuario_id"], fila["guild_id"]))
+            piezas += 1
+            total += gemas
+        # 3. Fuera del ropero, hayan pagado o no.
+        con.execute(f"DELETE FROM ropero WHERE cosmetico IN ({marcas})", claves)
+        # 4. Y de todas las criaturas, vivas y muertas.
+        for columna in cos.TIPOS_RETIRADOS:
+            con.execute(
+                f"UPDATE criaturas SET {columna} = NULL WHERE {columna} IS NOT NULL"
+            )
+    return ResumenDevolucion(len(personas), piezas, total)
+
+
 # --- Los logros y lo que pagan ----------------------------------------------
 
 @dataclass(frozen=True)

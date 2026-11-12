@@ -129,6 +129,8 @@ Instala el hook local cuando prepares el entorno:
 - El ropero es de la persona y sobrevive a todo su plantel.
 - Quitarle un cosmético a un gachamon nunca lo destruye: vuelve al ropero.
 - Los marcos y los tintes están retirados: no se venden ni se ponen, y `cosmeticos.RETIRADOS` sólo existe para saber cuánto devolver.
+- Lo retirado se devuelve una sola vez por persona y pieza: lo garantiza la clave primaria de `devoluciones`, y pagar ocurre en la misma transacción que anotarla.
+- Una devolución no es una ganancia: no pasa por el tope diario ni por `operaciones_economia`.
 - Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de su tabla.
 - Desbloquear un logro y pagarlo ocurren en la misma transacción.
 - Los contadores del marcador suben dentro de la transacción que resuelve la acción.

@@ -240,6 +240,18 @@ CREATE TABLE IF NOT EXISTS ropero (
     PRIMARY KEY (usuario_id, guild_id, cosmetico)
 );
 
+-- Lo que se devolvió por cada cosmético retirado. Es el registro y, a la vez, la
+-- garantía de que no se paga dos veces: la clave primaria deja entrar una sola
+-- vez a cada persona + pieza, y sólo quien consigue la fila cobra.
+CREATE TABLE IF NOT EXISTS devoluciones (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    cosmetico TEXT NOT NULL,
+    gemas INTEGER NOT NULL CHECK (gemas > 0),
+    devuelta_en TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id, cosmetico)
+);
+
 -- Cómo quiere cada persona que todo el servidor vea sus fichas. Sin fila se
 -- usa Imagen; sólo se guarda una elección explícita desde Personalizar.
 CREATE TABLE IF NOT EXISTS estilos_ficha (

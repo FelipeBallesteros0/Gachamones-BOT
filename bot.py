@@ -16,6 +16,7 @@ from discord.ext import commands
 import comun
 import config
 import db
+import economia
 from vistas import (
     NombrarReclutaView,
     NombrarView,
@@ -44,6 +45,12 @@ class Tamagotchi(commands.Bot):
 
     async def setup_hook(self) -> None:
         db.inicializar()
+        devolucion = economia.devolver_cosmeticos_retirados(db.ahora_utc())
+        if devolucion.piezas:
+            log.info(
+                "Devueltos marcos y tintes retirados: %d personas, %d piezas, %d gemas",
+                devolucion.personas, devolucion.piezas, devolucion.gemas,
+            )
 
         for extension in EXTENSIONES:
             await self.load_extension(extension)
