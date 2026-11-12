@@ -1,17 +1,30 @@
 """Lo que se lee y se hace jugando: el estado y, más adelante, el cuidado."""
 from __future__ import annotations
 
+import logging
+import math
+import re
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends
 
 import db
+import economia
 import nacer
+import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual
 from web.sesion import con_cabecera, problema
 
+log = logging.getLogger("gachamones")
 router = APIRouter()
+
+EVENTO_VALIDO = re.compile(r"[A-Za-z0-9-]{8,64}")
+
+
+def _segundos(espera) -> int:
+    """Una espera en segundos enteros, hacia arriba; 0 si no hay."""
+    return math.ceil(espera.total_seconds()) if espera else 0
 
 
 @router.get("/estado")
@@ -66,3 +79,61 @@ def bautizar(
     except nacer.NoSePuedeBautizar as error:
         raise problema(409, error.motivo, str(error)) from None
     return estado.armar(jugador, ahora)
+
+
+@router.post("/cuidar", dependencies=[Depends(con_cabecera)])
+def cuidar(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # El cuerpo se revisa a mano; la identidad sale sólo de la cookie.
+    datos = cuerpo if isinstance(cuerpo, dict) else {}
+    accion = datos.get("accion")
+    if not isinstance(accion, str) or accion not in sim.ACCIONES_DE_CUIDADO:
+        raise problema(422, "accion", "Esa acción no existe.")
+    evento = datos.get("evento_id")
+    if not isinstance(evento, str) or not EVENTO_VALIDO.fullmatch(evento):
+        raise problema(422, "evento", "Falta el identificador del evento.")
+    ahora = db.ahora_utc()
+    sin_gachamon = problema(409, "sin_gachamon", "No tienes un gachamon que cuidar.")
+    # Una muerte la registra siempre quien la deja apuntada para el bot.
+    if db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora) is None:
+        raise sin_gachamon
+    try:
+        resultado = economia.ejecutar_cuidado(
+            evento, jugador.usuario_id, jugador.guild_id, accion, ahora
+        )
+    except RuntimeError:
+        log.warning("evento de cuidado reutilizado: %s", evento, exc_info=True)
+        raise problema(
+            409, "evento", "Ese cuidado ya se usó para otra acción."
+        ) from None
+    if resultado is None:
+        raise sin_gachamon
+    evoluciono = (
+        resultado.etapa_anterior is not None
+        and resultado.etapa_anterior != resultado.criatura.etapa
+    )
+    return {
+        "ok": resultado.ok,
+        "mensaje": resultado.mensaje or ("" if resultado.ok else "Todavía no."),
+        "espera": _segundos(resultado.espera),
+        "monedas": resultado.delta_asciicoins,
+        "evoluciono": evoluciono,
+        "estado": estado.armar(jugador, ahora),
+    }
+
+
+@router.post("/acariciar", dependencies=[Depends(con_cabecera)])
+def acariciar(jugador: Jugador = Depends(jugador_actual)) -> dict:
+    ahora = db.ahora_utc()
+    if db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora) is None:
+        raise problema(409, "sin_gachamon", "No tienes un gachamon que acariciar.")
+    caricia = db.acariciar(jugador.usuario_id, jugador.guild_id, ahora)
+    if caricia.criatura is None:
+        raise problema(409, "sin_gachamon", "No tienes un gachamon que acariciar.")
+    return {
+        "ok": caricia.ok,
+        "espera": _segundos(caricia.espera),
+        "estado": estado.armar(jugador, ahora),
+    }
