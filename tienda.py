@@ -373,17 +373,12 @@ class MenuTienda(discord.ui.Select):
 # --- Los cosméticos ---------------------------------------------------------
 #
 # Se compran en la misma tienda que lo demás, pero en su propio desplegable: son
-# 15 objetos y 23 cosméticos, y en una lista de Discord caben 25. Lo que se
+# 15 objetos y 12 cosméticos, y en una lista de Discord caben 25. Lo que se
 # compra va a tu **ropero**, y ponérselo o quitárselo a un gachamon es otra
 # pantalla, la de 🎨 Personalizar.
 
-EMOJI_TIPO = {
-    cos.TINTE: "🎨", cos.SOMBRERO: "👑", cos.MARCO: "🖼️", cos.TITULO: "📜",
-}
-NOMBRE_TIPO = {
-    cos.TINTE: "Tinte", cos.SOMBRERO: "Sombrero",
-    cos.MARCO: "Marco", cos.TITULO: "Título",
-}
+EMOJI_TIPO = {cos.SOMBRERO: "👑", cos.TITULO: "📜"}
+NOMBRE_TIPO = {cos.SOMBRERO: "Sombrero", cos.TITULO: "Título"}
 
 
 def _lo_que_lleva(criatura: sim.Criatura | None) -> str:
@@ -1460,7 +1455,7 @@ class MenuPonerCosmetico(discord.ui.Select):
 
 
 class MenuQuitarCosmetico(discord.ui.Select):
-    """Sólo lo que lleva puesto, que no pueden ser más de cuatro cosas.
+    """Sólo lo que lleva puesto, que no pueden ser más de dos cosas (uno por tipo).
 
     Van en su propio desplegable y no mezclados con los de poner justamente por
     eso: así ninguna de las dos listas depende de lo grande que sea el catálogo.

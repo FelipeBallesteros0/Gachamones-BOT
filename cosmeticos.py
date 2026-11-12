@@ -51,8 +51,8 @@ class Cosmetico:
 # --- Tintes (retirados) -----------------------------------------------------
 #
 # Los ocho colores que admite Discord en un bloque ```ansi```. Ya no se venden:
-# se quedan sólo para calcular la devolución y para que `color_del_tinte` siga
-# pintando una fila vieja que aún lleve uno.
+# se quedan sólo para calcular la devolución: una fila vieja que aún lleve uno
+# se pinta sin él, porque `buscar` ya no lo encuentra en el catálogo.
 
 TINTES = (
     Cosmetico("tinte_rojo", TINTE, "Rojo", esp.ROJO),
@@ -83,10 +83,11 @@ SOMBREROS = (
 
 # --- Marcos (retirados) -----------------------------------------------------
 #
-# Ya no se venden, como los tintes: sólo calculan la devolución y dejan pintar
-# una fila vieja. El borde de la caja. El valor son las nueve piezas en el orden en que se leen
-# dibujando: arriba (izquierda, medio, derecha), el separador (izquierda,
-# derecha) y abajo (izquierda, medio, derecha). El vertical va el último.
+# Ya no se venden, como los tintes: sólo calculan la devolución, y una fila
+# vieja que aún lleve uno se pinta con el marco redondo. El valor son las nueve
+# piezas en el orden en que se leen dibujando: arriba (izquierda, medio,
+# derecha), el separador (izquierda, derecha) y abajo (izquierda, medio,
+# derecha). El vertical va el último.
 #
 # Se guardan como una cadena de nueve caracteres y no como nueve campos porque
 # así la lista se lee como lo que es —un dibujo—.

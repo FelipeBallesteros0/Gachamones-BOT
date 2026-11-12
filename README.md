@@ -484,8 +484,7 @@ especie tienen que medir lo mismo, o sustituir una por otra descuadraría el
 dibujo; hay un test que lo comprueba.
 
 **Los retratos en imagen.** Las especies que tienen dibujadas sus cinco formas
-enseñan un PNG en vez del arte ASCII; el resto sigue en ASCII y las teñidas
-también, porque el tinte pedirá una imagen por color. Quién entra lo decide una
+enseñan un PNG en vez del arte ASCII; el resto sigue en ASCII. Quién entra lo decide una
 sola tupla, `retrato.CON_ETAPAS_COMPLETAS`.
 
 En el repositorio viven **sólo las capas**, en `fuentes/`: un cuerpo por especie
