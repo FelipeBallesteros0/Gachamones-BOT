@@ -3,13 +3,19 @@
 Módulo puro, como `logros.py`: el catálogo y cómo se ve cada cosa, sin base ni
 Discord. Quién lo lleva puesto vive en la criatura, y pintarlo es de `pantalla`.
 
-Cuatro tipos y **uno activo de cada** por gachamon. Se compran con las gemas que
-pagan los logros —es lo que cierra el círculo— y se quedan con el gachamon: son
-suyos, como sus medallas, y se van con él cuando se muere.
+Dos tipos a la venta, sombreros y títulos, y **uno activo de cada** por
+gachamon. Se compran con las gemas que pagan los logros —es lo que cierra el
+círculo— y se quedan con el gachamon: son suyos, como sus medallas, y se van con
+él cuando se muere.
 
 Comprar otro del mismo tipo **sustituye** al anterior, que se pierde. Es la
 misma regla que las pociones y se impone igual, guardando uno solo: una lista
 permitiría llevar dos coronas y habría que prohibirlo con código.
+
+Los tintes y los marcos están **retirados**: sólo tenían sentido en el arte
+ASCII y ya no se venden ni se ponen. Siguen definidos aquí por dos motivos: para
+calcular cuántas gemas hay que devolver (`RETIRADOS`) y para que una fila vieja
+que aún los lleve se pinte sin ellos (`buscar` devuelve `None`).
 """
 from __future__ import annotations
 
@@ -17,10 +23,13 @@ from dataclasses import dataclass
 
 import especies as esp
 
-# Los cuatro tipos. Van como claves y no como cuatro listas sueltas para que la
-# tienda, el guardado y el render los recorran igual sin repetir el nombre.
+# Los tipos. Van como claves y no como listas sueltas para que la tienda, el
+# guardado y el render los recorran igual sin repetir el nombre. `TINTE` y
+# `MARCO` siguen siendo constantes porque son también el nombre de las dos
+# columnas de `criaturas` que quedaron huérfanas.
 TINTE, SOMBRERO, MARCO, TITULO = "tinte", "sombrero", "marco", "titulo"
-TIPOS = (TINTE, SOMBRERO, MARCO, TITULO)
+TIPOS = (SOMBRERO, TITULO)
+TIPOS_RETIRADOS = (TINTE, MARCO)
 
 PRECIOS = {TINTE: 20, SOMBRERO: 60, MARCO: 50, TITULO: 30}
 
@@ -39,11 +48,11 @@ class Cosmetico:
         return PRECIOS[self.tipo]
 
 
-# --- Tintes -----------------------------------------------------------------
+# --- Tintes (retirados) -----------------------------------------------------
 #
-# Los ocho que admite Discord en un bloque ```ansi```. Pintan al gachamon entero
-# y sustituyen al color de su especie: un Pyro azul deja de parecer un Pyro, y
-# ese es justo el sentido de comprarlo.
+# Los ocho colores que admite Discord en un bloque ```ansi```. Ya no se venden:
+# se quedan sólo para calcular la devolución y para que `color_del_tinte` siga
+# pintando una fila vieja que aún lleve uno.
 
 TINTES = (
     Cosmetico("tinte_rojo", TINTE, "Rojo", esp.ROJO),
@@ -72,15 +81,15 @@ SOMBREROS = (
     Cosmetico("cinta", SOMBRERO, "Cinta", "~~~~~"),
 )
 
-# --- Marcos -----------------------------------------------------------------
+# --- Marcos (retirados) -----------------------------------------------------
 #
-# El borde de la caja. El valor son las nueve piezas en el orden en que se leen
+# Ya no se venden, como los tintes: sólo calculan la devolución y dejan pintar
+# una fila vieja. El borde de la caja. El valor son las nueve piezas en el orden en que se leen
 # dibujando: arriba (izquierda, medio, derecha), el separador (izquierda,
 # derecha) y abajo (izquierda, medio, derecha). El vertical va el último.
 #
 # Se guardan como una cadena de nueve caracteres y no como nueve campos porque
-# así el catálogo se lee como lo que es —un dibujo— y añadir un marco es escribir
-# una línea.
+# así la lista se lee como lo que es —un dibujo—.
 
 PIEZAS = ("sup_izq", "horizontal", "sup_der", "med_izq", "med_der",
           "inf_izq", "inf_der", "vertical")
@@ -109,8 +118,15 @@ TITULOS = (
 )
 
 
+# Lo que se vende: sólo sombreros y títulos.
 CATALOGO: dict[str, Cosmetico] = {
-    c.clave: c for c in (*TINTES, *SOMBREROS, *MARCOS, *TITULOS)
+    c.clave: c for c in (*SOMBREROS, *TITULOS)
+}
+
+# Lo retirado y las gemas que se le deben a quien lo compró. Sale del precio que
+# tenía, no de números sueltos, para que no pueda desfasarse de `PRECIOS`.
+RETIRADOS: dict[str, int] = {
+    c.clave: PRECIOS[c.tipo] for c in (*TINTES, *MARCOS)
 }
 
 

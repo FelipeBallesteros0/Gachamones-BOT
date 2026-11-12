@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import pytest
 
 import cosmeticos as cos
+import economia
 import especies as esp
 import pantalla
 import simulacion as sim
@@ -43,6 +44,35 @@ def caja_de(ficha: str) -> list[str]:
     return [sin_color(linea) for linea in dentro.split("\n")]
 
 
+# --- Lo retirado -----------------------------------------------------------
+
+def test_los_marcos_y_los_tintes_ya_no_estan_en_el_catalogo():
+    assert cos.TIPOS == (cos.SOMBRERO, cos.TITULO)
+    assert {c.tipo for c in cos.CATALOGO.values()} == {cos.SOMBRERO, cos.TITULO}
+    assert len(cos.CATALOGO) == 12
+    assert cos.del_tipo(cos.TINTE) == () and cos.del_tipo(cos.MARCO) == ()
+
+
+def test_lo_retirado_sabe_cuanto_hay_que_devolver():
+    assert cos.TIPOS_RETIRADOS == (cos.TINTE, cos.MARCO)
+    assert len(cos.RETIRADOS) == 11
+    assert cos.RETIRADOS["tinte_rojo"] == 20
+    assert cos.RETIRADOS["marco_doble"] == 50
+    assert sorted(set(cos.RETIRADOS.values())) == [20, 50]
+    assert not set(cos.RETIRADOS) & set(cos.CATALOGO)
+
+
+def test_un_gachamon_con_piezas_retiradas_se_pinta_como_si_no_llevara_nada():
+    con_retiradas = criatura(tinte="tinte_rojo", marco="marco_doble")
+    assert pantalla.render(con_retiradas, T0) == pantalla.render(criatura(), T0)
+
+
+def test_una_pieza_retirada_no_se_puede_comprar():
+    retirada = cos.Cosmetico("tinte_rojo", cos.TINTE, "Rojo", esp.ROJO)
+    with pytest.raises(ValueError):
+        economia.comprar_cosmetico("u", "g", retirada)
+
+
 # --- El catálogo -----------------------------------------------------------
 
 def test_ningun_cosmetico_esta_a_medias():
@@ -53,7 +83,7 @@ def test_ningun_cosmetico_esta_a_medias():
         assert cosmetico.precio > 0, cosmetico.clave
 
 
-def test_ninguna_clave_se_repite_y_hay_de_los_cuatro_tipos():
+def test_ninguna_clave_se_repite_y_hay_de_los_dos_tipos():
     claves = [c.clave for c in cos.CATALOGO.values()]
     assert len(set(claves)) == len(claves)
     for tipo in cos.TIPOS:
@@ -71,25 +101,6 @@ def test_una_clave_que_ya_no_existe_no_rompe_la_ficha():
     assert cos.marco_de("lo_que_sea") == cos.REDONDO
     assert cos.texto_del_titulo("lo_que_sea", esp.MACHO) == ""
     assert pantalla.render(fantasma, T0) == pantalla.render(criatura(), T0)
-
-
-# --- Tintes ----------------------------------------------------------------
-
-def test_el_tinte_sustituye_al_color_de_la_especie():
-    de_serie = pantalla.render(criatura(), T0)
-    tenido = pantalla.render(criatura(tinte="tinte_rojo"), T0)
-
-    assert f"\x1b[0;{esp.ESPECIES['pulpo'].color}m" in de_serie
-    assert f"\x1b[0;{esp.ROJO}m" in tenido
-    assert f"\x1b[0;{esp.ESPECIES['pulpo'].color}m" not in tenido
-    # Y el dibujo es el mismo: sólo cambia de color.
-    assert caja_de(de_serie) == caja_de(tenido)
-
-
-@pytest.mark.parametrize("tinte", cos.del_tipo(cos.TINTE))
-def test_ningun_tinte_descuadra_la_caja(tinte):
-    for linea in caja_de(pantalla.render(criatura(tinte=tinte.clave), T0)):
-        assert len(linea) == pantalla.ANCHO + 2, repr(linea)
 
 
 # --- Sombreros -------------------------------------------------------------
@@ -185,48 +196,6 @@ def test_sin_sombrero_no_se_toca_nada():
     assert cos.poner_sombrero(lineas, "") == lineas
 
 
-# --- Marcos ----------------------------------------------------------------
-
-@pytest.mark.parametrize("marco", cos.del_tipo(cos.MARCO))
-def test_cada_marco_cierra_todas_sus_esquinas(marco):
-    caja = caja_de(pantalla.render(criatura(marco=marco.clave), T0))
-    piezas = dict(zip(cos.PIEZAS, marco.valor))
-
-    assert caja[0] == piezas["sup_izq"] + piezas["horizontal"] * pantalla.ANCHO + piezas["sup_der"]
-    assert caja[-1] == piezas["inf_izq"] + piezas["horizontal"] * pantalla.ANCHO + piezas["inf_der"]
-    for linea in caja[1:-1]:
-        if linea[0] == piezas["med_izq"]:
-            assert linea[-1] == piezas["med_der"], repr(linea)
-        else:
-            assert linea[0] == linea[-1] == piezas["vertical"], repr(linea)
-
-
-@pytest.mark.parametrize("marco", cos.del_tipo(cos.MARCO))
-def test_ningun_marco_cambia_el_ancho_ni_el_alto(marco):
-    pelada = caja_de(pantalla.render(criatura(), T0))
-    enmarcada = caja_de(pantalla.render(criatura(marco=marco.clave), T0))
-
-    assert len(pelada) == len(enmarcada)
-    for linea in enmarcada:
-        assert len(linea) == pantalla.ANCHO + 2, repr(linea)
-
-
-def test_el_marco_no_toca_lo_de_dentro():
-    """Cambiar el borde no puede alterar ni una barra ni un número."""
-    def tripas(caja):
-        return [ln[1:-1] for ln in caja if not ln[0] in "╭├╰╔╠╚┏┣┗┌└"]
-
-    assert tripas(caja_de(pantalla.render(criatura(marco="marco_doble"), T0))) \
-        == tripas(caja_de(pantalla.render(criatura(), T0)))
-
-
-def test_todas_las_piezas_de_un_marco_son_distintas_del_relleno():
-    """Un marco cuyo vertical fuera un espacio dejaría la caja abierta."""
-    for marco in (cos.REDONDO, *(m.valor for m in cos.del_tipo(cos.MARCO))):
-        assert len(marco) == len(cos.PIEZAS), marco
-        assert " " not in marco, marco
-
-
 # --- Títulos ---------------------------------------------------------------
 
 @pytest.mark.parametrize("titulo", cos.del_tipo(cos.TITULO))
@@ -259,30 +228,15 @@ def test_sin_titulo_el_subtexto_es_el_de_siempre():
 
 # --- Todo junto ------------------------------------------------------------
 
-def test_el_tinte_se_ve_tambien_en_el_jardin_y_en_el_ranking():
-    """Un tinte que sólo se viera en la ficha se leería como un fallo: al
-    gachamon lo dibujan tres sitios."""
-    import jardin
-
-    tenida = criatura(tinte="tinte_rojo")
-    assert jardin.bloque_de(tenida).color == esp.ROJO
-    assert jardin.bloque_de(criatura()).color == esp.ESPECIES["pulpo"].color
-
-
-def test_los_cuatro_a_la_vez_no_descuadran_nada():
+def test_los_dos_a_la_vez_no_descuadran_nada():
     """Como se van a ver de verdad: quien compre uno acabará comprando los
-    cuatro."""
-    completa = criatura(
-        tinte="tinte_rojo", sombrero="corona",
-        marco="marco_doble", titulo="titulo_invicto",
-    )
+    dos."""
+    completa = criatura(sombrero="corona", titulo="titulo_invicto")
     ficha = pantalla.render(completa, T0)
 
     for linea in caja_de(ficha):
         assert len(linea) == pantalla.ANCHO + 2, repr(linea)
     assert "el Invicto" in ficha
-    assert f"\x1b[0;{esp.ROJO}m" in ficha
-    assert "╔" in ficha and "╚" in ficha
     assert "\\_Y_/" in ficha
 
 
@@ -302,7 +256,7 @@ def test_los_cosmeticos_se_ven_tambien_cuando_esta_hambriento():
     tres caras distintas por etapa y el hueco libre podría no ser el mismo."""
     for animo in (100.0, 50.0, 5.0):
         hambrienta = criatura(
-            animo=animo, hambre=animo, sombrero="corona", marco="marco_grueso"
+            animo=animo, hambre=animo, sombrero="corona", titulo="titulo_veloz"
         )
         for linea in caja_de(pantalla.render(hambrienta, T0)):
             assert len(linea) == pantalla.ANCHO + 2, f"ánimo {animo}: {linea!r}"

@@ -13,7 +13,7 @@ T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
 CORONA = cos.CATALOGO["corona"]
 CHISTERA = cos.CATALOGO["chistera"]
-ROJO = cos.CATALOGO["tinte_rojo"]
+INVICTO = cos.CATALOGO["titulo_invicto"]
 
 
 @pytest.fixture(autouse=True)
@@ -235,11 +235,11 @@ def test_los_de_tipos_distintos_conviven():
     nacer()
     con_gemas(300)
     comprar(CORONA)
-    resultado = comprar(ROJO)
+    resultado = comprar(INVICTO)
 
     assert resultado.sustituido is None
     puesta = activa()
-    assert (puesta.sombrero, puesta.tinte) == ("corona", "tinte_rojo")
+    assert (puesta.sombrero, puesta.titulo) == ("corona", "titulo_invicto")
 
 
 def test_el_ropero_sobrevive_a_la_muerte_de_todo_el_plantel():
@@ -269,17 +269,17 @@ def test_el_ropero_es_de_cada_persona_y_de_cada_servidor():
 
 
 def test_lo_puesto_sobrevive_a_guardar_y_recargar():
-    """Las cuatro columnas tienen que ir en `CAMPOS`, o se perderían en el
+    """Las columnas tienen que ir en `CAMPOS`, o se perderían en el
     primer cuidado."""
     bicho = nacer()
     con_gemas(300)
     comprar(CORONA)
-    comprar(ROJO)
+    comprar(INVICTO)
 
     db.guardar(db.por_id(bicho.id))
 
     otra_vez = db.por_id(bicho.id)
-    assert (otra_vez.sombrero, otra_vez.tinte) == ("corona", "tinte_rojo")
+    assert (otra_vez.sombrero, otra_vez.titulo) == ("corona", "titulo_invicto")
 
 
 # --- La mudanza de lo que ya estaba puesto ---------------------------------
@@ -290,16 +290,16 @@ def test_lo_puesto_se_muda_al_ropero_de_su_dueño():
     bicho = nacer()
     with db.conectar() as con:
         con.execute(
-            "UPDATE criaturas SET sombrero = 'corona', tinte = 'tinte_rojo' "
+            "UPDATE criaturas SET sombrero = 'corona', titulo = 'titulo_invicto' "
             "WHERE id = ?", (bicho.id,),
         )
         con.execute("DELETE FROM ropero")
 
     db.inicializar()
 
-    assert db.ropero("u1", "g1") == {"corona", "tinte_rojo"}
+    assert db.ropero("u1", "g1") == {"corona", "titulo_invicto"}
     puesto = db.por_id(bicho.id)
-    assert (puesto.sombrero, puesto.tinte) == ("corona", "tinte_rojo")
+    assert (puesto.sombrero, puesto.titulo) == ("corona", "titulo_invicto")
 
 
 def test_la_mudanza_dos_veces_deja_lo_mismo():
@@ -383,22 +383,22 @@ def test_la_tienda_marca_lo_que_ya_tienes_en_vez_de_ofrecerlo():
 
 
 def test_el_menu_de_quitar_solo_lista_lo_puesto():
-    """No puede pasar de cuatro opciones pase lo que pase con el catálogo, que
+    """No puede pasar de dos opciones pase lo que pase con el catálogo, que
     es justamente por lo que va aparte del de poner."""
     nacer()
     con_gemas(300)
     comprar(CORONA)
-    comprar(ROJO)
+    comprar(INVICTO)
 
     menu = tienda.MenuQuitarCosmetico(activa())
 
-    assert {o.value for o in menu.options} == {cos.SOMBRERO, cos.TINTE}
+    assert {o.value for o in menu.options} == {cos.SOMBRERO, cos.TITULO}
     assert len(menu.options) <= len(cos.TIPOS) <= 25
 
 
 def test_el_menu_de_poner_solo_lista_lo_que_tienes():
-    menu = tienda.MenuPonerCosmetico(frozenset({"corona", "tinte_rojo"}))
-    assert {o.value for o in menu.options} == {"corona", "tinte_rojo"}
+    menu = tienda.MenuPonerCosmetico(frozenset({"corona", "titulo_invicto"}))
+    assert {o.value for o in menu.options} == {"corona", "titulo_invicto"}
 
 
 def test_el_selector_de_estilo_ofrece_imagen_y_ascii_con_el_actual_marcado():
@@ -570,8 +570,8 @@ def test_lo_puesto_no_se_le_puede_poner_a_otro():
 @pytest.mark.parametrize("cosmetico", [
     next(c for c in cos.CATALOGO.values() if c.tipo == tipo) for tipo in cos.TIPOS
 ])
-def test_pasa_con_los_cuatro_tipos_no_solo_con_el_sombrero(cosmetico):
-    """`_vestir_en` es genérica, así que el fallo lo tenían los cuatro."""
+def test_pasa_con_los_dos_tipos_no_solo_con_el_sombrero(cosmetico):
+    """`_vestir_en` es genérica, así que el fallo lo tenían los dos tipos."""
     nacer(nombre="Uno")
     otro = nacer(nombre="Dos", activa=False)
     con_gemas(500)

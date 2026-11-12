@@ -483,9 +483,7 @@ gemas caen siempre en tu monedero: las de uno sirven para todo tu plantel.
 **Gastar {obj.EMOJI_GEMA} gemas**
 En la misma 🛒 **Tienda**, abajo. Lo comprado va a tu **ropero** y se lo pones \
 a quien quieras con 🎨 **Personalizar**.
--# 🎨 **tinte** ({cosm.PRECIOS[cosm.TINTE]}) le cambia el color · \
-👑 **sombrero** ({cosm.PRECIOS[cosm.SOMBRERO]}) le pone algo en la cabeza · \
-🖼️ **marco** ({cosm.PRECIOS[cosm.MARCO]}) cambia el borde de la ficha · \
+-# 👑 **sombrero** ({cosm.PRECIOS[cosm.SOMBRERO]}) le pone algo en la cabeza · \
 📜 **título** ({cosm.PRECIOS[cosm.TITULO]}) le añade un mote
 -# Uno de cada tipo a la vez, y lo que le quites vuelve al ropero y sirve para \
 otro. No tocan ninguna estadística — son sólo para presumir."""

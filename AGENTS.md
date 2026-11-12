@@ -128,6 +128,7 @@ Instala el hook local cuando prepares el entorno:
 - Un gachamon muerto conserva su aspecto en el cementerio aunque su pieza haya vuelto al ropero.
 - El ropero es de la persona y sobrevive a todo su plantel.
 - Quitarle un cosmético a un gachamon nunca lo destruye: vuelve al ropero.
+- Los marcos y los tintes están retirados: no se venden ni se ponen, y `cosmeticos.RETIRADOS` sólo existe para saber cuánto devolver.
 - Un logro se desbloquea y se paga una sola vez, y lo garantiza la clave primaria de su tabla.
 - Desbloquear un logro y pagarlo ocurren en la misma transacción.
 - Los contadores del marcador suben dentro de la transacción que resuelve la acción.
