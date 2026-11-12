@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 
 import cosmeticos as cos
 import especies as esp
+import objetos as obj
 import personalidad as per
 import simulacion as sim
 
@@ -430,7 +431,8 @@ def render(
     partes.extend(_lineas_vetas(criatura))
 
     if asciicoins is not None:
-        partes.append(f"-# 🪙 {asciicoins} monedas · 🎒 Mochila para gastarlas")
+        partes.append(f"-# 🪙 {asciicoins} {obj.nombre_de_monedas(asciicoins)} · "
+            "🎒 Mochila para gastarlas")
 
     if esperas:
         trozos = []

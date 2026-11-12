@@ -82,7 +82,7 @@ def test_sin_gemas_suficientes_no_se_cobra_ni_entra_en_el_ropero():
     resultado = comprar()
 
     assert not resultado.ok
-    assert "faltan 1 gemas" in resultado.problema
+    assert "faltan 1 gema." in resultado.problema
     assert gemas() == CORONA.precio - 1
     assert db.ropero("u1", "g1") == frozenset()
     assert activa().sombrero is None

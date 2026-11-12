@@ -26,6 +26,7 @@ import db
 import economia
 import equipo
 import especies as esp
+import objetos as obj
 import pantalla
 import retrato
 import simulacion as sim
@@ -364,7 +365,7 @@ def texto_resultado_entrenamiento_conjunto(
     activo, reserva = resultado.participantes
     cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
     recompensa = 0 if resultado.topada else cuidado
-    monedas = f"🪙 +{recompensa} monedas"
+    monedas = f"🪙 +{recompensa} {obj.nombre_de_monedas(recompensa)}"
     if resultado.topada:
         # Se dice CUÁL de los dos topes frenó: el de la actividad se esquiva
         # haciendo otra cosa que también pague, y el bote no. Con la misma
@@ -877,7 +878,7 @@ def texto_recibo_cuidado(
 ) -> str:
     cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
     recompensa = 0 if resultado.topada else cuidado
-    monedas = f"🪙 +{recompensa} monedas"
+    monedas = f"🪙 +{recompensa} {obj.nombre_de_monedas(recompensa)}"
     if resultado.topada:
         # Se dice CUÁL de los dos topes frenó: el de la actividad se esquiva
         # haciendo otra cosa que también pague, y el bote no. Con la misma

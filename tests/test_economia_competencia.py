@@ -1055,3 +1055,15 @@ def test_el_bonus_de_cada_estadistica_cuenta_en_su_fase(stat, fase):
     con_efecto = comp.competidor_de(bicho, **{f"bonus_{stat}": ventaja})
 
     assert con_efecto.base_en(fase) == sin_efecto + ventaja
+
+
+def test_el_recibo_de_competencia_dice_una_moneda_en_singular():
+    recibo = economia.ReciboCompetencia(
+        usuario_id="u1", delta_asciicoins=1, delta_competencia=1,
+        delta_evolucion=0, usados=1,
+    )
+    texto = cog_comp.texto_recibo_competencia(
+        recibo, "<@u1>", gano=True,
+        stats=comp.STATS[comp.CARRERA], entrenada="velocidad",
+    )
+    assert "🪙 +1 moneda · " in texto

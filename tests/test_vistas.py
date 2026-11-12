@@ -84,7 +84,7 @@ def test_recibo_de_entrenamiento_detalla_efecto_costo_recompensa_y_tope():
     assert vistas.texto_recibo_cuidado(resultado, sim.ENTRENAR) == (
         "-# 🏋️ Entrenar fuerza · fuerza +2 entrenamiento · +3 XP · "
         "coste base -15 comida · coste base -10 ánimo · "
-        "🪙 +1 monedas · cuidado 1/12 UTC"
+        "🪙 +1 moneda · cuidado 1/12 UTC"
     )
 
 
@@ -109,11 +109,11 @@ def test_recibos_de_cuidado_redondean_los_stats_vivos():
     }
     assert recibos[sim.ALIMENTAR] == (
         "-# 🍖 Alimentar · comida 90 · ánimo 100 · salud +1 entrenamiento · "
-        "+1 XP · 🪙 +1 monedas · cuidado 1/12 UTC"
+        "+1 XP · 🪙 +1 moneda · cuidado 1/12 UTC"
     )
     assert recibos[sim.JUGAR] == (
         "-# 🪀 Jugar · ánimo 100 · velocidad +1 entrenamiento · +2 XP · "
-        "coste base -5 comida · 🪙 +1 monedas · cuidado 1/12 UTC"
+        "coste base -5 comida · 🪙 +1 moneda · cuidado 1/12 UTC"
     )
     empacho = replace(resultado, ent_salud_ganada=0)
     assert "salud" not in vistas.texto_recibo_cuidado(empacho, sim.ALIMENTAR)
@@ -1345,21 +1345,21 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             sim.ALIMENTAR,
             {"hambre": 50.0, "animo": 70.0},
             "-# 🍖 Alimentar · comida 80 · ánimo 70 · salud +1 entrenamiento · "
-            "+1 XP · 🪙 +1 monedas · cuidado 1/12 UTC",
+            "+1 XP · 🪙 +1 moneda · cuidado 1/12 UTC",
         ),
         (
             "empacho",
             sim.ALIMENTAR,
             {"hambre": 100.0, "animo": 5.0},
             "-# 🍖 Alimentar · comida 100 · ánimo 0 · +1 XP · "
-            "🪙 +1 monedas · cuidado 1/12 UTC",
+            "🪙 +1 moneda · cuidado 1/12 UTC",
         ),
         (
             "jugar",
             sim.JUGAR,
             {"hambre": 80.0, "animo": 70.0},
             "-# 🪀 Jugar · ánimo 95 · velocidad +1 entrenamiento · +2 XP · "
-            "coste base -5 comida · 🪙 +1 monedas · cuidado 1/12 UTC",
+            "coste base -5 comida · 🪙 +1 moneda · cuidado 1/12 UTC",
         ),
         (
             "entrenar",
@@ -1367,14 +1367,14 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             {"hambre": 80.0, "animo": 70.0},
             "-# 🏋️ Entrenar fuerza · fuerza +2 entrenamiento · +3 XP · "
             "coste base -15 comida · coste base -10 ánimo · "
-            "🪙 +1 monedas · cuidado 1/12 UTC",
+            "🪙 +1 moneda · cuidado 1/12 UTC",
         ),
         (
             "limpiar",
             sim.LIMPIAR,
             {"limpieza": 25.0},
             "-# 🧼 Limpiar · aseo 100 · +0 XP · "
-            "🪙 +1 monedas · cuidado 1/12 UTC",
+            "🪙 +1 moneda · cuidado 1/12 UTC",
         ),
     ],
 )

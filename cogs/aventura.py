@@ -655,9 +655,9 @@ class Aventura(commands.Cog):
 
         partes = []
         if recibo.monedas:
-            partes.append(f"{obj.EMOJI_MONEDA_TIENDA} **{recibo.monedas}** monedas")
+            partes.append(f"{obj.EMOJI_MONEDA_TIENDA} **{recibo.monedas}** {obj.nombre_de_monedas(recibo.monedas)}")
         if recibo.gemas:
-            partes.append(f"{obj.EMOJI_GEMA} **{recibo.gemas}** gemas")
+            partes.append(f"{obj.EMOJI_GEMA} **{recibo.gemas}** {obj.nombre_de_gemas(recibo.gemas)}")
         if partes:
             # Sin coletillas sobre el tope: lo que se encuentra se cobra entero
             # y no pasa por el bote, así que no hay nada que explicar.

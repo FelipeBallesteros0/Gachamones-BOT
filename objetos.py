@@ -29,6 +29,16 @@ EMOJI_MONEDA_TIENDA = "🪙"
 EMOJI_GEMA = "💎"
 
 
+def nombre_de_monedas(cantidad: int) -> str:
+    """«moneda» con uno y «monedas» con cualquier otra cantidad, cero incluido."""
+    return "moneda" if abs(cantidad) == 1 else MONEDA_TIENDA
+
+
+def nombre_de_gemas(cantidad: int) -> str:
+    """«gema» con uno y «gemas» con cualquier otra cantidad, cero incluido."""
+    return "gema" if abs(cantidad) == 1 else "gemas"
+
+
 @dataclass(frozen=True)
 class Objeto:
     clave: str

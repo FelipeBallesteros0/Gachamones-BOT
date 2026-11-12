@@ -255,3 +255,12 @@ def test_una_mochila_normal_entra_entera_y_sin_aviso():
 
     poca = {"golosinas": 2, "pocion_comida": 1, hue.clave_de_poroto("rojo"): 3}
     assert set(tienda.lo_que_cabe_en_el_menu(poca)) == set(poca)
+
+
+def test_el_nombre_de_las_monedas_y_las_gemas_va_en_singular_con_uno():
+    for cantidad, moneda, gema in [
+        (-1, "moneda", "gema"), (0, "monedas", "gemas"),
+        (1, "moneda", "gema"), (2, "monedas", "gemas"),
+    ]:
+        assert obj.nombre_de_monedas(cantidad) == moneda
+        assert obj.nombre_de_gemas(cantidad) == gema

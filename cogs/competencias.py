@@ -15,6 +15,7 @@ import competir as comp
 import db
 import economia
 import especies as esp
+import objetos as obj
 import pantalla
 import simulacion as sim
 import vistas
@@ -140,7 +141,8 @@ def texto_recibo_competencia(
         f"+{sim.XP_VICTORIA if gano else sim.XP_DERROTA} XP",
         f"coste base -{sim.COSTE_HAMBRE_COMPETIR:g} comida",
         f"coste base -{sim.COSTE_ANIMO_COMPETIR:g} ánimo",
-        f"🪙 +{recibo.delta_competencia} monedas",
+        f"🪙 +{recibo.delta_competencia} "
+        f"{obj.nombre_de_monedas(recibo.delta_competencia)}",
         cap,
     ]
     if recibo.evoluciono:

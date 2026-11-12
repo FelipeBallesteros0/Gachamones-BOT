@@ -556,3 +556,8 @@ def test_la_ficha_adversarial_cabe_en_discord():
     )
 
     assert len(mensaje) < 2000
+
+
+def test_el_saldo_de_una_moneda_va_en_singular():
+    assert "-# 🪙 1 moneda · " in pantalla.render(criatura(), T0, asciicoins=1)
+    assert "-# 🪙 0 monedas · " in pantalla.render(criatura(), T0, asciicoins=0)

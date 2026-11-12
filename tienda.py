@@ -39,7 +39,8 @@ def _saldos(usuario_id: str, guild_id: str) -> str:
 
 
 def _saldo_de_compra(saldos: economia.Saldos) -> str:
-    return f"🪙 **{saldos.asciicoins}** monedas"
+    monedas = saldos.asciicoins
+    return f"🪙 **{monedas}** {obj.nombre_de_monedas(monedas)}"
 
 
 def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
@@ -99,7 +100,7 @@ def texto_resultado_compra(
     if not resultado:
         return (
             f"No te llega: **{objeto.nombre}** cuesta 🪙 {objeto.precio} "
-            f"monedas y tienes {_saldo_de_compra(resultado.saldos)}."
+            f"{obj.nombre_de_monedas(objeto.precio)} y tienes {_saldo_de_compra(resultado.saldos)}."
         )
     return (
         f"{objeto.emoji} Comprado: **{objeto.nombre}**.\n"
