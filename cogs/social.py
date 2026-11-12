@@ -28,6 +28,7 @@ import pantalla
 import personalidad as per
 import simulacion as sim
 import tienda
+import vinculo
 import vistas
 
 log = logging.getLogger(__name__)
@@ -391,7 +392,8 @@ que no se te mueren mientras juegas con otro.
 partida: los demás hay que ganárselos por ahí.
 
 -# `/jardin` todos juntos · `/mascota` el tuyo · `/mascota @alguien` el de otro
--# `/ranking` · `/cementerio` · `/logros` las medallas del tuyo"""
+-# `/ranking` · `/cementerio` · `/logros` las medallas del tuyo
+-# `/vincular <código>` · une esta cuenta con la tuya de rowino.online"""
 
     tu_casa = f"""## 🏠 Tu casa
 
@@ -531,6 +533,9 @@ async def publicar_manual(canal, paginas) -> None:
             db.guardar_publicacion(canal_id, indice, str(nuevo.id))
         elif mensaje.content != texto:
             await mensaje.edit(content=texto)
+
+
+SERVIDOR_SIN_WEB = "Este servidor no está conectado con la web."
 
 
 class Social(commands.Cog):
@@ -850,6 +855,27 @@ class Social(commands.Cog):
         await equipo.abrir_plantel(
             interaccion, vistas.congelar, vistas.bautizar, vistas.publicar_pantalla
         )
+
+    @app_commands.command(
+        name="vincular",
+        description="Une tu cuenta de Rowino con tus gachamones de aquí",
+    )
+    @app_commands.describe(codigo="El código que te dio la web")
+    @comun.solo_en_el_canal()
+    async def vincular(self, interaccion: discord.Interaction, codigo: str) -> None:
+        if interaccion.guild_id != config.GUILD_WEB:
+            await interaccion.response.send_message(SERVIDOR_SIN_WEB, ephemeral=True)
+            return
+        resultado = db.canjear_codigo_de_vinculo(
+            codigo,
+            str(interaccion.user.id),
+            str(interaccion.guild_id),
+            db.ahora_utc(),
+        )
+        await interaccion.response.send_message(
+            vinculo.MENSAJES[resultado], ephemeral=True
+        )
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Social(bot))

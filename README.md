@@ -142,6 +142,7 @@ ssh $PI 'journalctl -u tamagotchi -f'
 | `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
 | `/ranking` | Criaturas vivas con más victorias. |
 | `/cementerio` | Las que ya no están. |
+| `/vincular <código>` | Une esta cuenta con la tuya de rowino.online. |
 | `@Gachamon <lo que sea>` | Hablar con tu criatura. Te contesta en su propio carácter. Si le escribes de forma culta, le entrena el ingenio. |
 
 Las reglas no están en ningún comando: el bot las **publica y mantiene al día**

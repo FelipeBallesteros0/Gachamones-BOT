@@ -30,7 +30,7 @@ COMANDOS_ESPERADOS = {
     "huevo", "mascota", "carrera", "sumo", "totem", "laberinto",
     "ranking", "cementerio",
     "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
-    "casa", "visitar", "buzon",
+    "casa", "visitar", "buzon", "vincular",
 }
 
 
@@ -74,6 +74,7 @@ def test_los_comandos_directos_se_anuncian_como_toca():
         "tienda": "Compra objetos, cosméticos y casas",
         "casa": "Mira tu hogar y a todos los que viven en él",
         "plantel": "Mira tu plantel y cambia de gachamon activo",
+        "vincular": "Une tu cuenta de Rowino con tus gachamones de aquí",
     }
     directos = {c.name: c.description for c in _cargar_todo() if c.name in esperadas}
 
