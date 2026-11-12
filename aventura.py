@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 
 import especies as esp
+import identidad
 import objetos as obj
 import pantalla
 import personalidad as per
@@ -1366,15 +1367,24 @@ def aplicar_desgaste(
     criatura: sim.Criatura, salida: Salida, ahora: datetime,
     percance: Percance | None = None,
 ) -> sim.Criatura:
-    """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho."""
+    """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho.
+
+    Es, junto a `sim.avanzar`, el otro sitio que mata de hambre. Por eso también
+    pregunta a `identidad.sin_aviso_de_hambre`: quien no tiene cómo enterarse de
+    que su gachamon se muere de hambre no lo pierde por olvido. Vuelve vivo, con
+    la comida en 0 y el ánimo descontado como siempre.
+    """
     hambre_perdida, animo_perdido = coste_desgaste(salida, percance)
     hambre = max(0.0, min(100.0, criatura.hambre - hambre_perdida))
+    muere = hambre == 0.0 and not identidad.sin_aviso_de_hambre(
+        criatura.usuario_id
+    )
     return replace(
         criatura,
         hambre=hambre,
         animo=max(0.0, min(100.0, criatura.animo - animo_perdido)),
-        muerta_en=ahora if hambre == 0.0 else criatura.muerta_en,
-        causa_muerte="hambre" if hambre == 0.0 else criatura.causa_muerte,
+        muerta_en=ahora if muere else criatura.muerta_en,
+        causa_muerte="hambre" if muere else criatura.causa_muerte,
     )
 
 

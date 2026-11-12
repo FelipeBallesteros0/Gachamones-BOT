@@ -1,8 +1,12 @@
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
+import ast
+from pathlib import Path
+
 import pytest
 
+import aventura
 import db
 import economia
 import identidad
@@ -138,3 +142,57 @@ def test_volver_a_arrancar_no_le_pone_aviso_a_la_de_la_incubadora():
         avisos = [f[0] for f in con.execute(
             "SELECT avisa_en FROM criaturas WHERE activa = 0")]
     assert avisos == [None]
+
+
+def test_el_viaje_no_mata_de_hambre_a_quien_no_tiene_aviso():
+    cansada = aventura.aplicar_desgaste(
+        criatura(WEB, hambre=1.0), aventura.Salida(()), T0
+    )
+    assert cansada.viva
+    assert cansada.hambre == 0.0
+    assert cansada.muerta_en is None
+    assert cansada.causa_muerte is None
+
+
+def test_el_viaje_sigue_matando_de_hambre_a_una_identidad_de_discord():
+    cansada = aventura.aplicar_desgaste(
+        criatura(DISCORD, hambre=1.0), aventura.Salida(()), T0
+    )
+    assert not cansada.viva
+    assert cansada.muerta_en == T0
+    assert cansada.causa_muerte == "hambre"
+
+
+def _asigna_hambre(arbol: ast.AST) -> bool:
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, ast.keyword) and nodo.arg == "causa_muerte":
+            valores = [nodo.value]
+        elif isinstance(nodo, ast.Assign) and any(
+            isinstance(t, ast.Attribute) and t.attr == "causa_muerte"
+            for t in nodo.targets
+        ):
+            valores = [nodo.value]
+        else:
+            continue
+        for valor in valores:
+            if any(
+                isinstance(n, ast.Constant) and n.value == "hambre"
+                for n in ast.walk(valor)
+            ):
+                return True
+    return False
+
+
+def test_solo_la_simulacion_y_la_aventura_matan_de_hambre():
+    """Impide que aparezca un tercer camino que mate de hambre sin respetar
+    `identidad.sin_aviso_de_hambre`. Si esta prueba falla, hay un sitio nuevo
+    que asigna `causa_muerte="hambre"`: mira si respeta la excepción y, sólo
+    entonces, añádelo a la lista."""
+    raiz = Path(__file__).resolve().parent.parent
+    rutas = sorted(raiz.glob("*.py")) + sorted((raiz / "cogs").glob("*.py"))
+    assert rutas
+    con_hambre = {
+        ruta.name for ruta in rutas
+        if _asigna_hambre(ast.parse(ruta.read_text(encoding="utf-8")))
+    }
+    assert con_hambre == {"simulacion.py", "aventura.py"}
