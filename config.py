@@ -66,6 +66,11 @@ CANAL_PRINCIPAL = CANALES[0] if CANALES else 0
 # le invite: cada uno lleva sus propias mascotas y su propio ranking.
 GUILDS = _lista_enteros("GUILD_ID")
 
+# El servidor de Discord que hace de pueblo en la web: sólo ahí funciona
+# `/vincular`, y ahí viven las identidades web. Sin la variable vale el primero
+# de GUILDS; sin ninguno, 0.
+GUILD_WEB = _entero("GUILD_WEB") or (GUILDS[0] if GUILDS else 0)
+
 # Canales donde el bot mantiene el manual, separados por comas. Ahí publica las
 # páginas de `paginas_de_ayuda()` y las **edita en el sitio** en cada arranque,
 # así que no pueden quedarse desfasadas: el texto sale de las mismas constantes

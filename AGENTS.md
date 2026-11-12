@@ -137,6 +137,10 @@ Instala el hook local cuando prepares el entorno:
 - Una identidad web es una persona más: su `usuario_id` no puede ser un id de Discord, y sólo `identidad.py` sabe reconocerla.
 - El gachamon de quien no tiene aviso de hambre no muere de hambre: la comida se queda en 0 y no se le guarda instante de muerte ni de aviso.
 - Esa excepción se pregunta siempre con `identidad.sin_aviso_de_hambre`, nunca mirando el id.
+- Una cuenta de Rowino va con una sola identidad, y una identidad de Discord con una sola cuenta de Rowino.
+- Sólo se vincula mientras la identidad web no tenga gachamones: dos planteles no se funden.
+- Un código de vinculación sirve una vez, caduca, y canjearlo nunca revela si existía.
+- Quién escribió `/vincular` es la única prueba de identidad: el código lo pide la cuenta de Rowino y lo canjea la persona de Discord.
 
 ## Arte ASCII
 

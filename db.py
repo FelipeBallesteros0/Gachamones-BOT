@@ -29,6 +29,7 @@ import logros as lgr
 import objetos as obj
 import personalidad as per
 import simulacion as sim
+import vinculo
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +251,35 @@ CREATE TABLE IF NOT EXISTS devoluciones (
     gemas INTEGER NOT NULL CHECK (gemas > 0),
     devuelta_en TEXT NOT NULL,
     PRIMARY KEY (usuario_id, guild_id, cosmetico)
+);
+
+-- Quién es en el juego cada cuenta de Rowino (la web). Antes de vincular es una
+-- identidad web (`usuario_id` negativo); al canjear un código pasa a ser la
+-- persona de Discord, con `vinculada = 1`. Una persona de Discord sólo puede
+-- tener una cuenta por servidor, de ahí el UNIQUE.
+CREATE TABLE IF NOT EXISTS cuentas_web (
+    rowino_uid INTEGER PRIMARY KEY,
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    vinculada INTEGER NOT NULL DEFAULT 0,
+    creada_en TEXT NOT NULL,
+    UNIQUE (usuario_id, guild_id)
+);
+
+-- Códigos de un solo uso para vincular una cuenta de Rowino con Discord. Cada
+-- cuenta tiene como mucho uno vivo (UNIQUE sobre `rowino_uid`).
+CREATE TABLE IF NOT EXISTS vinculos_pendientes (
+    codigo TEXT PRIMARY KEY,
+    rowino_uid INTEGER NOT NULL UNIQUE,
+    vence_en TEXT NOT NULL
+);
+
+-- Cada vez que alguien escribe un código cuenta un intento, sea bueno o no:
+-- es lo que impide adivinarlos probando.
+CREATE TABLE IF NOT EXISTS intentos_de_vinculo (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    en TEXT NOT NULL
 );
 
 -- Cómo quiere cada persona que todo el servidor vea sus fichas. Sin fila se
@@ -2323,3 +2353,174 @@ def cementerio(guild_id: str, limite: int = 10) -> list[sim.Criatura]:
             (guild_id, limite),
         ).fetchall()
     return [_a_criatura(f) for f in filas]
+
+
+# --- Cuentas web y vinculación ----------------------------------------------
+
+@dataclass(frozen=True)
+class CuentaWeb:
+    rowino_uid: int
+    usuario_id: str
+    guild_id: str
+    vinculada: bool
+
+
+def _cuenta_de(fila: sqlite3.Row | None) -> CuentaWeb | None:
+    if fila is None:
+        return None
+    return CuentaWeb(
+        fila["rowino_uid"], fila["usuario_id"], fila["guild_id"],
+        bool(fila["vinculada"]),
+    )
+
+
+def _cuenta_en(con: sqlite3.Connection, rowino_uid: int) -> CuentaWeb | None:
+    return _cuenta_de(con.execute(
+        "SELECT * FROM cuentas_web WHERE rowino_uid = ?", (rowino_uid,)
+    ).fetchone())
+
+
+def _tiene_gachamones(con: sqlite3.Connection, usuario_id: str, guild_id: str) -> bool:
+    """Cualquier criatura de esa identidad en ese servidor, viva o muerta."""
+    return con.execute(
+        "SELECT 1 FROM criaturas WHERE usuario_id = ? AND guild_id = ? LIMIT 1",
+        (usuario_id, guild_id),
+    ).fetchone() is not None
+
+
+def cuenta_web(rowino_uid: int) -> CuentaWeb | None:
+    with conectar() as con:
+        return _cuenta_en(con, rowino_uid)
+
+
+def crear_identidad_web(rowino_uid: int, guild_id: str, ahora: datetime) -> CuentaWeb:
+    """La identidad de una cuenta de Rowino. Idempotente: si ya tiene fila, la
+    devuelve tal cual."""
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        existente = _cuenta_en(con, rowino_uid)
+        if existente is not None:
+            return existente
+        usuario_id = identidad.de_cuenta_web(rowino_uid)
+        con.execute(
+            "INSERT INTO cuentas_web (rowino_uid, usuario_id, guild_id, vinculada, "
+            "creada_en) VALUES (?, ?, ?, 0, ?)",
+            (rowino_uid, usuario_id, guild_id, ahora.isoformat()),
+        )
+        return CuentaWeb(rowino_uid, usuario_id, guild_id, False)
+
+
+_REINTENTOS_DE_CODIGO = 10
+
+
+def pedir_codigo_de_vinculo(
+    rowino_uid: int, ahora: datetime, rng: random.Random | None = None
+) -> str:
+    """Un código nuevo para esa cuenta, que anula el que tuviera.
+
+    Lanza `vinculo.NoSePuede` si la cuenta ya está vinculada o si su identidad
+    web ya tiene gachamones: dos planteles no se funden.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        cuenta = _cuenta_en(con, rowino_uid)
+        if cuenta is not None:
+            if cuenta.vinculada:
+                raise vinculo.NoSePuede(vinculo.YA_VINCULADA)
+            if _tiene_gachamones(con, cuenta.usuario_id, cuenta.guild_id):
+                raise vinculo.NoSePuede(vinculo.CON_GACHAMONES)
+        con.execute(
+            "DELETE FROM vinculos_pendientes WHERE vence_en <= ? OR rowino_uid = ?",
+            (ahora.isoformat(), rowino_uid),
+        )
+        for _ in range(_REINTENTOS_DE_CODIGO):
+            codigo = vinculo.nuevo_codigo(rng)
+            if con.execute(
+                "SELECT 1 FROM vinculos_pendientes WHERE codigo = ?", (codigo,)
+            ).fetchone() is None:
+                break
+        else:
+            raise RuntimeError("no se pudo generar un código de vinculación libre")
+        vence = ahora + timedelta(minutes=vinculo.MINUTOS_DE_VIDA)
+        con.execute(
+            "INSERT INTO vinculos_pendientes (codigo, rowino_uid, vence_en) "
+            "VALUES (?, ?, ?)",
+            (codigo, rowino_uid, vence.isoformat()),
+        )
+        return codigo
+
+
+def canjear_codigo_de_vinculo(
+    codigo: str, usuario_id: str, guild_id: str, ahora: datetime
+) -> str:
+    """Canjea un código escrito en Discord. Devuelve un resultado de `vinculo`.
+
+    El orden de los pasos es el contrato: el intento se anota **antes** de mirar
+    el código, así que uno bueno no sirve para saltarse el límite, y todo lo que
+    no sea «sirve» contesta lo mismo, así que la respuesta no revela si un
+    código existe, caducó o era de una cuenta que ya no puede vincularse.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        # 1. El límite de intentos.
+        con.execute(
+            "DELETE FROM intentos_de_vinculo WHERE usuario_id = ? AND guild_id = ? "
+            "AND en <= ?",
+            (usuario_id, guild_id,
+             (ahora - vinculo.VENTANA_DE_INTENTOS).isoformat()),
+        )
+        intentos = con.execute(
+            "SELECT COUNT(*) n FROM intentos_de_vinculo "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchone()["n"]
+        if intentos >= vinculo.INTENTOS_MAXIMOS:
+            return vinculo.DEMASIADOS
+        # 2. Este intento cuenta, salga como salga.
+        con.execute(
+            "INSERT INTO intentos_de_vinculo (usuario_id, guild_id, en) "
+            "VALUES (?, ?, ?)",
+            (usuario_id, guild_id, ahora.isoformat()),
+        )
+        # 3. Una persona de Discord, una cuenta de Rowino.
+        if con.execute(
+            "SELECT 1 FROM cuentas_web WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchone() is not None:
+            return vinculo.YA_VINCULADA
+        # 4. El código, vivo.
+        pendiente = con.execute(
+            "SELECT rowino_uid FROM vinculos_pendientes "
+            "WHERE codigo = ? AND vence_en > ?",
+            (vinculo.normalizar(codigo), ahora.isoformat()),
+        ).fetchone()
+        if pendiente is None:
+            return vinculo.INVALIDO
+        rowino_uid = pendiente["rowino_uid"]
+        # 5. Su cuenta todavía tiene que poder vincularse.
+        cuenta = _cuenta_en(con, rowino_uid)
+        if cuenta is not None and (
+            cuenta.vinculada
+            or _tiene_gachamones(con, cuenta.usuario_id, cuenta.guild_id)
+        ):
+            con.execute(
+                "DELETE FROM vinculos_pendientes WHERE rowino_uid = ?", (rowino_uid,)
+            )
+            return vinculo.INVALIDO
+        # 6. Esa cuenta pasa a ser esta persona.
+        if cuenta is None:
+            con.execute(
+                "INSERT INTO cuentas_web (rowino_uid, usuario_id, guild_id, "
+                "vinculada, creada_en) VALUES (?, ?, ?, 1, ?)",
+                (rowino_uid, usuario_id, guild_id, ahora.isoformat()),
+            )
+        else:
+            con.execute(
+                "UPDATE cuentas_web SET usuario_id = ?, guild_id = ?, vinculada = 1 "
+                "WHERE rowino_uid = ?",
+                (usuario_id, guild_id, rowino_uid),
+            )
+        con.execute(
+            "DELETE FROM vinculos_pendientes WHERE rowino_uid = ?", (rowino_uid,)
+        )
+        return vinculo.OK
