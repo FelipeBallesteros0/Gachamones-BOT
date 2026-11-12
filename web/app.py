@@ -10,12 +10,13 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import db
 import economia
+from web.sesion import Persona, persona_actual
 
 PREFIJO = "/gachamon"
 ESTATICOS = Path(__file__).resolve().parent / "static"
@@ -63,6 +64,10 @@ def crear_app() -> FastAPI:
     @app.get(f"{PREFIJO}/api/salud")
     def salud() -> dict:
         return {"ok": True}
+
+    @app.get(f"{PREFIJO}/api/sesion")
+    def sesion(persona: Persona = Depends(persona_actual)) -> dict:
+        return {"usuario": persona.usuario}
 
     @app.get(PREFIJO, include_in_schema=False)
     def sin_barra() -> RedirectResponse:
