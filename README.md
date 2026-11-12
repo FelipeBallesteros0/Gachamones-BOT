@@ -121,6 +121,8 @@ SIN_TESTS=1 ./actualizar-pi.sh  # sin correr la suite en la Pi (~50 s)
 RAMA=otra ./actualizar-pi.sh    # otra rama
 ```
 
+`deploy.sh` también copia la base de datos (misma rotación de 5) antes de reiniciar, y no corre la suite.
+
 Los dos admiten `PI` y `DEST` como variables de entorno. Para ver el registro:
 
 ```bash

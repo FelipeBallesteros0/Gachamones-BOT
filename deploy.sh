@@ -25,6 +25,7 @@ rsync -av --delete \
     --exclude 'venv' \
     --exclude '.env' \
     --exclude '*.db' \
+    --exclude '*.bak' \
     --exclude '.pytest_cache' \
     "$ORIGEN/" "$PI:$DEST/"
 
@@ -46,6 +47,18 @@ fi
 # desde un script sin tty ssh se queja. En esta Pi sudo es sin contraseña.
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
+
+# Una copia de las mascotas antes de reiniciar: el arranque puede devolver gemas
+# y borrar piezas, y eso se respalda siempre. Mismo nombre y misma rotación (las
+# 5 últimas) que `actualizar-pi.sh`, para que las dos sean una sola.
+echo "==> Copiando la base de datos"
+ssh "$PI" "cd '$DEST' && \
+    if [ -f tamagotchi.db ]; then \
+        copia=\"tamagotchi.db.\$(date +%Y%m%d-%H%M%S).bak\" && \
+        cp tamagotchi.db \"\$copia\" && \
+        echo \"    copia de seguridad: \$copia\" && \
+        { ls -1t tamagotchi.db.*.bak 2>/dev/null | tail -n +6 | xargs -r rm -- || true; }; \
+    fi"
 
 echo "==> Instalando/actualizando el servicio"
 ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tamagotchi.service && \
