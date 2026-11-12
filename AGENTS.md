@@ -150,6 +150,7 @@ Instala el hook local cuando prepares el entorno:
 - Sólo se vincula mientras la identidad web no tenga gachamones: dos planteles no se funden.
 - Un código de vinculación sirve una vez, caduca, y canjearlo nunca revela si existía.
 - Quién escribió `/vincular` es la única prueba de identidad: el código lo pide la cuenta de Rowino y lo canjea la persona de Discord.
+- Lo que el gachamon dice por su cuenta son frases escritas en `globos.py`, nunca una llamada a la IA, y un globo no anuncia nada que no esté pasando.
 
 ## Arte ASCII
 
