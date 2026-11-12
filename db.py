@@ -674,6 +674,8 @@ def _migrar(con: sqlite3.Connection) -> None:
         "SELECT * FROM criaturas WHERE muerta_en IS NULL AND avisa_en IS NULL"
     ).fetchall():
         criatura = _a_criatura(fila)
+        if not _lleva_relojes(criatura):
+            continue
         con.execute(
             "UPDATE criaturas SET avisa_en = ? WHERE id = ?",
             (sim.momento_de_aviso(criatura).isoformat(), criatura.id),
@@ -792,6 +794,19 @@ def _a_criatura(fila: sqlite3.Row) -> sim.Criatura:
     return sim.Criatura(id=fila["id"], **datos)
 
 
+def _lleva_relojes(criatura: sim.Criatura) -> bool:
+    """¿Se le guardan `muere_en` y `avisa_en`? Sólo a la viva, activa y con aviso.
+
+    Lo comparten `_a_valores` y el relleno de `inicializar`, para que no puedan
+    discrepar sobre quién los lleva.
+    """
+    return (
+        criatura.viva
+        and criatura.activa
+        and not identidad.sin_aviso_de_hambre(criatura.usuario_id)
+    )
+
+
 def _a_valores(criatura: sim.Criatura) -> dict:
     datos = {c: getattr(criatura, c) for c in CAMPOS}
     for campo in ("nacida_en", "actualizada_en", "muerta_en"):
@@ -808,11 +823,7 @@ def _a_valores(criatura: sim.Criatura) -> dict:
     #
     # Lo mismo vale para quien no tiene aviso de hambre (una identidad web): el
     # hambre no la mata, así que no se le guarda instante de muerte ni de aviso.
-    corre_el_tiempo = (
-        criatura.viva
-        and criatura.activa
-        and not identidad.sin_aviso_de_hambre(criatura.usuario_id)
-    )
+    corre_el_tiempo = _lleva_relojes(criatura)
     datos["muere_en"] = (
         sim.momento_de_muerte(criatura).isoformat() if corre_el_tiempo else None
     )

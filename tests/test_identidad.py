@@ -117,3 +117,24 @@ def test_tras_dias_en_cero_come_con_normalidad_y_sigue_sin_reloj():
     assert resultado.criatura.viva
     assert resultado.criatura.hambre == sim.EFECTOS_CUIDADO[sim.ALIMENTAR]["hambre"]
     assert relojes_de(WEB) == [(None, None, None)]
+
+
+def test_volver_a_arrancar_no_le_devuelve_el_reloj_de_aviso():
+    db.crear(WEB, "g", "pollito", "Pelusa", STATS, T0)
+    db.crear(DISCORD, "g", "pollito", "Otra", STATS, T0)
+    antes = relojes_de(DISCORD)
+    db.inicializar()
+    assert relojes_de(WEB) == [(None, None, None)]
+    assert relojes_de(DISCORD) == antes
+    lejos = T0 + timedelta(days=30)
+    assert {c.usuario_id for c in db.pendientes_de_aviso(lejos)} == {DISCORD}
+
+
+def test_volver_a_arrancar_no_le_pone_aviso_a_la_de_la_incubadora():
+    db.crear(DISCORD, "g", "pollito", "Uno", STATS, T0)
+    db.crear(DISCORD, "g", "pulpo", "Dos", STATS, T0, activa=False)
+    db.inicializar()
+    with db.conectar() as con:
+        avisos = [f[0] for f in con.execute(
+            "SELECT avisa_en FROM criaturas WHERE activa = 0")]
+    assert avisos == [None]
