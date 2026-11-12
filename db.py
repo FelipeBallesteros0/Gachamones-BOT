@@ -268,6 +268,13 @@ CREATE TABLE IF NOT EXISTS cuentas_web (
     UNIQUE (usuario_id, guild_id)
 );
 
+-- Muertes que registró quien no puede hablar en Discord (la web). El bucle
+-- del bot las anuncia en su siguiente vuelta y borra la fila.
+CREATE TABLE IF NOT EXISTS muertes_por_anunciar (
+    criatura_id INTEGER PRIMARY KEY,
+    relevo_id INTEGER
+);
+
 -- Códigos de un solo uso para vincular una cuenta de Rowino con Discord. Cada
 -- cuenta tiene como mucho uno vivo (UNIQUE sobre `rowino_uid`).
 CREATE TABLE IF NOT EXISTS vinculos_pendientes (
@@ -971,27 +978,102 @@ def ascender_de_la_incubadora(
     return criatura_activa(usuario_id, guild_id)
 
 
+def _apuntar_muerte(con: sqlite3.Connection, muerta: sim.Criatura) -> bool:
+    """Deja apuntada una muerte para que el bot la anuncie en Discord.
+
+    Sólo a quien tiene aviso de hambre: a los demás nadie les va a anunciar nada.
+    Va aparte para que la regla esté escrita una vez. Devuelve si apuntó.
+    """
+    if identidad.sin_aviso_de_hambre(muerta.usuario_id):
+        return False
+    con.execute(
+        "INSERT OR IGNORE INTO muertes_por_anunciar (criatura_id) VALUES (?)",
+        (muerta.id,),
+    )
+    return True
+
+
 def activa_al_dia(
     usuario_id: str, guild_id: str, ahora: datetime
 ) -> sim.Criatura | None:
     """La activa, viva y avanzada hasta `ahora`, sin guardarle el paso del tiempo.
 
-    Sólo escribe cuando se entera de una muerte: la guarda muerta y saca al
-    relevo de la incubadora, que es lo que hace `/huevo` en el bot. Devuelve al
-    relevo (avanzado) o `None` si no queda nadie. Repetirla, o correrla desde dos
-    procesos, deja un solo relevo: `ascender_de_la_incubadora` no hace nada si ya
-    hay una activa.
+    Sólo escribe cuando se entera de una muerte: la guarda muerta, la apunta en
+    `muertes_por_anunciar` para que el bot la anuncie (la web no habla en
+    Discord) y saca al relevo de la incubadora, que es lo que hace `/huevo` en el
+    bot. Devuelve al relevo (avanzado) o `None` si no queda nadie. Repetirla, o
+    correrla desde dos procesos, deja una sola muerte apuntada y un solo relevo:
+    sólo apunta quien la vio viva en la base, y `ascender_de_la_incubadora` no
+    hace nada si ya hay una activa. Si no hay ninguna activa intenta ascender a
+    alguien antes de rendirse, por si un proceso se cortó entre guardar la muerte
+    y sacar al relevo.
     """
     activa = criatura_activa(usuario_id, guild_id)
     if activa is None:
-        return None
+        ascender_de_la_incubadora(usuario_id, guild_id, ahora)
+        relevo = criatura_activa(usuario_id, guild_id)
+        return None if relevo is None else avanzar(relevo, ahora)
     avanzada = avanzar(activa, ahora)
     if avanzada.viva:
         return avanzada
-    guardar(avanzada)
+
+    # Se vuelve a leer dentro de la transacción: si el bot u otra petición ya la
+    # registraron muerta, no se escribe ni se apunta nada.
+    apuntada = False
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        actual = criatura_en(con, avanzada.id)
+        if actual is not None and actual.viva:
+            _guardar(con, avanzada)
+            apuntada = _apuntar_muerte(con, avanzada)
+    # Sin meterlo en la transacción: abre su propia conexión.
     ascender_de_la_incubadora(usuario_id, guild_id, ahora)
     relevo = criatura_activa(usuario_id, guild_id)
-    return None if relevo is None else avanzar(relevo, ahora)
+    if relevo is None:
+        return None
+    if apuntada:
+        with conectar() as con:
+            con.execute("BEGIN IMMEDIATE")
+            con.execute(
+                "UPDATE muertes_por_anunciar SET relevo_id = ? "
+                "WHERE criatura_id = ?",
+                (relevo.id, avanzada.id),
+            )
+    return avanzar(relevo, ahora)
+
+
+def muertes_por_anunciar() -> list[tuple[sim.Criatura, sim.Criatura | None]]:
+    """Cada muerta apuntada con su relevo, por orden de id.
+
+    El relevo es `None` si no se apuntó ninguno o si ya no está vivo y activo.
+    """
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT criatura_id, relevo_id FROM muertes_por_anunciar "
+            "ORDER BY criatura_id"
+        ).fetchall()
+        resultado = []
+        for fila in filas:
+            muerta = criatura_en(con, fila["criatura_id"])
+            if muerta is None:
+                continue
+            relevo = (
+                criatura_en(con, fila["relevo_id"])
+                if fila["relevo_id"] is not None else None
+            )
+            if relevo is not None and not (relevo.viva and relevo.activa):
+                relevo = None
+            resultado.append((muerta, relevo))
+    return resultado
+
+
+def muerte_anunciada(criatura_id: int) -> None:
+    """Borra el apunte. No falla si no existe."""
+    with conectar() as con:
+        con.execute(
+            "DELETE FROM muertes_por_anunciar WHERE criatura_id = ?",
+            (criatura_id,),
+        )
 
 
 def plantel(usuario_id: str, guild_id: str) -> list[sim.Criatura]:
@@ -1406,6 +1488,7 @@ def acariciar(usuario_id: str, guild_id: str, ahora: datetime) -> ResultadoCaric
         criatura = _avanzar_en(con, criatura, ahora)
         if not criatura.viva:
             _guardar(con, criatura)
+            _apuntar_muerte(con, criatura)
             return ResultadoCaricia(False, criatura, timedelta(0))
 
         espera = espera_en(con, criatura.id, sim.ACARICIAR, ahora)

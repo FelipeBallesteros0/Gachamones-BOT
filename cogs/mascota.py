@@ -206,32 +206,46 @@ class Mascota(commands.Cog):
                 continue
 
             db.guardar(muerta)
+            # Si la web la apuntó en ese mismo instante, no se anuncia dos veces.
+            db.muerte_anunciada(muerta.id)
             # Si tenía compañeros esperando, sale uno: quedarse sin activo
             # teniendo dos en la incubadora sería desconcertante.
             releva = db.ascender_de_la_incubadora(
                 muerta.usuario_id, muerta.guild_id, ahora
             )
-            canal = self._canal_de(muerta)
-            if canal is None:
-                continue
+            await self._anunciar_muerte(muerta, releva, ahora)
 
-            await vistas.congelar(canal, muerta.pantalla_msg_id)
-            try:
-                await canal.send(
-                    f"💀 <@{muerta.usuario_id}>, **{muerta.nombre}** ha muerto "
-                    "de hambre."
-                )
-                await canal.send(pantalla.render(muerta, ahora))
-                if releva is not None:
-                    await canal.send(esp.concordar(
-                        f"🧬 Sale de la incubadora **{releva.nombre}**, que "
-                        "pasa a ser tu gachamon activ{o/a}.",
-                        releva.genero,
-                    ))
-                    await vistas.publicar_pantalla(canal, releva, ahora)
-            except discord.HTTPException:
-                log.warning("No se pudo anunciar la muerte de %s", muerta.id,
-                            exc_info=True)
+        # Las que registró la web, que no habla en Discord. Primero se borra el
+        # apunte y después se anuncia: un anuncio que falla no se reintenta.
+        # Si el bucle y la web coinciden, el relevo ya salió y no se anuncia: es
+        # una carrera de milisegundos y no se cubre.
+        for muerta, releva in db.muertes_por_anunciar():
+            db.muerte_anunciada(muerta.id)
+            await self._anunciar_muerte(muerta, releva, ahora)
+
+    async def _anunciar_muerte(self, muerta, releva, ahora) -> None:
+        """Publica la muerte y, si lo hay, al relevo que sale de la incubadora."""
+        canal = self._canal_de(muerta)
+        if canal is None:
+            return
+
+        await vistas.congelar(canal, muerta.pantalla_msg_id)
+        try:
+            await canal.send(
+                f"💀 <@{muerta.usuario_id}>, **{muerta.nombre}** ha muerto "
+                "de hambre."
+            )
+            await canal.send(pantalla.render(muerta, ahora))
+            if releva is not None:
+                await canal.send(esp.concordar(
+                    f"🧬 Sale de la incubadora **{releva.nombre}**, que "
+                    "pasa a ser tu gachamon activ{o/a}.",
+                    releva.genero,
+                ))
+                await vistas.publicar_pantalla(canal, releva, ahora)
+        except discord.HTTPException:
+            log.warning("No se pudo anunciar la muerte de %s", muerta.id,
+                        exc_info=True)
 
     def _canal_de(self, criatura: sim.Criatura):
         """Dónde avisar: el canal donde se atendió por última vez.
