@@ -60,6 +60,10 @@ def test_sin_clave_configurada_no_entra_nadie(cliente, monkeypatch):
     assert cliente.get(RUTA).status_code == 401
     assert sesion.leer_cookie(galleta(1)) is None
     assert sesion.leer_cookie("lo-que-sea") is None
+    # Firmada con la clave vacía se verificaría sola: sólo la guarda la frena.
+    assert sesion.leer_cookie(galleta(1, clave="")) is None
+    cliente.cookies.set("session", galleta(1, clave=""))
+    assert cliente.get(RUTA).status_code == 401
 
 
 def test_si_falta_la_base_de_rowino_no_entra_nadie_y_no_se_crea(cliente, monkeypatch, tmp_path):
@@ -68,6 +72,14 @@ def test_si_falta_la_base_de_rowino_no_entra_nadie_y_no_se_crea(cliente, monkeyp
     entrar(cliente, 1)
     assert cliente.get(RUTA).status_code == 401
     assert not fantasma.exists() and not fantasma.parent.exists()
+
+
+def test_una_ruta_mal_puesta_en_una_carpeta_que_existe_no_crea_la_base(cliente, monkeypatch, tmp_path):
+    fantasma = tmp_path / "no-existe.db"
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", fantasma)
+    entrar(cliente, 1)
+    assert cliente.get(RUTA).status_code == 401
+    assert not fantasma.exists()
 
 
 def test_la_base_de_rowino_solo_se_lee(cliente, tmp_path):
