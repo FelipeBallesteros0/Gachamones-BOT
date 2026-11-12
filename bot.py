@@ -51,6 +51,8 @@ class Tamagotchi(commands.Bot):
                 "Devueltos marcos y tintes retirados: %d personas, %d piezas, %d gemas",
                 devolucion.personas, devolucion.piezas, devolucion.gemas,
             )
+        else:
+            log.debug("Devolución de marcos y tintes retirados: nada que devolver")
 
         for extension in EXTENSIONES:
             await self.load_extension(extension)
