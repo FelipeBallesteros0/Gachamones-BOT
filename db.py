@@ -2388,6 +2388,12 @@ def _tiene_gachamones(con: sqlite3.Connection, usuario_id: str, guild_id: str) -
     ).fetchone() is not None
 
 
+def tiene_gachamones(usuario_id: str, guild_id: str) -> bool:
+    """Si esa identidad tiene alguna criatura en ese servidor, viva o muerta."""
+    with conectar() as con:
+        return _tiene_gachamones(con, usuario_id, guild_id)
+
+
 def cuenta_web(rowino_uid: int) -> CuentaWeb | None:
     with conectar() as con:
         return _cuenta_en(con, rowino_uid)

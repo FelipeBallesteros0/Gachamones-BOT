@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 import db
 import economia
+from web import cuenta
 from web.sesion import Persona, persona_actual
 
 PREFIJO = "/gachamon"
@@ -60,6 +61,8 @@ def crear_app() -> FastAPI:
     app.state.version = version
     portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
     portada = portada.replace("__V__", version)
+
+    app.include_router(cuenta.router, prefix=f"{PREFIJO}/api")
 
     @app.get(f"{PREFIJO}/api/salud")
     def salud() -> dict:
