@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import random
 import sqlite3
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1172,6 +1172,7 @@ def crear(
     canal_id: str | None = None,
     activa: bool = True,
     reclutada: bool = False,
+    *,
     cuenta_vigente: bool = False,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
@@ -1248,6 +1249,31 @@ def crear(
             apuntar_persona_en(con, usuario_id, guild_id, lgr.RECLUTADOS)
 
     return replace(nueva, id=nuevo_id)
+
+
+def poner_nombre_a_la_activa(
+    usuario_id: str,
+    guild_id: str,
+    nombre: str,
+    puede: Callable[[sim.Criatura], bool],
+) -> tuple[str, sim.Criatura | None]:
+    """Le cambia sólo el nombre a la activa de esa persona, si `puede(activa)`.
+
+    Relee la activa bajo `BEGIN IMMEDIATE` y no guarda nada más de ella.
+    Devuelve `("sin_gachamon", None)`, `("no_puede", activa)` o
+    `("hecho", activa_con_su_nombre)`.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        activa = criatura_activa_en(con, usuario_id, guild_id)
+        if activa is None:
+            return "sin_gachamon", None
+        if not puede(activa):
+            return "no_puede", activa
+        con.execute(
+            "UPDATE criaturas SET nombre = ? WHERE id = ?", (nombre, activa.id)
+        )
+    return "hecho", replace(activa, nombre=nombre)
 
 
 def guardar(criatura: sim.Criatura) -> None:

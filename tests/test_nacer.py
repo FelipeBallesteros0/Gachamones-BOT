@@ -111,3 +111,27 @@ def test_el_bot_rompe_el_huevo_por_el_mismo_camino():
     fuente = (Path(__file__).resolve().parent.parent / "cogs" / "mascota.py").read_text(encoding="utf-8")
     assert "nacer.romper_el_huevo(" in fuente
     assert "esp.tirar_stats_iniciales" not in fuente
+
+
+def test_cuenta_vigente_solo_va_por_nombre():
+    with pytest.raises(TypeError):
+        db.crear("u", "g", "pulpo", "Tinta", (10, 10, 10, 10), T0, esp.MACHO,
+                 "sereno", None, True, False, True)
+
+
+def test_bautizar_no_toca_al_recluta_de_la_incubadora():
+    nacida = nacer.romper_el_huevo("u", "g", T0)
+    nacer.bautizar("u", "g", "Pelusa", T0)
+    recluta = db.crear("u", "g", "pulpo", "", (10, 10, 10, 10), T0, activa=False)
+    with pytest.raises(nacer.NoSePuedeBautizar) as caido:
+        nacer.bautizar("u", "g", "Otra", T0)
+    assert caido.value.motivo == "ya_bautizado"
+    assert db.por_id(recluta.id).nombre == ""
+    assert db.por_id(nacida.id).nombre == "Pelusa"
+
+
+def test_bautizar_no_toca_al_de_otra_persona():
+    nacer.romper_el_huevo("a", "g", T0)
+    ajena = nacer.romper_el_huevo("b", "g", T0)
+    nacer.bautizar("a", "g", "Pelusa", T0)
+    assert db.criatura_activa("b", "g").nombre == ajena.nombre

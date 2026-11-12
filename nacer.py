@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import random
 import sqlite3
-from dataclasses import replace
 from datetime import datetime
 
 import db
@@ -26,6 +25,10 @@ class YaNoEsSuIdentidad(Exception):
 
 SIN_GACHAMON = "sin_gachamon"
 YA_BAUTIZADO = "ya_bautizado"
+
+
+class NombreNoVale(ValueError):
+    """El nombre no pasa `sim.normalizar_nombre`; el texto es para el jugador."""
 
 
 class NoSePuedeBautizar(Exception):
@@ -80,16 +83,17 @@ def bautizar(
     usuario_id: str, guild_id: str, nombre: str, ahora: datetime
 ) -> sim.Criatura:
     """Le pone nombre a la activa, sólo si todavía lo espera."""
-    nombre = sim.normalizar_nombre(nombre)
+    try:
+        nombre = sim.normalizar_nombre(nombre)
+    except ValueError as error:
+        raise NombreNoVale(str(error)) from None
     # Por si la activa se murió: se registra y, si hay relevo, es a él.
     db.activa_al_dia(usuario_id, guild_id, ahora)
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        activa = db.criatura_activa_en(con, usuario_id, guild_id)
-        if activa is None:
-            raise NoSePuedeBautizar(SIN_GACHAMON, "No tienes ningún gachamon vivo.")
-        if not espera_nombre(activa):
-            raise NoSePuedeBautizar(YA_BAUTIZADO, "Tu gachamon ya tiene nombre.")
-        activa = replace(activa, nombre=nombre)
-        db._guardar(con, activa)
-    return activa
+    resultado, criatura = db.poner_nombre_a_la_activa(
+        usuario_id, guild_id, nombre, espera_nombre
+    )
+    if resultado == "sin_gachamon":
+        raise NoSePuedeBautizar(SIN_GACHAMON, "No tienes ningún gachamon vivo.")
+    if resultado == "no_puede":
+        raise NoSePuedeBautizar(YA_BAUTIZADO, "Tu gachamon ya tiene nombre.")
+    return criatura

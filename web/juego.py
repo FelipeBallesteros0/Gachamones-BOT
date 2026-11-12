@@ -61,7 +61,7 @@ def bautizar(
     ahora = db.ahora_utc()
     try:
         nacer.bautizar(jugador.usuario_id, jugador.guild_id, nombre, ahora)
-    except ValueError as error:
+    except nacer.NombreNoVale as error:
         raise problema(422, "nombre", str(error)) from None
     except nacer.NoSePuedeBautizar as error:
         raise problema(409, error.motivo, str(error)) from None

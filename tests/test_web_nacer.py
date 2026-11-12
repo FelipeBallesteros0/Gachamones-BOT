@@ -68,3 +68,35 @@ def test_las_dos_piden_la_cabecera(cliente, monkeypatch):
     alta(cliente)
     assert cliente.post(HUEVO).status_code == 403
     assert cliente.post(BAUTIZAR, json={"nombre": "Pelusa"}).status_code == 403
+
+
+def test_un_valueerror_ajeno_no_sale_como_nombre_malo(cliente, monkeypatch):
+    import nacer
+    from fastapi.testclient import TestClient
+
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    cliente.post(HUEVO, headers=ESCRIBIR)
+
+    def falla(*_):
+        raise ValueError("texto interno")
+
+    monkeypatch.setattr(nacer, "bautizar", falla)
+    sin_trampa = TestClient(cliente.app, raise_server_exceptions=False, cookies=cliente.cookies)
+    respuesta = sin_trampa.post(BAUTIZAR, json={"nombre": "Pelusa"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 500
+    assert "texto interno" not in respuesta.text
+
+
+def test_cuenta_cambio_por_la_ruta(cliente, monkeypatch):
+    import nacer
+
+    poner_reloj(monkeypatch)
+    alta(cliente)
+
+    def vinculada(*_, **__):
+        raise nacer.YaNoEsSuIdentidad
+
+    monkeypatch.setattr(nacer, "romper_el_huevo", vinculada)
+    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
+    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "cuenta_cambio"
