@@ -65,6 +65,7 @@ no se pierda.
   gachamon de una cuenta sin Discord no muere de hambre: se queda con la
   comida en 0 y de mal ánimo, pero vivo.
 - **Pantalla principal.** Aprobó el boceto de la sección 5.3 tal como está.
+- **En el computador** el pueblo se ve completo.
 
 Felipe aceptó además estas cinco decisiones técnicas que le propuse:
 
@@ -333,16 +334,20 @@ De arriba hacia abajo, en un celular en vertical:
 - Si el gachamon activo murió mientras no estabas, lo primero que ves es eso:
   quién era y cuánto vivió. Después sale el siguiente de la incubadora, o el
   huevo si no queda ninguno, como ya hacen las reglas.
-- **En un computador** se ve el mismo juego, en una columna centrada con
-  proporción de celular. **[propuesta]**
+- **En un computador** el pueblo se ve completo (sección 5.4) **[Felipe]**.
+  La pantalla de un lugar aprovecha el ancho: la escena a un lado, y la
+  ficha, los cuidados y las acciones al otro. **[propuesta]**
 
 ### 5.4 El pueblo
 
 Elegido por Felipe entre dos bocetos que funcionaban.
 
-- El pueblo es **más ancho que la pantalla**. La cámara sigue al avatar y se
-  puede arrastrar para mirar. Unas flechas avisan cuando hay más pueblo hacia
-  un lado.
+- **En el celular**, el pueblo es **más ancho que la pantalla**. La cámara
+  sigue al avatar y se puede arrastrar para mirar. Unas flechas avisan cuando
+  hay más pueblo hacia un lado.
+- **En un computador se ve el pueblo completo** **[Felipe]**: cabe entero en
+  la pantalla, sin cámara que seguir ni nada que arrastrar. Es el mismo
+  pueblo y los mismos caminos; lo único que cambia es cuánto se ve de una vez.
 - Los lugares están unidos por **caminos**. Tocas un lugar y el avatar va por
   el camino más corto.
 - **El gachamon te sigue**, un trecho detrás, por el mismo camino. Avanza a
@@ -596,7 +601,9 @@ los dos servicios.
 - Los números de partida de la caricia y el ritmo de los globos.
 - Cómo se ve el relleno, cuántas opciones de avatar trae y los tamaños del
   contrato de arte.
-- El detalle de cada pantalla que este documento no fija.
+- El detalle de cada pantalla que este documento no fija, incluido cómo se
+  reparte la pantalla de un lugar en un computador y a partir de qué ancho se
+  deja de mover la cámara.
 - Cómo se protege la API de peticiones que no vengan de la propia página.
 
 ## 7. Riesgos conocidos
