@@ -161,7 +161,7 @@ def test_sin_monedas_suficientes_no_se_muda_nadie():
     resultado = economia.comprar_casa("u1", "g1", PEQUENA, T0)
 
     assert not resultado.ok
-    assert "faltan 1 asciicoins" in resultado.problema
+    assert "faltan 1 monedas" in resultado.problema
     assert monedas() == PEQUENA.precio - 1
     assert la_casa_de() is None
 
@@ -467,7 +467,7 @@ def test_sin_monedas_no_se_compra_mueble():
     resultado = comprar_m(CHIMENEA)
 
     assert not resultado.ok
-    assert "faltan 1 asciicoins" in resultado.problema
+    assert "faltan 1 monedas" in resultado.problema
     assert db.mobiliario("u1", "g1") == {}
 
 

@@ -1148,7 +1148,7 @@ def comprar_cosmetico(
             return ResultadoCosmetico(
                 criatura=criatura, saldo=saldo,
                 problema=(
-                    f"Te faltan {cosmetico.precio - saldo} asciigems. "
+                    f"Te faltan {cosmetico.precio - saldo} gemas. "
                     "Se ganan con los logros: mira `/logros`."
                 ),
             )
@@ -1306,7 +1306,7 @@ def comprar_casa(
             return ResultadoMudanza(
                 casa=casa, desde=vieja.casa if vieja else None, saldo=saldo,
                 problema=(
-                    f"Te faltan {cuesta - saldo} asciicoins. "
+                    f"Te faltan {cuesta - saldo} monedas. "
                     "Se ganan cuidando, evolucionando y compitiendo."
                 ),
             )
@@ -1516,7 +1516,7 @@ def comprar_mueble(
             ).asciicoins
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=f"Te faltan {faltan} asciicoins.",
+                problema=f"Te faltan {faltan} monedas.",
             )
 
         # Se cuelga solo si cabe **en esta casa**; si no, va al armario.

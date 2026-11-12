@@ -270,10 +270,22 @@ def test_ninguna_pantalla_ensena_la_clave_de_la_especie():
 
 
 RAIZ = Path(__file__).resolve().parent.parent
-# Estos tres guardan SQL y nombres de columna, que conservan el nombre viejo a
-# propósito: renombrarlos no le da nada a quien juega.
-SIN_TEXTO_DE_JUGADOR = {"db.py", "economia.py", "economia_reporte.py"}
+# Herramienta de consola para el dueño del proyecto, no texto de jugador.
+SIN_TEXTO_DE_JUGADOR = {"economia_reporte.py"}
+# db.py y economia.py guardan SQL y nombres de columna, que conservan el nombre
+# viejo a propósito, pero también avisos que lee quien juega: sólo se salta el SQL.
+CON_SQL = {"db.py", "economia.py"}
 NOMBRE_VIEJO = re.compile(r"ascii\s?(coin|gem)", re.IGNORECASE)
+# Un identificador suelto es un nombre de columna o de atributo.
+IDENTIFICADOR = re.compile(r"^[a-z_]+$")
+# Una palabra clave de SQL en mayúsculas, entera, delata una sentencia.
+PALABRA_SQL = re.compile(
+    r"\b(SELECT|UPDATE|INSERT|DELETE|CREATE TABLE|ALTER TABLE|VALUES|WHERE|FROM)\b"
+)
+
+
+def _es_sql(texto: str) -> bool:
+    return bool(IDENTIFICADOR.match(texto) or PALABRA_SQL.search(texto))
 
 
 def _literales_de(ruta: Path):
@@ -306,6 +318,7 @@ def test_ningun_texto_de_jugador_dice_asciicoins_ni_asciigems():
         if ruta.name not in SIN_TEXTO_DE_JUGADOR
         for linea, texto in _literales_de(ruta)
         if NOMBRE_VIEJO.search(texto)
+        and not (ruta.name in CON_SQL and _es_sql(texto))
     ]
     assert not culpables, "\n".join(culpables)
 
