@@ -15,6 +15,7 @@ import economia
 import especies as esp
 import globos
 import nacer
+import retrato
 import simulacion as sim
 from web import PREFIJO
 from web.cuenta import Jugador
@@ -60,7 +61,7 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
         "desfallecido": criatura.viva and _barra(criatura.hambre) == 0,
         "retrato": (
             f"{PREFIJO}/retrato/{criatura.especie}/{criatura.etapa}/{cara}/"
-            f"{criatura.sombrero or 'sin'}.png"
+            f"{criatura.sombrero or 'sin'}.png?v={retrato.version()}"
         ),
         "esperas": _esperas(criatura, ahora),
     }

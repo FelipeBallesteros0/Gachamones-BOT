@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as ErrorHTTP
 
 import db
 import economia
-from web import PREFIJO, cuenta, juego
+from web import PREFIJO, cuenta, juego, retratos
 from web.sesion import Persona, persona_actual
 
 ESTATICOS = Path(__file__).resolve().parent / "static"
@@ -97,6 +97,7 @@ def crear_app() -> FastAPI:
 
     app.include_router(cuenta.router, prefix=f"{PREFIJO}/api")
     app.include_router(juego.router, prefix=f"{PREFIJO}/api")
+    app.include_router(retratos.router, prefix=PREFIJO)
 
     @app.get(f"{PREFIJO}/api/salud")
     def salud() -> dict:

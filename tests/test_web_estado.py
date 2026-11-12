@@ -4,6 +4,7 @@ from datetime import timedelta
 import db
 import especies as esp
 import identidad
+import retrato
 from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, entrar, poner_reloj
 
 ESTADO = "/gachamon/api/estado"
@@ -52,7 +53,7 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
         "nivel": 1, "genero": "hembra",
         "barras": {"comida": 100, "animo": 100, "aseo": 100},
         "cara": "feliz", "desfallecido": False,
-        "retrato": "/gachamon/retrato/pollito/bebe/feliz/sin.png",
+        "retrato": f"/gachamon/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}",
         "esperas": {"alimentar": 0, "jugar": 0, "entrenar": 0, "limpiar": 0, "acariciar": 0},
     }
     assert estado["globos"] and all(g["tipo"] == "suelta" for g in estado["globos"])

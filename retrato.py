@@ -22,11 +22,12 @@ mañana se añade un sombrero, el archivo se llama como su clave y ya está.
 from __future__ import annotations
 
 import functools
+import hashlib
 import io
 import unicodedata
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 import cosmeticos as cos
 import especies as esp
@@ -160,8 +161,8 @@ def _caja(clave: str, etapa: str) -> tuple[int, int, int, int]:
 
 
 @functools.lru_cache(maxsize=RECORDADOS)
-def _armar(clave: str, etapa: str, animo: str, sombrero: str) -> bytes:
-    """Apila, recorta al encuadre común y amplía al doble.
+def armar(clave: str, etapa: str, animo: str, sombrero: str) -> bytes:
+    """Apila, recorta al encuadre común y amplía al doble. Es el nombre público.
 
     El ×2 es de vecino más cercano y no inventa ni un color: cada píxel se
     convierte en un cuadrado de 2×2 del mismo color. Hace falta porque Discord
@@ -184,6 +185,79 @@ def _armar(clave: str, etapa: str, animo: str, sombrero: str) -> bytes:
     buzon = io.BytesIO()
     doble.save(buzon, "PNG")
     return buzon.getvalue()
+
+
+# Lo que ya llamaba al nombre de antes sigue llamando por ahí: es la misma
+# función, con la misma caché.
+_armar = armar
+
+LADO_RELLENO = 256
+
+
+@functools.lru_cache(maxsize=RECORDADOS)
+def relleno(clave: str, etapa: str, animo: str) -> bytes:
+    """Un dibujo provisional para la especie que aún no tiene arte.
+
+    Una silueta redonda del color de la especie, que crece con la etapa, con una
+    cara simple según el ánimo y una franja que dice el nombre y `RELLENO`: que
+    nadie lo confunda con un dibujo terminado. Lleva fondo transparente.
+    """
+    especie = esp.ESPECIES[clave]
+    rgb = COLORES.get(especie.color, COLOR_POR_DEFECTO)
+    color = (rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, 255)
+    oscuro = (30, 30, 30, 255)
+    lado = LADO_RELLENO
+    imagen = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
+    pincel = ImageDraw.Draw(imagen)
+
+    # Entre 80 y 176 px de ancho según la etapa; el cuerpo se asienta sobre la franja.
+    paso = esp.ETAPAS.index(etapa)
+    radio = 40 + 12 * paso
+    cx, cy = lado // 2, 192 - radio
+    pincel.ellipse((cx - radio, cy - radio, cx + radio, cy + radio),
+                   fill=color, outline=oscuro, width=4)
+
+    ojo = max(4, radio // 8)
+    for dx in (-radio // 3, radio // 3):
+        pincel.ellipse((cx + dx - ojo, cy - ojo - radio // 6,
+                        cx + dx + ojo, cy + ojo - radio // 6), fill=oscuro)
+    boca_y, ancho = cy + radio // 3, radio // 2
+    if animo == esp.FELIZ:
+        pincel.arc((cx - ancho, boca_y - ancho // 2, cx + ancho, boca_y + ancho // 2),
+                   20, 160, fill=oscuro, width=4)
+    elif animo == esp.MAL:
+        pincel.arc((cx - ancho, boca_y, cx + ancho, boca_y + ancho),
+                   200, 340, fill=oscuro, width=4)
+    else:
+        pincel.line((cx - ancho // 2, boca_y, cx + ancho // 2, boca_y),
+                    fill=oscuro, width=4)
+
+    pincel.rectangle((0, 200, lado, lado), fill=(30, 30, 30, 230))
+    letra = ImageFont.load_default()
+    for fila, texto in ((206, especie.nombre.upper()), (232, "RELLENO")):
+        ancho_texto = pincel.textlength(texto, font=letra)
+        pincel.text(((lado - ancho_texto) / 2, fila), texto, fill=(240, 240, 240, 255),
+                    font=letra)
+
+    buzon = io.BytesIO()
+    imagen.save(buzon, "PNG")
+    return buzon.getvalue()
+
+
+@functools.cache
+def version() -> str:
+    """Huella corta del contenido de `fuentes/`: nombres y bytes, nunca fechas.
+
+    Va en la dirección del retrato (`?v=`) para que, al redibujar una capa, la
+    dirección cambie y nadie siga viendo el dibujo viejo en su caché.
+    """
+    huella = hashlib.sha256()
+    for archivo in sorted(p for p in FUENTES.rglob("*") if p.is_file()):
+        huella.update(archivo.relative_to(FUENTES).as_posix().encode("utf-8"))
+        huella.update(b"\0")
+        huella.update(archivo.read_bytes())
+        huella.update(b"\0")
+    return huella.hexdigest()[:12]
 
 
 def _capas_de(criatura: sim.Criatura) -> tuple[str, str, str, str] | None:
@@ -235,6 +309,8 @@ def color_de(criatura: sim.Criatura) -> int:
 
 def olvidar() -> None:
     """Vacía las cachés. Para las pruebas, que cambian las capas bajo los pies."""
-    _armar.cache_clear()
+    armar.cache_clear()
+    relleno.cache_clear()
+    version.cache_clear()
     _caja.cache_clear()
     _nombre_de_archivo.cache_clear()
