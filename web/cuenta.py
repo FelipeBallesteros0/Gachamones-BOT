@@ -4,10 +4,12 @@ Quién eres sale de la sesión y de `db.cuenta_web`, nunca de la petición.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 
+import avatar as av
 import config
 import db
 import vinculo
@@ -83,3 +85,40 @@ def pedir_codigo(persona: Persona = Depends(persona_actual)) -> dict:
             "pueden juntar.",
         ) from None
     return {"codigo": codigo, "minutos": vinculo.MINUTOS_DE_VIDA}
+
+
+_CAMPOS_DEL_AVATAR = (
+    "nombre", "genero", "piel", "pelo", "color_de_pelo", "ropa",
+)
+
+
+@router.get("/avatar/opciones")
+def opciones_del_avatar(persona: Persona = Depends(persona_actual)) -> dict:
+    return {
+        grupo: [{"clave": o.clave, "nombre": o.nombre} for o in lista]
+        for grupo, lista in av.opciones().items()
+    }
+
+
+@router.put("/avatar", dependencies=[Depends(con_cabecera)])
+def guardar_avatar(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # El cuerpo se revisa a mano: así todo fallo sale con nuestra forma.
+    if not isinstance(cuerpo, dict):
+        raise problema(422, "avatar", "Faltan los datos del avatar.")
+    faltan = [
+        c for c in _CAMPOS_DEL_AVATAR if not isinstance(cuerpo.get(c), str)
+    ]
+    if faltan:
+        raise problema(
+            422, "avatar",
+            "Faltan datos del avatar o no son texto: " + ", ".join(faltan) + ".",
+        )
+    try:
+        hecho = av.crear(**{c: cuerpo[c] for c in _CAMPOS_DEL_AVATAR})
+    except ValueError as error:
+        raise problema(422, "avatar", str(error)) from None
+    db.guardar_avatar(jugador.usuario_id, jugador.guild_id, hecho, db.ahora_utc())
+    return asdict(hecho)

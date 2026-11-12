@@ -10,8 +10,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import db
@@ -61,6 +62,18 @@ def crear_app() -> FastAPI:
     app.state.version = version
     portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
     portada = portada.replace("__V__", version)
+
+    @app.exception_handler(RequestValidationError)
+    def _peticion_mal_hecha(
+        peticion: Request, error: RequestValidationError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": {
+                "clave": "peticion",
+                "mensaje": "La petición no se entiende.",
+            }},
+        )
 
     app.include_router(cuenta.router, prefix=f"{PREFIJO}/api")
 

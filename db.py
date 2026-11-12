@@ -19,6 +19,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import avatar as av
 import casas as cas
 import config
 import cosmeticos as cos
@@ -378,6 +379,21 @@ CREATE TABLE IF NOT EXISTS mobiliario (
     mueble TEXT NOT NULL,
     colocado INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (usuario_id, guild_id, mueble)
+);
+
+-- El avatar de quien juega en la web: nombre, género, piel, pelo y ropa. Es de
+-- la persona (identidad + servidor), no de un gachamon.
+CREATE TABLE IF NOT EXISTS avatares (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    genero TEXT NOT NULL,
+    piel TEXT NOT NULL,
+    pelo TEXT NOT NULL,
+    color_de_pelo TEXT NOT NULL,
+    ropa TEXT NOT NULL,
+    actualizado_en TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id)
 );
 
 """
@@ -2414,6 +2430,31 @@ def crear_identidad_web(rowino_uid: int, guild_id: str, ahora: datetime) -> Cuen
             (rowino_uid, usuario_id, guild_id, ahora.isoformat()),
         )
         return CuentaWeb(rowino_uid, usuario_id, guild_id, False)
+
+
+def guardar_avatar(
+    usuario_id: str, guild_id: str, avatar: av.Avatar, ahora: datetime,
+) -> None:
+    """Crea o reemplaza el avatar de esa persona en ese servidor."""
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(
+            "INSERT OR REPLACE INTO avatares (usuario_id, guild_id, nombre, genero, "
+            "piel, pelo, color_de_pelo, ropa, actualizado_en) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (usuario_id, guild_id, avatar.nombre, avatar.genero, avatar.piel,
+             avatar.pelo, avatar.color_de_pelo, avatar.ropa, ahora.isoformat()),
+        )
+
+
+def avatar_de(usuario_id: str, guild_id: str) -> av.Avatar | None:
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT nombre, genero, piel, pelo, color_de_pelo, ropa FROM avatares "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchone()
+    return None if fila is None else av.Avatar(*fila)
 
 
 _REINTENTOS_DE_CODIGO = 10

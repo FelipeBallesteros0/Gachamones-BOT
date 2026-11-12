@@ -64,3 +64,15 @@ def servicio(tmp_path, monkeypatch):
 
 def entrar(cliente, uid: int) -> None:
     cliente.cookies.set("session", galleta(uid))
+
+
+AVATAR = {"nombre": "Feli", "genero": "macho", "piel": "media", "pelo": "corto",
+          "color_de_pelo": "castano", "ropa": "poleron"}
+
+
+def alta(cliente, uid: int = 1, nombre: str = "Feli") -> None:
+    """Deja una cuenta con identidad web y avatar, lista para sacar su huevo."""
+    entrar(cliente, uid)
+    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    hecho = cliente.put("/gachamon/api/avatar", json={**AVATAR, "nombre": nombre}, headers=ESCRIBIR)
+    assert hecho.status_code == 200, hecho.text
