@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import logging
-import random
-import sqlite3
 from dataclasses import replace
 
 import discord
@@ -15,8 +13,8 @@ import config
 import db
 import economia
 import especies as esp
+import nacer
 import pantalla
-import personalidad as per
 import simulacion as sim
 import vistas
 
@@ -49,25 +47,17 @@ class HuevoView(discord.ui.View):
     async def romper(self, interaccion: discord.Interaction, boton: discord.ui.Button):
         self.stop()
         ahora = db.ahora_utc()
-        rng = random.Random()
-        especie = esp.elegir_del_huevo(rng)
 
         try:
-            criatura = db.crear(
-                usuario_id=str(interaccion.user.id),
-                guild_id=str(interaccion.guild_id),
-                especie=especie.clave,
-                nombre=especie.nombre,  # provisional hasta que la bautice
-                stats=esp.tirar_stats_iniciales(especie, rng),
-                genero=esp.tirar_genero(rng),
-                caracter=per.tirar_caracter(rng),
-                ahora=ahora,
+            criatura = nacer.romper_el_huevo(
+                str(interaccion.user.id),
+                str(interaccion.guild_id),
+                ahora,
                 canal_id=str(interaccion.channel_id),
             )
-        except (sqlite3.IntegrityError, ValueError):
-            # `IntegrityError`: el índice único ha hecho su trabajo, dos huevos a
-            # la vez. `ValueError`: el plantel está lleno. Los dos significan lo
-            # mismo de cara a quien pulsa.
+        except nacer.YaTieneGachamon:
+            # Dos huevos a la vez o plantel lleno: de cara a quien pulsa es lo
+            # mismo.
             await interaccion.response.send_message(
                 "Ya tienes un gachamon. El huevo es sólo el de partida: los "
                 "demás hay que ganárselos por ahí.",

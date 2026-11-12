@@ -15,6 +15,7 @@ import cogs.competencias as cog_comp
 import cogs.mascota as cog_mascota
 import db
 import economia
+import nacer
 import especies as esp
 import pantalla
 import retrato
@@ -232,11 +233,11 @@ def test_competencia_que_evoluciona_usa_la_presentacion_publica(monkeypatch):
 def test_romper_el_huevo_usa_la_presentacion_publica(monkeypatch):
     monkeypatch.setattr(cog_mascota.db, "ahora_utc", Mock(return_value=T0))
     monkeypatch.setattr(
-        cog_mascota.esp, "elegir_del_huevo", Mock(return_value=esp.ESPECIES["pedrusco"])
+        nacer.esp, "elegir_del_huevo", Mock(return_value=esp.ESPECIES["pedrusco"])
     )
-    monkeypatch.setattr(cog_mascota.esp, "tirar_stats_iniciales", Mock(return_value=STATS))
-    monkeypatch.setattr(cog_mascota.esp, "tirar_genero", Mock(return_value=esp.MACHO))
-    monkeypatch.setattr(cog_mascota.per, "tirar_caracter", Mock(return_value="sereno"))
+    monkeypatch.setattr(nacer.esp, "tirar_stats_iniciales", Mock(return_value=STATS))
+    monkeypatch.setattr(nacer.esp, "tirar_genero", Mock(return_value=esp.MACHO))
+    monkeypatch.setattr(nacer.per, "tirar_caracter", Mock(return_value="sereno"))
     monkeypatch.setattr(cog_mascota.comun, "anunciar_logros_de_persona", AsyncMock())
     respuesta = SimpleNamespace(edit_message=AsyncMock(), send_message=AsyncMock())
     interaccion = SimpleNamespace(

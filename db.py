@@ -1152,6 +1152,10 @@ def obtener(criatura_id: int) -> sim.Criatura | None:
     return _a_criatura(fila) if fila else None
 
 
+class IdentidadCaducada(Exception):
+    """La identidad web ya no figura en `cuentas_web` (se vinculó)."""
+
+
 def crear(
     usuario_id: str,
     guild_id: str,
@@ -1164,6 +1168,7 @@ def crear(
     canal_id: str | None = None,
     activa: bool = True,
     reclutada: bool = False,
+    cuenta_vigente: bool = False,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
 
@@ -1182,6 +1187,11 @@ def crear(
       no cabe en un índice. Levanta `ValueError`.
     - **Una sola activa** lo sigue imponiendo el índice único, que hace saltar
       `sqlite3.IntegrityError`: es la defensa contra dos `/huevo` a la vez.
+
+    `cuenta_vigente` sólo cuenta para una identidad web: comprueba, en esta
+    misma transacción, que `cuentas_web` sigue teniéndola. Si no, levanta
+    `IdentidadCaducada` y no crea nada: así no nace un huérfano justo después
+    de vincular. Para una identidad de Discord no cambia nada.
     """
     fuerza, velocidad, salud, ingenio = stats
     nueva = sim.Criatura(
@@ -1199,6 +1209,11 @@ def crear(
         # El turno de escritura se toma antes de contar: si no, dos peticiones a
         # la vez podrían contar dos y colar una cuarta criatura entre las dos.
         con.execute("BEGIN IMMEDIATE")
+        if cuenta_vigente and identidad.es_web(usuario_id) and con.execute(
+            "SELECT 1 FROM cuentas_web WHERE usuario_id = ? AND guild_id = ?",
+            (usuario_id, guild_id),
+        ).fetchone() is None:
+            raise IdentidadCaducada(usuario_id)
         cuantas = con.execute(
             "SELECT COUNT(*) c FROM criaturas "
             "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",

@@ -76,3 +76,12 @@ def alta(cliente, uid: int = 1, nombre: str = "Feli") -> None:
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     hecho = cliente.put("/gachamon/api/avatar", json={**AVATAR, "nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
+
+
+def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
+    """Una cuenta con avatar y un gachamon ya bautizado. Devuelve el estado."""
+    alta(cliente, uid)
+    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
+    hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
+    assert hecho.status_code == 200, hecho.text
+    return hecho.json()

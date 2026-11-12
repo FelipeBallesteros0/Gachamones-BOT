@@ -14,16 +14,12 @@ import db
 import economia
 import especies as esp
 import globos
+import nacer
 import simulacion as sim
 from web import PREFIJO
 from web.cuenta import Jugador
 
 _ACCIONES = (sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR, sim.ACARICIAR)
-
-
-def espera_nombre(criatura: sim.Criatura) -> bool:
-    """Si todavía no se le ha puesto nombre propio."""
-    return not criatura.nombre or criatura.nombre == criatura.def_especie.nombre
 
 
 def _barra(valor: float) -> int:
@@ -47,7 +43,7 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
     return {
         "id": criatura.id,
         "nombre": criatura.nombre,
-        "espera_nombre": espera_nombre(criatura),
+        "espera_nombre": nacer.espera_nombre(criatura),
         "especie": criatura.especie,
         "nombre_especie": especie.nombre,
         "emoji": especie.emoji,
