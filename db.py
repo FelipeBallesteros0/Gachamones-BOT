@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS cuentas_web (
     guild_id TEXT NOT NULL,
     vinculada INTEGER NOT NULL DEFAULT 0,
     creada_en TEXT NOT NULL,
+    difuntos_vistos_hasta TEXT,
     UNIQUE (usuario_id, guild_id)
 );
 
@@ -512,6 +513,10 @@ MIGRACIONES_DE_TABLAS = (
     # `NULL` con `colocado = 1` es lo que deja `_migrar_casas` a quien no tenía
     # casa, y `_mobiliario_de` lo trata como guardado.
     ("mobiliario", "casa_id", "ALTER TABLE mobiliario ADD COLUMN casa_id INTEGER"),
+    # Hasta cuándo la web ya contó las muertes de esa cuenta. Vacía, vale la
+    # fecha en que se creó: lo que murió antes no es una noticia.
+    ("cuentas_web", "difuntos_vistos_hasta",
+     "ALTER TABLE cuentas_web ADD COLUMN difuntos_vistos_hasta TEXT"),
 )
 
 # La tabla `hogar` tal como queda tras `_migrar_casas`, sin la columna `casa`.
@@ -964,6 +969,29 @@ def ascender_de_la_incubadora(
         return None
     activar(vivas[0].id, usuario_id, guild_id, ahora)
     return criatura_activa(usuario_id, guild_id)
+
+
+def activa_al_dia(
+    usuario_id: str, guild_id: str, ahora: datetime
+) -> sim.Criatura | None:
+    """La activa, viva y avanzada hasta `ahora`, sin guardarle el paso del tiempo.
+
+    Sólo escribe cuando se entera de una muerte: la guarda muerta y saca al
+    relevo de la incubadora, que es lo que hace `/huevo` en el bot. Devuelve al
+    relevo (avanzado) o `None` si no queda nadie. Repetirla, o correrla desde dos
+    procesos, deja un solo relevo: `ascender_de_la_incubadora` no hace nada si ya
+    hay una activa.
+    """
+    activa = criatura_activa(usuario_id, guild_id)
+    if activa is None:
+        return None
+    avanzada = avanzar(activa, ahora)
+    if avanzada.viva:
+        return avanzada
+    guardar(avanzada)
+    ascender_de_la_incubadora(usuario_id, guild_id, ahora)
+    relevo = criatura_activa(usuario_id, guild_id)
+    return None if relevo is None else avanzar(relevo, ahora)
 
 
 def plantel(usuario_id: str, guild_id: str) -> list[sim.Criatura]:
@@ -2450,6 +2478,40 @@ def tiene_gachamones(usuario_id: str, guild_id: str) -> bool:
 def cuenta_web(rowino_uid: int) -> CuentaWeb | None:
     with conectar() as con:
         return _cuenta_en(con, rowino_uid)
+
+
+def difunto_pendiente(rowino_uid: int) -> sim.Criatura | None:
+    """El gachamon de esa cuenta muerto más recientemente, si es una noticia.
+
+    Lo es si murió después de `difuntos_vistos_hasta` o, con esa columna vacía,
+    después de crearse la cuenta. Se compara con fechas y no con texto: un
+    instante con fracción de segundo no ordena igual que uno sin ella.
+    """
+    with conectar() as con:
+        cuenta = con.execute(
+            "SELECT usuario_id, guild_id, creada_en, difuntos_vistos_hasta "
+            "FROM cuentas_web WHERE rowino_uid = ?", (rowino_uid,)
+        ).fetchone()
+        if cuenta is None:
+            return None
+        filas = con.execute(
+            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+            "AND muerta_en IS NOT NULL",
+            (cuenta["usuario_id"], cuenta["guild_id"]),
+        ).fetchall()
+    desde = _fecha(cuenta["difuntos_vistos_hasta"] or cuenta["creada_en"])
+    muertos = [_a_criatura(f) for f in filas]
+    muertos = [c for c in muertos if c.muerta_en > desde]
+    return max(muertos, key=lambda c: c.muerta_en, default=None)
+
+
+def marcar_difuntos_vistos(rowino_uid: int, ahora: datetime) -> None:
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(
+            "UPDATE cuentas_web SET difuntos_vistos_hasta = ? WHERE rowino_uid = ?",
+            (ahora.isoformat(), rowino_uid),
+        )
 
 
 def crear_identidad_web(rowino_uid: int, guild_id: str, ahora: datetime) -> CuentaWeb:

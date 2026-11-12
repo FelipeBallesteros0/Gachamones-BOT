@@ -106,3 +106,31 @@ def test_la_web_no_arrastra_discord(tmp_path):
         capture_output=True, text=True,
     )
     assert hecho.returncode == 0, hecho.stderr
+
+
+def test_una_direccion_que_no_existe_contesta_con_clave(cliente):
+    respuesta = cliente.get("/gachamon/api/no-hay-nada")
+    assert respuesta.status_code == 404
+    assert respuesta.json() == {
+        "detail": {"clave": "no_existe", "mensaje": "Eso no existe."},
+    }
+
+
+def test_un_verbo_que_no_toca_contesta_405_con_clave_y_allow(cliente):
+    respuesta = cliente.post("/gachamon/api/salud")
+    assert respuesta.status_code == 405
+    assert respuesta.json()["detail"]["clave"] == "metodo"
+    assert "GET" in respuesta.headers["allow"]
+
+
+def test_un_error_con_su_propia_clave_la_conserva(cliente):
+    respuesta = cliente.get("/gachamon/api/sesion")
+    assert respuesta.status_code == 401
+    assert respuesta.json()["detail"]["clave"] == "sin_sesion"
+
+
+def test_el_prefijo_vive_en_el_paquete_y_la_app_lo_sigue_exponiendo():
+    import web
+    import web.app
+
+    assert web.PREFIJO == "/gachamon" == web.app.PREFIJO

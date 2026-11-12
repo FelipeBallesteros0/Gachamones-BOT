@@ -14,16 +14,21 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as ErrorHTTP
 
 import db
 import economia
-from web import cuenta
+from web import PREFIJO, cuenta, juego
 from web.sesion import Persona, persona_actual
 
-PREFIJO = "/gachamon"
 ESTATICOS = Path(__file__).resolve().parent / "static"
 
 log = logging.getLogger("gachamones")
+
+_ERRORES_CONOCIDOS = {
+    404: ("no_existe", "Eso no existe."),
+    405: ("metodo", "Eso no se puede hacer así."),
+}
 
 
 def calcular_version(carpeta: Path = ESTATICOS) -> str:
@@ -75,7 +80,23 @@ def crear_app() -> FastAPI:
             }},
         )
 
+    @app.exception_handler(ErrorHTTP)
+    def _error_http(peticion: Request, error: ErrorHTTP) -> JSONResponse:
+        # Todo error lleva `clave` y `mensaje`, también el 404 de una dirección
+        # que no existe y el 405 de un verbo que no toca.
+        detalle = error.detail
+        if not (isinstance(detalle, dict) and "clave" in detalle and "mensaje" in detalle):
+            clave, mensaje = _ERRORES_CONOCIDOS.get(
+                error.status_code, ("error", "Algo salió mal."),
+            )
+            detalle = {"clave": clave, "mensaje": mensaje}
+        return JSONResponse(
+            status_code=error.status_code, content={"detail": detalle},
+            headers=error.headers,
+        )
+
     app.include_router(cuenta.router, prefix=f"{PREFIJO}/api")
+    app.include_router(juego.router, prefix=f"{PREFIJO}/api")
 
     @app.get(f"{PREFIJO}/api/salud")
     def salud() -> dict:
