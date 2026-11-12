@@ -1,0 +1,141 @@
+<style>
+  .gj-fila { display: flex; flex-wrap: wrap; gap: 2.5rem; justify-content: center; align-items: flex-start; margin-bottom: 1.5rem; }
+  .gj-tel { width: 324px; padding: 12px; border-radius: 36px; background: #101214; box-shadow: 0 12px 32px rgba(0,0,0,.28); flex-shrink: 0; }
+  .gj-pant { position: relative; width: 300px; height: 580px; border-radius: 24px; overflow: hidden; background: #f5f5f7; color: #1d1d1f; font-size: 12px; line-height: 1.3; user-select: none; -webkit-user-select: none; }
+  .gj-vista { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity .3s ease; background: #f5f5f7; }
+  .gj-vista.oculta { opacity: 0; pointer-events: none; }
+  .gj-hud { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: #15181c; color: #fff; font-weight: 600; }
+  .gj-hud .gj-dinero { margin-left: auto; display: flex; gap: 10px; font-size: 11px; }
+
+  .gj-escena { position: relative; height: 300px; flex-shrink: 0; overflow: hidden; --pared: #f3e2c0; --piso: #b98a5a; background: linear-gradient(to bottom, var(--pared) 0, var(--pared) 68%, var(--piso) 68%, var(--piso) 100%); }
+  .gj-escena.interior::after { content: ''; position: absolute; left: 0; right: 0; top: 68%; height: 5px; background: rgba(0,0,0,.16); }
+  .gj-ventana { position: absolute; left: 8%; top: 12%; width: 84px; height: 70px; border: 5px solid #fff; border-radius: 4px; background: linear-gradient(#9fd3f0, #d7eefb); box-shadow: 0 3px 0 rgba(0,0,0,.18); overflow: hidden; z-index: 0; }
+  .gj-ventana::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; margin-left: -2px; background: #fff; z-index: 2; }
+  .gj-visita { position: absolute; left: 62%; bottom: -46px; width: 34px; height: 40px; margin-left: -17px; border-radius: 17px 17px 4px 4px; background: #3b3350; transition: bottom .5s ease; z-index: 1; }
+  .gj-visita.visible { bottom: -10px; }
+  .gj-visita::before, .gj-visita::after { content: ''; position: absolute; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+  .gj-visita::before { left: 8px; } .gj-visita::after { right: 8px; }
+  .gj-cosa { position: absolute; line-height: 1; z-index: 1; filter: drop-shadow(0 2px 0 rgba(0,0,0,.15)); }
+  .gj-avatar { position: absolute; left: 5%; bottom: 15%; width: 72px; height: 140px; z-index: 2; }
+  .gj-bicho { position: absolute; left: 60%; bottom: 13%; width: 136px; margin-left: -68px; z-index: 2; cursor: pointer; image-rendering: pixelated; transform-origin: 50% 100%; animation: gj-respira 2.4s ease-in-out infinite; -webkit-user-drag: none; }
+  .gj-bicho.salta { animation: gj-salta .45s ease-out, gj-respira 2.4s ease-in-out .45s infinite; }
+  .gj-bicho.nada { animation: gj-nada .25s linear, gj-respira 2.4s ease-in-out .25s infinite; }
+  @keyframes gj-respira { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.02, .97); } }
+  @keyframes gj-salta { 0% { transform: translateY(0); } 40% { transform: translateY(-22px); } 100% { transform: translateY(0); } }
+  @keyframes gj-nada { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
+  .gj-globo { position: absolute; left: 38%; right: 5%; top: 12px; z-index: 3; padding: 6px 10px; background: #fff; border: 2px solid #1d1d1f; border-radius: 12px; font-weight: 600; font-size: 12.5px; text-align: center; opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s; pointer-events: none; }
+  .gj-globo.visible { opacity: 1; transform: none; }
+  .gj-globo::after { content: ''; position: absolute; left: 50%; bottom: -8px; width: 12px; height: 12px; margin-left: -6px; background: #fff; border-right: 2px solid #1d1d1f; border-bottom: 2px solid #1d1d1f; transform: rotate(45deg); }
+  .gj-corazon { position: absolute; bottom: 55%; z-index: 4; color: #e5484d; pointer-events: none; opacity: 0; animation: gj-sube 1.5s ease-out forwards; }
+  @keyframes gj-sube { 0% { opacity: 0; transform: translateY(0) scale(.6); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(-110px) scale(1.2); } }
+
+  .gj-ficha { padding: 8px 12px 6px; }
+  .gj-nombre { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
+  .gj-nombre b { font-size: 14px; }
+  .gj-nombre span { color: #6e6e73; }
+  .gj-espera { margin-left: auto; color: #6e6e73; font-size: 10.5px; white-space: nowrap; }
+  .gj-barras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .gj-barra { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; }
+  .gj-barra i { flex: 1; height: 7px; border-radius: 4px; background: #dcdfe4; overflow: hidden; }
+  .gj-barra i b { display: block; height: 100%; border-radius: 4px; background: #34a853; transition: width .4s ease; }
+  .gj-barra i b.media { background: #e0a100; }
+  .gj-barra i b.baja { background: #d93025; }
+  .gj-barra em { font-style: normal; font-variant-numeric: tabular-nums; width: 20px; text-align: right; }
+  .gj-cuidados { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 4px 12px; }
+  .gj-cuidados button { border: 1px solid #cfd3d9; background: #fff; border-radius: 10px; padding: 5px 0 4px; font-size: 10.5px; font-weight: 600; color: #1d1d1f; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .gj-cuidados button span { font-size: 17px; line-height: 1.1; }
+  .gj-cuidados button:active { background: #eef1f4; transform: translateY(1px); }
+  .gj-delugar { padding: 4px 12px 0; min-height: 44px; }
+  .gj-acciones { display: flex; gap: 5px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .gj-chip { border: 1px solid #b9c7e6; background: #eaf0fd; color: #1d3f8f; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+  .gj-aviso { color: #6e6e73; font-size: 10.5px; margin-top: 3px; min-height: 13px; }
+  .gj-nav { margin-top: auto; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; padding: 6px 12px 10px; border-top: 1px solid #e1e3e8; background: #fff; }
+  .gj-nav button { border: 0; border-radius: 10px; padding: 8px 0; font-size: 12px; font-weight: 700; cursor: pointer; background: #eef1f4; color: #1d1d1f; }
+  .gj-nav button.principal { background: #2f6fed; color: #fff; }
+
+  .gj-mapa { background: #86c46f; }
+  .gj-mapa canvas { display: block; width: 300px; height: 580px; cursor: pointer; touch-action: none; }
+  .gj-mapa .gj-hud { position: absolute; left: 0; right: 0; top: 0; background: rgba(20,24,28,.82); pointer-events: none; }
+  .gj-mapa .gm-hoja { display: none; }
+
+  .gj-lado { max-width: 400px; }
+  .gj-lado h3 { margin-top: 1.1rem; }
+  .gj-lado ol, .gj-lado ul { margin: 0.4rem 0 0 1.2rem; color: var(--text-secondary); font-size: 0.9rem; }
+  .gj-lado li { margin-bottom: 0.45rem; }
+  .gj-lado li b { color: var(--text-primary); font-weight: 600; }
+</style>
+
+<h2>La pantalla principal</h2>
+<p class="subtitle">Así entendí lo que ves al entrar: estás siempre en un lugar, con tu gachamon en grande, y el pueblo sirve para ir de un lugar a otro. El celular funciona; pruébalo y dime qué cambiarías.</p>
+
+<div class="gj-fila">
+
+  <div class="gj-tel">
+    <div class="gj-pant" data-juego>
+
+      <div class="gj-vista gj-lugar">
+        <div class="gj-hud">
+          <span class="gj-donde">📍 Tu casa</span>
+          <span class="gj-dinero"><span>🪙 50</span><span>💎 50</span></span>
+        </div>
+        <div class="gj-escena interior">
+          <div class="gj-ventana"><div class="gj-visita"></div></div>
+          <canvas class="gj-avatar" width="72" height="140"></canvas>
+          <img class="gj-bicho" src="/files/pollito_g.png" alt="Pelusa" draggable="false">
+          <div class="gj-globo"></div>
+        </div>
+        <div class="gj-ficha">
+          <div class="gj-nombre"><b>Pelusa</b><span>Piollito adulta · nivel 3</span><span class="gj-espera"></span></div>
+          <div class="gj-barras">
+            <div class="gj-barra">🍖<i><b class="gj-b-comida"></b></i><em class="gj-n-comida"></em></div>
+            <div class="gj-barra">😊<i><b class="gj-b-animo"></b></i><em class="gj-n-animo"></em></div>
+            <div class="gj-barra">🧼<i><b class="gj-b-aseo"></b></i><em class="gj-n-aseo"></em></div>
+          </div>
+        </div>
+        <div class="gj-cuidados">
+          <button type="button" data-cuidado="alimentar"><span>🍖</span>Alimentar</button>
+          <button type="button" data-cuidado="jugar"><span>🎮</span>Jugar</button>
+          <button type="button" data-cuidado="entrenar"><span>🏋️</span>Entrenar</button>
+          <button type="button" data-cuidado="limpiar"><span>🧼</span>Limpiar</button>
+        </div>
+        <div class="gj-delugar">
+          <div class="gj-acciones"></div>
+          <div class="gj-aviso"></div>
+        </div>
+        <div class="gj-nav">
+          <button type="button" class="principal" data-nav="pueblo">🗺️ Pueblo</button>
+          <button type="button" data-nav="mochila">🎒 Mochila</button>
+          <button type="button" data-nav="hablar">💬 Hablar</button>
+        </div>
+      </div>
+
+      <div class="gj-vista gj-mapa oculta">
+        <canvas></canvas>
+        <div class="gj-hud"><span>🗺️ Pueblo</span><span class="gj-dinero"><span>Toca un lugar para ir</span></span></div>
+        <div class="gm-hoja"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="gj-lado">
+    <h3>Qué probar</h3>
+    <ol>
+      <li><b>Toca a Pelusa.</b> Salen corazones y sube el ánimo. Tócala de nuevo de inmediato: no pasa nada hasta que termine la espera (12 segundos en el boceto).</li>
+      <li><b>Usa los cuatro cuidados</b> y mira las barras y lo que contesta.</li>
+      <li><b>Déjala sola unos segundos.</b> Habla según lo que le falta, y en tu casa a veces dice que hay alguien en la ventana.</li>
+      <li><b>Toca «Pueblo»</b>, elige un lugar y camina. Al llegar, entras.</li>
+    </ol>
+    <h3>Lo que puse por mi cuenta</h3>
+    <ul>
+      <li><b>Los cuatro cuidados van contigo a todos lados</b>, igual que la mochila y hablarle. No hay que volver a casa para darle de comer.</li>
+      <li><b>Cada lugar suma sus propias acciones</b>, en la fila azul: en tu casa el huerto, los muebles y el buzón; en la tienda, comprar.</li>
+      <li><b>Al abrir el juego apareces donde quedaste</b> la última vez.</li>
+      <li><b>Los lugares de la parte B ya están en el pueblo</b>, pero avisan que se abren después.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script src="/files/mapa.js"></script>
+<script src="/files/juego.js"></script>

@@ -1,0 +1,88 @@
+<style>
+  .gm-fila.options { display: flex; flex-direction: row; flex-wrap: wrap; gap: 2.5rem; justify-content: center; align-items: flex-start; margin-bottom: 1.75rem; }
+  .gm-col { width: 324px; display: flex; flex-direction: column; gap: 0.9rem; }
+  .gm-tel { width: 324px; padding: 12px; border-radius: 36px; background: #101214; box-shadow: 0 12px 32px rgba(0,0,0,.28); }
+  .gm-pant { position: relative; width: 300px; height: 580px; border-radius: 24px; overflow: hidden; background: #86c46f; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .gm-pant canvas { display: block; width: 300px; height: 580px; cursor: pointer; }
+  .gm-hud { position: absolute; left: 0; right: 0; top: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: rgba(20,24,28,.82); color: #fff; font-size: 12px; font-weight: 600; pointer-events: none; }
+  .gm-hud .gm-barras { display: flex; gap: 7px; margin-left: auto; align-items: center; }
+  .gm-hud .gm-barra { display: flex; align-items: center; gap: 3px; font-size: 11px; }
+  .gm-hud .gm-barra i { display: block; width: 26px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.25); overflow: hidden; }
+  .gm-hud .gm-barra b { display: block; height: 100%; border-radius: 3px; background: #7ee081; }
+  .gm-hud .gm-barra b.media { background: #ffd23f; }
+  .gm-hud .gm-monedas { font-weight: 600; font-size: 11px; }
+  .gm-hoja { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 10px 30px 10px 12px; border-radius: 14px; background: rgba(255,255,255,.97); color: #1d1d1f; box-shadow: 0 6px 18px rgba(0,0,0,.28); transform: translateY(140%); transition: transform .25s ease; font-size: 12px; line-height: 1.35; }
+  .gm-hoja.arriba { bottom: auto; top: 48px; transform: translateY(-170%); }
+  .gm-hoja.abierta { transform: translateY(0); }
+  .gm-hoja .gm-ht { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  .gm-hoja .gm-hd { color: #55555a; margin-bottom: 7px; }
+  .gm-hoja .gm-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .gm-hoja .gm-chips span { background: #eef1f4; border: 1px solid #d9dde2; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .gm-hoja .gm-x { position: absolute; right: 6px; top: 4px; width: 24px; height: 24px; border: 0; background: none; font-size: 18px; line-height: 1; color: #86868b; cursor: pointer; }
+  .gm-nota { max-width: 760px; margin: 0 auto; color: var(--text-secondary); font-size: 0.85rem; }
+  .gm-nota b { color: var(--text-primary); font-weight: 600; }
+  .gm-col .option .content p + p { margin-top: 0.4rem; }
+</style>
+
+<h2>El mapa en el celular</h2>
+<p class="subtitle">Tus dos referencias se separan en una cosa: el mapa de Pokémon Stadium cabe entero en la pantalla, y el de Gran Turismo 7 es más grande que la pantalla y se recorre. Toca un lugar en cada celular para ver la caminata, y después marca el que se parezca más a lo que tenías en la cabeza.</p>
+
+<div class="gm-fila options">
+
+  <div class="gm-col">
+    <div class="gm-tel">
+      <div class="gm-pant" data-gm="a">
+        <canvas></canvas>
+        <div class="gm-hud">
+          <span>🐥 Pelusa</span>
+          <span class="gm-barras">
+            <span class="gm-barra">🍖<i><b style="width:88%"></b></i></span>
+            <span class="gm-barra">😊<i><b style="width:92%"></b></i></span>
+            <span class="gm-barra">🧼<i><b class="media" style="width:55%"></b></i></span>
+          </span>
+          <span class="gm-monedas">🪙 50</span>
+        </div>
+        <div class="gm-hoja"></div>
+      </div>
+    </div>
+    <div class="option" data-choice="a-entero" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Todo el pueblo en una pantalla</h3>
+        <p>Como Pokémon Stadium. Ves todos los lugares de un vistazo y las caminatas son cortas.</p>
+        <p>A cambio, tu avatar y tu gachamon se ven chicos, y cada lugar nuevo aprieta el mapa.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="gm-col">
+    <div class="gm-tel">
+      <div class="gm-pant" data-gm="b">
+        <canvas></canvas>
+        <div class="gm-hud">
+          <span>🐥 Pelusa</span>
+          <span class="gm-barras">
+            <span class="gm-barra">🍖<i><b style="width:88%"></b></i></span>
+            <span class="gm-barra">😊<i><b style="width:92%"></b></i></span>
+            <span class="gm-barra">🧼<i><b class="media" style="width:55%"></b></i></span>
+          </span>
+          <span class="gm-monedas">🪙 50</span>
+        </div>
+        <div class="gm-hoja"></div>
+      </div>
+    </div>
+    <div class="option" data-choice="b-panorama" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Pueblo ancho que se recorre</h3>
+        <p>Como Gran Turismo 7. La cámara sigue a tu avatar y puedes arrastrar para mirar. Los personajes se ven más grandes y sobra espacio para crecer.</p>
+        <p>A cambio, no ves todo de una vez y las caminatas largas duran varios segundos.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="gm-nota"><b>Lo que puse por mi cuenta, para que lo corrijas:</b> la lista de lugares (salió de lo que el juego ya tiene), el celular en vertical, el gachamon siguiéndote a saltitos con su retrato actual, los otros gachamones en la plaza, y el globo de texto al llegar. El avatar es un monigote de relleno y los edificios son cajas: aquí solo importa cómo se recorre el mapa, no cómo se va a ver.</p>
+
+<script src="/files/mapa.js"></script>
