@@ -285,7 +285,7 @@ def test_el_mensaje_lleva_encabezado_y_subtexto_fuera_del_bloque():
 
 
 def test_el_saldo_sale_como_subtexto_fuera_del_bloque_sin_tocar_el_marco():
-    linea = "-# 🪙 34 asciicoins · 🎒 Mochila para gastarlos"
+    linea = "-# 🪙 34 monedas · 🎒 Mochila para gastarlas"
     mensaje = pantalla.render(criatura(), T0, asciicoins=34)
 
     assert mensaje.splitlines().count(linea) == 1
@@ -293,14 +293,14 @@ def test_el_saldo_sale_como_subtexto_fuera_del_bloque_sin_tocar_el_marco():
     comprobar_marco(mensaje)
 
 
-def test_sin_saldo_la_ficha_no_muestra_asciicoins():
-    assert "asciicoins" not in pantalla.render(criatura(), T0)
+def test_sin_saldo_la_ficha_no_muestra_monedas():
+    assert "monedas" not in pantalla.render(criatura(), T0)
 
 
 def test_la_lapida_no_muestra_el_saldo_aunque_se_proporcione():
     muerta = criatura(muerta_en=T0, causa_muerte="hambre")
 
-    assert "asciicoins" not in pantalla.render(muerta, T0, asciicoins=34)
+    assert "monedas" not in pantalla.render(muerta, T0, asciicoins=34)
 
 
 def test_los_cooldowns_salen_como_subtexto():

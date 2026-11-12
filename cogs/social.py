@@ -442,8 +442,8 @@ de tu mochila en el buzón, con una nota si quieres. `/buzon` recoge lo tuyo.
 **Mochila y tienda**
 Los dos botones de abajo, o `/mochila` y `/tienda`. En la **tienda** se compra con \
 {obj.EMOJI_MONEDA_TIENDA} {obj.MONEDA_TIENDA}; en la **mochila** eliges qué usar. \
-Empiezas con **{obj.ASCIICOINS_INICIALES} asciicoins** para gastar y \
-**{obj.ASCIIGEMS_INICIALES} asciigems** en reserva.
+Empiezas con **{obj.ASCIICOINS_INICIALES} monedas** para gastar y \
+**{obj.ASCIIGEMS_INICIALES} gemas** en reserva.
 -# **{len([o for o in obj.CATALOGO.values() if o.se_vende])} cosas a la \
 venta**: pociones de 1d4 a 1d12 que duran {obj.MINUTOS_DE_EFECTO} min, comida, \
 dos que borran un enfriamiento, la placa del nombre, semillas y el ticket del \
@@ -461,16 +461,16 @@ renueva a medianoche UTC.
 · 🏁 competir **+{eco.PREMIO_COMPETENCIA}** y **+{eco.PREMIO_GANADOR}** si ganas, \
 hasta {eco.TOPE_COMPETENCIAS} al día
 -# En `/aventura` te encuentras objetos gratis, a veces \
-**{av.MONEDAS_ENCONTRADAS[0]}–{av.MONEDAS_ENCONTRADAS[1]}** asciicoins —que \
+**{av.MONEDAS_ENCONTRADAS[0]}–{av.MONEDAS_ENCONTRADAS[1]}** monedas —que \
 **no gastan tope**, son un golpe de suerte— y muy raramente **{av.GEMAS_ENCONTRADAS[0]}–{av.GEMAS_ENCONTRADAS[1]}** \
 {obj.EMOJI_GEMA}, que no tienen tope.
 
 -# Sólo una poción activa por estadística: la nueva sustituye a la anterior. \
 El bonus sale en la ficha mientras dure."""
 
-    tus_gemas = f"""## {obj.EMOJI_GEMA} Tus asciigems
+    tus_gemas = f"""## {obj.EMOJI_GEMA} Tus gemas
 
-**Ganar {obj.EMOJI_GEMA} asciigems**
+**Ganar {obj.EMOJI_GEMA} gemas**
 Sobre todo con los **logros**: `/logros` te enseña los {len(lgr.LOGROS)} y \
 cuánto te falta para cada uno. Van desde ganar tu primera competencia hasta pisar los \
 diez biomas o llegar a los 30 días de vida, y se pagan **una sola vez**.
@@ -480,7 +480,7 @@ los otros **{len(lgr.de_la_persona())}** son tuyos \
 ({sum(l.gemas for l in lgr.de_la_persona())} {obj.EMOJI_GEMA}) y se quedan. Las \
 gemas caen siempre en tu monedero: las de uno sirven para todo tu plantel.
 
-**Gastar {obj.EMOJI_GEMA} asciigems**
+**Gastar {obj.EMOJI_GEMA} gemas**
 En la misma 🛒 **Tienda**, abajo. Lo comprado va a tu **ropero** y se lo pones \
 a quien quieras con 🎨 **Personalizar**.
 -# 🎨 **tinte** ({cosm.PRECIOS[cosm.TINTE]}) le cambia el color · \

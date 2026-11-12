@@ -78,12 +78,12 @@ Instala el hook local cuando prepares el entorno:
 - Reclutar se juega con dos ejes: llenar la confianza sin llenar el recelo.
 - Un empujón cuesta siempre el mismo recelo: acertar con el carácter da más confianza, nunca menos guardia.
 - El carácter manda en un eje por opción — en los empujones sobre la confianza, en esperar sobre el recelo.
-- Los asciigems se ganan con los logros y, muy de vez en cuando, en una aventura.
-- El tope diario de asciicoins es uno solo y vale para todo lo que se gana jugando: cuidar, evolucionar y competir.
+- Las gemas se ganan con los logros y, muy de vez en cuando, en una aventura.
+- El tope diario de monedas es uno solo y vale para todo lo que se gana jugando: cuidar, evolucionar y competir.
 - Lo que se encuentra en una aventura se cobra entero y fuera del tope: es un golpe de suerte, no un sueldo.
 - Un hallazgo deja igualmente su fila en el ledger, y no por el tope: es lo que impide pagar dos veces el mismo viaje.
-- Los asciigems no tienen tope diario.
-- Los asciigems se gastan sólo en cosméticos, que no tocan ninguna estadística.
+- Las gemas no tienen tope diario.
+- Las gemas se gastan sólo en cosméticos, que no tocan ninguna estadística.
 - Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.
 - Nadie empieza en la calle: sin casa propia se vive en el refugio.
 - Una persona tiene como mucho `casas.MAXIMO_CASAS` casas por servidor.
@@ -119,7 +119,8 @@ Instala el hook local cuando prepares el entorno:
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
 - Los logros de la persona sobreviven a todo su plantel.
 - Un logro pertenece a un dueño o al otro, nunca a los dos.
-- Los asciigems de cualquier logro van siempre al monedero de la persona.
+- Las gemas de cualquier logro van siempre al monedero de la persona.
+- A quien juega se le dice siempre «monedas» y «gemas»; `asciicoins` y `asciigems` son sólo nombres internos de columnas y atributos.
 - Un gachamon lleva como mucho un cosmético de cada tipo, y lo impone el esquema.
 - Tener un cosmético y llevarlo puesto son dos cosas distintas.
 - Una pieza está libre o la lleva **un solo gachamon vivo**: no se puede duplicar poniéndosela a dos.

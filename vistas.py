@@ -364,7 +364,7 @@ def texto_resultado_entrenamiento_conjunto(
     activo, reserva = resultado.participantes
     cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
     recompensa = 0 if resultado.topada else cuidado
-    monedas = f"🪙 +{recompensa} asciicoins"
+    monedas = f"🪙 +{recompensa} monedas"
     if resultado.topada:
         # Se dice CUÁL de los dos topes frenó: el de la actividad se esquiva
         # haciendo otra cosa que también pague, y el bote no. Con la misma
@@ -877,7 +877,7 @@ def texto_recibo_cuidado(
 ) -> str:
     cuidado = resultado.delta_asciicoins - resultado.delta_evolucion
     recompensa = 0 if resultado.topada else cuidado
-    monedas = f"🪙 +{recompensa} asciicoins"
+    monedas = f"🪙 +{recompensa} monedas"
     if resultado.topada:
         # Se dice CUÁL de los dos topes frenó: el de la actividad se esquiva
         # haciendo otra cosa que también pague, y el bote no. Con la misma

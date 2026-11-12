@@ -33,13 +33,13 @@ SEGUNDOS_DE_MENU = 120
 def _saldos(usuario_id: str, guild_id: str) -> str:
     saldos = economia.saldos(usuario_id, guild_id)
     return (
-        f"🪙 asciicoins para comprar: **{saldos.asciicoins}**\n"
-        f"💎 asciigems en reserva: **{saldos.asciigems}**"
+        f"🪙 monedas para comprar: **{saldos.asciicoins}**\n"
+        f"💎 gemas en reserva: **{saldos.asciigems}**"
     )
 
 
 def _saldo_de_compra(saldos: economia.Saldos) -> str:
-    return f"🪙 **{saldos.asciicoins}** asciicoins"
+    return f"🪙 **{saldos.asciicoins}** monedas"
 
 
 def texto_de_la_tienda(usuario_id: str, guild_id: str) -> str:
@@ -99,7 +99,7 @@ def texto_resultado_compra(
     if not resultado:
         return (
             f"No te llega: **{objeto.nombre}** cuesta 🪙 {objeto.precio} "
-            f"asciicoins y tienes {_saldo_de_compra(resultado.saldos)}."
+            f"monedas y tienes {_saldo_de_compra(resultado.saldos)}."
         )
     return (
         f"{objeto.emoji} Comprado: **{objeto.nombre}**.\n"
@@ -420,7 +420,7 @@ def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
             f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
             f"Estilo de ficha: **{estilo}**\n"
             "Tu ropero está vacío. Cómprale algo en 🛒 **Tienda**.\n"
-            f"-# {obj.EMOJI_GEMA} asciigems: "
+            f"-# {obj.EMOJI_GEMA} gemas: "
             f"**{economia.saldos(usuario_id, guild_id).asciigems}**"
         )
     pie = (

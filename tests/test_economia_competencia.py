@@ -60,7 +60,7 @@ def test_recibo_de_competencia_detalla_efecto_costo_recompensa_y_tope():
     ) == (
         "-# <@u1> · velocidad +1 entrenamiento · +10 XP · "
         "coste base -10 comida · coste base -5 ánimo · "
-        "🪙 +6 asciicoins · competencia 1/3 UTC"
+        "🪙 +6 monedas · competencia 1/3 UTC"
     )
 
 
@@ -213,7 +213,7 @@ def test_recibo_de_competencia_conserva_topes_de_moneda_y_evolucion():
         recibo, "<@u1>", gano=False,
         stats=comp.STATS[comp.SUMO], entrenada="fuerza",
     ).endswith(
-        "🪙 +0 asciicoins · competencia 3/3 UTC (tope) · "
+        "🪙 +0 monedas · competencia 3/3 UTC (tope) · "
         "evolución +0 · evolución 1/1 UTC (tope)"
     )
 

@@ -1,4 +1,5 @@
 """El vocabulario visible usa los términos canónicos del producto."""
+import ast
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -266,3 +267,54 @@ def test_ninguna_pantalla_ensena_la_clave_de_la_especie():
         ficha = ANSI.sub("", pantalla.render(gachamon(especie=especie.clave), T0))
         assert especie.nombre in ficha, especie.clave
         assert especie.clave not in ficha.casefold(), especie.clave
+
+
+RAIZ = Path(__file__).resolve().parent.parent
+# Estos tres guardan SQL y nombres de columna, que conservan el nombre viejo a
+# propósito: renombrarlos no le da nada a quien juega.
+SIN_TEXTO_DE_JUGADOR = {"db.py", "economia.py", "economia_reporte.py"}
+NOMBRE_VIEJO = re.compile(r"ascii\s?(coin|gem)", re.IGNORECASE)
+
+
+def _literales_de(ruta: Path):
+    """Las cadenas de un módulo, sin sus docstrings ni sus comentarios."""
+    arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+    docstrings = {
+        id(nodo.body[0].value)
+        for nodo in ast.walk(arbol)
+        if isinstance(
+            nodo, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        )
+        and nodo.body
+        and isinstance(nodo.body[0], ast.Expr)
+        and isinstance(nodo.body[0].value, ast.Constant)
+    }
+    for nodo in ast.walk(arbol):
+        if (
+            isinstance(nodo, ast.Constant)
+            and isinstance(nodo.value, str)
+            and id(nodo) not in docstrings
+        ):
+            yield nodo.lineno, nodo.value
+
+
+def test_ningun_texto_de_jugador_dice_asciicoins_ni_asciigems():
+    fuentes = [*RAIZ.glob("*.py"), *(RAIZ / "cogs").glob("*.py")]
+    culpables = [
+        f"{ruta.name}:{linea}: {texto!r}"
+        for ruta in fuentes
+        if ruta.name not in SIN_TEXTO_DE_JUGADOR
+        for linea, texto in _literales_de(ruta)
+        if NOMBRE_VIEJO.search(texto)
+    ]
+    assert not culpables, "\n".join(culpables)
+
+
+def test_el_manual_publicado_habla_de_monedas_y_gemas():
+    manual = "\n".join(social.paginas_de_ayuda("Gachamon"))
+    assert not NOMBRE_VIEJO.search(manual)
+    assert "monedas" in manual and "gemas" in manual
+
+
+def test_la_ficha_nombra_las_monedas_en_femenino():
+    assert objetos.MONEDA_TIENDA == "monedas"

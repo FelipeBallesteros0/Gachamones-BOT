@@ -413,7 +413,7 @@ def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_te
     llamada = respuesta.await_args
     assert llamada is not None
     assert set(llamada.kwargs) == {"content"}
-    assert "asciicoins" not in llamada.kwargs["content"]
+    assert "monedas" not in llamada.kwargs["content"]
 
 
 def test_el_aviso_de_hambre_para_competir_concuerda():

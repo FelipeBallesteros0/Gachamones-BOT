@@ -130,7 +130,7 @@ def test_el_descanso_solo_toca_el_de_competir():
 
 def test_la_mochila_vacia_manda_a_la_tienda():
     texto = tienda.texto_del_inventario("u1", "g1")
-    assert "Tienda" in texto and "50" in texto and "asciigems" in texto
+    assert "Tienda" in texto and "50" in texto and "gemas" in texto
 
 
 def test_la_mochila_cuenta_lo_que_hay():
@@ -145,7 +145,7 @@ def test_la_mochila_cuenta_lo_que_hay():
 
 def test_la_tienda_dice_los_dos_saldos():
     texto = tienda.texto_de_la_tienda("u1", "g1")
-    assert "50" in texto and "asciicoins" in texto and "asciigems" in texto
+    assert "50" in texto and "monedas" in texto and "gemas" in texto
 
 
 def test_un_objeto_que_ya_no_existiera_no_rompe_la_mochila():

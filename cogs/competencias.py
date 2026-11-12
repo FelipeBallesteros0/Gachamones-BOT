@@ -140,7 +140,7 @@ def texto_recibo_competencia(
         f"+{sim.XP_VICTORIA if gano else sim.XP_DERROTA} XP",
         f"coste base -{sim.COSTE_HAMBRE_COMPETIR:g} comida",
         f"coste base -{sim.COSTE_ANIMO_COMPETIR:g} ánimo",
-        f"🪙 +{recibo.delta_competencia} asciicoins",
+        f"🪙 +{recibo.delta_competencia} monedas",
         cap,
     ]
     if recibo.evoluciono:

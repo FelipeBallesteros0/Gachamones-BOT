@@ -430,7 +430,7 @@ def render(
     partes.extend(_lineas_vetas(criatura))
 
     if asciicoins is not None:
-        partes.append(f"-# 🪙 {asciicoins} asciicoins · 🎒 Mochila para gastarlos")
+        partes.append(f"-# 🪙 {asciicoins} monedas · 🎒 Mochila para gastarlas")
 
     if esperas:
         trozos = []

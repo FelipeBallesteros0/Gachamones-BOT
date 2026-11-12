@@ -393,9 +393,9 @@ botones vivos: actúan sobre la base de datos, no sobre lo que se ve, y la
 pantalla se pone al día en cuanto se pulsa cualquiera.
 
 **Consumibles.** Los botones 🎒 **Mochila** y 🛒 **Tienda** abren menús que sólo
-ve quien los pulsa. Cada persona empieza con **50 asciicoins y 50 asciigems**.
+ve quien los pulsa. Cada persona empieza con **50 monedas y 50 gemas**.
 En la tienda se compra todo, cada moneda en su desplegable: los consumibles con
-asciicoins y los cosméticos con asciigems, sin conversión entre las dos. Los
+monedas y los cosméticos con gemas, sin conversión entre las dos. Los
 cosméticos van a tu **ropero** y se ponen y se quitan con 🎨 **Personalizar**. El
 monedero es **suyo, no de la criatura**, así que lo comprado sobrevive a la
 muerte de una mascota. Hay
@@ -408,7 +408,7 @@ un minuto la poción habría caducado en la mayoría de las carreras y no habrí
 forma de saber por qué no hizo nada. El dado de la poción se tira **al beberla**,
 para que el mensaje pueda decir cuánto ha tocado.
 
-**Economía.** Un cuidado válido da +1 asciicoin (hasta 12 al día UTC), cada
+**Economía.** Un cuidado válido da +1 moneda (hasta 12 al día UTC), cada
 competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta
 tres competencias premiadas al día UTC), y evolucionar da +10 una vez al día
 UTC. Los topes pertenecen a la persona y al servidor: cambiar de activo,

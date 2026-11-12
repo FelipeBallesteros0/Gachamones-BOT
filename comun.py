@@ -101,7 +101,7 @@ async def _cantar(
         return
     await canal.send(
         f"{texto_del_anuncio(nombre, recibo)}\n"
-        f"-# {obj.EMOJI_GEMA} {recibo.saldo} asciigems en reserva."
+        f"-# {obj.EMOJI_GEMA} {recibo.saldo} gemas en reserva."
     )
 
 
