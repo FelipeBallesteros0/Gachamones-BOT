@@ -153,6 +153,8 @@ Instala el hook local cuando prepares el entorno:
 - La web nunca habla en Discord: la muerte que registra queda apuntada en `muertes_por_anunciar` y la anuncia el bucle del bot en su siguiente vuelta.
 - Lo que el gachamon dice por su cuenta son frases escritas en `globos.py`, nunca una llamada a la IA, y un globo no anuncia nada que no esté pasando.
 - Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
+- El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
+- Cada dibujo de la web es un archivo de `web/static/arte/` descrito en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza.
 
 ## Arte ASCII
 

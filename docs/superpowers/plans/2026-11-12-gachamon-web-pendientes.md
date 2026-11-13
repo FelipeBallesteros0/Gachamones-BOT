@@ -64,6 +64,108 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - `globos.elegir` no lo usa nadie en el servidor: la regla vive otra vez en
   `tiempo.js`.
 
+## Salió al ejecutar el plan 3
+
+### Arte
+
+- Todo el arte de la web es de relleno y se nota (lleva «RELLENO» escrito): 136
+  archivos. Los nueve lugares del mapa son casitas de colores.
+- El avatar se dibuja por capas desde archivos y el género ya no cambia el
+  dibujo.
+- El generador de rellenos (`herramientas/rellenos.py`) lleva sus propias tablas
+  de colores y ramas por clave de ropa: una opción nueva del avatar extiende el
+  contrato sola, pero `generar()` falla (color) o la dibuja en silencio como
+  overol (ropa). Dos de sus comentarios remiten a `dibujo.js`, que ya no dibuja
+  el monigote.
+- En el relleno, la sombra del cuerpo se corta una fila por abajo y el pelo es
+  idéntico en las tres poses.
+- El mapa supone que los retratos de los gachamones miran a la izquierda y los
+  voltea al caminar hacia la derecha; la mayoría mira de frente.
+- La escala del avatar y del mapa no es un número entero de píxeles: se prefirió
+  conservar el tamaño. Algún píxel sale un poco más ancho que su vecino.
+- Un fallo de red al cargar una pieza queda recordado toda la sesión: hasta
+  recargar la página se ve el recuadro de la pieza que falta.
+- En la escena de un lugar cuyo dibujo falta, el gachamon tapa parte del nombre
+  del archivo en el recuadro. La falta se nota igual y queda en el registro del
+  servidor y en `tests/test_arte.py`.
+
+### El mapa y la caminata
+
+- `llegarYa` tras una vuelta corta (dar la vuelta antes de andar el hueco entero
+  y volver al nodo de partida) deja al gachamon más cerca del avatar de lo
+  debido, hasta encima; se ve sólo mientras se espera la respuesta del servidor.
+- Con el teléfono en horizontal sin llegar a 900 px, la flecha izquierda puede
+  verse un rato aunque el pueblo entero esté a la vista.
+- En los dos lugares sin camino hacia la izquierda, el gachamon arranca parado
+  en el pasto, al lado del avatar.
+- Pasar la ventana a otro monitor con distinta densidad no reencuadra el lienzo,
+  que sale en bloques hasta el siguiente cambio de tamaño.
+- Con la ventana del computador muy baja (menos de unos 490 px) aparecen la
+  cámara y las flechas del teléfono.
+- El comportamiento táctil real (arrastrar de lado mueve la cámara, de arriba
+  abajo desplaza la página, un toque con temblor sigue entrando) sólo se probó
+  con eventos sintéticos: hay que probarlo en un teléfono de verdad.
+- El mapa no dibuja sombras con código (el arte es de archivos). Parados, el
+  avatar y el gachamon se ven bien apoyados; durante el saltito, el gachamon se
+  ve despegado del suelo sin nada que marque dónde pisa. Si se quiere una
+  sombra, es una pieza más del contrato de arte.
+- «Volver» desde el mapa vuelve a leer la sesión, la cuenta y el estado: tarda
+  una lectura en vez de ser instantáneo, a cambio de que las esperas de los
+  cuidados salgan bien.
+
+### La pantalla del lugar
+
+- Si al llegar a un lugar hay una celebración en pantalla o la pestaña está
+  oculta, el globo de llegada se pierde: la llegada queda muda y el siguiente
+  globo ya es charla de siempre.
+- El fondo de la escena no se guarda de un dibujo de ancho o alto cero.
+
+### Pruebas
+
+- Todo `mapa.js` y lo nuevo de `lugar.js` descansan en un arnés manual con
+  capturas: sin dependencias nuevas no hay DOM en Node, y las pruebas de
+  `tests/test_web_cliente.py` sobre el mapa y el lugar son de texto.
+- La prueba de toques al azar de `pueblo.js` sólo vigila al avatar, no al
+  gachamon.
+- La prueba de palabras prohibidas en las frases de los lugares busca subcadenas
+  y no vigila otras formas de implicar compañía («nadie», «vecinos»).
+- Faltan pruebas de cosas que el código ya cumple: `POST /lugar` sin gachamon,
+  repetir el mismo lugar, que el lugar sobrevive al vínculo; y cinco casos de
+  datos rotos de `pueblo.problemas` (arista con un solo extremo, coordenada no
+  numérica, `parte` ausente, `hueco` negativo, `aristas` que no es lista).
+- A `tests/js/tiempo.test.mjs` le faltan tres casos de `elegirGlobo` que el
+  código cumple: llegar con sólo charla, llegar cuando la única frase del lugar
+  es la que se acaba de decir, y una lista de globos que no es lista.
+- `pueblo.problemas` lanza si la raíz del JSON no es un diccionario, y
+  `pueblo.aviso` lanza con una clave desconocida (quien llama pasa antes por
+  `pueblo.existe`).
+
+## Para el plan 4 (los lugares y la apertura)
+
+- Los avisos de «abre pronto» de la incubadora y la tienda se quitan cambiando
+  `abre` a `ya` en `web/static/datos/pueblo.json`.
+- Hay frases que caducan al abrir un lugar (`globos.py`), y hay que cambiarlas
+  en la misma tarea que lo abra:
+  - Tienda: «Los estantes están vacíos todavía.», «Dicen que abrirá pronto.» y
+    la del pollito «Pío, los estantes están vacíos.»; quedan dudosas las de
+    «madera y pintura fresca».
+  - Incubadora: «Todo está quietito, como si durmiera.».
+  - Las que presuponen lugares vacíos: el eco de la plaza y del estadio, y «Qué
+    tranquilo está el barrio.».
+- «Me gustan estos faroles.» (barrio) presupone un dibujo con faroles: depende
+  del arte definitivo del barrio. «Aquí da el sol a todas horas.» sería falsa si
+  un día hay noche.
+- La navegación del lugar gana la mochila y hablar (hoy sólo está «Pueblo»).
+- El contrato de arte (`web/arte.py`, `docs/arte/contrato.md`) gana los íconos y
+  los muebles.
+- En «Tu casa» sin casa propia el gachamon no dice frases del lugar (sólo su
+  charla de siempre). Si se quieren frases propias para ese caso, son texto
+  nuevo por decidir.
+- Los nombres de los lugares no llevan artículo en los datos: el mapa dice
+  «Volver a Refugio» y la lista sólo el nombre bajo «¿Adónde vamos?». Si se
+  quiere «Volver al refugio» o «Ir a la plaza», hace falta un dato más por lugar
+  en `pueblo.json`.
+
 ## Para el proyecto 2 (notificaciones)
 
 - **Cerrar la excepción de la muerte por hambre pide dos cosas.** Cambiar

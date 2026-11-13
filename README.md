@@ -148,6 +148,10 @@ mismos módulos y la misma base `tamagotchi.db`; no importa `discord`, no guarda
 estado del juego en memoria y sabe quién eres sólo por la cookie de sesión de
 Rowino.
 
+El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
+tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy están
+abiertos tu casa y el refugio, y los demás avisan de que abren más adelante.
+
 En local:
 
 ```bash
@@ -174,6 +178,25 @@ En producción lo lleva la unidad `gachamon-web.service`, que escucha sólo en
 `127.0.0.1:8010`, y se publica como `rowino.online/gachamon` detrás del túnel,
 con una regla por ruta. Quien entra con su cuenta de Rowino vincula su Discord
 con `/vincular` y encuentra a sus gachamones.
+
+### Arte
+
+Cada dibujo de la web es un archivo de `web/static/arte/`, y quien dibuja no
+necesita tocar código: el contrato, con el nombre y el tamaño exacto de cada
+pieza, está en `docs/arte/contrato.md`. Hoy todo el arte es de relleno (lleva
+«RELLENO» escrito) y se reemplaza guardando el archivo nuevo con el mismo nombre
+y el mismo tamaño.
+
+Para regenerar los rellenos que falten:
+
+```bash
+./venv/bin/python -m herramientas.rellenos
+```
+
+Sólo escribe los archivos que no existen, así que un dibujo de verdad nunca se
+pisa; con `--todo` rehace todos los rellenos. `tests/test_arte.py` falla si
+falta una pieza o si alguna no mide lo que dice el contrato, antes de
+desplegar.
 
 ## Comandos
 
