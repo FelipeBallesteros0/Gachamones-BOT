@@ -69,7 +69,7 @@ def _nota(objeto: obj.Objeto, jugador: Jugador) -> str | None:
     return _NOTA_DEL_REFUGIO if sirve == REFUGIO else _NOTA_MAS_ADELANTE
 
 
-def _en_llano(texto: str) -> str:
+def en_llano(texto: str) -> str:
     return texto.replace("**", "")
 
 
@@ -77,7 +77,7 @@ def _objetos(jugador: Jugador) -> list[dict]:
     mochila = db.inventario(jugador.usuario_id, jugador.guild_id)
     return [
         {
-            "clave": o.clave, "nombre": o.nombre, "descripcion": _en_llano(o.descripcion),
+            "clave": o.clave, "nombre": o.nombre, "descripcion": en_llano(o.descripcion),
             "precio": o.precio, "icono": f"iconos/objetos/{o.clave}.png",
             "tienes": mochila.get(o.clave, 0),
             "se_vende": se_le_vende(o, jugador), "nota": _nota(o, jugador),
@@ -210,7 +210,7 @@ _NO_DE_LA_CASA = {
 _NO_DE_LA_VENTA = {"sin_casa": "No tienes casa que vender.", "no_es_tuya": _NO_ES_TUYA}
 
 
-def _no_se_entiende():
+def no_se_entiende():
     return problema(422, "peticion", "La petición no se entiende.")
 
 
@@ -222,15 +222,15 @@ def _faltan_gemas(n: int) -> str:
     return f"Te faltan {n} {obj.nombre_de_gemas(n)}. Se ganan con las medallas."
 
 
-def _si(mensaje: str) -> dict:
+def dicho_si(mensaje: str) -> dict:
     return {"ok": True, "clave": None, "mensaje": mensaje}
 
 
-def _no(motivo: str, mensaje: str) -> dict:
+def dicho_no(motivo: str, mensaje: str) -> dict:
     return {"ok": False, "clave": motivo, "mensaje": mensaje}
 
 
-def _datos_y_evento(cuerpo: Any) -> tuple[dict, str]:
+def datos_y_evento(cuerpo: Any) -> tuple[dict, str]:
     """El cuerpo como diccionario (si no es un objeto, vacío) y su evento, que tiene que valer."""
     datos = cuerpo if isinstance(cuerpo, dict) else {}
     evento = datos.get("evento_id")
@@ -244,7 +244,7 @@ def _de_la_tienda_y_el_mismo(jugador: Jugador, ahora: datetime) -> None:
     la_misma_activa(jugador, ahora, _SIN_GACHAMON)
 
 
-def _evento_usado(evento: str):
+def evento_usado(evento: str):
     log.warning("evento de la tienda reutilizado: %s", evento, exc_info=True)
     return problema(409, "evento", "Ese evento ya se usó para otra cosa.")
 
@@ -252,65 +252,65 @@ def _evento_usado(evento: str):
 def _pieza(que: str, clave: Any, jugador: Jugador):
     """Lo que se pide, si la tienda lo vende y se lo vende a esta cuenta."""
     if not isinstance(clave, str):
-        raise _no_se_entiende()
+        raise no_se_entiende()
     if que == OBJETO:
         objeto = next((o for o in obj.a_la_venta() if o.clave == clave), None)
         if objeto is None:
-            raise _no_se_entiende()
+            raise no_se_entiende()
         if not se_le_vende(objeto, jugador):
             raise problema(409, "mas_adelante", "Eso todavía no se vende aquí.")
         return objeto
     pieza = (cos.CATALOGO if que == COSMETICO else cas.MUEBLES).get(clave)
     if pieza is None:
-        raise _no_se_entiende()
+        raise no_se_entiende()
     return pieza
 
 
 def _del_objeto(objeto: obj.Objeto, hecho: economia.ResultadoCompra) -> dict:
     # Comprar un objeto sólo dice que no cuando no alcanza.
     if hecho.comprada:
-        return _si(f"Compraste {objeto.nombre}. Está en tu mochila.")
-    return _no("faltan_monedas", _faltan_monedas(objeto.precio - hecho.saldos.asciicoins))
+        return dicho_si(f"Compraste {objeto.nombre}. Está en tu mochila.")
+    return dicho_no("faltan_monedas", _faltan_monedas(objeto.precio - hecho.saldos.asciicoins))
 
 
 def _del_cosmetico(cosmetico: cos.Cosmetico, hecho: economia.ResultadoCosmetico) -> dict:
     if hecho.ok:
         # Siempre hay un gachamon: `la_misma_activa` se miró antes de cobrar.
-        return _si(f"Compraste {cosmetico.nombre}. {hecho.criatura.nombre} ya lo lleva.")
+        return dicho_si(f"Compraste {cosmetico.nombre}. {hecho.criatura.nombre} ya lo lleva.")
     if hecho.motivo == "faltan_gemas":
-        return _no(hecho.motivo, _faltan_gemas(cosmetico.precio - hecho.saldo))
-    return _no(hecho.motivo, _NO_DEL_COSMETICO[hecho.motivo])
+        return dicho_no(hecho.motivo, _faltan_gemas(cosmetico.precio - hecho.saldo))
+    return dicho_no(hecho.motivo, _NO_DEL_COSMETICO[hecho.motivo])
 
 
 def _del_mueble(mueble: cas.Mueble, hecho: economia.ResultadoMueble) -> dict:
     if hecho.ok:
         if hecho.colocado:
-            return _si(f"Compraste {mueble.nombre}. Ya está puesto en tu casa.")
-        return _si(f"Compraste {mueble.nombre}. No cabía en tu casa: quedó guardado.")
+            return dicho_si(f"Compraste {mueble.nombre}. Ya está puesto en tu casa.")
+        return dicho_si(f"Compraste {mueble.nombre}. No cabía en tu casa: quedó guardado.")
     if hecho.motivo == "faltan_monedas":
-        return _no(hecho.motivo, _faltan_monedas(mueble.precio - hecho.saldo))
-    return _no(hecho.motivo, _NO_DEL_MUEBLE[hecho.motivo])
+        return dicho_no(hecho.motivo, _faltan_monedas(mueble.precio - hecho.saldo))
+    return dicho_no(hecho.motivo, _NO_DEL_MUEBLE[hecho.motivo])
 
 
 def _de_la_casa(casa: cas.Casa, hecho: economia.ResultadoMudanza) -> dict:
     if hecho.ok:
         if hecho.desde is None:
-            return _si(f"Compraste una {casa.nombre.lower()}.")
-        return _si(f"Tu {hecho.desde.nombre.lower()} ahora es una {casa.nombre.lower()}.")
+            return dicho_si(f"Compraste una {casa.nombre.lower()}.")
+        return dicho_si(f"Tu {hecho.desde.nombre.lower()} ahora es una {casa.nombre.lower()}.")
     if hecho.motivo == "faltan_monedas":
         # Mejorar cuesta la nueva menos lo que dan por la vieja.
         cuesta = casa.precio - (cas.lo_que_dan_por(hecho.desde) if hecho.desde else 0)
-        return _no(hecho.motivo, _faltan_monedas(cuesta - hecho.saldo))
-    return _no(hecho.motivo, _NO_DE_LA_CASA[hecho.motivo])
+        return dicho_no(hecho.motivo, _faltan_monedas(cuesta - hecho.saldo))
+    return dicho_no(hecho.motivo, _NO_DE_LA_CASA[hecho.motivo])
 
 
 def _de_la_venta(hecho: economia.ResultadoVenta) -> dict:
     if hecho.ok:
-        return _si(
+        return dicho_si(
             f"Vendiste tu {hecho.casa.nombre.lower()} por {hecho.cobrado} "
             f"{obj.nombre_de_monedas(hecho.cobrado)}."
         )
-    return _no(hecho.motivo, _NO_DE_LA_VENTA[hecho.motivo])
+    return dicho_no(hecho.motivo, _NO_DE_LA_VENTA[hecho.motivo])
 
 
 def _respuesta(jugador: Jugador, ahora: datetime, dicho: dict) -> dict:
@@ -323,10 +323,10 @@ def comprar_en_la_tienda(
     jugador: Jugador = Depends(jugador_actual),
 ) -> dict:
     # El cuerpo se revisa a mano; la cuenta sale sólo de la cookie.
-    datos, evento = _datos_y_evento(cuerpo)
+    datos, evento = datos_y_evento(cuerpo)
     que = datos.get("que")
     if not isinstance(que, str) or que not in (OBJETO, COSMETICO, MUEBLE):
-        raise _no_se_entiende()
+        raise no_se_entiende()
     ahora = db.ahora_utc()
     _de_la_tienda_y_el_mismo(jugador, ahora)
     pieza = _pieza(que, datos.get("clave"), jugador)
@@ -344,14 +344,14 @@ def comprar_en_la_tienda(
                 pieza, economia.comprar_mueble(usuario, guild, pieza, ahora, evento_id=evento)
             )
     except RuntimeError:
-        raise _evento_usado(evento) from None
+        raise evento_usado(evento) from None
     return _respuesta(jugador, ahora, dicho)
 
 
 def _casa_id(datos: dict) -> int:
     casa_id = datos.get("casa_id")
     if type(casa_id) is not int:   # ni un texto, ni un decimal, ni `true`
-        raise _no_se_entiende()
+        raise no_se_entiende()
     return casa_id
 
 
@@ -361,10 +361,10 @@ def comprar_mejorar_o_vender_una_casa(
     jugador: Jugador = Depends(jugador_actual),
 ) -> dict:
     # El cuerpo se revisa a mano; la cuenta sale sólo de la cookie.
-    datos, evento = _datos_y_evento(cuerpo)
+    datos, evento = datos_y_evento(cuerpo)
     accion = datos.get("accion")
     if not isinstance(accion, str) or accion not in (COMPRAR, MEJORAR, VENDER):
-        raise _no_se_entiende()
+        raise no_se_entiende()
     ahora = db.ahora_utc()
     _de_la_tienda_y_el_mismo(jugador, ahora)
     usuario, guild = jugador.usuario_id, jugador.guild_id
@@ -373,18 +373,18 @@ def comprar_mejorar_o_vender_una_casa(
         try:
             hecho = economia.vender_casa(usuario, guild, casa_id, ahora, evento_id=evento)
         except RuntimeError:
-            raise _evento_usado(evento) from None
+            raise evento_usado(evento) from None
         return _respuesta(jugador, ahora, _de_la_venta(hecho))
 
     clave = datos.get("casa")
     nueva = cas.CATALOGO.get(clave) if isinstance(clave, str) else None
     if nueva is None:
-        raise _no_se_entiende()
+        raise no_se_entiende()
     mejorar = _casa_id(datos) if accion == MEJORAR else None
     try:
         hecho = economia.comprar_casa(
             usuario, guild, nueva, ahora, mejorar=mejorar, evento_id=evento
         )
     except RuntimeError:
-        raise _evento_usado(evento) from None
+        raise evento_usado(evento) from None
     return _respuesta(jugador, ahora, _de_la_casa(nueva, hecho))
