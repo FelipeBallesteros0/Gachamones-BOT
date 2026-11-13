@@ -8,9 +8,8 @@
 // por `textContent`.
 
 import { pedir } from './api.js';
-import {
-  COLORES_DE_PELO, COLORES_DE_PIEL, COLORES_DE_ROPA, dibujarAvatar, dibujarHuevo,
-} from './dibujo.js';
+import { lienzoDelAvatar } from './avatar.js';
+import { dibujarHuevo } from './dibujo.js';
 import { el } from './dom.js';
 import { cambioLaCuenta, puedeTraerDeDiscord, siguiente } from './pantallas.js';
 
@@ -112,10 +111,6 @@ function pintarLienzo(nodo, unidad, pie, dibujar) {
   ctx.translate(Math.round(nodo.width / 2), Math.round(nodo.height - pie * densidad));
   dibujar(ctx, escala);
   ctx.restore();
-}
-
-function pintarAvatar(nodo, avatar) {
-  pintarLienzo(nodo, 4, 8, (ctx, escala) => dibujarAvatar(ctx, avatar, escala));
 }
 
 function pintarHuevo(nodo, roto) {
@@ -382,15 +377,43 @@ function botonCopiar(texto, etiqueta) {
 
 // --- avatar: cómo te verán en el pueblo -----------------------------------------
 
+// El color de muestra de cada opción que se elige por color, por clave del
+// catálogo del servidor (avatar.py): el de su dibujo de relleno.
+export const MUESTRAS = {
+  piel: {
+    clara: '#f6d5bd',
+    media: '#e8b48a',
+    tostada: '#c68a5c',
+    oscura: '#8a5636',
+  },
+  color_de_pelo: {
+    negro: '#2a2523',
+    castano: '#6b4226',
+    rubio: '#e2b552',
+    rojo: '#c2502a',
+    cano: '#d4d4da',
+    azul: '#3a6fd8',
+  },
+  ropa: {
+    poleron: '#d9534f',
+    camisa: '#4f9d69',
+    vestido: '#8f6ad8',
+    overol: '#3f6fb5',
+  },
+};
+
 // Grupo del catálogo → campo del avatar, con su título y, si se elige por color,
 // las muestras.
 const GRUPOS_DEL_AVATAR = [
   ['generos', 'genero', 'Género', null],
-  ['pieles', 'piel', 'Piel', COLORES_DE_PIEL],
+  ['pieles', 'piel', 'Piel', MUESTRAS.piel],
   ['pelos', 'pelo', 'Peinado', null],
-  ['colores_de_pelo', 'color_de_pelo', 'Color de pelo', COLORES_DE_PELO],
-  ['ropas', 'ropa', 'Ropa', COLORES_DE_ROPA],
+  ['colores_de_pelo', 'color_de_pelo', 'Color de pelo', MUESTRAS.color_de_pelo],
+  ['ropas', 'ropa', 'Ropa', MUESTRAS.ropa],
 ];
+
+// Lo que mide de alto el avatar en la vista previa, en píxeles de pantalla.
+const ALTO_DEL_AVATAR = 168;
 
 function grupoDeOpciones(campo, leyenda, lista, muestras) {
   return el('fieldset', { class: 'grupo' },
@@ -425,7 +448,7 @@ export async function avatar(contenedor, seguir, { sesion: quien, cuenta }) {
     return;
   }
 
-  const monigote = lienzo(96, 168, 'monigote');
+  const monigote = el('canvas', { class: 'monigote', 'aria-hidden': 'true' });
   const placa = el('span', { class: 'placa', hidden: true });
   const nombre = el('input', {
     id: 'avatar-nombre', class: 'texto', name: 'nombre', type: 'text', maxlength: 24,
@@ -451,9 +474,11 @@ export async function avatar(contenedor, seguir, { sesion: quien, cuenta }) {
     for (const [, campo] of GRUPOS_DEL_AVATAR) avatarElegido[campo] = String(datos.get(campo) || '');
     return avatarElegido;
   };
+  // Mientras cargan las capas de una elección nueva se queda la anterior, y
+  // si se cambia otra vez antes de que lleguen, gana la última.
   const repintar = () => {
     const actual = elegido();
-    pintarAvatar(monigote, actual);
+    lienzoDelAvatar(monigote, actual, ALTO_DEL_AVATAR);
     const visible = actual.nombre.trim();
     placa.textContent = visible;
     placa.hidden = !visible;

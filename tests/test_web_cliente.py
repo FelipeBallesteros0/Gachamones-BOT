@@ -73,3 +73,15 @@ def test_el_estilo_piensa_en_el_celular_y_en_el_computador():
     estilo = (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
     assert "min-width: 900px" in estilo
     assert "prefers-reduced-motion" in estilo
+
+
+def test_el_avatar_ya_no_se_dibuja_con_codigo():
+    dibujo = (ESTATICOS / "js" / "dibujo.js").read_text(encoding="utf-8")
+    assert "dibujarAvatar" not in dibujo and "COLORES_DE_PIEL" not in dibujo
+    for nombre in ("entrada.js", "lugar.js"):
+        assert "./avatar.js" in (ESTATICOS / "js" / nombre).read_text(encoding="utf-8")
+
+
+def test_el_arte_se_pide_por_la_ruta_con_version():
+    arte = (ESTATICOS / "js" / "arte.js").read_text(encoding="utf-8")
+    assert "import.meta.url" in arte

@@ -32,7 +32,7 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 globalThis.window = { isSecureContext: true };
 
-const { cajaDelCodigo } = await import('../../web/static/js/entrada.js');
+const { cajaDelCodigo, MUESTRAS } = await import('../../web/static/js/entrada.js');
 
 function textos(nodo) {
   if (!(nodo instanceof Elemento)) return [nodo.texto];
@@ -71,4 +71,20 @@ test('dice cuánto dura, en singular cuando es un minuto', () => {
   assert.ok(textos(caja()).some((texto) => texto.startsWith('Dura 10 minutos')));
   const deUno = cajaDelCodigo('AXF55QQU', 1, document.createElement('span'));
   assert.ok(textos(deUno).some((texto) => texto.startsWith('Dura 1 minuto ')));
+});
+
+// Las muestras de color de las opciones: una por cada piel, color de pelo y
+// ropa que tiene dibujo en el contrato del arte, y ninguna de más.
+test('cada opción que se elige por color tiene su muestra', async () => {
+  const { readFileSync } = await import('node:fs');
+  const contrato = JSON.parse(readFileSync(new URL('../../web/static/datos/arte.json', import.meta.url), 'utf8'));
+  const claves = (prefijo, parte) => [...new Set(contrato.piezas
+    .filter((p) => p.ruta.startsWith(prefijo))
+    .map((p) => p.ruta.slice(prefijo.length).split('-')[parte]))].sort();
+  assert.deepEqual(Object.keys(MUESTRAS.piel).sort(), claves('avatar/cuerpo/', 0));
+  assert.deepEqual(Object.keys(MUESTRAS.color_de_pelo).sort(), claves('avatar/pelo/', 1));
+  assert.deepEqual(Object.keys(MUESTRAS.ropa).sort(), claves('avatar/ropa/', 0));
+  for (const tabla of Object.values(MUESTRAS)) {
+    for (const color of Object.values(tabla)) assert.match(color, /^#[0-9a-f]{6}$/);
+  }
 });

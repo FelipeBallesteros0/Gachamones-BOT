@@ -1,0 +1,104 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+// Lo justo de la `Image` del navegador: carga sola, salvo lo que tenga «falta»
+// en la dirección, que da error. Apunta cada dirección que se le pide.
+const pedidas = [];
+class ImagenDeMentira {
+  set src(url) {
+    pedidas.push(url);
+    this.url = url;
+    queueMicrotask(() => (url.includes('falta') ? this.onerror?.() : this.onload?.()));
+  }
+}
+globalThis.Image = ImagenDeMentira;
+
+const { cargar, faltante, pintarPieza, urlDeArte } = await import('../../web/static/js/arte.js');
+
+function lienzoDeMentira() {
+  const hecho = [];
+  const ctx = new Proxy({}, {
+    get: (_, nombre) => (...args) => { hecho.push([nombre, ...args]); },
+    set: (_, nombre, valor) => { hecho.push(['=' + String(nombre), valor]); return true; },
+  });
+  return { ctx, hecho };
+}
+
+const escrito = (hecho) => hecho.filter(([n]) => n === 'fillText').map(([, texto]) => texto);
+
+test('la dirección de una pieza sale de la carpeta del arte, junto a la de los guiones', () => {
+  const url = urlDeArte('efectos/corazon.png');
+  assert.ok(url.endsWith('/arte/efectos/corazon.png'), url);
+  assert.ok(!url.includes('..'), url);
+  // En Node el módulo es un archivo: la dirección es la del archivo de verdad.
+  assert.equal(url, new URL('../../web/static/arte/efectos/corazon.png', import.meta.url).href);
+});
+
+test('una pieza que carga trae su imagen', { timeout: 2000 }, async () => {
+  const cargada = await cargar('efectos/corazon.png');
+  assert.equal(cargada.ruta, 'efectos/corazon.png');
+  assert.ok(cargada.imagen instanceof ImagenDeMentira);
+  assert.equal(cargada.imagen.url, urlDeArte('efectos/corazon.png'));
+});
+
+test('una pieza que no carga no rechaza: trae la imagen en null', { timeout: 2000 }, async () => {
+  assert.deepEqual(await cargar('efectos/falta.png'), { ruta: 'efectos/falta.png', imagen: null });
+});
+
+test('lo ya pedido no se vuelve a pedir, tampoco lo que falló', { timeout: 2000 }, async () => {
+  for (const ruta of ['efectos/estrella.png', 'efectos/falta-otra.png']) {
+    const primera = cargar(ruta);
+    assert.equal(cargar(ruta), primera);
+    await primera;
+    assert.equal(cargar(ruta), primera);
+    assert.equal(pedidas.filter((url) => url === urlDeArte(ruta)).length, 1, ruta);
+  }
+});
+
+test('si ni siquiera se puede crear la imagen, tampoco rechaza', { timeout: 2000 }, async () => {
+  globalThis.Image = class { constructor() { throw new Error('sin imágenes'); } };
+  try {
+    assert.deepEqual(await cargar('efectos/marca.png'), { ruta: 'efectos/marca.png', imagen: null });
+  } finally {
+    globalThis.Image = ImagenDeMentira;
+  }
+});
+
+test('pintarPieza dibuja la imagen en su caja', () => {
+  const imagen = new ImagenDeMentira();
+  const { ctx, hecho } = lienzoDeMentira();
+  pintarPieza(ctx, { ruta: 'efectos/corazon.png', imagen }, 10, 20, 32, 32);
+  assert.deepEqual(hecho.filter(([n]) => n === 'drawImage'), [['drawImage', imagen, 10, 20, 32, 32]]);
+  assert.deepEqual(escrito(hecho), []);
+});
+
+test('pintarPieza sin imagen escribe el nombre del archivo, y no dibuja otra cosa', () => {
+  const { ctx, hecho } = lienzoDeMentira();
+  pintarPieza(ctx, { ruta: 'pueblo/lugares/plaza.png', imagen: null }, 0, 0, 160, 160);
+  assert.equal(hecho.filter(([n]) => n === 'drawImage').length, 0);
+  assert.equal(escrito(hecho).join(''), 'pueblo/lugares/plaza.png');
+  assert.ok(escrito(hecho).includes('plaza.png'));
+});
+
+test('el recuadro es rayado, cabe en su caja y deja el lienzo como estaba', () => {
+  const { ctx, hecho } = lienzoDeMentira();
+  faltante(ctx, 5, 7, 48, 84, 'avatar/pelo/rizado-castano-paso2.png');
+  // La ruta entera, partida en líneas: el nombre del archivo queda en una.
+  assert.deepEqual(escrito(hecho), ['avatar/', 'pelo/', 'rizado-castano-paso2.png']);
+  for (const [, , x, y, maximo] of hecho.filter(([n]) => n === 'fillText')) {
+    assert.ok(x >= 5 && x <= 53 && y >= 7 && y <= 91, `${x}, ${y}`);
+    assert.ok(maximo > 0 && maximo <= 48, String(maximo));
+  }
+  // Rayas: líneas que se cruzan en diagonal dentro de la caja, y nada la tapa entera.
+  assert.ok(hecho.some(([n]) => n === 'clip'));
+  assert.ok(hecho.filter(([n]) => n === 'lineTo').length >= 4);
+  assert.ok(!hecho.some(([n, , , ancho, alto]) => n === 'fillRect' && ancho >= 48 && alto >= 84));
+  const cuantas = (nombre) => hecho.filter(([n]) => n === nombre).length;
+  assert.equal(cuantas('save'), cuantas('restore'));
+});
+
+test('si la ruta cabe en una línea, no se parte', () => {
+  const { ctx, hecho } = lienzoDeMentira();
+  faltante(ctx, 0, 0, 1380, 860, 'pueblo/fondo.png');
+  assert.deepEqual(escrito(hecho), ['pueblo/fondo.png']);
+});

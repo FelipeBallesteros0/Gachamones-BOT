@@ -205,6 +205,10 @@ a { color: var(--principal-hundido); font-weight: 600; }
   display: block;
 }
 
+/* El avatar es un dibujo de cuadros: si el navegador lo reescala, sin suavizar. */
+.monigote,
+.monigote-lugar { image-rendering: pixelated; }
+
 .ventana {
   position: absolute;
   left: 8%;

@@ -13,7 +13,7 @@
 // de espera. Todo texto entra por `el` o por `textContent`.
 
 import { nuevoEvento, pedir } from './api.js';
-import { dibujarAvatar } from './dibujo.js';
+import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
 import { siguiente } from './pantallas.js';
 import {
@@ -31,6 +31,10 @@ const CELEBRACION_DURA_MS = 4500;
 const MEDALLA_DURA_MS = 6000;
 const CORAZONES = 6;
 const CORAZON_DURA_MS = 1600;
+// Lo que mide de alto el avatar en la escena, en píxeles de pantalla: en el
+// computador se ve más grande.
+const ALTO_DEL_AVATAR = 126;
+const ALTO_DEL_AVATAR_EN_COMPUTADOR = 168;
 // Un cuidado que no llegó se repite con el mismo evento: el servidor no lo
 // aplica ni lo paga dos veces. Éstas son las pausas antes de cada reintento.
 const REINTENTOS_MS = [800, 2000];
@@ -81,23 +85,6 @@ function animar(nodo, clase) {
   nodo.classList.remove(clase);
   void nodo.offsetWidth;
   nodo.classList.add(clase);
-}
-
-// El monigote del avatar en un <canvas>, con la densidad del teléfono y una
-// escala entera para que los cuadros del dibujo caigan justos.
-function pintarMonigote(lienzo, avatar, unidad) {
-  const densidad = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
-  const ancho = 24 * unidad;
-  const alto = 42 * unidad;
-  lienzo.width = Math.round(ancho * densidad);
-  lienzo.height = Math.round(alto * densidad);
-  lienzo.style.width = `${ancho}px`;
-  lienzo.style.height = `${alto}px`;
-  const ctx = lienzo.getContext('2d');
-  ctx.save();
-  ctx.translate(Math.round(lienzo.width / 2), Math.round(lienzo.height - 3 * unidad * densidad));
-  dibujarAvatar(ctx, avatar, Math.max(1, Math.round(unidad * densidad)));
-  ctx.restore();
 }
 
 export function lugar(contenedor, estado, seguir) {
@@ -554,9 +541,11 @@ export function lugar(contenedor, estado, seguir) {
     releer();
   }, { signal: oyentes.signal });
 
-  // En el computador el monigote se dibuja más grande.
+  // En el computador el monigote se ve más grande.
   const ancho = window.matchMedia('(min-width: 900px)');
-  const repintarMonigote = () => pintarMonigote(monigote, actual.avatar, ancho.matches ? 4 : 3);
+  const repintarMonigote = () => lienzoDelAvatar(
+    monigote, actual.avatar, ancho.matches ? ALTO_DEL_AVATAR_EN_COMPUTADOR : ALTO_DEL_AVATAR,
+  );
   ancho.addEventListener('change', repintarMonigote, { signal: oyentes.signal });
 
   aplicar(estado);
