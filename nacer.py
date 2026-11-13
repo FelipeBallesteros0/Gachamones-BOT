@@ -82,15 +82,28 @@ def romper_el_huevo(
 def bautizar(
     usuario_id: str, guild_id: str, nombre: str, ahora: datetime
 ) -> sim.Criatura:
-    """Le pone nombre a la activa, sólo si todavía lo espera."""
+    """Le pone nombre a la activa, sólo si todavía lo espera.
+
+    El nombre de su especie no vale: `espera_nombre` lo lee como «sin nombre»,
+    y el bautizo se repetiría.
+    """
     try:
         nombre = sim.normalizar_nombre(nombre)
     except ValueError as error:
         raise NombreNoVale(str(error)) from None
     # Por si la activa se murió: se registra y, si hay relevo, es a él.
     db.activa_al_dia(usuario_id, guild_id, ahora)
+
+    def puede(activa: sim.Criatura) -> bool:
+        if not espera_nombre(activa):
+            return False
+        # Se mira aquí, con la activa releída en la transacción: es su especie.
+        if nombre.casefold() == activa.def_especie.nombre.casefold():
+            raise NombreNoVale("Ese es el nombre de su especie. Ponle uno propio.")
+        return True
+
     resultado, criatura = db.poner_nombre_a_la_activa(
-        usuario_id, guild_id, nombre, espera_nombre
+        usuario_id, guild_id, nombre, puede
     )
     if resultado == "sin_gachamon":
         raise NoSePuedeBautizar(SIN_GACHAMON, "No tienes ningún gachamon vivo.")

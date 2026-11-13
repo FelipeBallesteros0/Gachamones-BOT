@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, Response
 
 import cosmeticos as cos
@@ -26,7 +26,7 @@ CACHE = "public, max-age=31536000, immutable"
 
 @router.get("/retrato/{especie}/{etapa}/{animo}/{sombrero}.png")
 def un_retrato(especie: str, etapa: str, animo: str, sombrero: str,
-               v: str | None = None) -> Response:
+               request: Request) -> Response:
     # Las cuatro partes se comprueban contra los catálogos antes de tocar el
     # disco: nada de lo que venga en la dirección forma una ruta sin pasar por aquí.
     if (
@@ -37,10 +37,10 @@ def un_retrato(especie: str, etapa: str, animo: str, sombrero: str,
     ):
         raise problema(404, "no_existe", "Eso no existe.")
     vigente = retrato.version()
-    if v != vigente:
-        # Sin la versión vigente no se compone ni se guarda nada: así no se
-        # esquiva la caché con una `v` inventada. El destino sale sólo de las
-        # claves ya validadas.
+    if request.url.query != f"v={vigente}":
+        # Sólo la dirección canónica compone y se guarda: con una `v` inventada,
+        # o con cualquier cosa más en la consulta, cada variante se saltaría la
+        # caché del borde. El destino sale sólo de las claves ya validadas.
         return RedirectResponse(
             f"{PREFIJO}/retrato/{especie}/{etapa}/{animo}/{sombrero}.png?v={vigente}",
             status_code=307,

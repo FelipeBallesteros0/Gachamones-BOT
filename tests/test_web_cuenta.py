@@ -110,3 +110,21 @@ def test_si_el_codigo_nuevo_ya_existe_se_saca_otro_y_no_se_pisa_el_ajeno(cliente
     assert (primero, segundo) == ("AAAAAAAA", "BBBBBBBB")
     assert db.canjear_codigo_de_vinculo(primero, "111111111111111111", str(PUEBLO), T0) == "ok"
     assert db.cuenta_web(1).usuario_id == "111111111111111111" and db.cuenta_web(2) is None
+
+
+def test_un_motivo_desconocido_no_se_disfraza_de_con_gachamones(cliente, monkeypatch):
+    import vinculo
+    from fastapi.testclient import TestClient
+
+    poner_reloj(monkeypatch)
+    entrar(cliente, 1)
+
+    def motivo_nuevo(*_):
+        raise vinculo.NoSePuede("motivo_que_nadie_conoce")
+
+    monkeypatch.setattr(db, "pedir_codigo_de_vinculo", motivo_nuevo)
+    sin_trampa = TestClient(cliente.app, raise_server_exceptions=False, cookies=cliente.cookies)
+    respuesta = sin_trampa.post(f"{CUENTA}/codigo", headers=ESCRIBIR)
+    assert respuesta.status_code == 500
+    assert "con_gachamones" not in respuesta.text
+    assert "motivo_que_nadie_conoce" not in respuesta.text

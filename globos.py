@@ -54,11 +54,11 @@ COMUNES: dict[str, tuple[str, ...]] = {
     ),
     "suelta": (
         "¿Cómo estás?",
-        "Qué bien se está aquí.",
+        "¿Qué me cuentas?",
         "Me gusta que vengas.",
         "Hoy me siento con ganas de todo.",
         "¿Te cuento un secreto? Me gusta mirar el cielo.",
-        "Estoy muy content{o/a}.",
+        "Te estaba esperando.",
     ),
 }
 
@@ -86,9 +86,9 @@ PROPIAS: dict[str, dict[str, tuple[str, ...]]] = {
         ),
         "suelta": (
             "¡Pío! ¿Cómo estás?",
-            "Pío, pío. Qué bien estamos.",
+            "Pío, pío. ¿Qué me cuentas?",
             "Pío… me gusta que vengas.",
-            "¡Pío, pío! Estoy content{o/a}.",
+            "¡Pío, pío! Te estaba esperando.",
         ),
     },
 }

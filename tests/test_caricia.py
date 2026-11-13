@@ -116,3 +116,28 @@ def test_dos_caricias_a_la_vez_cuentan_una():
         resultados = list(hilos.map(lambda _: db.acariciar("u", "g", T0), range(2)))
     assert sorted(r.ok for r in resultados) == [False, True]
     assert db.criatura_activa("u", "g").animo == 55.0
+
+
+def test_si_muere_al_avanzar_devuelve_la_muerta_sin_espera_ni_enfriamiento():
+    creada = nacer()
+    mucho_despues = T0 + timedelta(days=5)
+    resultado = db.acariciar("u", "g", mucho_despues)
+    assert not resultado.ok and resultado.espera == timedelta(0)
+    assert resultado.criatura is not None and resultado.criatura.id == creada.id
+    assert not resultado.criatura.viva and resultado.criatura.causa_muerte == "hambre"
+    assert db.esperas(creada.id, mucho_despues, (sim.ACARICIAR,))[sim.ACARICIAR] == timedelta(0)
+    with db.conectar() as con:
+        assert con.execute("SELECT COUNT(*) FROM cooldowns").fetchone()[0] == 0
+
+
+def test_antes_de_tiempo_devuelve_la_criatura_avanzada_y_sin_la_caricia():
+    nacer()
+    db.acariciar("u", "g", T0)
+    poco_despues = T0 + timedelta(minutes=5)
+    segunda = db.acariciar("u", "g", poco_despues)
+    assert not segunda.ok
+    esperada = db.avanzar(db.criatura_activa("u", "g"), poco_despues)
+    assert segunda.criatura == esperada
+    assert segunda.criatura.actualizada_en == poco_despues
+    # Lo guardado sigue como estaba tras la primera caricia: nada se escribió.
+    assert db.criatura_activa("u", "g").actualizada_en == T0

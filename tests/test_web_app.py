@@ -212,3 +212,182 @@ def test_el_aviso_nunca_escribe_la_clave(tmp_path, monkeypatch, caplog):
     avisos = _avisos_al_arrancar(tmp_path, monkeypatch, caplog, clave=secreta, rowino=False, pueblo=0)
     assert len(avisos) == 2
     assert secreta not in caplog.text
+
+
+# --- Un tope para el cuerpo, antes de mirar la cookie -------------------------
+
+DEMASIADO = {"detail": {"clave": "demasiado", "mensaje": "Eso es demasiado grande."}}
+CON_CUERPO = [("PUT", "/gachamon/api/avatar"), ("POST", "/gachamon/api/bautizar"),
+              ("POST", "/gachamon/api/cuidar")]
+
+
+@pytest.mark.parametrize("metodo, ruta", CON_CUERPO)
+@pytest.mark.parametrize("con_cookie", [False, True], ids=["anonimo", "con_cookie"])
+def test_un_cuerpo_de_17_kib_da_413(cliente, metodo, ruta, con_cookie):
+    from ayudas_web import ESCRIBIR, entrar
+
+    if con_cookie:
+        entrar(cliente, 1)
+    respuesta = cliente.request(metodo, ruta, content=b"x" * (17 * 1024),
+                                headers={**ESCRIBIR, "Content-Type": "application/json"})
+    assert respuesta.status_code == 413
+    assert respuesta.json() == DEMASIADO
+
+
+@pytest.mark.parametrize("declarado", [
+    "abc", "", "-1", "1e3", str(16 * 1024 + 1), "9" * 5000, "0" * 5000 + "16385",
+], ids=["letras", "vacio", "negativo", "exponente", "uno_mas", "cinco_mil_cifras", "ceros_delante"])
+def test_un_content_length_que_no_es_un_numero_o_se_pasa_da_413(cliente, declarado):
+    from ayudas_web import ESCRIBIR
+
+    respuesta = cliente.post("/gachamon/api/cuidar", content=b"{}",
+                             headers={**ESCRIBIR, "Content-Length": declarado,
+                                      "Content-Type": "application/json"})
+    assert respuesta.status_code == 413 and respuesta.json() == DEMASIADO
+
+
+def test_un_content_length_que_miente_por_lo_bajo_tambien_se_corta(cliente):
+    from ayudas_web import ESCRIBIR
+
+    respuesta = cliente.post("/gachamon/api/bautizar", content=b"x" * (17 * 1024),
+                             headers={**ESCRIBIR, "Content-Length": "10",
+                                      "Content-Type": "application/json"})
+    assert respuesta.status_code == 413 and respuesta.json() == DEMASIADO
+
+
+def test_un_cuerpo_normal_pasa_y_el_tope_justo_tambien(cliente, monkeypatch):
+    from ayudas_web import ESCRIBIR, con_gachamon, poner_reloj
+
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    normal = cliente.post("/gachamon/api/cuidar", headers=ESCRIBIR,
+                          json={"accion": "limpiar", "evento_id": "evento-normal"})
+    assert normal.status_code == 200
+    # Justo 16 KiB no se pasa: llega a la ruta, que dice lo suyo del nombre.
+    relleno = b'{"nombre": "' + b"a" * (16 * 1024 - 14) + b'"}'
+    assert len(relleno) == 16 * 1024
+    justo = cliente.post("/gachamon/api/bautizar", content=relleno,
+                         headers={**ESCRIBIR, "Content-Type": "application/json"})
+    assert justo.status_code != 413
+
+
+def _pedir_a_trozos(app, ruta, trozos):
+    """Una petición troceada y sin `Content-Length`, hablando ASGI a pelo.
+
+    Devuelve el estado, el cuerpo de la respuesta y cuántos trozos se leyeron.
+    """
+    import asyncio
+    import json
+
+    pendientes = [{"type": "http.request", "body": t, "more_body": True} for t in trozos]
+    pendientes[-1]["more_body"] = False
+    leidos = []
+    enviados = []
+
+    async def recibir():
+        if pendientes:
+            leidos.append(pendientes.pop(0))
+            return leidos[-1]
+        return {"type": "http.disconnect"}
+
+    async def enviar(mensaje):
+        enviados.append(mensaje)
+
+    alcance = {
+        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+        "method": "POST", "scheme": "http", "path": ruta, "raw_path": ruta.encode(),
+        "root_path": "", "query_string": b"", "client": ("prueba", 1),
+        "server": ("prueba", 80),
+        "headers": [(b"host", b"prueba"), (b"content-type", b"application/json"),
+                    (b"x-gachamon", b"1"), (b"transfer-encoding", b"chunked")],
+    }
+    asyncio.run(app(alcance, recibir, enviar))
+    inicio = next(m for m in enviados if m["type"] == "http.response.start")
+    cuerpo = b"".join(m.get("body", b"") for m in enviados if m["type"] == "http.response.body")
+    return inicio["status"], json.loads(cuerpo), len(leidos)
+
+
+def test_un_cuerpo_troceado_se_corta_en_cuanto_se_pasa(tmp_path, monkeypatch):
+    import ayudas_web
+
+    with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
+        estado, cuerpo, leidos = _pedir_a_trozos(
+            cliente.app, "/gachamon/api/cuidar", [b"x" * (6 * 1024)] * 5)
+    assert estado == 413 and cuerpo == DEMASIADO
+    # Seis, doce, dieciocho: al tercero ya se pasa, y los otros dos no se leen.
+    assert leidos == 3
+
+
+# --- Las cabeceras de toda respuesta ----------------------------------------------
+
+SIEMPRE = {"x-content-type-options": "nosniff",
+           "content-security-policy": "frame-ancestors 'none'"}
+
+
+def _lleva_siempre(respuesta):
+    return all(respuesta.headers.get(k) == v for k, v in SIEMPRE.items())
+
+
+@pytest.mark.parametrize("ruta, estado", [
+    ("/gachamon/api/salud", 200),
+    ("/gachamon/api/sesion", 401),
+    ("/gachamon/api/no-hay-nada", 404),
+])
+def test_lo_de_la_api_no_se_guarda_en_ninguna_cache(cliente, ruta, estado):
+    respuesta = cliente.get(ruta)
+    assert respuesta.status_code == estado
+    assert respuesta.headers["cache-control"] == "no-store"
+    assert _lleva_siempre(respuesta)
+
+
+def test_el_413_tambien_lleva_sus_cabeceras(cliente):
+    respuesta = cliente.post("/gachamon/api/cuidar", content=b"x" * (17 * 1024))
+    assert respuesta.status_code == 413
+    assert respuesta.headers["cache-control"] == "no-store" and _lleva_siempre(respuesta)
+
+
+def test_un_500_tambien_lleva_sus_cabeceras(tmp_path, monkeypatch):
+    import ayudas_web
+    from fastapi.testclient import TestClient
+
+    with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
+        @cliente.app.get("/gachamon/api/prueba-500")
+        def _rota():
+            raise RuntimeError("se rompió")
+
+        sin_trampa = TestClient(cliente.app, raise_server_exceptions=False)
+        respuesta = sin_trampa.get("/gachamon/api/prueba-500")
+    assert respuesta.status_code == 500
+    assert respuesta.headers["cache-control"] == "no-store" and _lleva_siempre(respuesta)
+
+
+@pytest.mark.parametrize("ruta", ["/gachamon/", "/", "/gachamon/static/otra/index.html"])
+def test_fuera_de_la_api_tambien_van_las_de_siempre(cliente, ruta):
+    respuesta = cliente.get(ruta)
+    assert _lleva_siempre(respuesta)
+    assert respuesta.headers.get("cache-control") != "no-store"
+
+
+def test_los_estaticos_llevan_las_de_siempre(cliente):
+    version = cliente.app.state.version
+    respuesta = cliente.get(f"/gachamon/static/{version}/js/principal.js")
+    assert respuesta.status_code == 200 and _lleva_siempre(respuesta)
+
+
+def test_un_retrato_conserva_su_cache_de_un_año(cliente):
+    import retrato
+
+    respuesta = cliente.get(f"/gachamon/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}")
+    assert respuesta.status_code == 200
+    assert respuesta.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert _lleva_siempre(respuesta)
+
+
+def test_otro_sitio_no_recibe_permiso_para_escribir(cliente):
+    # Fija la defensa contra otros sitios: no hay CORS, así que una pregunta
+    # previa del navegador no recibe ninguna cabecera que le abra la puerta.
+    respuesta = cliente.options("/gachamon/api/cuidar", headers={
+        "Origin": "https://otro-sitio.example", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "x-gachamon, content-type",
+    })
+    assert not [k for k in respuesta.headers if k.lower().startswith("access-control-")]

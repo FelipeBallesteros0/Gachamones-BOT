@@ -79,11 +79,14 @@ def pedir_codigo(persona: Persona = Depends(persona_actual)) -> dict:
                 409, "ya_vinculada",
                 "Esta cuenta ya está unida a tu Discord.",
             ) from None
-        raise problema(
-            409, "con_gachamones",
-            "Ya empezaste a jugar aquí, y dos grupos de gachamones no se "
-            "pueden juntar.",
-        ) from None
+        if error.motivo == vinculo.CON_GACHAMONES:
+            raise problema(
+                409, "con_gachamones",
+                "Ya empezaste a jugar aquí, y dos grupos de gachamones no se "
+                "pueden juntar.",
+            ) from None
+        # Un motivo que esto no conoce es un fallo nuestro: no se disfraza.
+        raise
     return {"codigo": codigo, "minutos": vinculo.MINUTOS_DE_VIDA}
 
 

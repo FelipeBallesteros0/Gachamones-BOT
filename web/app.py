@@ -14,14 +14,16 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as ErrorHTTP
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import config
 import db
 import economia
 import retrato
 from web import PREFIJO, cuenta, juego, retratos
-from web.sesion import Persona, persona_actual
+from web.sesion import Persona, persona_actual, problema
 
 ESTATICOS = Path(__file__).resolve().parent / "static"
 
@@ -31,6 +33,103 @@ _ERRORES_CONOCIDOS = {
     404: ("no_existe", "Eso no existe."),
     405: ("metodo", "Eso no se puede hacer así."),
 }
+
+API = f"{PREFIJO}/api/"
+TOPE_DEL_CUERPO = 16 * 1024
+DEMASIADO = ("demasiado", "Eso es demasiado grande.")
+
+
+def _se_pasa(declarado: bytes, tope: int) -> bool:
+    """Si un `Content-Length` no es un número o pasa del tope.
+
+    Se cuentan las cifras antes de convertir: `int` no acepta más de 4300, y
+    una cabecera así no tiene que acabar en un 500.
+    """
+    if not declarado.isdigit():
+        return True
+    cifras = declarado.lstrip(b"0") or b"0"
+    return len(cifras) > len(str(tope)) or int(cifras) > tope
+
+
+class _TopeDelCuerpo:
+    """Un cuerpo grande no llega a cargarse en memoria, se haya entrado o no.
+
+    FastAPI lee el cuerpo entero antes de mirar la cookie, así que la sesión no
+    frena a un anónimo. Esto va delante, en ASGI puro, para lo que cuelga de la
+    api: un `Content-Length` que no es un número o que pasa del tope se contesta
+    413 sin leer nada; y como un cuerpo troceado no lo declara (o miente), se
+    cuenta además lo que va llegando y se corta en cuanto se pasa.
+    """
+
+    def __init__(self, app: ASGIApp, tope: int = TOPE_DEL_CUERPO) -> None:
+        self.app = app
+        self.tope = tope
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not scope["path"].startswith(API):
+            await self.app(scope, receive, send)
+            return
+        declarados = [v for k, v in scope["headers"] if k.lower() == b"content-length"]
+        if any(_se_pasa(v, self.tope) for v in declarados):
+            clave, mensaje = DEMASIADO
+            respuesta = JSONResponse(
+                status_code=413,
+                content={"detail": {"clave": clave, "mensaje": mensaje}},
+            )
+            await respuesta(scope, receive, send)
+            return
+
+        llegado = 0
+
+        async def contando() -> Message:
+            nonlocal llegado
+            mensaje = await receive()
+            if mensaje["type"] == "http.request":
+                llegado += len(mensaje.get("body", b""))
+                if llegado > self.tope:
+                    # FastAPI deja pasar el HTTPException que salga de aquí
+                    # mientras lee el cuerpo, y lo contesta `_error_http`.
+                    raise problema(413, *DEMASIADO)
+            return mensaje
+
+        await self.app(scope, contando, send)
+
+
+class _Cabeceras:
+    """Lo que lleva toda respuesta del servicio, sea cual sea.
+
+    Nadie la mete en un marco ni adivina su tipo; y lo de la api no se guarda
+    en ninguna caché, tampoco los errores. Los retratos no son de la api y
+    conservan su caché de un año.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        de_la_api = scope["path"].startswith(API)
+
+        async def con_cabeceras(mensaje: Message) -> None:
+            if mensaje["type"] == "http.response.start":
+                mensaje.setdefault("headers", [])
+                cabeceras = MutableHeaders(scope=mensaje)
+                cabeceras["X-Content-Type-Options"] = "nosniff"
+                cabeceras["Content-Security-Policy"] = "frame-ancestors 'none'"
+                if de_la_api:
+                    cabeceras["Cache-Control"] = "no-store"
+            await send(mensaje)
+
+        await self.app(scope, receive, con_cabeceras)
+
+
+class _Servicio(FastAPI):
+    def build_middleware_stack(self) -> ASGIApp:
+        # Las cabeceras van por fuera de todo, también del que contesta un 500,
+        # que manda su respuesta saltándose los middlewares de dentro.
+        return _Cabeceras(super().build_middleware_stack())
 
 
 def calcular_version(carpeta: Path = ESTATICOS) -> str:
@@ -85,10 +184,11 @@ async def _ciclo_de_vida(app: FastAPI):
 
 
 def crear_app() -> FastAPI:
-    app = FastAPI(
+    app = _Servicio(
         lifespan=_ciclo_de_vida,
         docs_url=None, redoc_url=None, openapi_url=None,
     )
+    app.add_middleware(_TopeDelCuerpo)
     version = calcular_version()
     app.state.version = version
     portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")

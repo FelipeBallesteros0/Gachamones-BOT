@@ -29,6 +29,25 @@ def test_lo_comun_trae_frases_para_todo():
     assert "¿Cómo estás?" in globos.COMUNES["suelta"]
 
 
+def _sueltas():
+    return [*globos.COMUNES["suelta"],
+            *(f for propias in globos.PROPIAS.values() for f in propias.get("suelta", ()))]
+
+
+@pytest.mark.parametrize("afirma", ["content", "qué bien", "aquí", "estamos"])
+def test_la_charla_no_afirma_un_estado_ni_un_lugar(afirma):
+    # Las sueltas salen siempre, también con el ánimo en 41 o a la intemperie:
+    # un globo no anuncia nada que no esté pasando.
+    for frase in _sueltas():
+        assert afirma not in frase.lower(), frase
+
+
+def test_la_charla_del_pollito_sigue_siendo_suya():
+    sueltas = globos.PROPIAS["pollito"]["suelta"]
+    assert len(sueltas) >= 4 and all("pío" in f.lower() for f in sueltas)
+    assert "¡Pío! ¿Cómo estás?" in sueltas
+
+
 def test_contenta_y_cuidada_solo_charla():
     c = criatura(hambre=90, animo=90, limpieza=90)
     assert textos(c, globos.NECESIDAD) == []

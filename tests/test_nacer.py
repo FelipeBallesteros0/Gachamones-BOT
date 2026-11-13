@@ -135,3 +135,23 @@ def test_bautizar_no_toca_al_de_otra_persona():
     ajena = nacer.romper_el_huevo("b", "g", T0)
     nacer.bautizar("a", "g", "Pelusa", T0)
     assert db.criatura_activa("b", "g").nombre == ajena.nombre
+
+
+@pytest.mark.parametrize("como", [
+    lambda n: n, str.upper, str.lower, lambda n: f"  {n}  ",
+], ids=["igual", "mayusculas", "minusculas", "con_espacios"])
+def test_el_nombre_de_su_especie_no_es_un_nombre_propio(como):
+    nacida = nacer.romper_el_huevo("u", "g", T0, random.Random(3))
+    especie = esp.ESPECIES[nacida.especie].nombre
+    with pytest.raises(nacer.NombreNoVale) as caido:
+        nacer.bautizar("u", "g", como(especie), T0)
+    assert str(caido.value) == "Ese es el nombre de su especie. Ponle uno propio."
+    assert nacer.espera_nombre(db.criatura_activa("u", "g"))
+    # La transacción se deshizo sin dejar nada tomado: uno propio sí vale.
+    assert nacer.bautizar("u", "g", "Pelusa", T0).nombre == "Pelusa"
+
+
+def test_el_nombre_de_otra_especie_si_vale():
+    nacida = nacer.romper_el_huevo("u", "g", T0, random.Random(3))
+    otra = next(e.nombre for e in esp.ESPECIES.values() if e.clave != nacida.especie)
+    assert nacer.bautizar("u", "g", otra, T0).nombre == otra

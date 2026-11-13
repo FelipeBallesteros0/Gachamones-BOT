@@ -160,6 +160,24 @@ def test_sin_la_version_vigente_redirige_sin_componer(cliente, v):
     assert "cache-control" not in respuesta.headers
 
 
+@pytest.mark.parametrize("consulta", ["v={v}&x=1", "x=1&v={v}", "v={v}&v={v}", "v={v}&"])
+def test_con_algo_mas_en_la_consulta_redirige_sin_componer(cliente, consulta):
+    # Si no, cada `x` distinto se saltaría la caché del borde y obligaría a
+    # componer el retrato otra vez.
+    def no_debe_componer(*a):
+        raise AssertionError("compuso con una consulta que no es la canónica")
+
+    ruta = "/gachamon/retrato/pollito/bebe/feliz/sin.png"
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(retrato, "armar", no_debe_componer)
+        mp.setattr(retrato, "relleno", no_debe_componer)
+        respuesta = cliente.get(
+            f"{ruta}?{consulta.format(v=retrato.version())}", follow_redirects=False)
+    assert respuesta.status_code == 307
+    assert respuesta.headers["location"] == f"{ruta}?v={retrato.version()}"
+    assert "cache-control" not in respuesta.headers
+
+
 def test_la_redireccion_de_un_relleno_tambien_va_a_la_vigente(cliente):
     ruta = f"/gachamon/retrato/{SIN_DIBUJO[0]}/adulto/mal/sin.png"
     respuesta = cliente.get(f"{ruta}?v=x", follow_redirects=False)

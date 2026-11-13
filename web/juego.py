@@ -1,9 +1,11 @@
-"""Lo que se lee y se hace jugando: el estado y, más adelante, el cuidado."""
+"""Lo que se lee y se hace jugando: el estado, el huevo, el bautizo, los
+cuidados y la caricia."""
 from __future__ import annotations
 
 import logging
 import math
 import re
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends
@@ -25,6 +27,24 @@ EVENTO_VALIDO = re.compile(r"[A-Za-z0-9-]{8,64}")
 def _segundos(espera) -> int:
     """Una espera en segundos enteros, hacia arriba; 0 si no hay."""
     return math.ceil(espera.total_seconds()) if espera else 0
+
+
+def _la_misma_activa(jugador: Jugador, ahora: datetime, sin_ninguno: str) -> None:
+    """Que la acción le caiga al gachamon que el jugador estaba viendo.
+
+    Se mira quién es la activa antes de ponerla al día y quién después: si se
+    murió en esta misma petición, `activa_al_dia` saca al relevo, que el
+    jugador todavía no ha visto, y no se le aplica nada. Una muerte la
+    registra igual quien la deja apuntada para el bot.
+    """
+    antes = db.criatura_activa(jugador.usuario_id, jugador.guild_id)
+    despues = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
+    if antes is None and despues is None:
+        raise problema(409, "sin_gachamon", sin_ninguno)
+    if antes is None or despues is None or antes.id != despues.id:
+        raise problema(
+            409, "sin_gachamon", "Tu gachamon ya no es el mismo. Mira otra vez.",
+        )
 
 
 @router.get("/estado")
@@ -50,6 +70,14 @@ def romper_el_huevo(jugador: Jugador = Depends(jugador_actual)) -> dict:
     try:
         nacer.romper_el_huevo(jugador.usuario_id, jugador.guild_id, ahora)
     except nacer.YaTieneGachamon:
+        if db.criatura_activa(jugador.usuario_id, jugador.guild_id) is None:
+            # Ninguna activa, pero hay alguien: un recluta sin nombre, que sólo
+            # se bautiza en Discord. Sin esto el huevo se repetiría para siempre.
+            raise problema(
+                409, "ya_tienes",
+                "Tienes un gachamon esperando nombre en la incubadora. "
+                "Ponle nombre en Discord y vuelve.",
+            ) from None
         raise problema(
             409, "ya_tienes",
             "Ya tienes un gachamon. El huevo es sólo el de partida.",
@@ -59,6 +87,8 @@ def romper_el_huevo(jugador: Jugador = Depends(jugador_actual)) -> dict:
             409, "cuenta_cambio",
             "Tu cuenta cambió mientras tanto. Vuelve a entrar.",
         ) from None
+    # Como en Discord: al nacer se miran las medallas de la persona (una rara).
+    economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
     return estado.armar(jugador, ahora)
 
 
@@ -93,12 +123,10 @@ def cuidar(
         raise problema(422, "accion", "Esa acción no existe.")
     evento = datos.get("evento_id")
     if not isinstance(evento, str) or not EVENTO_VALIDO.fullmatch(evento):
-        raise problema(422, "evento", "Falta el identificador del evento.")
+        raise problema(422, "evento", "Ese identificador de evento no vale.")
     ahora = db.ahora_utc()
-    sin_gachamon = problema(409, "sin_gachamon", "No tienes un gachamon que cuidar.")
-    # Una muerte la registra siempre quien la deja apuntada para el bot.
-    if db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora) is None:
-        raise sin_gachamon
+    sin_gachamon = "No tienes un gachamon que cuidar."
+    _la_misma_activa(jugador, ahora, sin_gachamon)
     try:
         resultado = economia.ejecutar_cuidado(
             evento, jugador.usuario_id, jugador.guild_id, accion, ahora
@@ -109,17 +137,20 @@ def cuidar(
             409, "evento", "Ese cuidado ya se usó para otra acción."
         ) from None
     if resultado is None:
-        raise sin_gachamon
-    evoluciono = (
-        resultado.etapa_anterior is not None
-        and resultado.etapa_anterior != resultado.criatura.etapa
-    )
+        raise problema(409, "sin_gachamon", sin_gachamon)
+    # Como en Discord: un cuidado que sale bien termina pagando las medallas
+    # nuevas, antes de armar el estado para que sus gemas ya vayan en el saldo.
+    logros = []
+    if resultado.ok:
+        recibo = economia.pagar_logros(resultado.criatura, ahora)
+        logros = [{"nombre": logro.nombre, "gemas": logro.gemas} for logro in recibo.nuevos]
     return {
         "ok": resultado.ok,
         "mensaje": resultado.mensaje or ("" if resultado.ok else "Todavía no."),
         "espera": _segundos(resultado.espera),
         "monedas": resultado.delta_asciicoins,
-        "evoluciono": evoluciono,
+        "evoluciono": resultado.evoluciono,
+        "logros": logros,
         "estado": estado.armar(jugador, ahora),
     }
 
@@ -127,11 +158,11 @@ def cuidar(
 @router.post("/acariciar", dependencies=[Depends(con_cabecera)])
 def acariciar(jugador: Jugador = Depends(jugador_actual)) -> dict:
     ahora = db.ahora_utc()
-    if db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora) is None:
-        raise problema(409, "sin_gachamon", "No tienes un gachamon que acariciar.")
+    sin_gachamon = "No tienes un gachamon que acariciar."
+    _la_misma_activa(jugador, ahora, sin_gachamon)
     caricia = db.acariciar(jugador.usuario_id, jugador.guild_id, ahora)
     if caricia.criatura is None:
-        raise problema(409, "sin_gachamon", "No tienes un gachamon que acariciar.")
+        raise problema(409, "sin_gachamon", sin_gachamon)
     return {
         "ok": caricia.ok,
         "espera": _segundos(caricia.espera),
