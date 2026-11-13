@@ -287,6 +287,20 @@ def test_si_no_alcanza_es_un_no_con_su_frase_y_no_un_error(cliente, monkeypatch)
     assert respuesta.json()["mensaje"] == "Te faltan 6 monedas."
 
 
+def test_el_reintento_de_un_no_alcanza_cuando_ya_alcanza_no_ensena_una_cifra_imposible(cliente, monkeypatch):
+    en_la_tienda_con(cliente, monkeypatch, monedas=4)
+    primera = comprar(cliente, "objeto", "pocion_comida", "evento-reintento").json()
+    assert (primera["ok"], primera["clave"], primera["mensaje"]) == (False, "faltan_monedas", "Te faltan 6 monedas.")
+    dar(monedas=50)   # entran monedas por la otra cara antes del reintento
+    reintento = comprar(cliente, "objeto", "pocion_comida", "evento-reintento").json()
+    assert (reintento["ok"], reintento["clave"], reintento["mensaje"]) == (
+        False, "reintenta", "No se pudo comprar. Vuelve a intentarlo.")
+    assert economia.saldos(YO, G).asciicoins == 50 and db.inventario(YO, G) == {}
+    otra = comprar(cliente, "objeto", "pocion_comida", "evento-reintento-2").json()
+    assert otra["ok"] is True and otra["estado"]["saldos"]["monedas"] == 40
+    assert db.inventario(YO, G) == {"pocion_comida": 1}
+
+
 @pytest.mark.parametrize("cuerpo,estado,clave", [
     ({"evento_id": "evento-compra-03", "que": "objeto", "clave": "poroto_rojo"}, 422, "peticion"),
     ({"evento_id": "evento-compra-04", "que": "objeto", "clave": "semilla"}, 409, "mas_adelante"),
@@ -442,6 +456,29 @@ def test_el_cosmetico_cobra_gemas_y_el_gachamon_ya_lo_lleva(cliente, monkeypatch
         assert respuesta["estado"]["gachamon"]["retrato"] == antes.replace("/sin.png", "/corona.png")
         assert next(c for c in respuesta["tienda"]["cosmeticos"] if c["clave"] == "corona")["tuyo"] is True
     assert economia.saldos(YO, G).asciigems == 40 and db.ropero(YO, G) == frozenset({"corona"})
+
+
+@pytest.mark.parametrize("ahora_lleva", [None, "chistera"], ids=["se_la_quitaron", "lleva_otra"])
+def test_el_replay_de_un_cosmetico_que_ya_no_lleva_dice_que_esta_en_el_ropero(cliente, monkeypatch, ahora_lleva):
+    en_la_tienda_con(cliente, monkeypatch, gemas=100)
+    primera = comprar(cliente, "cosmetico", "corona", "evento-corona-1").json()
+    assert primera["mensaje"] == "Compraste Corona. Pelusa ya lo lleva."
+    # Entre el intento y el reintento, por la otra cara, al activo le cambian el sombrero.
+    with db.conectar() as con:
+        if ahora_lleva:
+            db.guardar_en_el_ropero_en(con, YO, G, ahora_lleva)
+        con.execute("UPDATE criaturas SET sombrero = ? WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
+                    (ahora_lleva, YO, G))
+    replay = comprar(cliente, "cosmetico", "corona", "evento-corona-1").json()
+    assert (replay["ok"], replay["clave"], replay["mensaje"]) == (True, None, "Compraste Corona. Está en tu ropero.")
+    assert economia.saldos(YO, G).asciigems == 40
+
+
+def test_la_frase_del_cosmetico_sin_gachamon_no_revienta():
+    corona = cosmeticos.CATALOGO["corona"]
+    hecho = economia.ResultadoCosmetico(ok=True, criatura=None, saldo=40, replay=True)
+    assert tienda._del_cosmetico(corona, hecho) == {
+        "ok": True, "clave": None, "mensaje": "Compraste Corona. Está en tu ropero."}
 
 
 def test_el_titulo_comprado_aparece_en_el_estado(cliente, monkeypatch):
@@ -600,10 +637,7 @@ def test_la_cuarta_casa_no_se_compra(cliente, monkeypatch):
      "Esa casa ya es de ese tamaño o más grande."),
     (lambda ids: ("mejorar", {"casa": "mediana", "casa_id": ids[1]}), "no_se_empeora",
      "Esa casa ya es de ese tamaño o más grande."),
-    (lambda ids: ("mejorar", {"casa": "grande", "casa_id": 999}), "no_es_tuya", "Esa casa no es tuya."),
-    (lambda ids: ("vender", {"casa_id": 999}), "no_es_tuya", "Esa casa no es tuya."),
-], ids=["comprar_sin_alcanzar", "mejorar_sin_alcanzar", "a_mas_pequena", "al_mismo_tamano",
-        "mejorar_la_de_otro", "vender_la_de_otro"])
+], ids=["comprar_sin_alcanzar", "mejorar_sin_alcanzar", "a_mas_pequena", "al_mismo_tamano"])
 def test_lo_que_no_se_puede_hacer_con_una_casa_dice_por_que(cliente, monkeypatch, pedido, clave, mensaje):
     reloj = en_la_tienda_con(cliente, monkeypatch, monedas=300)
     ids = [una_casa(reloj, "pequena"), una_casa(reloj, "mediana")]
@@ -614,6 +648,30 @@ def test_lo_que_no_se_puede_hacer_con_una_casa_dice_por_que(cliente, monkeypatch
         "ok": False, "clave": clave, "mensaje": mensaje}
     assert economia.saldos(YO, G).asciicoins == 300
     assert [c.casa.clave for c in db.hogar_leido(YO, G, reloj()).casas] == ["pequena", "mediana"]
+
+
+OTRA = "333333333333333333"   # otra persona: una identidad de Discord sintética, con su casa en la base temporal
+
+
+@pytest.mark.parametrize("pedido", [
+    lambda ajena: ("mejorar", {"casa": "mediana", "casa_id": ajena}),
+    lambda ajena: ("vender", {"casa_id": ajena}),
+    lambda ajena: ("mejorar", {"casa": "mediana", "casa_id": -1}),
+    lambda ajena: ("vender", {"casa_id": -1}),
+], ids=["mejorar_la_de_otro", "vender_la_de_otro", "mejorar_un_id_negativo", "vender_un_id_negativo"])
+def test_la_casa_de_otro_no_se_mejora_ni_se_vende(cliente, monkeypatch, pedido):
+    reloj = en_la_tienda_con(cliente, monkeypatch, monedas=5000)
+    dar(monedas=70, usuario=OTRA)
+    mia_ = una_casa(reloj)
+    ajena = una_casa(reloj, usuario=OTRA)
+    accion, resto = pedido(ajena)
+    respuesta = casa(cliente, accion, "evento-ajena", **resto)
+    assert respuesta.status_code == 200
+    assert {k: respuesta.json()[k] for k in ("ok", "clave", "mensaje")} == {
+        "ok": False, "clave": "no_es_tuya", "mensaje": "Esa casa no es tuya."}
+    assert [(c.id, c.casa.clave) for c in db.hogar_leido(OTRA, G, reloj()).casas] == [(ajena, "pequena")]
+    assert [(c.id, c.casa.clave) for c in db.hogar_leido(YO, G, reloj()).casas] == [(mia_, "pequena")]
+    assert economia.saldos(YO, G).asciicoins == 5000 and economia.saldos(OTRA, G).asciicoins == 70
 
 
 def test_sin_casa_no_hay_nada_que_vender(cliente, monkeypatch):

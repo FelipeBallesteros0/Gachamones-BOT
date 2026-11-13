@@ -270,13 +270,22 @@ def _del_objeto(objeto: obj.Objeto, hecho: economia.ResultadoCompra) -> dict:
     # Comprar un objeto sólo dice que no cuando no alcanza.
     if hecho.comprada:
         return dicho_si(f"Compraste {objeto.nombre}. Está en tu mochila.")
-    return dicho_no("faltan_monedas", _faltan_monedas(objeto.precio - hecho.saldos.asciicoins))
+    faltan = objeto.precio - hecho.saldos.asciicoins
+    if faltan <= 0:
+        # `economia.comprar` congela también el «no alcanza»: el reintento con el
+        # mismo evento vuelve a decir que no aunque entretanto hayan entrado monedas.
+        return dicho_no("reintenta", "No se pudo comprar. Vuelve a intentarlo.")
+    return dicho_no("faltan_monedas", _faltan_monedas(faltan))
 
 
 def _del_cosmetico(cosmetico: cos.Cosmetico, hecho: economia.ResultadoCosmetico) -> dict:
     if hecho.ok:
-        # Siempre hay un gachamon: `la_misma_activa` se miró antes de cobrar.
-        return dicho_si(f"Compraste {cosmetico.nombre}. {hecho.criatura.nombre} ya lo lleva.")
+        # En un replay, `criatura` es el activo de ahora: puede ser otro, no
+        # llevarla ya, o no haber nadie. Sólo se le nombra si la lleva puesta.
+        criatura = hecho.criatura
+        if criatura is not None and getattr(criatura, cosmetico.tipo) == cosmetico.clave:
+            return dicho_si(f"Compraste {cosmetico.nombre}. {criatura.nombre} ya lo lleva.")
+        return dicho_si(f"Compraste {cosmetico.nombre}. Está en tu ropero.")
     if hecho.motivo == "faltan_gemas":
         return dicho_no(hecho.motivo, _faltan_gemas(cosmetico.precio - hecho.saldo))
     return dicho_no(hecho.motivo, _NO_DEL_COSMETICO[hecho.motivo])
