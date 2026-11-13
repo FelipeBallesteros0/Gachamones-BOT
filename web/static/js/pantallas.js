@@ -3,15 +3,25 @@
 // `sesion` es lo de /api/sesion (null sin sesión), `cuenta` lo de /api/cuenta y
 // `estado` lo de /api/estado (null mientras la cuenta sea nueva). El orden de
 // las preguntas es el del juego: sin avatar no se ve nada más, y una muerte
-// pendiente se cuenta antes que el huevo o el bautizo.
-export function siguiente(sesion, cuenta, estado) {
+// pendiente se cuenta antes que el huevo o el bautizo. `vista` es lo que se
+// pidió ver cuando todo está en orden: con `'pueblo'`, el mapa en vez del
+// lugar donde estás.
+export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
   if (!estado || !estado.avatar) return 'avatar';
   if (estado.difunto) return 'difunto';
   if (!estado.gachamon) return 'huevo';
   if (estado.gachamon.espera_nombre) return 'bautizo';
-  return 'lugar';
+  return vista === 'pueblo' ? 'pueblo' : 'lugar';
+}
+
+// Si falla la petición de entrar al lugar al que se acaba de llegar: sin
+// sesión (401) o con la cuenta o el gachamon cambiados (409) toca volver a
+// decidir la pantalla; lo demás deja quedarse en el mapa e intentarlo otra vez.
+export function trasFallarLaLlegada(error) {
+  const estado = error ? error.estado : undefined;
+  return estado === 401 || estado === 409 ? 'decidir' : 'reintentar';
 }
 
 export const NO_DISPONIBLE = 'El juego no está disponible ahora mismo.';

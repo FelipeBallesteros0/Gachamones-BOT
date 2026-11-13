@@ -85,3 +85,29 @@ def test_el_avatar_ya_no_se_dibuja_con_codigo():
 def test_el_arte_se_pide_por_la_ruta_con_version():
     arte = (ESTATICOS / "js" / "arte.js").read_text(encoding="utf-8")
     assert "import.meta.url" in arte
+
+
+def test_el_mapa_esta_y_se_usa():
+    nombres = {g.name for g in GUIONES}
+    assert {"mapa.js", "pueblo.js", "arte.js", "avatar.js"} <= nombres
+    principal = (ESTATICOS / "js" / "principal.js").read_text(encoding="utf-8")
+    assert "./mapa.js" in principal
+
+
+def test_el_mapa_no_lleva_el_pueblo_escrito_en_el_codigo():
+    mapa = (ESTATICOS / "js" / "mapa.js").read_text(encoding="utf-8")
+    logica = (ESTATICOS / "js" / "pueblo.js").read_text(encoding="utf-8")
+    assert "pueblo.json" in mapa
+    for clave in ("incubadora", "cementerio", "estadio", "barrio"):
+        assert clave not in mapa and clave not in logica
+
+
+def test_el_mapa_se_puede_usar_sin_el_lienzo_y_respeta_a_quien_no_quiere_movimiento():
+    mapa = (ESTATICOS / "js" / "mapa.js").read_text(encoding="utf-8")
+    assert "aria-hidden" in mapa and "prefers-reduced-motion" in mapa
+    assert "requestAnimationFrame" in mapa and "cancelAnimationFrame" in mapa
+
+
+def test_desde_un_lugar_se_va_al_pueblo():
+    lugar = (ESTATICOS / "js" / "lugar.js").read_text(encoding="utf-8")
+    assert "vista: 'pueblo'" in lugar or 'vista: "pueblo"' in lugar

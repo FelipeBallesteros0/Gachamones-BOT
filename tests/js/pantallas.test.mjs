@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cambioLaCuenta, puedeTraerDeDiscord, siguiente, trasUnFalloAlArrancar,
+  cambioLaCuenta, puedeTraerDeDiscord, siguiente, trasFallarLaLlegada, trasUnFalloAlArrancar,
 } from '../../web/static/js/pantallas.js';
 
 const sesion = { usuario: 'felipe' };
@@ -48,6 +48,22 @@ test('el que espera nombre va al bautizo', () => {
 test('con todo en su sitio, al lugar', () => {
   assert.equal(siguiente(sesion, { estado: 'web' }, estado()), 'lugar');
   assert.equal(siguiente(sesion, { estado: 'vinculada' }, estado()), 'lugar');
+});
+
+test('el pueblo sólo se ve cuando todo lo demás está en orden', () => {
+  assert.equal(siguiente(sesion, { estado: 'web' }, estado(), 'pueblo'), 'pueblo');
+  assert.equal(siguiente(sesion, { estado: 'web' }, estado()), 'lugar');
+  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ difunto: { nombre: 'Viejo' } }), 'pueblo'), 'difunto');
+  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ gachamon: null }), 'pueblo'), 'huevo');
+  assert.equal(siguiente(null, null, null, 'pueblo'), 'sesion');
+});
+
+test('si falla la llegada: sin sesión o sin gachamon se decide de nuevo; lo demás se reintenta', () => {
+  assert.equal(trasFallarLaLlegada({ estado: 401, clave: 'sin_sesion' }), 'decidir');
+  assert.equal(trasFallarLaLlegada({ estado: 409, clave: 'sin_cuenta' }), 'decidir');
+  assert.equal(trasFallarLaLlegada({ estado: 0, clave: null }), 'reintentar');
+  assert.equal(trasFallarLaLlegada({ estado: 503, clave: 'servicio' }), 'reintentar');
+  assert.equal(trasFallarLaLlegada(undefined), 'reintentar');
 });
 
 test('al arrancar, un 401 en cualquiera de las tres lecturas lleva a entrar', () => {

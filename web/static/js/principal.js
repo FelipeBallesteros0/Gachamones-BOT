@@ -4,6 +4,7 @@
 import { pedir } from './api.js';
 import * as entrada from './entrada.js';
 import { lugar } from './lugar.js';
+import { pueblo } from './mapa.js';
 import { siguiente, trasUnFalloAlArrancar } from './pantallas.js';
 
 const contenedor = document.getElementById('juego');
@@ -16,6 +17,7 @@ const PANTALLAS = {
   huevo: entrada.huevo,
   bautizo: entrada.bautizo,
   lugar: (destino, seguir, { estado }) => lugar(destino, estado, seguir),
+  pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 
@@ -59,7 +61,11 @@ function pintar(pantalla, datos) {
 let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
-async function seguir(estadoNuevo) {
+// `opciones.vista` (`'pueblo'` o nada) es lo que se quiere ver si todo está en
+// orden, y `opciones.llegando`, que se acaba de llegar caminando. Valen sólo
+// para esta llamada: `seguir()` a secas vuelve al lugar.
+async function seguir(estadoNuevo, opciones) {
+  const { vista, llegando } = opciones || {};
   const esta = ++vuelta;
   let datos;
   const traeEstado = estadoNuevo && typeof estadoNuevo === 'object' && 'gachamon' in estadoNuevo;
@@ -80,7 +86,7 @@ async function seguir(estadoNuevo) {
   }
   if (esta !== vuelta) return;
   conocido = { sesion: datos.sesion, cuenta: datos.cuenta };
-  pintar(siguiente(datos.sesion, datos.cuenta, datos.estado), datos);
+  pintar(siguiente(datos.sesion, datos.cuenta, datos.estado, vista), { ...datos, llegando: llegando === true });
 }
 
 // Al volver con «atrás» desde Rowino, la página puede salir de la caché del

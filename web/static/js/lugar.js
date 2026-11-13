@@ -210,11 +210,21 @@ export function lugar(contenedor, estado, seguir) {
     return cuidado;
   });
 
+  // --- ir al pueblo --------------------------------------------------------------
+
+  const alPueblo = el('button', { type: 'button', class: 'boton boton-pueblo' },
+    el('span', { 'aria-hidden': 'true' }, '🗺️'), 'Pueblo');
+  alPueblo.addEventListener('click', () => {
+    parar();
+    seguir(actual, { vista: 'pueblo' });
+  });
+
   const cuerpo = el('div', { class: 'cuerpo cuerpo-lugar' },
     escena,
     ficha,
     avisos,
-    el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)));
+    el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),
+    alPueblo);
   contenedor.append(cabecera, cuerpo);
 
   // --- pintar lo que dice el estado -----------------------------------------------
