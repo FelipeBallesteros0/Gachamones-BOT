@@ -97,7 +97,10 @@ def _linea_de_pytest_en_la_pi():
 
 def test_la_suite_de_la_pi_no_se_queda_con_la_memoria():
     linea = _linea_de_pytest_en_la_pi()
-    assert "-o tmp_path_retention_policy=none" in linea
+    # `failed` borra el `tmp_path` de cada prueba que pasa; `none` sólo decide
+    # cuántas sesiones se guardan y, con `--basetemp`, deja crecer el temporal.
+    assert "-o tmp_path_retention_policy=failed" in linea
+    assert "tmp_path_retention_policy=none" not in leer("actualizar-pi.sh")
     assert "rm -rf /dev/shm/gachamon-pytest" in linea
     # guarda el estado de pytest, borra, y sale con ese estado
     assert linea.index("estado=") < linea.index("rm -rf") < linea.index("exit ")

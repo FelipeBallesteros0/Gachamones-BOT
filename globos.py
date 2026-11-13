@@ -56,7 +56,7 @@ COMUNES: dict[str, tuple[str, ...]] = {
         "¿Cómo estás?",
         "¿Qué me cuentas?",
         "Me gusta que vengas.",
-        "Hoy me siento con ganas de todo.",
+        "¿Qué hiciste hoy?",
         "¿Te cuento un secreto? Me gusta mirar el cielo.",
         "Te estaba esperando.",
     ),

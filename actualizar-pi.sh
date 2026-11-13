@@ -89,8 +89,9 @@ if [ -z "$SIN_TESTS" ]; then
     # `tail`; se guarda en `estado` y se borra el temporal (también si la suite
     # falla). En rojo, si hay un commit apuntado, la Pi vuelve a él y reinstala
     # sus requisitos. Se sale con el estado de pytest. Los \$ son de la Pi, no
-    # de aquí.
-    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=none tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; exit \$estado"
+    # de aquí. La política es `failed` y no `none`: sólo `failed` borra la
+    # carpeta de cada prueba que pasa; con `none` el temporal en memoria crece.
+    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; exit \$estado"
 fi
 
 # El servicio se toca al final y sólo si todo lo anterior salió bien: con

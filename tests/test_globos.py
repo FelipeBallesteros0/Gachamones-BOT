@@ -34,7 +34,7 @@ def _sueltas():
             *(f for propias in globos.PROPIAS.values() for f in propias.get("suelta", ()))]
 
 
-@pytest.mark.parametrize("afirma", ["content", "qué bien", "aquí", "estamos"])
+@pytest.mark.parametrize("afirma", ["content", "qué bien", "aquí", "estamos", "me siento"])
 def test_la_charla_no_afirma_un_estado_ni_un_lugar(afirma):
     # Las sueltas salen siempre, también con el ánimo en 41 o a la intemperie:
     # un globo no anuncia nada que no esté pasando.
