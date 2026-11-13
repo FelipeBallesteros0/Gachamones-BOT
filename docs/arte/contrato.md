@@ -34,6 +34,9 @@ Por ejemplo: `pueblo/lugares/plaza.png`.
 |---|---|---|
 | `escenas/<lugar>.png` | 720 × 480 | El fondo de la pantalla de cada lugar, uno por cada uno de los nueve de arriba. Por ejemplo `escenas/cementerio.png`. Ocupa todo el cuadro, sin transparencia. |
 
+- **La escena no se ve entera.** En pantalla el cuadro es más cuadrado que el dibujo: se ve todo el alto y se recorta por los dos lados, por igual. En un teléfono se pierde de un décimo a un quinto del ancho; en el computador, de un quinto a un cuarto, y hasta cerca de la mitad si la ventana es angosta. Lo importante va en la mitad central, que se ve siempre. (En algunos teléfonos acostados es al revés: se ve todo el ancho y se pierde un décimo por arriba y otro por abajo.)
+- **Dónde pisan.** Cuando se ve todo el alto, los pies del avatar quedan a un 14 % del alto contando desde abajo (unos 75 px de los 480 del dibujo), a la izquierda; los del gachamon, a un 6 % (unos 30 px), algo a la derecha del centro. Ahí tiene que haber suelo.
+
 ### El avatar (`avatar/`)
 
 El avatar es la persona que camina por el pueblo. Se arma apilando **tres capas**
@@ -87,6 +90,10 @@ tono, pero cada color es un archivo aparte.
 | `efectos/marca.png` | 32 × 32 | La marca de destino: donde vas a caminar al tocar el mapa. |
 
 Fondo transparente y la figura centrada.
+
+El juego todavía no dibuja `efectos/corazon.png` ni `efectos/estrella.png`: los
+corazones de la caricia son un carácter de texto y la estrella no se usa.
+Reemplazarlos hoy no cambia nada en pantalla.
 
 ## Lo que llega con el plan 4
 

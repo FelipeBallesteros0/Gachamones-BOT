@@ -2,11 +2,13 @@
 
 Se corre con `./venv/bin/python -m herramientas.rellenos`: escribe sólo los
 archivos que falten, así que un dibujo de verdad nunca se pisa. Con `--todo`
-regenera todos los rellenos.
+rehace todas las piezas, también los dibujos de verdad que ya hubieran
+reemplazado a su relleno: vuelven a ser relleno.
 
 Es determinista: colores lisos, sin azar ni fechas, y dos corridas dan los
-mismos bytes. El monigote del avatar es el mismo de `web/static/js/dibujo.js`
-(a doble tamaño, repartido en capas que se apilan cuerpo, ropa y pelo).
+mismos bytes. El monigote del avatar es el que antes dibujaba el cliente con
+código (a doble tamaño, repartido en capas que se apilan cuerpo, ropa y pelo);
+hoy su forma vive sólo aquí y en los archivos que esto escribe.
 """
 
 import colorsys
@@ -106,8 +108,8 @@ def _escena(indice: int, nombre: str, ancho: int, alto: int) -> Image.Image:
 
 
 # --- el avatar ---------------------------------------------------------------
-# El monigote de `dibujo.js` (unidades de 1 px, origen en los pies) a doble
-# tamaño: el lienzo de 48 x 84 lleva los pies en (24, 80).
+# El monigote que antes dibujaba el cliente (unidades de 1 px, origen en los
+# pies) a doble tamaño: el lienzo de 48 x 84 lleva los pies en (24, 80).
 
 ESCALA = 2
 PIES = (24, 80)
@@ -227,7 +229,7 @@ def _pelo(pelo: str, color: str, pose: str, lazo: str = "#d9534f") -> Image.Imag
     return imagen
 
 
-# Los mismos colores que `COLORES_DE_PIEL`, `COLORES_DE_PELO` y `COLORES_DE_ROPA` de dibujo.js.
+# Los mismos colores que las muestras del selector del avatar (`MUESTRAS` en `web/static/js/entrada.js`).
 _COLORES_DE_PIEL = {"clara": "#f6d5bd", "media": "#e8b48a", "tostada": "#c68a5c", "oscura": "#8a5636"}
 _COLORES_DE_PELO = {"negro": "#2a2523", "castano": "#6b4226", "rubio": "#e2b552",
                     "rojo": "#c2502a", "cano": "#d4d4da", "azul": "#3a6fd8"}

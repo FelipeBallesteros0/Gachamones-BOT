@@ -194,9 +194,10 @@ Para regenerar los rellenos que falten:
 ```
 
 Sólo escribe los archivos que no existen, así que un dibujo de verdad nunca se
-pisa; con `--todo` rehace todos los rellenos. `tests/test_arte.py` falla si
-falta una pieza o si alguna no mide lo que dice el contrato, antes de
-desplegar.
+pisa. Con `--todo` rehace **todas** las piezas, también los dibujos de verdad
+que ya hubieran reemplazado a su relleno: vuelven a ser relleno. Al correr la
+suite, `tests/test_arte.py` falla si falta una pieza o si alguna no mide lo que
+dice el contrato.
 
 ## Comandos
 

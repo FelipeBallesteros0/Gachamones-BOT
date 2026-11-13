@@ -75,27 +75,23 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - El generador de rellenos (`herramientas/rellenos.py`) lleva sus propias tablas
   de colores y ramas por clave de ropa: una opción nueva del avatar extiende el
   contrato sola, pero `generar()` falla (color) o la dibuja en silencio como
-  overol (ropa). Dos de sus comentarios remiten a `dibujo.js`, que ya no dibuja
-  el monigote.
+  overol (ropa).
 - En el relleno, la sombra del cuerpo se corta una fila por abajo y el pelo es
   idéntico en las tres poses.
 - El mapa supone que los retratos de los gachamones miran a la izquierda y los
   voltea al caminar hacia la derecha; la mayoría mira de frente.
 - La escala del avatar y del mapa no es un número entero de píxeles: se prefirió
   conservar el tamaño. Algún píxel sale un poco más ancho que su vecino.
-- Un fallo de red al cargar una pieza queda recordado toda la sesión: hasta
-  recargar la página se ve el recuadro de la pieza que falta.
 - En la escena de un lugar cuyo dibujo falta, el gachamon tapa parte del nombre
   del archivo en el recuadro. La falta se nota igual y queda en el registro del
   servidor y en `tests/test_arte.py`.
+- Una ruta de arte sin forma de pieza no deja rastro ni en la consola.
 
 ### El mapa y la caminata
 
 - `llegarYa` tras una vuelta corta (dar la vuelta antes de andar el hueco entero
   y volver al nodo de partida) deja al gachamon más cerca del avatar de lo
   debido, hasta encima; se ve sólo mientras se espera la respuesta del servidor.
-- Con el teléfono en horizontal sin llegar a 900 px, la flecha izquierda puede
-  verse un rato aunque el pueblo entero esté a la vista.
 - En los dos lugares sin camino hacia la izquierda, el gachamon arranca parado
   en el pasto, al lado del avatar.
 - Pasar la ventana a otro monitor con distinta densidad no reencuadra el lienzo,
@@ -112,6 +108,16 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - «Volver» desde el mapa vuelve a leer la sesión, la cuenta y el estado: tarda
   una lectura en vez de ser instantáneo, a cambio de que las esperas de los
   cuidados salgan bien.
+- «Volver» desde el mapa hace tres lecturas seguidas (sesión, cuenta y estado);
+  bastaría la del estado.
+- Tocar «Pueblo» con un cuidado todavía en camino pinta el mapa con los saldos
+  de antes; se corrige al entrar a un lugar.
+- Si `pueblo.json` faltara en la versión vigente (un despliegue roto),
+  «Pueblo» devuelve al lugar sin decir por qué.
+- «Volver a Tu casa» lleva una mayúscula en medio de la frase; un formato
+  neutro («Volver · Tu casa») lo evitaría sin datos nuevos.
+- Parado al empezar, el gachamon sale volteado en el mapa (por la suposición de
+  hacia dónde miran los retratos).
 
 ### La pantalla del lugar
 
@@ -119,6 +125,16 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   oculta, el globo de llegada se pierde: la llegada queda muda y el siguiente
   globo ya es charla de siempre.
 - El fondo de la escena no se guarda de un dibujo de ancho o alto cero.
+- Al llegar a un lugar, el foco cae en el nombre del gachamon: un lector de
+  pantalla no anuncia ni el lugar ni su aviso.
+
+### El despliegue
+
+- Mientras la suite corre en la Pi durante un despliegue, la web vieja sirve
+  los archivos estáticos nuevos: quien cargue la página en esos minutos recibe
+  el cliente nuevo con el servidor viejo, y si el cliente nuevo espera algo que
+  el servidor viejo no manda, ve la pantalla de «no carga» hasta el reinicio.
+  Es del guion de despliegue, no del juego.
 
 ### Pruebas
 
@@ -165,6 +181,15 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   «Volver a Refugio» y la lista sólo el nombre bajo «¿Adónde vamos?». Si se
   quiere «Volver al refugio» o «Ir a la plaza», hace falta un dato más por lugar
   en `pueblo.json`.
+- Quien vive a la intemperie (se le acabó la estancia en el refugio) parte en
+  «Refugio», sin aviso, y al llegar caminando el gachamon puede decir «Es un
+  lugar sencillo, pero abriga.»; además el dibujo de la escena tapa el cielo
+  que antes lo señalaba, y sólo queda «vive a la intemperie» en la ficha. Pide
+  texto nuevo, por decidir.
+- Los estáticos versionados no llevan `Cache-Control` propio; con uno
+  inmutable, el mapa no repetiría sus peticiones en cada visita.
+- El contrato de arte tiene dos efectos que el juego todavía no dibuja (el
+  corazón y la estrella).
 
 ## Para el proyecto 2 (notificaciones)
 
