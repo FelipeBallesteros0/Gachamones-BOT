@@ -11,6 +11,7 @@ despeja con una fórmula cerrada, y el bucle que mata criaturas se reduce a un
 """
 from __future__ import annotations
 
+import json
 import logging
 import random
 import sqlite3
@@ -252,6 +253,21 @@ CREATE TABLE IF NOT EXISTS devoluciones (
     gemas INTEGER NOT NULL CHECK (gemas > 0),
     devuelta_en TEXT NOT NULL,
     PRIMARY KEY (usuario_id, guild_id, cosmetico)
+);
+
+-- Las compras que no deben hacerse dos veces aunque la petición se repita: la
+-- web reenvía el mismo evento cuando no le llega la respuesta. Se anota sólo lo
+-- que salió bien, en la transacción que lo hizo; la clave primaria es la que
+-- impide que el mismo evento de la misma persona cobre otra vez.
+CREATE TABLE IF NOT EXISTS acciones_unicas (
+    evento_id  TEXT NOT NULL,
+    usuario_id TEXT NOT NULL,
+    guild_id   TEXT NOT NULL,
+    accion     TEXT NOT NULL,
+    solicitud  TEXT NOT NULL,
+    resultado  TEXT NOT NULL,
+    cuando     TEXT NOT NULL,
+    PRIMARY KEY (evento_id, usuario_id, guild_id, accion)
 );
 
 -- Quién es en el juego cada cuenta de Rowino (la web). Antes de vincular es una
@@ -1850,6 +1866,44 @@ def anotar_logro_de_persona_en(
         (usuario_id, guild_id, clave, cuando.isoformat()),
     )
     return bool(cursor.rowcount)
+
+
+# --- Las acciones que no se repiten ------------------------------------------
+#
+# Las dos reciben la conexión porque van dentro de la transacción de la compra:
+# mirar, cobrar y anotar tienen que ser una sola cosa.
+
+def accion_hecha_en(
+    con: sqlite3.Connection, evento_id: str, usuario_id: str, guild_id: str,
+    accion: str,
+) -> tuple[str, dict] | None:
+    """Lo que se pidió y lo que salió con ese evento, o `None` si es nuevo."""
+    fila = con.execute(
+        "SELECT solicitud, resultado FROM acciones_unicas "
+        "WHERE evento_id = ? AND usuario_id = ? AND guild_id = ? AND accion = ?",
+        (evento_id, usuario_id, guild_id, accion),
+    ).fetchone()
+    if fila is None:
+        return None
+    return fila["solicitud"], json.loads(fila["resultado"])
+
+
+def anotar_accion_en(
+    con: sqlite3.Connection, evento_id: str, usuario_id: str, guild_id: str,
+    accion: str, solicitud: str, resultado: dict, ahora: datetime,
+) -> None:
+    """Apunta que ese evento ya se hizo y qué salió.
+
+    Un `INSERT` a secas y no `OR IGNORE`: quien llama ya miró dentro de la misma
+    transacción, así que un choque sería un error y debe deshacer la compra
+    entera en vez de dejarla cobrada sin anotar.
+    """
+    con.execute(
+        "INSERT INTO acciones_unicas (evento_id, usuario_id, guild_id, accion, "
+        "solicitud, resultado, cuando) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (evento_id, usuario_id, guild_id, accion, solicitud,
+         json.dumps(resultado), ahora.isoformat()),
+    )
 
 
 # --- El estilo público de la ficha ----------------------------------------

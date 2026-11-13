@@ -1151,6 +1151,51 @@ def ejecutar_competencia(
         )
 
 
+# --- Las compras que no se cobran dos veces -----------------------------------
+#
+# La web manda un evento con cada compra y, si no le llega la respuesta, repite
+# la petición con ese mismo evento. Discord no manda ninguno, y sin evento estas
+# dos no hacen nada: todo sigue como antes.
+
+def _ya_hecha(
+    con, evento_id: str | None, usuario_id: str, guild_id: str, accion: str,
+    solicitud: str,
+) -> dict | None:
+    """Lo que salió la primera vez si ese evento ya se hizo; `None` si no.
+
+    Va justo detrás del `BEGIN IMMEDIATE` y antes de cualquier otra lectura que
+    pueda rechazar: un replay contesta que salió bien aunque el estado de ahora
+    ya no lo permita —la casa ya mejorada, la corona ya en el ropero, la casa
+    vendida que ya no está—. Un evento usado para pedir otra cosa es un error de
+    quien llama, como en `comprar`.
+    """
+    if evento_id is None:
+        return None
+    hecha = db.accion_hecha_en(con, evento_id, usuario_id, guild_id, accion)
+    if hecha is None:
+        return None
+    pedida, resultado = hecha
+    if pedida != solicitud:
+        raise RuntimeError(f"el evento de {accion} pertenece a otra solicitud")
+    return resultado
+
+
+def _anotar(
+    con, evento_id: str | None, usuario_id: str, guild_id: str, accion: str,
+    solicitud: str, resultado: dict, ahora: datetime,
+) -> None:
+    """Apunta lo que salió bien, en la misma transacción que lo hizo.
+
+    Sólo se llama al acabar bien: un rechazo no se anota y repetirlo vuelve a
+    decidir, porque entretanto pueden haber llegado las monedas.
+    """
+    if evento_id is not None:
+        db.anotar_accion_en(
+            con, evento_id, usuario_id, guild_id, accion, solicitud, resultado,
+            ahora,
+        )
+
+
 @dataclass(frozen=True)
 class ResultadoCosmetico:
     """Cómo salió comprar, poner o quitar un cosmético."""
@@ -1165,6 +1210,7 @@ class ResultadoCosmetico:
     # Por qué no se pudo, como clave; None si salió bien o si el rechazo aún no
     # tiene una (equipar y quitar).
     motivo: str | None = None
+    replay: bool = False            # la compra ya estaba hecha con ese evento
 
 
 def _vestir_en(
@@ -1178,7 +1224,8 @@ def _vestir_en(
 
 
 def comprar_cosmetico(
-    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico
+    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico,
+    evento_id: str | None = None,
 ) -> ResultadoCosmetico:
     """Cobra las gemas, lo mete en tu ropero y se lo pone al activo.
 
@@ -1199,12 +1246,26 @@ def comprar_cosmetico(
 
     Sin gachamon activo se puede comprar igual: va al ropero y se equipa cuando
     haya a quién.
+
+    Con `evento_id` (la web), repetir la petición con el mismo evento contesta
+    que salió bien sin cobrar otra vez, en vez de «ya lo tienes».
     """
     if cos.CATALOGO.get(cosmetico.clave) != cosmetico:
         raise ValueError("el cosmético no coincide con el catálogo actual")
 
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
+        hecha = _ya_hecha(
+            con, evento_id, usuario_id, guild_id, "cosmetico", cosmetico.clave
+        )
+        if hecha is not None:
+            return ResultadoCosmetico(
+                ok=True, replay=True,
+                criatura=db.criatura_activa_en(con, usuario_id, guild_id),
+                saldo=_saldos_en(con, usuario_id, guild_id).asciigems,
+                sustituido=cos.buscar(hecha["sustituido"]),
+            )
+
         criatura = db.criatura_activa_en(con, usuario_id, guild_id)
         _asegurar_monedero(con, usuario_id, guild_id)
 
@@ -1237,10 +1298,15 @@ def comprar_cosmetico(
             )
 
         db.guardar_en_el_ropero_en(con, usuario_id, guild_id, cosmetico.clave)
-        if criatura is None:
-            return ResultadoCosmetico(ok=True, saldo=saldo)
-        vestido, sustituido = _vestir_en(
-            con, criatura, cosmetico.tipo, cosmetico.clave
+        vestido, sustituido = criatura, None
+        if criatura is not None:
+            vestido, sustituido = _vestir_en(
+                con, criatura, cosmetico.tipo, cosmetico.clave
+            )
+        _anotar(
+            con, evento_id, usuario_id, guild_id, "cosmetico", cosmetico.clave,
+            {"sustituido": sustituido.clave if sustituido else None},
+            db.ahora_utc(),
         )
         return ResultadoCosmetico(
             ok=True, criatura=vestido, saldo=saldo, sustituido=sustituido
@@ -1258,6 +1324,7 @@ class ResultadoMudanza:
     saldo: int = 0                      # asciicoins que quedan
     problema: str | None = None
     motivo: str | None = None           # por qué no, como clave
+    replay: bool = False                # ya estaba hecha con ese evento
 
 
 @dataclass(frozen=True)
@@ -1272,11 +1339,12 @@ class ResultadoVenta:
     desalojados: int = 0              # gachamones que se van al refugio
     problema: str | None = None
     motivo: str | None = None         # por qué no, como clave
+    replay: bool = False              # ya estaba hecha con ese evento
 
 
 def vender_casa(
     usuario_id: str, guild_id: str, casa_id: int,
-    ahora: datetime | None = None,
+    ahora: datetime | None = None, evento_id: str | None = None,
 ) -> ResultadoVenta:
     """Vende **esa** casa y recoloca lo que tenía dentro.
 
@@ -1290,7 +1358,8 @@ def vender_casa(
 
     Lo que impide cobrarla dos veces no es el ledger sino el propio estado: la
     fila de `casas_propias` ya no está y el segundo intento no la encuentra. Es
-    el cerrojo de `comprar_cosmetico`.
+    el cerrojo de `comprar_cosmetico`. Con `evento_id` (la web), repetir la
+    petición contesta lo que se cobró la primera vez, aunque la casa ya no esté.
 
     Sus gachamones se van al refugio, sus muebles vuelven al armario —retirar uno
     nunca lo destruye— y lo plantado en sus bancales se pierde, porque la tierra
@@ -1299,6 +1368,17 @@ def vender_casa(
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
+        hecha = _ya_hecha(
+            con, evento_id, usuario_id, guild_id, "venta", str(casa_id)
+        )
+        if hecha is not None:
+            return ResultadoVenta(
+                ok=True, replay=True, casa=cas.buscar(hecha["casa"]),
+                cobrado=hecha["cobrado"], guardados=hecha["guardados"],
+                desalojados=hecha["desalojados"],
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+            )
+
         hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
         propia = hogar.casa_por_id(casa_id)
         if propia is None:
@@ -1323,6 +1403,12 @@ def vender_casa(
         guardados = db.vender_la_casa_en(
             con, usuario_id, guild_id, casa_id, ahora
         )
+        _anotar(
+            con, evento_id, usuario_id, guild_id, "venta", str(casa_id),
+            {"casa": casa.clave, "cobrado": cobrado, "guardados": guardados,
+             "desalojados": desalojados},
+            ahora,
+        )
         return ResultadoVenta(
             ok=True, casa=casa, cobrado=cobrado, guardados=guardados,
             desalojados=desalojados,
@@ -1333,6 +1419,7 @@ def vender_casa(
 def comprar_casa(
     usuario_id: str, guild_id: str, casa: cas.Casa,
     ahora: datetime | None = None, mejorar: int | None = None,
+    evento_id: str | None = None,
 ) -> ResultadoMudanza:
     """Cobra los asciicoins y te da una casa, en una transacción.
 
@@ -1349,15 +1436,29 @@ def comprar_casa(
     pociones. Esto les da adónde ir.
 
     No lleva fila en `operaciones_economia` aunque sean asciicoins: allí se
-    congela lo que pagó un evento que puede reprocesarse, y aquí cada compra es
-    una acción deliberada que no se reprocesa.
+    congela lo que pagó un evento que puede reprocesarse, y desde Discord cada
+    compra es una acción deliberada que no se reprocesa. La web sí repite la
+    petición cuando no le llega la respuesta, y por eso manda `evento_id`: con
+    el mismo evento, la segunda vez contesta la casa de la primera en vez de
+    comprar otra.
     """
     if cas.CATALOGO.get(casa.clave) != casa:
         raise ValueError("la casa no coincide con el catálogo actual")
 
+    # Comprar otra mediana y mejorar la casa 4 a mediana son peticiones
+    # distintas aunque nombren la misma casa.
+    solicitud = casa.clave if mejorar is None else f"{casa.clave}:{mejorar}"
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
+        hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "casa", solicitud)
+        if hecha is not None:
+            return ResultadoMudanza(
+                ok=True, replay=True, casa=casa,
+                desde=cas.buscar(hecha["desde"]), casa_id=hecha["casa_id"],
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+            )
+
         hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
         _asegurar_monedero(con, usuario_id, guild_id)
         saldo = _saldos_en(con, usuario_id, guild_id).asciicoins
@@ -1418,6 +1519,11 @@ def comprar_casa(
             db.acoger_a_los_sin_casa_en(
                 con, usuario_id, guild_id, casa_id, casa.aforo
             )
+        _anotar(
+            con, evento_id, usuario_id, guild_id, "casa", solicitud,
+            {"casa_id": casa_id, "desde": vieja.casa.clave if vieja else None},
+            ahora,
+        )
         return ResultadoMudanza(
             ok=True, casa=casa, desde=vieja.casa if vieja else None,
             casa_id=casa_id, saldo=saldo,
@@ -1509,6 +1615,7 @@ class ResultadoMueble:
     problema: str | None = None
     motivo: str | None = None   # por qué no, como clave
     colocado: bool = False      # si **ese** mueble quedó puesto tras la operación
+    replay: bool = False        # la compra ya estaba hecha con ese evento
 
 
 def _estado_de_la_casa(
@@ -1576,19 +1683,42 @@ def _recibo_mueble(
 def comprar_mueble(
     usuario_id: str, guild_id: str, mueble: cas.Mueble,
     ahora: datetime | None = None, casa_id: int | None = None,
+    evento_id: str | None = None,
 ) -> ResultadoMueble:
     """Cobra el mueble y lo coloca si queda hueco; si no, se guarda.
 
     Uno de cada, como el ropero, y por lo mismo: repetir la chimenea no
     significaría nada y llegar al techo comprando cuatro veces el mueble más caro
     dejaría el catálogo sin sentido. Comprar el que ya tienes no cobra.
+
+    Con `evento_id` (la web), repetir la petición contesta lo que pasó la
+    primera vez —si quedó puesto o guardado— en vez de «ya lo tienes».
     """
     if cas.MUEBLES.get(mueble.clave) != mueble:
         raise ValueError("el mueble no coincide con el catálogo actual")
 
+    solicitud = f"{mueble.clave}:{'' if casa_id is None else casa_id}"
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
+        hecha = _ya_hecha(
+            con, evento_id, usuario_id, guild_id, "mueble", solicitud
+        )
+        if hecha is not None:
+            # La casa de entonces, como esté ahora; `None` si ya se vendió.
+            donde = next(
+                (c for c in db._casas_de(con, usuario_id, guild_id)
+                 if c.id == hecha["casa_id"]),
+                None,
+            )
+            return replace(
+                _recibo_mueble(
+                    con, usuario_id, guild_id, donde, {}, mueble, ok=True,
+                    colocado=hecha["colocado"],
+                ),
+                replay=True,
+            )
+
         casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
             con, usuario_id, guild_id, ahora, casa_id
         )
@@ -1628,6 +1758,10 @@ def comprar_mueble(
             casa.id if dentro else None,
         )
         mobiliario[mueble.clave] = dentro
+        _anotar(
+            con, evento_id, usuario_id, guild_id, "mueble", solicitud,
+            {"colocado": dentro, "casa_id": casa.id}, ahora,
+        )
 
         return _recibo_mueble(
             con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True,
