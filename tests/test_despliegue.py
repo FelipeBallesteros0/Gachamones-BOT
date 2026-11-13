@@ -1,4 +1,5 @@
 """Lo que los guiones de despliegue no pueden dejar de hacer."""
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -37,19 +38,48 @@ def test_cada_guion_reinicia_el_bot_antes_que_la_web(guion):
 
 
 @pytest.mark.parametrize("guion", GUIONES)
-def test_cada_guion_instala_habilita_y_comprueba_la_web(guion):
+def test_cada_guion_instala_y_habilita_las_dos_unidades(guion):
     texto = leer(guion)
     assert "/etc/systemd/system/gachamon-web.service" in texto
     assert "enable tamagotchi gachamon-web" in texto
-    assert "systemctl is-active tamagotchi gachamon-web" in texto
-    # la comprobación va después de reiniciar: si la web no queda activa, falla
-    assert texto.index("restart gachamon-web") < texto.index("is-active tamagotchi gachamon-web")
+
+
+@pytest.mark.parametrize("guion", GUIONES)
+def test_cada_guion_comprueba_cada_servicio_por_separado(guion):
+    # `systemctl is-active a b` sale con 0 si basta UNA activa: una web caída
+    # pasaría. Una comprobación por unidad, encadenadas con &&.
+    texto = leer(guion)
+    lineas = [l for l in texto.splitlines() if "is-active" in l and not l.lstrip().startswith("#")]
+    assert lineas, "falta la comprobación final"
+    for linea in lineas:
+        assert not re.search(r"is-active\s+(tamagotchi|gachamon-web)\s+(tamagotchi|gachamon-web)", linea)
+    unidos = " ".join(lineas)
+    assert "is-active tamagotchi &&" in unidos
+    assert "&& systemctl is-active gachamon-web" in unidos
+    # y van después de reiniciar la web: si no queda activa, el guion falla
+    assert texto.index("restart gachamon-web") < texto.index("is-active gachamon-web")
 
 
 @pytest.mark.parametrize("guion", GUIONES)
 def test_cada_guion_copia_la_base_antes_de_reiniciar(guion):
     texto = leer(guion)
-    assert texto.index(".bak") < texto.index("systemctl restart")
+    assert texto.index("cp tamagotchi.db") < texto.index("systemctl restart")
+
+
+def test_la_web_arranca_despues_del_bot_sin_depender_de_el():
+    unidad = leer("gachamon-web.service")
+    assert "After=network-online.target tamagotchi.service" in unidad
+    assert "Requires=" not in unidad
+
+
+def test_la_pi_instala_lo_que_la_suite_necesita_solo_si_la_corre():
+    texto = leer("actualizar-pi.sh")
+    assert "requisitos=requirements-dev.txt" in texto
+    assert "requisitos=requirements.txt" in texto
+    # el de desarrollo se elige cuando NO hay SIN_TESTS
+    i = texto.index("if [ -z '$SIN_TESTS' ]")
+    assert i < texto.index("requisitos=requirements-dev.txt") < texto.index("else", i)
+    assert '-r "\\$requisitos"' in texto
 
 
 def test_una_suite_en_rojo_frena_el_despliegue_y_corre_en_memoria():
@@ -57,6 +87,42 @@ def test_una_suite_en_rojo_frena_el_despliegue_y_corre_en_memoria():
     linea = next(l for l in texto.splitlines() if "pytest" in l and "ssh" in l)
     assert "set -o pipefail" in linea
     assert "--basetemp=/dev/shm/" in linea
+
+
+def _linea_de_pytest_en_la_pi():
+    texto = leer("actualizar-pi.sh")
+    return next(l for l in texto.splitlines() if "pytest" in l and "ssh" in l)
+
+
+def test_la_suite_de_la_pi_no_se_queda_con_la_memoria():
+    linea = _linea_de_pytest_en_la_pi()
+    assert "-o tmp_path_retention_policy=none" in linea
+    assert "rm -rf /dev/shm/gachamon-pytest" in linea
+    # guarda el estado de pytest, borra, y sale con ese estado
+    assert linea.index("estado=") < linea.index("rm -rf") < linea.index("exit ")
+    assert "exit \\$estado" in linea
+
+
+@pytest.mark.parametrize("codigo", [0, 1])
+def test_la_orden_remota_conserva_el_codigo_de_pytest_y_borra(codigo, tmp_path):
+    """Ejecuta en local la orden que iría por ssh, con un pytest de mentira."""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no hay bash")
+    linea = _linea_de_pytest_en_la_pi()
+    orden = linea.split('ssh "$PI" "', 1)[1].rsplit('"', 1)[0]
+    orden = orden.replace("\\$", "$").replace("'$DEST'", f"'{tmp_path}'")
+    temporal = tmp_path / "temporal"
+    temporal.mkdir()
+    orden = orden.replace("/dev/shm/gachamon-pytest", str(temporal))
+    falso = tmp_path / "venv" / "bin"
+    falso.mkdir(parents=True)
+    (falso / "python").write_text(f"#!/bin/bash\necho resultado de mentira\nexit {codigo}\n")
+    (falso / "python").chmod(0o755)
+    hecho = subprocess.run([bash, "-c", orden], capture_output=True, text=True)
+    assert hecho.returncode == codigo
+    assert "resultado de mentira" in hecho.stdout
+    assert not temporal.exists()
 
 
 def test_rsync_no_borra_el_diario_de_sqlite():

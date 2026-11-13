@@ -5,27 +5,17 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 
 ## Para el plan 2 (servidor web y pantalla principal)
 
-~~- **Crear un gachamon y mirar la cuenta, en la misma transacción.**~~
-  ~~`db.crear` no consulta `cuentas_web`. Si la web resuelve `db.cuenta_web()`~~
-  ~~fuera de la transacción en la que crea la criatura, puede nacer un gachamon~~
-  ~~de la identidad web justo después de vincular, y queda huérfano.~~
+- ~~**Crear un gachamon y mirar la cuenta, en la misma transacción.** `db.crear` no consulta `cuentas_web`. Si la web resuelve `db.cuenta_web()` fuera de la transacción en la que crea la criatura, puede nacer un gachamon de la identidad web justo después de vincular, y queda huérfano.~~
   **Resuelto en el plan 2.**
 - **«Sin gachamones» no es «sin estado».** Al vincular, una identidad web
   vacía de gachamones puede haber dejado un monedero, un reloj del refugio o
   una compra. Esas filas quedan huérfanas. Decidir si la web impide llegar a
   ese punto o si se limpian.
-~~- **El código de vinculación se puede pedir con engaños.** Quien convenza a~~
-  ~~otra persona de escribir su código en Discord se queda con los gachamones de~~
-  ~~esa persona en la web. Avisarlo donde la web muestra el código y en la~~
-  ~~descripción de `/vincular`.~~
+- ~~**El código de vinculación se puede pedir con engaños.** Quien convenza a otra persona de escribir su código en Discord se queda con los gachamones de esa persona en la web. Avisarlo donde la web muestra el código y en la descripción de `/vincular`.~~
   **Resuelto en el plan 2** (la web avisa «No se lo pases a nadie»); lo que falta del lado del bot está abajo.
-~~- **«Desfallecido».** Con la comida en 0, la ficha y los globos tienen que~~
-  ~~decir que el gachamon está desfallecido y pide comer (diseño, 5.8).~~
+- ~~**«Desfallecido».** Con la comida en 0, la ficha y los globos tienen que decir que el gachamon está desfallecido y pide comer (diseño, 5.8).~~
   **Resuelto en el plan 2.**
-~~- **La secuencia de arranque vive en `bot.py`.** `db.inicializar()` seguido de~~
-  ~~`economia.devolver_cosmeticos_retirados()` está escrito dentro de un módulo~~
-  ~~que importa `discord`. El servicio web necesita lo mismo: sacarlo a una~~
-  ~~función sin Discord y probarla.~~
+- ~~**La secuencia de arranque vive en `bot.py`.** `db.inicializar()` seguido de `economia.devolver_cosmeticos_retirados()` está escrito dentro de un módulo que importa `discord`. El servicio web necesita lo mismo: sacarlo a una función sin Discord y probarla.~~
   **Resuelto en el plan 2** (`economia.poner_al_dia`).
 - **La prueba del reintento por colisión.** Ninguna prueba pasa `rng` a
   `db.pedir_codigo_de_vinculo`; añadirla cuando la web empiece a llamarla.

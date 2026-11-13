@@ -1,6 +1,6 @@
 [Unit]
 Description=Gachamones web (FastAPI bajo /gachamon, junto al bot)
-After=network-online.target
+After=network-online.target tamagotchi.service
 Wants=network-online.target
 
 [Service]

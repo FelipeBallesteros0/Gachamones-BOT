@@ -112,9 +112,9 @@ Hay **dos scripts y no hacen lo mismo**:
 está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
 datos antes de tocar nada (guarda las 5 últimas), pone la Pi en el commit de
 `main`, corre la suite allí y **sólo reinicia si pasa**. La suite usa un temporal
-en memoria (`--basetemp=/dev/shm/...`): con él tarda mucho menos que los diez
-minutos que tardaba con el temporal en la tarjeta SD (la cifra se anotará al
-medirla). La primera vez convierte
+en memoria (`--basetemp=/dev/shm/...`) que se borra al terminar, y para ello
+instala `requirements-dev.txt` (con `SIN_TESTS=1` instala sólo
+`requirements.txt`). La primera vez convierte
 el directorio en un clon de git; el `.env`, la base y el `venv` están en
 `.gitignore`, así que no los toca.
 
@@ -150,6 +150,9 @@ En local:
 ```bash
 ./venv/bin/python -m uvicorn web.app:app --port 8010
 ```
+
+Se abre en `http://127.0.0.1:8010/gachamon/`. Sin una base de Rowino a mano
+nadie puede entrar: `RUTA_ROWINO_BD` dice dónde está.
 
 Variables del `.env` (explicadas en `.env.ejemplo`):
 

@@ -63,20 +63,32 @@ git fetch -q origin '$RAMA'
 git reset -q --hard "origin/$RAMA"
 
 { [ -d venv ] || python3 -m venv venv; }
-./venv/bin/python -m pip install -q -r requirements.txt
+# La suite necesita pytest y httpx, que sólo están en requirements-dev.txt (que
+# ya incluye a requirements.txt). Sin suite, basta con lo de producción.
+if [ -z '$SIN_TESTS' ]; then
+    requisitos=requirements-dev.txt
+else
+    requisitos=requirements.txt
+fi
+./venv/bin/python -m pip install -q -r "\$requisitos"
 
 echo "    en el commit: \$(git rev-parse --short HEAD) \$(git log -1 --format=%s)"
 REMOTO
 
 if [ -z "$SIN_TESTS" ]; then
     echo "==> Tests en la Pi (SIN_TESTS=1 para saltarlos)"
-    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest tests/ -q 2>&1 | tail -3"
+    # Orden remota: con pipefail, el estado del pipe es el de pytest y no el de
+    # `tail`; se guarda en `estado`, se borra el temporal (también si la suite
+    # falla) y se sale con ese mismo estado. Los \$ son de la Pi, no de aquí.
+    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=none tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; exit \$estado"
 fi
 
 # El servicio se toca al final y sólo si todo lo anterior salió bien: con
 # `set -e` aquí y `set -o pipefail` en la orden remota, una suite en rojo hace
-# que `ssh` devuelva el estado de pytest (y no el de `tail`), el guion corta y
-# el bot sigue con la versión buena.
+# que `ssh` devuelva el estado de pytest (y no el de `tail`) y el guion corta
+# sin reiniciar. Ojo: el proceso en marcha sigue con la versión anterior, pero
+# el código y el venv en disco ya son los nuevos, así que un reinicio posterior
+# del servicio o de la máquina levantaría esa versión en rojo.
 echo "==> Reiniciando los servicios (primero el bot, después la web)"
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
@@ -86,7 +98,7 @@ ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tama
     sudo systemctl enable tamagotchi gachamon-web && \
     sudo systemctl restart tamagotchi && \
     sudo systemctl restart gachamon-web && \
-    sleep 3 && systemctl is-active tamagotchi gachamon-web"
+    sleep 3 && systemctl is-active tamagotchi && systemctl is-active gachamon-web"
 
 echo
 echo "Listo. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'"

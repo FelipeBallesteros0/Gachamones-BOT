@@ -70,7 +70,7 @@ ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tama
     sudo systemctl enable tamagotchi gachamon-web && \
     sudo systemctl restart tamagotchi && \
     sudo systemctl restart gachamon-web && \
-    sleep 3 && systemctl is-active tamagotchi gachamon-web"
+    sleep 3 && systemctl is-active tamagotchi && systemctl is-active gachamon-web"
 
 echo
 echo "Deploy OK. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'"
