@@ -35,7 +35,10 @@ Por ejemplo: `pueblo/lugares/plaza.png`.
 | `escenas/<lugar>.png` | 720 × 480 | El fondo de la pantalla de cada lugar, uno por cada uno de los nueve de arriba. Por ejemplo `escenas/cementerio.png`. Ocupa todo el cuadro, sin transparencia. |
 
 - **La escena no se ve entera.** En pantalla el cuadro es más cuadrado que el dibujo: se ve todo el alto y se recorta por los dos lados, por igual. En un teléfono se pierde de un décimo a un quinto del ancho; en el computador, de un quinto a un cuarto, y hasta cerca de la mitad si la ventana es angosta. Lo importante va en la mitad central, que se ve siempre. (En algunos teléfonos acostados es al revés: se ve todo el ancho y se pierde un décimo por arriba y otro por abajo.)
-- **Dónde pisan.** Cuando se ve todo el alto, los pies del avatar quedan a un 14 % del alto contando desde abajo (unos 75 px de los 480 del dibujo), a la izquierda; los del gachamon, a un 6 % (unos 30 px), algo a la derecha del centro. Ahí tiene que haber suelo.
+- **Dónde pisan.** Cuando se ve todo el alto, y contando desde abajo:
+  - **El avatar**, a la izquierda: el borde de abajo de su dibujo queda al 14 % del alto, y sus pies, cuatro píxeles de su dibujo más arriba (de los 84 que mide), así que caen cerca del 16 %: entre el 15 % y el 17 % según la pantalla, unos 73 a 80 px de los 480 del dibujo.
+  - **El gachamon**, algo a la derecha del centro: el borde de abajo de su retrato queda al 6 % (unos 29 px), y sus pies, apenas más arriba por el margen que deja el retrato: con los retratos que ya están dibujados, entre el 6,4 % y el 6,7 % (unos 31 px). La sombra que el juego le pone en la escena baja hasta cerca del 4 % (unos 19 px).
+  - Así que el suelo tiene que llegar, desde abajo, por lo menos hasta el 17 % del alto (unos 80 px).
 
 ### El avatar (`avatar/`)
 
@@ -109,6 +112,10 @@ el plan 4 y se sumarán a esta lista. No dibujes nada de esto todavía.
 
 Los gachamones **no están en este contrato**: siguen con su formato de capas de
 `fuentes/` (cuerpos, caras y cosméticos), tal como hasta ahora.
+
+Eso sí: el mapa voltea el retrato cuando el gachamon camina hacia la derecha.
+Por eso, **si un gachamon se dibuja de perfil, mira a la izquierda**; si está
+de frente, da igual.
 
 ## Dónde mirar si algo no calza
 

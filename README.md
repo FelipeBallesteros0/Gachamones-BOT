@@ -181,11 +181,11 @@ con `/vincular` y encuentra a sus gachamones.
 
 ### Arte
 
-Cada dibujo de la web es un archivo de `web/static/arte/`, y quien dibuja no
-necesita tocar código: el contrato, con el nombre y el tamaño exacto de cada
-pieza, está en `docs/arte/contrato.md`. Hoy todo el arte es de relleno (lleva
-«RELLENO» escrito) y se reemplaza guardando el archivo nuevo con el mismo nombre
-y el mismo tamaño.
+El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de
+`web/static/arte/`, y quien dibuja no necesita tocar código: el contrato, con el
+nombre y el tamaño exacto de cada pieza, está en `docs/arte/contrato.md`. Hoy
+todo ese arte es de relleno (lleva «RELLENO» escrito) y se reemplaza guardando
+el archivo nuevo con el mismo nombre y el mismo tamaño.
 
 Para regenerar los rellenos que falten:
 

@@ -58,9 +58,6 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   segundos se pisaría. Bastaría un `UPDATE` sólo de `avisada`.
 - Cada lectura del estado toma el turno de escritura por el `INSERT OR IGNORE`
   del monedero; bastaría una lectura con los saldos iniciales por defecto.
-- Durante un despliegue, mientras corre la suite en la Pi, la web vieja sirve
-  los archivos estáticos nuevos. Se cierra probando en un árbol aparte antes de
-  cambiar el de producción.
 - `globos.elegir` no lo usa nadie en el servidor: la regla vive otra vez en
   `tiempo.js`.
 
@@ -68,7 +65,7 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 
 ### Arte
 
-- Todo el arte de la web es de relleno y se nota (lleva «RELLENO» escrito): 136
+- Todo el arte de la web es de relleno y se nota (lleva «RELLENO» escrito): 137
   archivos. Los nueve lugares del mapa son casitas de colores.
 - El avatar se dibuja por capas desde archivos y el género ya no cambia el
   dibujo.
@@ -78,8 +75,6 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   overol (ropa).
 - En el relleno, la sombra del cuerpo se corta una fila por abajo y el pelo es
   idéntico en las tres poses.
-- El mapa supone que los retratos de los gachamones miran a la izquierda y los
-  voltea al caminar hacia la derecha; la mayoría mira de frente.
 - La escala del avatar y del mapa no es un número entero de píxeles: se prefirió
   conservar el tamaño. Algún píxel sale un poco más ancho que su vecino.
 - En la escena de un lugar cuyo dibujo falta, el gachamon tapa parte del nombre
@@ -101,23 +96,13 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - El comportamiento táctil real (arrastrar de lado mueve la cámara, de arriba
   abajo desplaza la página, un toque con temblor sigue entrando) sólo se probó
   con eventos sintéticos: hay que probarlo en un teléfono de verdad.
-- El mapa no dibuja sombras con código (el arte es de archivos). Parados, el
-  avatar y el gachamon se ven bien apoyados; durante el saltito, el gachamon se
-  ve despegado del suelo sin nada que marque dónde pisa. Si se quiere una
-  sombra, es una pieza más del contrato de arte.
-- «Volver» desde el mapa vuelve a leer la sesión, la cuenta y el estado: tarda
-  una lectura en vez de ser instantáneo, a cambio de que las esperas de los
-  cuidados salgan bien.
-- «Volver» desde el mapa hace tres lecturas seguidas (sesión, cuenta y estado);
-  bastaría la del estado.
+- «Volver» desde el mapa vuelve a leer la sesión, la cuenta y el estado, tres
+  lecturas seguidas: tarda en vez de ser instantáneo, a cambio de que las
+  esperas de los cuidados salgan bien. Bastaría la del estado.
 - Tocar «Pueblo» con un cuidado todavía en camino pinta el mapa con los saldos
   de antes; se corrige al entrar a un lugar.
 - Si `pueblo.json` faltara en la versión vigente (un despliegue roto),
   «Pueblo» devuelve al lugar sin decir por qué.
-- «Volver a Tu casa» lleva una mayúscula en medio de la frase; un formato
-  neutro («Volver · Tu casa») lo evitaría sin datos nuevos.
-- Parado al empezar, el gachamon sale volteado en el mapa (por la suposición de
-  hacia dónde miran los retratos).
 
 ### La pantalla del lugar
 
@@ -134,7 +119,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   los archivos estáticos nuevos: quien cargue la página en esos minutos recibe
   el cliente nuevo con el servidor viejo, y si el cliente nuevo espera algo que
   el servidor viejo no manda, ve la pantalla de «no carga» hasta el reinicio.
-  Es del guion de despliegue, no del juego.
+  Es del guion de despliegue, no del juego: se cierra probando en un árbol aparte
+  antes de cambiar el de producción.
 
 ### Pruebas
 
@@ -177,15 +163,9 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - En «Tu casa» sin casa propia el gachamon no dice frases del lugar (sólo su
   charla de siempre). Si se quieren frases propias para ese caso, son texto
   nuevo por decidir.
-- Los nombres de los lugares no llevan artículo en los datos: el mapa dice
-  «Volver a Refugio» y la lista sólo el nombre bajo «¿Adónde vamos?». Si se
-  quiere «Volver al refugio» o «Ir a la plaza», hace falta un dato más por lugar
-  en `pueblo.json`.
-- Quien vive a la intemperie (se le acabó la estancia en el refugio) parte en
-  «Refugio», sin aviso, y al llegar caminando el gachamon puede decir «Es un
-  lugar sencillo, pero abriga.»; además el dibujo de la escena tapa el cielo
-  que antes lo señalaba, y sólo queda «vive a la intemperie» en la ficha. Pide
-  texto nuevo, por decidir.
+- Quien tiene casa pero su gachamon activo no cabe en ella y agotó la estancia
+  del refugio lee en el Refugio «Las casas se compran en la tienda.», que para
+  él debería hablar de mudarlo o de una casa más grande.
 - Los estáticos versionados no llevan `Cache-Control` propio; con uno
   inmutable, el mapa no repetiría sus peticiones en cada visita.
 - El contrato de arte tiene dos efectos que el juego todavía no dibuja (el
