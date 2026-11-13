@@ -1433,10 +1433,16 @@ def poner_cooldown(criatura_id: int, accion: str, ahora: datetime) -> None:
 def quitar_cooldown(criatura_id: int, accion: str) -> None:
     """Borra la espera de una acción. Lo que hacen los objetos de reinicio."""
     with conectar() as con:
-        con.execute(
-            "DELETE FROM cooldowns WHERE criatura_id = ? AND accion = ?",
-            (criatura_id, accion),
-        )
+        quitar_cooldown_en(con, criatura_id, accion)
+
+
+def quitar_cooldown_en(
+    con: sqlite3.Connection, criatura_id: int, accion: str
+) -> None:
+    con.execute(
+        "DELETE FROM cooldowns WHERE criatura_id = ? AND accion = ?",
+        (criatura_id, accion),
+    )
 
 
 # --- Cooldowns de la persona ------------------------------------------------
@@ -1692,15 +1698,22 @@ def gastar(usuario_id: str, guild_id: str, clave: str) -> bool:
 
 def poner_efecto(criatura_id: int, stat: str, bonus: int, ahora: datetime) -> None:
     """Activa una poción. Si ya había otra en esa estadística, la sustituye."""
-    hasta = ahora + timedelta(minutes=obj.MINUTOS_DE_EFECTO)
     with conectar() as con:
-        con.execute(
-            "INSERT INTO efectos (criatura_id, stat, bonus, hasta) "
-            "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(criatura_id, stat) DO UPDATE SET "
-            "bonus = excluded.bonus, hasta = excluded.hasta",
-            (criatura_id, stat, bonus, hasta.isoformat()),
-        )
+        poner_efecto_en(con, criatura_id, stat, bonus, ahora)
+
+
+def poner_efecto_en(
+    con: sqlite3.Connection, criatura_id: int, stat: str, bonus: int,
+    ahora: datetime,
+) -> None:
+    hasta = ahora + timedelta(minutes=obj.MINUTOS_DE_EFECTO)
+    con.execute(
+        "INSERT INTO efectos (criatura_id, stat, bonus, hasta) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(criatura_id, stat) DO UPDATE SET "
+        "bonus = excluded.bonus, hasta = excluded.hasta",
+        (criatura_id, stat, bonus, hasta.isoformat()),
+    )
 
 
 def efecto_activo_en(
@@ -2060,14 +2073,22 @@ def alargar_el_refugio(
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        _hogar_de(con, usuario_id, guild_id, ahora)     # la crea si no está
-        hasta = ahora + timedelta(days=dias)
-        con.execute(
-            "UPDATE hogar SET refugio_hasta = ? WHERE usuario_id = ? "
-            "AND guild_id = ?",
-            (hasta.isoformat(), usuario_id, guild_id),
-        )
-        return hasta
+        return alargar_el_refugio_en(con, usuario_id, guild_id, dias, ahora)
+
+
+def alargar_el_refugio_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, dias: int,
+    ahora: datetime,
+) -> datetime:
+    """`alargar_el_refugio` dentro de una transacción ya abierta."""
+    _hogar_de(con, usuario_id, guild_id, ahora)     # la crea si no está
+    hasta = ahora + timedelta(days=dias)
+    con.execute(
+        "UPDATE hogar SET refugio_hasta = ? WHERE usuario_id = ? "
+        "AND guild_id = ?",
+        (hasta.isoformat(), usuario_id, guild_id),
+    )
+    return hasta
 
 
 def _hay_hogar(con: sqlite3.Connection, usuario_id: str, guild_id: str) -> bool:

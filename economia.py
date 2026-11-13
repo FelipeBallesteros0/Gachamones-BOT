@@ -16,6 +16,7 @@ import competir as comp
 import cosmeticos as cos
 import db
 import huerto as hue
+import identidad
 import logros as lgr
 import objetos as obj
 import simulacion as sim
@@ -2214,3 +2215,203 @@ def comprar(
         return ResultadoCompra(
             debitada, False, _saldos_en(con, usuario_id, guild_id), objeto.clave
         )
+
+
+# --- Usar lo que llevas en la mochila ----------------------------------------
+#
+# Era cosa del menú de Discord, en tres transacciones: gastaba la unidad, avanzaba
+# al gachamon y aplicaba el efecto, y un reintento gastaba otra. Ahora es una sola
+# operación con evento, y la usan las dos caras. Las frases no van aquí: cada cara
+# cuenta el resultado a su manera.
+
+@dataclass(frozen=True)
+class ResultadoUso:
+    """Cómo salió usar algo de la mochila, con los datos para contarlo."""
+
+    ok: bool = False
+    motivo: str | None = None            # sin_gachamon | no_tienes | no_se_usa | sin_plazo | nombre | mismo_nombre
+    problema: str | None = None          # la frase de quien valida el nombre, cuando motivo == "nombre"
+    objeto: str = ""
+    criatura: sim.Criatura | None = None  # cómo queda
+    efecto: str | None = None            # reinicia | estadistica | sopaipilla | refugio | comida | nombre
+    accion: str | None = None            # la que queda libre, si efecto == "reinicia"
+    stats: tuple[str, ...] = ()
+    bonus: int = 0
+    caras: int = 0
+    gusto: str | None = None             # `huerto.le_gusta`, en la sopaipilla de color
+    comida: int = 0                      # cuánta ganó
+    refugio_hasta: datetime | None = None
+    nombre_anterior: str = ""
+    replay: bool = False
+
+
+def usar_objeto(
+    evento_id: str, usuario_id: str, guild_id: str, objeto: obj.Objeto,
+    ahora: datetime | None = None, rng: random.Random | None = None,
+) -> ResultadoUso:
+    """Gasta una unidad y aplica lo que hace, en una sola transacción.
+
+    Ningún rechazo cuesta el objeto: todo lo que puede decir que no va antes de
+    gastar. Repetirlo con el mismo evento contesta lo que salió la primera vez,
+    sin gastar ni volver a tirar el dado. La placa no se usa aquí: necesita un
+    nombre, y va por `renombrar_con_placa`.
+    """
+    return _usar(
+        evento_id, usuario_id, guild_id, objeto, ahora or db.ahora_utc(),
+        rng=rng,
+    )
+
+
+def renombrar_con_placa(
+    evento_id: str, usuario_id: str, guild_id: str, objeto: obj.Objeto,
+    propuesto: str, ahora: datetime | None = None,
+) -> ResultadoUso:
+    """Valida el nombre, gasta la placa y se lo pone al activo, todo de una vez.
+
+    Se valida antes que nada: un nombre que no vale no puede costar la placa.
+    """
+    return _usar(
+        evento_id, usuario_id, guild_id, objeto, ahora or db.ahora_utc(),
+        propuesto=propuesto,
+    )
+
+
+def _usar(
+    evento_id: str, usuario_id: str, guild_id: str, objeto: obj.Objeto,
+    ahora: datetime, *, rng: random.Random | None = None,
+    propuesto: str | None = None,
+) -> ResultadoUso:
+    """Lo común a usar un objeto y a la placa; `propuesto` es lo de la placa."""
+    placa = propuesto is not None
+    solicitud = f"{objeto.clave}:{propuesto}" if placa else objeto.clave
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "uso", solicitud)
+        if hecha is not None:
+            return _resultado_del_uso(
+                objeto, db.criatura_activa_en(con, usuario_id, guild_id), hecha,
+                replay=True,
+            )
+
+        nombre = None
+        if placa:
+            try:
+                nombre = sim.normalizar_nombre(propuesto)
+            except ValueError as error:
+                return ResultadoUso(
+                    motivo="nombre", problema=str(error), objeto=objeto.clave
+                )
+
+        criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+        if criatura is None:
+            return ResultadoUso(motivo="sin_gachamon", objeto=objeto.clave)
+        if not (objeto.renombra if placa else objeto.se_aplica_al_momento):
+            return ResultadoUso(
+                motivo="no_se_usa", objeto=objeto.clave, criatura=criatura
+            )
+        if objeto.dias_de_refugio and identidad.sin_plazo_de_refugio(usuario_id):
+            return ResultadoUso(
+                motivo="sin_plazo", objeto=objeto.clave, criatura=criatura
+            )
+
+        # Como en `ejecutar_cuidado`: si al ponerlo al día resulta que ya había
+        # muerto, se guarda así y no se le aplica nada. Antes el menú le gastaba
+        # la unidad y se la daba igual.
+        criatura = db._avanzar_en(con, criatura, ahora)
+        if not criatura.viva:
+            db._guardar(con, criatura)
+            return ResultadoUso(motivo="sin_gachamon", objeto=objeto.clave)
+        if placa and nombre == criatura.nombre:
+            return ResultadoUso(
+                motivo="mismo_nombre", objeto=objeto.clave, criatura=criatura
+            )
+        if not db.gastar_en(con, usuario_id, guild_id, objeto.clave):
+            return ResultadoUso(
+                motivo="no_tienes", objeto=objeto.clave, criatura=criatura
+            )
+
+        if placa:
+            queda = replace(criatura, nombre=nombre)
+            datos = {"efecto": "nombre", "nombre_anterior": criatura.nombre}
+        else:
+            queda, datos = _aplicar_objeto(con, criatura, objeto, ahora, rng)
+        db._guardar(con, queda)
+        _anotar(
+            con, evento_id, usuario_id, guild_id, "uso", solicitud, datos, ahora
+        )
+        return _resultado_del_uso(objeto, queda, datos)
+
+
+def _aplicar_objeto(
+    con, criatura: sim.Criatura, objeto: obj.Objeto, ahora: datetime,
+    rng: random.Random | None,
+) -> tuple[sim.Criatura, dict]:
+    """El efecto del objeto: cómo queda el gachamon y qué anotar de lo que salió.
+
+    Lo anotado es JSON y es todo lo que hace falta para contarlo otra vez igual:
+    un replay no vuelve a tirar el dado ni a mirar el reloj.
+    """
+    if objeto.reinicia:
+        db.quitar_cooldown_en(con, criatura.id, objeto.reinicia)
+        return criatura, {"efecto": "reinicia", "accion": objeto.reinicia}
+
+    if objeto.stat:
+        bonus = obj.tirar_bonus(objeto, rng)
+        db.poner_efecto_en(con, criatura.id, objeto.stat, bonus, ahora)
+        return criatura, {
+            "efecto": "estadistica", "stats": [objeto.stat], "bonus": bonus,
+            "caras": objeto.caras,
+        }
+
+    if objeto.es_sopaipilla:
+        # El arcoíris no tiene color, así que no hay gusto que consultar: su
+        # dado se decidió al cocinarla y lo trae escrito. Lo que comparte con las
+        # de color es lo de siempre: **un solo dado** para todas las
+        # estadísticas que toque, porque es un plato y no varias pociones.
+        arcoiris = objeto.color == hue.ARCOIRIS
+        caras = (
+            objeto.caras if arcoiris
+            else hue.caras_de(criatura.caracter, objeto.color)
+        )
+        stats = sim.ESTADISTICAS if arcoiris else ("fuerza", "velocidad")
+        bonus = (rng or random.Random()).randint(1, caras)
+        for stat in stats:
+            db.poner_efecto_en(con, criatura.id, stat, bonus, ahora)
+        return criatura, {
+            "efecto": "sopaipilla", "stats": list(stats), "bonus": bonus,
+            "caras": caras,
+            "gusto": None if arcoiris
+            else hue.le_gusta(criatura.caracter, objeto.color),
+        }
+
+    if objeto.dias_de_refugio:
+        hasta = db.alargar_el_refugio_en(
+            con, criatura.usuario_id, criatura.guild_id, objeto.dias_de_refugio,
+            ahora,
+        )
+        return criatura, {"efecto": "refugio", "refugio_hasta": hasta.isoformat()}
+
+    # Lo único que queda de `se_aplica_al_momento`, y `_usar` ya lo ha mirado:
+    # no hay caso por descarte que gaste la unidad sin hacer nada.
+    assert objeto.alimenta, objeto.clave
+    alimentada = obj.aplicar_a_la_criatura(objeto, criatura)
+    return alimentada, {
+        "efecto": "comida", "comida": round(alimentada.hambre - criatura.hambre)
+    }
+
+
+def _resultado_del_uso(
+    objeto: obj.Objeto, criatura: sim.Criatura | None, datos: dict,
+    replay: bool = False,
+) -> ResultadoUso:
+    """El mismo resultado la primera vez y en un replay: sale de lo anotado."""
+    hasta = datos.get("refugio_hasta")
+    return ResultadoUso(
+        ok=True, objeto=objeto.clave, criatura=criatura, replay=replay,
+        efecto=datos["efecto"], accion=datos.get("accion"),
+        stats=tuple(datos.get("stats", ())), bonus=datos.get("bonus", 0),
+        caras=datos.get("caras", 0), gusto=datos.get("gusto"),
+        comida=datos.get("comida", 0),
+        refugio_hasta=datetime.fromisoformat(hasta) if hasta else None,
+        nombre_anterior=datos.get("nombre_anterior", ""),
+    )

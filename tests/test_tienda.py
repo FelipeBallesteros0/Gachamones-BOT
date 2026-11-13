@@ -47,6 +47,27 @@ class DadoFijo(random.Random):
         return min(self.valor, b)
 
 
+def usar(objeto, rng=None, ahora=T0):
+    """Lo que hace el menú de la mochila: usar una unidad y contarlo."""
+    global _evento
+    _evento += 1
+    resultado = economia.usar_objeto(
+        f"uso-{_evento}", "u1", "g1", objeto, ahora, rng
+    )
+    return resultado, tienda.texto_del_uso(objeto, resultado)
+
+
+def renombrar(propuesto):
+    """Lo que hace el formulario de la placa al confirmar un nombre."""
+    global _evento
+    _evento += 1
+    placa = obj.CATALOGO["placa"]
+    resultado = economia.renombrar_con_placa(
+        f"placa-{_evento}", "u1", "g1", placa, propuesto, T0
+    )
+    return resultado, tienda.texto_del_uso(placa, resultado)
+
+
 # --- De la tienda a la pelea ------------------------------------------------
 
 def test_comprar_beber_y_que_se_note_en_la_carrera():
@@ -55,8 +76,8 @@ def test_comprar_beber_y_que_se_note_en_la_carrera():
     pocion = obj.CATALOGO["velocidad_1d10"]
 
     assert comprar(pocion)
-    assert db.gastar("u1", "g1", pocion.clave)
-    aviso = tienda.usar(criatura, pocion, T0, DadoFijo(6))
+    resultado, aviso = usar(pocion, DadoFijo(6))
+    assert resultado.ok and db.inventario("u1", "g1") == {}
     assert "+6" in aviso and "velocidad" in aviso
 
     bonus = db.efecto_activo(criatura.id, "velocidad", T0)
@@ -69,7 +90,8 @@ def test_comprar_beber_y_que_se_note_en_la_carrera():
 
 def test_la_pocion_de_fuerza_ayuda_en_terreno_sin_volverse_de_velocidad():
     criatura = nacer()
-    tienda.usar(criatura, obj.CATALOGO["fuerza_1d12"], T0, DadoFijo(12))
+    dar(obj.CATALOGO["fuerza_1d12"])
+    usar(obj.CATALOGO["fuerza_1d12"], DadoFijo(12))
 
     bonus = db.efecto_activo(criatura.id, "fuerza", T0)
     normal = comp.competidor_de(criatura)
@@ -82,7 +104,8 @@ def test_la_pocion_de_fuerza_ayuda_en_terreno_sin_volverse_de_velocidad():
 
 def test_al_caducar_deja_de_ayudar():
     criatura = nacer()
-    tienda.usar(criatura, obj.CATALOGO["fuerza_1d8"], T0, DadoFijo(8))
+    dar(obj.CATALOGO["fuerza_1d8"])
+    usar(obj.CATALOGO["fuerza_1d8"], DadoFijo(8))
     tarde = T0 + timedelta(minutes=obj.MINUTOS_DE_EFECTO + 1)
 
     assert db.efecto_activo(criatura.id, "fuerza", tarde) == 0
@@ -99,8 +122,9 @@ def test_la_pocion_de_comida_llena_y_se_guarda():
     db.guardar(replace(db.criatura_activa("u1", "g1"), hambre=12.0))
     hambrienta = db.criatura_activa("u1", "g1")
     assert hambrienta.hambre == 12.0
+    dar(obj.CATALOGO["pocion_comida"])
 
-    tienda.usar(hambrienta, obj.CATALOGO["pocion_comida"], T0)
+    usar(obj.CATALOGO["pocion_comida"])
 
     assert db.criatura_activa("u1", "g1").hambre == 100.0
 
@@ -109,8 +133,9 @@ def test_el_silbato_deja_entrenar_otra_vez():
     criatura = nacer()
     db.poner_cooldown(criatura.id, sim.ENTRENAR, T0)
     assert db.espera_de(criatura.id, sim.ENTRENAR, T0).total_seconds() > 0
+    dar(obj.CATALOGO["silbato"])
 
-    tienda.usar(criatura, obj.CATALOGO["silbato"], T0)
+    usar(obj.CATALOGO["silbato"])
 
     assert db.espera_de(criatura.id, sim.ENTRENAR, T0) == timedelta(0)
 
@@ -119,8 +144,9 @@ def test_el_descanso_solo_toca_el_de_competir():
     criatura = nacer()
     db.poner_cooldown(criatura.id, sim.COMPETIR, T0)
     db.poner_cooldown(criatura.id, sim.ENTRENAR, T0)
+    dar(obj.CATALOGO["descanso_rapido"])
 
-    tienda.usar(criatura, obj.CATALOGO["descanso_rapido"], T0)
+    usar(obj.CATALOGO["descanso_rapido"])
 
     assert db.espera_de(criatura.id, sim.COMPETIR, T0) == timedelta(0)
     assert db.espera_de(criatura.id, sim.ENTRENAR, T0).total_seconds() > 0
@@ -167,7 +193,7 @@ def test_renombrar_gasta_la_placa_y_cambia_el_nombre():
     placa = obj.CATALOGO["placa"]
     comprar(placa)
 
-    aviso = tienda.renombrar("u1", "g1", placa, "  Pelusa  ")
+    _, aviso = renombrar("  Pelusa  ")
 
     assert "Pelusa" in aviso
     assert db.criatura_activa("u1", "g1").nombre == "Pelusa"
@@ -182,12 +208,10 @@ def test_un_nombre_invalido_no_gasta_la_placa():
     comprar(placa)
 
     for malo in ("", "   ", "a" * 40, "Pelusa <@everyone>", "```ansi"):
-        try:
-            tienda.renombrar("u1", "g1", placa, malo)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f"«{malo}» no debería valer")
+        resultado, _ = renombrar(malo)
+        assert not resultado.ok and resultado.motivo == "nombre", (
+            f"«{malo}» no debería valer"
+        )
 
     assert db.inventario("u1", "g1") == {"placa": 1}, "la placa sigue ahí"
     assert db.criatura_activa("u1", "g1").nombre == "Prueba"
@@ -195,12 +219,11 @@ def test_un_nombre_invalido_no_gasta_la_placa():
 
 def test_sin_placa_no_se_renombra():
     nacer()
-    try:
-        tienda.renombrar("u1", "g1", obj.CATALOGO["placa"], "Pelusa")
-    except ValueError:
-        assert db.criatura_activa("u1", "g1").nombre == "Prueba"
-        return
-    raise AssertionError("no debería dejar renombrar sin la placa")
+    resultado, _ = renombrar("Pelusa")
+    assert not resultado.ok and resultado.motivo == "no_tienes", (
+        "no debería dejar renombrar sin la placa"
+    )
+    assert db.criatura_activa("u1", "g1").nombre == "Prueba"
 
 
 def test_renombrar_al_mismo_nombre_no_gasta_nada():
@@ -208,12 +231,11 @@ def test_renombrar_al_mismo_nombre_no_gasta_nada():
     placa = obj.CATALOGO["placa"]
     comprar(placa)
 
-    try:
-        tienda.renombrar("u1", "g1", placa, "Prueba")
-    except ValueError:
-        assert db.inventario("u1", "g1") == {"placa": 1}
-        return
-    raise AssertionError("cambiar por el mismo nombre no debería gastar la placa")
+    resultado, _ = renombrar("Prueba")
+    assert not resultado.ok and resultado.motivo == "mismo_nombre", (
+        "cambiar por el mismo nombre no debería gastar la placa"
+    )
+    assert db.inventario("u1", "g1") == {"placa": 1}
 
 
 def test_usar_objeto_congela_la_ficha_mutada_antes_de_responder(monkeypatch):
@@ -235,7 +257,7 @@ def test_usar_objeto_congela_la_ficha_mutada_antes_de_responder(monkeypatch):
     menu._values = [pocion.clave]
     canal = SimpleNamespace()
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        id=1001, user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
         response=SimpleNamespace(edit_message=responder),
     )
 
@@ -276,7 +298,7 @@ def mochila_de(pocion, canal):
     menu = tienda.MenuInventario({pocion.clave: 1}, vistas.congelar)
     menu._values = [pocion.clave]
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        id=1002, user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
         response=SimpleNamespace(edit_message=AsyncMock()),
     )
     return menu, interaccion
@@ -334,28 +356,34 @@ def test_usar_un_objeto_con_un_canal_guardado_ilegible_responde_igual(monkeypatc
     assert db.criatura_activa("u1", "g1").hambre == 100.0
 
 
-def test_objeto_agotado_no_congela_la_ficha():
+def test_objeto_agotado_no_congela_la_ficha(monkeypatch):
     criatura = nacer()
     db.guardar_pantalla(criatura.id, "ficha-agotada", "canal-viejo")
     silbato = obj.CATALOGO["silbato"]
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
     congelar = AsyncMock()
     menu = tienda.MenuInventario({silbato.clave: 1}, congelar)
     menu._values = [silbato.clave]
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        id=1003, user=SimpleNamespace(id="u1"), guild_id="g1",
+        channel=SimpleNamespace(),
         response=SimpleNamespace(edit_message=AsyncMock()),
     )
 
     asyncio.run(menu.callback(interaccion))
 
     congelar.assert_not_awaited()
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content="Ya no te queda ninguno.", view=None
+    )
 
 
-def test_renombrar_congela_la_ficha_mutada_antes_de_responder():
+def test_renombrar_congela_la_ficha_mutada_antes_de_responder(monkeypatch):
     criatura = nacer()
     db.guardar_pantalla(criatura.id, "ficha-nombre", "canal-viejo")
     placa = obj.CATALOGO["placa"]
     comprar(placa)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
     eventos = []
 
     async def responder(*_, **__):
@@ -368,7 +396,7 @@ def test_renombrar_congela_la_ficha_mutada_antes_de_responder():
     modal.nombre._value = "Pelusa"
     canal = SimpleNamespace()
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
+        id=1004, user=SimpleNamespace(id="u1"), guild_id="g1", channel=canal,
         response=SimpleNamespace(send_message=responder),
     )
 
@@ -377,22 +405,27 @@ def test_renombrar_congela_la_ficha_mutada_antes_de_responder():
     assert eventos == [("congelar", canal, "ficha-nombre"), "respuesta"]
 
 
-def test_renombrado_fallido_no_congela_la_ficha():
+def test_renombrado_fallido_no_congela_la_ficha(monkeypatch):
     criatura = nacer()
     db.guardar_pantalla(criatura.id, "ficha-sin-cambio", "canal-viejo")
     placa = obj.CATALOGO["placa"]
     comprar(placa)
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
     congelar = AsyncMock()
     modal = tienda.RenombrarModal(placa, criatura.nombre, congelar)
     modal.nombre._value = criatura.nombre
     interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        id=1005, user=SimpleNamespace(id="u1"), guild_id="g1",
+        channel=SimpleNamespace(),
         response=SimpleNamespace(send_message=AsyncMock()),
     )
 
     asyncio.run(modal.on_submit(interaccion))
 
     congelar.assert_not_awaited()
+    interaccion.response.send_message.assert_awaited_once_with(
+        "No se ha podido. Ya se llama **Prueba**.", ephemeral=True
+    )
 
 
 # --- Que ningún objeto mienta sobre lo que hizo -----------------------------
@@ -412,9 +445,10 @@ def test_las_golosinas_alimentan_lo_que_dicen():
     mensaje decía «Hambre al 100». No es que llenara de más — es que no hacía
     nada y lo contaba como si sí."""
     golosinas = obj.CATALOGO["golosinas"]
-    criatura = con_hambre(30.0)
+    con_hambre(30.0)
+    dar(golosinas)
 
-    aviso = tienda.usar(criatura, golosinas, T0)
+    _, aviso = usar(golosinas)
 
     assert db.criatura_activa("u1", "g1").hambre == 30.0 + golosinas.alimenta
     assert f"+{golosinas.alimenta}" in aviso
@@ -423,15 +457,17 @@ def test_las_golosinas_alimentan_lo_que_dicen():
 
 def test_las_golosinas_no_pasan_de_cien():
     golosinas = obj.CATALOGO["golosinas"]
-    criatura = con_hambre(90.0)
-    tienda.usar(criatura, golosinas, T0)
+    con_hambre(90.0)
+    dar(golosinas)
+    usar(golosinas)
     assert db.criatura_activa("u1", "g1").hambre == 100.0
 
 
 def test_la_pocion_de_comida_sigue_llenando_del_todo():
     """El cambio de bandera a número no puede tocarle nada."""
-    criatura = con_hambre(12.0)
-    tienda.usar(criatura, obj.CATALOGO["pocion_comida"], T0)
+    con_hambre(12.0)
+    dar(obj.CATALOGO["pocion_comida"])
+    usar(obj.CATALOGO["pocion_comida"])
     assert db.criatura_activa("u1", "g1").hambre == 100.0
 
 
@@ -445,17 +481,20 @@ def test_ningun_objeto_miente_sobre_lo_que_hizo():
     for clave, objeto in obj.CATALOGO.items():
         criatura = con_hambre(40.0)
         antes = db.criatura_activa("u1", "g1")
+        dar(objeto)
 
-        try:
-            aviso = tienda.usar(criatura, objeto, T0)
-        except ValueError:
+        resultado = economia.usar_objeto(f"miente-{clave}", "u1", "g1", objeto, T0)
+        if not resultado.ok:
             # La placa entra aquí y es correcto: se usa desde la mochila, pero
-            # abre un formulario y se resuelve en `renombrar`, no en `usar`.
+            # abre un formulario y se resuelve en `renombrar_con_placa`, no en
+            # `usar_objeto`.
+            assert resultado.motivo == "no_se_usa", (clave, resultado.motivo)
             assert not objeto.se_aplica_al_momento, (
                 f"{clave} dice aplicarse al momento pero se niega"
             )
             continue
 
+        aviso = tienda.texto_del_uso(objeto, resultado)
         assert objeto.se_aplica_al_momento, f"{clave} no debería poder usarse aquí"
         despues = db.criatura_activa("u1", "g1")
 
@@ -482,13 +521,14 @@ def test_un_objeto_sin_uso_en_la_mochila_no_se_gasta():
     )
     assert not solo_cebo.se_usa_en_mochila
 
-    criatura = con_hambre(40.0)
-    try:
-        tienda.usar(criatura, solo_cebo, T0)
-    except ValueError:
-        assert db.criatura_activa("u1", "g1").hambre == 40.0
-        return
-    raise AssertionError("un objeto sin uso en la mochila debería negarse")
+    con_hambre(40.0)
+    dar(solo_cebo)
+    resultado, _ = usar(solo_cebo)
+    assert not resultado.ok and resultado.motivo == "no_se_usa", (
+        "un objeto sin uso en la mochila debería negarse"
+    )
+    assert db.criatura_activa("u1", "g1").hambre == 40.0
+    assert db.inventario("u1", "g1") == {"solo_cebo": 1}
 
 
 def test_las_golosinas_siguen_valiendo_de_cebo():
@@ -499,3 +539,216 @@ def test_las_golosinas_siguen_valiendo_de_cebo():
     assert golosinas.ceba
     assert av.GOLOSINAS in av.OPCIONES
     assert av.BASE[av.GOLOSINAS] > 0
+
+
+# --- Lo que lee quien juega en Discord, letra por letra ---------------------
+#
+# Usar algo de la mochila es una regla de `economia` desde que la web también lo
+# hace, y `economia` no escribe frases. Éstas son las que se leían en Discord
+# antes de ese cambio, copiadas tal cual y no armadas con las piezas del código:
+# si una deja de coincidir, es que ha cambiado lo que lee quien juega.
+
+def dar(objeto, cuantos=1):
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", objeto.clave, cuantos)
+
+
+@pytest.fixture
+def reloj_y_dado(monkeypatch):
+    """El reloj en `T0` y cada dado sacando un 5 (o su máximo, si es menor)."""
+    monkeypatch.setattr(db, "ahora_utc", lambda: T0)
+    monkeypatch.setattr(random.Random, "randint", lambda self, a, b: min(5, b))
+
+
+def interaccion_falsa(canal=None):
+    global _evento
+    _evento += 1
+    return SimpleNamespace(
+        id=900000 + _evento, user=SimpleNamespace(id="u1"), guild_id="g1",
+        channel=canal if canal is not None else SimpleNamespace(),
+        response=SimpleNamespace(
+            edit_message=AsyncMock(), send_message=AsyncMock(),
+            send_modal=AsyncMock(),
+        ),
+    )
+
+
+def elegir_en_la_mochila(objeto, congelar=None):
+    """Lo que contesta el menú de la mochila al elegir el objeto."""
+    menu = tienda.MenuInventario({objeto.clave: 1}, congelar)
+    menu._values = [objeto.clave]
+    interaccion = interaccion_falsa()
+    asyncio.run(menu.callback(interaccion))
+    respuesta = interaccion.response.edit_message.await_args
+    assert respuesta.kwargs["view"] is None
+    return respuesta.kwargs["content"]
+
+
+def confirmar_la_placa(nombre, congelar=None):
+    """Lo que contesta el formulario de la placa al confirmar ese nombre."""
+    modal = tienda.RenombrarModal(obj.CATALOGO["placa"], "Prueba", congelar)
+    modal.nombre._value = nombre
+    interaccion = interaccion_falsa()
+    asyncio.run(modal.on_submit(interaccion))
+    respuesta = interaccion.response.send_message.await_args
+    assert respuesta.kwargs == {"ephemeral": True}
+    return respuesta.args[0]
+
+
+FRASES_AL_USAR = {
+    "silbato": "📣 **Prueba** ya puede entrenar.",
+    "descanso_rapido": "😮‍💨 **Prueba** ya puede competir.",
+    "fuerza_1d8": "💪 **Prueba** gana **+5 de fuerza** durante 5 minutos.",
+    "velocidad_1d10": "💨 **Prueba** gana **+5 de velocidad** durante 5 minutos.",
+    "sopaipilla_rojo": (
+        "🥟 **Prueba** se come una sopaipilla rojo — no le entusiasma.\n"
+        "-# **+5** de fuerza y de velocidad (1d6) durante 5 minutos."
+    ),
+    "sopaipilla_arcoiris_1d10": (
+        "🌈 **Prueba** se come una sopaipilla arcoíris.\n"
+        "-# **+5** en las cuatro estadísticas (1d10) durante 5 minutos."
+    ),
+    "ticket_refugio": (
+        "🎟️ Otra estancia en el refugio, hasta el **08/01**.\n"
+        "-# Cuenta desde ahora: si te sobraba tiempo, lo has perdido."
+    ),
+    "golosinas": "🍬 **Prueba** se come Golosinas de campo. Comida +25 (ahora 65).",
+    "pocion_comida": "🧃 **Prueba** se come Poción de comida. Comida +60 (ahora 100).",
+}
+
+
+@pytest.mark.parametrize("clave", sorted(FRASES_AL_USAR))
+def test_la_mochila_cuenta_lo_de_siempre(clave, reloj_y_dado):
+    con_hambre(40.0)              # nace con el carácter de siempre: alegre
+    objeto = obj.CATALOGO[clave]
+    dar(objeto)
+
+    assert elegir_en_la_mochila(objeto) == FRASES_AL_USAR[clave]
+    assert db.inventario("u1", "g1") == {}
+
+
+def test_la_mochila_sin_gachamon_manda_a_por_un_huevo(reloj_y_dado):
+    dar(obj.CATALOGO["pocion_comida"])
+
+    assert elegir_en_la_mochila(obj.CATALOGO["pocion_comida"]) == (
+        "No tienes ningún gachamon vivo. Empieza con `/huevo`."
+    )
+    assert db.inventario("u1", "g1") == {"pocion_comida": 1}
+
+
+def test_la_placa_sin_gachamon_tampoco_abre_el_formulario(reloj_y_dado):
+    dar(obj.CATALOGO["placa"])
+
+    assert elegir_en_la_mochila(obj.CATALOGO["placa"]) == (
+        "No tienes ningún gachamon vivo. Empieza con `/huevo`."
+    )
+    assert db.inventario("u1", "g1") == {"placa": 1}
+
+
+def test_lo_que_no_se_usa_en_la_mochila_lo_dice_y_no_se_gasta(reloj_y_dado):
+    nacer()
+    dar(obj.CATALOGO["semilla"])
+
+    assert elegir_en_la_mochila(obj.CATALOGO["semilla"]) == (
+        "🌱 **Semilla de poroto** no se usa desde aquí. Llévalas a una `/aventura`."
+    )
+    assert db.inventario("u1", "g1") == {"semilla": 1}
+
+
+def test_lo_que_ya_no_tienes_lo_dice(reloj_y_dado):
+    nacer()
+
+    assert elegir_en_la_mochila(obj.CATALOGO["silbato"]) == "Ya no te queda ninguno."
+
+
+FRASES_DE_LA_PLACA = [
+    ("  Pelusa  ", "🏷️ **Prueba** pasa a llamarse **Pelusa**.", {}),
+    ("", "No se ha podido. El nombre está vacío.", {"placa": 1}),
+    (
+        "Pelusa <@everyone>",
+        "No se ha podido. El nombre sólo puede contener letras, números, "
+        "espacios, apóstrofes y guiones.",
+        {"placa": 1},
+    ),
+    (
+        "a" * 40,
+        "No se ha podido. El nombre no puede tener más de 24 caracteres.",
+        {"placa": 1},
+    ),
+    ("Prueba", "No se ha podido. Ya se llama **Prueba**.", {"placa": 1}),
+]
+
+
+@pytest.mark.parametrize("propuesto, frase, queda", FRASES_DE_LA_PLACA)
+def test_la_placa_cuenta_lo_de_siempre(propuesto, frase, queda, reloj_y_dado):
+    nacer()
+    dar(obj.CATALOGO["placa"])
+
+    assert confirmar_la_placa(propuesto) == frase
+    assert db.inventario("u1", "g1") == queda
+
+
+def test_la_placa_que_ya_no_tienes_lo_dice(reloj_y_dado):
+    nacer()
+
+    assert confirmar_la_placa("Pelusa") == (
+        "No se ha podido. Ya no te queda ninguna placa."
+    )
+    assert db.criatura_activa("u1", "g1").nombre == "Prueba"
+
+
+def test_la_placa_sin_gachamon_lo_dice(reloj_y_dado):
+    dar(obj.CATALOGO["placa"])
+
+    assert confirmar_la_placa("Pelusa") == (
+        "No se ha podido. Ya no tienes ningún gachamon activo."
+    )
+    assert db.inventario("u1", "g1") == {"placa": 1}
+
+
+def test_lo_que_discord_no_puede_producir_no_se_inventa_una_frase():
+    """Quien juega en Discord siempre tiene plazo en el refugio, y la placa va
+    por su formulario: si alguna vez llegara uno de éstos, mejor reventar que
+    contar algo que no ha pasado."""
+    ticket, placa = obj.CATALOGO["ticket_refugio"], obj.CATALOGO["placa"]
+
+    with pytest.raises(ValueError):
+        tienda.texto_del_uso(
+            ticket, economia.ResultadoUso(motivo="sin_plazo", objeto=ticket.clave)
+        )
+    with pytest.raises(ValueError):
+        tienda.texto_del_uso(
+            placa, economia.ResultadoUso(motivo="no_se_usa", objeto=placa.clave)
+        )
+
+
+# La única diferencia buscada: antes, a un gachamon que ya había muerto sin que
+# nadie lo apuntara, el menú le gastaba la unidad y se la aplicaba igual.
+
+def test_a_un_gachamon_que_ya_murio_la_mochila_no_le_gasta_nada(monkeypatch):
+    criatura = nacer()
+    pocion = obj.CATALOGO["pocion_comida"]
+    dar(pocion)
+    muerto = sim.momento_de_muerte(criatura) + timedelta(hours=1)
+    monkeypatch.setattr(db, "ahora_utc", lambda: muerto)
+    congelar = AsyncMock()
+
+    assert elegir_en_la_mochila(pocion, congelar) == (
+        "No tienes ningún gachamon vivo. Empieza con `/huevo`."
+    )
+    assert db.inventario("u1", "g1") == {"pocion_comida": 1}
+    congelar.assert_not_awaited()
+
+
+def test_a_un_gachamon_que_ya_murio_la_placa_no_le_gasta_nada(monkeypatch):
+    criatura = nacer()
+    dar(obj.CATALOGO["placa"])
+    muerto = sim.momento_de_muerte(criatura) + timedelta(hours=1)
+    monkeypatch.setattr(db, "ahora_utc", lambda: muerto)
+    congelar = AsyncMock()
+
+    assert confirmar_la_placa("Pelusa", congelar) == (
+        "No se ha podido. Ya no tienes ningún gachamon activo."
+    )
+    assert db.inventario("u1", "g1") == {"placa": 1}
+    congelar.assert_not_awaited()

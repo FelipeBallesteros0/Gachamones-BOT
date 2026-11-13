@@ -9,6 +9,7 @@ from typing import Any
 import aventura
 from cogs import competencias, mascota, social
 import competir as comp
+import db
 import economia
 import objetos
 import pantalla
@@ -93,12 +94,21 @@ def test_ficha_usa_barras_canonicas_sin_cambiar_el_marco():
     assert all(linea[0] in "╭├╰│" and linea[-1] in "╮┤╯│" for linea in marco)
 
 
-def test_recibos_deltas_y_requisitos_nombrar_comida_animo_y_aseo(monkeypatch):
+def test_recibos_deltas_y_requisitos_nombrar_comida_animo_y_aseo(
+    tmp_path, monkeypatch
+):
     criatura = gachamon(hambre=40.0, limpieza=25.0)
-    monkeypatch.setattr(tienda.db, "guardar", lambda _: None)
+    monkeypatch.setattr(db, "RUTA", tmp_path / "textos.db")
+    db.inicializar()
+    nacida = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
+    db.guardar(replace(nacida, hambre=40.0, limpieza=25.0))
+    golosinas = objetos.CATALOGO["golosinas"]
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", golosinas.clave)
 
-    assert "Comida +25 (ahora 65)." in tienda.usar(
-        criatura, objetos.CATALOGO["golosinas"], T0
+    assert "Comida +25 (ahora 65)." in tienda.texto_del_uso(
+        golosinas,
+        economia.usar_objeto("evento-textos-01", "u1", "g1", golosinas, T0),
     )
     assert aventura.render_percance(aventura.PERCANCE) == (
         "⚠️ Percance: -5 comida y -5 ánimo."

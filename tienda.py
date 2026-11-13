@@ -11,8 +11,6 @@ sobrevivir a un reinicio.
 from __future__ import annotations
 
 import logging
-import random
-from dataclasses import replace
 from datetime import timedelta
 
 import discord
@@ -110,109 +108,100 @@ def texto_resultado_compra(
 
 
 # --- Usar un objeto --------------------------------------------------------
+#
+# Usarlo es `economia.usar_objeto` (y `economia.renombrar_con_placa` para la
+# placa): una sola operación, con el id de la interacción como evento. Aquí sólo
+# se cuenta lo que salió.
 
-def usar(
-    criatura: sim.Criatura,
-    objeto: obj.Objeto,
-    ahora,
-    rng: random.Random | None = None,
-) -> str:
-    """Aplica el objeto y devuelve qué contar. La criatura ya se guarda aquí.
+SIN_GACHAMON_VIVO = "No tienes ningún gachamon vivo. Empieza con `/huevo`."
 
-    Vive fuera de la vista para poder probarlo sin montar media API de Discord:
-    es donde están las reglas de verdad de qué hace cada cosa.
+
+def texto_del_uso(objeto: obj.Objeto, resultado: economia.ResultadoUso) -> str:
+    """Lo que se le contesta en Discord a quien usa algo de la mochila.
+
+    Las frases de siempre, letra por letra. Las de la placa salen del
+    formulario y las demás del menú, por eso un mismo motivo se dice distinto
+    según el objeto. Un resultado que Discord no puede producir revienta en vez
+    de inventarse una frase.
     """
-    if objeto.reinicia:
-        db.quitar_cooldown(criatura.id, objeto.reinicia)
-        return f"{objeto.emoji} **{criatura.nombre}** ya puede {objeto.reinicia}."
+    if not resultado.ok:
+        if objeto.renombra:
+            return f"No se ha podido. {_por_que_no_la_placa(resultado)}"
+        return _por_que_no(objeto, resultado)
 
-    if objeto.stat:
-        bonus = obj.tirar_bonus(objeto, rng)
-        db.poner_efecto(criatura.id, objeto.stat, bonus, ahora)
+    criatura = resultado.criatura
+    if resultado.efecto == "reinicia":
+        return f"{objeto.emoji} **{criatura.nombre}** ya puede {resultado.accion}."
+
+    if resultado.efecto == "estadistica":
         return (
-            f"{objeto.emoji} **{criatura.nombre}** gana **+{bonus} de "
-            f"{objeto.stat}** durante {obj.MINUTOS_DE_EFECTO} minutos."
+            f"{objeto.emoji} **{criatura.nombre}** gana **+{resultado.bonus} de "
+            f"{resultado.stats[0]}** durante {obj.MINUTOS_DE_EFECTO} minutos."
         )
 
-    if objeto.es_sopaipilla:
-        # El arcoíris no tiene color, así que no hay gusto que consultar: su
-        # dado se decidió al cocinarla y lo trae escrito. Lo que comparte con las
-        # de color es lo de siempre: **un solo dado** para todas las
-        # estadísticas que toque, porque es un plato y no varias pociones.
-        arcoiris = objeto.color == hue.ARCOIRIS
-        caras = (
-            objeto.caras if arcoiris
-            else hue.caras_de(criatura.caracter, objeto.color)
-        )
-        stats = sim.ESTADISTICAS if arcoiris else ("fuerza", "velocidad")
-        bonus = (rng or random.Random()).randint(1, caras)
-        for stat in stats:
-            db.poner_efecto(criatura.id, stat, bonus, ahora)
-        if arcoiris:
+    if resultado.efecto == "sopaipilla":
+        if objeto.color == hue.ARCOIRIS:
             return (
                 f"{objeto.emoji} **{criatura.nombre}** se come una sopaipilla "
                 f"{hue.NOMBRE_ARCOIRIS}.\n"
-                f"-# **+{bonus}** en las cuatro estadísticas (1d{caras}) durante "
-                f"{obj.MINUTOS_DE_EFECTO} minutos."
+                f"-# **+{resultado.bonus}** en las cuatro estadísticas "
+                f"(1d{resultado.caras}) durante {obj.MINUTOS_DE_EFECTO} minutos."
             )
         return (
             f"{objeto.emoji} **{criatura.nombre}** se come una sopaipilla "
-            f"{objeto.color} — {hue.le_gusta(criatura.caracter, objeto.color)}.\n"
-            f"-# **+{bonus}** de fuerza y de velocidad (1d{caras}) durante "
-            f"{obj.MINUTOS_DE_EFECTO} minutos."
+            f"{objeto.color} — {resultado.gusto}.\n"
+            f"-# **+{resultado.bonus}** de fuerza y de velocidad "
+            f"(1d{resultado.caras}) durante {obj.MINUTOS_DE_EFECTO} minutos."
         )
 
-    if objeto.dias_de_refugio:
-        hasta = db.alargar_el_refugio(
-            criatura.usuario_id, criatura.guild_id, objeto.dias_de_refugio, ahora
-        )
+    if resultado.efecto == "refugio":
         return (
             f"{objeto.emoji} Otra estancia en el refugio, hasta el "
-            f"**{hasta:%d/%m}**.\n-# Cuenta desde ahora: si te sobraba tiempo, "
-            "lo has perdido."
+            f"**{resultado.refugio_hasta:%d/%m}**.\n-# Cuenta desde ahora: si te "
+            "sobraba tiempo, lo has perdido."
         )
 
-    if objeto.alimenta:
-        nueva = obj.aplicar_a_la_criatura(objeto, criatura)
-        db.guardar(nueva)
-        ganado = round(nueva.hambre - criatura.hambre)
+    if resultado.efecto == "comida":
         return (
             f"{objeto.emoji} **{criatura.nombre}** se come {objeto.nombre}. "
-            f"Comida +{ganado} (ahora {round(nueva.hambre)})."
+            f"Comida +{resultado.comida} (ahora {round(criatura.hambre)})."
         )
 
-    # Sin caso por descarte. Antes, todo lo que no era poción ni reinicio caía en
-    # la rama de la comida y devolvía su mensaje escrito a mano: las golosinas se
-    # gastaban, no hacían nada y decían «Hambre al 100». El próximo objeto que no
-    # encajara heredaría la misma mentira, así que aquí se revienta en vez de
-    # inventar. `MenuInventario` lo comprueba antes para no gastar la unidad.
-    raise ValueError(f"{objeto.clave} no se aplica al momento desde la mochila")
+    if resultado.efecto == "nombre":
+        return (
+            f"{objeto.emoji} **{resultado.nombre_anterior}** pasa a llamarse "
+            f"**{criatura.nombre}**."
+        )
+
+    raise ValueError(f"efecto sin frase en Discord: {resultado.efecto}")
 
 
-def renombrar(
-    usuario_id: str, guild_id: str, objeto: obj.Objeto, propuesto: str
-) -> str:
-    """Valida el nombre, gasta la placa y renombra. Devuelve qué contar.
+def _por_que_no(objeto: obj.Objeto, resultado: economia.ResultadoUso) -> str:
+    """Los rechazos del menú de la mochila."""
+    if resultado.motivo == "sin_gachamon":
+        return SIN_GACHAMON_VIVO
+    if resultado.motivo == "no_se_usa":
+        return (
+            f"{objeto.emoji} **{objeto.nombre}** no se usa desde aquí. "
+            "Llévalas a una `/aventura`."
+        )
+    if resultado.motivo == "no_tienes":
+        return "Ya no te queda ninguno."
+    # `sin_plazo` es sólo de quien juega en la web: en Discord no puede salir.
+    raise ValueError(f"rechazo sin frase en la mochila: {resultado.motivo}")
 
-    El orden importa y es el único que no deja agujeros: primero se valida, y
-    sólo si el nombre vale se gasta el objeto. Al revés, un nombre con caracteres
-    raros te costaría la placa sin cambiar nada.
 
-    Levanta `ValueError` si el nombre no vale o si ya no queda ninguna placa.
-    """
-    nombre = sim.normalizar_nombre(propuesto)  # levanta ValueError si no vale
-
-    criatura = db.criatura_activa(usuario_id, guild_id)
-    if criatura is None:
-        raise ValueError("Ya no tienes ningún gachamon activo.")
-    if nombre == criatura.nombre:
-        raise ValueError(f"Ya se llama **{nombre}**.")
-    if not db.gastar(usuario_id, guild_id, objeto.clave):
-        raise ValueError("Ya no te queda ninguna placa.")
-
-    antes = criatura.nombre
-    db.guardar(replace(criatura, nombre=nombre))
-    return f"{objeto.emoji} **{antes}** pasa a llamarse **{nombre}**."
+def _por_que_no_la_placa(resultado: economia.ResultadoUso) -> str:
+    """Los rechazos del formulario de la placa, sin el «No se ha podido.»."""
+    if resultado.motivo == "nombre":
+        return resultado.problema
+    if resultado.motivo == "sin_gachamon":
+        return "Ya no tienes ningún gachamon activo."
+    if resultado.motivo == "mismo_nombre":
+        return f"Ya se llama **{resultado.criatura.nombre}**."
+    if resultado.motivo == "no_tienes":
+        return "Ya no te queda ninguna placa."
+    raise ValueError(f"rechazo sin frase en la placa: {resultado.motivo}")
 
 
 class RenombrarModal(discord.ui.Modal, title="Ponle otro nombre"):
@@ -229,23 +218,17 @@ class RenombrarModal(discord.ui.Modal, title="Ponle otro nombre"):
         self.add_item(self.nombre)
 
     async def on_submit(self, interaccion: discord.Interaction) -> None:
-        try:
-            aviso = renombrar(
-                str(interaccion.user.id), str(interaccion.guild_id),
-                self.objeto, str(self.nombre),
-            )
-        except ValueError as error:
-            await interaccion.response.send_message(
-                f"No se ha podido. {error}", ephemeral=True
-            )
-            return
-        criatura = db.criatura_activa(
-            str(interaccion.user.id), str(interaccion.guild_id)
+        resultado = economia.renombrar_con_placa(
+            str(interaccion.id), str(interaccion.user.id),
+            str(interaccion.guild_id), self.objeto, str(self.nombre),
         )
-        mensaje_id = criatura.pantalla_msg_id if criatura is not None else None
-        if self.congelar is not None:
-            await self.congelar(interaccion.channel, mensaje_id)
-        await interaccion.response.send_message(aviso, ephemeral=True)
+        if resultado.ok and self.congelar is not None:
+            await self.congelar(
+                interaccion.channel, resultado.criatura.pantalla_msg_id
+            )
+        await interaccion.response.send_message(
+            texto_del_uso(self.objeto, resultado), ephemeral=True
+        )
 
 
 # --- Los desplegables ------------------------------------------------------
@@ -291,50 +274,33 @@ class MenuInventario(discord.ui.Select):
         guild_id = str(interaccion.guild_id)
         objeto = obj.CATALOGO[self.values[0]]
 
-        criatura = db.criatura_activa(usuario_id, guild_id)
-        if criatura is None:
-            await interaccion.response.edit_message(
-                content="No tienes ningún gachamon vivo. Empieza con `/huevo`.",
-                view=None,
-            )
-            return
-
         if objeto.renombra:
             # La placa se gasta al CONFIRMAR el nombre, no aquí: cerrar el
             # formulario sin escribir nada no puede costarte el objeto.
+            criatura = db.criatura_activa(usuario_id, guild_id)
+            if criatura is None:
+                await interaccion.response.edit_message(
+                    content=SIN_GACHAMON_VIVO, view=None
+                )
+                return
             await interaccion.response.send_modal(
                 RenombrarModal(objeto, criatura.nombre, self.congelar)
             )
             return
 
-        if not objeto.se_usa_en_mochila:
-            # Antes de gastar nada: si no hace nada aquí, elegirlo no puede
-            # costarte la unidad. Es lo que pasaba con las golosinas.
-            await interaccion.response.edit_message(
-                content=(
-                    f"{objeto.emoji} **{objeto.nombre}** no se usa desde aquí. "
-                    "Llévalas a una `/aventura`."
-                ),
-                view=None,
+        # Gastar, poner al día al gachamon y aplicar van en una sola
+        # transacción, y antes de gastar se mira todo lo que puede decir que no:
+        # elegir algo que aquí no hace nada no cuesta la unidad.
+        resultado = economia.usar_objeto(
+            str(interaccion.id), usuario_id, guild_id, objeto
+        )
+        if resultado.ok and self.congelar is not None:
+            await self.congelar(
+                interaccion.channel, resultado.criatura.pantalla_msg_id
             )
-            return
-
-        # Se gasta ANTES de aplicar: si fallara después, es preferible perder un
-        # objeto que dejar que dos clics seguidos usen la misma unidad dos veces.
-        if not db.gastar(usuario_id, guild_id, objeto.clave):
-            await interaccion.response.edit_message(
-                content="Ya no te queda ninguno.", view=None
-            )
-            return
-
-        ahora = db.ahora_utc()
-        criatura = db.avanzar(criatura, ahora)
-        db.guardar(criatura)
-        aviso = usar(criatura, objeto, ahora)
-
-        if self.congelar is not None:
-            await self.congelar(interaccion.channel, criatura.pantalla_msg_id)
-        await interaccion.response.edit_message(content=aviso, view=None)
+        await interaccion.response.edit_message(
+            content=texto_del_uso(objeto, resultado), view=None
+        )
 
 
 class MenuTienda(discord.ui.Select):

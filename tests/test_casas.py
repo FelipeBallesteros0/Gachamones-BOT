@@ -757,15 +757,31 @@ def test_mirar_la_ficha_de_otro_no_le_estrena_el_refugio():
 # --- El ticket del refugio -------------------------------------------------
 
 TICKET = __import__("objetos").CATALOGO["ticket_refugio"]
+_usos = 0
+
+
+def dar(objeto, cuantos=1):
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, "u1", "g1", objeto.clave, cuantos)
+
+
+def usar(objeto, ahora=T0, rng=None):
+    """Lo que hace el menú de la mochila: usar una unidad y contarlo."""
+    global _usos
+    _usos += 1
+    resultado = economia.usar_objeto(
+        f"uso-{_usos}", "u1", "g1", objeto, ahora, rng
+    )
+    return resultado, tienda.texto_del_uso(objeto, resultado)
 
 
 def test_el_ticket_devuelve_una_estancia_entera():
     nacer()
-    bicho = db.criatura_activa("u1", "g1")
     fuera = hogar().refugio_hasta + timedelta(days=1)
     assert hogar().estado(fuera) == cas.INTEMPERIE
+    dar(TICKET)
 
-    aviso = tienda.usar(bicho, TICKET, fuera)
+    _, aviso = usar(TICKET, fuera)
 
     assert "refugio" in aviso
     assert db.hogar_de("u1", "g1", fuera).estado(fuera) == cas.REFUGIO
@@ -774,10 +790,10 @@ def test_el_ticket_devuelve_una_estancia_entera():
 def test_el_ticket_cuenta_desde_que_se_usa():
     """Y el aviso lo dice: usarlo con estancia de sobra es tirarlo."""
     nacer()
-    bicho = db.criatura_activa("u1", "g1")
     db.hogar_de("u1", "g1", T0)
+    dar(TICKET)
 
-    aviso = tienda.usar(bicho, TICKET, T0 + timedelta(days=1))
+    _, aviso = usar(TICKET, T0 + timedelta(days=1))
 
     assert "lo has perdido" in aviso
     assert db.hogar_de("u1", "g1", T0).refugio_hasta == (
@@ -1463,10 +1479,10 @@ def test_no_se_cocina_un_color_que_no_existe():
 def test_la_sopaipilla_sube_fuerza_y_velocidad_a_la_vez():
     """Un plato, no dos pociones: el mismo número en las dos."""
     bicho = nacer(especie="chispa")
+    dar(objs.CATALOGO[hue.clave_de_sopaipilla("rojo")])
 
-    aviso = tienda.usar(
-        bicho, objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], T0,
-        random.Random(3),
+    _, aviso = usar(
+        objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], T0, random.Random(3)
     )
 
     # `efectos_activos` devuelve (bonus, lo que queda), no sólo el número.
@@ -1484,11 +1500,10 @@ def test_la_sopaipilla_arcoiris_sube_las_cuatro_con_su_dado(caras):
     """Lo mismo que la de color —un plato, un solo dado— pero en las cuatro, y
     con el dado que le tocó al cocinarla en vez de con el del carácter."""
     bicho = nacer(especie="chispa")
+    sopaipilla = objs.CATALOGO[hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)]
+    dar(sopaipilla)
 
-    aviso = tienda.usar(
-        bicho, objs.CATALOGO[hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)], T0,
-        random.Random(3),
-    )
+    _, aviso = usar(sopaipilla, T0, random.Random(3))
 
     efectos = {
         stat: bonus for stat, (bonus, _) in
@@ -1519,13 +1534,12 @@ def test_el_dado_del_arcoiris_es_el_suyo_y_no_el_del_caracter():
     # persona y servidor, y lo que se mira aquí es el dado, no la criatura.
     bicho = nacer()
     for caracter in per.CARACTERES:
+        db.guardar(replace(bicho, caracter=caracter))
         for caras in hue.CARAS_DE_ARCOIRIS:
             espia = DadoEspia()
-            tienda.usar(
-                replace(bicho, caracter=caracter),
-                objs.CATALOGO[hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)],
-                T0, espia,
-            )
+            sopaipilla = objs.CATALOGO[hue.clave_de_sopaipilla(hue.ARCOIRIS, caras)]
+            dar(sopaipilla)
+            usar(sopaipilla, T0, espia)
             assert espia.caras == caras, (caracter, caras)
 
 
@@ -1577,12 +1591,11 @@ def test_el_dado_de_la_sopaipilla_sale_del_caracter():
     favorito = hue.AFINIDAD[bicho.caracter][0]
     peor = hue.AFINIDAD[bicho.caracter][-1]
 
-    bueno = tienda.usar(
-        bicho, objs.CATALOGO[hue.clave_de_sopaipilla(favorito)], T0
-    )
-    malo = tienda.usar(
-        bicho, objs.CATALOGO[hue.clave_de_sopaipilla(peor)], T0
-    )
+    dar(objs.CATALOGO[hue.clave_de_sopaipilla(favorito)])
+    dar(objs.CATALOGO[hue.clave_de_sopaipilla(peor)])
+
+    _, bueno = usar(objs.CATALOGO[hue.clave_de_sopaipilla(favorito)], T0)
+    _, malo = usar(objs.CATALOGO[hue.clave_de_sopaipilla(peor)], T0)
 
     assert "1d12" in bueno and "es su favorito" in bueno
     assert "1d4" in malo and "lo detesta" in malo
@@ -1591,8 +1604,9 @@ def test_el_dado_de_la_sopaipilla_sale_del_caracter():
 def test_la_sopaipilla_no_se_acumula():
     """Como las pociones: la nueva sustituye a la anterior."""
     bicho = nacer()
+    dar(objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], 3)
     for _ in range(3):
-        tienda.usar(bicho, objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], T0)
+        usar(objs.CATALOGO[hue.clave_de_sopaipilla("rojo")], T0)
 
     efectos = db.efectos_activos(bicho.id, T0)
     assert len(efectos) == 2                 # fuerza y velocidad, una de cada
