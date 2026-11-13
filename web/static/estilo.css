@@ -452,23 +452,17 @@ a { color: var(--principal-hundido); font-weight: 600; }
   -webkit-user-select: all;
 }
 
-.comando {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
+/* La instrucción lleva el comando dentro de la frase, sin el código al lado. */
+.como-usarlo { line-height: 1.9; }
 
-.comando code {
-  padding: 8px 12px;
+.como-usarlo code {
+  padding: 4px 8px;
   border-radius: var(--radio-chico);
   background: var(--secundario);
   font-family: var(--letra-fija);
   font-size: 1rem;
   font-weight: 700;
-  user-select: all;
-  -webkit-user-select: all;
+  white-space: nowrap;
 }
 
 .dura {

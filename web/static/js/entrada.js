@@ -232,17 +232,10 @@ function pasoDelCodigo({ mostrar, volver, textoVolver, seguir, cuenta }) {
 
   function mostrarCodigo({ codigo, minutos }) {
     const vence = Date.now() + minutos * 60 * 1000;
-    const comando = `/vincular ${codigo}`;
     const quedan = el('span', {});
     const espera = el('span', {}, 'Esperando a que lo escribas en Discord…');
     const atras = el('button', { type: 'button', class: 'boton' }, textoVolver);
-    const caja = el('div', { class: 'codigo-caja' },
-      el('p', { class: 'codigo-etiqueta' }, 'Tu código'),
-      el('p', { class: 'codigo' }, codigo),
-      el('p', {}, 'En Discord, en el servidor Robot House, escribe:'),
-      el('p', { class: 'comando' }, el('code', {}, comando), botonCopiar(comando)),
-      el('p', { class: 'dura' }, `Dura ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'} · `, quedan),
-    );
+    const caja = cajaDelCodigo(codigo, minutos, quedan);
     mostrar(
       caja,
       el('div', { class: 'alerta', role: 'note' },
@@ -355,9 +348,26 @@ function enlaceADiscord(cuerpo, seguir, cuenta) {
   return el('div', { class: 'traer' }, enlace, aviso);
 }
 
-function botonCopiar(texto) {
+// La caja con el código y cómo se usa. El botón copia **sólo el código**:
+// Discord no acepta un comando pegado entero; hay que escribir `/vincular`,
+// elegirlo y pegar el código en su casilla. Por eso el comando se enseña sin
+// el código al lado, para que nadie copie las dos cosas juntas.
+export function cajaDelCodigo(codigo, minutos, quedan) {
+  return el('div', { class: 'codigo-caja' },
+    el('p', { class: 'codigo-etiqueta' }, 'Tu código'),
+    el('p', { class: 'codigo' }, codigo),
+    botonCopiar(codigo, 'Copiar código'),
+    el('p', { class: 'como-usarlo' },
+      'En Discord, en el servidor Robot House, escribe ',
+      el('code', {}, '/vincular'),
+      ' y pega ahí tu código.'),
+    el('p', { class: 'dura' }, `Dura ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'} · `, quedan),
+  );
+}
+
+function botonCopiar(texto, etiqueta) {
   if (!navigator.clipboard || !window.isSecureContext) return null;
-  const nodo = el('button', { type: 'button', class: 'boton boton-chico' }, 'Copiar');
+  const nodo = el('button', { type: 'button', class: 'boton boton-chico' }, etiqueta);
   nodo.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(texto);
@@ -365,7 +375,7 @@ function botonCopiar(texto) {
     } catch {
       nodo.textContent = 'No se pudo copiar';
     }
-    setTimeout(() => { nodo.textContent = 'Copiar'; }, 2000);
+    setTimeout(() => { nodo.textContent = etiqueta; }, 2000);
   });
   return nodo;
 }
