@@ -2,7 +2,7 @@
 # Deja la Raspberry exactamente en lo que haya en GitHub.
 #
 #   ./actualizar-pi.sh                 # lo normal
-#   SIN_TESTS=1 ./actualizar-pi.sh     # sin correr la suite en la Pi (~50 s)
+#   SIN_TESTS=1 ./actualizar-pi.sh     # sin correr la suite en la Pi
 #   RAMA=otra ./actualizar-pi.sh       # otra rama
 #   PI=usuario@ip DEST=/ruta ./actualizar-pi.sh
 #
@@ -70,20 +70,23 @@ REMOTO
 
 if [ -z "$SIN_TESTS" ]; then
     echo "==> Tests en la Pi (SIN_TESTS=1 para saltarlos)"
-    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest tests/ -q 2>&1 | tail -3"
+    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest tests/ -q 2>&1 | tail -3"
 fi
 
 # El servicio se toca al final y sólo si todo lo anterior salió bien: con
 # `set -e` aquí y `set -o pipefail` en la orden remota, una suite en rojo hace
 # que `ssh` devuelva el estado de pytest (y no el de `tail`), el guion corta y
 # el bot sigue con la versión buena.
-echo "==> Reiniciando el servicio"
+echo "==> Reiniciando los servicios (primero el bot, después la web)"
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
 ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tamagotchi.service && \
+    sudo cp '$DEST/gachamon-web.service' /etc/systemd/system/gachamon-web.service && \
     sudo systemctl daemon-reload && \
+    sudo systemctl enable tamagotchi gachamon-web && \
     sudo systemctl restart tamagotchi && \
-    sleep 3 && systemctl is-active tamagotchi"
+    sudo systemctl restart gachamon-web && \
+    sleep 3 && systemctl is-active tamagotchi gachamon-web"
 
 echo
-echo "Listo. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -f'"
+echo "Listo. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'"

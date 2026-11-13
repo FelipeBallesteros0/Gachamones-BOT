@@ -111,23 +111,59 @@ Hay **dos scripts y no hacen lo mismo**:
 `actualizar-pi.sh` es el que evita el desfase de desplegar una copia local que no
 está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
 datos antes de tocar nada (guarda las 5 últimas), pone la Pi en el commit de
-`main`, corre la suite allí y **sólo reinicia si pasa**. La primera vez convierte
+`main`, corre la suite allí y **sólo reinicia si pasa**. La suite usa un temporal
+en memoria (`--basetemp=/dev/shm/...`): con él tarda mucho menos que los diez
+minutos que tardaba con el temporal en la tarjeta SD (la cifra se anotará al
+medirla). La primera vez convierte
 el directorio en un clon de git; el `.env`, la base y el `venv` están en
 `.gitignore`, así que no los toca.
 
 ```bash
 ./actualizar-pi.sh              # lo normal
-SIN_TESTS=1 ./actualizar-pi.sh  # sin correr la suite en la Pi (~50 s)
+SIN_TESTS=1 ./actualizar-pi.sh  # sin correr la suite en la Pi
 RAMA=otra ./actualizar-pi.sh    # otra rama
 ```
 
-`deploy.sh` también copia la base de datos (misma rotación de 5) antes de reiniciar, y no corre la suite.
+`deploy.sh` también copia la base de datos (misma rotación de 5) antes de reiniciar, y no corre la suite. Su `rsync --delete` no toca la base ni su diario (`*.db`, `*.db-journal`, `*.db-wal`, `*.db-shm`).
+
+Los dos guiones instalan y habilitan las dos unidades (`tamagotchi` y
+`gachamon-web`), reinician **primero el bot y después la web**, y terminan con
+`systemctl is-active tamagotchi gachamon-web`: si la web no queda activa, el
+guion falla.
 
 Los dos admiten `PI` y `DEST` como variables de entorno. Para ver el registro:
 
 ```bash
-ssh $PI 'journalctl -u tamagotchi -f'
+ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'
 ```
+
+## La web
+
+Junto al bot corre un segundo servicio, la web del juego: una aplicación FastAPI
+(`web.app:app`) que cuelga toda de `/gachamon`. Es otro adaptador fino sobre los
+mismos módulos y la misma base `tamagotchi.db`; no importa `discord`, no guarda
+estado del juego en memoria y sabe quién eres sólo por la cookie de sesión de
+Rowino.
+
+En local:
+
+```bash
+./venv/bin/python -m uvicorn web.app:app --port 8010
+```
+
+Variables del `.env` (explicadas en `.env.ejemplo`):
+
+- `ROWINO_SECRET_KEY`: la misma `SECRET_KEY` con la que Rowino firma su cookie.
+  Sin ella nadie puede entrar. Nunca se escribe en el repositorio.
+- `RUTA_ROWINO_BD`: la base de Rowino, de donde se lee quién es la cookie. Por
+  defecto, `../rowino_web/rowino.db` junto al repositorio.
+- `GUILD_WEB` (opcional): el servidor que hace de pueblo; sólo ahí funciona
+  `/vincular`. Vacío, vale el primero de `GUILD_ID`.
+
+En producción lo lleva la unidad `gachamon-web.service`, que escucha sólo en
+`127.0.0.1:8010`, y se publica como `rowino.online/gachamon` detrás del túnel,
+con una regla por ruta. Quien entra con su cuenta de Rowino vincula su Discord
+con `/vincular` y encuentra a sus gachamones.
 
 ## Comandos
 

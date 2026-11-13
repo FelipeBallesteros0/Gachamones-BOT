@@ -5,29 +5,54 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 
 ## Para el plan 2 (servidor web y pantalla principal)
 
-- **Crear un gachamon y mirar la cuenta, en la misma transacción.**
-  `db.crear` no consulta `cuentas_web`. Si la web resuelve `db.cuenta_web()`
-  fuera de la transacción en la que crea la criatura, puede nacer un gachamon
-  de la identidad web justo después de vincular, y queda huérfano.
+~~- **Crear un gachamon y mirar la cuenta, en la misma transacción.**~~
+  ~~`db.crear` no consulta `cuentas_web`. Si la web resuelve `db.cuenta_web()`~~
+  ~~fuera de la transacción en la que crea la criatura, puede nacer un gachamon~~
+  ~~de la identidad web justo después de vincular, y queda huérfano.~~
+  **Resuelto en el plan 2.**
 - **«Sin gachamones» no es «sin estado».** Al vincular, una identidad web
   vacía de gachamones puede haber dejado un monedero, un reloj del refugio o
   una compra. Esas filas quedan huérfanas. Decidir si la web impide llegar a
   ese punto o si se limpian.
-- **El código de vinculación se puede pedir con engaños.** Quien convenza a
-  otra persona de escribir su código en Discord se queda con los gachamones de
-  esa persona en la web. Avisarlo donde la web muestra el código y en la
-  descripción de `/vincular`.
-- **«Desfallecido».** Con la comida en 0, la ficha y los globos tienen que
-  decir que el gachamon está desfallecido y pide comer (diseño, 5.8).
-- **La secuencia de arranque vive en `bot.py`.** `db.inicializar()` seguido de
-  `economia.devolver_cosmeticos_retirados()` está escrito dentro de un módulo
-  que importa `discord`. El servicio web necesita lo mismo: sacarlo a una
-  función sin Discord y probarla.
+~~- **El código de vinculación se puede pedir con engaños.** Quien convenza a~~
+  ~~otra persona de escribir su código en Discord se queda con los gachamones de~~
+  ~~esa persona en la web. Avisarlo donde la web muestra el código y en la~~
+  ~~descripción de `/vincular`.~~
+  **Resuelto en el plan 2** (la web avisa «No se lo pases a nadie»); lo que falta del lado del bot está abajo.
+~~- **«Desfallecido».** Con la comida en 0, la ficha y los globos tienen que~~
+  ~~decir que el gachamon está desfallecido y pide comer (diseño, 5.8).~~
+  **Resuelto en el plan 2.**
+~~- **La secuencia de arranque vive en `bot.py`.** `db.inicializar()` seguido de~~
+  ~~`economia.devolver_cosmeticos_retirados()` está escrito dentro de un módulo~~
+  ~~que importa `discord`. El servicio web necesita lo mismo: sacarlo a una~~
+  ~~función sin Discord y probarla.~~
+  **Resuelto en el plan 2** (`economia.poner_al_dia`).
 - **La prueba del reintento por colisión.** Ninguna prueba pasa `rng` a
   `db.pedir_codigo_de_vinculo`; añadirla cuando la web empiece a llamarla.
 - **La regla por ruta del túnel sólo se comprobó en seco.** Aplicarla pide
   `sudo`, reiniciar el túnel y la autorización de Felipe. Ver
   `../specs/2026-11-12-tunel-regla-por-ruta.md`.
+
+## Salió al ejecutar el plan 2
+
+- Starlette avisa de que su cliente de pruebas con `httpx` está en desuso y
+  pide `httpx2`; las pruebas filtran ese aviso. Recomendación: cambiar la
+  dependencia de desarrollo cuando el dueño lo apruebe.
+- La cookie de sesión de Rowino no lleva marca de tiempo: una copia robada sirve
+  hasta que cambie la clave. Es de Rowino, no del juego.
+- Cuando alguien canjea un código con `/vincular`, el bot contesta que quedó
+  vinculada sin decir a qué cuenta de Rowino. Quien engañe a otro para que
+  escriba un código ajeno se queda con sus gachamones. La web ya avisa «No se lo
+  pases a nadie»; que el bot nombre la cuenta, o pida confirmar, queda por
+  decidir.
+- La web deja apuntada cada muerte que registra (tabla `muertes_por_anunciar`) y
+  el bucle del bot la anuncia en su siguiente vuelta, hasta quince minutos
+  después.
+- Si se repite un cuidado que hizo evolucionar (un reintento tras perderse la
+  respuesta), la repetición no dice que evolucionó, aunque el estado ya muestra
+  la etapa nueva.
+- Las frases de los globos (`globos.py`) y los dibujos de relleno (el avatar, el
+  huevo y las catorce especies sin arte) son provisionales.
 
 ## Para el proyecto 2 (notificaciones)
 

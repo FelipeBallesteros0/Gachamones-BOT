@@ -25,6 +25,9 @@ rsync -av --delete \
     --exclude 'venv' \
     --exclude '.env' \
     --exclude '*.db' \
+    --exclude '*.db-journal' \
+    --exclude '*.db-wal' \
+    --exclude '*.db-shm' \
     --exclude '*.bak' \
     --exclude '.pytest_cache' \
     "$ORIGEN/" "$PI:$DEST/"
@@ -60,12 +63,14 @@ ssh "$PI" "cd '$DEST' && \
         { ls -1t tamagotchi.db.*.bak 2>/dev/null | tail -n +6 | xargs -r rm -- || true; }; \
     fi"
 
-echo "==> Instalando/actualizando el servicio"
+echo "==> Instalando/actualizando los servicios (primero el bot, después la web)"
 ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tamagotchi.service && \
+    sudo cp '$DEST/gachamon-web.service' /etc/systemd/system/gachamon-web.service && \
     sudo systemctl daemon-reload && \
-    sudo systemctl enable tamagotchi && \
+    sudo systemctl enable tamagotchi gachamon-web && \
     sudo systemctl restart tamagotchi && \
-    sleep 3 && sudo systemctl status tamagotchi --no-pager -l | head -20"
+    sudo systemctl restart gachamon-web && \
+    sleep 3 && systemctl is-active tamagotchi gachamon-web"
 
 echo
-echo "Deploy OK. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -f'"
+echo "Deploy OK. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'"

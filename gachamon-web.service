@@ -1,0 +1,19 @@
+[Unit]
+Description=Gachamones web (FastAPI bajo /gachamon, junto al bot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=felipe
+WorkingDirectory=/home/felipe/tamagotchi-bot
+# Sólo escucha en la propia máquina: lo que llega de fuera entra por el túnel.
+ExecStart=/home/felipe/tamagotchi-bot/venv/bin/python -m uvicorn web.app:app --host 127.0.0.1 --port 8010
+Restart=always
+RestartSec=10
+# Comparte tamagotchi.db con el bot: los dos escriben, cada uno en su proceso.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
