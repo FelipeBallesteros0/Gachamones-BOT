@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  formatoEspera, elegirGlobo, nombreDelHogar, cuantasMonedas, cuantasGemas,
+  formatoEspera, elegirGlobo, nombreDelHogar, cuantasMonedas, cuantasGemas, avisoDelCuidado,
 } from '../../web/static/js/tiempo.js';
 
 test('la espera se lee como la diría una persona', () => {
@@ -58,6 +58,32 @@ test('el hogar tiene un nombre que se entiende', () => {
   assert.equal(nombreDelHogar('propia'), 'Tu casa');
   assert.equal(nombreDelHogar('refugio'), 'Refugio');
   assert.equal(nombreDelHogar('intemperie'), 'A la intemperie');
+});
+
+test('un cuidado que sale bien dice su frase', () => {
+  assert.equal(avisoDelCuidado({ ok: true, mensaje: 'Juegan un rato. Está encantada.' }),
+    'Juegan un rato. Está encantada.');
+  assert.equal(avisoDelCuidado({ ok: true, mensaje: 'Se ha empachado. No tenía nada de hambre.' }),
+    'Se ha empachado. No tenía nada de hambre.');
+});
+
+test('un cuidado que la regla no deja también dice su frase', () => {
+  assert.equal(avisoDelCuidado({ ok: false, mensaje: 'Tu gachamon ya no está entre nosotros.' }),
+    'Tu gachamon ya no está entre nosotros.');
+});
+
+test('sin frase, sólo el que no salió dice algo: «Todavía no.»', () => {
+  assert.equal(avisoDelCuidado({ ok: false, mensaje: '' }), 'Todavía no.');
+  assert.equal(avisoDelCuidado({ ok: false }), 'Todavía no.');
+  assert.equal(avisoDelCuidado({ ok: true, mensaje: '' }), '');
+  assert.equal(avisoDelCuidado({ ok: true }), '');
+});
+
+test('un mensaje que no es una frase cuenta como si no hubiera', () => {
+  for (const mensaje of [null, 7, ['Ñam.'], { texto: 'Ñam.' }, '   ']) {
+    assert.equal(avisoDelCuidado({ ok: true, mensaje }), '');
+    assert.equal(avisoDelCuidado({ ok: false, mensaje }), 'Todavía no.');
+  }
 });
 
 test('las monedas y las gemas van en singular cuando es una', () => {

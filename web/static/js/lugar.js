@@ -17,7 +17,7 @@ import { dibujarAvatar } from './dibujo.js';
 import { el } from './dom.js';
 import { siguiente } from './pantallas.js';
 import {
-  cuantasGemas, cuantasMonedas, elegirGlobo, formatoEspera, nombreDelHogar,
+  avisoDelCuidado, cuantasGemas, cuantasMonedas, elegirGlobo, formatoEspera, nombreDelHogar,
 } from './tiempo.js';
 
 const PEDIR_ESTADO_CADA_MS = 30_000;
@@ -54,7 +54,8 @@ function nivelDeBarra(valor) {
   return 'alto';
 }
 
-// Como las marcas {o/a} del servidor: masculino salvo para una hembra.
+// Las palabras que pone la propia pantalla concuerdan con el gachamon:
+// masculino salvo para una hembra.
 function segun(genero, masculino, femenino) {
   return genero === 'hembra' ? femenino : masculino;
 }
@@ -423,10 +424,14 @@ export function lugar(contenedor, estado, seguir) {
   let acciones = 0;
   let acariciando = false;
 
+  // La caricia no lleva evento que la haga repetible, así que no se reintenta
+  // sola: si falla o se corta se dice, y se vuelve a pedir el estado, porque
+  // pudo haber contado igual.
   async function acariciar() {
     if (acariciando) return;
     acariciando = true;
     acciones += 1;
+    let fallida = false;
     try {
       const respuesta = await pedir('POST', 'acariciar');
       if (!vivo) return;
@@ -441,10 +446,12 @@ export function lugar(contenedor, estado, seguir) {
       }
       aplicar(respuesta.estado);
     } catch (error) {
+      fallida = true;
       if (vivo) fallo(error);
     } finally {
       acariciando = false;
     }
+    if (fallida) releer();
   }
 
   async function conReintentos(hacer) {
@@ -472,6 +479,7 @@ export function lugar(contenedor, estado, seguir) {
     callarAviso();
     // Un toque, un evento: los reintentos de este toque llevan el mismo.
     const evento = nuevoEvento();
+    let fallido = false;
     try {
       const respuesta = await conReintentos(() => pedir('POST', 'cuidar', { accion, evento_id: evento }));
       if (!vivo) return;
@@ -481,16 +489,20 @@ export function lugar(contenedor, estado, seguir) {
         gesto('salta');
         if (respuesta.monedas > 0) ganar(respuesta.monedas);
         if (respuesta.evoluciono) celebrar(actual.gachamon);
-      } else {
-        avisar(respuesta.mensaje || 'Todavía no.');
       }
+      // La frase del juego se lee siempre: «Se ha empachado» también cuenta.
+      const frase = avisoDelCuidado(respuesta);
+      if (frase) avisar(frase);
     } catch (error) {
+      fallido = true;
       if (vivo) fallo(error);
     } finally {
       nodo.classList.remove('esperando');
       nodo.removeAttribute('aria-busy');
       if (vivo) contar();
     }
+    // Agotados los reintentos, pudo haber llegado igual: manda el estado.
+    if (fallido) releer();
   }
 
   gachamon.addEventListener('click', acariciar);

@@ -79,6 +79,64 @@ test('una respuesta de error que no es del juego tampoco trae clave', async () =
   });
 });
 
+// El error de una red caída, para comparar: un corte tiene que ser igual.
+const errorDeRed = async () => {
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+  return pedir('GET', 'estado').catch((error) => error);
+};
+
+// Deja correr las promesas pendientes (setImmediate no está simulado).
+const dejarCorrer = () => new Promise((listo) => { setImmediate(listo); });
+
+test('una petición que no vuelve nunca se corta a los 15 segundos, como sin red', { timeout: 5000 }, async (t) => {
+  const sinRed = await errorDeRed();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // Ni contesta ni atiende a que se le pida parar.
+  globalThis.fetch = () => new Promise(() => {});
+  let terminada = false;
+  const peticion = pedir('POST', 'cuidar', { accion: 'jugar', evento_id: 'evento-de-prueba' });
+  peticion.catch(() => {}).finally(() => { terminada = true; });
+  t.mock.timers.tick(14_999);
+  await dejarCorrer();
+  assert.equal(terminada, false, 'cortó antes de tiempo');
+  t.mock.timers.tick(1);
+  await assert.rejects(peticion, (error) => {
+    assert.deepEqual(error, sinRed);
+    assert.equal(error.clave, null);
+    return true;
+  });
+});
+
+test('al cortar, la petición de verdad se cancela', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let senal = null;
+  globalThis.fetch = (url, opciones) => new Promise((_, rechazar) => {
+    senal = opciones.signal;
+    senal.addEventListener('abort', () => rechazar(new DOMException('cortada', 'AbortError')));
+  });
+  const peticion = pedir('GET', 'estado');
+  t.mock.timers.tick(15_000);
+  await assert.rejects(peticion, { estado: 0, clave: null });
+  assert.equal(senal.aborted, true);
+});
+
+test('un cuerpo que no termina de llegar también se corta', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: () => new Promise(() => {}) });
+  const peticion = pedir('GET', 'estado');
+  await dejarCorrer();
+  t.mock.timers.tick(15_000);
+  await assert.rejects(peticion, { estado: 0, clave: null });
+});
+
+test('una respuesta a tiempo desarma el corte', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const llamadas = conFetch(() => respuesta(200, { ok: true }));
+  assert.deepEqual(await pedir('GET', 'estado'), { ok: true });
+  t.mock.timers.tick(15_000);
+  assert.equal(llamadas[0].opciones.signal.aborted, false);
+});
+
 test('cada evento nuevo vale para cuidar y no se repite', () => {
   const vistos = new Set();
   for (let i = 0; i < 50; i += 1) {

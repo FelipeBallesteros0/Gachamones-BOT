@@ -4,33 +4,62 @@
 // es siempre una frase que se le puede enseñar a quien juega, y `clave` es
 // null cuando la respuesta no es del juego (la red se cayó, el túnel no
 // contestó): entonces lo que toca es ofrecer reintentar.
+//
+// Una petición que no termina en 15 segundos se corta y se lanza igual que una
+// red caída: así ningún botón se queda esperando para siempre.
 
 const BASE = '/gachamon/api/';
+const ESPERA_MAXIMA_MS = 15_000;
 
 const SIN_RED = 'No hay conexión con el juego. Revisa tu internet y vuelve a intentarlo.';
 const SIN_RESPUESTA = 'El juego no contestó. Vuelve a intentarlo en un momento.';
 
+const sinRed = () => ({ estado: 0, clave: null, mensaje: SIN_RED });
+
 export async function pedir(metodo, ruta, cuerpo) {
-  const opciones = { method: metodo, headers: {}, credentials: 'same-origin' };
+  const corte = new AbortController();
+  const opciones = {
+    method: metodo, headers: {}, credentials: 'same-origin', signal: corte.signal,
+  };
   if (metodo !== 'GET') opciones.headers['X-Gachamon'] = '1';
   if (cuerpo !== undefined) {
     opciones.headers['Content-Type'] = 'application/json';
     opciones.body = JSON.stringify(cuerpo);
   }
 
-  let respuesta;
-  try {
-    respuesta = await fetch(BASE + ruta, opciones);
-  } catch {
-    throw { estado: 0, clave: null, mensaje: SIN_RED };
-  }
+  // No basta con cancelar el `fetch`: se compite con el reloj, por si lo que
+  // tarda no atiende a la cancelación (el cuerpo, un `fetch` que no la mira).
+  let reloj;
+  const vencida = new Promise((_, rechazar) => {
+    reloj = setTimeout(() => {
+      corte.abort();
+      rechazar(sinRed());
+    }, ESPERA_MAXIMA_MS);
+  });
 
-  let datos = null;
   try {
-    datos = await respuesta.json();
-  } catch {
-    datos = null;
+    let respuesta;
+    try {
+      respuesta = await Promise.race([fetch(BASE + ruta, opciones), vencida]);
+    } catch {
+      throw sinRed();
+    }
+
+    let datos = null;
+    try {
+      datos = await Promise.race([respuesta.json(), vencida]);
+    } catch {
+      if (corte.signal.aborted) throw sinRed();
+      datos = null;
+    }
+    return resultadoDe(respuesta, datos);
+  } finally {
+    clearTimeout(reloj);
   }
+}
+
+// Lo que contestó el servidor: sus datos, o el error con la forma de siempre.
+function resultadoDe(respuesta, datos) {
   if (!respuesta.ok) {
     const detalle = datos && typeof datos.detail === 'object' ? datos.detail : null;
     const delJuego = detalle && typeof detalle.clave === 'string' && typeof detalle.mensaje === 'string';

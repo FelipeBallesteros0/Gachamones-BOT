@@ -1,5 +1,6 @@
 // Lo que la pantalla principal dice con palabras: cuánto falta, qué globo toca,
-// cómo se llama el hogar y cuántas monedas. Puro: no toca la página.
+// cómo se llama el hogar, cuántas monedas y qué contestó un cuidado. Puro: no
+// toca la página.
 
 // Segundos que faltan, como lo diría una persona y como lo dice el bot
 // (`pantalla.formato_espera`): por debajo del minuto en segundos; desde ahí,
@@ -38,6 +39,15 @@ const HOGARES = {
 // `estado.hogar` del servidor (`casas.PROPIA`, `REFUGIO` o `INTEMPERIE`).
 export function nombreDelHogar(hogar) {
   return Object.hasOwn(HOGARES, hogar) ? HOGARES[hogar] : 'Tu hogar';
+}
+
+// Lo que se dice bajo la ficha tras un cuidado: la frase del juego, salga bien
+// («Se ha empachado…») o no; sin frase, «Todavía no.» sólo si no salió.
+export function avisoDelCuidado(respuesta) {
+  const mensaje = respuesta ? respuesta.mensaje : null;
+  const frase = typeof mensaje === 'string' ? mensaje.trim() : '';
+  if (frase) return frase;
+  return respuesta && respuesta.ok ? '' : 'Todavía no.';
 }
 
 // «1 moneda», «2 monedas», «0 monedas»: en singular sólo cuando es una.
