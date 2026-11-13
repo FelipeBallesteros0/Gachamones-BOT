@@ -1,17 +1,23 @@
 """La Tienda del pueblo: lo que se vende, a quién, y lo que cada cuenta ya tiene.
 
-Aquí sólo se lee: ni se cobra ni se entrega nada, y nada se escribe (el hogar
-se mira con `db.hogar_leido`, nunca con `db.hogar_de`). El servidor decide qué
-se vende y a quién; el cliente pinta lo que le llega.
+Mirar el catálogo sólo lee (el hogar se mira con `db.hogar_leido`, nunca con
+`db.hogar_de`). Comprar es otro adaptador fino: valida la petición, comprueba
+que se está en la tienda y que eso se le vende a la cuenta, y llama a la regla
+de `economia`, que cobra y entrega bajo `BEGIN IMMEDIATE` con el evento del
+cliente; aquí sólo se traduce lo que pasó a una frase de la web. Las frases de
+`economia` (`problema`) son de Discord y no salen por aquí. El servidor decide
+qué se vende y a quién; el cliente pinta lo que le llega.
 
 Ojo: este módulo es `web.tienda`, no el `tienda` de la raíz, que importa
 `discord`. Dentro de `web/` se importa siempre como `from web import tienda`.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 
 import casas as cas
 import cosmeticos as cos
@@ -20,10 +26,12 @@ import economia
 import huerto as hue
 import objetos as obj
 import simulacion as sim
-from web import pueblo
-from web.cuenta import Jugador, jugador_actual
-from web.sesion import problema
+from web import estado, pueblo
+from web.cuenta import Jugador, jugador_actual, la_misma_activa
+from web.juego import EVENTO_VALIDO
+from web.sesion import con_cabecera, problema
 
+log = logging.getLogger("gachamones")
 router = APIRouter()
 
 COMPETIR, HUERTO, REFUGIO = "competir", "huerto", "refugio"
@@ -169,3 +177,214 @@ def en_la_tienda(jugador: Jugador) -> None:
 def ver_la_tienda(jugador: Jugador = Depends(jugador_actual)) -> dict:
     en_la_tienda(jugador)
     return catalogo(jugador, db.ahora_utc())
+
+
+# --- Comprar -------------------------------------------------------------------
+#
+# Un «no» del juego (no alcanza, ya lo tienes…) es un 200 con `ok: false`, la
+# clave del motivo y su frase; los 4xx son para lo que la pantalla nunca pide.
+
+OBJETO, COSMETICO, MUEBLE = "objeto", "cosmetico", "mueble"
+COMPRAR, MEJORAR, VENDER = "comprar", "mejorar", "vender"
+
+_SIN_GACHAMON = "Para comprar hace falta un gachamon."
+_YA_LO_TIENES = "Ya lo tienes."
+_NO_ES_TUYA = "Esa casa no es tuya."
+_MUEBLES_SIN_CASA = "Los muebles van en una casa, y todavía no tienes."
+
+# Lo que no depende de cuánto falta. Un motivo que no está aquí es un fallo
+# nuestro y no se disfraza: sale como error.
+_NO_DEL_COSMETICO = {"ya_lo_tienes": _YA_LO_TIENES}
+_NO_DEL_MUEBLE = {
+    "sin_casa": _MUEBLES_SIN_CASA, "intemperie": _MUEBLES_SIN_CASA,
+    "no_es_tuya": _NO_ES_TUYA, "ya_lo_tienes": _YA_LO_TIENES,
+}
+_NO_DE_LA_CASA = {
+    "no_es_tuya": _NO_ES_TUYA,
+    "no_se_empeora": "Esa casa ya es de ese tamaño o más grande.",
+    "maximo_de_casas": (
+        f"Ya tienes {cas.MAXIMO_CASAS} casas, que es el máximo. "
+        "Vende una o mejora las que tienes."
+    ),
+}
+_NO_DE_LA_VENTA = {"sin_casa": "No tienes casa que vender.", "no_es_tuya": _NO_ES_TUYA}
+
+
+def _no_se_entiende():
+    return problema(422, "peticion", "La petición no se entiende.")
+
+
+def _faltan_monedas(n: int) -> str:
+    return f"Te faltan {n} {obj.nombre_de_monedas(n)}."
+
+
+def _faltan_gemas(n: int) -> str:
+    return f"Te faltan {n} {obj.nombre_de_gemas(n)}. Se ganan con las medallas."
+
+
+def _si(mensaje: str) -> dict:
+    return {"ok": True, "clave": None, "mensaje": mensaje}
+
+
+def _no(motivo: str, mensaje: str) -> dict:
+    return {"ok": False, "clave": motivo, "mensaje": mensaje}
+
+
+def _datos_y_evento(cuerpo: Any) -> tuple[dict, str]:
+    """El cuerpo como diccionario (si no es un objeto, vacío) y su evento, que tiene que valer."""
+    datos = cuerpo if isinstance(cuerpo, dict) else {}
+    evento = datos.get("evento_id")
+    if not isinstance(evento, str) or not EVENTO_VALIDO.fullmatch(evento):
+        raise problema(422, "evento", "Ese identificador de evento no vale.")
+    return datos, evento
+
+
+def _de_la_tienda_y_el_mismo(jugador: Jugador, ahora: datetime) -> None:
+    en_la_tienda(jugador)
+    la_misma_activa(jugador, ahora, _SIN_GACHAMON)
+
+
+def _evento_usado(evento: str):
+    log.warning("evento de la tienda reutilizado: %s", evento, exc_info=True)
+    return problema(409, "evento", "Ese evento ya se usó para otra cosa.")
+
+
+def _pieza(que: str, clave: Any, jugador: Jugador):
+    """Lo que se pide, si la tienda lo vende y se lo vende a esta cuenta."""
+    if not isinstance(clave, str):
+        raise _no_se_entiende()
+    if que == OBJETO:
+        objeto = next((o for o in obj.a_la_venta() if o.clave == clave), None)
+        if objeto is None:
+            raise _no_se_entiende()
+        if not se_le_vende(objeto, jugador):
+            raise problema(409, "mas_adelante", "Eso todavía no se vende aquí.")
+        return objeto
+    pieza = (cos.CATALOGO if que == COSMETICO else cas.MUEBLES).get(clave)
+    if pieza is None:
+        raise _no_se_entiende()
+    return pieza
+
+
+def _del_objeto(objeto: obj.Objeto, hecho: economia.ResultadoCompra) -> dict:
+    # Comprar un objeto sólo dice que no cuando no alcanza.
+    if hecho.comprada:
+        return _si(f"Compraste {objeto.nombre}. Está en tu mochila.")
+    return _no("faltan_monedas", _faltan_monedas(objeto.precio - hecho.saldos.asciicoins))
+
+
+def _del_cosmetico(cosmetico: cos.Cosmetico, hecho: economia.ResultadoCosmetico) -> dict:
+    if hecho.ok:
+        # Siempre hay un gachamon: `la_misma_activa` se miró antes de cobrar.
+        return _si(f"Compraste {cosmetico.nombre}. {hecho.criatura.nombre} ya lo lleva.")
+    if hecho.motivo == "faltan_gemas":
+        return _no(hecho.motivo, _faltan_gemas(cosmetico.precio - hecho.saldo))
+    return _no(hecho.motivo, _NO_DEL_COSMETICO[hecho.motivo])
+
+
+def _del_mueble(mueble: cas.Mueble, hecho: economia.ResultadoMueble) -> dict:
+    if hecho.ok:
+        if hecho.colocado:
+            return _si(f"Compraste {mueble.nombre}. Ya está puesto en tu casa.")
+        return _si(f"Compraste {mueble.nombre}. No cabía en tu casa: quedó guardado.")
+    if hecho.motivo == "faltan_monedas":
+        return _no(hecho.motivo, _faltan_monedas(mueble.precio - hecho.saldo))
+    return _no(hecho.motivo, _NO_DEL_MUEBLE[hecho.motivo])
+
+
+def _de_la_casa(casa: cas.Casa, hecho: economia.ResultadoMudanza) -> dict:
+    if hecho.ok:
+        if hecho.desde is None:
+            return _si(f"Compraste una {casa.nombre.lower()}.")
+        return _si(f"Tu {hecho.desde.nombre.lower()} ahora es una {casa.nombre.lower()}.")
+    if hecho.motivo == "faltan_monedas":
+        # Mejorar cuesta la nueva menos lo que dan por la vieja.
+        cuesta = casa.precio - (cas.lo_que_dan_por(hecho.desde) if hecho.desde else 0)
+        return _no(hecho.motivo, _faltan_monedas(cuesta - hecho.saldo))
+    return _no(hecho.motivo, _NO_DE_LA_CASA[hecho.motivo])
+
+
+def _de_la_venta(hecho: economia.ResultadoVenta) -> dict:
+    if hecho.ok:
+        return _si(
+            f"Vendiste tu {hecho.casa.nombre.lower()} por {hecho.cobrado} "
+            f"{obj.nombre_de_monedas(hecho.cobrado)}."
+        )
+    return _no(hecho.motivo, _NO_DE_LA_VENTA[hecho.motivo])
+
+
+def _respuesta(jugador: Jugador, ahora: datetime, dicho: dict) -> dict:
+    return {**dicho, "tienda": catalogo(jugador, ahora), "estado": estado.armar(jugador, ahora)}
+
+
+@router.post("/tienda/comprar", dependencies=[Depends(con_cabecera)])
+def comprar_en_la_tienda(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # El cuerpo se revisa a mano; la cuenta sale sólo de la cookie.
+    datos, evento = _datos_y_evento(cuerpo)
+    que = datos.get("que")
+    if not isinstance(que, str) or que not in (OBJETO, COSMETICO, MUEBLE):
+        raise _no_se_entiende()
+    ahora = db.ahora_utc()
+    _de_la_tienda_y_el_mismo(jugador, ahora)
+    pieza = _pieza(que, datos.get("clave"), jugador)
+    usuario, guild = jugador.usuario_id, jugador.guild_id
+    try:
+        if que == OBJETO:
+            dicho = _del_objeto(pieza, economia.comprar(evento, usuario, guild, pieza, ahora))
+        elif que == COSMETICO:
+            dicho = _del_cosmetico(
+                pieza, economia.comprar_cosmetico(usuario, guild, pieza, evento_id=evento)
+            )
+        else:
+            # Sin `casa_id`: va a la primera casa, como en Discord.
+            dicho = _del_mueble(
+                pieza, economia.comprar_mueble(usuario, guild, pieza, ahora, evento_id=evento)
+            )
+    except RuntimeError:
+        raise _evento_usado(evento) from None
+    return _respuesta(jugador, ahora, dicho)
+
+
+def _casa_id(datos: dict) -> int:
+    casa_id = datos.get("casa_id")
+    if type(casa_id) is not int:   # ni un texto, ni un decimal, ni `true`
+        raise _no_se_entiende()
+    return casa_id
+
+
+@router.post("/tienda/casa", dependencies=[Depends(con_cabecera)])
+def comprar_mejorar_o_vender_una_casa(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # El cuerpo se revisa a mano; la cuenta sale sólo de la cookie.
+    datos, evento = _datos_y_evento(cuerpo)
+    accion = datos.get("accion")
+    if not isinstance(accion, str) or accion not in (COMPRAR, MEJORAR, VENDER):
+        raise _no_se_entiende()
+    ahora = db.ahora_utc()
+    _de_la_tienda_y_el_mismo(jugador, ahora)
+    usuario, guild = jugador.usuario_id, jugador.guild_id
+    if accion == VENDER:
+        casa_id = _casa_id(datos)
+        try:
+            hecho = economia.vender_casa(usuario, guild, casa_id, ahora, evento_id=evento)
+        except RuntimeError:
+            raise _evento_usado(evento) from None
+        return _respuesta(jugador, ahora, _de_la_venta(hecho))
+
+    clave = datos.get("casa")
+    nueva = cas.CATALOGO.get(clave) if isinstance(clave, str) else None
+    if nueva is None:
+        raise _no_se_entiende()
+    mejorar = _casa_id(datos) if accion == MEJORAR else None
+    try:
+        hecho = economia.comprar_casa(
+            usuario, guild, nueva, ahora, mejorar=mejorar, evento_id=evento
+        )
+    except RuntimeError:
+        raise _evento_usado(evento) from None
+    return _respuesta(jugador, ahora, _de_la_casa(nueva, hecho))
