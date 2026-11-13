@@ -246,6 +246,15 @@ def test_la_mochila_usa_con_reintentos_y_un_evento_por_toque():
     assert "innerHTML" not in mochila and "http" not in mochila
 
 
+def test_el_uso_dice_a_que_gachamon_va_y_sus_reintentos_dicen_el_mismo():
+    # El que la pantalla enseña, fijado en el cuerpo antes de reintentar, como el
+    # evento: si el activo ya es otro, el servidor no se lo da al relevo.
+    mochila = _sin_comentarios(_guion("mochila.js"))
+    assert re.search(r"\bgachamon_id\b", mochila)
+    for llamada in re.finditer(r"\bconReintentos\(", mochila):
+        assert "gachamon" not in _argumentos(mochila, llamada.end())
+
+
 def test_un_uso_sin_respuesta_no_dice_que_no_se_hizo_y_vuelve_a_pedir_la_lista():
     mochila = _guion("mochila.js")
     # Pudo haberse usado igual: la frase no lo niega, y lo de antes no se repinta.

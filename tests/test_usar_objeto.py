@@ -324,3 +324,75 @@ def test_la_placa_no_se_usa_sin_formulario_ni_otra_cosa_con_el(base):
         "evento-uso-25", U, G, obj.CATALOGO["silbato"], "Pelusa", T0
     ).motivo == "no_se_usa"
     assert db.inventario(U, G) == {"placa": 1, "silbato": 1}
+
+
+# --- El gachamon a quien se le daba ---------------------------------------------
+#
+# La web dice a qué gachamon se lo da (el que enseñaba la pantalla): si el activo
+# ya es otro, no se le da a nadie. Discord no lo dice, y para Discord no cambia nada.
+
+GOLOSINAS = obj.CATALOGO["golosinas"]
+
+
+def en_la_incubadora(nombre="Nube"):
+    return db.crear(U, G, "pulpo", nombre, STATS, T0, activa=False)
+
+
+def test_a_otro_gachamon_no_se_le_usa_nada_ni_se_gasta(base):
+    kuro = nace("Kuro")
+    nube = en_la_incubadora()
+    assert db.activar(nube.id, U, G, T0)
+    dar(U, "golosinas", 1)
+    dar(U, "placa", 1)
+    antes = (db.por_id(kuro.id), db.por_id(nube.id))
+
+    uso = economia.usar_objeto("evento-uso-30", U, G, GOLOSINAS, T0, criatura_id=kuro.id)
+    placa = economia.renombrar_con_placa(
+        "evento-uso-31", U, G, PLACA, "Pelusa", T0, criatura_id=kuro.id
+    )
+
+    assert (uso.ok, uso.motivo) == (placa.ok, placa.motivo) == (False, "sin_gachamon")
+    assert db.inventario(U, G) == {"golosinas": 1, "placa": 1}
+    assert (db.por_id(kuro.id), db.por_id(nube.id)) == antes
+
+
+def test_al_gachamon_activo_se_le_usa_como_siempre(base):
+    kuro = nace("Kuro")
+    dar(U, "golosinas", 1)
+    dar(U, "placa", 1)
+    hambrear(kuro, 50)
+
+    uso = economia.usar_objeto("evento-uso-32", U, G, GOLOSINAS, T0, criatura_id=kuro.id)
+    placa = economia.renombrar_con_placa(
+        "evento-uso-33", U, G, PLACA, "Pelusa", T0, criatura_id=kuro.id
+    )
+
+    assert uso.ok and uso.efecto == "comida" and uso.comida == 25
+    assert placa.ok and placa.nombre_anterior == "Kuro"
+    assert db.criatura_activa(U, G).nombre == "Pelusa"
+    assert db.inventario(U, G) == {}
+
+
+def test_el_replay_contesta_lo_de_la_primera_vez_aunque_el_activo_ya_sea_otro(base):
+    kuro = nace("Kuro")
+    nube = en_la_incubadora()
+    dar(U, "golosinas", 2)
+    dar(U, "placa", 2)
+    hambrear(kuro, 50)
+    uso = economia.usar_objeto("evento-uso-34", U, G, GOLOSINAS, T0, criatura_id=kuro.id)
+    placa = economia.renombrar_con_placa(
+        "evento-uso-35", U, G, PLACA, "Pelusa", T0, criatura_id=kuro.id
+    )
+    assert db.activar(nube.id, U, G, T0)
+
+    otro_uso = economia.usar_objeto(
+        "evento-uso-34", U, G, GOLOSINAS, T0, criatura_id=kuro.id
+    )
+    otra_placa = economia.renombrar_con_placa(
+        "evento-uso-35", U, G, PLACA, "Pelusa", T0, criatura_id=kuro.id
+    )
+
+    assert uso.ok and placa.ok
+    assert otro_uso.ok and otro_uso.replay and otro_uso.comida == uso.comida == 25
+    assert otra_placa.ok and otra_placa.replay and otra_placa.nombre_anterior == "Kuro"
+    assert db.inventario(U, G) == {"golosinas": 1, "placa": 1}

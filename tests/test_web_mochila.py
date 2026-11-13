@@ -7,6 +7,7 @@ from ayudas_web import ESCRIBIR, PUEBLO, con_gachamon, entrar, poner_reloj
 from test_web_tienda import LA_DE_DISCORD, con_vinculo
 
 MOCHILA, USAR = "/gachamon/api/mochila", "/gachamon/api/mochila/usar"
+ESTADO = "/gachamon/api/estado"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 
@@ -210,6 +211,75 @@ def test_si_el_gachamon_murio_entre_medias_no_se_gasta(cliente, monkeypatch):
     assert r.status_code == 409 and r.json()["detail"]["clave"] == "sin_gachamon"
     assert db.inventario(LA_DE_DISCORD, G) == {"pocion_comida": 1}
     assert db.criatura_activa(LA_DE_DISCORD, G) is None   # de verdad murió
+
+
+# --- El gachamon que la pantalla enseñaba ------------------------------------------
+#
+# Si el cambio de gachamon quedó registrado antes de la petición (otro activado
+# desde Discord, una muerte que leyó otra pestaña), sólo se nota comparando con
+# el que la pantalla tenía, que el cliente manda como `gachamon_id`.
+
+def con_relevo(cliente):
+    """La cuenta vinculada con Pelusa activa y Nube esperando en la incubadora."""
+    con_vinculo(cliente)
+    nube = db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", (15, 15, 15, 15), db.ahora_utc(), activa=False)
+    return db.criatura_activa(LA_DE_DISCORD, G), nube
+
+
+def test_si_ya_se_activo_a_otro_no_se_le_aplica_el_objeto(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, nube = con_relevo(cliente)
+    dar(LA_DE_DISCORD, "golosinas")
+    visto = cliente.get(ESTADO).json()["gachamon"]["id"]
+    assert visto == pelusa.id
+    assert [o["clave"] for o in cliente.get(MOCHILA).json()["objetos"]] == ["golosinas"]
+    assert db.activar(nube.id, LA_DE_DISCORD, G, db.ahora_utc())     # desde Discord
+    antes = (db.por_id(pelusa.id), db.por_id(nube.id))
+    r = usar(cliente, "golosinas", gachamon_id=visto)
+    assert r.status_code == 409
+    assert r.json()["detail"] == {"clave": "sin_gachamon", "mensaje": "Tu gachamon ya no es el mismo. Mira otra vez."}
+    assert db.inventario(LA_DE_DISCORD, G) == {"golosinas": 1}
+    assert (db.por_id(pelusa.id), db.por_id(nube.id)) == antes
+
+
+def test_si_la_muerte_ya_estaba_registrada_no_se_gasta(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    pelusa, nube = con_relevo(cliente)
+    dar(LA_DE_DISCORD, "pocion_comida")
+    visto = cliente.get(ESTADO).json()["gachamon"]["id"]
+    reloj.pasar(days=5)
+    # Otra lectura del estado registra la muerte y asciende al relevo.
+    assert cliente.get(ESTADO).json()["gachamon"]["id"] == nube.id
+    assert not db.por_id(pelusa.id).viva
+    r = usar(cliente, "pocion_comida", gachamon_id=visto)
+    assert r.status_code == 409 and r.json()["detail"]["clave"] == "sin_gachamon"
+    assert db.inventario(LA_DE_DISCORD, G) == {"pocion_comida": 1}
+
+
+def test_con_el_gachamon_que_se_ve_o_sin_decirlo_se_usa_como_siempre(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    dar(YO, "golosinas", 2)
+    with db.conectar() as con:
+        con.execute("UPDATE criaturas SET hambre = 50 WHERE usuario_id = ? AND guild_id = ?", (YO, G))
+    visto = cliente.get(ESTADO).json()["gachamon"]["id"]
+    # Sin `gachamon_id`, como mandan las páginas de antes durante el despliegue.
+    sin_decirlo = usar(cliente, "golosinas", evento="evento-mochila-02").json()
+    diciendolo = usar(cliente, "golosinas", evento="evento-mochila-03", gachamon_id=visto).json()
+    assert sin_decirlo["mensaje"] == "Pelusa come. Comida +25 (ahora 75)."
+    assert diciendolo["mensaje"] == "Pelusa come. Comida +25 (ahora 100)."
+    assert db.inventario(YO, G) == {}
+
+
+def test_un_gachamon_id_que_no_es_un_entero_es_un_422(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    dar(YO, "golosinas")
+    visto = cliente.get(ESTADO).json()["gachamon"]["id"]
+    for raro in (str(visto), float(visto), True, None, [visto]):
+        r = usar(cliente, "golosinas", gachamon_id=raro)
+        assert r.status_code == 422 and r.json()["detail"]["clave"] == "peticion", raro
+    assert db.inventario(YO, G) == {"golosinas": 1}
 
 
 def test_un_replay_sin_gachamon_activo_es_un_409_y_no_un_500(monkeypatch):

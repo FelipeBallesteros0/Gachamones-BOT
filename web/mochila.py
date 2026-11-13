@@ -141,6 +141,13 @@ def usar_de_la_mochila(
         propuesto = ""
     if not isinstance(clave, str) or not isinstance(propuesto, str):
         raise no_se_entiende()
+    # El gachamon que enseñaba la pantalla. `la_misma_activa` sólo ve un cambio
+    # que pasa en esta petición; uno ya registrado lo ve `economia` con esto.
+    # Sin él (las páginas de antes, durante el despliegue), todo como siempre;
+    # si viene, es un entero: ni un texto, ni un decimal, ni `true`.
+    gachamon_id = datos.get("gachamon_id")
+    if "gachamon_id" in datos and type(gachamon_id) is not int:
+        raise no_se_entiende()
     ahora = db.ahora_utc()
     la_misma_activa(jugador, ahora, _SIN_GACHAMON)
     objeto = obj.CATALOGO.get(clave)
@@ -149,9 +156,11 @@ def usar_de_la_mochila(
     usuario, guild = jugador.usuario_id, jugador.guild_id
     try:
         if objeto.renombra:
-            hecho = economia.renombrar_con_placa(evento, usuario, guild, objeto, propuesto, ahora)
+            hecho = economia.renombrar_con_placa(
+                evento, usuario, guild, objeto, propuesto, ahora, criatura_id=gachamon_id
+            )
         else:
-            hecho = economia.usar_objeto(evento, usuario, guild, objeto, ahora)
+            hecho = economia.usar_objeto(evento, usuario, guild, objeto, ahora, criatura_id=gachamon_id)
     except RuntimeError:
         raise evento_usado(evento) from None
     return {

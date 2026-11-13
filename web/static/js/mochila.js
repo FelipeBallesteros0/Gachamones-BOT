@@ -5,15 +5,16 @@
 // `mochila(contenedor, estado, seguir)` pinta la pantalla y pide la lista
 // (`GET mochila`). Las reglas son del servidor: qué llevas, qué se usa desde
 // aquí (`uso`) y por qué no (`nota`); aquí se pinta lo que dice, y el nombre
-// se manda tal cual, que lo valida él. Cada uso lleva su evento (el mismo en
-// sus reintentos) y su respuesta trae la lista y el estado al día, con los que
-// se repinta. Si un uso se queda sin respuesta pudo haberse hecho igual: lo
-// que se veía ya no vale, y la lista se vuelve a pedir. Si lo que contesta
-// pide otra pantalla (sin sesión, tu gachamon cambió) se vuelve a decidir con
-// `seguir`. Al salir se deja de temporizar, y una respuesta que llega tarde no
-// pinta ni llama a `seguir`. La cabecera, las filas, la pregunta, el aviso y
-// la espera son los de `articulos.js`, como en la tienda. Todo texto entra por
-// `el` o por `textContent`.
+// se manda tal cual, que lo valida él. Cada uso lleva su evento y el gachamon
+// que enseña el estado (los dos, los mismos en sus reintentos): si el activo
+// ya es otro, el servidor no se lo da al relevo. Su respuesta trae la lista y
+// el estado al día, con los que se repinta. Si un uso se queda sin respuesta
+// pudo haberse hecho igual: lo que se veía ya no vale, y la lista se vuelve a
+// pedir. Si lo que contesta pide otra pantalla (sin sesión, tu gachamon
+// cambió) se vuelve a decidir con `seguir`. Al salir se deja de temporizar, y
+// una respuesta que llega tarde no pinta ni llama a `seguir`. La cabecera, las
+// filas, la pregunta, el aviso y la espera son los de `articulos.js`, como en
+// la tienda. Todo texto entra por `el` o por `textContent`.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { olvidarLasQueFaltan } from './arte.js';
@@ -29,6 +30,10 @@ const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 
 // Lo que se usa poniéndole un nombre nuevo al gachamon (la placa).
 const CON_NOMBRE = 'con_nombre';
+
+function idDelGachamon(estado) {
+  return estado && estado.gachamon ? estado.gachamon.id : null;
+}
 
 export function mochila(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
@@ -78,6 +83,8 @@ export function mochila(contenedor, estado, seguir) {
   let abierta = null;
   // Mientras un uso está en camino no sale otro.
   let enCamino = false;
+  // El gachamon que enseña el estado, al que va cada uso; sin gachamon, nadie.
+  let gachamonId = idDelGachamon(estado);
 
   // «Poción de comida × 2», con espacios que no se cortan: la cantidad no se
   // queda sola en otra línea. Debajo, lo que hace o, si no se usa desde aquí,
@@ -205,6 +212,7 @@ export function mochila(contenedor, estado, seguir) {
     enCamino = true;
     const { clave } = usable.objeto;
     const datos = campo ? { clave, nombre: campo.value } : { clave };
+    if (gachamonId !== null) datos.gachamon_id = gachamonId;
     usable.sitio.closest('[data-fila]').classList.add('en-camino');
     si.classList.add('esperando');
     si.setAttribute('aria-busy', 'true');
@@ -235,7 +243,10 @@ export function mochila(contenedor, estado, seguir) {
       irse(respuesta.estado);
       return;
     }
-    if (respuesta.estado) ponerSaldos(respuesta.estado.saldos);
+    if (respuesta.estado) {
+      ponerSaldos(respuesta.estado.saldos);
+      gachamonId = idDelGachamon(respuesta.estado);
+    }
     ponerLaLista(respuesta.mochila.objetos);
     avisar(respuesta.mensaje, !respuesta.ok);
     // Un «no» a la placa (un nombre que no vale, el mismo de antes) deja el

@@ -2248,6 +2248,7 @@ class ResultadoUso:
 def usar_objeto(
     evento_id: str, usuario_id: str, guild_id: str, objeto: obj.Objeto,
     ahora: datetime | None = None, rng: random.Random | None = None,
+    criatura_id: int | None = None,
 ) -> ResultadoUso:
     """Gasta una unidad y aplica lo que hace, en una sola transacción.
 
@@ -2255,31 +2256,37 @@ def usar_objeto(
     gastar. Repetirlo con el mismo evento contesta lo que salió la primera vez,
     sin gastar ni volver a tirar el dado. La placa no se usa aquí: necesita un
     nombre, y va por `renombrar_con_placa`.
+
+    `criatura_id` es el gachamon a quien se le da (la web manda el que enseñaba
+    su pantalla): si el activo ya es otro, o no hay, no se le da a nadie y no se
+    gasta. Sin él, se le da al activo, como en Discord.
     """
     return _usar(
         evento_id, usuario_id, guild_id, objeto, ahora or db.ahora_utc(),
-        rng=rng,
+        rng=rng, criatura_id=criatura_id,
     )
 
 
 def renombrar_con_placa(
     evento_id: str, usuario_id: str, guild_id: str, objeto: obj.Objeto,
     propuesto: str, ahora: datetime | None = None,
+    criatura_id: int | None = None,
 ) -> ResultadoUso:
     """Valida el nombre, gasta la placa y se lo pone al activo, todo de una vez.
 
     Se valida antes que nada: un nombre que no vale no puede costar la placa.
+    `criatura_id`, como en `usar_objeto`.
     """
     return _usar(
         evento_id, usuario_id, guild_id, objeto, ahora or db.ahora_utc(),
-        propuesto=propuesto,
+        propuesto=propuesto, criatura_id=criatura_id,
     )
 
 
 def _usar(
     evento_id: str, usuario_id: str, guild_id: str, objeto: obj.Objeto,
     ahora: datetime, *, rng: random.Random | None = None,
-    propuesto: str | None = None,
+    propuesto: str | None = None, criatura_id: int | None = None,
 ) -> ResultadoUso:
     """Lo común a usar un objeto y a la placa; `propuesto` es lo de la placa."""
     placa = propuesto is not None
@@ -2292,6 +2299,15 @@ def _usar(
                 objeto, db.criatura_activa_en(con, usuario_id, guild_id), hecha,
                 replay=True,
             )
+
+        # Va detrás del replay, que contesta lo de la primera vez aunque el
+        # activo ya sea otro, y delante de todo lo demás: si el cambio de
+        # gachamon ya estaba registrado (otro activado desde Discord, una muerte
+        # que ascendió al relevo), sólo se nota aquí.
+        if criatura_id is not None:
+            activa = db.criatura_activa_en(con, usuario_id, guild_id)
+            if activa is None or activa.id != criatura_id:
+                return ResultadoUso(motivo="sin_gachamon", objeto=objeto.clave)
 
         nombre = None
         if placa:
