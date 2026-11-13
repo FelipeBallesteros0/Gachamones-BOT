@@ -150,7 +150,11 @@ Rowino.
 
 El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
 tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy están
-abiertos tu casa y el refugio, y los demás avisan de que abren más adelante.
+abiertos tu casa, el refugio y la tienda, y los demás avisan de que abren más
+adelante. En la Tienda del pueblo se compran objetos, cosméticos (con gemas),
+casas y muebles, con el mismo dinero que en Discord; lo que hoy sólo sirve en
+Discord se le vende sólo a quien tiene Discord vinculado. La mochila se abre
+desde cualquier lugar y sirve para usar lo que llevas.
 
 En local:
 
@@ -181,11 +185,13 @@ con `/vincular` y encuentra a sus gachamones.
 
 ### Arte
 
-El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de
-`web/static/arte/`, y quien dibuja no necesita tocar código: el contrato, con el
+El arte del pueblo, de las escenas de cada lugar, del avatar y de los íconos son
+archivos de `web/static/arte/`, y quien dibuja no necesita tocar código: el contrato, con el
 nombre y el tamaño exacto de cada pieza, está en `docs/arte/contrato.md`. Hoy
 todo ese arte es de relleno (lleva «RELLENO» escrito) y se reemplaza guardando
-el archivo nuevo con el mismo nombre y el mismo tamaño.
+el archivo nuevo con el mismo nombre y el mismo tamaño. Los íconos (de objetos,
+cosméticos, muebles y casas) salen de los catálogos del juego y miden 48 × 48:
+un objeto nuevo añade el suyo.
 
 Para regenerar los rellenos que falten:
 

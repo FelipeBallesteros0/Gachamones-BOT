@@ -83,8 +83,9 @@ function recargarSiEsDeOtraVersion() {
 let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
-// `opciones.vista` (`'pueblo'` o nada) es lo que se quiere ver si todo está en
-// orden, y `opciones.llegando`, que se acaba de llegar caminando. Valen sólo
+// `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'` o nada) es lo que se
+// quiere ver si todo está en orden, y `opciones.llegando`, que se acaba de
+// llegar caminando. Valen sólo
 // para esta llamada: `seguir()` a secas vuelve al lugar.
 async function seguir(estadoNuevo, opciones) {
   const { vista, llegando } = opciones || {};

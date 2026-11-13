@@ -142,34 +142,117 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   `pueblo.aviso` lanza con una clave desconocida (quien llama pasa antes por
   `pueblo.existe`).
 
-## Para el plan 4 (los lugares y la apertura)
+## Salió al ejecutar el plan 4
 
-- Los avisos de «abre pronto» de la incubadora y la tienda se quitan cambiando
-  `abre` a `ya` en `web/static/datos/pueblo.json`.
-- Hay frases que caducan al abrir un lugar (`globos.py`), y hay que cambiarlas
-  en la misma tarea que lo abra:
-  - Tienda: «Los estantes están vacíos todavía.», «Dicen que abrirá pronto.» y
-    la del pollito «Pío, los estantes están vacíos.»; quedan dudosas las de
-    «madera y pintura fresca».
-  - Incubadora: «Todo está quietito, como si durmiera.».
-  - Las que presuponen lugares vacíos: el eco de la plaza y del estadio, y «Qué
-    tranquilo está el barrio.».
-- «Me gustan estos faroles.» (barrio) presupone un dibujo con faroles: depende
-  del arte definitivo del barrio. «Aquí da el sol a todas horas.» sería falsa si
-  un día hay noche.
-- La navegación del lugar gana la mochila y hablar (hoy sólo está «Pueblo»).
-- El contrato de arte (`web/arte.py`, `docs/arte/contrato.md`) gana los íconos y
-  los muebles.
-- En «Tu casa» sin casa propia el gachamon no dice frases del lugar (sólo su
-  charla de siempre). Si se quieren frases propias para ese caso, son texto
-  nuevo por decidir.
+### El dinero y los eventos
+
+- Repetir con el mismo evento una compra que no alcanzó, cuando entretanto ya
+  alcanza, contesta «No se pudo comprar. Vuelve a intentarlo.» (clave
+  `reintenta`): el «no» de una compra de objeto queda congelado con su evento.
+- El mismo evento usado para dos tipos de compra distintos (una casa y luego un
+  mueble) no da error: la clave de `acciones_unicas` lleva la acción. Nada se
+  cobra dos veces.
+- Un `casa_id` negativo o de otra persona contesta «Esa casa no es tuya.» sin
+  mover nada.
+- La cuenta de lo que cuesta mejorar una casa está escrita dos veces (en
+  `economia` y en la ruta de la tienda); lo limpio sería que el resultado de
+  `comprar_casa` trajera lo que falta.
+- En un reintento de «usar», la frase de la comida («ahora N») y el nombre del
+  gachamon salen de cómo está ahora, no de la primera vez; para que fueran los
+  de entonces habría que anotarlos con el evento.
+- Una muerte que descubra `usar_objeto` se guarda, pero no queda apuntada para
+  que el bot la anuncie (igual que en los cuidados): en la web la ruta ya pasa
+  antes por la comprobación que sí la apunta.
+- `economia.py` usa un `assert` como guarda de «objeto sin efecto conocido»; con
+  `python -O` desaparecería (hoy no se puede alcanzar).
+- `db.alargar_el_refugio` (la pública) se quedó sin ningún llamador.
+- La tabla `acciones_unicas` no se purga: cada evento queda guardado para
+  siempre.
+
+### Lo que el reconocimiento encontró en Discord y este plan no toca
+
+- El botón «Amueblar» de `/casa` falla: `tienda.py` usa `hogar.casa`, que no
+  existe.
+- El texto de mejorar una casa anuncia el precio entero, no lo que falta.
+- `db.activar` sobre el propio activo le borra el decaimiento pendiente.
+- `economia.plantar` deja sembrar cualquier objeto.
+
+### La web
+
+- Sin ningún gachamon, comprar y usar contestan «Para comprar hace falta un
+  gachamon.» y «Para usar eso hace falta un gachamon.»; la pantalla nunca llega
+  ahí (sin gachamon se ve el huevo).
+- La fecha hasta la que dura el refugio sale en hora UTC.
+- La mochila enseña la descripción o la nota de cada objeto, no las dos.
+- Cualquier error de la mochila que no sea de sesión ni de cuenta esconde la
+  lista y la vuelve a pedir (es seguro, pero cierra el campo de la placa).
+- Las clases de CSS que comparten la tienda y la mochila se llaman `…-tienda`.
+- En el estado de «no carga» de la tienda y de la mochila (cuando ni la compra
+  ni la relectura recibieron respuesta), la cabecera sigue enseñando el saldo de
+  antes; se arregla en el módulo común `articulos.js`.
+
+### Pruebas
+
+- Las pantallas de la tienda y la mochila sólo tienen pruebas de texto y el
+  recorrido manual con capturas (como el mapa): no hay DOM en Node sin
+  dependencias nuevas.
+- Faltan pruebas de cosas que el código ya cumple: que comprar algo que no se
+  vende no deje fila en el libro de la economía; que si anotar el evento falla,
+  el cobro se deshace; que una excepción después de gastar un objeto devuelve la
+  unidad; que el menú de Discord usa la interacción como evento; el mismo evento
+  de la misma persona en otro servidor; la frase exacta de las sopaipillas y de
+  las pociones en la web; que el reinicio borra la espera; y, en la tienda,
+  «nunca caminó», «lugar que ya no existe» y «tienda cerrada».
+- Las pruebas que exigen que los íconos (y los dibujos de los lugares del mapa)
+  sean distintos y de color liso leen los archivos del repositorio: el día que
+  quien dibuja reemplace un relleno por un dibujo de verdad, fallarían. Deberían
+  mirar lo que genera el generador, no los archivos.
+
+## Para el plan 5 (la ficha, el ropero, la incubadora y el refugio)
+
+- El ropero: quitar y cambiar cosméticos. `equipar_cosmetico` y
+  `quitar_cosmetico` todavía no dan `motivo` en sus rechazos (sólo la frase de
+  Discord) y el ropero de la web lo necesitará. Un cosmético comprado en la web
+  se lo pone el gachamon activo; quitarlo o cambiarlo llega con el ropero.
+- La ficha completa, con los efectos activos. El contrato de arte tiene dos
+  efectos que el juego todavía no dibuja (el corazón y la estrella).
+- La incubadora y sus frases: el aviso de «abre pronto» se quita cambiando
+  `abre` a `ya` en `web/static/datos/pueblo.json`, y «Todo está quietito, como si
+  durmiera.» (`globos.py`) caduca al abrirla, así que se cambia en la misma
+  tarea.
 - Quien tiene casa pero su gachamon activo no cabe en ella y agotó la estancia
   del refugio lee en el Refugio «Las casas se compran en la tienda.», que para
   él debería hablar de mudarlo o de una casa más grande.
 - Los estáticos versionados no llevan `Cache-Control` propio; con uno
-  inmutable, el mapa no repetiría sus peticiones en cada visita.
-- El contrato de arte tiene dos efectos que el juego todavía no dibuja (el
-  corazón y la estrella).
+  inmutable, el mapa no repetiría sus peticiones en cada visita. (No es de
+  ningún plan en particular: se dejó aquí.)
+
+## Para el plan 6 (tu casa)
+
+- Elegir casa al comprar un mueble, colocar y retirar. Un mueble comprado en la
+  web va a la primera casa. Los rechazos propios de `colocar_mueble` («No
+  tienes», «ya está puesto», «No cabe») y de `retirar_mueble` («no está puesto»)
+  todavía no dan `motivo`.
+- El huerto; con él, la semilla deja de ser «más adelante».
+- Los muebles dibujados dentro de la casa: el contrato de arte (`web/arte.py`,
+  `docs/arte/contrato.md`) gana ese arte.
+- En «Tu casa» sin casa propia el gachamon no dice frases del lugar (sólo su
+  charla de siempre). Si se quieren frases propias para ese caso, son texto
+  nuevo por decidir.
+
+## Para el plan 7 (hablar y la apertura)
+
+- Hablar: la navegación del lugar lo gana (hoy sólo están «Pueblo», la tienda y
+  la mochila).
+- Hay frases que caducan al abrir un lugar (`globos.py`), y hay que cambiarlas
+  en la misma tarea que lo abra:
+  - Las que presuponen lugares vacíos: el eco de la plaza y del estadio, y «Qué
+    tranquilo está el barrio.».
+  - De la tienda, que ya abrió, quedan dudosas las de «madera y pintura
+    fresca».
+- «Me gustan estos faroles.» (barrio) presupone un dibujo con faroles: depende
+  del arte definitivo del barrio. «Aquí da el sol a todas horas.» sería falsa si
+  un día hay noche.
 
 ## Para el proyecto 2 (notificaciones)
 

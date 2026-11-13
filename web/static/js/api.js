@@ -121,7 +121,8 @@ export async function conReintentos(hacer, sigue = () => true) {
   }
 }
 
-// Un id de evento para /api/cuidar: entre 8 y 64 de [A-Za-z0-9-]. `randomUUID`
+// Un id de evento para /api/cuidar y para lo que mueve dinero u objetos (la
+// tienda y la mochila lo usan también): entre 8 y 64 de [A-Za-z0-9-]. `randomUUID`
 // sólo existe en páginas seguras; sin él se arma uno con 16 bytes al azar.
 export function nuevoEvento() {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();

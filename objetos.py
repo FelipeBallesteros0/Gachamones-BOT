@@ -85,7 +85,7 @@ class Objeto:
 
     @property
     def se_aplica_al_momento(self) -> bool:
-        """Si `tienda.usar` lo resuelve por sí solo al elegirlo.
+        """Si `economia.usar_objeto` lo resuelve por sí solo al elegirlo.
 
         La placa no: necesita que escribas el nombre, así que abre un formulario
         y se gasta al confirmarlo. Por eso son dos propiedades y no una.

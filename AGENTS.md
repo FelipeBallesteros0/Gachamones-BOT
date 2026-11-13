@@ -156,6 +156,9 @@ Instala el hook local cuando prepares el entorno:
 - El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
 - El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de `web/static/arte/` descritos en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza.
 - Quien juega sólo en la web no tiene plazo en el refugio: su estancia no vence y nunca queda a la intemperie, tenga o haya tenido casa. Esa excepción se pregunta siempre con `identidad.sin_plazo_de_refugio`, nunca mirando el id.
+- Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.
+- Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
+- En la web se compra estando en la Tienda; lo que hoy sólo sirve en Discord se le vende sólo a quien tiene Discord vinculado.
 
 ## Arte ASCII
 
