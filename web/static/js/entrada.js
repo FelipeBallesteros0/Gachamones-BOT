@@ -12,6 +12,7 @@ import {
   COLORES_DE_PELO, COLORES_DE_PIEL, COLORES_DE_ROPA, dibujarAvatar, dibujarHuevo,
 } from './dibujo.js';
 import { el } from './dom.js';
+import { cambioLaCuenta, puedeTraerDeDiscord, siguiente } from './pantallas.js';
 
 const PREGUNTAR_CADA_MS = 3000;
 const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
@@ -149,7 +150,10 @@ function minutosYSegundos(ms) {
   return `${minutos}:${segundos}`;
 }
 
-export function bienvenida(contenedor, seguir, { sesion: quien }) {
+// Lo que se sabe de una cuenta que todavía no eligió cómo empezar.
+const CUENTA_NUEVA = { estado: 'nueva', tiene_gachamones: false };
+
+export function bienvenida(contenedor, seguir, { sesion: quien, cuenta }) {
   const zona = el('div', { class: 'zona' });
   contenedor.append(
     barra(quien.usuario),
@@ -159,6 +163,13 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
       zona,
     ),
   );
+  const pedirCodigo = pasoDelCodigo({
+    mostrar: (...nodos) => zona.replaceChildren(...nodos),
+    volver: () => elegir(),
+    textoVolver: 'Volver a elegir',
+    seguir,
+    cuenta: cuenta || CUENTA_NUEVA,
+  });
   elegir();
 
   function elegir() {
@@ -189,16 +200,27 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
       el('span', { class: 'opcion-titulo' }, nombre),
       el('span', { class: 'opcion-texto' }, explicacion));
   }
+}
 
+// --- traer los de Discord: el paso del código -----------------------------------
+
+// Pedir el código, enseñarlo con su aviso y esperar a que se escriba en
+// Discord. Es uno solo para la bienvenida y para el enlace de las pantallas del
+// avatar y del huevo: `mostrar(...nodos)` pone lo suyo en pantalla, y el botón
+// `textoVolver` llama a `volver()`, que deja la de antes. Si mientras tanto la
+// cuenta deja de ser `cuenta` (se vinculó, o cambió en otra pestaña), se vuelve
+// a decidir con `seguir()`. Devuelve `pedirCodigo(aviso)`; en `aviso` se dice
+// un fallo que deja reintentar.
+function pasoDelCodigo({ mostrar, volver, textoVolver, seguir, cuenta }) {
   async function pedirCodigo(aviso) {
     callar(aviso);
     try {
       mostrarCodigo(await pedir('POST', 'cuenta/codigo'));
     } catch (error) {
       if (error && (error.clave === 'con_gachamones' || error.clave === 'ya_vinculada')) {
-        // La cuenta ya no es nueva (otra pestaña, otro teléfono): se explica
-        // y se deja seguir hasta donde toque.
-        zona.replaceChildren(
+        // La cuenta ya no puede traerlos (otra pestaña, otro teléfono): se
+        // explica y se deja seguir hasta donde toque.
+        mostrar(
           el('p', { class: 'alerta', role: 'alert' }, error.mensaje),
           boton('Seguir', 'boton principal', () => seguir()),
         );
@@ -213,7 +235,7 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
     const comando = `/vincular ${codigo}`;
     const quedan = el('span', {});
     const espera = el('span', {}, 'Esperando a que lo escribas en Discord…');
-    const volver = el('button', { type: 'button', class: 'boton' }, 'Volver a elegir');
+    const atras = el('button', { type: 'button', class: 'boton' }, textoVolver);
     const caja = el('div', { class: 'codigo-caja' },
       el('p', { class: 'codigo-etiqueta' }, 'Tu código'),
       el('p', { class: 'codigo' }, codigo),
@@ -221,14 +243,14 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
       el('p', { class: 'comando' }, el('code', {}, comando), botonCopiar(comando)),
       el('p', { class: 'dura' }, `Dura ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'} · `, quedan),
     );
-    zona.replaceChildren(
+    mostrar(
       caja,
       el('div', { class: 'alerta', role: 'note' },
         el('strong', {}, 'No se lo pases a nadie. '),
         'Este código da acceso a tus gachamones: escríbelo tú, desde tu propia cuenta de Discord.'),
       el('p', { class: 'esperando-vinculo', role: 'status' },
         el('span', { class: 'pulso', 'aria-hidden': 'true' }), espera),
-      volver,
+      atras,
     );
 
     let reloj = null;
@@ -256,8 +278,8 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
     const preguntar = async () => {
       if (!sigueAqui() || Date.now() >= vence) return;
       try {
-        const cuenta = await pedir('GET', 'cuenta');
-        if (cuenta.estado !== 'nueva') {
+        const ahora = await pedir('GET', 'cuenta');
+        if (cambioLaCuenta(cuenta, ahora)) {
           parar();
           await seguir();
           return;
@@ -274,9 +296,9 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
       if (sigueAqui()) pregunta = setTimeout(preguntar, PREGUNTAR_CADA_MS);
     };
 
-    volver.addEventListener('click', () => {
+    atras.addEventListener('click', () => {
       parar();
-      elegir();
+      volver();
     });
     reloj = setInterval(contar, 1000);
     pregunta = setTimeout(preguntar, PREGUNTAR_CADA_MS);
@@ -287,17 +309,50 @@ export function bienvenida(contenedor, seguir, { sesion: quien }) {
     const aviso = avisoVacio();
     const otro = el('button', { type: 'button', class: 'boton principal' }, 'Pedir otro código');
     otro.addEventListener('click', () => conEspera(otro, () => pedirCodigo(aviso)));
-    const volver = el('button', { type: 'button', class: 'boton' }, 'Volver a elegir');
-    volver.addEventListener('click', () => elegir());
-    zona.replaceChildren(
+    const atras = el('button', { type: 'button', class: 'boton' }, textoVolver);
+    atras.addEventListener('click', () => volver());
+    mostrar(
       el('div', { class: 'codigo-caja', role: 'status' },
         el('p', { class: 'codigo-etiqueta' }, 'Código caducado'),
         el('p', {}, 'El código dejó de servir sin que lo usaras. Pide otro cuando tengas Discord a mano.')),
       aviso,
       otro,
-      volver,
+      atras,
     );
   }
+
+  return pedirCodigo;
+}
+
+// El enlace discreto de las pantallas del avatar y del huevo: quien tocó
+// «Empezar de cero» viniendo de Discord todavía puede traer los suyos mientras
+// no le nazca nada aquí. Abre el mismo paso del código en lugar de `cuerpo`, y
+// «Volver» lo deja todo como estaba (también lo que se hubiera elegido).
+function enlaceADiscord(cuerpo, seguir, cuenta) {
+  if (!puedeTraerDeDiscord(cuenta)) return null;
+  const aviso = avisoVacio();
+  const enlace = el('button', { type: 'button', class: 'enlace' },
+    '¿Ya jugabas en Discord? Trae tus gachamones.');
+  let antes = null;
+  const pedirCodigo = pasoDelCodigo({
+    mostrar: (...nodos) => {
+      if (!antes) antes = [...cuerpo.childNodes];
+      const cabeza = titulo('Trae tus gachamones');
+      cuerpo.replaceChildren(cabeza, ...nodos);
+      window.scrollTo(0, 0);
+      cabeza.focus({ preventScroll: true });
+    },
+    volver: () => {
+      cuerpo.replaceChildren(...antes);
+      antes = null;
+      enlace.focus();
+    },
+    textoVolver: 'Volver',
+    seguir,
+    cuenta,
+  });
+  enlace.addEventListener('click', () => conEspera(enlace, () => pedirCodigo(aviso)));
+  return el('div', { class: 'traer' }, enlace, aviso);
 }
 
 function botonCopiar(texto) {
@@ -340,7 +395,7 @@ function grupoDeOpciones(campo, leyenda, lista, muestras) {
       el('span', {}, opcion.nombre)))));
 }
 
-export async function avatar(contenedor, seguir, { sesion: quien }) {
+export async function avatar(contenedor, seguir, { sesion: quien, cuenta }) {
   const cuerpo = el('div', { class: 'cuerpo' },
     titulo('Crea tu avatar'),
     el('p', { class: 'entradilla' }, 'Así te verán en el pueblo, al lado de tu gachamon.'));
@@ -414,6 +469,8 @@ export async function avatar(contenedor, seguir, { sesion: quien }) {
       el('div', { class: 'escena', 'aria-hidden': 'true' }, ventana(), placa, monigote)),
     formulario,
   );
+  const traer = enlaceADiscord(cuerpo, seguir, cuenta);
+  if (traer) cuerpo.append(traer);
   repintar();
 }
 
@@ -425,11 +482,11 @@ function reintento(texto, seguir) {
 
 // --- huevo: el gachamon de partida ----------------------------------------------
 
-// Si la cuenta cambió entre medias (se vinculó en otra pestaña), si ya tiene uno
-// o si le falta el avatar, no es un error que enseñar: hay que volver a decidir.
-const HUEVO_YA_NO_TOCA = new Set(['cuenta_cambio', 'ya_tienes', 'sin_avatar']);
+// Si la cuenta cambió entre medias (se vinculó en otra pestaña) o si le falta el
+// avatar, no es un error que enseñar: hay que volver a decidir.
+const HUEVO_YA_NO_TOCA = new Set(['cuenta_cambio', 'sin_avatar']);
 
-export function huevo(contenedor, seguir, { sesion: quien }) {
+export function huevo(contenedor, seguir, { sesion: quien, cuenta }) {
   const dibujo = lienzo(112, 140, 'huevo meciendose');
   pintarHuevo(dibujo, false);
   const aviso = avisoVacio();
@@ -444,6 +501,10 @@ export function huevo(contenedor, seguir, { sesion: quien }) {
       await seguir(estado);
     } catch (error) {
       dibujo.classList.replace('temblando', 'meciendose');
+      if (error && error.clave === 'ya_tienes') {
+        await yaTiene(error);
+        return;
+      }
       if (error && HUEVO_YA_NO_TOCA.has(error.clave)) {
         await seguir();
         return;
@@ -451,16 +512,36 @@ export function huevo(contenedor, seguir, { sesion: quien }) {
       await fallo(error, aviso, seguir);
     }
   }));
-  contenedor.append(
-    barra(quien.usuario),
-    el('div', { class: 'cuerpo' },
-      titulo('Un huevo para ti'),
-      el('p', { class: 'entradilla' }, 'Algo se mueve dentro. ¿Qué gachamon saldrá?'),
-      el('div', { class: 'escena', 'aria-hidden': 'true' }, ventana(), dibujo),
-      aviso,
-      romper,
-    ),
+
+  // Ya tiene uno: se mira el estado otra vez. Si ahora toca otra pantalla (ya
+  // tiene gachamon, o hay una muerte que contar), se sigue con él; si no —un
+  // recluta sin nombre en la incubadora—, el huevo se queda con la frase del
+  // servidor y el botón listo, en vez de volver a pintarse en silencio.
+  async function yaTiene(error) {
+    let estado;
+    try {
+      estado = await pedir('GET', 'estado');
+    } catch (otro) {
+      await fallo(otro, aviso, seguir);
+      return;
+    }
+    if (siguiente(quien, cuenta, estado) !== 'huevo') {
+      await seguir(estado);
+      return;
+    }
+    avisar(aviso, mensajeDe(error));
+  }
+
+  const cuerpo = el('div', { class: 'cuerpo' },
+    titulo('Un huevo para ti'),
+    el('p', { class: 'entradilla' }, 'Algo se mueve dentro. ¿Qué gachamon saldrá?'),
+    el('div', { class: 'escena', 'aria-hidden': 'true' }, ventana(), dibujo),
+    aviso,
+    romper,
   );
+  const traer = enlaceADiscord(cuerpo, seguir, cuenta);
+  if (traer) cuerpo.append(traer);
+  contenedor.append(barra(quien.usuario), cuerpo);
 }
 
 // --- bautizo: el recién nacido y su nombre -------------------------------------
@@ -535,9 +616,8 @@ function cuantoVivio(dias) {
 export function difunto(contenedor, seguir, { sesion: quien, estado }) {
   const muerto = estado.difunto;
   const aviso = avisoVacio();
-  const despues = estado.gachamon
-    ? `Ahora te acompaña ${estado.gachamon.nombre}.`
-    : 'Te espera un huevo nuevo.';
+  // Sin relevo no se promete nada: puede tocar un huevo o un recluta sin nombre.
+  const despues = estado.gachamon ? ` Ahora te acompaña ${estado.gachamon.nombre}.` : '';
   contenedor.append(
     barra(quien.usuario),
     el('div', { class: 'cuerpo' },
@@ -547,7 +627,7 @@ export function difunto(contenedor, seguir, { sesion: quien, estado }) {
           el('span', { class: 'lapida-nombre' }, muerto.nombre),
           el('span', {}, muerto.nombre_especie),
           el('span', { class: 'lapida-dias' }, cuantoVivio(muerto.dias)))),
-      el('p', { class: 'entradilla' }, `${muerto.nombre} ha muerto. ${despues}`),
+      el('p', { class: 'entradilla' }, `${muerto.nombre} ha muerto.${despues}`),
       aviso,
       boton('Seguir jugando', 'boton principal', async () => {
         callar(aviso);

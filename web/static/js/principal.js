@@ -4,7 +4,7 @@
 import { pedir } from './api.js';
 import * as entrada from './entrada.js';
 import { lugar } from './lugar.js';
-import { siguiente } from './pantallas.js';
+import { siguiente, trasUnFalloAlArrancar } from './pantallas.js';
 
 const contenedor = document.getElementById('juego');
 
@@ -19,14 +19,12 @@ const PANTALLAS = {
   noCarga: entrada.noCarga,
 };
 
+const SIN_SESION = { sesion: null, cuenta: null, estado: null };
+
+// Las tres lecturas del arranque. Si una falla, `trasUnFalloAlArrancar` dice
+// qué toca: un 401 en cualquiera de ellas es ir a entrar.
 async function leer() {
-  let sesion;
-  try {
-    sesion = await pedir('GET', 'sesion');
-  } catch (error) {
-    if (error && error.estado === 401) return { sesion: null, cuenta: null, estado: null };
-    throw error;
-  }
+  const sesion = await pedir('GET', 'sesion');
   const cuenta = await pedir('GET', 'cuenta');
   const estado = cuenta.estado === 'nueva' ? null : await pedir('GET', 'estado');
   return { sesion, cuenta, estado };
@@ -72,8 +70,12 @@ async function seguir(estadoNuevo) {
     try {
       datos = await leer();
     } catch (error) {
-      if (esta === vuelta) pintar('noCarga', { mensaje: error && error.mensaje });
-      return;
+      const fallo = trasUnFalloAlArrancar(error);
+      if (fallo.pantalla !== 'sesion') {
+        if (esta === vuelta) pintar('noCarga', { mensaje: fallo.mensaje });
+        return;
+      }
+      datos = SIN_SESION;
     }
   }
   if (esta !== vuelta) return;

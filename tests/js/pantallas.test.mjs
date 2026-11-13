@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { siguiente } from '../../web/static/js/pantallas.js';
+import {
+  cambioLaCuenta, puedeTraerDeDiscord, siguiente, trasUnFalloAlArrancar,
+} from '../../web/static/js/pantallas.js';
 
 const sesion = { usuario: 'felipe' };
 const gachamon = { nombre: 'Pelusa', espera_nombre: false };
@@ -46,4 +48,49 @@ test('el que espera nombre va al bautizo', () => {
 test('con todo en su sitio, al lugar', () => {
   assert.equal(siguiente(sesion, { estado: 'web' }, estado()), 'lugar');
   assert.equal(siguiente(sesion, { estado: 'vinculada' }, estado()), 'lugar');
+});
+
+test('al arrancar, un 401 en cualquiera de las tres lecturas lleva a entrar', () => {
+  for (const mensaje of ['Entra a Rowino para jugar.', undefined]) {
+    assert.deepEqual(trasUnFalloAlArrancar({ estado: 401, clave: 'sin_sesion', mensaje }),
+      { pantalla: 'sesion', mensaje: null });
+  }
+});
+
+test('al arrancar, un 503 dice que el juego no está disponible, sea nuestro o del túnel', () => {
+  const esperado = { pantalla: 'noCarga', mensaje: 'El juego no está disponible ahora mismo.' };
+  assert.deepEqual(trasUnFalloAlArrancar({
+    estado: 503, clave: 'servicio', mensaje: 'El juego no está disponible ahora mismo.',
+  }), esperado);
+  assert.deepEqual(trasUnFalloAlArrancar({
+    estado: 503, clave: null, mensaje: 'El juego no contestó. Vuelve a intentarlo en un momento.',
+  }), esperado);
+});
+
+test('al arrancar, lo demás se enseña con su mensaje para reintentar', () => {
+  assert.deepEqual(trasUnFalloAlArrancar({ estado: 0, clave: null, mensaje: 'Sin red.' }),
+    { pantalla: 'noCarga', mensaje: 'Sin red.' });
+  assert.deepEqual(trasUnFalloAlArrancar({ estado: 500, clave: null, mensaje: '' }),
+    { pantalla: 'noCarga', mensaje: null });
+  assert.deepEqual(trasUnFalloAlArrancar(new Error('se rompió')), { pantalla: 'noCarga', mensaje: null });
+  assert.deepEqual(trasUnFalloAlArrancar(undefined), { pantalla: 'noCarga', mensaje: null });
+});
+
+test('se ofrece traer los de Discord sólo a una cuenta web sin gachamones', () => {
+  assert.equal(puedeTraerDeDiscord({ estado: 'web', tiene_gachamones: false }), true);
+  assert.equal(puedeTraerDeDiscord({ estado: 'web', tiene_gachamones: true }), false);
+  assert.equal(puedeTraerDeDiscord({ estado: 'vinculada', tiene_gachamones: false }), false);
+  assert.equal(puedeTraerDeDiscord({ estado: 'nueva', tiene_gachamones: false }), false);
+  assert.equal(puedeTraerDeDiscord(null), false);
+});
+
+test('mientras se espera el código, la cuenta cambió si se vinculó o si cambió por otro lado', () => {
+  const web = { estado: 'web', tiene_gachamones: false };
+  assert.equal(cambioLaCuenta(web, { ...web }), false);
+  assert.equal(cambioLaCuenta(web, { estado: 'vinculada', tiene_gachamones: true }), true);
+  assert.equal(cambioLaCuenta(web, { estado: 'vinculada', tiene_gachamones: false }), true);
+  assert.equal(cambioLaCuenta(web, { estado: 'web', tiene_gachamones: true }), true);
+  const nueva = { estado: 'nueva', tiene_gachamones: false };
+  assert.equal(cambioLaCuenta(nueva, { ...nueva }), false);
+  assert.equal(cambioLaCuenta(nueva, web), true);
 });

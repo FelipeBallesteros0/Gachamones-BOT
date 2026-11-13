@@ -1,6 +1,6 @@
 // Lo que la pantalla principal dice con palabras: cuánto falta, qué globo toca,
-// cómo se llama el hogar, cuántas monedas y qué contestó un cuidado. Puro: no
-// toca la página.
+// cómo se llama el hogar, cuántas monedas y qué contestó un cuidado (su frase,
+// si evolucionó y sus medallas). Puro: no toca la página.
 
 // Segundos que faltan, como lo diría una persona y como lo dice el bot
 // (`pantalla.formato_espera`): por debajo del minuto en segundos; desde ahí,
@@ -57,4 +57,23 @@ export function cuantasMonedas(cantidad) {
 
 export function cuantasGemas(cantidad) {
   return `${cantidad} ${Math.abs(cantidad) === 1 ? 'gema' : 'gemas'}`;
+}
+
+// Si tras un cuidado se celebra la evolución: cuando el servidor lo dice, o
+// cuando la etapa que llega no es la que había (un reintento del mismo cuidado
+// contesta sin la marca, pero la etapa ya es otra).
+export function seCelebraLaEvolucion(respuesta, etapaAntes) {
+  if (!respuesta) return false;
+  if (respuesta.evoluciono === true) return true;
+  const g = respuesta.estado ? respuesta.estado.gachamon : null;
+  return Boolean(g && etapaAntes && g.etapa !== etapaAntes);
+}
+
+// Un aviso por cada medalla nueva que trae un cuidado: «🏅 De la alfa · +25
+// gemas». Lo que no tenga nombre y gemas no se dice.
+export function avisosDeMedallas(respuesta) {
+  const logros = respuesta && Array.isArray(respuesta.logros) ? respuesta.logros : [];
+  return logros
+    .filter((l) => l && typeof l.nombre === 'string' && l.nombre && Number.isFinite(l.gemas))
+    .map((l) => `🏅 ${l.nombre} · +${cuantasGemas(l.gemas)}`);
 }

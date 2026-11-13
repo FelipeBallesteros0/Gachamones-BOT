@@ -344,6 +344,30 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 .zona { display: flex; flex-direction: column; gap: 14px; }
 
+/* Un botón que se ve como un enlace: lo que se ofrece sin empujar. */
+.traer { display: grid; justify-items: center; gap: 8px; }
+
+.enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: var(--principal-hundido);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.enlace:disabled { cursor: progress; opacity: 0.75; }
+
 .opciones { display: grid; gap: 10px; }
 
 .opcion {
@@ -897,6 +921,31 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 @keyframes aparece {
   from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+}
+
+/* Las medallas nuevas, abajo de la escena: una por línea, y se van solas. */
+.medallas {
+  position: absolute;
+  z-index: 4;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.medalla {
+  padding: 6px 14px;
+  border: 1px solid var(--alerta-borde);
+  border-radius: var(--radio);
+  background: var(--alerta-fondo);
+  color: var(--alerta-texto);
+  font-weight: 800;
+  text-align: center;
+  box-shadow: var(--sombra);
+  animation: aparece 0.35s ease-out;
 }
 
 /* La ficha: quién es y cómo está. */

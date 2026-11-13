@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatoEspera, elegirGlobo, nombreDelHogar, cuantasMonedas, cuantasGemas, avisoDelCuidado,
+  avisosDeMedallas, seCelebraLaEvolucion,
 } from '../../web/static/js/tiempo.js';
 
 test('la espera se lee como la diría una persona', () => {
@@ -92,4 +93,40 @@ test('las monedas y las gemas van en singular cuando es una', () => {
   assert.equal(cuantasMonedas(0), '0 monedas');
   assert.equal(cuantasGemas(1), '1 gema');
   assert.equal(cuantasGemas(30), '30 gemas');
+});
+
+const conEtapa = (etapa) => ({ gachamon: { etapa } });
+
+test('la evolución se celebra cuando el servidor lo dice', () => {
+  assert.equal(seCelebraLaEvolucion({ evoluciono: true, estado: conEtapa('nino') }, 'bebe'), true);
+  // Aunque la etapa que había no se supiera.
+  assert.equal(seCelebraLaEvolucion({ evoluciono: true, estado: conEtapa('nino') }, undefined), true);
+});
+
+test('la evolución se celebra también si la etapa cambió aunque el servidor no lo diga', () => {
+  // Un reintento del mismo cuidado: el servidor contesta sin la marca.
+  assert.equal(seCelebraLaEvolucion({ evoluciono: false, estado: conEtapa('nino') }, 'bebe'), true);
+});
+
+test('sin marca y con la misma etapa no hay nada que celebrar', () => {
+  assert.equal(seCelebraLaEvolucion({ evoluciono: false, estado: conEtapa('bebe') }, 'bebe'), false);
+  assert.equal(seCelebraLaEvolucion({ evoluciono: false, estado: { gachamon: null } }, 'bebe'), false);
+  assert.equal(seCelebraLaEvolucion({ evoluciono: false }, 'bebe'), false);
+  assert.equal(seCelebraLaEvolucion({ evoluciono: false, estado: conEtapa('nino') }, undefined), false);
+  assert.equal(seCelebraLaEvolucion(null, 'bebe'), false);
+});
+
+test('cada medalla nueva dice su nombre y sus gemas, en singular cuando es una', () => {
+  assert.deepEqual(avisosDeMedallas({ logros: [
+    { nombre: 'De la alfa', gemas: 25 }, { nombre: 'Uno suelto', gemas: 1 },
+  ] }), ['🏅 De la alfa · +25 gemas', '🏅 Uno suelto · +1 gema']);
+});
+
+test('sin medallas, o con algo que no lo es, no se dice nada', () => {
+  assert.deepEqual(avisosDeMedallas({ logros: [] }), []);
+  assert.deepEqual(avisosDeMedallas({}), []);
+  assert.deepEqual(avisosDeMedallas(null), []);
+  assert.deepEqual(avisosDeMedallas({ logros: 'De la alfa' }), []);
+  assert.deepEqual(avisosDeMedallas({ logros: [null, { nombre: 7, gemas: 1 }, { nombre: 'X' },
+    { nombre: '', gemas: 2 }, { nombre: 'Bien', gemas: 3 }] }), ['🏅 Bien · +3 gemas']);
 });

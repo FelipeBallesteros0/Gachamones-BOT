@@ -17,7 +17,8 @@ import { dibujarAvatar } from './dibujo.js';
 import { el } from './dom.js';
 import { siguiente } from './pantallas.js';
 import {
-  avisoDelCuidado, cuantasGemas, cuantasMonedas, elegirGlobo, formatoEspera, nombreDelHogar,
+  avisoDelCuidado, avisosDeMedallas, cuantasGemas, cuantasMonedas, elegirGlobo, formatoEspera,
+  nombreDelHogar, seCelebraLaEvolucion,
 } from './tiempo.js';
 
 const PEDIR_ESTADO_CADA_MS = 30_000;
@@ -27,6 +28,7 @@ const GLOBO_DURA_MS = 7000;
 const AVISO_DURA_MS = 5000;
 const GANANCIA_DURA_MS = 2400;
 const CELEBRACION_DURA_MS = 4500;
+const MEDALLA_DURA_MS = 6000;
 const CORAZONES = 6;
 const CORAZON_DURA_MS = 1600;
 // Un cuidado que no llegó se repite con el mismo evento: el servidor no lo
@@ -171,14 +173,17 @@ export function lugar(contenedor, estado, seguir) {
   });
   const gachamon = el('button', { type: 'button', class: 'gachamon' }, retrato, sinRetrato);
   const globo = el('p', { class: 'globo', 'aria-live': 'polite' });
-  // La zona está siempre; el aviso de la evolución entra y sale de ella.
+  // La zona está siempre; el aviso de la evolución entra y sale de ella. Las
+  // medallas nuevas van abajo, una por línea, para no tapar a la evolución.
   const celebracion = el('div', { class: 'celebracion', role: 'status' });
+  const medallas = el('div', { class: 'medallas', role: 'status' });
   const escena = el('div', { class: 'escena escena-lugar' },
     el('span', { class: 'ventana', 'aria-hidden': 'true' }),
     monigote,
     gachamon,
     globo,
-    celebracion);
+    celebracion,
+    medallas);
 
   // --- la ficha -------------------------------------------------------------------
 
@@ -417,6 +422,13 @@ export function lugar(contenedor, estado, seguir) {
     celebracionHasta = luego(CELEBRACION_DURA_MS, () => celebracion.replaceChildren());
   }
 
+  // Una medalla nueva: su aviso se queda un rato y se va solo.
+  function medalla(texto) {
+    const nodo = el('p', { class: 'medalla' }, texto);
+    medallas.append(nodo);
+    luego(MEDALLA_DURA_MS, () => nodo.remove());
+  }
+
   // --- acariciar y cuidar ---------------------------------------------------------------
 
   // Cada acción suma uno: una lectura del estado que se cruzó con una acción
@@ -479,6 +491,9 @@ export function lugar(contenedor, estado, seguir) {
     callarAviso();
     // Un toque, un evento: los reintentos de este toque llevan el mismo.
     const evento = nuevoEvento();
+    // La etapa que se veía al tocar: si la que llega es otra, evolucionó,
+    // aunque la respuesta sea la de un reintento, que no trae la marca.
+    const etapaAntes = actual.gachamon.etapa;
     let fallido = false;
     try {
       const respuesta = await conReintentos(() => pedir('POST', 'cuidar', { accion, evento_id: evento }));
@@ -488,8 +503,9 @@ export function lugar(contenedor, estado, seguir) {
       if (respuesta.ok) {
         gesto('salta');
         if (respuesta.monedas > 0) ganar(respuesta.monedas);
-        if (respuesta.evoluciono) celebrar(actual.gachamon);
       }
+      if (seCelebraLaEvolucion(respuesta, etapaAntes)) celebrar(actual.gachamon);
+      for (const texto of avisosDeMedallas(respuesta)) medalla(texto);
       // La frase del juego se lee siempre: «Se ha empachado» también cuenta.
       const frase = avisoDelCuidado(respuesta);
       if (frase) avisar(frase);
