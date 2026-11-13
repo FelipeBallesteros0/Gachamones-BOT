@@ -13,13 +13,21 @@ const ALTO = 84;
 const PIES = 4;
 const PASO_S = 0.18;
 
-// Las tres rutas de esa pose, en el orden en que se apilan. Una clave que el
-// contrato no conoce da una ruta que no existe, y se verá su recuadro.
+// Un campo del avatar, o nada si falta, no es un texto o no hay avatar.
+function clave(avatar, campo) {
+  const valor = avatar ? avatar[campo] : undefined;
+  return typeof valor === 'string' ? valor : '';
+}
+
+// Las tres rutas de esa pose, en el orden en que se apilan. Puro y no lanza:
+// una clave que el contrato no conoce da una ruta que no existe, y una que
+// falta, una ruta sin forma de pieza; las dos se ven como su recuadro.
 export function capasDelAvatar(avatar, pose) {
+  const [piel, ropa, pelo, color] = ['piel', 'ropa', 'pelo', 'color_de_pelo'].map((campo) => clave(avatar, campo));
   return [
-    `avatar/cuerpo/${avatar.piel}-${pose}.png`,
-    `avatar/ropa/${avatar.ropa}-${pose}.png`,
-    `avatar/pelo/${avatar.pelo}-${avatar.color_de_pelo}-${pose}.png`,
+    `avatar/cuerpo/${piel}-${pose}.png`,
+    `avatar/ropa/${ropa}-${pose}.png`,
+    `avatar/pelo/${pelo}-${color}-${pose}.png`,
   ];
 }
 

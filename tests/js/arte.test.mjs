@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // Lo justo de la `Image` del navegador: carga sola, salvo lo que tenga «falta»
-// en la dirección, que da error. Apunta cada dirección que se le pide.
+// en la dirección, que da error. Cuenta las que se crean y apunta cada
+// dirección que se le pide.
 const pedidas = [];
+let creadas = 0;
 class ImagenDeMentira {
+  constructor() { creadas += 1; }
+
   set src(url) {
     pedidas.push(url);
     this.url = url;
@@ -13,7 +18,7 @@ class ImagenDeMentira {
 }
 globalThis.Image = ImagenDeMentira;
 
-const { cargar, faltante, pintarPieza, urlDeArte } = await import('../../web/static/js/arte.js');
+const { cargar, esRutaDeArte, faltante, pintarPieza, urlDeArte } = await import('../../web/static/js/arte.js');
 
 function lienzoDeMentira() {
   const hecho = [];
@@ -101,4 +106,43 @@ test('si la ruta cabe en una línea, no se parte', () => {
   const { ctx, hecho } = lienzoDeMentira();
   faltante(ctx, 0, 0, 1380, 860, 'pueblo/fondo.png');
   assert.deepEqual(escrito(hecho), ['pueblo/fondo.png']);
+});
+
+// --- sólo se piden rutas con forma de pieza del contrato -------------------------
+
+// Lo que no es una pieza: salirse de la carpeta, otra raíz, otra dirección,
+// consultas, fragmentos, codificaciones, vacío o algo que no es un texto.
+const RARAS = [
+  '../../x.png', 'avatar/../../x.png', '\\x.png', '/x.png', 'https://x/y.png', 'a?b.png',
+  'a%2e%2e/b.png', 'efectos/corazon.png#x', 'efectos//corazon.png', 'efectos/corazon.PNG',
+  'avatar/cuerpo/-quieto.png', 'avatar/pelo/--quieto.png', '', 42, null, undefined,
+  // No es un texto, aunque al pasarlo a texto lo parezca.
+  ['efectos/corazon.png'],
+];
+
+test('una ruta rara no arma ninguna dirección', () => {
+  for (const ruta of RARAS) {
+    assert.equal(esRutaDeArte(ruta), false, String(ruta));
+    assert.equal(urlDeArte(ruta), null, String(ruta));
+  }
+});
+
+test('una ruta rara se ve como pieza que falta sin pedir nada ni quedar guardada', { timeout: 2000 }, async () => {
+  const antes = { creadas, pedidas: pedidas.length };
+  for (const ruta of RARAS) {
+    const primera = cargar(ruta);
+    assert.deepEqual(await primera, { ruta, imagen: null }, String(ruta));
+    // No se guarda: otra llamada es otra promesa, no la memoria de lo ya pedido.
+    assert.notEqual(cargar(ruta), primera, String(ruta));
+  }
+  assert.deepEqual({ creadas, pedidas: pedidas.length }, antes);
+});
+
+test('todas las piezas del contrato pasan el filtro', () => {
+  const contrato = JSON.parse(readFileSync(new URL('../../web/static/datos/arte.json', import.meta.url), 'utf8'));
+  assert.equal(contrato.piezas.length, 136);
+  for (const { ruta } of contrato.piezas) {
+    assert.ok(esRutaDeArte(ruta), ruta);
+    assert.ok(urlDeArte(ruta).endsWith(`/web/static/arte/${ruta}`), ruta);
+  }
 });

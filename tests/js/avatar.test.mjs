@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   POSES, capasDelAvatar, poseAlCaminar, dibujarAvatar, cargarAvatar, lienzoDelAvatar,
 } from '../../web/static/js/avatar.js';
+import { esRutaDeArte } from '../../web/static/js/arte.js';
 
 const contrato = JSON.parse(readFileSync(new URL('../../web/static/datos/arte.json', import.meta.url), 'utf8'));
 const rutas = new Set(contrato.piezas.map((p) => p.ruta));
@@ -123,7 +124,10 @@ test('una capa que ni siquiera está en el mapa se ve como faltante', () => {
 
 const retenidas = new Set();
 const esperando = [];
+let creadas = 0;
 class ImagenDeMentira {
+  constructor() { creadas += 1; }
+
   set src(url) {
     this.url = url;
     if ([...retenidas].some((fragmento) => url.includes(fragmento))) esperando.push(this);
@@ -221,4 +225,27 @@ test('mientras cargan se queda lo anterior, y gana la última elección', { time
   soltar('rizado-rubio-quieto');
   await pintandoPrimera;
   assert.equal(hecho.length, despues);
+});
+
+// Un estado sin avatar no puede dejar una promesa rechazada sin atrapar: se ve
+// como un avatar sin claves, tres piezas que faltan, y no se pide nada.
+test('un avatar ausente no lanza: son tres piezas que faltan, sin pedir nada', { timeout: 2000 }, async () => {
+  for (const ausente of [null, undefined]) {
+    const capas = capasDelAvatar(ausente, 'quieto');
+    assert.equal(capas.length, 3);
+    for (const ruta of capas) assert.equal(esRutaDeArte(ruta), false, ruta);
+
+    const antes = creadas;
+    const { lienzo, hecho } = lienzoDePrueba();
+    await lienzoDelAvatar(lienzo, ausente, 168);
+    assert.equal(creadas, antes);
+    assert.equal(hecho.filter(([n]) => n === 'drawImage').length, 0);
+    assert.equal(hecho.filter(([n]) => n === 'strokeRect').length, 3);
+  }
+});
+
+test('una clave que falta o no es un texto es una pieza que falta; las demás se piden', () => {
+  const capas = capasDelAvatar({ piel: 'media', ropa: 7, pelo: 'corto' }, 'paso1');
+  assert.deepEqual(capas.map(esRutaDeArte), [true, false, false]);
+  assert.equal(capas[0], 'avatar/cuerpo/media-paso1.png');
 });

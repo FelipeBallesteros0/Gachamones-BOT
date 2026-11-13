@@ -3,9 +3,23 @@
 // llega se dibuja como un recuadro rayado con su nombre, nunca con el dibujo
 // de otra.
 
+// La forma de una pieza del contrato: carpetas y nombre en minúsculas, cifras
+// y `_`, con palabras unidas por un solo `-`, y `.png` al final. Nada de `..`,
+// `\`, `%`, `?`, `#`, `:` ni barra al principio: con una ruta así no se sale
+// de `arte/`. Las rutas se arman con claves que llegan del servidor, y este
+// cargador es la única puerta del arte.
+const PALABRAS = '[a-z0-9_]+(?:-[a-z0-9_]+)*';
+const FORMA_DE_PIEZA = new RegExp(`^${PALABRAS}(?:/${PALABRAS})*\\.png$`);
+
+export function esRutaDeArte(ruta) {
+  return typeof ruta === 'string' && FORMA_DE_PIEZA.test(ruta);
+}
+
 // La dirección se arma desde la de este módulo: así lleva la versión de los
-// estáticos (`/gachamon/static/<versión>/arte/…`) sin escribirla a mano.
+// estáticos (`/gachamon/static/<versión>/arte/…`) sin escribirla a mano. Con
+// una ruta que no tiene forma de pieza no hay dirección: `null`.
 export function urlDeArte(ruta) {
+  if (!esRutaDeArte(ruta)) return null;
   return new URL(`../arte/${ruta}`, import.meta.url).href;
 }
 
@@ -13,8 +27,10 @@ export function urlDeArte(ruta) {
 // volver a pedir en cada cuadro una imagen que no existe.
 const pedidas = new Map();
 
-// La pieza ya cargada; `imagen` es `null` si no se pudo. Nunca rechaza.
+// La pieza ya cargada; `imagen` es `null` si no se pudo. Nunca rechaza. Una
+// ruta sin forma de pieza no se pide ni se guarda: es una pieza que falta.
 export function cargar(ruta) {
+  if (!esRutaDeArte(ruta)) return Promise.resolve({ ruta, imagen: null });
   if (!pedidas.has(ruta)) {
     pedidas.set(ruta, new Promise((listo) => {
       try {
