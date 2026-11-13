@@ -133,6 +133,31 @@ def test_un_evento_no_sirve_para_usar_otra_cosa(base):
     assert db.inventario(U, G) == {"silbato": 1}
 
 
+def test_si_el_efecto_falla_despues_de_gastar_el_objeto_vuelve_a_la_mochila(base, monkeypatch):
+    nace()
+    dar(U, "silbato", 1)
+
+    def revienta(*_args, **_kwargs):
+        raise RuntimeError("el efecto no se pudo aplicar")
+
+    monkeypatch.setattr(db, "quitar_cooldown_en", revienta)
+    with pytest.raises(RuntimeError):
+        economia.usar_objeto("evento-uso-40", U, G, obj.CATALOGO["silbato"], T0)
+    assert db.inventario(U, G) == {"silbato": 1}
+
+
+def test_un_objeto_sin_efecto_conocido_es_un_error_y_no_se_gasta(base, monkeypatch):
+    """La guarda no es un `assert`, que con `python -O` desaparece."""
+    nace()
+    adorno = obj.Objeto(clave="adorno", nombre="Adorno", emoji="x", descripcion="Algo bonito.", precio=1)
+    monkeypatch.setitem(obj.CATALOGO, "adorno", adorno)
+    monkeypatch.setattr(obj.Objeto, "se_aplica_al_momento", property(lambda objeto: True))
+    dar(U, "adorno", 1)
+    with pytest.raises(ValueError):
+        economia.usar_objeto("evento-uso-41", U, G, adorno, T0)
+    assert db.inventario(U, G) == {"adorno": 1}
+
+
 def test_un_rechazo_no_se_anota_y_repetirlo_vuelve_a_decidir(base):
     """Entre un intento y el reintento puede haber llegado el objeto."""
     nace()

@@ -82,12 +82,21 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     assert len(rellenos.generar(todo=True)) == 199
 
 
-def test_dos_lugares_no_tienen_el_mismo_relleno():
-    def bytes_de(ruta):
-        return (arte.RAIZ / ruta).read_bytes()
+def _relleno(ruta: str) -> Image.Image:
+    """Lo que `herramientas/rellenos.py` dibuja para esa pieza, sin mirar el archivo del repo.
 
-    lugares = [bytes_de(f"pueblo/lugares/{l}.png") for l in pueblo.LUGARES]
-    escenas = [bytes_de(f"escenas/{l}.png") for l in pueblo.LUGARES]
+    Las pruebas de los rellenos miran esto: el día que un dibujo de verdad
+    reemplace a su relleno en el repo, no tienen por qué fallar.
+    """
+    from herramientas import rellenos
+
+    pieza = next(p for p in arte.piezas() if p.ruta == ruta)
+    return rellenos._dibujar(pieza).convert("RGBA")
+
+
+def test_dos_lugares_no_tienen_el_mismo_relleno():
+    lugares = [_relleno(f"pueblo/lugares/{l}.png").tobytes() for l in pueblo.LUGARES]
+    escenas = [_relleno(f"escenas/{l}.png").tobytes() for l in pueblo.LUGARES]
     assert len(set(lugares)) == 9 and len(set(escenas)) == 9
 
 
@@ -137,11 +146,10 @@ def test_los_rellenos_de_iconos_se_distinguen_y_tienen_fondo_transparente():
     por_grupo = {}
     for ruta in _rutas_de_iconos():
         grupo = ruta.split("/")[1]
-        with Image.open(arte.RAIZ / ruta) as imagen:
-            imagen = imagen.convert("RGBA")
-            assert imagen.getpixel((0, 0))[3] == 0, ruta
-            assert imagen.getpixel((24, 5))[3] == 255, ruta
-            por_grupo.setdefault(grupo, []).append((ruta, imagen.tobytes(), imagen.getpixel((6, 6))))
+        imagen = _relleno(ruta)
+        assert imagen.getpixel((0, 0))[3] == 0, ruta
+        assert imagen.getpixel((24, 5))[3] == 255, ruta
+        por_grupo.setdefault(grupo, []).append((ruta, imagen.tobytes(), imagen.getpixel((6, 6))))
     for grupo, items in por_grupo.items():
         assert len({b for _, b, _ in items}) == len(items), grupo
     colores = {items[0][2] for items in por_grupo.values()}

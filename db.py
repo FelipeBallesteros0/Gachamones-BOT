@@ -2062,25 +2062,16 @@ def _hogar_de(
     return hogar
 
 
-def alargar_el_refugio(
-    usuario_id: str, guild_id: str, dias: int, ahora: datetime
-) -> datetime:
-    """Le da otra estancia en el refugio y devuelve hasta cuándo llega.
-
-    Cuenta **desde ahora** y no desde el final de la que hubiera: quien lo use
-    con estancia de sobra estaría tirando el ticket, así que el aviso lo dice y
-    el menú lo deja para cuando haga falta.
-    """
-    with conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        return alargar_el_refugio_en(con, usuario_id, guild_id, dias, ahora)
-
-
 def alargar_el_refugio_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str, dias: int,
     ahora: datetime,
 ) -> datetime:
-    """`alargar_el_refugio` dentro de una transacción ya abierta."""
+    """Le da otra estancia en el refugio y devuelve hasta cuándo llega.
+
+    Va dentro de una transacción ya abierta. Cuenta **desde ahora** y no desde el final de la que hubiera: quien lo use
+    con estancia de sobra estaría tirando el ticket, así que el aviso lo dice y
+    el menú lo deja para cuando haga falta.
+    """
     _hogar_de(con, usuario_id, guild_id, ahora)     # la crea si no está
     hasta = ahora + timedelta(days=dias)
     con.execute(

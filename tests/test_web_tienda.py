@@ -83,6 +83,30 @@ def test_a_quien_tiene_discord_se_le_vende_todo_con_las_notas_donde_tocan(client
     assert objetos_["pocion_comida"]["nota"] is None
 
 
+# Hoy coinciden quien no tiene Discord y quien no tiene plazo en el refugio; el
+# día que no, lo del refugio lo decide `identidad.sin_plazo_de_refugio`.
+
+def test_el_ticket_se_le_vende_a_quien_tiene_plazo_aunque_no_tenga_discord(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    ir(cliente, "tienda")
+    monkeypatch.setattr(identidad, "sin_plazo_de_refugio", lambda usuario_id: False)
+    objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
+    assert objetos_["ticket_refugio"]["se_vende"] is True and objetos_["ticket_refugio"]["nota"] is None
+    assert objetos_["semilla"]["se_vende"] is False and objetos_["semilla"]["nota"] == "Más adelante."
+
+
+def test_el_ticket_no_se_le_vende_a_quien_no_tiene_plazo_aunque_tenga_discord(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_vinculo(cliente)
+    ir(cliente, "tienda")
+    monkeypatch.setattr(identidad, "sin_plazo_de_refugio", lambda usuario_id: True)
+    objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
+    assert objetos_["ticket_refugio"]["se_vende"] is False
+    assert objetos_["ticket_refugio"]["nota"] == "No lo necesitas: tu estancia en el refugio no tiene plazo."
+    assert objetos_["semilla"]["se_vende"] is True
+
+
 def test_cada_objeto_trae_lo_suyo_en_el_orden_del_catalogo(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)

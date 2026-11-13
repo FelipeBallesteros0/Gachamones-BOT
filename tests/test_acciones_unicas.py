@@ -69,6 +69,20 @@ def test_repetir_la_compra_de_una_casa_con_el_mismo_evento_no_compra_otra(base):
     assert economia.saldos(U, G).asciicoins == 1000 - pequena.precio == segunda.saldo
 
 
+def test_si_anotar_la_compra_falla_no_se_cobra_ni_queda_casa(base, monkeypatch):
+    dar_monedas(U, 1000)
+
+    def revienta(*_args, **_kwargs):
+        raise RuntimeError("no se pudo anotar")
+
+    monkeypatch.setattr(db, "anotar_accion_en", revienta)
+    with pytest.raises(RuntimeError):
+        economia.comprar_casa(U, G, casas.CATALOGO["pequena"], T0, evento_id="evento-casa-9")
+    assert economia.saldos(U, G).asciicoins == 1000
+    assert not db.hogar_leido(U, G, T0).casas
+    assert anotadas() == 0
+
+
 def test_sin_evento_cada_compra_de_casa_es_otra_casa(base):
     dar_monedas(U, 1000)
     pequena = casas.CATALOGO["pequena"]

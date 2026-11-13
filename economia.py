@@ -2408,8 +2408,11 @@ def _aplicar_objeto(
         return criatura, {"efecto": "refugio", "refugio_hasta": hasta.isoformat()}
 
     # Lo único que queda de `se_aplica_al_momento`, y `_usar` ya lo ha mirado:
-    # no hay caso por descarte que gaste la unidad sin hacer nada.
-    assert objeto.alimenta, objeto.clave
+    # no hay caso por descarte que gaste la unidad sin hacer nada. No es un
+    # `assert`, que con `python -O` desaparece; al lanzar, la transacción
+    # devuelve la unidad.
+    if not objeto.alimenta:
+        raise ValueError(f"objeto sin efecto conocido: {objeto.clave}")
     alimentada = obj.aplicar_a_la_criatura(objeto, criatura)
     return alimentada, {
         "efecto": "comida", "comida": round(alimentada.hambre - criatura.hambre)

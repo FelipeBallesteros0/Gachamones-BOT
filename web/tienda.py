@@ -24,6 +24,7 @@ import cosmeticos as cos
 import db
 import economia
 import huerto as hue
+import identidad
 import objetos as obj
 import simulacion as sim
 from web import estado, pueblo
@@ -54,19 +55,26 @@ def donde_sirve(objeto: obj.Objeto) -> str | None:
 
 
 def se_le_vende(objeto: obj.Objeto, jugador: Jugador) -> bool:
-    """Todo lo que está a la venta; a quien no tiene Discord, sólo lo que ya sirve en la web."""
-    if jugador.vinculada:
-        return True
-    return donde_sirve(objeto) not in (COMPETIR, HUERTO, REFUGIO)
+    """Todo lo que está a la venta; a quien no tiene Discord, sólo lo que ya sirve en la web.
+
+    Lo del refugio, a quien tiene plazo en él: esa excepción se pregunta siempre
+    con `identidad.sin_plazo_de_refugio`, nunca mirando la cuenta.
+    """
+    sirve = donde_sirve(objeto)
+    if sirve == REFUGIO:
+        return not identidad.sin_plazo_de_refugio(jugador.usuario_id)
+    return sirve is None or jugador.vinculada
 
 
 def _nota(objeto: obj.Objeto, jugador: Jugador) -> str | None:
     sirve = donde_sirve(objeto)
     if sirve is None:
         return None
+    if sirve == REFUGIO:
+        return _NOTA_DEL_REFUGIO if identidad.sin_plazo_de_refugio(jugador.usuario_id) else None
     if jugador.vinculada:
-        return {COMPETIR: _NOTA_DE_COMPETIR, HUERTO: _NOTA_DEL_HUERTO}.get(sirve)
-    return _NOTA_DEL_REFUGIO if sirve == REFUGIO else _NOTA_MAS_ADELANTE
+        return {COMPETIR: _NOTA_DE_COMPETIR, HUERTO: _NOTA_DEL_HUERTO}[sirve]
+    return _NOTA_MAS_ADELANTE
 
 
 def en_llano(texto: str) -> str:
