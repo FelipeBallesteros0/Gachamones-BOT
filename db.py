@@ -2040,6 +2040,14 @@ def _hogar_leido(
         (usuario_id, guild_id),
     ).fetchone()
     casas = _casas_de(con, usuario_id, guild_id)
+    if identidad.sin_plazo_de_refugio(usuario_id):
+        # Su estancia no vence, diga lo que diga la fila (que no se toca).
+        if fila is None:
+            return cas.Hogar(casas=casas, refugio_hasta=cas.estancia_desde(ahora))
+        return cas.Hogar(
+            casas=casas, refugio_hasta=cas.estancia_desde(ahora),
+            publica=bool(fila["publica"]),
+        )
     if fila is None:
         return cas.Hogar(
             casas=casas, refugio_hasta=cas.estancia_desde(ahora)

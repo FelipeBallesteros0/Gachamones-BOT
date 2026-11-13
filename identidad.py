@@ -38,3 +38,9 @@ def de_cuenta_web(rowino_uid: int) -> str:
 def sin_aviso_de_hambre(usuario_id: str) -> bool:
     """¿Su dueño no tiene cómo enterarse de que el hambre llega a 0?"""
     return es_web(usuario_id)
+
+
+def sin_plazo_de_refugio(usuario_id: str) -> bool:
+    """¿Su estancia en el refugio no vence? Quien juega sólo en la web no gana
+    lo bastante para comprarse una casa antes de que corra el plazo de siempre."""
+    return es_web(usuario_id)

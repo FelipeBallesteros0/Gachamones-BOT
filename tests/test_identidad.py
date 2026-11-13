@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import aventura
+import casas
 import db
 import economia
 import identidad
@@ -196,3 +197,38 @@ def test_solo_la_simulacion_y_la_aventura_matan_de_hambre():
         if _asigna_hambre(ast.parse(ruta.read_text(encoding="utf-8")))
     }
     assert con_hambre == {"simulacion.py", "aventura.py"}
+
+
+def test_quien_juega_solo_en_la_web_no_tiene_plazo_en_el_refugio():
+    assert identidad.sin_plazo_de_refugio(identidad.de_cuenta_web(12)) is True
+    assert identidad.sin_plazo_de_refugio("222222222222222222") is False
+
+
+def test_una_identidad_web_nunca_queda_a_la_intemperie():
+    web = identidad.de_cuenta_web(1)
+    db.hogar_de(web, "g", T0)                       # empieza la estancia, como hará comprar una casa
+    mucho_despues = T0 + timedelta(days=400)
+    hogar = db.hogar_leido(web, "g", mucho_despues)
+    assert hogar.estado(mucho_despues) == casas.REFUGIO
+    assert hogar.estado_de(None, mucho_despues) == casas.REFUGIO
+
+
+def test_a_quien_viene_de_discord_el_plazo_le_corre_como_siempre():
+    db.hogar_de(DISCORD, "g", T0)
+    despues = T0 + timedelta(days=casas.DIAS_DE_REFUGIO, seconds=1)
+    assert db.hogar_leido(DISCORD, "g", despues).estado(despues) == casas.INTEMPERIE
+
+
+def test_una_identidad_web_que_vende_su_casa_sigue_en_el_refugio():
+    web = identidad.de_cuenta_web(1)
+    db.crear(web, "g", "pulpo", "Kuro", STATS, T0)
+    with db.conectar() as con:
+        economia._asegurar_monedero(con, web, "g")
+        con.execute("UPDATE monederos SET asciicoins = 5000 WHERE usuario_id = ?", (web,))
+    comprada = economia.comprar_casa(web, "g", casas.CATALOGO["mediana"], T0)
+    assert comprada.ok
+    casa_id = db.hogar_leido(web, "g", T0).casas[0].id
+    assert economia.vender_casa(web, "g", casa_id, T0).ok
+    despues = T0 + timedelta(days=30)
+    hogar = db.hogar_leido(web, "g", despues)
+    assert hogar.casas == () and hogar.estado(despues) == casas.REFUGIO

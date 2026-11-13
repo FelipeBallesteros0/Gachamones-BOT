@@ -5,7 +5,7 @@ import db
 import economia
 import especies as esp
 import globos
-from ayudas_web import ESCRIBIR, alta, con_gachamon, entrar, poner_reloj
+from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, poner_reloj
 from web import pueblo
 
 ESTADO, LUGAR = "/gachamon/api/estado", "/gachamon/api/lugar"
@@ -164,6 +164,25 @@ A_LA_INTEMPERIE = (
 )
 
 
+LA_DE_DISCORD = "222222222222222222"
+
+
+def vincular_la_cuenta_1(cliente) -> None:
+    """Liga la cuenta 1 a una identidad de Discord sintética (sólo se puede antes de que nazca un gachamon)."""
+    entrar(cliente, 1)
+    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    assert db.canjear_codigo_de_vinculo(codigo, LA_DE_DISCORD, str(PUEBLO), db.ahora_utc()) == "ok"
+    hecho = cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR)   # el avatar es de la identidad de Discord
+    assert hecho.status_code == 200, hecho.text
+
+
+def nace_el_gachamon(cliente) -> None:
+    huevo = cliente.post("/gachamon/api/huevo", headers=ESCRIBIR)
+    assert huevo.status_code == 201, huevo.text
+    assert cliente.post("/gachamon/api/bautizar", json={"nombre": "Pelusa"}, headers=ESCRIBIR).status_code == 200
+
+
 def vencer_la_estancia(reloj) -> None:
     """La cuenta 1, sin casa, agota su estancia en el refugio y queda a la intemperie."""
     cuenta = db.cuenta_web(1)
@@ -173,9 +192,10 @@ def vencer_la_estancia(reloj) -> None:
 
 
 def con_el_gachamon_a_la_intemperie(cliente, monkeypatch) -> None:
-    """Una cuenta sin casa con su gachamon a la intemperie."""
+    """Una cuenta vinculada a Discord, sin casa, con su gachamon a la intemperie."""
     reloj = poner_reloj(monkeypatch)
-    con_gachamon(cliente)
+    vincular_la_cuenta_1(cliente)
+    nace_el_gachamon(cliente)
     vencer_la_estancia(reloj)
 
 
@@ -194,13 +214,22 @@ def test_a_la_intemperie_los_demas_lugares_siguen_igual(cliente, monkeypatch):
     con_el_gachamon_a_la_intemperie(cliente, monkeypatch)
     estado = ir(cliente, "plaza").json()
     assert estado["hogar"] == "intemperie"
-    assert estado["lugar"]["aviso"] == "Esto se abre más adelante."
+    assert estado["lugar"]["aviso"] == "Esto se abre más adelante. Por ahora se juega en Discord."   # la cuenta vinculada
     assert any(g["tipo"] == "lugar" for g in estado["globos"])
+
+
+def test_quien_juega_solo_en_la_web_no_ve_el_aviso_de_la_intemperie(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    vencer_la_estancia(reloj)
+    estado = cliente.get(ESTADO).json()
+    assert estado["hogar"] == "refugio"
+    assert estado["lugar"]["aviso"] is None
 
 
 def test_sin_gachamon_el_refugio_no_avisa_de_la_intemperie(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
-    alta(cliente)
+    vincular_la_cuenta_1(cliente)
     vencer_la_estancia(reloj)
     estado = cliente.get(ESTADO).json()
     assert estado["gachamon"] is None
