@@ -17,7 +17,7 @@
 // por `el` o por `textContent`.
 
 import { nuevoEvento, pedir } from './api.js';
-import { cargar, faltante } from './arte.js';
+import { cargar, faltante, olvidarLasQueFaltan } from './arte.js';
 import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
 import { siguiente } from './pantallas.js';
@@ -99,6 +99,8 @@ function animar(nodo, clase) {
 }
 
 export function lugar(contenedor, estado, seguir, llegando = false) {
+  // El arte que no cargó en otra pantalla se pide de nuevo.
+  olvidarLasQueFaltan();
   const id = estado.gachamon.id;
   let actual = estado;
   let ultimoAhora = -Infinity;

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 // Lo justo de la `Image` del navegador: carga sola, salvo lo que tenga «falta»
-// en la dirección, que da error. Cuenta las que se crean y apunta cada
-// dirección que se le pide.
+// en la dirección o esté en `cortadas` (la red cortada un momento), que da
+// error. Cuenta las que se crean y apunta cada dirección que se le pide.
 const pedidas = [];
+const cortadas = new Set();
 let creadas = 0;
 class ImagenDeMentira {
   constructor() { creadas += 1; }
@@ -13,12 +14,15 @@ class ImagenDeMentira {
   set src(url) {
     pedidas.push(url);
     this.url = url;
-    queueMicrotask(() => (url.includes('falta') ? this.onerror?.() : this.onload?.()));
+    const falla = url.includes('falta') || cortadas.has(url);
+    queueMicrotask(() => (falla ? this.onerror?.() : this.onload?.()));
   }
 }
 globalThis.Image = ImagenDeMentira;
 
-const { cargar, esRutaDeArte, faltante, pintarPieza, urlDeArte } = await import('../../web/static/js/arte.js');
+const {
+  cargar, esRutaDeArte, faltante, olvidarLasQueFaltan, pintarPieza, urlDeArte,
+} = await import('../../web/static/js/arte.js');
 
 function lienzoDeMentira() {
   const hecho = [];
@@ -58,6 +62,41 @@ test('lo ya pedido no se vuelve a pedir, tampoco lo que falló', { timeout: 2000
     assert.equal(cargar(ruta), primera);
     assert.equal(pedidas.filter((url) => url === urlDeArte(ruta)).length, 1, ruta);
   }
+});
+
+const vecesPedida = (ruta) => pedidas.filter((url) => url === urlDeArte(ruta)).length;
+
+test('una pieza que no cargó se vuelve a pedir sólo cuando se olvidan las que faltan', { timeout: 2000 }, async () => {
+  const ruta = 'pueblo/fondo.png';
+  cortadas.add(urlDeArte(ruta));
+  assert.deepEqual(await cargar(ruta), { ruta, imagen: null });
+  // Mientras nadie la olvide, se recuerda que falta y no se pide otra vez.
+  assert.deepEqual(await cargar(ruta), { ruta, imagen: null });
+  assert.equal(vecesPedida(ruta), 1);
+
+  // Vuelve la red: tras olvidar las que faltan, se pide de nuevo y esta vez carga.
+  cortadas.delete(urlDeArte(ruta));
+  olvidarLasQueFaltan();
+  const otraVez = await cargar(ruta);
+  assert.equal(vecesPedida(ruta), 2);
+  assert.equal(otraVez.ruta, ruta);
+  assert.ok(otraVez.imagen instanceof ImagenDeMentira);
+});
+
+test('olvidar las que faltan no toca las que cargaron ni las que están en camino', { timeout: 2000 }, async () => {
+  const cargo = 'escenas/plaza.png';
+  const primera = cargar(cargo);
+  assert.ok((await primera).imagen instanceof ImagenDeMentira);
+  olvidarLasQueFaltan();
+  assert.equal(cargar(cargo), primera);
+  assert.equal(vecesPedida(cargo), 1);
+
+  const enCamino = 'escenas/barrio.png';
+  const pedida = cargar(enCamino);
+  olvidarLasQueFaltan();
+  assert.equal(cargar(enCamino), pedida);
+  await pedida;
+  assert.equal(vecesPedida(enCamino), 1);
 });
 
 test('si ni siquiera se puede crear la imagen, tampoco rechaza', { timeout: 2000 }, async () => {

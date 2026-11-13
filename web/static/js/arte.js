@@ -1,7 +1,7 @@
 // El único cargador del arte: las piezas de `web/static/arte/` que describe el
-// contrato (`datos/arte.json`). Cada pieza se pide una sola vez, y la que no
-// llega se dibuja como un recuadro rayado con su nombre, nunca con el dibujo
-// de otra.
+// contrato (`datos/arte.json`). Cada pieza se pide una sola vez (la que no
+// llegó, otra vez al cambiar de pantalla), y la que no llega se dibuja como un
+// recuadro rayado con su nombre, nunca con el dibujo de otra.
 
 // La forma de una pieza del contrato: carpetas y nombre en minúsculas, cifras
 // y `_`, con palabras unidas por un solo `-`, y `.png` al final. Nada de `..`,
@@ -26,6 +26,8 @@ export function urlDeArte(ruta) {
 // Ruta → promesa de `{ruta, imagen}`. Guarda también las que fallaron, para no
 // volver a pedir en cada cuadro una imagen que no existe.
 const pedidas = new Map();
+// Las que se pidieron y no cargaron.
+const fallidas = new Set();
 
 // La pieza ya cargada; `imagen` es `null` si no se pudo. Nunca rechaza. Una
 // ruta sin forma de pieza no se pide ni se guarda: es una pieza que falta.
@@ -33,17 +35,30 @@ export function cargar(ruta) {
   if (!esRutaDeArte(ruta)) return Promise.resolve({ ruta, imagen: null });
   if (!pedidas.has(ruta)) {
     pedidas.set(ruta, new Promise((listo) => {
+      const falta = () => {
+        fallidas.add(ruta);
+        listo({ ruta, imagen: null });
+      };
       try {
         const imagen = new Image();
         imagen.onload = () => listo({ ruta, imagen });
-        imagen.onerror = () => listo({ ruta, imagen: null });
+        imagen.onerror = falta;
         imagen.src = urlDeArte(ruta);
       } catch {
-        listo({ ruta, imagen: null });
+        falta();
       }
     }));
   }
   return pedidas.get(ruta);
+}
+
+// Un corte de red de un segundo no deja una pieza en su recuadro para toda la
+// sesión: al cambiar de pantalla se olvidan las que no cargaron, y el próximo
+// `cargar` las pide otra vez. Las que cargaron y las que siguen en camino se
+// quedan como están.
+export function olvidarLasQueFaltan() {
+  for (const ruta of fallidas) pedidas.delete(ruta);
+  fallidas.clear();
 }
 
 // --- el recuadro de una pieza que falta ---------------------------------------

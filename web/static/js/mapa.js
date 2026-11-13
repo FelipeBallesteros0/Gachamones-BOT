@@ -14,7 +14,7 @@
 // tarde no pinta ni llama a `seguir`.
 
 import { pedir } from './api.js';
-import { cargar, pintarPieza } from './arte.js';
+import { cargar, olvidarLasQueFaltan, pintarPieza } from './arte.js';
 import { cargarAvatar, dibujarAvatar, poseAlCaminar } from './avatar.js';
 import { el } from './dom.js';
 import { trasFallarLaLlegada } from './pantallas.js';
@@ -124,6 +124,8 @@ function trazarPastilla(ctx, x, y, ancho, alto) {
 }
 
 export function pueblo(contenedor, estado, seguir) {
+  // El arte que no cargó en otra pantalla se pide de nuevo.
+  olvidarLasQueFaltan();
   const aqui = estado.lugar || { clave: null, nombre: '' };
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)');
   const quieto = () => menosMovimiento.matches;
