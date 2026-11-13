@@ -1,6 +1,7 @@
 // La pantalla principal: el lugar del pueblo donde estás, con su dibujo de
 // fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
-// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo.
+// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo o, donde el
+// lugar tiene la tienda, entras a comprar.
 //
 // `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
 // estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
@@ -16,11 +17,11 @@
 // tiempo; lo único que corre aquí son las cuentas de espera. Todo texto entra
 // por `el` o por `textContent`.
 
-import { nuevoEvento, pedir } from './api.js';
+import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, faltante, olvidarLasQueFaltan } from './arte.js';
 import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
-import { siguiente } from './pantallas.js';
+import { ofreceLaTienda, siguiente } from './pantallas.js';
 import {
   avisoDelCuidado, avisosDeMedallas, cuantasGemas, cuantasMonedas, dondeVive, elegirGlobo,
   formatoEspera, seCelebraLaEvolucion,
@@ -42,9 +43,6 @@ const CORAZON_DURA_MS = 1600;
 // computador se ve más grande.
 const ALTO_DEL_AVATAR = 126;
 const ALTO_DEL_AVATAR_EN_COMPUTADOR = 168;
-// Un cuidado que no llegó se repite con el mismo evento: el servidor no lo
-// aplica ni lo paga dos veces. Éstas son las pausas antes de cada reintento.
-const REINTENTOS_MS = [800, 2000];
 const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
 const DENSIDAD_MAXIMA = 3;
 
@@ -79,10 +77,6 @@ function segun(genero, masculino, femenino) {
 
 function mensajeDe(error) {
   return error && typeof error.mensaje === 'string' && error.mensaje ? error.mensaje : ALGO_SALIO_MAL;
-}
-
-function pausa(ms) {
-  return new Promise((listo) => { setTimeout(listo, ms); });
 }
 
 // Mientras se está aquí hay sesión y la cuenta ya no es nueva, así que la
@@ -193,7 +187,11 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
 
   // --- la ficha -------------------------------------------------------------------
 
-  const titulo = el('h1', { tabindex: '-1' });
+  // El nombre y, si lleva uno, su título («Pelusa la Invicta»), que llega ya
+  // concordado.
+  const nombreDelGachamon = el('span', {});
+  const tituloDelGachamon = el('span', { class: 'titulo-del-gachamon' });
+  const titulo = el('h1', { tabindex: '-1' }, nombreDelGachamon, tituloDelGachamon);
   const insignia = el('p', { class: 'insignia', hidden: true });
   const detalle = el('p', { class: 'ficha-detalle' });
   const medidores = BARRAS.map(({ clave, icono, nombre }) => {
@@ -235,7 +233,15 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     return cuidado;
   });
 
-  // --- ir al pueblo --------------------------------------------------------------
+  // --- comprar, donde el lugar lo ofrece, e ir al pueblo ----------------------
+
+  // Se ve sólo mientras el lugar donde estás tenga la tienda.
+  const aComprar = el('button', { type: 'button', class: 'boton principal boton-comprar', hidden: true },
+    el('span', { 'aria-hidden': 'true' }, '🛒'), 'Comprar');
+  aComprar.addEventListener('click', () => {
+    parar();
+    seguir(actual, { vista: 'tienda' });
+  });
 
   const alPueblo = el('button', { type: 'button', class: 'boton boton-pueblo' },
     el('span', { 'aria-hidden': 'true' }, '🗺️'), 'Pueblo');
@@ -249,7 +255,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     ficha,
     bajoLaFicha,
     el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),
-    alPueblo);
+    el('div', { class: 'salidas-lugar' }, aComprar, alPueblo));
   contenedor.append(cabecera, cuerpo);
 
   // --- pintar lo que dice el estado -----------------------------------------------
@@ -283,6 +289,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     const avisoDelLugar = actual.lugar.aviso || '';
     if (franjaDelLugar.textContent !== avisoDelLugar) franjaDelLugar.textContent = avisoDelLugar;
     franjaDelLugar.hidden = !avisoDelLugar;
+    aComprar.hidden = !ofreceLaTienda(actual.lugar);
     // Sin el dibujo del lugar, la pared y el piso siguen siendo los del hogar.
     escena.dataset.hogar = actual.hogar;
     escena.dataset.etapa = g.etapa;
@@ -300,7 +307,8 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     gachamon.setAttribute('aria-label', `Acariciar a ${g.nombre}`);
     gachamon.classList.toggle('decaido', Boolean(g.desfallecido));
 
-    titulo.textContent = g.nombre;
+    nombreDelGachamon.textContent = g.nombre;
+    tituloDelGachamon.textContent = g.titulo ? ` ${g.titulo}` : '';
     insignia.textContent = segun(g.genero, 'Desfallecido', 'Desfallecida');
     insignia.hidden = !g.desfallecido;
     const vive = dondeVive(actual.hogar);
@@ -550,21 +558,6 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     if (fallida) releer();
   }
 
-  async function conReintentos(hacer) {
-    for (let intento = 0; ; intento += 1) {
-      try {
-        return await hacer();
-      } catch (error) {
-        // Sólo se repite lo que no llegó a ser una respuesta del juego.
-        const noLlego = error && error.clave === null && error.estado !== 401;
-        if (!noLlego || intento >= REINTENTOS_MS.length) throw error;
-        await pausa(REINTENTOS_MS[intento]);
-        // Si mientras tanto se dejó la pantalla, no se insiste.
-        if (!vivo) throw error;
-      }
-    }
-  }
-
   async function cuidar(cuidado) {
     const { accion, nodo } = cuidado;
     if (nodo.classList.contains('esperando') || faltaPara(accion) > 0) return;
@@ -580,7 +573,11 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     const etapaAntes = actual.gachamon.etapa;
     let fallido = false;
     try {
-      const respuesta = await conReintentos(() => pedir('POST', 'cuidar', { accion, evento_id: evento }));
+      // Si mientras se espera para repetirlo se dejó la pantalla, no se insiste.
+      const respuesta = await conReintentos(
+        () => pedir('POST', 'cuidar', { accion, evento_id: evento }),
+        () => vivo,
+      );
       if (!vivo) return;
       aplicar(respuesta.estado);
       if (!vivo) return;

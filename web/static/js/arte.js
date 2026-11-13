@@ -3,6 +3,8 @@
 // llegó, otra vez al cambiar de pantalla), y la que no llega se dibuja como un
 // recuadro rayado con su nombre, nunca con el dibujo de otra.
 
+import { el } from './dom.js';
+
 // La forma de una pieza del contrato: carpetas y nombre en minúsculas, cifras
 // y `_`, con palabras unidas por un solo `-`, y `.png` al final. Nada de `..`,
 // `\`, `%`, `?`, `#`, `:` ni barra al principio: con una ruta así no se sale
@@ -136,4 +138,30 @@ export function faltante(ctx, x, y, ancho, alto, ruta) {
 export function pintarPieza(ctx, cargada, x, y, ancho, alto) {
   if (cargada && cargada.imagen) ctx.drawImage(cargada.imagen, x, y, ancho, alto);
   else faltante(ctx, x, y, ancho, alto, cargada ? cargada.ruta : '');
+}
+
+// --- una pieza suelta en su propio lienzo ---------------------------------------
+
+const DENSIDAD_MAXIMA = 3;
+
+// Un lienzo de `ancho` × `alto` píxeles de pantalla que se mira y no se lee
+// (`aria-hidden`: lo que dice va en el texto de al lado), con la pieza de
+// `ruta` pintada en cuanto carga, o su recuadro si falta. Lleva los píxeles de
+// la pantalla y pinta sin suavizar, como el mapa y la escena: un dibujo de
+// cuadros se ve nítido.
+export function lienzoDePieza(ruta, ancho, alto) {
+  const densidad = Math.min(Math.max(window.devicePixelRatio || 1, 1), DENSIDAD_MAXIMA);
+  const anchoReal = Math.round(ancho * densidad);
+  const altoReal = Math.round(alto * densidad);
+  const lienzo = el('canvas', { 'aria-hidden': 'true' });
+  lienzo.width = anchoReal;
+  lienzo.height = altoReal;
+  lienzo.style.width = `${ancho}px`;
+  lienzo.style.height = `${alto}px`;
+  cargar(ruta).then((cargada) => {
+    const ctx = lienzo.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    pintarPieza(ctx, cargada, 0, 0, anchoReal, altoReal);
+  });
+  return lienzo;
 }

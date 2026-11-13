@@ -95,6 +95,32 @@ function resultadoDe(respuesta, datos) {
   return datos;
 }
 
+// Una acción con evento que no llegó se repite con el mismo evento: el
+// servidor no la aplica ni la cobra dos veces. Éstas son las pausas antes de
+// cada reintento.
+const REINTENTOS_MS = [800, 2000];
+
+function pausa(ms) {
+  return new Promise((listo) => { setTimeout(listo, ms); });
+}
+
+// Hace `hacer()` (una petición) y, si no llegó a ser una respuesta del juego,
+// la repite tras cada pausa; lo demás (un error del juego, un 401) se lanza a
+// la primera, y agotados los reintentos se lanza el último error. Si tras una
+// pausa `sigue()` da falso (se dejó la pantalla), no se insiste.
+export async function conReintentos(hacer, sigue = () => true) {
+  for (let intento = 0; ; intento += 1) {
+    try {
+      return await hacer();
+    } catch (error) {
+      const noLlego = error && error.clave === null && error.estado !== 401;
+      if (!noLlego || intento >= REINTENTOS_MS.length) throw error;
+      await pausa(REINTENTOS_MS[intento]);
+      if (!sigue()) throw error;
+    }
+  }
+}
+
 // Un id de evento para /api/cuidar: entre 8 y 64 de [A-Za-z0-9-]. `randomUUID`
 // sólo existe en páginas seguras; sin él se arma uno con 16 bytes al azar.
 export function nuevoEvento() {

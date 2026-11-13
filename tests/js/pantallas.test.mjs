@@ -8,6 +8,9 @@ const sesion = { usuario: 'felipe' };
 const gachamon = { nombre: 'Pelusa', espera_nombre: false };
 const avatar = { nombre: 'Feli' };
 const estado = (cambios = {}) => ({ avatar, gachamon, difunto: null, ...cambios });
+// Un jugador con su gachamon, listo para ver el lugar.
+const cuenta = { estado: 'web' };
+const jugando = estado();
 
 test('sin sesión, a entrar', () => {
   assert.equal(siguiente(null, null, null), 'sesion');
@@ -56,6 +59,16 @@ test('el pueblo sólo se ve cuando todo lo demás está en orden', () => {
   assert.equal(siguiente(sesion, { estado: 'web' }, estado({ difunto: { nombre: 'Viejo' } }), 'pueblo'), 'difunto');
   assert.equal(siguiente(sesion, { estado: 'web' }, estado({ gachamon: null }), 'pueblo'), 'huevo');
   assert.equal(siguiente(null, null, null, 'pueblo'), 'sesion');
+});
+
+test('la tienda sólo se abre donde el lugar la ofrece', () => {
+  const en = (ofrece) => ({ ...jugando, lugar: { clave: 'x', nombre: 'X', ofrece } });
+  assert.equal(siguiente(sesion, cuenta, en(['tienda']), 'tienda'), 'tienda');
+  assert.equal(siguiente(sesion, cuenta, en([]), 'tienda'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, lugar: { clave: 'x', nombre: 'X' } }, 'tienda'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, en([]), 'mochila'), 'mochila');
+  assert.equal(siguiente(sesion, cuenta, en(['tienda']), 'otra cosa'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, difunto: { nombre: 'Pelusa' } }, 'tienda'), 'difunto');
 });
 
 test('si falla la llegada: si el servidor dice que no se decide de nuevo; lo demás se reintenta', () => {

@@ -37,6 +37,8 @@
   --alerta-texto: #4d3700;
   --error-fondo: #fdecea;
   --error-texto: #b3261e;
+  --hecho-fondo: #e6f4ea;
+  --hecho-texto: #1e6b34;
   --vivo: #34a853;
 
   --radio-chico: 10px;
@@ -978,6 +980,9 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 .ficha-cabeza h1 { font-size: 1.5rem; }
 
+/* El título, si lo lleva, va tras el nombre, más chico. */
+.titulo-del-gachamon { color: var(--texto-suave); font-size: 0.72em; font-weight: 700; }
+
 .insignia {
   padding: 2px 10px;
   border-radius: 999px;
@@ -1218,8 +1223,11 @@ a { color: var(--principal-hundido); font-weight: 600; }
   .cuidado-espera { font-size: 0.875rem; }
 }
 
-/* Bajo los cuidados, la salida al pueblo. */
-.boton-pueblo > span { font-size: 1.25rem; line-height: 1; }
+/* Bajo los cuidados, entrar a comprar (donde se puede) y la salida al pueblo. */
+.salidas-lugar { display: grid; gap: 10px; }
+
+.boton-pueblo > span,
+.boton-comprar > span { font-size: 1.25rem; line-height: 1; }
 
 /* --- el pueblo --- */
 
@@ -1408,6 +1416,335 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .cuerpo-pueblo { padding: 16px 0 36px; }
 
   .boton-volver { align-self: flex-start; width: auto; min-width: 260px; }
+}
+
+/* --- la tienda --- */
+
+.cuerpo-tienda { padding-top: 14px; }
+
+/* Mientras carga el catálogo, o si no cargó. */
+.espera-tienda {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  text-align: center;
+}
+
+.espera-tienda-texto { color: var(--texto-suave); font-weight: 600; }
+
+.espera-tienda-texto.es-error {
+  padding: 10px 14px;
+  border-radius: var(--radio);
+  background: var(--error-fondo);
+  color: var(--error-texto);
+}
+
+.estante { display: grid; gap: 14px; }
+
+/* Las cuatro secciones: un interruptor que se queda arriba mientras se recorre
+   la lista. El borde del color del fondo tapa lo que pasa por debajo. */
+.pestanas {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radio);
+  background: var(--secundario-hundido);
+  box-shadow: 0 0 0 8px var(--fondo);
+}
+
+.pestana {
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--radio-chico);
+  background: transparent;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pestana[aria-pressed="true"] {
+  background: var(--tarjeta);
+  color: var(--texto);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+
+@media (hover: hover) {
+  .pestana:not([aria-pressed="true"]):hover { color: var(--texto); }
+}
+
+.seccion-tienda { display: grid; gap: 10px; }
+
+.tienda-subtitulo {
+  margin: 6px 0 0;
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Por qué no se puede comprar nada de esta sección. */
+.aviso-de-seccion {
+  padding: 10px 14px;
+  border: 1px solid var(--alerta-borde);
+  border-radius: var(--radio);
+  background: var(--alerta-fondo);
+  color: var(--alerta-texto);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.articulos {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Una fila: el ícono, lo que es y, a la derecha, lo que se puede hacer. La
+   pregunta de comprar ocupa una línea entera, debajo. */
+.articulo {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-content: start;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+/* Un dibujo de cuadros sobre su baldosa. */
+.articulo-icono {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  display: block;
+  border-radius: 10px;
+  background: var(--secundario);
+  image-rendering: pixelated;
+}
+
+.articulo-texto {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.articulo-nombre { font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+
+.articulo-detalle { color: var(--texto-suave); font-size: 0.875rem; line-height: 1.35; }
+
+.articulo-nota { color: var(--alerta-texto); font-size: 0.8125rem; font-weight: 700; line-height: 1.35; }
+
+.articulo-tienes { color: var(--elegido-texto); font-size: 0.8125rem; font-weight: 700; }
+
+.accion { display: flex; justify-content: flex-end; }
+
+.articulo > .accion { grid-column: 3; }
+
+.articulo > .accion.abierta,
+.subfila > .accion.abierta { grid-column: 1 / -1; display: block; }
+
+/* Lo que no se puede comprar se ve apagado, sin botón. */
+.articulo.apagado {
+  border-color: transparent;
+  background: var(--secundario);
+  box-shadow: none;
+}
+
+.articulo.apagado .articulo-icono { background: var(--secundario-hundido); opacity: 0.55; filter: grayscale(0.6); }
+
+.articulo.apagado .articulo-nombre { color: var(--texto-suave); }
+
+/* El precio que se toca para comprar: un botón lleno, que se ve pulsable. */
+.boton-precio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--principal);
+  color: var(--principal-texto);
+  font: inherit;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 var(--principal-hundido);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.boton-precio:active:not([aria-disabled="true"]) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 var(--principal-hundido);
+}
+
+/* Vender no es comprar: un botón claro, con letra roja. */
+.boton-vender {
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--tarjeta);
+  color: var(--error-texto);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .boton-precio:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
+  .boton-vender:not([aria-disabled="true"]):hover { border-color: var(--error-texto); }
+}
+
+/* Mientras va una compra, ningún otro botón compra. */
+.boton-precio[aria-disabled="true"],
+.boton-vender[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
+
+/* El precio de lo que no se vende: se lee, no se toca. */
+.precio-quieto {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 12px;
+  border: 1px dashed var(--borde);
+  border-radius: 999px;
+  color: var(--texto-suave);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ya-lo-tienes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--hecho-fondo);
+  color: var(--hecho-texto);
+  font-size: 0.875rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ya-lo-tienes::before { content: "✓"; content: "✓" / ""; }
+
+/* La pregunta del primer toque, en lugar del botón. */
+.pregunta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--elegido-borde);
+  border-radius: var(--radio-chico);
+  background: var(--elegido);
+}
+
+.pregunta-texto {
+  flex: 1 1 12em;
+  color: var(--elegido-texto);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* Recibe el foco para que se lea; la caja ya la señala. */
+.pregunta-texto:focus { outline: none; }
+
+.pregunta-botones { display: flex; gap: 8px; }
+
+.pregunta .boton-chico { min-width: 88px; }
+
+.pregunta .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
+
+.en-camino { cursor: progress; }
+
+/* Una casa tuya: lo que se le puede hacer, una cosa por línea. */
+.casa-acciones {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--linea);
+}
+
+.subfila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.subfila-texto { font-size: 0.9375rem; font-weight: 600; }
+
+.subfila > .accion { grid-column: 2; }
+
+.subfila > .accion:only-child { grid-column: 1 / -1; }
+
+/* Lo que contesta la tienda: abajo de lo que se ve, aunque la lista siga. */
+.aviso-tienda {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 3;
+  align-self: center;
+  max-width: 100%;
+  font-weight: 700;
+  text-align: center;
+}
+
+.aviso-tienda:not(:empty) {
+  padding: 10px 16px;
+  border-radius: var(--radio);
+  background: var(--barra);
+  color: var(--barra-texto);
+  box-shadow: var(--sombra);
+}
+
+.aviso-tienda.es-error:not(:empty) {
+  border: 1px solid var(--error-texto);
+  background: var(--error-fondo);
+  color: var(--error-texto);
+}
+
+/* En un computador, la lista en dos columnas. */
+@media (min-width: 900px) {
+  #juego[data-pantalla="tienda"] { max-width: 1120px; }
+
+  .cuerpo-tienda { padding: 24px 28px 36px; }
+
+  /* Con dos columnas la lista es corta: las pestañas se quedan en su sitio. */
+  .pestanas { position: static; justify-self: start; width: min(100%, 560px); box-shadow: none; }
+
+  .pestana { font-size: 0.9375rem; }
+
+  .estante .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
 
 /* Quien pidió menos movimiento en su sistema no ve animaciones: lo que

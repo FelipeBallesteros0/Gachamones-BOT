@@ -21,7 +21,7 @@ class ImagenDeMentira {
 globalThis.Image = ImagenDeMentira;
 
 const {
-  cargar, esRutaDeArte, faltante, olvidarLasQueFaltan, pintarPieza, urlDeArte,
+  cargar, esRutaDeArte, faltante, lienzoDePieza, olvidarLasQueFaltan, pintarPieza, urlDeArte,
 } = await import('../../web/static/js/arte.js');
 
 function lienzoDeMentira() {
@@ -145,6 +145,56 @@ test('si la ruta cabe en una línea, no se parte', () => {
   const { ctx, hecho } = lienzoDeMentira();
   faltante(ctx, 0, 0, 1380, 860, 'pueblo/fondo.png');
   assert.deepEqual(escrito(hecho), ['pueblo/fondo.png']);
+});
+
+// --- el lienzo de una pieza suelta ------------------------------------------------
+
+// Lo justo de la página para `lienzoDePieza`: una pantalla de densidad 2 y un
+// `<canvas>` que apunta sus atributos y da el contexto de mentira.
+function conPagina(ctx) {
+  globalThis.window = { devicePixelRatio: 2 };
+  globalThis.document = {
+    createElement: (etiqueta) => ({
+      etiqueta, atributos: {}, style: {}, setAttribute(nombre, valor) { this.atributos[nombre] = valor; },
+      getContext: (tipo) => (tipo === '2d' ? ctx : null),
+    }),
+  };
+}
+
+function sinPagina() {
+  delete globalThis.window;
+  delete globalThis.document;
+}
+
+test('lienzoDePieza da un lienzo que no se lee, con los píxeles de la pantalla, y pinta la pieza sin suavizar', { timeout: 2000 }, async () => {
+  const { ctx, hecho } = lienzoDeMentira();
+  conPagina(ctx);
+  try {
+    const lienzo = lienzoDePieza('iconos/objetos/golosinas.png', 48, 40);
+    assert.equal(lienzo.etiqueta, 'canvas');
+    assert.equal(lienzo.atributos['aria-hidden'], 'true');
+    assert.deepEqual([lienzo.width, lienzo.height], [96, 80]);
+    assert.deepEqual([lienzo.style.width, lienzo.style.height], ['48px', '40px']);
+    const cargada = await cargar('iconos/objetos/golosinas.png');
+    assert.deepEqual(hecho.filter(([n]) => n === 'drawImage'), [['drawImage', cargada.imagen, 0, 0, 96, 80]]);
+    const suavizado = hecho.findIndex(([n, valor]) => n === '=imageSmoothingEnabled' && valor === false);
+    assert.ok(suavizado >= 0 && suavizado < hecho.findIndex(([n]) => n === 'drawImage'));
+  } finally {
+    sinPagina();
+  }
+});
+
+test('lienzoDePieza de una pieza que falta pinta su recuadro con su nombre', { timeout: 2000 }, async () => {
+  const { ctx, hecho } = lienzoDeMentira();
+  conPagina(ctx);
+  try {
+    lienzoDePieza('iconos/objetos/falta.png', 48, 48);
+    await cargar('iconos/objetos/falta.png');
+    assert.equal(hecho.filter(([n]) => n === 'drawImage').length, 0);
+    assert.equal(escrito(hecho).join(''), 'iconos/objetos/falta.png');
+  } finally {
+    sinPagina();
+  }
 });
 
 // --- sólo se piden rutas con forma de pieza del contrato -------------------------

@@ -128,3 +128,59 @@ def test_la_pantalla_del_lugar_dice_donde_estas_y_avisa_lo_del_lugar():
     lugar = (ESTATICOS / "js" / "lugar.js").read_text(encoding="utf-8")
     assert "lugar.nombre" in lugar and "lugar.aviso" in lugar
     assert "escenas/" in lugar
+
+
+# --- la Tienda -------------------------------------------------------------------
+
+def _guion(nombre: str) -> str:
+    return (ESTATICOS / "js" / nombre).read_text(encoding="utf-8")
+
+
+def _sin_comentarios(codigo: str) -> str:
+    codigo = re.sub(r"/\*.*?\*/", "", codigo, flags=re.S)
+    return re.sub(r"(^|\s)//.*$", r"\1", codigo, flags=re.M)
+
+
+def test_la_tienda_esta_y_se_usa():
+    assert {"tienda.js", "compras.js"} <= {g.name for g in GUIONES}
+    principal = _guion("principal.js")
+    assert "./tienda.js" in principal
+    # Una fila más en la tabla de las pantallas.
+    assert re.search(r"^\s*tienda:", principal, re.M)
+
+
+def test_la_tienda_compra_con_reintentos_y_un_evento_por_toque():
+    tienda = _guion("tienda.js")
+    assert "conReintentos" in tienda and "nuevoEvento" in tienda
+    assert "innerHTML" not in tienda and "http" not in tienda
+
+
+def test_los_reintentos_viven_en_api_y_el_lugar_los_usa():
+    assert re.search(r"export\s+(async\s+)?function\s+conReintentos\b", _guion("api.js"))
+    lugar = _guion("lugar.js")
+    assert not re.search(r"function\s+conReintentos\b", lugar)
+    assert "conReintentos(" in lugar
+
+
+def test_desde_la_tienda_del_pueblo_se_entra_a_comprar_y_la_ficha_dice_el_titulo():
+    lugar = _guion("lugar.js")
+    assert "vista: 'tienda'" in lugar or 'vista: "tienda"' in lugar
+    assert "ofrece" in lugar
+    assert re.search(r"\bg\.titulo\b|gachamon\.titulo\b", lugar)
+
+
+def test_las_pantallas_de_la_tienda_no_escriben_precios_ni_claves_del_catalogo():
+    import casas as cas
+    import cosmeticos as cos
+    import objetos as obj
+
+    objetos, cosmeticos = obj.a_la_venta(), cos.CATALOGO.values()
+    casas, muebles = cas.CATALOGO.values(), cas.MUEBLES.values()
+    claves = {p.clave for p in (*objetos, *cosmeticos, *casas, *muebles)}
+    precios = {p.precio for p in (*objetos, *cosmeticos, *casas, *muebles)}
+    for nombre in ("tienda.js", "compras.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        citadas = set(re.findall(r"""['"`]([a-z0-9_]+)['"`]""", codigo))
+        assert not citadas & claves, (nombre, citadas & claves)
+        numeros = {int(n) for n in re.findall(r"(?<![\w.])\d+(?![\w.])", codigo)}
+        assert not numeros & precios, (nombre, numeros & precios)

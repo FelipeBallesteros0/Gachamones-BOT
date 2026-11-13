@@ -6,6 +6,7 @@ import * as entrada from './entrada.js';
 import { lugar } from './lugar.js';
 import { pueblo } from './mapa.js';
 import { hayQueRecargar, siguiente, trasUnFalloAlArrancar } from './pantallas.js';
+import { tienda } from './tienda.js';
 
 const contenedor = document.getElementById('juego');
 
@@ -21,6 +22,7 @@ const PANTALLAS = {
   bautizo: entrada.bautizo,
   lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
+  tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 

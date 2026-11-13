@@ -5,7 +5,8 @@
 // las preguntas es el del juego: sin avatar no se ve nada más, y una muerte
 // pendiente se cuenta antes que el huevo o el bautizo. `vista` es lo que se
 // pidió ver cuando todo está en orden: con `'pueblo'`, el mapa en vez del
-// lugar donde estás.
+// lugar donde estás; con `'tienda'`, la tienda, si el lugar donde estás la
+// ofrece (si no, el lugar); con `'mochila'`, la mochila. Con otra, el lugar.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
@@ -13,7 +14,15 @@ export function siguiente(sesion, cuenta, estado, vista) {
   if (estado.difunto) return 'difunto';
   if (!estado.gachamon) return 'huevo';
   if (estado.gachamon.espera_nombre) return 'bautizo';
-  return vista === 'pueblo' ? 'pueblo' : 'lugar';
+  if (vista === 'pueblo') return 'pueblo';
+  if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : 'lugar';
+  if (vista === 'mochila') return 'mochila';
+  return 'lugar';
+}
+
+// Si en ese lugar (`estado.lugar`) se puede comprar.
+export function ofreceLaTienda(lugar) {
+  return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('tienda');
 }
 
 // Si falla la petición de entrar al lugar al que se acaba de llegar: si el

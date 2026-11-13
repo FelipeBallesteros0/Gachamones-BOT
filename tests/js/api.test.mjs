@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nuevoEvento, pedir, versionDe, versiones } from '../../web/static/js/api.js';
+import {
+  conReintentos, nuevoEvento, pedir, versionDe, versiones,
+} from '../../web/static/js/api.js';
 
 const EVENTO_VALIDO = /^[A-Za-z0-9-]{8,64}$/;
 
@@ -187,4 +189,94 @@ test('sin randomUUID (una página sin https) el evento sigue valiendo', () => {
   } finally {
     delete globalThis.crypto.randomUUID;
   }
+});
+
+// --- los reintentos ------------------------------------------------------------
+
+// Lo que lanza `pedir` cuando no llega una respuesta del juego.
+const NO_LLEGO = { estado: 0, clave: null, mensaje: 'No hay conexión con el juego.' };
+
+// Un `hacer` de mentira: cada llamada hace lo que toca de `pasos` (el último se
+// repite), lanzando lo que no sea una función. Cuenta las veces que se llama.
+const guion = (...pasos) => {
+  const hecho = { veces: 0 };
+  hecho.hacer = async () => {
+    const paso = pasos[Math.min(hecho.veces, pasos.length - 1)];
+    hecho.veces += 1;
+    if (typeof paso !== 'function') throw paso;
+    return paso();
+  };
+  return hecho;
+};
+
+test('conReintentos devuelve a la primera lo que sale bien', async () => {
+  const g = guion(() => ({ ok: true }));
+  assert.deepEqual(await conReintentos(g.hacer), { ok: true });
+  assert.equal(g.veces, 1);
+});
+
+test('lo que no llegó se repite dos veces, tras 800 ms y tras 2 s, y a la tercera se lanza', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const g = guion(NO_LLEGO);
+  let lanzado = null;
+  const intento = conReintentos(g.hacer).catch((error) => { lanzado = error; });
+  await dejarCorrer();
+  assert.equal(g.veces, 1);
+  t.mock.timers.tick(799);
+  await dejarCorrer();
+  assert.equal(g.veces, 1, 'repitió antes de la primera pausa');
+  t.mock.timers.tick(1);
+  await dejarCorrer();
+  assert.equal(g.veces, 2);
+  t.mock.timers.tick(1999);
+  await dejarCorrer();
+  assert.equal(g.veces, 2, 'repitió antes de la segunda pausa');
+  t.mock.timers.tick(1);
+  await intento;
+  assert.equal(g.veces, 3);
+  assert.equal(lanzado, NO_LLEGO);
+  t.mock.timers.tick(60_000);
+  await dejarCorrer();
+  assert.equal(g.veces, 3, 'siguió insistiendo');
+});
+
+test('si lo que no llegó sale bien al repetirlo, se devuelve eso', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const g = guion(NO_LLEGO, () => ({ ok: true, clave: null }));
+  const intento = conReintentos(g.hacer);
+  await dejarCorrer();
+  t.mock.timers.tick(800);
+  assert.deepEqual(await intento, { ok: true, clave: null });
+  assert.equal(g.veces, 2);
+});
+
+test('un error del juego no se repite, ni un 401 aunque no traiga clave', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const error of [
+    { estado: 409, clave: 'no_estas_ahi', mensaje: 'Para eso tienes que estar en la tienda.' },
+    { estado: 503, clave: 'servicio', mensaje: 'El juego no está disponible ahora mismo.' },
+    { estado: 401, clave: 'sin_sesion', mensaje: 'Entra a Rowino para jugar.' },
+    { estado: 401, clave: null, mensaje: 'El juego no contestó.' },
+  ]) {
+    const g = guion(error);
+    await assert.rejects(conReintentos(g.hacer), (lanzado) => lanzado === error);
+    t.mock.timers.tick(60_000);
+    await dejarCorrer();
+    assert.equal(g.veces, 1, `${error.estado} ${error.clave}`);
+  }
+});
+
+test('si tras la pausa sigue() da falso, no se insiste', { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const g = guion(NO_LLEGO, () => ({ ok: true }));
+  let sigue = true;
+  let lanzado = null;
+  const intento = conReintentos(g.hacer, () => sigue).catch((error) => { lanzado = error; });
+  await dejarCorrer();
+  // Mientras espera, se deja la pantalla.
+  sigue = false;
+  t.mock.timers.tick(800);
+  await intento;
+  assert.equal(lanzado, NO_LLEGO);
+  assert.equal(g.veces, 1);
 });
