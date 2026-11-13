@@ -746,6 +746,19 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 .escena-lugar[data-hogar="intemperie"] .ventana::before { display: none; }
 
+/* El dibujo del lugar cubre la escena entera, encima de la pared, el piso y la
+   ventana (que no tienen `z-index`). Va primero en la escena, así que lo que
+   viene después con su mismo `z-index` (el avatar) se pinta encima. */
+.escena-lugar > .escena-fondo {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
 .escena-lugar > .monigote-lugar {
   position: absolute;
   z-index: 1;
@@ -1025,7 +1038,22 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 .medidor-relleno[data-nivel="bajo"] { background: #d93025; }
 
-/* Bajo la ficha: lo que contesta el juego, o la pista de la caricia. */
+/* Bajo la ficha: el aviso del lugar, si lo hay, y lo que contesta el juego. */
+.bajo-la-ficha { display: grid; gap: 12px; }
+
+/* Lo que hay que saber de este lugar: un cartel quieto, no un error. */
+.franja-del-lugar {
+  padding: 10px 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--secundario);
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Lo que contesta el juego, o la pista de la caricia. */
 .avisos-lugar {
   min-height: 1.45em;
   margin: -2px 0;
@@ -1160,7 +1188,11 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
   .medidor-pista { height: 10px; }
 
-  .avisos-lugar { grid-area: avisos; margin: 0; text-align: left; }
+  .bajo-la-ficha { grid-area: avisos; gap: 16px; }
+
+  .franja-del-lugar { text-align: left; }
+
+  .avisos-lugar { margin: 0; text-align: left; }
 
   .cuidados {
     grid-area: cuidados;

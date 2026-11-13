@@ -111,3 +111,9 @@ def test_el_mapa_se_puede_usar_sin_el_lienzo_y_respeta_a_quien_no_quiere_movimie
 def test_desde_un_lugar_se_va_al_pueblo():
     lugar = (ESTATICOS / "js" / "lugar.js").read_text(encoding="utf-8")
     assert "vista: 'pueblo'" in lugar or 'vista: "pueblo"' in lugar
+
+
+def test_la_pantalla_del_lugar_dice_donde_estas_y_avisa_lo_del_lugar():
+    lugar = (ESTATICOS / "js" / "lugar.js").read_text(encoding="utf-8")
+    assert "lugar.nombre" in lugar and "lugar.aviso" in lugar
+    assert "escenas/" in lugar

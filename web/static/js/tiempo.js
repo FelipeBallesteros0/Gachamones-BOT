@@ -1,5 +1,5 @@
 // Lo que la pantalla principal dice con palabras: cuánto falta, qué globo toca,
-// cómo se llama el hogar, cuántas monedas y qué contestó un cuidado (su frase,
+// dónde vive el gachamon, cuántas monedas y qué contestó un cuidado (su frase,
 // si evolucionó y sus medallas). Puro: no toca la página.
 
 // Segundos que faltan, como lo diría una persona y como lo dice el bot
@@ -16,29 +16,33 @@ export function formatoEspera(segundos) {
   return resto ? `${horas} h ${resto} min` : `${horas} h`;
 }
 
-// La misma regla que `globos.elegir` del servidor: una necesidad antes que la
-// charla, y sin repetir `anterior` (un texto) mientras su grupo tenga otra
-// frase; nunca se salta de grupo para no repetir. `azar()` da un número en
+// La regla de `globos.elegir` del servidor, más la llegada: una necesidad
+// antes que nada; si no hay y se acaba de llegar caminando (`llegando`), una
+// frase del lugar, y si no, la charla. Las del lugar no salen nunca fuera de
+// la llegada. No repite `anterior` (un texto) mientras su grupo tenga otra
+// frase, y nunca se salta de grupo para no repetir. `azar()` da un número en
 // [0, 1), como `Math.random`.
-export function elegirGlobo(globos, anterior, azar) {
+export function elegirGlobo(globos, anterior, azar, llegando = false) {
   const lista = Array.isArray(globos) ? globos : [];
-  const necesidades = lista.filter((g) => g.tipo === 'necesidad');
-  const candidatas = necesidades.length ? necesidades : lista.filter((g) => g.tipo === 'suelta');
-  if (!candidatas.length) return null;
+  const deTipo = (tipo) => lista.filter((g) => g.tipo === tipo);
+  const grupos = [deTipo('necesidad'), llegando ? deTipo('lugar') : [], deTipo('suelta')];
+  const candidatas = grupos.find((grupo) => grupo.length);
+  if (!candidatas) return null;
   const otras = candidatas.filter((g) => g.texto !== anterior);
   const entre = otras.length ? otras : candidatas;
   return entre[Math.min(entre.length - 1, Math.floor(azar() * entre.length))];
 }
 
-const HOGARES = {
-  propia: 'Tu casa',
-  refugio: 'Refugio',
-  intemperie: 'A la intemperie',
+const DONDE_VIVE = {
+  propia: 'vive en tu casa',
+  refugio: 'vive en el refugio',
+  intemperie: 'vive a la intemperie',
 };
 
-// `estado.hogar` del servidor (`casas.PROPIA`, `REFUGIO` o `INTEMPERIE`).
-export function nombreDelHogar(hogar) {
-  return Object.hasOwn(HOGARES, hogar) ? HOGARES[hogar] : 'Tu hogar';
+// Para la línea de la ficha, tras el nivel. `hogar` es `estado.hogar` del
+// servidor (`casas.PROPIA`, `REFUGIO` o `INTEMPERIE`); otro, nada.
+export function dondeVive(hogar) {
+  return Object.hasOwn(DONDE_VIVE, hogar) ? DONDE_VIVE[hogar] : '';
 }
 
 // Lo que se dice bajo la ficha tras un cuidado: la frase del juego, salga bien

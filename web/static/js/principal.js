@@ -16,7 +16,7 @@ const PANTALLAS = {
   difunto: entrada.difunto,
   huevo: entrada.huevo,
   bautizo: entrada.bautizo,
-  lugar: (destino, seguir, { estado }) => lugar(destino, estado, seguir),
+  lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };

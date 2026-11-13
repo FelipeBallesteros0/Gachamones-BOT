@@ -1,28 +1,35 @@
-// La pantalla principal: estás en el hogar de tu gachamon, lo ves en grande,
-// te habla en un globo, lo acaricias y lo cuidas.
+// La pantalla principal: el lugar del pueblo donde estás, con su dibujo de
+// fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
+// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo.
 //
-// `lugar(contenedor, estado, seguir)` pinta la pantalla con el estado ya leído
-// y la mantiene al día: vuelve a pedir el estado cada 30 segundos y al volver
-// a la pestaña, baja sola las cuentas de espera de los cuidados y hace hablar
-// al gachamon de vez en cuando. Si lo que llega pide otra pantalla (se murió,
-// hay uno sin nombre, ya no es el mismo) se lo pasa a `seguir`. Todo lo que
-// temporiza se detiene en cuanto la pantalla deja de estar en la página.
+// `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
+// estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
+// segundos y al volver a la pestaña, baja sola las cuentas de espera de los
+// cuidados y hace hablar al gachamon de vez en cuando. Con `llegando` (se
+// acaba de llegar caminando), su primer globo sale enseguida y habla del
+// lugar, salvo que necesite algo. Si lo que llega pide otra pantalla (se
+// murió, hay uno sin nombre, ya no es el mismo) se lo pasa a `seguir`. Todo lo
+// que temporiza se detiene en cuanto la pantalla deja de estar en la página.
 //
-// Las reglas son del servidor: las barras se pintan con lo que dice el estado,
-// sin simular el paso del tiempo, y lo único que corre aquí son las cuentas
-// de espera. Todo texto entra por `el` o por `textContent`.
+// Las reglas son del servidor: en qué lugar estás y qué se avisa ahí, y las
+// barras, que se pintan con lo que dice el estado sin simular el paso del
+// tiempo; lo único que corre aquí son las cuentas de espera. Todo texto entra
+// por `el` o por `textContent`.
 
 import { nuevoEvento, pedir } from './api.js';
+import { cargar, faltante } from './arte.js';
 import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
 import { siguiente } from './pantallas.js';
 import {
-  avisoDelCuidado, avisosDeMedallas, cuantasGemas, cuantasMonedas, elegirGlobo, formatoEspera,
-  nombreDelHogar, seCelebraLaEvolucion,
+  avisoDelCuidado, avisosDeMedallas, cuantasGemas, cuantasMonedas, dondeVive, elegirGlobo,
+  formatoEspera, seCelebraLaEvolucion,
 } from './tiempo.js';
 
 const PEDIR_ESTADO_CADA_MS = 30_000;
 const PRIMER_GLOBO_MS = 2500;
+// Al llegar caminando, el gachamon dice algo del lugar casi en cuanto entras.
+const PRIMER_GLOBO_AL_LLEGAR_MS = 600;
 const GLOBO_CADA_MS = [20_000, 40_000];
 const GLOBO_DURA_MS = 7000;
 const AVISO_DURA_MS = 5000;
@@ -39,6 +46,10 @@ const ALTO_DEL_AVATAR_EN_COMPUTADOR = 168;
 // aplica ni lo paga dos veces. Éstas son las pausas antes de cada reintento.
 const REINTENTOS_MS = [800, 2000];
 const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
+const DENSIDAD_MAXIMA = 3;
+
+// El fondo de la escena de cada lugar, una pieza del contrato del arte.
+const escenaDe = (clave) => `escenas/${clave}.png`;
 
 const CUIDADOS = [
   { accion: 'alimentar', icono: '🍖', nombre: 'Alimentar' },
@@ -87,7 +98,7 @@ function animar(nodo, clase) {
   nodo.classList.add(clase);
 }
 
-export function lugar(contenedor, estado, seguir) {
+export function lugar(contenedor, estado, seguir, llegando = false) {
   const id = estado.gachamon.id;
   let actual = estado;
   let ultimoAhora = -Infinity;
@@ -98,6 +109,7 @@ export function lugar(contenedor, estado, seguir) {
   const oyentes = new AbortController();
   let cadaSegundo = null;
   let cadaTanto = null;
+  let observador = null;
 
   function luego(ms, hacer) {
     const marca = setTimeout(() => {
@@ -120,6 +132,7 @@ export function lugar(contenedor, estado, seguir) {
     clearInterval(cadaSegundo);
     clearInterval(cadaTanto);
     oyentes.abort();
+    if (observador) observador.disconnect();
   }
 
   // Deja la pantalla y que se decida otra: con el estado que llegó, o
@@ -145,6 +158,9 @@ export function lugar(contenedor, estado, seguir) {
 
   // --- la escena ------------------------------------------------------------------
 
+  // El dibujo del lugar va encima de la pared, el piso y la ventana de
+  // siempre, y debajo de todo lo demás.
+  const fondo = el('canvas', { class: 'escena-fondo', 'aria-hidden': 'true' });
   const monigote = el('canvas', { class: 'monigote-lugar', 'aria-hidden': 'true' });
   const retrato = el('img', {
     class: 'retrato', src: estado.gachamon.retrato, alt: estado.gachamon.nombre, draggable: 'false',
@@ -165,6 +181,7 @@ export function lugar(contenedor, estado, seguir) {
   const celebracion = el('div', { class: 'celebracion', role: 'status' });
   const medallas = el('div', { class: 'medallas', role: 'status' });
   const escena = el('div', { class: 'escena escena-lugar' },
+    fondo,
     el('span', { class: 'ventana', 'aria-hidden': 'true' }),
     monigote,
     gachamon,
@@ -191,11 +208,17 @@ export function lugar(contenedor, estado, seguir) {
     detalle,
     el('div', { class: 'medidores' }, medidores.map((m) => m.nodo)));
 
-  // Bajo la ficha: lo que contesta el juego, o, si no hay nada que decir, la
-  // pista de que se le puede acariciar.
+  // Bajo la ficha, primero lo que hay que saber de este lugar (que abre más
+  // adelante, que no tienes casa…), en su franja: no es un error, y se queda
+  // mientras el servidor lo diga; sin aviso, no hay franja.
+  const franjaDelLugar = el('p', { class: 'franja-del-lugar', hidden: true });
+
+  // Después, lo que contesta el juego, o, si no hay nada que decir, la pista de
+  // que se le puede acariciar.
   const aviso = el('p', { class: 'aviso-lugar', 'aria-live': 'polite' });
   const pista = el('p', { class: 'pista-lugar' });
   const avisos = el('div', { class: 'avisos-lugar' }, aviso, pista);
+  const bajoLaFicha = el('div', { class: 'bajo-la-ficha' }, franjaDelLugar, avisos);
 
   // --- los cuidados ---------------------------------------------------------------
 
@@ -222,7 +245,7 @@ export function lugar(contenedor, estado, seguir) {
   const cuerpo = el('div', { class: 'cuerpo cuerpo-lugar' },
     escena,
     ficha,
-    avisos,
+    bajoLaFicha,
     el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),
     alPueblo);
   contenedor.append(cabecera, cuerpo);
@@ -253,7 +276,12 @@ export function lugar(contenedor, estado, seguir) {
 
   function pintar() {
     const g = actual.gachamon;
-    donde.textContent = nombreDelHogar(actual.hogar);
+    donde.textContent = actual.lugar.nombre;
+    ponerFondo(actual.lugar.clave);
+    const avisoDelLugar = actual.lugar.aviso || '';
+    if (franjaDelLugar.textContent !== avisoDelLugar) franjaDelLugar.textContent = avisoDelLugar;
+    franjaDelLugar.hidden = !avisoDelLugar;
+    // Sin el dibujo del lugar, la pared y el piso siguen siendo los del hogar.
     escena.dataset.hogar = actual.hogar;
     escena.dataset.etapa = g.etapa;
 
@@ -273,7 +301,8 @@ export function lugar(contenedor, estado, seguir) {
     titulo.textContent = g.nombre;
     insignia.textContent = segun(g.genero, 'Desfallecido', 'Desfallecida');
     insignia.hidden = !g.desfallecido;
-    detalle.textContent = `${g.nombre_especie} ${g.nombre_etapa} · nivel ${g.nivel}`;
+    const vive = dondeVive(actual.hogar);
+    detalle.textContent = `${g.nombre_especie} ${g.nombre_etapa} · nivel ${g.nivel}${vive ? ` · ${vive}` : ''}`;
     for (const m of medidores) {
       const valor = Number(g.barras[m.clave]) || 0;
       m.cifra.textContent = String(valor);
@@ -292,6 +321,60 @@ export function lugar(contenedor, estado, seguir) {
       callarGlobo();
     }
     contar();
+  }
+
+  // --- el fondo de la escena ----------------------------------------------------------
+
+  // La pieza del lugar donde estás, cuando ya llegó: `{ruta, imagen}`, con
+  // `imagen` en `null` si no se pudo cargar.
+  let rutaDelFondo = null;
+  let piezaDelFondo = null;
+
+  // Si cambió el lugar, el dibujo del anterior se quita en el acto y el nuevo
+  // se pinta en cuanto llega; uno que llega tarde, de un lugar que ya no es,
+  // no se pinta.
+  function ponerFondo(clave) {
+    const ruta = escenaDe(clave);
+    if (ruta === rutaDelFondo) return;
+    rutaDelFondo = ruta;
+    piezaDelFondo = null;
+    dibujarFondo();
+    cargar(ruta).then((cargada) => {
+      if (!vivo || cargada.ruta !== rutaDelFondo) return;
+      piezaDelFondo = cargada;
+      dibujarFondo();
+    });
+  }
+
+  // El dibujo cubre toda la escena sin deformarse: si la escena no tiene su
+  // forma, se recorta lo que sobra por los lados o por arriba y abajo, por
+  // igual. Con los píxeles de la pantalla y sin suavizar, que es un dibujo de
+  // cuadros. Si no cargó, su recuadro deja ver la pared y el piso de debajo.
+  function dibujarFondo() {
+    const ancho = fondo.clientWidth;
+    const alto = fondo.clientHeight;
+    if (!ancho || !alto) return;
+    const densidad = Math.min(Math.max(window.devicePixelRatio || 1, 1), DENSIDAD_MAXIMA);
+    const anchoReal = Math.round(ancho * densidad);
+    const altoReal = Math.round(alto * densidad);
+    // Cambiar el tamaño borra el lienzo: sólo si de verdad cambia.
+    if (fondo.width !== anchoReal) fondo.width = anchoReal;
+    if (fondo.height !== altoReal) fondo.height = altoReal;
+    const ctx = fondo.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, anchoReal, altoReal);
+    if (!piezaDelFondo) return;
+    const { imagen } = piezaDelFondo;
+    if (!imagen) {
+      faltante(ctx, 0, 0, anchoReal, altoReal, piezaDelFondo.ruta);
+      return;
+    }
+    const escala = Math.max(anchoReal / imagen.naturalWidth, altoReal / imagen.naturalHeight);
+    const anchoVisto = anchoReal / escala;
+    const altoVisto = altoReal / escala;
+    ctx.drawImage(imagen,
+      (imagen.naturalWidth - anchoVisto) / 2, (imagen.naturalHeight - altoVisto) / 2, anchoVisto, altoVisto,
+      0, 0, anchoReal, altoReal);
   }
 
   // Cada segundo: las cuentas de los cuidados y la pista de la caricia.
@@ -351,10 +434,12 @@ export function lugar(contenedor, estado, seguir) {
   let anterior = null;
   let globoHasta = null;
 
-  function hablar() {
+  // `alLlegar` vale sólo para el primer globo tras llegar caminando: los que
+  // siguen son la charla de siempre.
+  function hablar(alLlegar = false) {
     luego(GLOBO_CADA_MS[0] + Math.random() * (GLOBO_CADA_MS[1] - GLOBO_CADA_MS[0]), hablar);
     if (document.hidden || celebracion.hasChildNodes()) return;
-    const elegido = elegirGlobo(actual.globos, anterior, Math.random);
+    const elegido = elegirGlobo(actual.globos, anterior, Math.random, alLlegar);
     if (!elegido) return;
     anterior = elegido.texto;
     cancelar(globoHasta);
@@ -558,9 +643,19 @@ export function lugar(contenedor, estado, seguir) {
   );
   ancho.addEventListener('change', repintarMonigote, { signal: oyentes.signal });
 
+  // La escena cambia de tamaño al girar el teléfono o la ventana: el fondo se
+  // vuelve a pintar a su medida.
+  if (typeof ResizeObserver === 'function') {
+    observador = new ResizeObserver(dibujarFondo);
+    observador.observe(fondo);
+  } else {
+    window.addEventListener('resize', dibujarFondo, { signal: oyentes.signal });
+  }
+
   aplicar(estado);
   repintarMonigote();
   cadaSegundo = setInterval(contar, 1000);
   cadaTanto = setInterval(releer, PEDIR_ESTADO_CADA_MS);
-  luego(PRIMER_GLOBO_MS, hablar);
+  if (llegando) luego(PRIMER_GLOBO_AL_LLEGAR_MS, () => hablar(true));
+  else luego(PRIMER_GLOBO_MS, hablar);
 }

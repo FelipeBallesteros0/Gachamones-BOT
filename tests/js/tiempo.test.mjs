@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  formatoEspera, elegirGlobo, nombreDelHogar, cuantasMonedas, cuantasGemas, avisoDelCuidado,
+  formatoEspera, elegirGlobo, dondeVive, cuantasMonedas, cuantasGemas, avisoDelCuidado,
   avisosDeMedallas, seCelebraLaEvolucion,
 } from '../../web/static/js/tiempo.js';
 
@@ -55,10 +55,28 @@ test('para evitar repetir no salta de la necesidad a la charla', () => {
   assert.equal(elegirGlobo([pide, charla], pide.texto, primero), pide);
 });
 
-test('el hogar tiene un nombre que se entiende', () => {
-  assert.equal(nombreDelHogar('propia'), 'Tu casa');
-  assert.equal(nombreDelHogar('refugio'), 'Refugio');
-  assert.equal(nombreDelHogar('intemperie'), 'A la intemperie');
+const delLugar = { tipo: 'lugar', texto: 'Aquí huele a pan.' };
+
+test('al llegar habla del lugar, salvo que necesite algo', () => {
+  for (const azar of [primero, ultimo]) {
+    assert.equal(elegirGlobo([charla, delLugar, charlaOtra], null, azar, true), delLugar);
+    assert.equal(elegirGlobo([charla, delLugar, pide], null, azar, true), pide);
+  }
+});
+
+test('si no está llegando, del lugar no dice nada', () => {
+  for (const azar of [primero, ultimo]) {
+    assert.notEqual(elegirGlobo([charla, delLugar, charlaOtra], null, azar), delLugar);
+    assert.notEqual(elegirGlobo([charla, delLugar, charlaOtra], null, azar, false), delLugar);
+  }
+  assert.equal(elegirGlobo([delLugar], null, primero), null);
+});
+
+test('dónde vive se dice en minúscula y con su preposición', () => {
+  assert.equal(dondeVive('propia'), 'vive en tu casa');
+  assert.equal(dondeVive('refugio'), 'vive en el refugio');
+  assert.equal(dondeVive('intemperie'), 'vive a la intemperie');
+  assert.equal(dondeVive('otra cosa'), '');
 });
 
 test('un cuidado que sale bien dice su frase', () => {
