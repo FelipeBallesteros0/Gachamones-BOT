@@ -19,7 +19,7 @@ def test_quien_llega_esta_en_su_hogar(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     assert cliente.get(ESTADO).json()["lugar"] == {
-        "clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": None,
+        "clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": None, "ofrece": [],
     }
     assert db.lugar_de_cuenta(1) is None
 
@@ -31,6 +31,7 @@ def test_llegar_a_un_lugar_lo_guarda_y_devuelve_el_estado(cliente, monkeypatch):
     assert respuesta.status_code == 200
     assert respuesta.json()["lugar"] == {
         "clave": "estadio", "nombre": "Estadio", "abre": "despues", "aviso": "Esto se abre más adelante.",
+        "ofrece": [],
     }
     assert respuesta.json()["gachamon"]["nombre"] == "Pelusa"
     assert cliente.get(ESTADO).json()["lugar"]["clave"] == "estadio"
@@ -205,7 +206,9 @@ def test_a_la_intemperie_el_refugio_lo_dice_y_el_gachamon_no_habla_del_refugio(c
     assert db.lugar_de_cuenta(1) is None
     for estado in (al_entrar, ir(cliente, "refugio").json(), cliente.get(ESTADO).json()):
         assert estado["hogar"] == "intemperie"
-        assert estado["lugar"] == {"clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": A_LA_INTEMPERIE}
+        assert estado["lugar"] == {"clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": A_LA_INTEMPERIE,
+            "ofrece": [],
+        }
         assert [g for g in estado["globos"] if g["tipo"] == "lugar"] == []
         assert any(g["tipo"] == "suelta" for g in estado["globos"])
 

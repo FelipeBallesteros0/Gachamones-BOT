@@ -55,6 +55,7 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
         "cara": "feliz", "desfallecido": False,
         "retrato": f"/gachamon/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}",
         "esperas": {"alimentar": 0, "jugar": 0, "entrenar": 0, "limpiar": 0, "acariciar": 0},
+        "titulo": None,
     }
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
     assert set(estado) == {"ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar"}
@@ -238,3 +239,22 @@ def test_difunto_visto_exige_cabecera_sesion_y_cuenta(cliente):
     respuesta = cliente.post(url, headers=ESCRIBIR)
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"]["clave"] == "sin_cuenta"
+
+
+def test_el_lugar_dice_lo_que_ofrece_y_el_gachamon_su_titulo(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    nace(genero="hembra")
+    estado = cliente.get(ESTADO).json()
+    assert estado["lugar"]["ofrece"] == [] and estado["gachamon"]["titulo"] is None
+    cliente.post("/gachamon/api/lugar", json={"lugar": "tienda"}, headers=ESCRIBIR)
+    assert cliente.get(ESTADO).json()["lugar"]["ofrece"] == ["tienda"]
+
+
+def test_el_titulo_sale_ya_concordado(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    creado = nace(genero="hembra")
+    with db.conectar() as con:
+        con.execute("UPDATE criaturas SET titulo = 'titulo_invicto' WHERE id = ?", (creado.id,))
+    assert cliente.get(ESTADO).json()["gachamon"]["titulo"] == "la Invicta"

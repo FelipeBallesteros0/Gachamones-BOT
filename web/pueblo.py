@@ -33,6 +33,18 @@ LUGARES: dict[str, Lugar] = {
 }
 
 
+# Lo que se puede hacer en cada lugar, por nombre. Sólo cuenta si el lugar ya abrió.
+OFRECE: dict[str, tuple[str, ...]] = {"tienda": ("tienda",)}
+
+
+def ofrece(clave: str) -> tuple[str, ...]:
+    """Lo que se puede hacer en ese lugar; vacío si no abre `ya` o no ofrece nada."""
+    lugar = LUGARES.get(clave)
+    if lugar is None or lugar.abre != YA:
+        return ()
+    return OFRECE.get(clave, ())
+
+
 def existe(clave: object) -> bool:
     return isinstance(clave, str) and clave in LUGARES
 

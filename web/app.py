@@ -22,7 +22,7 @@ import config
 import db
 import economia
 import retrato
-from web import PREFIJO, cuenta, juego, retratos
+from web import PREFIJO, cuenta, juego, retratos, tienda
 from web.sesion import Persona, persona_actual, problema
 
 ESTATICOS = Path(__file__).resolve().parent / "static"
@@ -228,6 +228,7 @@ def crear_app() -> FastAPI:
 
     app.include_router(cuenta.router, prefix=f"{PREFIJO}/api")
     app.include_router(juego.router, prefix=f"{PREFIJO}/api")
+    app.include_router(tienda.router, prefix=f"{PREFIJO}/api")
     app.include_router(retratos.router, prefix=PREFIJO)
 
     @app.get(f"{PREFIJO}/api/salud")

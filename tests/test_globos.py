@@ -185,3 +185,13 @@ def test_ninguna_frase_de_lugar_anuncia_lo_que_no_pasa(prohibida):
     todas = [f for frases in globos.DEL_LUGAR.values() for f in frases]
     todas += [f for por_lugar in globos.PROPIAS_DEL_LUGAR.values() for frases in por_lugar.values() for f in frases]
     assert not [f for f in todas if prohibida in f.lower()]
+
+
+def test_las_frases_de_la_tienda_son_las_de_una_tienda_abierta():
+    assert globos.DEL_LUGAR["tienda"] == (
+        "Cuántas cosas hay en los estantes.", "Huele a madera y a pintura fresca.", "¿Me compras algo?",
+    )
+    assert globos.PROPIAS_DEL_LUGAR["pollito"]["tienda"] == ("Pío, cuántas cosas.", "Pío… huele a madera nueva.")
+    frases = [f for fs in globos.DEL_LUGAR.values() for f in fs]
+    frases += [f for lugares in globos.PROPIAS_DEL_LUGAR.values() for fs in lugares.values() for f in fs]
+    assert not [f for f in frases if "vacíos" in f or "abrirá" in f]

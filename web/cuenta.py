@@ -5,6 +5,7 @@ Quién eres sale de la sesión y de `db.cuenta_web`, nunca de la petición.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends
@@ -33,6 +34,24 @@ def jugador_actual(persona: Persona = Depends(persona_actual)) -> Jugador:
             409, "sin_cuenta", "Primero tienes que elegir cómo empezar a jugar.",
         )
     return Jugador(persona, cuenta.usuario_id, cuenta.guild_id, cuenta.vinculada)
+
+
+def la_misma_activa(jugador: Jugador, ahora: datetime, sin_ninguno: str) -> None:
+    """Que la acción le caiga al gachamon que el jugador estaba viendo.
+
+    Se mira quién es la activa antes de ponerla al día y quién después: si se
+    murió en esta misma petición, `activa_al_dia` saca al relevo, que el
+    jugador todavía no ha visto, y no se le aplica nada. Una muerte la
+    registra igual quien la deja apuntada para el bot.
+    """
+    antes = db.criatura_activa(jugador.usuario_id, jugador.guild_id)
+    despues = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
+    if antes is None and despues is None:
+        raise problema(409, "sin_gachamon", sin_ninguno)
+    if antes is None or despues is None or antes.id != despues.id:
+        raise problema(
+            409, "sin_gachamon", "Tu gachamon ya no es el mismo. Mira otra vez.",
+        )
 
 
 def _estado(persona: Persona) -> dict:

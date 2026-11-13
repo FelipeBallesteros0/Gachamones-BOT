@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import math
 import re
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends
@@ -15,7 +14,7 @@ import economia
 import nacer
 import simulacion as sim
 from web import estado, pueblo
-from web.cuenta import Jugador, jugador_actual
+from web.cuenta import Jugador, jugador_actual, la_misma_activa
 from web.sesion import con_cabecera, problema
 
 log = logging.getLogger("gachamones")
@@ -27,24 +26,6 @@ EVENTO_VALIDO = re.compile(r"[A-Za-z0-9-]{8,64}")
 def _segundos(espera) -> int:
     """Una espera en segundos enteros, hacia arriba; 0 si no hay."""
     return math.ceil(espera.total_seconds()) if espera else 0
-
-
-def _la_misma_activa(jugador: Jugador, ahora: datetime, sin_ninguno: str) -> None:
-    """Que la acción le caiga al gachamon que el jugador estaba viendo.
-
-    Se mira quién es la activa antes de ponerla al día y quién después: si se
-    murió en esta misma petición, `activa_al_dia` saca al relevo, que el
-    jugador todavía no ha visto, y no se le aplica nada. Una muerte la
-    registra igual quien la deja apuntada para el bot.
-    """
-    antes = db.criatura_activa(jugador.usuario_id, jugador.guild_id)
-    despues = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
-    if antes is None and despues is None:
-        raise problema(409, "sin_gachamon", sin_ninguno)
-    if antes is None or despues is None or antes.id != despues.id:
-        raise problema(
-            409, "sin_gachamon", "Tu gachamon ya no es el mismo. Mira otra vez.",
-        )
 
 
 @router.get("/estado")
@@ -139,7 +120,7 @@ def cuidar(
         raise problema(422, "evento", "Ese identificador de evento no vale.")
     ahora = db.ahora_utc()
     sin_gachamon = "No tienes un gachamon que cuidar."
-    _la_misma_activa(jugador, ahora, sin_gachamon)
+    la_misma_activa(jugador, ahora, sin_gachamon)
     try:
         resultado = economia.ejecutar_cuidado(
             evento, jugador.usuario_id, jugador.guild_id, accion, ahora
@@ -172,7 +153,7 @@ def cuidar(
 def acariciar(jugador: Jugador = Depends(jugador_actual)) -> dict:
     ahora = db.ahora_utc()
     sin_gachamon = "No tienes un gachamon que acariciar."
-    _la_misma_activa(jugador, ahora, sin_gachamon)
+    la_misma_activa(jugador, ahora, sin_gachamon)
     caricia = db.acariciar(jugador.usuario_id, jugador.guild_id, ahora)
     if caricia.criatura is None:
         raise problema(409, "sin_gachamon", sin_gachamon)

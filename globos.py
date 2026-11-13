@@ -114,9 +114,9 @@ DEL_LUGAR: dict[str, tuple[str, ...]] = {
         "Todo está quietito, como si durmiera.",
     ),
     "tienda": (
-        "Los estantes están vacíos todavía.",
+        "Cuántas cosas hay en los estantes.",
         "Huele a madera y a pintura fresca.",
-        "Dicen que abrirá pronto.",
+        "¿Me compras algo?",
     ),
     "plaza": (
         "Qué amplia es la plaza.",
@@ -151,7 +151,7 @@ PROPIAS_DEL_LUGAR: dict[str, dict[str, tuple[str, ...]]] = {
         "casa": ("Pío, qué calentito se está.", "Pío… este rincón me da sueño."),
         "refugio": ("Pío, huele a mantas viejas.", "Pío… aquí hay corriente."),
         "incubadora": ("Pío, huele a cáscara tibia.", "Pío… qué calorcito."),
-        "tienda": ("Pío, los estantes están vacíos.", "Pío… huele a madera nueva."),
+        "tienda": ("Pío, cuántas cosas.", "Pío… huele a madera nueva."),
         "plaza": ("¡Pío! Qué amplia es la plaza.", "Pío, pío… aquí hay mucho sol."),
         "barrio": ("Pío, huele a pan recién hecho.", "Pío… qué tranquilo está."),
         "estadio": ("¡Pío! Las gradas son enormes.", "Pío… el eco me eriza las plumas."),

@@ -7,7 +7,7 @@
     "casa": {"nombre": "Tu casa", "parte": "A", "abre": "ya", "hacia": "a tu casa"},
     "refugio": {"nombre": "Refugio", "parte": "A", "abre": "ya", "hacia": "al refugio"},
     "incubadora": {"nombre": "Incubadora", "parte": "A", "abre": "pronto", "hacia": "a la incubadora"},
-    "tienda": {"nombre": "Tienda", "parte": "A", "abre": "pronto", "hacia": "a la tienda"},
+    "tienda": {"nombre": "Tienda", "parte": "A", "abre": "ya", "hacia": "a la tienda"},
     "plaza": {"nombre": "Plaza", "parte": "B", "abre": "despues", "hacia": "a la plaza"},
     "barrio": {"nombre": "Barrio", "parte": "B", "abre": "despues", "hacia": "al barrio"},
     "estadio": {"nombre": "Estadio", "parte": "B", "abre": "despues", "hacia": "al estadio"},

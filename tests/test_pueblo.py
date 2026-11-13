@@ -1,5 +1,6 @@
 import copy
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -20,7 +21,8 @@ def test_son_los_nueve_lugares_en_su_orden_con_su_parte():
     assert tuple(pueblo.LUGARES) == NUEVE
     assert [l.parte for l in pueblo.LUGARES.values()] == ["A"] * 4 + ["B"] * 5
     assert pueblo.LUGARES["casa"] == pueblo.Lugar("casa", "Tu casa", "A", pueblo.YA)
-    assert pueblo.LUGARES["tienda"].abre == pueblo.PRONTO
+    assert pueblo.LUGARES["tienda"].abre == pueblo.YA
+    assert pueblo.LUGARES["incubadora"].abre == pueblo.PRONTO
     assert all(pueblo.LUGARES[c].abre == pueblo.DESPUES for c in NUEVE[4:])
     assert pueblo.DATOS["nodos"]["casa"] == [75, 330] and pueblo.DATOS["nodos"]["aventura"] == [640, 170]
 
@@ -52,7 +54,7 @@ A_LA_INTEMPERIE = (
 @pytest.mark.parametrize("clave, vinculada, hogar, del_gachamon, frase", [
     ("estadio", True, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante. Por ahora se juega en Discord."),
     ("estadio", False, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante."),
-    ("tienda", True, casas.REFUGIO, casas.REFUGIO, "Aquí todavía no hay nada que hacer. Abre pronto."),
+    ("incubadora", True, casas.REFUGIO, casas.REFUGIO, "Aquí todavía no hay nada que hacer. Abre pronto."),
     ("casa", False, casas.REFUGIO, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
     ("casa", False, casas.INTEMPERIE, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
     ("casa", True, casas.PROPIA, casas.PROPIA, None),
@@ -129,3 +131,11 @@ def test_sin_casa_es_estar_en_tu_casa_sin_tener_una(clave, hogar, vale):
 ])
 def test_a_la_intemperie_es_estar_en_el_refugio_sin_vivir_ya_en_el(clave, del_gachamon, vale):
     assert pueblo.a_la_intemperie(clave, del_gachamon) is vale
+
+
+def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(monkeypatch):
+    assert set(pueblo.OFRECE) <= set(pueblo.LUGARES)
+    assert pueblo.ofrece("tienda") == ("tienda",)
+    assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
+    monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
+    assert pueblo.ofrece("tienda") == ()

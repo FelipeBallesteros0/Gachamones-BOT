@@ -10,6 +10,7 @@ import math
 from dataclasses import asdict
 from datetime import datetime
 
+import cosmeticos as cos
 import db
 import economia
 import especies as esp
@@ -64,6 +65,7 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
             f"{criatura.sombrero or 'sin'}.png?v={retrato.version()}"
         ),
         "esperas": _esperas(criatura, ahora),
+        "titulo": cos.texto_del_titulo(criatura.titulo, criatura.genero) or None,
     }
 
 
@@ -91,6 +93,7 @@ def _lugar(
         "aviso": pueblo.aviso(
             clave, jugador.vinculada, hogar_de_la_persona, hogar_del_gachamon if hay_gachamon else None
         ),
+        "ofrece": list(pueblo.ofrece(clave)),
     }
 
 
