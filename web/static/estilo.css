@@ -1,0 +1,633 @@
+/* Gachamon: primero el celular en vertical, una columna centrada en pantallas
+   más grandes. Colores, bordes y letra se definen una sola vez, aquí. La
+   paleta es la del boceto aprobado de la pantalla principal. */
+
+:root {
+  color-scheme: light;
+
+  --fondo: #f5f5f7;
+  --fondo-fuera: #e3e6eb;
+  --tarjeta: #ffffff;
+  --texto: #1d1d1f;
+  --texto-suave: #6e6e73;
+  --linea: #e1e3e8;
+  --borde: #cfd3d9;
+
+  --barra: #15181c;
+  --barra-texto: #ffffff;
+  --barra-suave: #b9bec6;
+
+  --principal: #2f6fed;
+  --principal-hundido: #2459c9;
+  --principal-texto: #ffffff;
+  --secundario: #eef1f4;
+  --secundario-hundido: #e0e4ea;
+  --elegido: #eaf0fd;
+  --elegido-borde: #2f6fed;
+  --elegido-texto: #1d3f8f;
+  --foco: #2f6fed;
+
+  --pared: #f3e2c0;
+  --piso: #b98a5a;
+  --cielo: #cfe8f7;
+  --pasto: #86c46f;
+
+  --alerta-fondo: #fff4d6;
+  --alerta-borde: #e0a100;
+  --alerta-texto: #4d3700;
+  --error-fondo: #fdecea;
+  --error-texto: #b3261e;
+  --vivo: #34a853;
+
+  --radio-chico: 10px;
+  --radio: 14px;
+  --radio-grande: 22px;
+  --sombra: 0 12px 32px rgba(0, 0, 0, 0.18);
+  --margen: 16px;
+
+  --letra: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --letra-fija: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html {
+  background: var(--fondo-fuera);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--letra);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--texto);
+  background: var(--fondo-fuera);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#juego {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--fondo);
+}
+
+@media (min-width: 520px) {
+  #juego { box-shadow: 0 0 0 1px var(--linea), var(--sombra); }
+}
+
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+h1:focus { outline: none; }
+
+h1 {
+  margin: 0;
+  font-size: 1.625rem;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+p { margin: 0; }
+
+a { color: var(--principal-hundido); font-weight: 600; }
+
+/* --- la barra de arriba, como la del juego --- */
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: env(safe-area-inset-top) var(--margen) 0;
+  background: var(--barra);
+  color: var(--barra-texto);
+  font-weight: 600;
+}
+
+.marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.marca::before {
+  content: "";
+  width: 14px;
+  height: 18px;
+  border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 16%, #fbf4e6 17%);
+  box-shadow: inset 0 0 0 2px #c9b089;
+}
+
+.quien {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--barra-suave);
+  font-size: 0.875rem;
+}
+
+/* --- el cuerpo de cada pantalla --- */
+
+.cuerpo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px var(--margen) calc(28px + env(safe-area-inset-bottom));
+}
+
+.entradilla { color: var(--texto-suave); font-size: 1.0625rem; }
+
+.nota { color: var(--texto-suave); font-size: 0.9375rem; }
+
+.cargando {
+  margin: auto 0;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+.sin-js {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px var(--margen);
+}
+
+/* --- la escena: la pared y el piso del boceto --- */
+
+.escena {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 210px;
+  padding-bottom: 14px;
+  overflow: hidden;
+  border-radius: var(--radio-grande);
+  background: linear-gradient(to bottom, var(--pared) 0, var(--pared) 68%, var(--piso) 68%, var(--piso) 100%);
+}
+
+.escena::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 68%;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.escena.afuera { --pared: var(--cielo); --piso: var(--pasto); }
+
+.escena > canvas,
+.escena > .retrato,
+.escena > .retrato-sin {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.ventana {
+  position: absolute;
+  left: 8%;
+  top: 12%;
+  width: 76px;
+  height: 62px;
+  border: 5px solid #ffffff;
+  border-radius: 4px;
+  background: linear-gradient(#9fd3f0, #d7eefb);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.ventana::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  margin-left: -2px;
+  background: #ffffff;
+}
+
+.placa {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 12px;
+  max-width: 55%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(21, 24, 28, 0.85);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retrato {
+  height: 168px;
+  width: auto;
+  max-width: 88%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  transform-origin: 50% 100%;
+  animation: respira 2.4s ease-in-out infinite;
+}
+
+.retrato-sin { font-size: 96px; line-height: 1.2; }
+
+@keyframes respira {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.02, 0.97); }
+}
+
+/* --- el huevo --- */
+
+.huevo { transform-origin: 50% 92%; }
+
+.huevo.meciendose { animation: mece 3.2s ease-in-out infinite; }
+
+.huevo.temblando { animation: tiembla 0.45s ease-in-out infinite; }
+
+@keyframes mece {
+  0%, 70%, 100% { transform: rotate(0); }
+  76% { transform: rotate(-4deg); }
+  82% { transform: rotate(4deg); }
+  88% { transform: rotate(-2deg); }
+  94% { transform: rotate(1deg); }
+}
+
+@keyframes tiembla {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-7deg); }
+  75% { transform: rotate(7deg); }
+}
+
+/* --- botones --- */
+
+.boton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: var(--radio);
+  background: var(--secundario);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.15s ease;
+}
+
+.boton.principal { background: var(--principal); color: var(--principal-texto); }
+
+.boton:active:not(:disabled) { transform: translateY(1px); }
+
+.boton:disabled { cursor: progress; opacity: 0.75; }
+
+@media (hover: hover) {
+  .boton:hover:not(:disabled) { background: var(--secundario-hundido); }
+  .boton.principal:hover:not(:disabled) { background: var(--principal-hundido); }
+  .opcion:hover:not(:disabled) { border-color: var(--principal); }
+}
+
+.boton-chico {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 0.9375rem;
+}
+
+/* Lo que espera al servidor gira; con menos movimiento, el aro se queda quieto. */
+.esperando::after {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: gira 0.7s linear infinite;
+}
+
+@keyframes gira { to { transform: rotate(360deg); } }
+
+/* --- bienvenida --- */
+
+.zona { display: flex; flex-direction: column; gap: 14px; }
+
+.opciones { display: grid; gap: 10px; }
+
+.opcion {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.opcion::after {
+  content: "›";
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  color: var(--texto-suave);
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.opcion.esperando::after {
+  content: "";
+  width: 18px;
+  height: 18px;
+}
+
+.opcion:disabled { cursor: progress; }
+
+.opcion-icono {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--secundario);
+  font-size: 1.375rem;
+}
+
+.opcion-titulo { font-weight: 700; font-size: 1.0625rem; }
+
+.opcion-texto { color: var(--texto-suave); font-size: 0.9375rem; }
+
+.codigo-caja {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-grande);
+  background: var(--tarjeta);
+  text-align: center;
+}
+
+.codigo-etiqueta {
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.codigo {
+  /* El espacio de la última letra se compensa a la izquierda para centrar. */
+  padding-left: 0.14em;
+  font-family: var(--letra-fija);
+  font-size: clamp(1.75rem, 9vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1.1;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.comando {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.comando code {
+  padding: 8px 12px;
+  border-radius: var(--radio-chico);
+  background: var(--secundario);
+  font-family: var(--letra-fija);
+  font-size: 1rem;
+  font-weight: 700;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.dura {
+  color: var(--texto-suave);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.alerta {
+  padding: 12px 14px;
+  border: 1px solid var(--alerta-borde);
+  border-radius: var(--radio);
+  background: var(--alerta-fondo);
+  color: var(--alerta-texto);
+}
+
+.esperando-vinculo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--texto-suave);
+}
+
+.pulso {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vivo);
+  animation: late 1.4s ease-in-out infinite;
+}
+
+@keyframes late {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* --- formularios --- */
+
+.formulario { display: grid; gap: 18px; }
+
+.campo { display: grid; gap: 6px; }
+
+.etiqueta { font-weight: 700; }
+
+/* 17 px: con menos, el iPhone se acerca solo al escribir. */
+.texto {
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+  color: var(--texto);
+  font: inherit;
+  font-size: 1.0625rem;
+}
+
+.texto:focus-visible { border-color: var(--foco); outline-offset: 1px; }
+
+.grupo {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.grupo legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.eleccion { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--tarjeta);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* La casilla de verdad sigue ahí para el teclado y el lector de pantalla. */
+.chip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip:has(input:checked) {
+  border-color: var(--elegido-borde);
+  background: var(--elegido);
+  color: var(--elegido-texto);
+  box-shadow: inset 0 0 0 1px var(--elegido-borde);
+}
+
+.chip:has(input:focus-visible) {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.muestra {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.error {
+  padding: 10px 12px;
+  border-radius: var(--radio-chico);
+  background: var(--error-fondo);
+  color: var(--error-texto);
+  font-weight: 600;
+}
+
+.reintento { display: grid; gap: 14px; }
+
+/* La vista del avatar se queda arriba mientras se baja por las opciones. */
+.vista-avatar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 calc(-1 * var(--margen));
+  padding: 6px var(--margen) 10px;
+  background: var(--fondo);
+}
+
+.vista-avatar .escena { height: 200px; }
+
+/* --- bautizo --- */
+
+.nacido { display: grid; justify-items: center; gap: 2px; text-align: center; }
+
+.nacido-especie { font-size: 1.25rem; font-weight: 800; }
+
+.nacido-detalle { color: var(--texto-suave); }
+
+/* --- difunto --- */
+
+.lapida {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  width: min(220px, 72%);
+  min-height: 160px;
+  padding: 26px 16px 18px;
+  border-radius: 110px 110px 10px 10px;
+  background: linear-gradient(#bfc4cb, #9ea4ad);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12), 0 5px 0 #5f7f45;
+  color: #22252a;
+  text-align: center;
+}
+
+.lapida-nombre {
+  font-size: 1.375rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.lapida-dias { font-size: 0.875rem; font-weight: 600; }
+
+/* Quien pidió menos movimiento en su sistema no ve animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
