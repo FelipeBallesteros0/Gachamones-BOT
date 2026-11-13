@@ -31,7 +31,6 @@ const ALTO_DEL_GACHAMON = 30;
 const LADO_DE_LA_MARCA = 16;
 const VAIVEN_DE_LA_MARCA = 3;
 const SEGUNDOS_DEL_VAIVEN = 1.1;
-const RADIO_DE_LA_SOMBRA = 10;
 // El nombre de un lugar va en una pastilla que empieza esto bajo su nodo.
 const ETIQUETA_BAJO_EL_NODO = 6;
 // Su letra, en píxeles de pantalla: crece con el mapa, sin pasarse.
@@ -114,13 +113,6 @@ function trazarPastilla(ctx, x, y, ancho, alto) {
   ctx.closePath();
 }
 
-function sombra(ctx, x, y, radio) {
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-  ctx.beginPath();
-  ctx.ellipse(x, y, radio, radio * 0.35, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
 export function pueblo(contenedor, estado, seguir) {
   const aqui = estado.lugar || { clave: null, nombre: '' };
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -149,8 +141,9 @@ export function pueblo(contenedor, estado, seguir) {
   // --- la cabecera: estás en el pueblo, con lo que tienes ----------------------------
 
   const { monedas, gemas } = estado.saldos;
+  const titulo = el('h1', { class: 'donde', tabindex: '-1' }, el('span', { 'aria-hidden': 'true' }, '🗺️'), 'Pueblo');
   const cabecera = el('header', { class: 'barra barra-lugar' },
-    el('h1', { class: 'donde', tabindex: '-1' }, el('span', { 'aria-hidden': 'true' }, '🗺️'), 'Pueblo'),
+    titulo,
     el('span', { class: 'saldos' },
       el('span', { class: 'saldo' },
         el('span', { 'aria-hidden': 'true' }, `🪙 ${monedas}`),
@@ -260,6 +253,30 @@ export function pueblo(contenedor, estado, seguir) {
 
   // --- dibujar ---------------------------------------------------------------------
 
+  // Dónde cae en el lienzo un punto del pueblo, con la cámara de ahora.
+  function aLienzo() {
+    const u = vista.unidad;
+    const [x0, y0] = origen();
+    const izquierda = Math.round(-x0 * u);
+    const arriba = Math.round(-y0 * u);
+    return [(x) => izquierda + x * u, (y) => arriba + y * u];
+  }
+
+  // La pastilla con el nombre de un lugar, en píxeles del lienzo: la misma
+  // cuenta sirve para dibujarla y para saber si se tocó. Deja puesta su letra.
+  function pastilla(ctx, [enX, enY], clave) {
+    const [nx, ny] = datos.nodos[clave];
+    const d = vista.densidad;
+    const tam = Math.round(limitar(LETRA_POR_UNIDAD * vista.escala, LETRA_MINIMA, LETRA_MAXIMA) * d);
+    const texto = datos.lugares[clave].nombre;
+    ctx.font = `700 ${tam}px ${LETRA}`;
+    const alto = Math.round(tam * 1.6);
+    const ancho = Math.round(ctx.measureText(texto).width + tam * 1.2);
+    return {
+      texto, ancho, alto, x: Math.round(enX(nx) - ancho / 2), y: Math.round(enY(ny + ETIQUETA_BAJO_EL_NODO)),
+    };
+  }
+
   function dibujar() {
     const ctx = lienzo.getContext('2d');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -267,11 +284,8 @@ export function pueblo(contenedor, estado, seguir) {
     ctx.clearRect(0, 0, lienzo.width, lienzo.height);
 
     const u = vista.unidad;
-    const [x0, y0] = origen();
-    const izquierda = Math.round(-x0 * u);
-    const arriba = Math.round(-y0 * u);
-    const enX = (x) => izquierda + x * u;
-    const enY = (y) => arriba + y * u;
+    const enLienzo = aLienzo();
+    const [enX, enY] = enLienzo;
     // Una caja del pueblo, con los bordes en píxeles enteros del lienzo.
     const caja = (x, y, ancho, alto) => {
       const a = Math.round(enX(x));
@@ -286,10 +300,7 @@ export function pueblo(contenedor, estado, seguir) {
       pintarPieza(ctx, piezas.lugares.get(clave),
         ...caja(nx - LADO_DEL_LUGAR / 2, ny - LADO_DEL_LUGAR, LADO_DEL_LUGAR, LADO_DEL_LUGAR));
     }
-    for (const clave of porAltura) {
-      const [nx, ny] = datos.nodos[clave];
-      etiqueta(ctx, datos.lugares[clave].nombre, enX(nx), enY(ny + ETIQUETA_BAJO_EL_NODO));
-    }
+    for (const clave of porAltura) etiqueta(ctx, pastilla(ctx, enLienzo, clave));
 
     if (paseo.caminando && paseo.destino !== null) {
       const [nx, ny] = datos.nodos[paseo.destino];
@@ -305,26 +316,17 @@ export function pueblo(contenedor, estado, seguir) {
     // El de más abajo tapa al otro; si están a la par, el avatar va delante.
     const figuras = [
       [paseo.gy, () => dibujarGachamon(ctx, enX(paseo.gx), enY(paseo.gy), u)],
-      [paseo.y, () => {
-        sombra(ctx, enX(paseo.x), enY(paseo.y), RADIO_DE_LA_SOMBRA * u);
-        dibujarAvatar(ctx, piezas.capas, estado.avatar, poseAlCaminar(paseo.t, paseo.caminando),
-          enX(paseo.x), enY(paseo.y), ALTO_DEL_AVATAR * u, paseo.mira < 0);
-      }],
+      [paseo.y, () => dibujarAvatar(ctx, piezas.capas, estado.avatar, poseAlCaminar(paseo.t, paseo.caminando),
+        enX(paseo.x), enY(paseo.y), ALTO_DEL_AVATAR * u, paseo.mira < 0)],
     ];
     figuras.sort((a, b) => a[0] - b[0]);
     for (const [, figura] of figuras) figura();
   }
 
-  // El nombre de un lugar en una pastilla clara, centrado en `x`.
-  function etiqueta(ctx, texto, x, arriba) {
+  // El nombre de un lugar en su pastilla clara (la letra ya la puso `pastilla`).
+  function etiqueta(ctx, { texto, x, y, ancho, alto }) {
     const d = vista.densidad;
-    const tam = Math.round(limitar(LETRA_POR_UNIDAD * vista.escala, LETRA_MINIMA, LETRA_MAXIMA) * d);
-    ctx.font = `700 ${tam}px ${LETRA}`;
-    const alto = Math.round(tam * 1.6);
-    const ancho = Math.round(ctx.measureText(texto).width + tam * 1.2);
-    const izquierda = Math.round(x - ancho / 2);
-    const tope = Math.round(arriba);
-    trazarPastilla(ctx, izquierda, tope, ancho, alto);
+    trazarPastilla(ctx, x, y, ancho, alto);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
     ctx.fill();
     ctx.lineWidth = d;
@@ -333,7 +335,7 @@ export function pueblo(contenedor, estado, seguir) {
     ctx.fillStyle = '#1d1d1f';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(texto, izquierda + ancho / 2, tope + alto / 2 + d / 2);
+    ctx.fillText(texto, x + ancho / 2, y + alto / 2 + d / 2);
   }
 
   // El retrato de siempre, con los pies en (x, y), levantado lo que diga
@@ -342,7 +344,6 @@ export function pueblo(contenedor, estado, seguir) {
   function dibujarGachamon(ctx, x, y, u) {
     const alto = Math.round(ALTO_DEL_GACHAMON * u);
     const sube = quieto() ? 0 : salto(paseo.t, paseo.gcaminando) * u;
-    sombra(ctx, x, y, RADIO_DE_LA_SOMBRA * u);
     const retrato = piezas.retrato;
     if (!retrato) {
       ctx.font = `${alto}px ${LETRA_DE_EMOJI}`;
@@ -425,35 +426,44 @@ export function pueblo(contenedor, estado, seguir) {
     pedirCuadro();
   }
 
-  // Le dice al servidor dónde llegaste y entra con el estado que vuelve.
-  // Mientras tanto, los toques no hacen nada.
-  async function llegar(clave) {
-    if (entrando) return;
+  // Mientras se espera al servidor, al entrar a un lugar o al volver, se ve
+  // la misma espera y no se puede tocar nada: ni caminar ni volver.
+  function esperarAlServidor() {
     entrando = true;
     volver.setAttribute('aria-disabled', 'true');
     rumbo.textContent = '';
     avisar(ENTRANDO);
+  }
+
+  // Le dice al servidor dónde llegaste y entra con el estado que vuelve.
+  async function llegar(clave) {
+    if (entrando) return;
+    esperarAlServidor();
     try {
       const nuevo = await pedir('POST', 'lugar', { lugar: clave });
       if (!sigueAqui()) return;
       irse(nuevo, { llegando: true });
     } catch (error) {
       if (!sigueAqui()) return;
-      entrando = false;
-      volver.removeAttribute('aria-disabled');
+      // Volver a decidir: la pantalla se va y no se reactiva.
       if (trasFallarLaLlegada(error) === 'decidir') {
         irse();
         return;
       }
       // Se queda en el mapa: se puede tocar el lugar otra vez o volver.
+      entrando = false;
+      volver.removeAttribute('aria-disabled');
       avisar(NO_SE_PUDO_ENTRAR, true);
     }
   }
 
+  // Volver al lugar donde estás es volver a decidir con lo que diga el
+  // servidor ahora: las esperas, las barras y los saldos llegan al día.
   volver.addEventListener('click', () => {
-    if (entrando) return;
-    irse(estado);
-  });
+    if (!vivo || entrando) return;
+    esperarAlServidor();
+    irse();
+  }, { signal });
 
   // --- mover la cámara a mano ---------------------------------------------------------
 
@@ -469,10 +479,21 @@ export function pueblo(contenedor, estado, seguir) {
   flechaIzquierda.addEventListener('click', () => mirarHacia(-1), { signal });
   flechaDerecha.addEventListener('click', () => mirarHacia(1), { signal });
 
-  function puntoDelPueblo(evento) {
+  // El lugar bajo el puntero: el de la pastilla con su nombre, que se toca
+  // entera (la de encima si se pisan), o el que diga `lugarEn` por su dibujo.
+  function lugarTocado(evento) {
     const rect = lienzo.getBoundingClientRect();
+    const px = (evento.clientX - rect.left) * vista.densidad;
+    const py = (evento.clientY - rect.top) * vista.densidad;
+    const ctx = lienzo.getContext('2d');
+    const enLienzo = aLienzo();
+    for (let i = porAltura.length - 1; i >= 0; i -= 1) {
+      const { x, y, ancho, alto } = pastilla(ctx, enLienzo, porAltura[i]);
+      if (px >= x && px <= x + ancho && py >= y && py <= y + alto) return porAltura[i];
+    }
     const [x0, y0] = origen();
-    return [x0 + (evento.clientX - rect.left) / vista.escala, y0 + (evento.clientY - rect.top) / vista.escala];
+    return lugarEn(datos, x0 + (evento.clientX - rect.left) / vista.escala,
+      y0 + (evento.clientY - rect.top) / vista.escala);
   }
 
   // Un toque que no se arrastra es tocar lo que haya debajo; arrastrar mueve
@@ -494,7 +515,7 @@ export function pueblo(contenedor, estado, seguir) {
     if (!toque || evento.pointerId !== toque.id) {
       // Con el ratón, la mano dice qué se puede tocar.
       if (evento.pointerType === 'mouse') {
-        lienzo.classList.toggle('sobre-un-lugar', Boolean(lugarEn(datos, ...puntoDelPueblo(evento))));
+        lienzo.classList.toggle('sobre-un-lugar', Boolean(lugarTocado(evento)));
       }
       return;
     }
@@ -513,7 +534,7 @@ export function pueblo(contenedor, estado, seguir) {
     const { arrastra } = toque;
     toque = null;
     if (arrastra) return;
-    const clave = lugarEn(datos, ...puntoDelPueblo(evento));
+    const clave = lugarTocado(evento);
     if (clave) tocarLugar(clave);
   }, { signal });
 
@@ -538,29 +559,47 @@ export function pueblo(contenedor, estado, seguir) {
       const boton = el('button', {
         type: 'button', class: 'lugar-del-pueblo', 'aria-current': estasAqui ? 'location' : null,
       }, estasAqui ? el('span', { 'aria-hidden': 'true' }, '📍') : null, datos.lugares[clave].nombre);
-      boton.addEventListener('click', () => tocarLugar(clave));
+      boton.addEventListener('click', () => tocarLugar(clave), { signal });
       return el('li', {}, boton);
     }));
     irA.hidden = false;
   }
 
+  // Dice que el pueblo no cargó, y devuelve el botón de reintentar.
   function mostrarFallo() {
     const reintentar = el('button', { type: 'button', class: 'boton boton-chico' }, 'Volver a intentarlo');
-    reintentar.addEventListener('click', () => preparar());
+    reintentar.addEventListener('click', () => {
+      // El botón se borra al reintentar: el foco espera en el título.
+      titulo.focus({ preventScroll: true });
+      preparar(true);
+    }, { signal });
     espera.replaceChildren(el('p', { class: 'mapa-espera-texto es-error', role: 'alert' }, NO_SE_PUDO_CARGAR), reintentar);
+    return reintentar;
   }
 
-  async function preparar() {
+  // Tras reintentar, el foco pasa del título a lo que haya ahora, salvo que
+  // quien juega ya lo haya llevado a otra parte.
+  function enfocarTrasReintentar(nodo) {
+    const activo = document.activeElement;
+    if (nodo && (!activo || activo === titulo || activo === document.body)) nodo.focus({ preventScroll: true });
+  }
+
+  async function preparar(trasReintentar = false) {
     espera.replaceChildren(el('p', { class: 'mapa-espera-texto', role: 'status' }, CARGANDO));
     let leidos;
     try {
       leidos = await leerElPueblo();
     } catch {
-      if (sigueAqui()) mostrarFallo();
+      if (!sigueAqui()) return;
+      const reintentar = mostrarFallo();
+      if (trasReintentar) enfocarTrasReintentar(reintentar);
       return;
     }
     if (!sigueAqui()) return;
     if (!datos) armarElPueblo(leidos);
+    if (trasReintentar) {
+      enfocarTrasReintentar(lista.querySelector('[aria-current]') || lista.querySelector('button'));
+    }
     // El arte nunca falla: lo que no carga se dibuja como su recuadro.
     const claves = Object.keys(datos.lugares);
     const [fondo, marca, lugares, capas, retrato] = await Promise.all([
