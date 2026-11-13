@@ -79,3 +79,11 @@ def test_el_cuerpo_no_puede_decir_de_quien_es_el_lugar(cliente, monkeypatch):
     alta(cliente, 2, nombre="Ana")
     cliente.post(LUGAR, headers=ESCRIBIR, json={"lugar": "plaza", "rowino_uid": 1, "usuario_id": "-1"})
     assert db.lugar_de_cuenta(1) is None and db.lugar_de_cuenta(2) == "plaza"
+
+
+def test_el_estado_trae_las_frases_del_lugar_donde_estas(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    antes = [g for g in cliente.get(ESTADO).json()["globos"] if g["tipo"] == "lugar"]
+    en_la_plaza = [g for g in ir(cliente, "plaza").json()["globos"] if g["tipo"] == "lugar"]
+    assert antes and en_la_plaza and {g["texto"] for g in antes} != {g["texto"] for g in en_la_plaza}

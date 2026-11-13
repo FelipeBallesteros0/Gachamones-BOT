@@ -96,6 +96,7 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
     hogar = db.hogar_leido(jugador.usuario_id, jugador.guild_id, ahora)
     estado_hogar = hogar.estado_de(None if activa is None else activa.casa_id, ahora)
+    lugar = _lugar(jugador, estado_hogar)
     return {
         "ahora": ahora.isoformat(),
         "persona": {
@@ -107,7 +108,7 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         "gachamon": None if activa is None else ficha(activa, ahora),
         "difunto": _difunto(jugador),
         "globos": [] if activa is None else [
-            {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa)
+            {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, lugar["clave"])
         ],
-        "lugar": _lugar(jugador, estado_hogar),
+        "lugar": lugar,
     }

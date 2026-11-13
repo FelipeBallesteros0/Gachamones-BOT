@@ -152,6 +152,7 @@ Instala el hook local cuando prepares el entorno:
 - Quién escribió `/vincular` es la única prueba de identidad: el código lo pide la cuenta de Rowino y lo canjea la persona de Discord.
 - La web nunca habla en Discord: la muerte que registra queda apuntada en `muertes_por_anunciar` y la anuncia el bucle del bot en su siguiente vuelta.
 - Lo que el gachamon dice por su cuenta son frases escritas en `globos.py`, nunca una llamada a la IA, y un globo no anuncia nada que no esté pasando.
+- Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
 
 ## Arte ASCII
 

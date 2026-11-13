@@ -22,6 +22,7 @@ UMBRAL_NECESIDAD = 40.0
 
 NECESIDAD = "necesidad"
 SUELTA = "suelta"
+LUGAR = "lugar"
 
 
 @dataclass(frozen=True)
@@ -93,16 +94,83 @@ PROPIAS: dict[str, dict[str, tuple[str, ...]]] = {
     },
 }
 
+# Lo que dice de cada lugar del pueblo: cómo es, a qué huele, qué se oye. Nada de
+# lo que se hace ahí ni de quién hay. Las claves son las de `web/pueblo.py`
+# (una prueba vigila que coincidan); este módulo no lo importa.
+DEL_LUGAR: dict[str, tuple[str, ...]] = {
+    "casa": (
+        "Qué calentito se está aquí.",
+        "Este rincón me da sueño.",
+        "Aquí se oye el silencio de las casas.",
+    ),
+    "refugio": (
+        "Huele a mantas viejas.",
+        "Aquí siempre hay un poco de corriente.",
+        "Es un lugar sencillo, pero abriga.",
+    ),
+    "incubadora": (
+        "Aquí hace un calorcito muy suave.",
+        "Huele a cáscara tibia.",
+        "Todo está quietito, como si durmiera.",
+    ),
+    "tienda": (
+        "Los estantes están vacíos todavía.",
+        "Huele a madera y a pintura fresca.",
+        "Dicen que abrirá pronto.",
+    ),
+    "plaza": (
+        "Qué amplia es la plaza.",
+        "Se oye el eco de mis pasitos.",
+        "Aquí da el sol a todas horas.",
+    ),
+    "barrio": (
+        "Las calles huelen a pan recién hecho.",
+        "Qué tranquilo está el barrio.",
+        "Me gustan estos faroles.",
+    ),
+    "estadio": (
+        "Las gradas son enormes.",
+        "Se me eriza todo con este eco.",
+        "Qué grande se ve el campo desde aquí.",
+    ),
+    "cementerio": (
+        "Qué silencio hay aquí.",
+        "Huele a tierra húmeda.",
+        "Las piedras están frías y quietas.",
+    ),
+    "aventura": (
+        "Desde aquí se ve el camino largo.",
+        "Sopla un viento que huele a lejos.",
+        "El horizonte se ve enorme.",
+    ),
+}
+
+# Como PROPIAS: lo que una especie diga en un lugar manda sobre lo común, para ese lugar.
+PROPIAS_DEL_LUGAR: dict[str, dict[str, tuple[str, ...]]] = {
+    "pollito": {
+        "casa": ("Pío, qué calentito se está.", "Pío… este rincón me da sueño."),
+        "refugio": ("Pío, huele a mantas viejas.", "Pío… aquí hay corriente."),
+        "incubadora": ("Pío, huele a cáscara tibia.", "Pío… qué calorcito."),
+        "tienda": ("Pío, los estantes están vacíos.", "Pío… huele a madera nueva."),
+        "plaza": ("¡Pío! Qué amplia es la plaza.", "Pío, pío… aquí hay mucho sol."),
+        "barrio": ("Pío, huele a pan recién hecho.", "Pío… qué tranquilo está."),
+        "estadio": ("¡Pío! Las gradas son enormes.", "Pío… el eco me eriza las plumas."),
+        "cementerio": ("Pío… qué silencio.", "Pío, huele a tierra húmeda."),
+        "aventura": ("¡Pío! El camino se ve larguísimo.", "Pío, pío… sopla un viento de lejos."),
+    },
+}
+
 
 def _frases(criatura: sim.Criatura, clave: str) -> tuple[str, ...]:
     propias = PROPIAS.get(criatura.especie, {})
     return propias.get(clave, COMUNES[clave])
 
 
-def de(criatura: sim.Criatura) -> tuple[Globo, ...]:
+def de(criatura: sim.Criatura, lugar: str | None = None) -> tuple[Globo, ...]:
     """Todo lo que puede decir ahora, concordado con su género.
 
-    Primero lo que necesita y después la charla. Con la comida en 0 se dice
+    Primero lo que necesita, luego lo del lugar donde está (si `lugar` es uno
+    de `DEL_LUGAR`) y al final la charla. Con la comida en 0 se dice
     «desfallecido» en vez de «hambre». Una criatura muerta no dice nada.
     """
     if not criatura.viva:
@@ -121,6 +189,9 @@ def de(criatura: sim.Criatura) -> tuple[Globo, ...]:
         for clave in necesidades
         for frase in _frases(criatura, clave)
     ]
+    if lugar in DEL_LUGAR:
+        frases = PROPIAS_DEL_LUGAR.get(criatura.especie, {}).get(lugar, DEL_LUGAR[lugar])
+        salida += [Globo(LUGAR, esp.concordar(frase, criatura.genero)) for frase in frases]
     salida += [Globo(SUELTA, esp.concordar(frase, criatura.genero)) for frase in _frases(criatura, "suelta")]
     return tuple(salida)
 
