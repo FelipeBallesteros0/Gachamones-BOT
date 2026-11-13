@@ -97,6 +97,8 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
     hogar = db.hogar_leido(jugador.usuario_id, jugador.guild_id, ahora)
     estado_hogar = hogar.estado_de(None if activa is None else activa.casa_id, ahora)
     lugar = _lugar(jugador, estado_hogar)
+    # Sin casa propia, «Tu casa» avisa que no la hay: el gachamon no habla de ella.
+    del_lugar = None if pueblo.sin_casa(lugar["clave"], estado_hogar) else lugar["clave"]
     return {
         "ahora": ahora.isoformat(),
         "persona": {
@@ -108,7 +110,7 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         "gachamon": None if activa is None else ficha(activa, ahora),
         "difunto": _difunto(jugador),
         "globos": [] if activa is None else [
-            {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, lugar["clave"])
+            {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, del_lugar)
         ],
         "lugar": lugar,
     }

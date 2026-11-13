@@ -41,6 +41,11 @@ def de_partida(hogar: str) -> str:
     return "casa" if hogar == casas.PROPIA else "refugio"
 
 
+def sin_casa(clave: str, hogar: str) -> bool:
+    """Está en «Tu casa» sin tener una propia."""
+    return clave == "casa" and hogar != casas.PROPIA
+
+
 def aviso(clave: str, vinculada: bool, hogar: str) -> str | None:
     abre = LUGARES[clave].abre
     if abre == DESPUES:
@@ -49,7 +54,7 @@ def aviso(clave: str, vinculada: bool, hogar: str) -> str | None:
         return "Esto se abre más adelante."
     if abre == PRONTO:
         return "Aquí todavía no hay nada que hacer. Abre pronto."
-    if clave == "casa" and hogar != casas.PROPIA:
+    if sin_casa(clave, hogar):
         return "Todavía no tienes casa. Se compran en la tienda."
     return None
 

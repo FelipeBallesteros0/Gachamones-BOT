@@ -1,6 +1,8 @@
 import pytest
 
+import casas
 import db
+import economia
 from ayudas_web import ESCRIBIR, alta, con_gachamon, entrar, poner_reloj
 from web import pueblo
 
@@ -87,3 +89,29 @@ def test_el_estado_trae_las_frases_del_lugar_donde_estas(cliente, monkeypatch):
     antes = [g for g in cliente.get(ESTADO).json()["globos"] if g["tipo"] == "lugar"]
     en_la_plaza = [g for g in ir(cliente, "plaza").json()["globos"] if g["tipo"] == "lugar"]
     assert antes and en_la_plaza and {g["texto"] for g in antes} != {g["texto"] for g in en_la_plaza}
+
+
+def test_en_tu_casa_sin_casa_propia_el_gachamon_no_habla_de_la_casa(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    estado = ir(cliente, "casa").json()
+    assert estado["lugar"]["aviso"] == "Todavía no tienes casa. Se compran en la tienda."
+    assert [g for g in estado["globos"] if g["tipo"] == "lugar"] == []
+    assert any(g["tipo"] == "suelta" for g in estado["globos"])
+    assert [g for g in cliente.get(ESTADO).json()["globos"] if g["tipo"] == "lugar"] == []
+
+
+def test_en_tu_casa_con_casa_propia_si_habla_de_ella(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    cuenta = db.cuenta_web(1)
+    with db.conectar() as con:
+        economia._asegurar_monedero(con, cuenta.usuario_id, cuenta.guild_id)
+        con.execute(
+            "UPDATE monederos SET asciicoins = 9000 WHERE usuario_id = ? AND guild_id = ?",
+            (cuenta.usuario_id, cuenta.guild_id),
+        )
+    economia.comprar_casa(cuenta.usuario_id, cuenta.guild_id, casas.CATALOGO["grande"], reloj())
+    estado = ir(cliente, "casa").json()
+    assert estado["lugar"]["aviso"] is None
+    assert [g for g in estado["globos"] if g["tipo"] == "lugar"] != []

@@ -77,3 +77,15 @@ def test_los_datos_rotos_se_notan():
 @pytest.mark.parametrize("clave", ["ancho", "alto", "velocidad", "hueco", "lugares", "nodos", "aristas"])
 def test_una_clave_que_falta_es_un_problema_y_no_una_excepcion(clave):
     assert _roto(lambda d: d.pop(clave))
+
+
+@pytest.mark.parametrize("clave,hogar,vale", [
+    ("casa", "refugio", True),
+    ("casa", "intemperie", True),
+    ("casa", "propia", False),
+    ("refugio", "refugio", False),
+    ("plaza", "intemperie", False),
+    ("tienda", "refugio", False),
+])
+def test_sin_casa_es_estar_en_tu_casa_sin_tener_una(clave, hogar, vale):
+    assert pueblo.sin_casa(clave, hogar) is vale
