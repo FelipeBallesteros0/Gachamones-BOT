@@ -178,9 +178,53 @@ def test_las_pantallas_de_la_tienda_no_escriben_precios_ni_claves_del_catalogo()
     casas, muebles = cas.CATALOGO.values(), cas.MUEBLES.values()
     claves = {p.clave for p in (*objetos, *cosmeticos, *casas, *muebles)}
     precios = {p.precio for p in (*objetos, *cosmeticos, *casas, *muebles)}
-    for nombre in ("tienda.js", "compras.js"):
+    # `articulos.js` lleva lo que la tienda comparte con la mochila.
+    for nombre in ("tienda.js", "compras.js", "articulos.js"):
         codigo = _sin_comentarios(_guion(nombre))
         citadas = set(re.findall(r"""['"`]([a-z0-9_]+)['"`]""", codigo))
         assert not citadas & claves, (nombre, citadas & claves)
         numeros = {int(n) for n in re.findall(r"(?<![\w.])\d+(?![\w.])", codigo)}
         assert not numeros & precios, (nombre, numeros & precios)
+
+
+# --- la mochila ------------------------------------------------------------------
+
+def test_la_mochila_esta_y_se_usa():
+    assert "mochila.js" in {g.name for g in GUIONES}
+    principal = _guion("principal.js")
+    assert "./mochila.js" in principal
+    # Una fila más en la tabla de las pantallas.
+    assert re.search(r"^\s*mochila:", principal, re.M)
+
+
+def test_la_mochila_usa_con_reintentos_y_un_evento_por_toque():
+    mochila = _guion("mochila.js")
+    assert "conReintentos" in mochila and "nuevoEvento" in mochila
+    assert "innerHTML" not in mochila and "http" not in mochila
+
+
+def test_un_uso_sin_respuesta_no_dice_que_no_se_hizo_y_vuelve_a_pedir_la_lista():
+    mochila = _guion("mochila.js")
+    # Pudo haberse usado igual: la frase no lo niega, y lo de antes no se repinta.
+    assert "No hubo respuesta. Revisa tu conexión." in mochila
+    assert "No se pudo usar" not in mochila
+    assert ".releer()" in mochila
+    # La relectura se reintenta, en la pieza que comparte con la tienda.
+    assert "conReintentos(" in _guion("articulos.js")
+
+
+def test_desde_cualquier_lugar_se_abre_la_mochila():
+    lugar = _guion("lugar.js")
+    assert "vista: 'mochila'" in lugar or 'vista: "mochila"' in lugar
+
+
+def test_ningun_archivo_del_cliente_escribe_una_clave_del_catalogo_de_objetos():
+    import objetos as obj
+
+    claves = set(obj.CATALOGO)
+    for archivo in [ESTATICOS / "index.html", *GUIONES]:
+        codigo = _sin_comentarios(archivo.read_text(encoding="utf-8"))
+        # El nombre de una clase de CSS (la placa del bautizo) no es una cosa del catálogo.
+        codigo = re.sub(r"""\bclass\s*[:=]\s*(['"])[^'"]*\1""", "", codigo)
+        citadas = set(re.findall(r"""['"`]([a-z0-9_]+)['"`]""", codigo))
+        assert not citadas & claves, (archivo.name, citadas & claves)

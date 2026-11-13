@@ -5,6 +5,7 @@ import { pedir, versiones } from './api.js';
 import * as entrada from './entrada.js';
 import { lugar } from './lugar.js';
 import { pueblo } from './mapa.js';
+import { mochila } from './mochila.js';
 import { hayQueRecargar, siguiente, trasUnFalloAlArrancar } from './pantallas.js';
 import { tienda } from './tienda.js';
 
@@ -23,6 +24,7 @@ const PANTALLAS = {
   lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
+  mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 

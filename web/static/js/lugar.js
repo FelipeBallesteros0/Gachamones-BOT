@@ -1,7 +1,7 @@
 // La pantalla principal: el lugar del pueblo donde estás, con su dibujo de
 // fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
-// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo o, donde el
-// lugar tiene la tienda, entras a comprar.
+// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo, abres la
+// mochila o, donde el lugar tiene la tienda, entras a comprar.
 //
 // `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
 // estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
@@ -233,7 +233,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     return cuidado;
   });
 
-  // --- comprar, donde el lugar lo ofrece, e ir al pueblo ----------------------
+  // --- comprar, donde el lugar lo ofrece, la mochila e ir al pueblo ----------
 
   // Se ve sólo mientras el lugar donde estás tenga la tienda.
   const aComprar = el('button', { type: 'button', class: 'boton principal boton-comprar', hidden: true },
@@ -250,12 +250,20 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     seguir(actual, { vista: 'pueblo' });
   });
 
+  // La mochila se abre desde cualquier lugar.
+  const aLaMochila = el('button', { type: 'button', class: 'boton boton-mochila' },
+    el('span', { 'aria-hidden': 'true' }, '🎒'), 'Mochila');
+  aLaMochila.addEventListener('click', () => {
+    parar();
+    seguir(actual, { vista: 'mochila' });
+  });
+
   const cuerpo = el('div', { class: 'cuerpo cuerpo-lugar' },
     escena,
     ficha,
     bajoLaFicha,
     el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),
-    el('div', { class: 'salidas-lugar' }, aComprar, alPueblo));
+    el('div', { class: 'salidas-lugar' }, aComprar, aLaMochila, alPueblo));
   contenedor.append(cabecera, cuerpo);
 
   // --- pintar lo que dice el estado -----------------------------------------------

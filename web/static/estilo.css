@@ -1223,10 +1223,14 @@ a { color: var(--principal-hundido); font-weight: 600; }
   .cuidado-espera { font-size: 0.875rem; }
 }
 
-/* Bajo los cuidados, entrar a comprar (donde se puede) y la salida al pueblo. */
-.salidas-lugar { display: grid; gap: 10px; }
+/* Bajo los cuidados, entrar a comprar (donde se puede) a lo ancho, y debajo la
+   mochila y la salida al pueblo, las dos en una fila. */
+.salidas-lugar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+.boton-comprar { grid-column: 1 / -1; }
 
 .boton-pueblo > span,
+.boton-mochila > span,
 .boton-comprar > span { font-size: 1.25rem; line-height: 1; }
 
 /* --- el pueblo --- */
@@ -1576,8 +1580,10 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .articulo.apagado .articulo-nombre { color: var(--texto-suave); }
 
-/* El precio que se toca para comprar: un botón lleno, que se ve pulsable. */
-.boton-precio {
+/* El precio que se toca para comprar, y «Usar» en la mochila: un botón lleno,
+   que se ve pulsable. */
+.boton-precio,
+.boton-usar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1597,7 +1603,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   touch-action: manipulation;
 }
 
-.boton-precio:active:not([aria-disabled="true"]) {
+.boton-precio:active:not([aria-disabled="true"]),
+.boton-usar:active:not([aria-disabled="true"]) {
   transform: translateY(1px);
   box-shadow: 0 1px 0 var(--principal-hundido);
 }
@@ -1617,12 +1624,14 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 }
 
 @media (hover: hover) {
-  .boton-precio:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
+  .boton-precio:not([aria-disabled="true"]):hover,
+  .boton-usar:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
   .boton-vender:not([aria-disabled="true"]):hover { border-color: var(--error-texto); }
 }
 
-/* Mientras va una compra, ningún otro botón compra. */
+/* Mientras va una compra (o un uso), ningún otro botón compra (ni usa). */
 .boton-precio[aria-disabled="true"],
+.boton-usar[aria-disabled="true"],
 .boton-vender[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
 
 /* El precio de lo que no se vende: se lee, no se toca. */
@@ -1684,6 +1693,14 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .pregunta .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
 
+/* La placa de la mochila: en vez de la pregunta, el campo del nombre nuevo, a
+   lo ancho, con los botones debajo. */
+.pregunta-campo { flex: 1 1 100%; gap: 4px; }
+
+.pregunta-campo .etiqueta { color: var(--elegido-texto); }
+
+.pregunta-campo .texto { min-height: 48px; }
+
 .en-camino { cursor: progress; }
 
 /* Una casa tuya: lo que se le puede hacer, una cosa por línea. */
@@ -1733,9 +1750,22 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   color: var(--error-texto);
 }
 
+/* --- la mochila: las filas, la pregunta y el aviso son los de la tienda --- */
+
+/* Sin nada que llevar: la frase en un hueco, donde estaría la lista. */
+.mochila-vacia {
+  padding: 28px 20px;
+  border: 1px dashed var(--borde);
+  border-radius: var(--radio);
+  color: var(--texto-suave);
+  font-weight: 600;
+  text-align: center;
+}
+
 /* En un computador, la lista en dos columnas. */
 @media (min-width: 900px) {
-  #juego[data-pantalla="tienda"] { max-width: 1120px; }
+  #juego[data-pantalla="tienda"],
+  #juego[data-pantalla="mochila"] { max-width: 1120px; }
 
   .cuerpo-tienda { padding: 24px 28px 36px; }
 
@@ -1744,7 +1774,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
   .pestana { font-size: 0.9375rem; }
 
-  .estante .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .estante .articulos,
+  .cuerpo-mochila .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
 
 /* Quien pidió menos movimiento en su sistema no ve animaciones: lo que

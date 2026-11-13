@@ -10,23 +10,23 @@
 // que contesta pide otra pantalla (sin sesión, ya no estás en la tienda, tu
 // gachamon cambió) se vuelve a decidir con `seguir`. Al salir se deja de
 // temporizar, y una respuesta que llega tarde no pinta ni llama a `seguir`.
-// Todo texto entra por `el` o por `textContent`.
+// La cabecera, las filas, la pregunta, el aviso y la espera del catálogo son
+// los de `articulos.js`, que comparte con la mochila. Todo texto entra por
+// `el` o por `textContent`.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
-import { lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
+import { olvidarLasQueFaltan } from './arte.js';
+import {
+  GEMAS, MONEDAS, cabeceraConSaldos, cajaDePregunta, filaDeArticulo as fila, hayQueDecidirDeNuevo,
+  linea, listaQueSePide, mensajeDe, pideOtraPantalla, zonaDeAviso,
+} from './articulos.js';
 import {
   loQueTraeLaCasa, preguntaDeCompra, preguntaDeMejora, preguntaDeVenta, quienesViven,
 } from './compras.js';
 import { el } from './dom.js';
-import { siguiente } from './pantallas.js';
-import { cuantasGemas, cuantasMonedas } from './tiempo.js';
-
-const LADO_DEL_ICONO = 48;
-const AVISO_DURA_MS = 6000;
 
 const CARGANDO = 'Cargando la tienda…';
 const NO_SE_PUDO_COMPRAR = 'No se pudo comprar. Revisa tu conexión.';
-const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
 const MUEBLES_SIN_CASA = 'Los muebles van en una casa, y todavía no tienes.';
 
 const SECCIONES = [
@@ -39,40 +39,22 @@ const SECCIONES = [
 // Lo que se dice de cada cosmético bajo su nombre, según su tipo.
 const TIPO_DE_COSMETICO = { sombrero: 'Sombrero', titulo: 'Título' };
 
-// Los cosméticos se pagan con gemas; lo demás, con monedas.
-const MONEDAS = { simbolo: '🪙', palabra: 'monedas', cuantas: cuantasMonedas };
-const GEMAS = { simbolo: '💎', palabra: 'gemas', cuantas: cuantasGemas };
+// Los cosméticos se pagan con gemas (`GEMAS`); lo demás, con monedas (`MONEDAS`).
 
 // La sección que se veía la última vez, mientras dure la página.
 let seccionVista = SECCIONES[0].clave;
-
-function mensajeDe(error) {
-  return error && typeof error.mensaje === 'string' && error.mensaje ? error.mensaje : ALGO_SALIO_MAL;
-}
-
-// Sin sesión (401) o con un «no» que cambia la pantalla (409: sin gachamon, ya
-// no estás en la tienda, eso no se te vende…), se decide de nuevo.
-function hayQueDecidirDeNuevo(error) {
-  return Boolean(error) && (error.estado === 401 || error.estado === 409);
-}
-
-// Mientras se está aquí hay sesión y la cuenta ya no es nueva, así que la
-// pantalla la decide sólo el estado, con la regla de siempre.
-function pideOtraPantalla(estado) {
-  return siguiente(true, { estado: 'en juego' }, estado, 'tienda') !== 'tienda';
-}
-
-const linea = (texto, clase) => el('p', { class: clase }, texto);
 
 export function tienda(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   let vivo = true;
-  let avisoHasta = null;
+  // Lo que contesta la tienda, abajo de lo que se ve.
+  const aviso = zonaDeAviso();
+  const { avisar } = aviso;
 
   function parar() {
     vivo = false;
-    clearTimeout(avisoHasta);
+    aviso.parar();
   }
 
   // Deja la tienda y que se decida otra pantalla: con el estado que llegó, o
@@ -90,23 +72,7 @@ export function tienda(contenedor, estado, seguir) {
 
   // --- la cabecera: dónde estás y lo que tienes ------------------------------------
 
-  const monedasVisibles = el('span', { 'aria-hidden': 'true' });
-  const monedasLeidas = el('span', { class: 'solo-lector' });
-  const gemasVisibles = el('span', { 'aria-hidden': 'true' });
-  const gemasLeidas = el('span', { class: 'solo-lector' });
-  const titulo = el('h1', { class: 'donde', tabindex: '-1' }, el('span', { 'aria-hidden': 'true' }, '🛒'), 'Tienda');
-  const cabecera = el('header', { class: 'barra barra-lugar' },
-    titulo,
-    el('span', { class: 'saldos' },
-      el('span', { class: 'saldo' }, monedasVisibles, monedasLeidas),
-      el('span', { class: 'saldo' }, gemasVisibles, gemasLeidas)));
-
-  function ponerSaldos({ monedas, gemas }) {
-    monedasVisibles.textContent = `${MONEDAS.simbolo} ${monedas}`;
-    monedasLeidas.textContent = cuantasMonedas(monedas);
-    gemasVisibles.textContent = `${GEMAS.simbolo} ${gemas}`;
-    gemasLeidas.textContent = cuantasGemas(gemas);
-  }
+  const { cabecera, titulo, ponerSaldos } = cabeceraConSaldos('🛒', 'Tienda');
 
   // --- las pestañas y sus secciones ------------------------------------------------
 
@@ -133,24 +99,10 @@ export function tienda(contenedor, estado, seguir) {
     el('div', { class: 'pestanas', role: 'group', 'aria-label': 'Secciones de la tienda' },
       [...secciones.values()].map((s) => s.pestana)),
     [...secciones.values()].map((s) => s.nodo));
-  // Lo que contesta la tienda. Se queda abajo de lo que se ve mientras se
-  // recorre la lista, para que se lea aunque se haya comprado lo de más abajo.
-  const aviso = el('p', { class: 'aviso-tienda', role: 'status' });
   const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
   volver.addEventListener('click', () => irse());
-  const cuerpo = el('div', { class: 'cuerpo cuerpo-tienda' }, espera, estante, aviso, volver);
+  const cuerpo = el('div', { class: 'cuerpo cuerpo-tienda' }, espera, estante, aviso.nodo, volver);
   contenedor.append(cabecera, cuerpo);
-
-  function avisar(texto, esError = false) {
-    clearTimeout(avisoHasta);
-    aviso.textContent = texto || '';
-    aviso.classList.toggle('es-error', Boolean(texto) && esError);
-    if (texto) {
-      avisoHasta = setTimeout(() => {
-        if (vivo) avisar('');
-      }, AVISO_DURA_MS);
-    }
-  }
 
   // --- lo que se puede comprar: cada fila con su botón -------------------------------
 
@@ -193,18 +145,6 @@ export function tienda(contenedor, estado, seguir) {
   }
 
   const yaLoTienes = () => el('div', { class: 'accion' }, el('span', { class: 'ya-lo-tienes' }, 'Ya lo tienes'));
-
-  // Una fila: el ícono, el nombre, lo que se dice de ella y, a la derecha, lo
-  // que se puede hacer. `apagada`, lo que no se puede comprar.
-  function fila({ id, icono, nombre, lineas, accion, apagada = false, debajo = null }) {
-    const dibujo = lienzoDePieza(icono, LADO_DEL_ICONO, LADO_DEL_ICONO);
-    dibujo.classList.add('articulo-icono');
-    return el('li', { class: apagada ? 'articulo apagado' : 'articulo', 'data-fila': id },
-      dibujo,
-      el('div', { class: 'articulo-texto' }, el('p', { class: 'articulo-nombre' }, nombre), lineas),
-      accion,
-      debajo);
-  }
 
   const lista = (filas) => el('ul', { class: 'articulos' }, filas);
 
@@ -344,19 +284,16 @@ export function tienda(contenedor, estado, seguir) {
     if (enCamino) return;
     cerrarLaPregunta();
     const { sitio, boton, compra } = oferta;
-    const texto = el('p', { class: 'pregunta-texto', tabindex: '-1' }, compra.pregunta);
-    const si = el('button', { type: 'button', class: 'boton boton-chico principal' }, compra.confirmar);
-    const no = el('button', { type: 'button', class: 'boton boton-chico' }, 'No');
-    const caja = el('div', { class: 'pregunta' }, texto, el('div', { class: 'pregunta-botones' }, si, no));
     const desistir = () => {
       if (enCamino) return;
       cerrarLaPregunta();
       boton.focus({ preventScroll: true });
     };
-    si.addEventListener('click', () => mandar(oferta, si, no));
-    no.addEventListener('click', desistir);
-    caja.addEventListener('keydown', (evento) => {
-      if (evento.key === 'Escape') desistir();
+    const {
+      caja, cabeza: texto, si, no,
+    } = cajaDePregunta(compra.pregunta, compra.confirmar, {
+      alConfirmar: () => mandar(oferta, si, no),
+      alDesistir: desistir,
     });
     sitio.replaceChildren(caja);
     sitio.classList.add('abierta');
@@ -425,7 +362,7 @@ export function tienda(contenedor, estado, seguir) {
     }
     if (!sigueAqui()) return;
     enCamino = false;
-    if (respuesta.estado && pideOtraPantalla(respuesta.estado)) {
+    if (respuesta.estado && pideOtraPantalla(respuesta.estado, 'tienda')) {
       irse(respuesta.estado);
       return;
     }
@@ -458,42 +395,19 @@ export function tienda(contenedor, estado, seguir) {
 
   // --- el catálogo -------------------------------------------------------------------
 
-  let cargando = false;
-
-  async function cargarLaTienda(trasReintentar = false) {
-    if (cargando) return;
-    cargando = true;
-    espera.replaceChildren(el('p', { class: 'espera-tienda-texto', role: 'status' }, CARGANDO));
-    let leido;
-    try {
-      leido = await pedir('GET', 'tienda');
-    } catch (error) {
-      if (!sigueAqui()) return;
-      if (hayQueDecidirDeNuevo(error)) {
-        irse();
-        return;
-      }
-      const reintentar = el('button', { type: 'button', class: 'boton boton-chico principal' }, 'Volver a intentarlo');
-      reintentar.addEventListener('click', () => {
-        // El botón se borra al reintentar: el foco espera en el título.
-        titulo.focus({ preventScroll: true });
-        cargarLaTienda(true);
-      });
-      espera.replaceChildren(el('p', { class: 'espera-tienda-texto es-error', role: 'alert' }, mensajeDe(error)), reintentar);
-      if (trasReintentar) reintentar.focus({ preventScroll: true });
-      return;
-    } finally {
-      cargando = false;
-    }
-    if (!sigueAqui()) return;
-    espera.replaceChildren();
-    espera.hidden = true;
-    ponerCatalogo(leido);
-    elegir(seccionVista);
-    estante.hidden = false;
-    if (trasReintentar) secciones.get(seccionVista).pestana.focus({ preventScroll: true });
-  }
-
   ponerSaldos(estado.saldos);
-  return cargarLaTienda();
+  return listaQueSePide({
+    ruta: 'tienda',
+    espera,
+    lista: estante,
+    cargando: CARGANDO,
+    titulo,
+    sigueAqui,
+    irse,
+    alLlegar(leido, trasReintentar) {
+      ponerCatalogo(leido);
+      elegir(seccionVista);
+      if (trasReintentar) secciones.get(seccionVista).pestana.focus({ preventScroll: true });
+    },
+  }).cargar();
 }
