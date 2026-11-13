@@ -116,11 +116,12 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 ### El despliegue
 
 - Mientras la suite corre en la Pi durante un despliegue, la web vieja sirve
-  los archivos estáticos nuevos: quien cargue la página en esos minutos recibe
-  el cliente nuevo con el servidor viejo, y si el cliente nuevo espera algo que
-  el servidor viejo no manda, ve la pantalla de «no carga» hasta el reinicio.
-  Es del guion de despliegue, no del juego: se cierra probando en un árbol aparte
-  antes de cambiar el de producción.
+  los archivos estáticos nuevos: quien cargue la página en esos minutos puede
+  recibir módulos nuevos mezclados con módulos viejos que su navegador guardó en
+  la caché bajo la dirección de la versión vieja, y la página se queda en
+  «Cargando…» para siempre. Es del guion de despliegue, no del juego. Se evita
+  desplegando sin repetir la suite en la Pi cuando la CI ya pasó, o parando el
+  servicio de la web durante la ventana.
 
 ### Pruebas
 
@@ -152,8 +153,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - El mismo evento usado para dos tipos de compra distintos (una casa y luego un
   mueble) no da error: la clave de `acciones_unicas` lleva la acción. Nada se
   cobra dos veces.
-- Un `casa_id` negativo o de otra persona contesta «Esa casa no es tuya.» sin
-  mover nada.
+- Un `casa_id` negativo o de otra persona no mueve nada y contesta «Esa casa no
+  es tuya.»; al vender sin tener ninguna casa, «No tienes casa que vender.».
 - La cuenta de lo que cuesta mejorar una casa está escrita dos veces (en
   `economia` y en la ruta de la tienda); lo limpio sería que el resultado de
   `comprar_casa` trajera lo que falta.
@@ -163,9 +164,9 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - Una muerte que descubra `usar_objeto` se guarda, pero no queda apuntada para
   que el bot la anuncie (igual que en los cuidados): en la web la ruta ya pasa
   antes por la comprobación que sí la apunta.
-- `economia.py` usa un `assert` como guarda de «objeto sin efecto conocido»; con
-  `python -O` desaparecería (hoy no se puede alcanzar).
-- `db.alargar_el_refugio` (la pública) se quedó sin ningún llamador.
+- El `except RuntimeError` de las rutas de la tienda y la mochila es más ancho
+  que «evento ya usado»: cualquier `RuntimeError` de `economia` sale como el 409
+  `evento`.
 - La tabla `acciones_unicas` no se purga: cada evento queda guardado para
   siempre.
 
@@ -186,6 +187,12 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - La mochila enseña la descripción o la nota de cada objeto, no las dos.
 - Cualquier error de la mochila que no sea de sesión ni de cuenta esconde la
   lista y la vuelve a pedir (es seguro, pero cierra el campo de la placa).
+- Los cuidados (`POST /cuidar`) tienen el hueco que tenía la mochila: si el
+  cambio de gachamon ya estaba registrado antes de la petición (otro activado
+  desde Discord, una muerte que leyó otra pestaña), el cuidado le cae al relevo.
+  La mochila lo cerró mandando el gachamon que enseña la pantalla.
+- `web/mochila.py` importa sus ayudas de `web/tienda.py`, y `lugar.js` repite
+  algunas de `articulos.js`.
 - Las clases de CSS que comparten la tienda y la mochila se llaman `…-tienda`.
 - En el estado de «no carga» de la tienda y de la mochila (cuando ni la compra
   ni la relectura recibieron respuesta), la cabecera sigue enseñando el saldo de
@@ -197,16 +204,11 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   recorrido manual con capturas (como el mapa): no hay DOM en Node sin
   dependencias nuevas.
 - Faltan pruebas de cosas que el código ya cumple: que comprar algo que no se
-  vende no deje fila en el libro de la economía; que si anotar el evento falla,
-  el cobro se deshace; que una excepción después de gastar un objeto devuelve la
-  unidad; que el menú de Discord usa la interacción como evento; el mismo evento
-  de la misma persona en otro servidor; la frase exacta de las sopaipillas y de
-  las pociones en la web; que el reinicio borra la espera; y, en la tienda,
-  «nunca caminó», «lugar que ya no existe» y «tienda cerrada».
-- Las pruebas que exigen que los íconos (y los dibujos de los lugares del mapa)
-  sean distintos y de color liso leen los archivos del repositorio: el día que
-  quien dibuja reemplace un relleno por un dibujo de verdad, fallarían. Deberían
-  mirar lo que genera el generador, no los archivos.
+  vende no deje fila en el libro de la economía; que el menú de Discord usa la
+  interacción como evento; el mismo evento de la misma persona en otro servidor;
+  la frase exacta de las sopaipillas y de las pociones en la web; que el
+  reinicio borra la espera; y, en la tienda, «nunca caminó», «lugar que ya no
+  existe» y «tienda cerrada».
 
 ## Para el plan 5 (la ficha, el ropero, la incubadora y el refugio)
 

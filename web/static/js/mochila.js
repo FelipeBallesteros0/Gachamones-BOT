@@ -92,7 +92,9 @@ export function mochila(contenedor, estado, seguir) {
   function filaDe(objeto) {
     let accion = null;
     if (objeto.uso) {
-      const boton = el('button', { type: 'button', class: 'boton-usar' }, 'Usar');
+      // Se ve «Usar» y se oye «Usar Poción de comida»: cada fila, distinta.
+      const boton = el('button', { type: 'button', class: 'boton-usar' },
+        'Usar', el('span', { class: 'solo-lector' }, ` ${objeto.nombre}`));
       accion = el('div', { class: 'accion' }, boton);
       const usable = { sitio: accion, boton, objeto };
       usables.set(objeto.clave, usable);

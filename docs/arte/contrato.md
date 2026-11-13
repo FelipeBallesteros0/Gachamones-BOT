@@ -114,7 +114,8 @@ su ícono con el mismo nombre.
 | `iconos/muebles/<clave>.png` | 14 | Cada mueble de las casas. |
 | `iconos/casas/<clave>.png` | 3 | Cada casa que se compra: `pequena`, `mediana`, `grande`. |
 
-Las claves exactas están en `web/static/datos/arte.json`. Por ejemplo:
+Cada ícono ya tiene su relleno en `web/static/arte/iconos/`, con el nombre
+exacto de su archivo: dibuja el tuyo y guárdalo encima. Por ejemplo:
 `iconos/objetos/fuerza_1d4.png`, `iconos/cosmeticos/corona.png`,
 `iconos/muebles/lampara.png`, `iconos/casas/mediana.png`.
 

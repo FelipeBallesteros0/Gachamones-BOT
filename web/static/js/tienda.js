@@ -123,11 +123,12 @@ export function tienda(contenedor, estado, seguir) {
     return sitio;
   }
 
-  // «🪙 10», y para el lector «Comprar por 10 monedas».
-  function botonDePrecio(moneda, precio, verbo, compra) {
+  // «🪙 10», y para el lector lo que se hace, con qué, y el precio: «Comprar
+  // Poción de comida por 10 monedas». Así cada fila se oye distinta.
+  function botonDePrecio(moneda, precio, queSeHace, compra) {
     return botonQuePregunta([
       el('span', { 'aria-hidden': 'true' }, `${moneda.simbolo} ${precio}`),
-      el('span', { class: 'solo-lector' }, `${verbo} por ${moneda.cuantas(precio)}`),
+      el('span', { class: 'solo-lector' }, `${queSeHace} por ${moneda.cuantas(precio)}`),
     ], 'boton-precio', compra);
   }
 
@@ -149,7 +150,7 @@ export function tienda(contenedor, estado, seguir) {
     if (o.nota) lineas.push(linea(o.nota, 'articulo-nota'));
     if (o.tienes > 0) lineas.push(linea(`Tienes ${o.tienes}`, 'articulo-tienes'));
     const accion = o.se_vende
-      ? botonDePrecio(MONEDAS, o.precio, 'Comprar', {
+      ? botonDePrecio(MONEDAS, o.precio, `Comprar ${o.nombre}`, {
         id, ruta: 'tienda/comprar', cuerpo: { que: 'objeto', clave: o.clave },
         pregunta: preguntaDeCompra(o.precio, MONEDAS.palabra), confirmar: 'Comprar',
       })
@@ -162,7 +163,7 @@ export function tienda(contenedor, estado, seguir) {
     const tipo = Object.hasOwn(TIPO_DE_COSMETICO, c.tipo) ? TIPO_DE_COSMETICO[c.tipo] : null;
     const accion = c.tuyo
       ? yaLoTienes()
-      : botonDePrecio(GEMAS, c.precio, 'Comprar', {
+      : botonDePrecio(GEMAS, c.precio, `Comprar ${c.nombre}`, {
         id, ruta: 'tienda/comprar', cuerpo: { que: 'cosmetico', clave: c.clave },
         pregunta: preguntaDeCompra(c.precio, GEMAS.palabra), confirmar: 'Comprar',
       });
@@ -176,7 +177,7 @@ export function tienda(contenedor, estado, seguir) {
     if (m.tuyo) accion = yaLoTienes();
     else if (!hayCasa) accion = precioQuieto(MONEDAS, m.precio);
     else {
-      accion = botonDePrecio(MONEDAS, m.precio, 'Comprar', {
+      accion = botonDePrecio(MONEDAS, m.precio, `Comprar ${m.nombre}`, {
         id, ruta: 'tienda/comprar', cuerpo: { que: 'mueble', clave: m.clave },
         pregunta: preguntaDeCompra(m.precio, MONEDAS.palabra), confirmar: 'Comprar',
       });
@@ -193,20 +194,27 @@ export function tienda(contenedor, estado, seguir) {
     return el('div', { class: 'subfila', 'data-fila': id }, texto ? el('p', { class: 'subfila-texto' }, texto) : null, accion);
   }
 
+  // Los botones de una casa tuya dicen de qué casa hablan: «Mejorar tu casa
+  // pequeña a casa mediana por 340 monedas», «Vender tu casa pequeña» (con lo
+  // que se ve, «Vender», dentro).
   function filaDeTuCasa(casa) {
     const id = `tuya:${casa.id}`;
+    const tuCasa = `tu ${casa.nombre.toLowerCase()}`;
     const mejoras = casa.mejoras.map((mejora) => {
-      const queHace = `Mejorar a ${mejora.nombre.toLowerCase()}`;
-      return subfila(`${id}:${mejora.clave}`, queHace, botonDePrecio(MONEDAS, mejora.cuesta, queHace, {
-        id: `${id}:${mejora.clave}`, ruta: 'tienda/casa',
-        cuerpo: { accion: 'mejorar', casa: mejora.clave, casa_id: casa.id },
-        pregunta: preguntaDeMejora(casa, mejora), confirmar: 'Mejorar',
-      }));
+      const nueva = mejora.nombre.toLowerCase();
+      return subfila(`${id}:${mejora.clave}`, `Mejorar a ${nueva}`, botonDePrecio(MONEDAS, mejora.cuesta,
+        `Mejorar ${tuCasa} a ${nueva}`, {
+          id: `${id}:${mejora.clave}`, ruta: 'tienda/casa',
+          cuerpo: { accion: 'mejorar', casa: mejora.clave, casa_id: casa.id },
+          pregunta: preguntaDeMejora(casa, mejora), confirmar: 'Mejorar',
+        }));
     });
-    const vender = subfila(`${id}:vender`, null, botonQuePregunta('Vender', 'boton-vender', {
-      id: `${id}:vender`, ruta: 'tienda/casa', cuerpo: { accion: 'vender', casa_id: casa.id },
-      pregunta: preguntaDeVenta(casa), confirmar: 'Vender',
-    }));
+    const vender = subfila(`${id}:vender`, null, botonQuePregunta(
+      ['Vender', el('span', { class: 'solo-lector' }, ` ${tuCasa}`)], 'boton-vender', {
+        id: `${id}:vender`, ruta: 'tienda/casa', cuerpo: { accion: 'vender', casa_id: casa.id },
+        pregunta: preguntaDeVenta(casa), confirmar: 'Vender',
+      },
+    ));
     return fila({
       id, icono: casa.icono, nombre: casa.nombre, lineas: [linea(quienesViven(casa), 'articulo-detalle')],
       accion: null, debajo: el('div', { class: 'casa-acciones' }, mejoras, vender),
@@ -216,7 +224,7 @@ export function tienda(contenedor, estado, seguir) {
   function filaDeCasaALaVenta(casa, sePuede) {
     const id = `casa:${casa.clave}`;
     const accion = sePuede
-      ? botonDePrecio(MONEDAS, casa.precio, 'Comprar', {
+      ? botonDePrecio(MONEDAS, casa.precio, `Comprar ${casa.nombre}`, {
         id, ruta: 'tienda/casa', cuerpo: { accion: 'comprar', casa: casa.clave },
         pregunta: preguntaDeCompra(casa.precio, MONEDAS.palabra), confirmar: 'Comprar',
       })
