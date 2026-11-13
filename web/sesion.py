@@ -2,7 +2,9 @@
 
 Rowino firma una cookie con `{"uid": <entero>}`; aquí se verifica y se
 comprueba en su base (sólo lectura) que la cuenta existe y no está bloqueada.
-Nada se recuerda entre peticiones. Ante cualquier duda, no entra nadie.
+Nada se recuerda entre peticiones. Ante cualquier duda, no entra nadie; y si
+lo que falla es el propio servicio (sin clave, o sin poder leer la base de
+Rowino), se dice que no está disponible en vez de pedir que se entre.
 """
 from __future__ import annotations
 
@@ -25,6 +27,10 @@ COOKIE = "session"
 class Persona:
     rowino_uid: int
     usuario: str
+
+
+class RowinoNoSeLee(Exception):
+    """No se pudo mirar la base de Rowino: no es lo mismo que «no existe»."""
 
 
 def problema(estado: int, clave: str, mensaje: str) -> HTTPException:
@@ -56,7 +62,11 @@ def _direccion_de_solo_lectura(ruta) -> str:
 
 
 def buscar_persona(rowino_uid: int) -> Persona | None:
-    """La persona de Rowino con ese id, si existe y no está bloqueada."""
+    """La persona de Rowino con ese id, si existe y no está bloqueada.
+
+    Lanza `RowinoNoSeLee` si su base no se pudo leer (no está, está rota o le
+    falta la tabla): eso es un fallo del servicio, no una cuenta que no existe.
+    """
     try:
         con = sqlite3.connect(
             _direccion_de_solo_lectura(config.RUTA_ROWINO_BD), uri=True,
@@ -72,7 +82,7 @@ def buscar_persona(rowino_uid: int) -> Persona | None:
         log.warning(
             "No se pudo leer la base de Rowino: %s", type(error).__name__,
         )
-        return None
+        raise RowinoNoSeLee from None
     if fila is None:
         return None
     ident, usuario, bloqueada = fila
@@ -81,9 +91,21 @@ def buscar_persona(rowino_uid: int) -> Persona | None:
     return Persona(rowino_uid=ident, usuario=usuario)
 
 
+def _sin_servicio() -> HTTPException:
+    return problema(503, "servicio", "El juego no está disponible ahora mismo.")
+
+
 def persona_actual(request: Request) -> Persona:
+    clave = config.ROWINO_SECRET_KEY
+    if not clave or not isinstance(clave, str):
+        # Sin clave no se puede verificar ninguna cookie: no entra nadie, y
+        # no es porque falte la sesión.
+        raise _sin_servicio()
     uid = leer_cookie(request.cookies.get(COOKIE))
-    persona = buscar_persona(uid) if uid is not None else None
+    try:
+        persona = buscar_persona(uid) if uid is not None else None
+    except RowinoNoSeLee:
+        raise _sin_servicio() from None
     if persona is None:
         raise problema(401, "sin_sesion", "Entra a Rowino para jugar.")
     return persona

@@ -111,7 +111,8 @@ Hay **dos scripts y no hacen lo mismo**:
 `actualizar-pi.sh` es el que evita el desfase de desplegar una copia local que no
 está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
 datos antes de tocar nada (guarda las 5 últimas), pone la Pi en el commit de
-`main`, corre la suite allí y **sólo reinicia si pasa**. La suite usa un temporal
+`main`, corre la suite allí y **sólo reinicia si pasa** (si no, la Pi vuelve al
+commit en el que estaba y no reinicia nada). La suite usa un temporal
 en memoria (`--basetemp=/dev/shm/...`) que se borra al terminar, y para ello
 instala `requirements-dev.txt` (con `SIN_TESTS=1` instala sólo
 `requirements.txt`). La primera vez convierte
@@ -127,9 +128,11 @@ RAMA=otra ./actualizar-pi.sh    # otra rama
 `deploy.sh` también copia la base de datos (misma rotación de 5) antes de reiniciar, y no corre la suite. Su `rsync --delete` no toca la base ni su diario (`*.db`, `*.db-journal`, `*.db-wal`, `*.db-shm`).
 
 Los dos guiones instalan y habilitan las dos unidades (`tamagotchi` y
-`gachamon-web`), reinician **primero el bot y después la web**, y terminan con
-`systemctl is-active tamagotchi gachamon-web`: si la web no queda activa, el
-guion falla.
+`gachamon-web`), reinician **primero el bot y después la web**, y terminan
+comprobando cada servicio por separado (`systemctl is-active tamagotchi` y
+`systemctl is-active gachamon-web`) y preguntándole a la web por su salud
+(`curl` a `/gachamon/api/salud`, con reintentos durante unos diez segundos): si
+algún servicio no queda activo o la web no contesta, el guion falla.
 
 Los dos admiten `PI` y `DEST` como variables de entorno. Para ver el registro:
 
@@ -162,6 +165,10 @@ Variables del `.env` (explicadas en `.env.ejemplo`):
   defecto, `../rowino_web/rowino.db` junto al repositorio.
 - `GUILD_WEB` (opcional): el servidor que hace de pueblo; sólo ahí funciona
   `/vincular`. Vacío, vale el primero de `GUILD_ID`.
+
+Si falta la clave o la base de Rowino no se puede leer, la web no pide que
+entres: contesta 503 («El juego no está disponible ahora mismo.»), y al
+arrancar deja en el registro un aviso por cada cosa que falta.
 
 En producción lo lleva la unidad `gachamon-web.service`, que escucha sólo en
 `127.0.0.1:8010`, y se publica como `rowino.online/gachamon` detrás del túnel,

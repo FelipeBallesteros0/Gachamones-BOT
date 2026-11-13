@@ -151,3 +151,64 @@ def test_un_error_http_sin_forma_propia_no_filtra_su_texto(tmp_path, monkeypatch
         "detail": {"clave": "error", "mensaje": "Algo salió mal."},
     }
     assert "texto interno" not in respuesta.text
+
+
+# --- Al arrancar se avisa de lo que falta en el .env --------------------------
+
+def _avisos_al_arrancar(tmp_path, monkeypatch, caplog, *, clave, rowino, pueblo):
+    import logging
+
+    from fastapi.testclient import TestClient
+
+    import ayudas_web
+    import config
+    from web.app import crear_app
+
+    monkeypatch.setattr(db, "RUTA", tmp_path / "juego.db")
+    monkeypatch.setattr(config, "ROWINO_SECRET_KEY", clave)
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", tmp_path / "rowino.db")
+    monkeypatch.setattr(config, "GUILD_WEB", pueblo)
+    if rowino:
+        ayudas_web.crear_rowino(tmp_path / "rowino.db")
+    with caplog.at_level(logging.WARNING, logger="gachamones"):
+        with TestClient(crear_app()):
+            pass
+    return [r for r in caplog.records if r.name == "gachamones" and r.levelno == logging.WARNING]
+
+
+def test_bien_configurado_arranca_sin_avisos(tmp_path, monkeypatch, caplog):
+    from ayudas_web import CLAVE, PUEBLO
+
+    assert _avisos_al_arrancar(
+        tmp_path, monkeypatch, caplog, clave=CLAVE, rowino=True, pueblo=PUEBLO,
+    ) == []
+
+
+@pytest.mark.parametrize("falta, variable", [
+    ({"clave": ""}, "ROWINO_SECRET_KEY"),
+    ({"rowino": False}, "RUTA_ROWINO_BD"),
+    ({"pueblo": 0}, "GUILD_WEB"),
+])
+def test_al_arrancar_avisa_de_cada_cosa_que_falta(tmp_path, monkeypatch, caplog, falta, variable):
+    from ayudas_web import CLAVE, PUEBLO
+
+    bien = {"clave": CLAVE, "rowino": True, "pueblo": PUEBLO}
+    avisos = _avisos_al_arrancar(tmp_path, monkeypatch, caplog, **{**bien, **falta})
+    # Uno solo, de nivel `warning` (los `info` no salen con uvicorn), que dice
+    # qué variable del .env es.
+    assert len(avisos) == 1
+    assert variable in avisos[0].getMessage()
+
+
+def test_con_todo_mal_avisa_de_las_tres(tmp_path, monkeypatch, caplog):
+    avisos = _avisos_al_arrancar(tmp_path, monkeypatch, caplog, clave="", rowino=False, pueblo=0)
+    assert len(avisos) == 3
+    for variable in ("ROWINO_SECRET_KEY", "RUTA_ROWINO_BD", "GUILD_WEB"):
+        assert any(variable in r.getMessage() for r in avisos), variable
+
+
+def test_el_aviso_nunca_escribe_la_clave(tmp_path, monkeypatch, caplog):
+    secreta = "la-clave-que-no-se-escribe"
+    avisos = _avisos_al_arrancar(tmp_path, monkeypatch, caplog, clave=secreta, rowino=False, pueblo=0)
+    assert len(avisos) == 2
+    assert secreta not in caplog.text

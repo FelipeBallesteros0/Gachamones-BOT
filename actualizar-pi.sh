@@ -57,6 +57,14 @@ if [ ! -d .git ]; then
 fi
 git remote set-url origin '$REMOTO_URL'
 
+# Dónde estaba la Pi, para volver ahí si la suite sale en rojo. La primera vez
+# no hay commit al que volver, y se borra el apunte de un intento anterior.
+if git rev-parse -q --verify HEAD >/dev/null; then
+    git rev-parse HEAD > .git/gachamon-anterior
+else
+    rm -f .git/gachamon-anterior
+fi
+
 git fetch -q origin '$RAMA'
 # --hard sobre los ficheros versionados; los ignorados (.env, *.db, venv/) no se
 # tocan. Es lo que hace que esto sea repetible y no dependa del estado previo.
@@ -78,17 +86,22 @@ REMOTO
 if [ -z "$SIN_TESTS" ]; then
     echo "==> Tests en la Pi (SIN_TESTS=1 para saltarlos)"
     # Orden remota: con pipefail, el estado del pipe es el de pytest y no el de
-    # `tail`; se guarda en `estado`, se borra el temporal (también si la suite
-    # falla) y se sale con ese mismo estado. Los \$ son de la Pi, no de aquí.
-    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=none tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; exit \$estado"
+    # `tail`; se guarda en `estado` y se borra el temporal (también si la suite
+    # falla). En rojo, si hay un commit apuntado, la Pi vuelve a él y reinstala
+    # sus requisitos. Se sale con el estado de pytest. Los \$ son de la Pi, no
+    # de aquí.
+    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=none tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; exit \$estado"
 fi
 
 # El servicio se toca al final y sólo si todo lo anterior salió bien: con
 # `set -e` aquí y `set -o pipefail` en la orden remota, una suite en rojo hace
 # que `ssh` devuelva el estado de pytest (y no el de `tail`) y el guion corta
-# sin reiniciar. Ojo: el proceso en marcha sigue con la versión anterior, pero
-# el código y el venv en disco ya son los nuevos, así que un reinicio posterior
-# del servicio o de la máquina levantaría esa versión en rojo.
+# sin reiniciar. Antes de cortar, la Pi vuelve al commit en el que estaba y
+# reinstala su `requirements.txt`, así que en disco queda el código que corre
+# el proceso en marcha, y un reinicio posterior del servicio o de la máquina
+# levanta esa versión y no la que salió en rojo. La primera vez no hay commit
+# anterior y el código nuevo se queda. Mientras corre la suite, la web vieja
+# sí sirve los archivos estáticos nuevos.
 echo "==> Reiniciando los servicios (primero el bot, después la web)"
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
@@ -98,7 +111,8 @@ ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tama
     sudo systemctl enable tamagotchi gachamon-web && \
     sudo systemctl restart tamagotchi && \
     sudo systemctl restart gachamon-web && \
-    sleep 3 && systemctl is-active tamagotchi && systemctl is-active gachamon-web"
+    sleep 3 && systemctl is-active tamagotchi && systemctl is-active gachamon-web && \
+    curl -fsS --retry 10 --retry-delay 1 --retry-connrefused -o /dev/null http://127.0.0.1:8010/gachamon/api/salud"
 
 echo
 echo "Listo. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'"

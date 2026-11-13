@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as ErrorHTTP
 
+import config
 import db
 import economia
 import retrato
@@ -46,8 +47,31 @@ def calcular_version(carpeta: Path = ESTATICOS) -> str:
     return huella.hexdigest()[:12]
 
 
+def _avisar_de_lo_que_falta() -> None:
+    """Un aviso por cada cosa del `.env` sin la cual el juego no funciona.
+
+    Son `warning` y no `info` porque uvicorn no configura el registrador raíz y
+    los `info` no saldrían. El valor de la clave no se escribe nunca.
+    """
+    if not config.ROWINO_SECRET_KEY:
+        log.warning(
+            "Falta ROWINO_SECRET_KEY en el .env: nadie podrá entrar al juego."
+        )
+    if not Path(config.RUTA_ROWINO_BD).is_file():
+        log.warning(
+            "No existe la base de Rowino en %s (RUTA_ROWINO_BD en el .env): "
+            "nadie podrá entrar al juego.", config.RUTA_ROWINO_BD,
+        )
+    if not config.GUILD_WEB:
+        log.warning(
+            "GUILD_WEB vale 0 (sin GUILD_WEB ni GUILD_ID en el .env): nadie "
+            "podrá empezar a jugar ni pedir un código para vincular."
+        )
+
+
 @asynccontextmanager
 async def _ciclo_de_vida(app: FastAPI):
+    _avisar_de_lo_que_falta()
     retrato.version()  # se calcula al arrancar, no en la primera petición
     devolucion = economia.poner_al_dia(db.ahora_utc())
     if devolucion.piezas:
