@@ -100,11 +100,14 @@ class _Cabeceras:
 
     Nadie la mete en un marco ni adivina su tipo; y lo de la api no se guarda
     en ninguna caché, tampoco los errores. Los retratos no son de la api y
-    conservan su caché de un año.
+    conservan su caché de un año. Lo de la api dice además de qué versión es
+    el servidor, también un error: así una página de una versión anterior se
+    entera y se recarga.
     """
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, version: str) -> None:
         self.app = app
+        self.version = version
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -120,6 +123,7 @@ class _Cabeceras:
                 cabeceras["Content-Security-Policy"] = "frame-ancestors 'none'"
                 if de_la_api:
                     cabeceras["Cache-Control"] = "no-store"
+                    cabeceras["X-Gachamon-Version"] = self.version
             await send(mensaje)
 
         await self.app(scope, receive, con_cabeceras)
@@ -128,8 +132,9 @@ class _Cabeceras:
 class _Servicio(FastAPI):
     def build_middleware_stack(self) -> ASGIApp:
         # Las cabeceras van por fuera de todo, también del que contesta un 500,
-        # que manda su respuesta saltándose los middlewares de dentro.
-        return _Cabeceras(super().build_middleware_stack())
+        # que manda su respuesta saltándose los middlewares de dentro. Starlette
+        # lo arma en su primera llamada, cuando `crear_app` ya puso la versión.
+        return _Cabeceras(super().build_middleware_stack(), self.state.version)
 
 
 def calcular_version(carpeta: Path = ESTATICOS) -> str:

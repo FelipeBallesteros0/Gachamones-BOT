@@ -16,12 +16,21 @@ export function siguiente(sesion, cuenta, estado, vista) {
   return vista === 'pueblo' ? 'pueblo' : 'lugar';
 }
 
-// Si falla la petición de entrar al lugar al que se acaba de llegar: sin
-// sesión (401) o con la cuenta o el gachamon cambiados (409) toca volver a
-// decidir la pantalla; lo demás deja quedarse en el mapa e intentarlo otra vez.
+// Si falla la petición de entrar al lugar al que se acaba de llegar: si el
+// servidor contestó que no (un 4xx: sin sesión, la cuenta o el gachamon
+// cambiados, un lugar que ya no existe) toca volver a decidir la pantalla; lo
+// demás (sin red, un 5xx) deja quedarse en el mapa e intentarlo otra vez.
 export function trasFallarLaLlegada(error) {
   const estado = error ? error.estado : undefined;
-  return estado === 401 || estado === 409 ? 'decidir' : 'reintentar';
+  return typeof estado === 'number' && estado >= 400 && estado < 500 ? 'decidir' : 'reintentar';
+}
+
+// Si esta página es de otra versión que el servidor, se recarga para traer la
+// suya; pero una sola vez por versión (`yaRecargada` es la última por la que
+// se recargó), por si algo en el camino siguiera sirviendo una portada vieja.
+export function hayQueRecargar(propia, delServidor, yaRecargada) {
+  const esVersion = (valor) => typeof valor === 'string' && valor !== '';
+  return esVersion(propia) && esVersion(delServidor) && propia !== delServidor && yaRecargada !== delServidor;
 }
 
 export const NO_DISPONIBLE = 'El juego no está disponible ahora mismo.';

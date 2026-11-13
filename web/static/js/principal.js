@@ -1,13 +1,16 @@
 // Arranca el cliente: pregunta quién eres, cómo va tu cuenta y tu juego, y
 // pinta la pantalla que toque.
 
-import { pedir } from './api.js';
+import { pedir, versiones } from './api.js';
 import * as entrada from './entrada.js';
 import { lugar } from './lugar.js';
 import { pueblo } from './mapa.js';
-import { siguiente, trasUnFalloAlArrancar } from './pantallas.js';
+import { hayQueRecargar, siguiente, trasUnFalloAlArrancar } from './pantallas.js';
 
 const contenedor = document.getElementById('juego');
+
+// La versión del servidor por la que esta pestaña ya se recargó una vez.
+const RECARGADA = 'gachamon-recargada';
 
 const PANTALLAS = {
   sesion: entrada.sesion,
@@ -56,6 +59,21 @@ function pintar(pantalla, datos) {
   if (titulo) titulo.focus({ preventScroll: true });
 }
 
+// Tras un despliegue, los archivos de esta página ya no existen en el servidor:
+// al cambiar de pantalla, y una sola vez por versión, se recarga y anota que
+// lo hizo. Sin `sessionStorage` no se puede anotar, y no se recarga.
+function recargarSiEsDeOtraVersion() {
+  const { propia, delServidor } = versiones();
+  try {
+    if (!hayQueRecargar(propia, delServidor, sessionStorage.getItem(RECARGADA))) return false;
+    sessionStorage.setItem(RECARGADA, delServidor);
+  } catch {
+    return false;
+  }
+  location.reload();
+  return true;
+}
+
 // Cada decisión lleva su número: si mientras se pregunta empieza otra, la vieja
 // ya no pinta nada.
 let vuelta = 0;
@@ -86,6 +104,7 @@ async function seguir(estadoNuevo, opciones) {
   }
   if (esta !== vuelta) return;
   conocido = { sesion: datos.sesion, cuenta: datos.cuenta };
+  if (recargarSiEsDeOtraVersion()) return;
   pintar(siguiente(datos.sesion, datos.cuenta, datos.estado, vista), { ...datos, llegando: llegando === true });
 }
 

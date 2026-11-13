@@ -59,7 +59,8 @@ const NO_SE_PUDO_ENTRAR = 'No se pudo entrar. Revisa tu conexión.';
 
 // Los datos del pueblo se piden una vez por página; si fallan, la próxima vez
 // se piden de nuevo. La dirección sale de la de este módulo: así lleva la
-// versión de los estáticos, igual que el arte.
+// versión de los estáticos, igual que el arte. Si el servidor contesta con un
+// error, lo que se lanza lleva su `estado`.
 let pedidoDelPueblo = null;
 
 function leerElPueblo() {
@@ -77,11 +78,20 @@ async function pedirElPueblo() {
     const respuesta = await fetch(new URL('../datos/pueblo.json', import.meta.url), {
       credentials: 'same-origin', signal: corte.signal,
     });
-    if (!respuesta.ok) throw new Error(`pueblo.json: ${respuesta.status}`);
+    if (!respuesta.ok) {
+      throw Object.assign(new Error(`pueblo.json: ${respuesta.status}`), { estado: respuesta.status });
+    }
     return await respuesta.json();
   } finally {
     clearTimeout(reloj);
   }
+}
+
+// El servidor contestó que ese archivo no está: no es la conexión, es que esta
+// página es de una versión anterior.
+function contestoQueNo(error) {
+  const estado = error ? error.estado : undefined;
+  return typeof estado === 'number' && estado >= 400 && estado < 500;
 }
 
 // El retrato del gachamon no es una pieza del contrato: es la dirección que
@@ -589,8 +599,13 @@ export function pueblo(contenedor, estado, seguir) {
     let leidos;
     try {
       leidos = await leerElPueblo();
-    } catch {
+    } catch (error) {
       if (!sigueAqui()) return;
+      // Se decide de nuevo, y ahí `seguir` ve la versión nueva y recarga.
+      if (contestoQueNo(error)) {
+        irse();
+        return;
+      }
       const reintentar = mostrarFallo();
       if (trasReintentar) enfocarTrasReintentar(reintentar);
       return;

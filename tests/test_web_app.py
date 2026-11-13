@@ -357,8 +357,27 @@ def test_un_500_tambien_lleva_sus_cabeceras(tmp_path, monkeypatch):
 
         sin_trampa = TestClient(cliente.app, raise_server_exceptions=False)
         respuesta = sin_trampa.get("/gachamon/api/prueba-500")
+        version = cliente.app.state.version
     assert respuesta.status_code == 500
     assert respuesta.headers["cache-control"] == "no-store" and _lleva_siempre(respuesta)
+    assert respuesta.headers["x-gachamon-version"] == version
+
+
+@pytest.mark.parametrize("ruta, estado", [
+    ("/gachamon/api/salud", 200),
+    ("/gachamon/api/sesion", 401),
+    ("/gachamon/api/no-hay-nada", 404),
+])
+def test_lo_de_la_api_dice_de_que_version_es_el_servidor(cliente, ruta, estado):
+    respuesta = cliente.get(ruta)
+    assert respuesta.status_code == estado
+    assert respuesta.headers["x-gachamon-version"] == cliente.app.state.version
+
+
+def test_el_413_tambien_dice_la_version(cliente):
+    respuesta = cliente.post("/gachamon/api/cuidar", content=b"x" * (17 * 1024))
+    assert respuesta.status_code == 413
+    assert respuesta.headers["x-gachamon-version"] == cliente.app.state.version
 
 
 @pytest.mark.parametrize("ruta", ["/gachamon/", "/", "/gachamon/static/otra/index.html"])

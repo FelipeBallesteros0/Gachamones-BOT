@@ -16,6 +16,28 @@ const SIN_RESPUESTA = 'El juego no contestó. Vuelve a intentarlo en un momento.
 
 const sinRed = () => ({ estado: 0, clave: null, mensaje: SIN_RED });
 
+// Cada respuesta del juego dice de qué versión es el servidor; ésta es la
+// última que se oyó (null mientras ninguna lo haya dicho).
+let versionDelServidor = null;
+
+// La versión de una dirección `…/static/<versión>/js/…`; null si no es de esa forma.
+export function versionDe(direccion) {
+  const hallada = /\/static\/([^/]+)\/js\//.exec(String(direccion));
+  return hallada ? hallada[1] : null;
+}
+
+// La versión de esta página (la de la dirección de este módulo) y la del servidor.
+export function versiones() {
+  return { propia: versionDe(import.meta.url), delServidor: versionDelServidor };
+}
+
+// Una respuesta sin la cabecera (la de un túnel, una de mentira) no borra la que ya se sabía.
+function oirLaVersion(respuesta) {
+  const cabeceras = respuesta && respuesta.headers;
+  const version = cabeceras && typeof cabeceras.get === 'function' ? cabeceras.get('X-Gachamon-Version') : null;
+  if (version) versionDelServidor = version;
+}
+
 export async function pedir(metodo, ruta, cuerpo) {
   const corte = new AbortController();
   const opciones = {
@@ -44,6 +66,7 @@ export async function pedir(metodo, ruta, cuerpo) {
     } catch {
       throw sinRed();
     }
+    oirLaVersion(respuesta);
 
     let datos = null;
     try {

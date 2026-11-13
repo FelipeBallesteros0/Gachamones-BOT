@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pedir, nuevoEvento } from '../../web/static/js/api.js';
+import { nuevoEvento, pedir, versionDe, versiones } from '../../web/static/js/api.js';
 
 const EVENTO_VALIDO = /^[A-Za-z0-9-]{8,64}$/;
 
@@ -135,6 +135,35 @@ test('una respuesta a tiempo desarma el corte', { timeout: 5000 }, async (t) => 
   assert.deepEqual(await pedir('GET', 'estado'), { ok: true });
   t.mock.timers.tick(15_000);
   assert.equal(llamadas[0].opciones.signal.aborted, false);
+});
+
+test('la versión sale de la dirección del módulo', () => {
+  assert.equal(versionDe('https://ejemplo.invalid/gachamon/static/0a1b2c3d4e5f/js/api.js'), '0a1b2c3d4e5f');
+  assert.equal(versionDe('file:///repo/web/static/js/api.js'), null);
+  assert.equal(versionDe(''), null);
+});
+
+test('la versión del servidor es la última que dijo una respuesta, también un error', async () => {
+  const conVersion = (estado, cuerpo, version) => ({
+    ...respuesta(estado, cuerpo), headers: new Headers({ 'X-Gachamon-Version': version }),
+  });
+  conFetch(() => conVersion(200, { ok: true }, 'v1'));
+  await pedir('GET', 'estado');
+  assert.equal(versiones().delServidor, 'v1');
+
+  conFetch(() => conVersion(401, { detail: { clave: 'sin_sesion', mensaje: 'Entra.' } }, 'v2'));
+  await assert.rejects(pedir('GET', 'estado'), { estado: 401 });
+  assert.equal(versiones().delServidor, 'v2');
+
+  // Sin la cabecera (o sin `headers`, como éstas de mentira) se sigue sabiendo la de antes.
+  conFetch(() => ({ ...respuesta(200, { ok: true }), headers: new Headers() }));
+  await pedir('GET', 'estado');
+  conFetch(() => respuesta(200, { ok: true }));
+  assert.deepEqual(await pedir('GET', 'estado'), { ok: true });
+  assert.equal(versiones().delServidor, 'v2');
+
+  // En Node el módulo no se carga de una dirección con versión.
+  assert.equal(versiones().propia, null);
 });
 
 test('cada evento nuevo vale para cuidar y no se repite', () => {

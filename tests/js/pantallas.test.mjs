@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cambioLaCuenta, puedeTraerDeDiscord, siguiente, trasFallarLaLlegada, trasUnFalloAlArrancar,
+  cambioLaCuenta, hayQueRecargar, puedeTraerDeDiscord, siguiente, trasFallarLaLlegada, trasUnFalloAlArrancar,
 } from '../../web/static/js/pantallas.js';
 
 const sesion = { usuario: 'felipe' };
@@ -58,12 +58,26 @@ test('el pueblo sólo se ve cuando todo lo demás está en orden', () => {
   assert.equal(siguiente(null, null, null, 'pueblo'), 'sesion');
 });
 
-test('si falla la llegada: sin sesión o sin gachamon se decide de nuevo; lo demás se reintenta', () => {
+test('si falla la llegada: si el servidor dice que no se decide de nuevo; lo demás se reintenta', () => {
   assert.equal(trasFallarLaLlegada({ estado: 401, clave: 'sin_sesion' }), 'decidir');
   assert.equal(trasFallarLaLlegada({ estado: 409, clave: 'sin_cuenta' }), 'decidir');
+  assert.equal(trasFallarLaLlegada({ estado: 422, clave: 'lugar' }), 'decidir');
+  assert.equal(trasFallarLaLlegada({ estado: 404, clave: null }), 'decidir');
   assert.equal(trasFallarLaLlegada({ estado: 0, clave: null }), 'reintentar');
+  assert.equal(trasFallarLaLlegada({ estado: 500, clave: null }), 'reintentar');
   assert.equal(trasFallarLaLlegada({ estado: 503, clave: 'servicio' }), 'reintentar');
   assert.equal(trasFallarLaLlegada(undefined), 'reintentar');
+});
+
+test('se recarga cuando el servidor ya es de otra versión, y una sola vez por versión', () => {
+  assert.equal(hayQueRecargar('aaa', 'bbb', null), true);
+  assert.equal(hayQueRecargar('aaa', 'bbb', 'bbb'), false);
+  assert.equal(hayQueRecargar('aaa', 'ccc', 'bbb'), true);
+  assert.equal(hayQueRecargar('aaa', 'aaa', null), false);
+  assert.equal(hayQueRecargar(null, 'bbb', null), false);
+  assert.equal(hayQueRecargar('aaa', null, null), false);
+  assert.equal(hayQueRecargar('aaa', '', null), false);
+  assert.equal(hayQueRecargar('', 'bbb', null), false);
 });
 
 test('al arrancar, un 401 en cualquiera de las tres lecturas lleva a entrar', () => {
