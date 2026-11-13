@@ -71,6 +71,25 @@ test('la tienda sólo se abre donde el lugar la ofrece', () => {
   assert.equal(siguiente(sesion, cuenta, { ...jugando, difunto: { nombre: 'Pelusa' } }, 'tienda'), 'difunto');
 });
 
+test('lo que va antes del juego gana a la tienda y a la mochila', () => {
+  // Parado en la tienda: si se pudiera, se abriría.
+  const enLaTienda = (cambios = {}) => ({
+    ...jugando, lugar: { clave: 'x', nombre: 'X', ofrece: ['tienda'] }, ...cambios,
+  });
+  for (const vista of ['tienda', 'mochila']) {
+    assert.equal(siguiente(null, null, null, vista), 'sesion', vista);
+    assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida', vista);
+    assert.equal(siguiente(sesion, cuenta, enLaTienda({ avatar: null }), vista), 'avatar', vista);
+    assert.equal(siguiente(sesion, cuenta, enLaTienda({ difunto: { nombre: 'Viejo' } }), vista), 'difunto', vista);
+    assert.equal(siguiente(sesion, cuenta, enLaTienda({ gachamon: null }), vista), 'huevo', vista);
+    assert.equal(
+      siguiente(sesion, cuenta, enLaTienda({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
+      'bautizo', vista,
+    );
+    assert.equal(siguiente(sesion, cuenta, enLaTienda(), vista), vista);
+  }
+});
+
 test('si falla la llegada: si el servidor dice que no se decide de nuevo; lo demás se reintenta', () => {
   assert.equal(trasFallarLaLlegada({ estado: 401, clave: 'sin_sesion' }), 'decidir');
   assert.equal(trasFallarLaLlegada({ estado: 409, clave: 'sin_cuenta' }), 'decidir');

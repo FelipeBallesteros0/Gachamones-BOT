@@ -187,6 +187,49 @@ def test_las_pantallas_de_la_tienda_no_escriben_precios_ni_claves_del_catalogo()
         assert not numeros & precios, (nombre, numeros & precios)
 
 
+def test_una_compra_sin_respuesta_no_dice_que_no_se_compro_ni_deja_comprar_con_lo_de_antes():
+    tienda = _sin_comentarios(_guion("tienda.js"))
+    # Pudo haber llegado igual (sólo se perdió la respuesta), y vale para vender o mejorar.
+    assert "No hubo respuesta. Revisa tu conexión." in tienda
+    assert "No se pudo comprar" not in tienda
+    # El catálogo sólo se pinta con lo que llega: de la respuesta o de una lectura.
+    pintado_con = set(re.findall(r"ponerCatalogo\(([\w.]+)\)", tienda))
+    assert pintado_con <= {"nuevo", "respuesta.tienda", "leido"}, pintado_con
+    # Se relee con reintentos (la pieza común), y si tampoco llega, la tienda no carga.
+    assert tienda.count(".releer()") == 1
+    # Ni la tienda pide el catálogo por su cuenta, ni un «no» lo vuelve a pedir: la respuesta ya lo trae.
+    assert "pedir('GET'" not in tienda and 'pedir("GET"' not in tienda
+
+
+def _argumentos(codigo: str, desde: int) -> str:
+    """Lo que va entre el paréntesis que abre en `desde - 1` y el que lo cierra."""
+    nivel = 1
+    for i in range(desde, len(codigo)):
+        nivel += {"(": 1, ")": -1}.get(codigo[i], 0)
+        if nivel == 0:
+            return codigo[desde:i]
+    raise AssertionError("paréntesis sin cerrar")
+
+
+def test_el_evento_se_crea_una_vez_fuera_de_lo_que_se_reintenta():
+    # Lo que impide cobrar, gastar o cuidar dos veces: los reintentos de un toque
+    # llevan el mismo evento, creado antes y guardado en una constante.
+    for nombre in ("tienda.js", "mochila.js", "lugar.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        llamadas = list(re.finditer(r"\bconReintentos\(", codigo))
+        assert llamadas, nombre
+        for llamada in llamadas:
+            reintentado = _argumentos(codigo, llamada.end())
+            assert "nuevoEvento" not in reintentado, (nombre, reintentado)
+            usado = re.search(r"evento_id:\s*(\w+)", reintentado)
+            assert usado, (nombre, reintentado)
+            antes = codigo[:llamada.start()]
+            funcion = list(re.finditer(r"\bfunction\s+\w+\s*\(", antes))
+            assert funcion, nombre
+            dentro = antes[funcion[-1].start():]
+            assert re.search(rf"\bconst\s+{usado.group(1)}\s*=\s*nuevoEvento\(\)\s*;", dentro), (nombre, usado.group(1))
+
+
 # --- la mochila ------------------------------------------------------------------
 
 def test_la_mochila_esta_y_se_usa():

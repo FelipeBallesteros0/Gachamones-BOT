@@ -6,9 +6,11 @@
 // (`GET tienda`). Las reglas son del servidor: qué se vende, a quién, a
 // cuánto y qué ya es tuyo; aquí se pinta lo que dice, sin calcular precios ni
 // permisos. Cada compra lleva su evento (el mismo en sus reintentos) y su
-// respuesta trae el catálogo y el estado al día, con los que se repinta. Si lo
-// que contesta pide otra pantalla (sin sesión, ya no estás en la tienda, tu
-// gachamon cambió) se vuelve a decidir con `seguir`. Al salir se deja de
+// respuesta trae el catálogo y el estado al día, con los que se repinta. Si una
+// compra se queda sin respuesta pudo haber llegado igual: lo que se veía ya no
+// vale, y el catálogo se vuelve a pedir; si tampoco llega, la tienda no carga.
+// Si lo que contesta pide otra pantalla (sin sesión, ya no estás en la tienda,
+// tu gachamon cambió) se vuelve a decidir con `seguir`. Al salir se deja de
 // temporizar, y una respuesta que llega tarde no pinta ni llama a `seguir`.
 // La cabecera, las filas, la pregunta, el aviso y la espera del catálogo son
 // los de `articulos.js`, que comparte con la mochila. Todo texto entra por
@@ -26,7 +28,7 @@ import {
 import { el } from './dom.js';
 
 const CARGANDO = 'Cargando la tienda…';
-const NO_SE_PUDO_COMPRAR = 'No se pudo comprar. Revisa tu conexión.';
+const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 const MUEBLES_SIN_CASA = 'Los muebles van en una casa, y todavía no tienes.';
 
 const SECCIONES = [
@@ -106,16 +108,10 @@ export function tienda(contenedor, estado, seguir) {
 
   // --- lo que se puede comprar: cada fila con su botón -------------------------------
 
-  let catalogo = null;
-  // Cada botón que pregunta, por el id de su fila: `{sitio, boton, compra}`.
-  const ofertas = new Map();
-  // La pregunta abierta: `{id, caja, cerrar}`; sólo una a la vez.
+  // La pregunta abierta: `{cerrar}`; sólo una a la vez.
   let abierta = null;
   // Mientras una compra está en camino no sale otra.
   let enCamino = false;
-  // Cada compra suma uno: una lectura del catálogo que se cruzó con una compra
-  // ya no se pinta, porque lo que trae la compra es más nuevo.
-  let compras = 0;
 
   // `compra` es `{id, ruta, cuerpo, pregunta, confirmar}`: a qué ruta va, con
   // qué cuerpo, qué se pregunta antes y qué dice el botón que lo confirma.
@@ -123,7 +119,6 @@ export function tienda(contenedor, estado, seguir) {
     const boton = el('button', { type: 'button', class: clase }, contenido);
     const sitio = el('div', { class: 'accion' }, boton);
     const oferta = { sitio, boton, compra };
-    ofertas.set(compra.id, oferta);
     boton.addEventListener('click', () => preguntar(oferta));
     return sitio;
   }
@@ -256,9 +251,7 @@ export function tienda(contenedor, estado, seguir) {
   function ponerCatalogo(nuevo) {
     const conFoco = document.activeElement && estante.contains(document.activeElement)
       ? document.activeElement.closest('[data-fila]') : null;
-    catalogo = nuevo;
     abierta = null;
-    ofertas.clear();
     ponerSaldos(nuevo.saldos);
     // Primero lo que se te vende, cada grupo en el orden del catálogo: lo que
     // todavía no se vende aquí no tapa lo que sí.
@@ -280,7 +273,7 @@ export function tienda(contenedor, estado, seguir) {
   // El primer toque: el botón se cambia por la pregunta, con «Comprar» (o lo
   // que se haga) y «No». El foco va a la pregunta, que se lee; no al botón que
   // confirma, para que una tecla que se queda apretada no compre.
-  function preguntar(oferta, enfocar = true) {
+  function preguntar(oferta) {
     if (enCamino) return;
     cerrarLaPregunta();
     const { sitio, boton, compra } = oferta;
@@ -298,22 +291,17 @@ export function tienda(contenedor, estado, seguir) {
     sitio.replaceChildren(caja);
     sitio.classList.add('abierta');
     abierta = {
-      id: compra.id,
-      caja,
       cerrar() {
         sitio.replaceChildren(boton);
         sitio.classList.remove('abierta');
       },
     };
-    if (enfocar) texto.focus({ preventScroll: true });
+    texto.focus({ preventScroll: true });
   }
 
-  // Tras repintar, el foco que se quedó sin sitio vuelve a la misma fila; si ya
-  // no está (la mejora hecha), a la fila que la contenía (su casa), y si
-  // tampoco, a la pestaña de la sección.
-  function volverALaFila(id) {
-    const activo = document.activeElement;
-    if (activo && activo !== document.body && activo.isConnected) return;
+  // El foco va al botón de esa fila; si ya no está (la mejora hecha), al de la
+  // fila que la contenía (su casa), y si tampoco, a la pestaña de la sección.
+  function enfocarLaFila(id) {
     const filas = [...estante.querySelectorAll('[data-fila]')];
     let buscada = id;
     let destino = null;
@@ -326,12 +314,18 @@ export function tienda(contenedor, estado, seguir) {
     (destino || secciones.get(seccionVista).pestana).focus({ preventScroll: true });
   }
 
+  // Tras repintar, el foco que se quedó sin sitio vuelve a la misma fila.
+  function volverALaFila(id) {
+    const activo = document.activeElement;
+    if (activo && activo !== document.body && activo.isConnected) return;
+    enfocarLaFila(id);
+  }
+
   // El segundo toque: manda la compra. Mientras va, esa fila espera y ningún
   // otro botón compra. Un toque, un evento: sus reintentos llevan el mismo.
   async function mandar(oferta, si, no) {
     if (enCamino) return;
     enCamino = true;
-    compras += 1;
     const { id, ruta, cuerpo: datos } = oferta.compra;
     oferta.sitio.closest('[data-fila]').classList.add('en-camino');
     si.classList.add('esperando');
@@ -352,12 +346,11 @@ export function tienda(contenedor, estado, seguir) {
         irse();
         return;
       }
-      // Pudo haber llegado igual: se pinta lo que había, se dice, y se pide
-      // el catálogo para enseñar la verdad.
-      ponerCatalogo(catalogo);
-      avisar(error && error.clave === null ? NO_SE_PUDO_COMPRAR : mensajeDe(error), true);
-      volverALaFila(id);
-      releer();
+      // Pudo haber llegado igual: lo que se ve ya no vale y no se vuelve a
+      // pintar. Se dice, y el catálogo se vuelve a pedir; si tampoco llega,
+      // la tienda no carga.
+      avisar(error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error), true);
+      if (await laLista.releer()) enfocarLaFila(id);
       return;
     }
     if (!sigueAqui()) return;
@@ -366,37 +359,16 @@ export function tienda(contenedor, estado, seguir) {
       irse(respuesta.estado);
       return;
     }
+    // También un «no» (te faltan, ya lo tienes, reintenta…) trae el catálogo
+    // al día: no hace falta pedirlo.
     ponerCatalogo(respuesta.tienda);
     avisar(respuesta.mensaje, !respuesta.ok);
     volverALaFila(id);
-    // Un «no» (te faltan, ya lo tienes, reintenta…) vuelve a mirar el catálogo.
-    if (!respuesta.ok) releer();
-  }
-
-  // Vuelve a pedir el catálogo sin tocar lo que se dijo. Si mientras tanto
-  // salió otra compra, o hay una en camino, lo que llega ya es viejo. Una
-  // pregunta abierta se vuelve a abrir sobre la fila nueva.
-  async function releer() {
-    const antes = compras;
-    let nuevo;
-    try {
-      nuevo = await pedir('GET', 'tienda');
-    } catch (error) {
-      if (sigueAqui() && hayQueDecidirDeNuevo(error)) irse();
-      // Sin red: se queda lo que había.
-      return;
-    }
-    if (!sigueAqui() || antes !== compras || enCamino) return;
-    const reabrir = abierta ? abierta.id : null;
-    const teniaElFoco = Boolean(abierta) && abierta.caja.contains(document.activeElement);
-    ponerCatalogo(nuevo);
-    if (reabrir && ofertas.has(reabrir)) preguntar(ofertas.get(reabrir), teniaElFoco);
   }
 
   // --- el catálogo -------------------------------------------------------------------
 
-  ponerSaldos(estado.saldos);
-  return listaQueSePide({
+  const laLista = listaQueSePide({
     ruta: 'tienda',
     espera,
     lista: estante,
@@ -409,5 +381,8 @@ export function tienda(contenedor, estado, seguir) {
       elegir(seccionVista);
       if (trasReintentar) secciones.get(seccionVista).pestana.focus({ preventScroll: true });
     },
-  }).cargar();
+  });
+
+  ponerSaldos(estado.saldos);
+  return laLista.cargar();
 }
