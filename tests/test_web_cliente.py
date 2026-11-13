@@ -53,3 +53,23 @@ def test_el_aviso_del_codigo_esta_escrito():
 def test_ningun_texto_del_cliente_usa_los_nombres_viejos():
     for archivo in [ESTATICOS / "index.html", *GUIONES]:
         assert not re.search(r"ascii\s?(coin|gem)", archivo.read_text(encoding="utf-8"), re.I)
+
+
+def test_la_pantalla_principal_esta_y_se_usa():
+    nombres = {g.name for g in GUIONES}
+    assert {"lugar.js", "tiempo.js"} <= nombres
+    principal = (ESTATICOS / "js" / "principal.js").read_text(encoding="utf-8")
+    assert "./lugar.js" in principal
+
+
+def test_la_pantalla_principal_dice_desfallecido_y_no_inventa_errores_al_acariciar():
+    lugar = (ESTATICOS / "js" / "lugar.js").read_text(encoding="utf-8")
+    assert "esfallecid" in lugar
+    assert "acariciar" in lugar and "cuidar" in lugar
+    assert "visibilitychange" in lugar
+
+
+def test_el_estilo_piensa_en_el_celular_y_en_el_computador():
+    estilo = (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
+    assert "min-width: 900px" in estilo
+    assert "prefers-reduced-motion" in estilo

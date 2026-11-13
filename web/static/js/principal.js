@@ -2,24 +2,11 @@
 // pinta la pantalla que toque.
 
 import { pedir } from './api.js';
-import { el } from './dom.js';
 import * as entrada from './entrada.js';
+import { lugar } from './lugar.js';
 import { siguiente } from './pantallas.js';
 
 const contenedor = document.getElementById('juego');
-
-// Provisional: la pantalla del lugar llega en la tarea siguiente.
-function lugar(destino, seguir, { sesion, estado }) {
-  const { gachamon } = estado;
-  destino.append(
-    entrada.barra(sesion.usuario),
-    el('div', { class: 'cuerpo' },
-      el('h1', { tabindex: '-1' }, `${gachamon.nombre} te espera`),
-      el('div', { class: 'escena' }, el('img', { class: 'retrato', src: gachamon.retrato, alt: gachamon.nombre })),
-      el('p', { class: 'entradilla' }, `Muy pronto podrás cuidar a ${gachamon.nombre} desde aquí.`),
-    ),
-  );
-}
 
 const PANTALLAS = {
   sesion: entrada.sesion,
@@ -28,7 +15,7 @@ const PANTALLAS = {
   difunto: entrada.difunto,
   huevo: entrada.huevo,
   bautizo: entrada.bautizo,
-  lugar,
+  lugar: (destino, seguir, { estado }) => lugar(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 

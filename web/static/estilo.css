@@ -624,10 +624,528 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 .lapida-dias { font-size: 0.875rem; font-weight: 600; }
 
-/* Quien pidió menos movimiento en su sistema no ve animaciones. */
+/* Lo que se escribe para el lector de pantalla y no se ve. */
+.solo-lector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- el lugar: la pantalla principal --- */
+
+.donde {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.donde > span:first-child { margin-right: 6px; }
+
+.saldos {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.saldo { position: relative; white-space: nowrap; }
+
+/* «+1 moneda»: asoma un momento bajo el saldo. */
+.ganancia {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 10px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #ffd75e;
+  color: #3d2e00;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ganancia.visible { animation: gana 2.4s ease-out forwards; }
+
+@keyframes gana {
+  0% { opacity: 0; transform: translateY(6px) scale(0.9); }
+  12%, 78% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+.cuerpo-lugar { gap: 12px; padding-top: 12px; }
+
+/* `--alto` es lo que mide el gachamon en la escena: crece con la etapa. */
+.escena-lugar {
+  --alto: 64%;
+  display: block;
+  height: 300px;
+  height: clamp(236px, 40svh, 360px);
+  padding: 0;
+}
+
+.escena-lugar[data-etapa="bebe"] { --alto: 50%; }
+
+.escena-lugar[data-etapa="nino"] { --alto: 55%; }
+
+.escena-lugar[data-etapa="adolescente"] { --alto: 60%; }
+
+.escena-lugar[data-etapa="adulto_grande"] { --alto: 68%; }
+
+.escena-lugar[data-hogar="refugio"] { --pared: #ddd6c9; --piso: #8d8478; }
+
+.escena-lugar[data-hogar="intemperie"] { --pared: var(--cielo); --piso: var(--pasto); }
+
+.escena-lugar[data-hogar="intemperie"]::after { display: none; }
+
+/* A la intemperie no hay ventana: hay sol. */
+.escena-lugar[data-hogar="intemperie"] .ventana {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 50%;
+  background: #ffd75e;
+  box-shadow: 0 0 0 10px rgba(255, 215, 94, 0.3);
+}
+
+.escena-lugar[data-hogar="intemperie"] .ventana::before { display: none; }
+
+.escena-lugar > .monigote-lugar {
+  position: absolute;
+  z-index: 1;
+  left: 5%;
+  bottom: 14%;
+}
+
+/* El gachamon es un botón: tocarlo es acariciarlo. */
+.gachamon {
+  position: absolute;
+  z-index: 2;
+  left: 63%;
+  bottom: 6%;
+  height: var(--alto);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.gachamon::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 22%;
+  right: 22%;
+  bottom: -3%;
+  height: 8%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.gachamon > .retrato {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: contain;
+  object-position: 50% 100%;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+.gachamon > .retrato-sin {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  line-height: 1;
+  text-align: center;
+}
+
+.gachamon:active > .retrato { scale: 0.97; }
+
+/* Desfallecido: sin color y respirando con esfuerzo. */
+.gachamon.decaido > .retrato {
+  filter: saturate(0.4) brightness(0.9);
+  animation: decae 3.6s ease-in-out infinite;
+}
+
+@keyframes decae {
+  0%, 100% { transform: scale(1, 0.95); }
+  50% { transform: scale(1.01, 0.91); }
+}
+
+.gachamon.salta > .retrato { animation: salta 0.45s ease-out; }
+
+.gachamon.titubea > .retrato { animation: titubea 0.3s linear; }
+
+@keyframes salta {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-14%); }
+}
+
+@keyframes titubea {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-2%); }
+  70% { transform: translateX(2%); }
+}
+
+/* Sobre la cabeza del gachamon, sin salirse por arriba. */
+.globo {
+  position: absolute;
+  z-index: 3;
+  left: 63%;
+  top: max(10px, calc(94% - var(--alto) - 90px));
+  width: max-content;
+  max-width: min(68%, 340px);
+  margin: 0;
+  padding: 8px 13px;
+  border: 2px solid var(--texto);
+  border-radius: 16px;
+  background: #ffffff;
+  color: var(--texto);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: center;
+  translate: -50% 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, translate 0.2s ease;
+}
+
+.globo.visible { opacity: 1; translate: -50% 0; }
+
+.globo::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-right: 2px solid var(--texto);
+  border-bottom: 2px solid var(--texto);
+  background: #ffffff;
+  transform: rotate(45deg);
+}
+
+/* Salen de la cabeza del gachamon. */
+.corazon {
+  position: absolute;
+  z-index: 4;
+  bottom: calc(2% + var(--alto));
+  color: #e5484d;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  opacity: 0;
+  animation: sube 1.5s ease-out forwards;
+}
+
+@keyframes sube {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-110px) scale(1.2); }
+}
+
+.celebracion {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.celebracion-texto {
+  padding: 8px 16px;
+  border-radius: var(--radio);
+  background: var(--barra);
+  color: var(--barra-texto);
+  font-weight: 800;
+  text-align: center;
+  box-shadow: var(--sombra);
+  animation: aparece 0.35s ease-out;
+}
+
+@keyframes aparece {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+}
+
+/* La ficha: quién es y cómo está. */
+.ficha {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-grande);
+  background: var(--tarjeta);
+}
+
+.ficha-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.ficha-cabeza h1 { font-size: 1.5rem; }
+
+.insignia {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--error-fondo);
+  color: var(--error-texto);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.ficha-detalle {
+  margin-top: -6px;
+  color: var(--texto-suave);
+  font-size: 0.9375rem;
+}
+
+.medidores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.medidor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px 4px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.medidor-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medidor-cifra { color: var(--texto-suave); font-variant-numeric: tabular-nums; }
+
+.medidor-pista {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fondo-fuera);
+  overflow: hidden;
+}
+
+.medidor-relleno {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vivo);
+  transition: width 0.4s ease, background-color 0.4s ease;
+}
+
+.medidor-relleno[data-nivel="medio"] { background: #e0a100; }
+
+.medidor-relleno[data-nivel="bajo"] { background: #d93025; }
+
+/* Bajo la ficha: lo que contesta el juego, o la pista de la caricia. */
+.avisos-lugar {
+  min-height: 1.45em;
+  margin: -2px 0;
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.aviso-lugar { font-weight: 600; }
+
+.aviso-lugar.es-error { color: var(--error-texto); }
+
+.pista-lugar { color: var(--texto-suave); }
+
+.cuidados {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cuidado {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 84px;
+  padding: 10px 4px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.cuidado-icono { font-size: 1.625rem; line-height: 1.15; }
+
+.cuidado-nombre {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cuidado-espera {
+  color: var(--texto-suave);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cuidado-espera:empty { display: none; }
+
+.cuidado:active:not([aria-disabled="true"]) {
+  transform: translateY(1px);
+  background: var(--secundario);
+}
+
+.cuidado[aria-disabled="true"] {
+  border-color: transparent;
+  background: var(--secundario);
+  color: var(--texto-suave);
+  box-shadow: none;
+  cursor: default;
+}
+
+.cuidado[aria-disabled="true"] .cuidado-icono { filter: grayscale(1); opacity: 0.5; }
+
+/* Mientras contesta el servidor no está «en espera»: está trabajando. */
+.cuidado.esperando[aria-disabled="true"] {
+  border-color: var(--borde);
+  background: var(--tarjeta);
+  color: var(--texto);
+  cursor: progress;
+}
+
+.cuidado.esperando[aria-disabled="true"] .cuidado-icono { filter: none; opacity: 1; }
+
+.cuidado.esperando::after {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 12px;
+  height: 12px;
+}
+
+@media (hover: hover) {
+  .cuidado:not([aria-disabled="true"]):hover { border-color: var(--principal); }
+}
+
+/* En un computador, la escena a un lado y la ficha con los cuidados al otro. */
+@media (min-width: 900px) {
+  #juego[data-pantalla="lugar"] { max-width: 1120px; }
+
+  .cuerpo-lugar {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "escena ficha"
+      "escena avisos"
+      "escena cuidados"
+      "escena .";
+    align-items: start;
+    gap: 16px 28px;
+    padding: 28px 28px 36px;
+  }
+
+  .escena-lugar {
+    grid-area: escena;
+    height: clamp(420px, calc(100dvh - 140px), 560px);
+  }
+
+  .escena-lugar .ventana { width: 104px; height: 84px; }
+
+  .globo { font-size: 1.0625rem; }
+
+  .ficha { grid-area: ficha; gap: 12px; padding: 20px 22px 22px; }
+
+  .ficha-cabeza h1 { font-size: 2rem; }
+
+  .medidores { gap: 18px; }
+
+  .medidor { font-size: 0.875rem; }
+
+  .medidor-pista { height: 10px; }
+
+  .avisos-lugar { grid-area: avisos; margin: 0; text-align: left; }
+
+  .cuidados {
+    grid-area: cuidados;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  /* El icono a la izquierda; el nombre y, si la hay, la espera debajo. */
+  .cuidado {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: center;
+    justify-items: start;
+    gap: 0 12px;
+    min-height: 72px;
+    padding: 12px 16px;
+    font-size: 1rem;
+    text-align: left;
+  }
+
+  .cuidado-icono { grid-row: 1 / span 2; font-size: 1.75rem; }
+
+  .cuidado-espera { font-size: 0.875rem; }
+}
+
+/* Quien pidió menos movimiento en su sistema no ve animaciones: lo que
+   aparece, aparece quieto. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
     transition: none !important;
   }
+
+  .corazon, .ganancia.visible { opacity: 1; }
 }
