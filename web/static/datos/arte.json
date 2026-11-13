@@ -821,6 +821,378 @@
    "ancho": 32,
    "alto": 32,
    "familia": "efectos"
+  },
+  {
+   "ruta": "iconos/objetos/fuerza_1d4.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/fuerza_1d6.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/fuerza_1d8.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/fuerza_1d10.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/fuerza_1d12.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/velocidad_1d4.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/velocidad_1d6.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/velocidad_1d8.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/velocidad_1d10.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/velocidad_1d12.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/pocion_comida.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/descanso_rapido.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/silbato.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/golosinas.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/placa.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/ticket_refugio.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/semilla.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/poroto_rojo.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_rojo.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/poroto_azul.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_azul.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/poroto_verde.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_verde.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/poroto_rosa.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_rosa.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/poroto_amarillo.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_amarillo.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/poroto_arcoiris.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_arcoiris_1d12.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_arcoiris_1d10.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_arcoiris_1d8.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_arcoiris_1d6.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/objetos/sopaipilla_arcoiris_1d4.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/corona.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/chistera.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/laurel.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/cuernos.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/aureola.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/cinta.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/titulo_invicto.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/titulo_veloz.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/titulo_terco.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/titulo_errante.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/titulo_viejo.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/cosmeticos/titulo_sin_igual.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/felpudo.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/maceta.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/cuadro.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/estanteria.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/lampara.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/alfombra.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/cortinas.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/cojines.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/fuente.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/chimenea.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/calefactor.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/cama.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/ventanal.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/biblioteca.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/casas/pequena.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/casas/mediana.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/casas/grande.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
   }
  ]
 }

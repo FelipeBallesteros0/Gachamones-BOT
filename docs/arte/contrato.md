@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (137)
+## Los dibujos de ahora (199)
 
 ### Pueblo (`pueblo/`)
 
@@ -99,14 +99,32 @@ El juego todavía no dibuja `efectos/corazon.png` ni `efectos/estrella.png`: los
 corazones de la caricia son un carácter de texto y la estrella no se usa.
 Reemplazarlos hoy no cambia nada en pantalla.
 
-## Lo que llega con el plan 4
+### Íconos (`iconos/`)
 
-Estas familias todavía **no tienen archivos ni medidas**: se fijan cuando llegue
-el plan 4 y se sumarán a esta lista. No dibujes nada de esto todavía.
+Son los dibujitos de lo que se compra y se lleva. Se ven **en la tienda y en la
+mochila, a 48 píxeles**, así que hay que dibujarlos legibles y simples. Todos
+miden **48 × 48**, con **fondo transparente**. Hay uno por cada cosa del juego,
+y su nombre es la clave de esa cosa: si el juego suma un objeto nuevo, pedirá
+su ícono con el mismo nombre.
 
-- Íconos de objetos y de cosméticos.
-- Muebles.
-- Las escenas del interior de cada casa.
+| Archivo | Cuántos | Qué es |
+|---|---|---|
+| `iconos/objetos/<clave>.png` | 33 | Cada objeto: pociones, golosinas, porotos, sopaipillas, placa, silbato, ticket de refugio, semilla. También los que no se venden, porque se ven en la mochila. |
+| `iconos/cosmeticos/<clave>.png` | 12 | Cada cosmético del gachamon: sombreros y títulos. |
+| `iconos/muebles/<clave>.png` | 14 | Cada mueble de las casas. |
+| `iconos/casas/<clave>.png` | 3 | Cada casa que se compra: `pequena`, `mediana`, `grande`. |
+
+Las claves exactas están en `web/static/datos/arte.json`. Por ejemplo:
+`iconos/objetos/fuerza_1d4.png`, `iconos/cosmeticos/corona.png`,
+`iconos/muebles/lampara.png`, `iconos/casas/mediana.png`.
+
+El relleno de un ícono es un cuadro de color liso (un color por grupo) con las
+primeras letras del nombre, porque a este tamaño no cabe la palabra «RELLENO».
+
+## Lo que llega después
+
+Todavía **no tienen archivos ni medidas** y no hay que dibujarlas: las escenas
+del interior de cada casa.
 
 ## Los gachamones
 

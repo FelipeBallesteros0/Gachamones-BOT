@@ -265,12 +265,43 @@ def _efecto(nombre: str, lado: int) -> Image.Image:
     return imagen
 
 
+# --- los íconos --------------------------------------------------------------
+# A 48 x 48 no cabe «RELLENO»: el relleno se nota por su cuadro liso, de un color
+# por grupo, con las letras del nombre de la clave (la primera palabra en grande
+# y, debajo, la última si hay más de una: así una poción de 1d4 y una de 1d6 se distinguen).
+
+_COLORES_DE_ICONO = {"objetos": (46, 125, 210, 255), "cosmeticos": (150, 70, 200, 255),
+                     "muebles": (200, 110, 40, 255), "casas": (30, 160, 150, 255)}
+
+
+def _icono(grupo: str, clave: str, lado: int) -> Image.Image:
+    imagen = Image.new("RGBA", (lado, lado), TRANSPARENTE)
+    pincel = ImageDraw.Draw(imagen)
+    pincel.rectangle((3, 3, lado - 4, lado - 4), fill=_COLORES_DE_ICONO[grupo], outline=(255, 255, 255, 255),
+                     width=2)
+    palabras = clave.split("_")
+    renglones = [(palabras[0][:3], 16)]
+    if len(palabras) > 1:
+        renglones.append((palabras[-1][:4], 12))
+    alto_total = sum(t for _, t in renglones) + 2 * (len(renglones) - 1)
+    y = (lado - alto_total) / 2 - 2
+    for texto, tamano in renglones:
+        texto = texto.upper()
+        letra = _letra(tamano)
+        largo = pincel.textlength(texto, font=letra)
+        pincel.text(((lado - largo) / 2, y), texto, fill=(255, 255, 255, 255), font=letra)
+        y += tamano + 2
+    return imagen
+
+
 # --- la generación -----------------------------------------------------------
 
 def _dibujar(pieza: arte.Pieza) -> Image.Image:
     partes = pieza.ruta.removesuffix(".png").split("/")
     if pieza.familia == "pueblo":
         return _fondo(pieza.ancho, pieza.alto)
+    if pieza.familia == "iconos":
+        return _icono(partes[1], partes[2], pieza.ancho)
     if pieza.familia == "efectos":
         return _efecto(partes[1], pieza.ancho)
     if pieza.familia in ("lugares", "escenas"):

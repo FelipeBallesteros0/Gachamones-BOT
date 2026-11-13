@@ -1,16 +1,20 @@
 import json
+import re
 from collections import Counter
 
 from PIL import Image
 
 import avatar
+import casas
+import cosmeticos
+import objetos
 from web import arte, pueblo
 
 
-def test_el_contrato_tiene_sus_137_piezas():
+def test_el_contrato_tiene_sus_199_piezas():
     piezas = arte.piezas()
     assert Counter(p.familia for p in piezas) == {
-        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4,
+        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4, "iconos": 62,
     }
     assert len({p.ruta for p in piezas}) == len(piezas)
     rutas = {p.ruta: (p.ancho, p.alto) for p in piezas}
@@ -68,14 +72,14 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     monkeypatch.setattr(arte, "RAIZ", tmp_path / "arte")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 137
+    assert len(escritas) == 199
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
     assert rellenos.generar() == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 137
+    assert len(rellenos.generar(todo=True)) == 199
 
 
 def test_dos_lugares_no_tienen_el_mismo_relleno():
@@ -104,3 +108,42 @@ def test_el_relleno_de_la_sombra_es_una_elipse_achatada_oscura_y_translucida_al_
     assert derecha - izquierda > 2 * (abajo - arriba)
     r, g, b, a = sombra.getpixel((lado // 2, lado // 2))
     assert max(r, g, b) < 60 and 0 < a < 255
+
+
+def _rutas_de_iconos():
+    return (
+        [f"iconos/objetos/{c}.png" for c in objetos.CATALOGO]
+        + [f"iconos/cosmeticos/{c}.png" for c in cosmeticos.CATALOGO]
+        + [f"iconos/muebles/{c}.png" for c in casas.MUEBLES]
+        + [f"iconos/casas/{c}.png" for c in casas.CATALOGO]
+    )
+
+
+def test_cada_cosa_que_se_compra_o_se_lleva_tiene_su_icono():
+    rutas = {p.ruta: p for p in arte.piezas()}
+    esperadas = _rutas_de_iconos()
+    assert len(esperadas) == 62
+    for ruta in esperadas:
+        assert (rutas[ruta].ancho, rutas[ruta].alto, rutas[ruta].familia) == (48, 48, "iconos")
+
+
+def test_las_rutas_de_los_iconos_pasan_el_filtro_del_cliente():
+    forma = re.compile(r"^[a-z0-9_]+(-[a-z0-9_]+)*(/[a-z0-9_]+(-[a-z0-9_]+)*)*\.png$")
+    for ruta in _rutas_de_iconos():
+        assert forma.match(ruta), ruta
+
+
+def test_los_rellenos_de_iconos_se_distinguen_y_tienen_fondo_transparente():
+    por_grupo = {}
+    for ruta in _rutas_de_iconos():
+        grupo = ruta.split("/")[1]
+        with Image.open(arte.RAIZ / ruta) as imagen:
+            imagen = imagen.convert("RGBA")
+            assert imagen.getpixel((0, 0))[3] == 0, ruta
+            assert imagen.getpixel((24, 5))[3] == 255, ruta
+            por_grupo.setdefault(grupo, []).append((ruta, imagen.tobytes(), imagen.getpixel((6, 6))))
+    for grupo, items in por_grupo.items():
+        assert len({b for _, b, _ in items}) == len(items), grupo
+    colores = {items[0][2] for items in por_grupo.values()}
+    assert len(colores) == 4
+    assert all(len({c for _, _, c in items}) == 1 for items in por_grupo.values())
