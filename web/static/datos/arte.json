@@ -1,0 +1,820 @@
+{
+ "piezas": [
+  {
+   "ruta": "pueblo/fondo.png",
+   "ancho": 1380,
+   "alto": 860,
+   "familia": "pueblo"
+  },
+  {
+   "ruta": "pueblo/lugares/casa.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/refugio.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/incubadora.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/tienda.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/plaza.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/barrio.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/estadio.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/cementerio.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "pueblo/lugares/aventura.png",
+   "ancho": 160,
+   "alto": 160,
+   "familia": "lugares"
+  },
+  {
+   "ruta": "escenas/casa.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/refugio.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/incubadora.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/tienda.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/plaza.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/barrio.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/estadio.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/cementerio.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "escenas/aventura.png",
+   "ancho": 720,
+   "alto": 480,
+   "familia": "escenas"
+  },
+  {
+   "ruta": "avatar/cuerpo/clara-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/media-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/tostada-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/oscura-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/clara-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/media-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/tostada-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/oscura-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/clara-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/media-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/tostada-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/cuerpo/oscura-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/poleron-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/camisa-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/vestido-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/overol-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/poleron-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/camisa-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/vestido-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/overol-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/poleron-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/camisa-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/vestido-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/ropa/overol-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-negro-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-negro-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-negro-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-castano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-castano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-castano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-rubio-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-rubio-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-rubio-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-rojo-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-rojo-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-rojo-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-cano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-cano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-cano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-azul-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-azul-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/corto-azul-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-negro-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-negro-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-negro-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-castano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-castano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-castano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-rubio-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-rubio-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-rubio-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-rojo-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-rojo-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-rojo-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-cano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-cano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-cano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-azul-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-azul-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/largo-azul-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-negro-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-negro-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-negro-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-castano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-castano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-castano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-rubio-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-rubio-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-rubio-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-rojo-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-rojo-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-rojo-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-cano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-cano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-cano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-azul-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-azul-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rizado-azul-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-negro-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-negro-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-negro-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-castano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-castano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-castano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-rubio-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-rubio-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-rubio-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-rojo-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-rojo-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-rojo-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-cano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-cano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-cano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-azul-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-azul-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/coleta-azul-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-negro-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-negro-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-negro-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-castano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-castano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-castano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-rubio-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-rubio-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-rubio-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-rojo-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-rojo-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-rojo-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-cano-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-cano-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-cano-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-azul-quieto.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-azul-paso1.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "avatar/pelo/rapado-azul-paso2.png",
+   "ancho": 48,
+   "alto": 84,
+   "familia": "avatar"
+  },
+  {
+   "ruta": "efectos/corazon.png",
+   "ancho": 32,
+   "alto": 32,
+   "familia": "efectos"
+  },
+  {
+   "ruta": "efectos/estrella.png",
+   "ancho": 32,
+   "alto": 32,
+   "familia": "efectos"
+  },
+  {
+   "ruta": "efectos/marca.png",
+   "ancho": 32,
+   "alto": 32,
+   "familia": "efectos"
+  }
+ ]
+}
