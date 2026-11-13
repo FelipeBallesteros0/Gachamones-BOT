@@ -217,6 +217,21 @@ def test_una_base_sin_difuntos_vistos_hasta_la_gana_al_inicializar():
     assert db.cuenta_web(1) is not None
 
 
+def test_una_base_sin_lugar_la_gana_al_inicializar():
+    db.inicializar()
+    db.crear_identidad_web(1, "g1", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    with db.conectar() as con:
+        con.execute("ALTER TABLE cuentas_web DROP COLUMN lugar")
+        assert "lugar" not in db._columnas(con, "cuentas_web")
+
+    db.inicializar()
+
+    with db.conectar() as con:
+        assert "lugar" in db._columnas(con, "cuentas_web")
+    assert db.cuenta_web(1) is not None
+    assert db.lugar_de_cuenta(1) is None
+
+
 def _simular_esquema_sin_ingenio():
     with db.conectar() as con:
         for columna in COLUMNAS_INGENIO:

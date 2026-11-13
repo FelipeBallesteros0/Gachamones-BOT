@@ -14,7 +14,7 @@ import db
 import economia
 import nacer
 import simulacion as sim
-from web import estado
+from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
 from web.sesion import con_cabecera, problema
 
@@ -109,6 +109,19 @@ def bautizar(
     except nacer.NoSePuedeBautizar as error:
         raise problema(409, error.motivo, str(error)) from None
     return estado.armar(jugador, ahora)
+
+
+@router.post("/lugar", dependencies=[Depends(con_cabecera)])
+def ir_a_un_lugar(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # El cuerpo se revisa a mano; la cuenta sale sólo de la cookie.
+    lugar = cuerpo.get("lugar") if isinstance(cuerpo, dict) else None
+    if not pueblo.existe(lugar):
+        raise problema(422, "lugar", "Ese lugar no existe.")
+    db.poner_lugar(jugador.persona.rowino_uid, lugar)
+    return estado.armar(jugador, db.ahora_utc())
 
 
 @router.post("/cuidar", dependencies=[Depends(con_cabecera)])

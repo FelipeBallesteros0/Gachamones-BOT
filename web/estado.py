@@ -17,7 +17,7 @@ import globos
 import nacer
 import retrato
 import simulacion as sim
-from web import PREFIJO
+from web import PREFIJO, pueblo
 from web.cuenta import Jugador
 
 _ACCIONES = (sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR, sim.ACARICIAR)
@@ -78,11 +78,24 @@ def _difunto(jugador: Jugador) -> dict | None:
     }
 
 
+def _lugar(jugador: Jugador, hogar: str) -> dict:
+    clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
+    if not pueblo.existe(clave):
+        clave = pueblo.de_partida(hogar)
+    return {
+        "clave": clave,
+        "nombre": pueblo.LUGARES[clave].nombre,
+        "abre": pueblo.LUGARES[clave].abre,
+        "aviso": pueblo.aviso(clave, jugador.vinculada, hogar),
+    }
+
+
 def armar(jugador: Jugador, ahora: datetime) -> dict:
     activa = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
     avatar = db.avatar_de(jugador.usuario_id, jugador.guild_id)
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
     hogar = db.hogar_leido(jugador.usuario_id, jugador.guild_id, ahora)
+    estado_hogar = hogar.estado_de(None if activa is None else activa.casa_id, ahora)
     return {
         "ahora": ahora.isoformat(),
         "persona": {
@@ -90,10 +103,11 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         },
         "avatar": None if avatar is None else asdict(avatar),
         "saldos": {"monedas": saldos.asciicoins, "gemas": saldos.asciigems},
-        "hogar": hogar.estado_de(None if activa is None else activa.casa_id, ahora),
+        "hogar": estado_hogar,
         "gachamon": None if activa is None else ficha(activa, ahora),
         "difunto": _difunto(jugador),
         "globos": [] if activa is None else [
             {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa)
         ],
+        "lugar": _lugar(jugador, estado_hogar),
     }

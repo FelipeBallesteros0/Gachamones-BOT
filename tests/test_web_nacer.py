@@ -120,7 +120,7 @@ def test_al_nacer_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch):
     assert respuesta.json()["saldos"]["gemas"] == 70
     assert economia.saldos(YO, G).asciigems == 70
     assert set(respuesta.json()) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos",
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar",
     }
 
 

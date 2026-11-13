@@ -265,6 +265,7 @@ CREATE TABLE IF NOT EXISTS cuentas_web (
     vinculada INTEGER NOT NULL DEFAULT 0,
     creada_en TEXT NOT NULL,
     difuntos_vistos_hasta TEXT,
+    lugar TEXT,
     UNIQUE (usuario_id, guild_id)
 );
 
@@ -524,6 +525,8 @@ MIGRACIONES_DE_TABLAS = (
     # fecha en que se creó: lo que murió antes no es una noticia.
     ("cuentas_web", "difuntos_vistos_hasta",
      "ALTER TABLE cuentas_web ADD COLUMN difuntos_vistos_hasta TEXT"),
+    # El último lugar del pueblo al que llegó la cuenta. Vacía, vale su hogar.
+    ("cuentas_web", "lugar", "ALTER TABLE cuentas_web ADD COLUMN lugar TEXT"),
 )
 
 # La tabla `hogar` tal como queda tras `_migrar_casas`, sin la columna `casa`.
@@ -2640,6 +2643,24 @@ def marcar_difuntos_vistos(rowino_uid: int, hasta: datetime) -> None:
         con.execute(
             "UPDATE cuentas_web SET difuntos_vistos_hasta = ? WHERE rowino_uid = ?",
             (hasta.isoformat(), rowino_uid),
+        )
+
+
+def lugar_de_cuenta(rowino_uid: int) -> str | None:
+    """El último lugar al que llegó esa cuenta; None si no hay cuenta o lugar."""
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT lugar FROM cuentas_web WHERE rowino_uid = ?", (rowino_uid,)
+        ).fetchone()
+    return None if fila is None else fila["lugar"]
+
+
+def poner_lugar(rowino_uid: int, lugar: str) -> None:
+    """Guarda el lugar de esa cuenta. No valida contra el pueblo; sin cuenta, nada."""
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(
+            "UPDATE cuentas_web SET lugar = ? WHERE rowino_uid = ?", (lugar, rowino_uid)
         )
 
 
