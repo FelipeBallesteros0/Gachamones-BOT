@@ -98,6 +98,9 @@ def problemas(datos: dict) -> list[str]:
             malos.append(f"El lugar «{clave}» abre «{lugar.get('abre')}», que no es válido.")
         if lugar.get("parte") not in _PARTES:
             malos.append(f"El lugar «{clave}» es de la parte «{lugar.get('parte')}», que no es válida.")
+        hacia = lugar.get("hacia")
+        if not (isinstance(hacia, str) and hacia.strip()):
+            malos.append(f"El lugar «{clave}» no dice cómo se va hacia él («hacia»).")
         if clave not in nodos:
             malos.append(f"El lugar «{clave}» no tiene nodo.")
 

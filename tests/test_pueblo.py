@@ -79,6 +79,24 @@ def test_una_clave_que_falta_es_un_problema_y_no_una_excepcion(clave):
     assert _roto(lambda d: d.pop(clave))
 
 
+def test_cada_lugar_dice_como_se_va_hacia_el():
+    assert {clave: lugar["hacia"] for clave, lugar in pueblo.DATOS["lugares"].items()} == {
+        "casa": "a tu casa", "refugio": "al refugio", "incubadora": "a la incubadora",
+        "tienda": "a la tienda", "plaza": "a la plaza", "barrio": "al barrio",
+        "estadio": "al estadio", "cementerio": "al cementerio", "aventura": "a la aventura",
+    }
+
+
+@pytest.mark.parametrize("valor", [None, "", "   ", 7])
+def test_un_lugar_sin_su_hacia_es_un_problema(valor):
+    datos = json.loads(pueblo.RUTA.read_text(encoding="utf-8"))
+    if valor is None:
+        del datos["lugares"]["plaza"]["hacia"]
+    else:
+        datos["lugares"]["plaza"]["hacia"] = valor
+    assert pueblo.problemas(datos)
+
+
 @pytest.mark.parametrize("clave,hogar,vale", [
     ("casa", "refugio", True),
     ("casa", "intemperie", True),

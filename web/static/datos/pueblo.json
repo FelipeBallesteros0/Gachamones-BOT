@@ -4,15 +4,15 @@
   "velocidad": 115,
   "hueco": 26,
   "lugares": {
-    "casa": {"nombre": "Tu casa", "parte": "A", "abre": "ya"},
-    "refugio": {"nombre": "Refugio", "parte": "A", "abre": "ya"},
-    "incubadora": {"nombre": "Incubadora", "parte": "A", "abre": "pronto"},
-    "tienda": {"nombre": "Tienda", "parte": "A", "abre": "pronto"},
-    "plaza": {"nombre": "Plaza", "parte": "B", "abre": "despues"},
-    "barrio": {"nombre": "Barrio", "parte": "B", "abre": "despues"},
-    "estadio": {"nombre": "Estadio", "parte": "B", "abre": "despues"},
-    "cementerio": {"nombre": "Cementerio", "parte": "B", "abre": "despues"},
-    "aventura": {"nombre": "Aventura", "parte": "B", "abre": "despues"}
+    "casa": {"nombre": "Tu casa", "parte": "A", "abre": "ya", "hacia": "a tu casa"},
+    "refugio": {"nombre": "Refugio", "parte": "A", "abre": "ya", "hacia": "al refugio"},
+    "incubadora": {"nombre": "Incubadora", "parte": "A", "abre": "pronto", "hacia": "a la incubadora"},
+    "tienda": {"nombre": "Tienda", "parte": "A", "abre": "pronto", "hacia": "a la tienda"},
+    "plaza": {"nombre": "Plaza", "parte": "B", "abre": "despues", "hacia": "a la plaza"},
+    "barrio": {"nombre": "Barrio", "parte": "B", "abre": "despues", "hacia": "al barrio"},
+    "estadio": {"nombre": "Estadio", "parte": "B", "abre": "despues", "hacia": "al estadio"},
+    "cementerio": {"nombre": "Cementerio", "parte": "B", "abre": "despues", "hacia": "al cementerio"},
+    "aventura": {"nombre": "Aventura", "parte": "B", "abre": "despues", "hacia": "a la aventura"}
   },
   "nodos": {
     "incubadora": [75, 170], "u1": [165, 170], "tienda": [220, 170], "ptop": [300, 170],

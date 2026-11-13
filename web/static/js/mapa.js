@@ -126,7 +126,7 @@ function trazarPastilla(ctx, x, y, ancho, alto) {
 export function pueblo(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
-  const aqui = estado.lugar || { clave: null, nombre: '' };
+  const aqui = estado.lugar || { clave: null };
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)');
   const quieto = () => menosMovimiento.matches;
 
@@ -180,7 +180,9 @@ export function pueblo(contenedor, estado, seguir) {
 
   // --- debajo: volver sin moverse, o ir a un lugar ------------------------------------
 
-  const volver = el('button', { type: 'button', class: 'boton boton-volver' }, `Volver a ${aqui.nombre}`);
+  // Dice adónde («Volver al refugio») cuando llegan los datos del pueblo; hasta
+  // entonces, o si no llegan, «Volver» a secas.
+  const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
   const lista = el('ul', { class: 'lugares-del-pueblo' });
   // Sin los datos del pueblo no hay lugares que listar.
   const irA = el('section', { class: 'ir-a', hidden: true },
@@ -557,8 +559,11 @@ export function pueblo(contenedor, estado, seguir) {
   function armarElPueblo(leidos) {
     datos = leidos;
     const claves = Object.keys(datos.lugares);
-    const inicio = Object.hasOwn(datos.lugares, aqui.clave) ? aqui.clave : claves[0];
+    const estasEnUnLugar = Object.hasOwn(datos.lugares, aqui.clave);
+    const inicio = estasEnUnLugar ? aqui.clave : claves[0];
     paseo = crearPaseo(datos, armarGrafo(datos), inicio);
+    const hacia = estasEnUnLugar ? datos.lugares[aqui.clave].hacia : null;
+    if (typeof hacia === 'string' && hacia.trim()) volver.textContent = `Volver ${hacia}`;
     porAltura = [...claves].sort((a, b) => datos.nodos[a][1] - datos.nodos[b][1]);
     // Para que en el computador el mapa tenga la forma del pueblo, y lo de
     // debajo, su mismo ancho.
