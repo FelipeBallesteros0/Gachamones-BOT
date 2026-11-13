@@ -78,7 +78,9 @@ def _difunto(jugador: Jugador) -> dict | None:
     }
 
 
-def _lugar(jugador: Jugador, hogar_del_gachamon: str, hogar_de_la_persona: str) -> dict:
+def _lugar(
+    jugador: Jugador, hogar_del_gachamon: str, hogar_de_la_persona: str, hay_gachamon: bool
+) -> dict:
     clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
     if not pueblo.existe(clave):
         clave = pueblo.de_partida(hogar_del_gachamon)
@@ -86,7 +88,9 @@ def _lugar(jugador: Jugador, hogar_del_gachamon: str, hogar_de_la_persona: str) 
         "clave": clave,
         "nombre": pueblo.LUGARES[clave].nombre,
         "abre": pueblo.LUGARES[clave].abre,
-        "aviso": pueblo.aviso(clave, jugador.vinculada, hogar_de_la_persona),
+        "aviso": pueblo.aviso(
+            clave, jugador.vinculada, hogar_de_la_persona, hogar_del_gachamon if hay_gachamon else None
+        ),
     }
 
 
@@ -98,9 +102,12 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
     estado_hogar = hogar.estado_de(None if activa is None else activa.casa_id, ahora)
     # Se parte de donde vive el gachamon; «Tu casa» mira si la persona tiene una.
     hogar_de_la_persona = hogar.estado(ahora)
-    lugar = _lugar(jugador, estado_hogar, hogar_de_la_persona)
-    # Sin casa propia, «Tu casa» avisa que no la hay: el gachamon no habla de ella.
-    del_lugar = None if pueblo.sin_casa(lugar["clave"], hogar_de_la_persona) else lugar["clave"]
+    lugar = _lugar(jugador, estado_hogar, hogar_de_la_persona, activa is not None)
+    # Sin casa propia, «Tu casa» avisa que no la hay, y a la intemperie el
+    # Refugio avisa que ya no vive en él: el gachamon no habla de ese lugar.
+    aqui = lugar["clave"]
+    sin_frases = pueblo.sin_casa(aqui, hogar_de_la_persona) or pueblo.a_la_intemperie(aqui, estado_hogar)
+    del_lugar = None if sin_frases else aqui
     return {
         "ahora": ahora.isoformat(),
         "persona": {

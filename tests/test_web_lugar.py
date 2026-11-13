@@ -157,3 +157,52 @@ def test_se_parte_de_donde_vive_el_gachamon(cliente, monkeypatch):
     assert estado["hogar"] == "refugio"
     assert estado["lugar"]["clave"] == "refugio"
     assert estado["lugar"]["aviso"] is None
+
+
+A_LA_INTEMPERIE = (
+    "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. Las casas se compran en la tienda."
+)
+
+
+def vencer_la_estancia(reloj) -> None:
+    """La cuenta 1, sin casa, agota su estancia en el refugio y queda a la intemperie."""
+    cuenta = db.cuenta_web(1)
+    # Sin fila en `hogar` se «acaba de entrar» al refugio en cada lectura: hay que empezar la estancia.
+    db.hogar_de(cuenta.usuario_id, cuenta.guild_id, reloj())
+    reloj.pasar(days=casas.DIAS_DE_REFUGIO, seconds=1)
+
+
+def con_el_gachamon_a_la_intemperie(cliente, monkeypatch) -> None:
+    """Una cuenta sin casa con su gachamon a la intemperie."""
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    vencer_la_estancia(reloj)
+
+
+def test_a_la_intemperie_el_refugio_lo_dice_y_el_gachamon_no_habla_del_refugio(cliente, monkeypatch):
+    con_el_gachamon_a_la_intemperie(cliente, monkeypatch)
+    al_entrar = cliente.get(ESTADO).json()
+    assert db.lugar_de_cuenta(1) is None
+    for estado in (al_entrar, ir(cliente, "refugio").json(), cliente.get(ESTADO).json()):
+        assert estado["hogar"] == "intemperie"
+        assert estado["lugar"] == {"clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": A_LA_INTEMPERIE}
+        assert [g for g in estado["globos"] if g["tipo"] == "lugar"] == []
+        assert any(g["tipo"] == "suelta" for g in estado["globos"])
+
+
+def test_a_la_intemperie_los_demas_lugares_siguen_igual(cliente, monkeypatch):
+    con_el_gachamon_a_la_intemperie(cliente, monkeypatch)
+    estado = ir(cliente, "plaza").json()
+    assert estado["hogar"] == "intemperie"
+    assert estado["lugar"]["aviso"] == "Esto se abre más adelante."
+    assert any(g["tipo"] == "lugar" for g in estado["globos"])
+
+
+def test_sin_gachamon_el_refugio_no_avisa_de_la_intemperie(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    vencer_la_estancia(reloj)
+    estado = cliente.get(ESTADO).json()
+    assert estado["gachamon"] is None
+    assert estado["hogar"] == "intemperie"
+    assert estado["lugar"]["clave"] == "refugio" and estado["lugar"]["aviso"] is None

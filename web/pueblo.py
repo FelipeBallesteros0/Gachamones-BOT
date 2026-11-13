@@ -50,10 +50,22 @@ def sin_casa(clave: str, hogar: str) -> bool:
     return clave == "casa" and hogar != casas.PROPIA
 
 
-def aviso(clave: str, vinculada: bool, hogar: str) -> str | None:
+def a_la_intemperie(clave: str, hogar_del_gachamon: str) -> bool:
+    """Está en el Refugio, pero su gachamon ya no vive en él: se le acabó la estancia.
+
+    `hogar_del_gachamon` es la situación del gachamon activo (`Hogar.estado_de`),
+    no la de la persona.
+    """
+    return clave == "refugio" and hogar_del_gachamon == casas.INTEMPERIE
+
+
+def aviso(clave: str, vinculada: bool, hogar: str, hogar_del_gachamon: str | None) -> str | None:
     """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
 
-    `hogar` es la situación de la persona (`Hogar.estado`), como en `sin_casa`.
+    `hogar` es la situación de la persona (`Hogar.estado`), como en `sin_casa`;
+    `hogar_del_gachamon`, la de su gachamon activo, como en `a_la_intemperie`,
+    o `None` si no lo tiene: sin gachamon no hay a quién avisarle que vive a la
+    intemperie.
     """
     abre = LUGARES[clave].abre
     if abre == DESPUES:
@@ -64,6 +76,11 @@ def aviso(clave: str, vinculada: bool, hogar: str) -> str | None:
         return "Aquí todavía no hay nada que hacer. Abre pronto."
     if sin_casa(clave, hogar):
         return "Todavía no tienes casa. Se compran en la tienda."
+    if hogar_del_gachamon is not None and a_la_intemperie(clave, hogar_del_gachamon):
+        return (
+            "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
+            "Las casas se compran en la tienda."
+        )
     return None
 
 

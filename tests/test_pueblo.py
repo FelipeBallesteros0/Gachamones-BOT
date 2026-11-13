@@ -44,17 +44,28 @@ def test_se_parte_del_hogar():
     assert pueblo.de_partida(casas.INTEMPERIE) == "refugio"
 
 
-@pytest.mark.parametrize("clave, vinculada, hogar, frase", [
-    ("estadio", True, casas.PROPIA, "Esto se abre más adelante. Por ahora se juega en Discord."),
-    ("estadio", False, casas.PROPIA, "Esto se abre más adelante."),
-    ("tienda", True, casas.REFUGIO, "Aquí todavía no hay nada que hacer. Abre pronto."),
-    ("casa", False, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
-    ("casa", False, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
-    ("casa", True, casas.PROPIA, None),
-    ("refugio", False, casas.REFUGIO, None),
+A_LA_INTEMPERIE = (
+    "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. Las casas se compran en la tienda."
+)
+
+
+@pytest.mark.parametrize("clave, vinculada, hogar, del_gachamon, frase", [
+    ("estadio", True, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante. Por ahora se juega en Discord."),
+    ("estadio", False, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante."),
+    ("tienda", True, casas.REFUGIO, casas.REFUGIO, "Aquí todavía no hay nada que hacer. Abre pronto."),
+    ("casa", False, casas.REFUGIO, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
+    ("casa", False, casas.INTEMPERIE, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
+    ("casa", True, casas.PROPIA, casas.PROPIA, None),
+    ("refugio", False, casas.REFUGIO, casas.REFUGIO, None),
+    ("refugio", False, casas.REFUGIO, casas.INTEMPERIE, A_LA_INTEMPERIE),
+    ("refugio", True, casas.PROPIA, casas.INTEMPERIE, A_LA_INTEMPERIE),
+    ("casa", False, casas.REFUGIO, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
+    ("estadio", False, casas.REFUGIO, casas.INTEMPERIE, "Esto se abre más adelante."),
+    # Sin gachamon activo no hay a quién avisarle que vive a la intemperie.
+    ("refugio", False, casas.INTEMPERIE, None, None),
 ])
-def test_cada_lugar_avisa_lo_suyo(clave, vinculada, hogar, frase):
-    assert pueblo.aviso(clave, vinculada, hogar) == frase
+def test_cada_lugar_avisa_lo_suyo(clave, vinculada, hogar, del_gachamon, frase):
+    assert pueblo.aviso(clave, vinculada, hogar, del_gachamon) == frase
 
 
 def _roto(cambio):
@@ -107,3 +118,14 @@ def test_un_lugar_sin_su_hacia_es_un_problema(valor):
 ])
 def test_sin_casa_es_estar_en_tu_casa_sin_tener_una(clave, hogar, vale):
     assert pueblo.sin_casa(clave, hogar) is vale
+
+
+@pytest.mark.parametrize("clave,del_gachamon,vale", [
+    ("refugio", "intemperie", True),
+    ("refugio", "refugio", False),
+    ("refugio", "propia", False),
+    ("casa", "intemperie", False),
+    ("plaza", "intemperie", False),
+])
+def test_a_la_intemperie_es_estar_en_el_refugio_sin_vivir_ya_en_el(clave, del_gachamon, vale):
+    assert pueblo.a_la_intemperie(clave, del_gachamon) is vale
