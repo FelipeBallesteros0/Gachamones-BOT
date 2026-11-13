@@ -43,6 +43,26 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   la etapa nueva.
 - Las frases de los globos (`globos.py`) y los dibujos de relleno (el avatar, el
   huevo y las catorce especies sin arte) son provisionales.
+- Un gachamon de Discord que nunca fue bautizado (se llama como su especie)
+  pasa por el bautizo la primera vez que su dueño entra a la web.
+- Cuando una cuenta vinculada no tiene activa pero sí uno con nombre en la
+  incubadora, abrir la web lo saca y arranca su reloj de hambre sin anuncio en
+  Discord.
+- Las medallas que se ganan al nacer el gachamon se pagan pero la web aún no
+  las enseña; las que se ganan en la web no se cantan en el canal de Discord.
+- `users.id` de Rowino no es `AUTOINCREMENT`: si un día se borra a mano el
+  usuario de id más alto, el siguiente registro heredaría su cuenta del juego y
+  su vínculo. Hoy Rowino no borra usuarios.
+- `Mascota._avisar_hambrientas` lee la lista, espera envíos a Discord y guarda
+  la fila entera: con la web escribiendo a la vez, un cuidado hecho en esos
+  segundos se pisaría. Bastaría un `UPDATE` sólo de `avisada`.
+- Cada lectura del estado toma el turno de escritura por el `INSERT OR IGNORE`
+  del monedero; bastaría una lectura con los saldos iniciales por defecto.
+- Durante un despliegue, mientras corre la suite en la Pi, la web vieja sirve
+  los archivos estáticos nuevos. Se cierra probando en un árbol aparte antes de
+  cambiar el de producción.
+- `globos.elegir` no lo usa nadie en el servidor: la regla vive otra vez en
+  `tiempo.js`.
 
 ## Para el proyecto 2 (notificaciones)
 
