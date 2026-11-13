@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (136)
+## Los dibujos de ahora (137)
 
 ### Pueblo (`pueblo/`)
 
@@ -88,6 +88,7 @@ tono, pero cada color es un archivo aparte.
 | `efectos/corazon.png` | 32 × 32 | Un corazón (cariño). |
 | `efectos/estrella.png` | 32 × 32 | Una estrella (logros). |
 | `efectos/marca.png` | 32 × 32 | La marca de destino: donde vas a caminar al tocar el mapa. |
+| `efectos/sombra.png` | 32 × 32 | La sombra del gachamon en el mapa. Va en el suelo, bajo sus pies (el centro del dibujo cae justo donde pisa), y **no salta con él**: cuando da sus saltitos al caminar, se queda abajo. Oscura y translúcida, para que se vea el suelo a través. (El avatar no la usa: su sombra viene en su capa del cuerpo.) |
 
 Fondo transparente y la figura centrada.
 

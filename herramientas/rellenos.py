@@ -254,6 +254,10 @@ def _efecto(nombre: str, lado: int) -> Image.Image:
             angulo = -math.pi / 2 + i * math.pi / 5
             puntas.append((c + radio * math.cos(angulo), c + radio * math.sin(angulo)))
         pincel.polygon(puntas, fill=(250, 204, 60, 255), outline=(190, 140, 20, 255))
+    elif nombre == "sombra":
+        # Una elipse achatada, oscura y translúcida, al centro: lo que el
+        # gachamon pisa en el mapa. Del mismo negro que la del avatar.
+        pincel.ellipse((2, 11, lado - 3, lado - 12), fill=(0, 0, 0, 51))
     else:  # marca de destino: un anillo con punto
         rojo = (226, 64, 92, 255)
         pincel.ellipse((3, 3, 29, 29), outline=rojo, width=4)

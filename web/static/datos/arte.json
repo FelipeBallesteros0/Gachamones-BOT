@@ -815,6 +815,12 @@
    "ancho": 32,
    "alto": 32,
    "familia": "efectos"
+  },
+  {
+   "ruta": "efectos/sombra.png",
+   "ancho": 32,
+   "alto": 32,
+   "familia": "efectos"
   }
  ]
 }

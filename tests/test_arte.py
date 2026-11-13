@@ -7,10 +7,10 @@ import avatar
 from web import arte, pueblo
 
 
-def test_el_contrato_tiene_las_136_piezas_de_este_plan():
+def test_el_contrato_tiene_sus_137_piezas():
     piezas = arte.piezas()
     assert Counter(p.familia for p in piezas) == {
-        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 3,
+        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4,
     }
     assert len({p.ruta for p in piezas}) == len(piezas)
     rutas = {p.ruta: (p.ancho, p.alto) for p in piezas}
@@ -21,6 +21,7 @@ def test_el_contrato_tiene_las_136_piezas_de_este_plan():
     assert rutas["avatar/pelo/coleta-azul-quieto.png"] == (48, 84)
     assert rutas["avatar/ropa/overol-paso1.png"] == (48, 84)
     assert rutas["efectos/marca.png"] == (32, 32)
+    assert rutas["efectos/sombra.png"] == (32, 32)
 
 
 def test_el_contrato_sale_de_los_catalogos():
@@ -67,14 +68,14 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     monkeypatch.setattr(arte, "RAIZ", tmp_path / "arte")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 136
+    assert len(escritas) == 137
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
     assert rellenos.generar() == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 136
+    assert len(rellenos.generar(todo=True)) == 137
 
 
 def test_dos_lugares_no_tienen_el_mismo_relleno():
@@ -87,6 +88,19 @@ def test_dos_lugares_no_tienen_el_mismo_relleno():
 
 
 def test_el_fondo_de_un_lugar_y_de_una_capa_es_transparente():
-    for ruta in ("pueblo/lugares/casa.png", "avatar/pelo/corto-negro-quieto.png", "efectos/corazon.png"):
+    for ruta in ("pueblo/lugares/casa.png", "avatar/pelo/corto-negro-quieto.png", "efectos/corazon.png",
+                 "efectos/sombra.png"):
         with Image.open(arte.RAIZ / ruta) as imagen:
             assert imagen.convert("RGBA").getpixel((0, 0))[3] == 0, ruta
+
+
+def test_el_relleno_de_la_sombra_es_una_elipse_achatada_oscura_y_translucida_al_centro():
+    from herramientas import rellenos
+
+    sombra = rellenos._efecto("sombra", arte.EFECTO[0])
+    izquierda, arriba, derecha, abajo = sombra.getbbox()
+    lado = arte.EFECTO[0]
+    assert (izquierda, arriba) == (lado - derecha, lado - abajo)
+    assert derecha - izquierda > 2 * (abajo - arriba)
+    r, g, b, a = sombra.getpixel((lado // 2, lado // 2))
+    assert max(r, g, b) < 60 and 0 < a < 255

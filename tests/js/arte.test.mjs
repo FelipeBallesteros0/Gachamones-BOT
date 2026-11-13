@@ -179,7 +179,7 @@ test('una ruta rara se ve como pieza que falta sin pedir nada ni quedar guardada
 
 test('todas las piezas del contrato pasan el filtro', () => {
   const contrato = JSON.parse(readFileSync(new URL('../../web/static/datos/arte.json', import.meta.url), 'utf8'));
-  assert.equal(contrato.piezas.length, 136);
+  assert.equal(contrato.piezas.length, 137);
   for (const { ruta } of contrato.piezas) {
     assert.ok(esRutaDeArte(ruta), ruta);
     assert.ok(urlDeArte(ruta).endsWith(`/web/static/arte/${ruta}`), ruta);

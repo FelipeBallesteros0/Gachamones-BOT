@@ -28,6 +28,7 @@ import { cuantasGemas, cuantasMonedas } from './tiempo.js';
 const LADO_DEL_LUGAR = 80;
 const ALTO_DEL_AVATAR = 42;
 const ALTO_DEL_GACHAMON = 30;
+const LADO_DE_LA_SOMBRA = 24;
 const LADO_DE_LA_MARCA = 16;
 const VAIVEN_DE_LA_MARCA = 3;
 const SEGUNDOS_DEL_VAIVEN = 1.1;
@@ -48,6 +49,7 @@ const ESPERA_MAXIMA_MS = 15_000;
 
 const FONDO = 'pueblo/fondo.png';
 const MARCA = 'efectos/marca.png';
+const SOMBRA = 'efectos/sombra.png';
 const dibujoDelLugar = (clave) => `pueblo/lugares/${clave}.png`;
 
 const CARGANDO = 'Cargando el pueblo…';
@@ -328,8 +330,16 @@ export function pueblo(contenedor, estado, seguir) {
     }
 
     // El de más abajo tapa al otro; si están a la par, el avatar va delante.
+    // El gachamon pisa su sombra, que se queda en el suelo cuando él salta (la
+    // del avatar ya viene en su dibujo).
     const figuras = [
-      [paseo.gy, () => dibujarGachamon(ctx, enX(paseo.gx), enY(paseo.gy), u)],
+      [paseo.gy, () => {
+        pintarPieza(ctx, piezas.sombra, ...caja(
+          paseo.gx - LADO_DE_LA_SOMBRA / 2, paseo.gy - LADO_DE_LA_SOMBRA / 2,
+          LADO_DE_LA_SOMBRA, LADO_DE_LA_SOMBRA,
+        ));
+        dibujarGachamon(ctx, enX(paseo.gx), enY(paseo.gy), u);
+      }],
       [paseo.y, () => dibujarAvatar(ctx, piezas.capas, estado.avatar, poseAlCaminar(paseo.t, paseo.caminando),
         enX(paseo.x), enY(paseo.y), ALTO_DEL_AVATAR * u, paseo.mira < 0)],
     ];
@@ -624,16 +634,17 @@ export function pueblo(contenedor, estado, seguir) {
     }
     // El arte nunca falla: lo que no carga se dibuja como su recuadro.
     const claves = Object.keys(datos.lugares);
-    const [fondo, marca, lugares, capas, retrato] = await Promise.all([
+    const [fondo, marca, sombra, lugares, capas, retrato] = await Promise.all([
       cargar(FONDO),
       cargar(MARCA),
+      cargar(SOMBRA),
       Promise.all(claves.map((clave) => cargar(dibujoDelLugar(clave)))),
       cargarAvatar(estado.avatar),
       cargarRetrato(estado.gachamon.retrato),
     ]);
     if (!sigueAqui()) return;
     piezas = {
-      fondo, marca, capas, retrato, lugares: new Map(claves.map((clave, i) => [clave, lugares[i]])),
+      fondo, marca, sombra, capas, retrato, lugares: new Map(claves.map((clave, i) => [clave, lugares[i]])),
     };
     espera.replaceChildren();
     espera.hidden = true;

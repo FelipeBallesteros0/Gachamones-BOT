@@ -108,6 +108,11 @@ def test_el_boton_de_volver_dice_hacia_donde_con_lo_que_traen_los_datos():
     assert "Volver a ${" not in mapa
 
 
+def test_el_mapa_pone_la_sombra_del_gachamon_con_su_pieza():
+    mapa = (ESTATICOS / "js" / "mapa.js").read_text(encoding="utf-8")
+    assert "efectos/sombra.png" in mapa
+
+
 def test_el_mapa_se_puede_usar_sin_el_lienzo_y_respeta_a_quien_no_quiere_movimiento():
     mapa = (ESTATICOS / "js" / "mapa.js").read_text(encoding="utf-8")
     assert "aria-hidden" in mapa and "prefers-reduced-motion" in mapa

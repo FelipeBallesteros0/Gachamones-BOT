@@ -19,7 +19,7 @@ LADO_LUGAR = 160
 ESCENA = (720, 480)
 AVATAR = (48, 84)
 EFECTO = (32, 32)
-EFECTOS = ("corazon", "estrella", "marca")
+EFECTOS = ("corazon", "estrella", "marca", "sombra")
 
 
 @dataclass(frozen=True)
