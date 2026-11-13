@@ -11,8 +11,6 @@ Ojo: este módulo es `web.mochila`; no importa `discord` ni nada que lo importe.
 """
 from __future__ import annotations
 
-import logging
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends
@@ -28,7 +26,6 @@ from web.cuenta import Jugador, jugador_actual, la_misma_activa
 from web.sesion import con_cabecera, problema
 from web.tienda import datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, no_se_entiende
 
-log = logging.getLogger("gachamones")
 router = APIRouter()
 
 AL_MOMENTO, CON_NOMBRE = "al_momento", "con_nombre"
@@ -157,4 +154,7 @@ def usar_de_la_mochila(
             hecho = economia.usar_objeto(evento, usuario, guild, objeto, ahora)
     except RuntimeError:
         raise evento_usado(evento) from None
-    return {**frase(objeto, hecho, propuesto), "mochila": lo_que_llevas(jugador), "estado": estado.armar(jugador, ahora)}
+    return {
+        **frase(objeto, hecho, propuesto),
+        "mochila": lo_que_llevas(jugador), "estado": estado.armar(jugador, ahora),
+    }

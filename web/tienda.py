@@ -245,7 +245,7 @@ def _de_la_tienda_y_el_mismo(jugador: Jugador, ahora: datetime) -> None:
 
 
 def evento_usado(evento: str):
-    log.warning("evento de la tienda reutilizado: %s", evento, exc_info=True)
+    log.warning("evento reutilizado: %s", evento, exc_info=True)
     return problema(409, "evento", "Ese evento ya se usó para otra cosa.")
 
 

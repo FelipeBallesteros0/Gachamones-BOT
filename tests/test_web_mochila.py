@@ -55,15 +55,17 @@ def test_el_ticket_con_plazo_se_usa_al_momento(cliente, monkeypatch):
 
 
 def test_usar_dos_veces_con_el_mismo_evento_gasta_una(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
+    poner_reloj(monkeypatch)
     con_gachamon(cliente)
     dar(YO, "golosinas", 2)
-    reloj.pasar(hours=30)
+    # Con el reloj quieto no decae nada: la comida queda justo donde se deja.
+    with db.conectar() as con:
+        con.execute("UPDATE criaturas SET hambre = 50 WHERE usuario_id = ? AND guild_id = ?", (YO, G))
     cuerpo = {"evento_id": "evento-mochila-01", "clave": "golosinas"}
     primera = cliente.post(USAR, json=cuerpo, headers=ESCRIBIR).json()
     segunda = cliente.post(USAR, json=cuerpo, headers=ESCRIBIR).json()
     assert primera["ok"] and segunda["ok"] and primera["mensaje"] == segunda["mensaje"]
-    assert primera["mensaje"].startswith("Pelusa come. Comida +25 (ahora ")
+    assert primera["mensaje"] == segunda["mensaje"] == "Pelusa come. Comida +25 (ahora 75)."
     assert [o["cantidad"] for o in segunda["mochila"]["objetos"]] == [1]
     assert segunda["estado"]["gachamon"]["barras"]["comida"] == primera["estado"]["gachamon"]["barras"]["comida"]
 
@@ -207,6 +209,7 @@ def test_si_el_gachamon_murio_entre_medias_no_se_gasta(cliente, monkeypatch):
     r = usar(cliente, "pocion_comida")
     assert r.status_code == 409 and r.json()["detail"]["clave"] == "sin_gachamon"
     assert db.inventario(LA_DE_DISCORD, G) == {"pocion_comida": 1}
+    assert db.criatura_activa(LA_DE_DISCORD, G) is None   # de verdad murió
 
 
 def test_un_replay_sin_gachamon_activo_es_un_409_y_no_un_500(monkeypatch):
@@ -221,9 +224,10 @@ def test_un_replay_sin_gachamon_activo_es_un_409_y_no_un_500(monkeypatch):
 def test_sin_la_cabecera_no_pasa(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
-    r = cliente.post(USAR, json={"evento_id": "evento-mochila-01", "clave": "placa"})
-    assert r.status_code == 403 or r.status_code == 400 or r.status_code == 422
-    assert r.status_code != 200
+    dar(YO, "pocion_comida")
+    r = cliente.post(USAR, json={"evento_id": "evento-mochila-01", "clave": "pocion_comida"})
+    assert r.status_code == 403 and r.json()["detail"]["clave"] == "sin_cabecera"
+    assert db.inventario(YO, G) == {"pocion_comida": 1}
 
 
 def test_cada_cuenta_ve_y_usa_su_mochila(cliente, monkeypatch):
