@@ -42,11 +42,19 @@ def de_partida(hogar: str) -> str:
 
 
 def sin_casa(clave: str, hogar: str) -> bool:
-    """Está en «Tu casa» sin tener una propia."""
+    """Está en «Tu casa» sin tener una propia.
+
+    `hogar` es la situación de la persona (`Hogar.estado`), no la de su
+    gachamon: quien tiene casa la tiene aunque su gachamon viva en el refugio.
+    """
     return clave == "casa" and hogar != casas.PROPIA
 
 
 def aviso(clave: str, vinculada: bool, hogar: str) -> str | None:
+    """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
+
+    `hogar` es la situación de la persona (`Hogar.estado`), como en `sin_casa`.
+    """
     abre = LUGARES[clave].abre
     if abre == DESPUES:
         if vinculada:

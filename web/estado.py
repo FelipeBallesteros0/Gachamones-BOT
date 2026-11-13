@@ -78,15 +78,15 @@ def _difunto(jugador: Jugador) -> dict | None:
     }
 
 
-def _lugar(jugador: Jugador, hogar: str) -> dict:
+def _lugar(jugador: Jugador, hogar_del_gachamon: str, hogar_de_la_persona: str) -> dict:
     clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
     if not pueblo.existe(clave):
-        clave = pueblo.de_partida(hogar)
+        clave = pueblo.de_partida(hogar_del_gachamon)
     return {
         "clave": clave,
         "nombre": pueblo.LUGARES[clave].nombre,
         "abre": pueblo.LUGARES[clave].abre,
-        "aviso": pueblo.aviso(clave, jugador.vinculada, hogar),
+        "aviso": pueblo.aviso(clave, jugador.vinculada, hogar_de_la_persona),
     }
 
 
@@ -96,9 +96,11 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
     hogar = db.hogar_leido(jugador.usuario_id, jugador.guild_id, ahora)
     estado_hogar = hogar.estado_de(None if activa is None else activa.casa_id, ahora)
-    lugar = _lugar(jugador, estado_hogar)
+    # Se parte de donde vive el gachamon; «Tu casa» mira si la persona tiene una.
+    hogar_de_la_persona = hogar.estado(ahora)
+    lugar = _lugar(jugador, estado_hogar, hogar_de_la_persona)
     # Sin casa propia, «Tu casa» avisa que no la hay: el gachamon no habla de ella.
-    del_lugar = None if pueblo.sin_casa(lugar["clave"], estado_hogar) else lugar["clave"]
+    del_lugar = None if pueblo.sin_casa(lugar["clave"], hogar_de_la_persona) else lugar["clave"]
     return {
         "ahora": ahora.isoformat(),
         "persona": {

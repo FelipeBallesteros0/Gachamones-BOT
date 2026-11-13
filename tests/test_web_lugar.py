@@ -3,6 +3,8 @@ import pytest
 import casas
 import db
 import economia
+import especies as esp
+import globos
 from ayudas_web import ESCRIBIR, alta, con_gachamon, entrar, poner_reloj
 from web import pueblo
 
@@ -101,9 +103,8 @@ def test_en_tu_casa_sin_casa_propia_el_gachamon_no_habla_de_la_casa(cliente, mon
     assert [g for g in cliente.get(ESTADO).json()["globos"] if g["tipo"] == "lugar"] == []
 
 
-def test_en_tu_casa_con_casa_propia_si_habla_de_ella(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    con_gachamon(cliente)
+def comprar_una_casa(reloj) -> db.CuentaWeb:
+    """La cuenta 1 se compra una casa grande; su gachamon se muda a ella solo."""
     cuenta = db.cuenta_web(1)
     with db.conectar() as con:
         economia._asegurar_monedero(con, cuenta.usuario_id, cuenta.guild_id)
@@ -111,7 +112,48 @@ def test_en_tu_casa_con_casa_propia_si_habla_de_ella(cliente, monkeypatch):
             "UPDATE monederos SET asciicoins = 9000 WHERE usuario_id = ? AND guild_id = ?",
             (cuenta.usuario_id, cuenta.guild_id),
         )
-    economia.comprar_casa(cuenta.usuario_id, cuenta.guild_id, casas.CATALOGO["grande"], reloj())
+    assert economia.comprar_casa(cuenta.usuario_id, cuenta.guild_id, casas.CATALOGO["grande"], reloj()).ok
+    return cuenta
+
+
+def con_casa_y_el_gachamon_en_el_refugio(cliente, monkeypatch) -> None:
+    """Una cuenta con casa propia cuyo gachamon activo vive en el refugio."""
+    reloj = poner_reloj(monkeypatch)
+    activo = con_gachamon(cliente)["gachamon"]["id"]
+    cuenta = comprar_una_casa(reloj)
+    assert economia.mudar_gachamon(cuenta.usuario_id, cuenta.guild_id, activo, None, reloj()).ok
+
+
+def frases_de_la_casa(gachamon: dict) -> set[str]:
+    propias = globos.PROPIAS_DEL_LUGAR.get(gachamon["especie"], {}).get("casa", ())
+    return {esp.concordar(f, gachamon["genero"]) for f in (*globos.DEL_LUGAR["casa"], *propias)}
+
+
+def test_en_tu_casa_con_casa_propia_si_habla_de_ella(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    comprar_una_casa(reloj)
     estado = ir(cliente, "casa").json()
+    assert estado["lugar"]["clave"] == "casa"
     assert estado["lugar"]["aviso"] is None
-    assert [g for g in estado["globos"] if g["tipo"] == "lugar"] != []
+    del_lugar = {g["texto"] for g in estado["globos"] if g["tipo"] == "lugar"}
+    assert del_lugar and del_lugar <= frases_de_la_casa(estado["gachamon"])
+
+
+def test_quien_tiene_casa_esta_en_su_casa_aunque_su_gachamon_viva_en_el_refugio(cliente, monkeypatch):
+    con_casa_y_el_gachamon_en_el_refugio(cliente, monkeypatch)
+    estado = ir(cliente, "casa").json()
+    assert estado["hogar"] == "refugio"
+    assert estado["lugar"]["clave"] == "casa"
+    assert estado["lugar"]["aviso"] is None
+    del_lugar = {g["texto"] for g in estado["globos"] if g["tipo"] == "lugar"}
+    assert del_lugar and del_lugar <= frases_de_la_casa(estado["gachamon"])
+
+
+def test_se_parte_de_donde_vive_el_gachamon(cliente, monkeypatch):
+    con_casa_y_el_gachamon_en_el_refugio(cliente, monkeypatch)
+    estado = cliente.get(ESTADO).json()
+    assert db.lugar_de_cuenta(1) is None
+    assert estado["hogar"] == "refugio"
+    assert estado["lugar"]["clave"] == "refugio"
+    assert estado["lugar"]["aviso"] is None
