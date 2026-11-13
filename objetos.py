@@ -198,6 +198,11 @@ _registrar(Objeto(
 ))
 
 
+def a_la_venta() -> tuple[Objeto, ...]:
+    """Lo del catálogo que se compra, en el orden del catálogo."""
+    return tuple(o for o in CATALOGO.values() if o.se_vende)
+
+
 def tirar_bonus(objeto: Objeto, rng: random.Random | None = None) -> int:
     """Lo que suma una poción de estadística.
 

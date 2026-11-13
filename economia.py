@@ -1162,6 +1162,9 @@ class ResultadoCosmetico:
     # El que llevaba de ese tipo y se ha quitado para dejar sitio. **No se
     # pierde**: sigue en el ropero, que es de la persona.
     sustituido: cos.Cosmetico | None = None
+    # Por qué no se pudo, como clave; None si salió bien o si el rechazo aún no
+    # tiene una (equipar y quitar).
+    motivo: str | None = None
 
 
 def _vestir_en(
@@ -1213,6 +1216,7 @@ def comprar_cosmetico(
                     f"Ya tienes **{cosmetico.nombre}** en tu ropero. "
                     "Póntelo desde 🎨 Personalizar."
                 ),
+                motivo="ya_lo_tienes",
             )
 
         pagado = con.execute(
@@ -1229,6 +1233,7 @@ def comprar_cosmetico(
                     f"Te faltan {falta} {obj.nombre_de_gemas(falta)}. "
                     "Se ganan con los logros: mira `/logros`."
                 ),
+                motivo="faltan_gemas",
             )
 
         db.guardar_en_el_ropero_en(con, usuario_id, guild_id, cosmetico.clave)
@@ -1252,6 +1257,7 @@ class ResultadoMudanza:
     casa_id: int = 0                    # cuál es, para poder mudar gente a ella
     saldo: int = 0                      # asciicoins que quedan
     problema: str | None = None
+    motivo: str | None = None           # por qué no, como clave
 
 
 @dataclass(frozen=True)
@@ -1265,6 +1271,7 @@ class ResultadoVenta:
     guardados: int = 0                # muebles que vuelven al armario
     desalojados: int = 0              # gachamones que se van al refugio
     problema: str | None = None
+    motivo: str | None = None         # por qué no, como clave
 
 
 def vender_casa(
@@ -1301,6 +1308,7 @@ def vender_casa(
                     "No tienes casa que vender: vives en el refugio."
                     if not hogar.casas else "Esa casa no es tuya."
                 ),
+                motivo="no_es_tuya" if hogar.casas else "sin_casa",
             )
 
         casa = propia.casa
@@ -1356,11 +1364,15 @@ def comprar_casa(
 
         vieja = hogar.casa_por_id(mejorar) if mejorar else None
         if mejorar is not None and vieja is None:
-            return ResultadoMudanza(saldo=saldo, problema="Esa casa no es tuya.")
+            return ResultadoMudanza(
+                saldo=saldo, problema="Esa casa no es tuya.",
+                motivo="no_es_tuya",
+            )
         if vieja is not None and not cas.puede_mejorarse_a(vieja, casa):
             return ResultadoMudanza(
                 casa=vieja.casa, desde=vieja.casa, casa_id=vieja.id, saldo=saldo,
                 problema=f"Esa ya es {vieja.casa.nombre}, y no se puede empeorar.",
+                motivo="no_se_empeora",
             )
         if vieja is None and not hogar.puede_comprar_otra():
             return ResultadoMudanza(
@@ -1369,6 +1381,7 @@ def comprar_casa(
                     f"Ya tienes {cas.MAXIMO_CASAS} casas, que es el máximo. "
                     "Vende una o mejora las que tienes."
                 ),
+                motivo="maximo_de_casas",
             )
 
         # Mejorar cuesta sólo la diferencia: pagar el precio entero por subir de
@@ -1388,6 +1401,7 @@ def comprar_casa(
                     f"Te faltan {falta} {obj.nombre_de_monedas(falta)}. "
                     "Se ganan cuidando, evolucionando y compitiendo."
                 ),
+                motivo="faltan_monedas",
             )
 
         if vieja is not None:
@@ -1493,13 +1507,19 @@ class ResultadoMueble:
     puestos: int = 0            # cuántos huecos van ocupados
     saldo: int = 0
     problema: str | None = None
+    motivo: str | None = None   # por qué no, como clave
+    colocado: bool = False      # si **ese** mueble quedó puesto tras la operación
 
 
 def _estado_de_la_casa(
     con, usuario_id: str, guild_id: str, ahora: datetime,
     casa_id: int | None = None,
-) -> tuple[cas.CasaPropia | None, dict[str, bool], str | None]:
+) -> tuple[cas.CasaPropia | None, dict[str, bool], str | None, str | None]:
     """La casa que se va a amueblar, lo que hay dentro, y por qué no se puede.
+
+    Devuelve `(casa, mobiliario, estorbo, motivo)`: `estorbo` es la frase para
+    Discord y `motivo` la misma razón como clave (`sin_casa`, `intemperie`,
+    `no_es_tuya`); los dos son `None` cuando se puede.
 
     El refugio no se decora —es común y no es tuyo— y a la intemperie no hay
     dónde poner nada. Las dos cosas se comprueban aquí, en un solo sitio, porque
@@ -1511,21 +1531,22 @@ def _estado_de_la_casa(
     """
     hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
     if not hogar.casas:
-        estorbo = (
-            "El refugio no se puede amueblar: es de todos. Cómprate una casa."
-            if hogar.estado(ahora) == cas.REFUGIO
-            else "Estás a la intemperie. Cómprate una casa para amueblarla."
-        )
-        return None, {}, estorbo
+        if hogar.estado(ahora) == cas.REFUGIO:
+            return None, {}, (
+                "El refugio no se puede amueblar: es de todos. Cómprate una casa."
+            ), "sin_casa"
+        return None, {}, (
+            "Estás a la intemperie. Cómprate una casa para amueblarla."
+        ), "intemperie"
     propia = hogar.casa_por_id(casa_id) if casa_id else hogar.casas[0]
     if propia is None:
-        return None, {}, "Esa casa no es tuya."
-    return propia, db._mobiliario(con, usuario_id, guild_id), None
+        return None, {}, "Esa casa no es tuya.", "no_es_tuya"
+    return propia, db._mobiliario(con, usuario_id, guild_id), None, None
 
 
 def _recibo_mueble(
     con, usuario_id: str, guild_id: str, propia, mobiliario, mueble=None,
-    ok=False, problema=None,
+    ok=False, problema=None, motivo=None, colocado=False,
 ) -> ResultadoMueble:
     """El recibo, contando **lo que hay en esa casa** y no en todas.
 
@@ -1548,7 +1569,7 @@ def _recibo_mueble(
         comodidad=fresca.comodidad if fresca else 0,
         puestos=len(fresca.puestos) if fresca else 0,
         saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
-        problema=problema,
+        problema=problema, motivo=motivo, colocado=colocado,
     )
 
 
@@ -1568,20 +1589,21 @@ def comprar_mueble(
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        casa, mobiliario, estorbo = _estado_de_la_casa(
+        casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
             con, usuario_id, guild_id, ahora, casa_id
         )
         _asegurar_monedero(con, usuario_id, guild_id)
         if estorbo:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=estorbo,
+                problema=estorbo, motivo=motivo_estorbo,
             )
         assert casa is not None
         if mueble.clave in mobiliario:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=f"Ya tienes **{mueble.nombre}**.",
+                motivo="ya_lo_tienes",
             )
 
         pagado = con.execute(
@@ -1596,6 +1618,7 @@ def comprar_mueble(
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
                 problema=f"Te faltan {faltan} {obj.nombre_de_monedas(faltan)}.",
+                motivo="faltan_monedas",
             )
 
         # Se cuelga solo si cabe **en esta casa**; si no, va al armario.
@@ -1607,7 +1630,8 @@ def comprar_mueble(
         mobiliario[mueble.clave] = dentro
 
         return _recibo_mueble(
-            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
+            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True,
+            colocado=dentro,
         )
 
 
@@ -1622,13 +1646,13 @@ def colocar_mueble(
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        casa, mobiliario, estorbo = _estado_de_la_casa(
+        casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
             con, usuario_id, guild_id, ahora, casa_id
         )
         if estorbo:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=estorbo,
+                problema=estorbo, motivo=motivo_estorbo,
             )
         assert casa is not None
         if mueble.clave not in mobiliario:
@@ -1655,7 +1679,8 @@ def colocar_mueble(
         )
         mobiliario[mueble.clave] = True
         return _recibo_mueble(
-            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
+            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True,
+            colocado=True,
         )
 
 
@@ -1670,13 +1695,13 @@ def retirar_mueble(
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        casa, mobiliario, estorbo = _estado_de_la_casa(
+        casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
             con, usuario_id, guild_id, ahora, casa_id
         )
         if estorbo:
             return _recibo_mueble(
                 con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=estorbo,
+                problema=estorbo, motivo=motivo_estorbo,
             )
         if not mobiliario.get(mueble.clave):
             return _recibo_mueble(
@@ -2010,6 +2035,8 @@ def comprar(
     """Decide, debita, entrega y registra una compra en una transacción."""
     if obj.CATALOGO.get(objeto.clave) != objeto:
         raise ValueError("el objeto no coincide exactamente con el catálogo actual")
+    if not objeto.se_vende:
+        raise ValueError("ese objeto no está a la venta")
     fecha = _fecha_economica(ahora or db.ahora_utc())
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
