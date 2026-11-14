@@ -301,7 +301,7 @@ def test_si_solo_queda_un_recluta_sin_nombre_se_puede_seguir(cliente, monkeypatc
     db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
 
     estado = cliente.get(ESTADO).json()
-    assert estado["gachamon"] is None and estado["difunto"]["nombre"] == "Viejo"
+    assert estado["gachamon"] is None
     # El de menor id, con la cara con que se durmió.
     assert estado["sin_nombre"] == {
         "id": recluta.id, "nombre_especie": esp.ESPECIES["pulpo"].nombre, "retrato": el_retrato("pulpo"),

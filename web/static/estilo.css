@@ -197,8 +197,6 @@ a { color: var(--principal-hundido); font-weight: 600; }
   background: rgba(0, 0, 0, 0.16);
 }
 
-.escena.afuera { --pared: var(--cielo); --piso: var(--pasto); }
-
 .escena > canvas,
 .escena > .retrato,
 .escena > .retrato-sin {
@@ -620,33 +618,6 @@ a { color: var(--principal-hundido); font-weight: 600; }
 .nacido-especie { font-size: 1.25rem; font-weight: 800; }
 
 .nacido-detalle { color: var(--texto-suave); }
-
-/* --- difunto --- */
-
-.lapida {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 2px;
-  width: min(220px, 72%);
-  min-height: 160px;
-  padding: 26px 16px 18px;
-  border-radius: 110px 110px 10px 10px;
-  background: linear-gradient(#bfc4cb, #9ea4ad);
-  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12), 0 5px 0 #5f7f45;
-  color: #22252a;
-  text-align: center;
-}
-
-.lapida-nombre {
-  font-size: 1.375rem;
-  font-weight: 800;
-  overflow-wrap: anywhere;
-}
-
-.lapida-dias { font-size: 0.875rem; font-weight: 600; }
 
 /* Lo que se escribe para el lector de pantalla y no se ve. */
 .solo-lector {

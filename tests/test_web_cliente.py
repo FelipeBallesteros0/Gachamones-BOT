@@ -55,6 +55,15 @@ def test_ningun_texto_del_cliente_usa_los_nombres_viejos():
         assert not re.search(r"ascii\s?(coin|gem)", archivo.read_text(encoding="utf-8"), re.I)
 
 
+def test_el_cliente_ya_no_tiene_difunto():
+    # Ni quien elegía la pantalla, ni quien la pintaba, ni nadie que pida darlo por visto.
+    assert {"pantallas.js", "principal.js", "entrada.js"} <= {g.name for g in GUIONES}
+    for guion in GUIONES:
+        assert "difunto" not in guion.read_text(encoding="utf-8").lower(), guion.name
+    # Y la lápida de esa pantalla no deja estilo suelto.
+    assert "lapida" not in (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
+
+
 def test_la_pantalla_principal_esta_y_se_usa():
     nombres = {g.name for g in GUIONES}
     assert {"lugar.js", "tiempo.js"} <= nombres

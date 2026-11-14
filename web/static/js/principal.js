@@ -21,7 +21,6 @@ const PANTALLAS = {
   sesion: entrada.sesion,
   bienvenida: entrada.bienvenida,
   avatar: entrada.avatar,
-  difunto: entrada.difunto,
   huevo: entrada.huevo,
   bautizo: entrada.bautizo,
   lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),

@@ -9,7 +9,7 @@ import {
 const sesion = { usuario: 'felipe' };
 const gachamon = { nombre: 'Pelusa', espera_nombre: false };
 const avatar = { nombre: 'Feli' };
-const estado = (cambios = {}) => ({ avatar, gachamon, difunto: null, ...cambios });
+const estado = (cambios = {}) => ({ avatar, gachamon, ...cambios });
 // Un jugador con su gachamon, listo para ver el lugar.
 const cuenta = { estado: 'web' };
 const jugando = estado();
@@ -29,16 +29,8 @@ test('con cuenta y sin avatar, al avatar', () => {
 });
 
 test('el avatar va antes que cualquier otra cosa del juego', () => {
-  const todo = estado({ avatar: null, difunto: { nombre: 'Viejo' }, gachamon: null });
+  const todo = estado({ avatar: null, gachamon: null });
   assert.equal(siguiente(sesion, { estado: 'vinculada' }, todo), 'avatar');
-});
-
-test('un difunto pendiente se cuenta antes de seguir', () => {
-  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ difunto: { nombre: 'Viejo' } })), 'difunto');
-  assert.equal(
-    siguiente(sesion, { estado: 'web' }, estado({ difunto: { nombre: 'Viejo' }, gachamon: null })),
-    'difunto',
-  );
 });
 
 test('sin gachamon, al huevo', () => {
@@ -58,7 +50,6 @@ test('con todo en su sitio, al lugar', () => {
 test('el pueblo sólo se ve cuando todo lo demás está en orden', () => {
   assert.equal(siguiente(sesion, { estado: 'web' }, estado(), 'pueblo'), 'pueblo');
   assert.equal(siguiente(sesion, { estado: 'web' }, estado()), 'lugar');
-  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ difunto: { nombre: 'Viejo' } }), 'pueblo'), 'difunto');
   assert.equal(siguiente(sesion, { estado: 'web' }, estado({ gachamon: null }), 'pueblo'), 'huevo');
   assert.equal(siguiente(null, null, null, 'pueblo'), 'sesion');
 });
@@ -70,7 +61,6 @@ test('la tienda sólo se abre donde el lugar la ofrece', () => {
   assert.equal(siguiente(sesion, cuenta, { ...jugando, lugar: { clave: 'x', nombre: 'X' } }, 'tienda'), 'lugar');
   assert.equal(siguiente(sesion, cuenta, en([]), 'mochila'), 'mochila');
   assert.equal(siguiente(sesion, cuenta, en(['tienda']), 'otra cosa'), 'lugar');
-  assert.equal(siguiente(sesion, cuenta, { ...jugando, difunto: { nombre: 'Pelusa' } }, 'tienda'), 'difunto');
 });
 
 test('lo que va antes del juego gana a la tienda y a la mochila', () => {
@@ -82,7 +72,6 @@ test('lo que va antes del juego gana a la tienda y a la mochila', () => {
     assert.equal(siguiente(null, null, null, vista), 'sesion', vista);
     assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida', vista);
     assert.equal(siguiente(sesion, cuenta, enLaTienda({ avatar: null }), vista), 'avatar', vista);
-    assert.equal(siguiente(sesion, cuenta, enLaTienda({ difunto: { nombre: 'Viejo' } }), vista), 'difunto', vista);
     assert.equal(siguiente(sesion, cuenta, enLaTienda({ gachamon: null }), vista), 'huevo', vista);
     assert.equal(
       siguiente(sesion, cuenta, enLaTienda({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
@@ -106,7 +95,6 @@ test('lo que va antes del juego gana a la ficha y al ropero', () => {
     assert.equal(siguiente(null, null, null, vista), 'sesion', vista);
     assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida', vista);
     assert.equal(siguiente(sesion, cuenta, estado({ avatar: null }), vista), 'avatar', vista);
-    assert.equal(siguiente(sesion, cuenta, estado({ difunto: { nombre: 'Viejo' } }), vista), 'difunto', vista);
     assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null }), vista), 'huevo', vista);
     assert.equal(
       siguiente(sesion, cuenta, estado({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
@@ -146,7 +134,6 @@ test('lo que va antes del juego gana a la incubadora', () => {
   assert.equal(siguiente(null, null, null, vista), 'sesion');
   assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida');
   assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ avatar: null }), vista), 'avatar');
-  assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ difunto: { nombre: 'Viejo' } }), vista), 'difunto');
   assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ gachamon: null }), vista), 'huevo');
   assert.equal(
     siguiente(sesion, cuenta, enLaIncubadora({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
@@ -171,14 +158,24 @@ test('sin gachamon y con un recluta sin nombre, al bautizo y no al huevo', () =>
     });
     assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), 'bautizo', vista);
   }
+  // Y el avatar, antes que todo.
+  assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: recluta, avatar: null })), 'avatar');
 });
 
-test('una muerte pendiente se cuenta antes que el bautizo del recluta', () => {
-  const todo = estado({ gachamon: null, sin_nombre: recluta, difunto: { nombre: 'Viejo' } });
-  assert.equal(siguiente(sesion, cuenta, todo), 'difunto');
-  assert.equal(siguiente(sesion, cuenta, todo, 'incubadora'), 'difunto');
-  // Y el avatar, antes que todo.
-  assert.equal(siguiente(sesion, cuenta, { ...todo, avatar: null }), 'avatar');
+test('un `difunto` que todavía mande un servidor viejo no abre ninguna pantalla', () => {
+  const viejo = { difunto: { nombre: 'Viejo', nombre_especie: 'Pollito', dias: 3 } };
+  const lugar = { clave: 'x', nombre: 'X', ofrece: ['tienda', 'incubadora'] };
+  // Sin nadie más, al huevo; con un recluta, a su bautizo; con el relevo, al lugar.
+  assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, gachamon: null })), 'huevo');
+  assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, gachamon: null, sin_nombre: recluta })), 'bautizo');
+  assert.equal(
+    siguiente(sesion, cuenta, estado({ ...viejo, gachamon: { nombre: 'Piollito', espera_nombre: true } })),
+    'bautizo',
+  );
+  assert.equal(siguiente(sesion, { estado: 'vinculada' }, estado(viejo)), 'lugar');
+  for (const vista of ['pueblo', 'tienda', 'mochila', 'ficha', 'ropero', 'incubadora']) {
+    assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, lugar }), vista), vista, vista);
+  }
 });
 
 test('lo que el cliente ofrece en un lugar lleva la clave de un lugar del pueblo', () => {

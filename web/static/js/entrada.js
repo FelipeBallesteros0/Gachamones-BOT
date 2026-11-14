@@ -670,42 +670,6 @@ function formularioDelNombre(seguir, cual) {
   return formulario;
 }
 
-// --- difunto: quién era y cuánto vivió -----------------------------------------
-
-function cuantoVivio(dias) {
-  if (dias < 1) return 'Vivió menos de un día';
-  if (dias === 1) return 'Vivió 1 día';
-  return `Vivió ${dias} días`;
-}
-
-export function difunto(contenedor, seguir, { sesion: quien, estado }) {
-  const muerto = estado.difunto;
-  const aviso = avisoVacio();
-  // Sin relevo no se promete nada: puede tocar un huevo o un recluta sin nombre.
-  const despues = estado.gachamon ? ` Ahora te acompaña ${estado.gachamon.nombre}.` : '';
-  contenedor.append(
-    barra(quien.usuario),
-    el('div', { class: 'cuerpo' },
-      titulo(`Adiós, ${muerto.nombre}`),
-      el('div', { class: 'escena afuera' },
-        el('div', { class: 'lapida' },
-          el('span', { class: 'lapida-nombre' }, muerto.nombre),
-          el('span', {}, muerto.nombre_especie),
-          el('span', { class: 'lapida-dias' }, cuantoVivio(muerto.dias)))),
-      el('p', { class: 'entradilla' }, `${muerto.nombre} ha muerto.${despues}`),
-      aviso,
-      boton('Seguir jugando', 'boton principal', async () => {
-        callar(aviso);
-        try {
-          await seguir(await pedir('POST', 'difunto/visto'));
-        } catch (error) {
-          await fallo(error, aviso, seguir);
-        }
-      }),
-    ),
-  );
-}
-
 // --- cuando no se pudo ni decidir la pantalla -----------------------------------
 
 export function noCarga(contenedor, seguir, { mensaje }) {

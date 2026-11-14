@@ -118,7 +118,7 @@ const nacido = {
   genero: 'hembra', emoji: '🐙', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png',
 };
 const recluta = { id: 7, nombre_especie: 'Pollito', retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png' };
-const conRecluta = { avatar: {}, gachamon: null, difunto: null, sin_nombre: recluta };
+const conRecluta = { avatar: {}, gachamon: null, sin_nombre: recluta };
 const ESPERA_EN_LA_INCUBADORA = 'Este Pollito espera en la incubadora y todavía no tiene nombre.';
 
 test('el bautizo de un recluta dice que espera en la incubadora, enseña su retrato y manda su id', { timeout: 2000 }, async () => {
@@ -137,7 +137,7 @@ test('el bautizo de un recluta dice que espera en la incubadora, enseña su retr
 
 test('el bautizo del recién nacido no manda gachamon_id: es el de la activa, como siempre', { timeout: 2000 }, async () => {
   const pedidas = servidor(() => ({ estado: 200, datos: { gachamon: { ...nacido, nombre: 'Bruma' } } }));
-  const { contenedor } = await bautizarCon({ avatar: {}, gachamon: nacido, difunto: null, sin_nombre: null }, 'Bruma');
+  const { contenedor } = await bautizarCon({ avatar: {}, gachamon: nacido, sin_nombre: null }, 'Bruma');
   assert.ok(!textos(contenedor).includes(ESPERA_EN_LA_INCUBADORA));
   assert.deepEqual(pedidas[0].cuerpo, { nombre: 'Bruma' });
   assert.ok(!Object.hasOwn(pedidas[0].cuerpo, 'gachamon_id'));

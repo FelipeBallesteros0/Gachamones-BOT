@@ -13,7 +13,7 @@
 // estaba hecho (llegó un envío anterior) es un sí. Si un toque se queda sin
 // respuesta pudo haberse hecho igual: lo que se veía ya no vale, y el plantel
 // se vuelve a pedir. Si lo que contesta pide otra pantalla (sin sesión, ya no
-// estás en la incubadora, un difunto) se vuelve a decidir con `seguir`; y
+// estás en la incubadora, sin activo) se vuelve a decidir con `seguir`; y
 // también si el plantel que llega tiene otro activo que el del estado (cambió
 // en otra pestaña o en Discord). Al salir se deja de temporizar, y una
 // respuesta que llega tarde no pinta ni llama a `seguir`. La cabecera, las

@@ -537,8 +537,8 @@ MIGRACIONES_DE_TABLAS = (
     # `NULL` con `colocado = 1` es lo que deja `_migrar_casas` a quien no tenía
     # casa, y `_mobiliario_de` lo trata como guardado.
     ("mobiliario", "casa_id", "ALTER TABLE mobiliario ADD COLUMN casa_id INTEGER"),
-    # Hasta cuándo la web ya contó las muertes de esa cuenta. Vacía, vale la
-    # fecha en que se creó: lo que murió antes no es una noticia.
+    # Hasta cuándo la web había contado las muertes de esa cuenta. Ya no se
+    # cuentan, y nadie la lee ni la escribe: se queda para no rehacer la tabla.
     ("cuentas_web", "difuntos_vistos_hasta",
      "ALTER TABLE cuentas_web ADD COLUMN difuntos_vistos_hasta TEXT"),
     # El último lugar del pueblo al que llegó la cuenta. Vacía, vale su hogar.
@@ -2759,41 +2759,6 @@ def cuenta_web(rowino_uid: int) -> CuentaWeb | None:
         return _cuenta_en(con, rowino_uid)
 
 
-def difunto_pendiente(rowino_uid: int) -> sim.Criatura | None:
-    """El gachamon de esa cuenta muerto más recientemente, si es una noticia.
-
-    Lo es si murió después de `difuntos_vistos_hasta` o, con esa columna vacía,
-    después de crearse la cuenta. Se compara con fechas y no con texto: un
-    instante con fracción de segundo no ordena igual que uno sin ella.
-    """
-    with conectar() as con:
-        cuenta = con.execute(
-            "SELECT usuario_id, guild_id, creada_en, difuntos_vistos_hasta "
-            "FROM cuentas_web WHERE rowino_uid = ?", (rowino_uid,)
-        ).fetchone()
-        if cuenta is None:
-            return None
-        filas = con.execute(
-            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
-            "AND muerta_en IS NOT NULL",
-            (cuenta["usuario_id"], cuenta["guild_id"]),
-        ).fetchall()
-    desde = _fecha(cuenta["difuntos_vistos_hasta"] or cuenta["creada_en"])
-    muertos = [_a_criatura(f) for f in filas]
-    muertos = [c for c in muertos if c.muerta_en > desde]
-    return max(muertos, key=lambda c: c.muerta_en, default=None)
-
-
-def marcar_difuntos_vistos(rowino_uid: int, hasta: datetime) -> None:
-    """Da por contadas las muertes de esa cuenta hasta ese instante."""
-    with conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        con.execute(
-            "UPDATE cuentas_web SET difuntos_vistos_hasta = ? WHERE rowino_uid = ?",
-            (hasta.isoformat(), rowino_uid),
-        )
-
-
 def lugar_de_cuenta(rowino_uid: int) -> str | None:
     """El último lugar al que llegó esa cuenta; None si no hay cuenta o lugar."""
     with conectar() as con:
@@ -2960,9 +2925,9 @@ def canjear_codigo_de_vinculo(
             )
         else:
             con.execute(
-                "UPDATE cuentas_web SET usuario_id = ?, guild_id = ?, vinculada = 1, "
-                "difuntos_vistos_hasta = ? WHERE rowino_uid = ?",
-                (usuario_id, guild_id, ahora.isoformat(), rowino_uid),
+                "UPDATE cuentas_web SET usuario_id = ?, guild_id = ?, vinculada = 1 "
+                "WHERE rowino_uid = ?",
+                (usuario_id, guild_id, rowino_uid),
             )
         con.execute(
             "DELETE FROM vinculos_pendientes WHERE rowino_uid = ?", (rowino_uid,)

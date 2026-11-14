@@ -39,10 +39,10 @@ def jugador_actual(persona: Persona = Depends(persona_actual)) -> Jugador:
 def la_misma_activa(jugador: Jugador, ahora: datetime, sin_ninguno: str) -> None:
     """Que la acción le caiga al gachamon que el jugador estaba viendo.
 
-    Se mira quién es la activa antes de ponerla al día y quién después: si se
-    murió en esta misma petición, `activa_al_dia` saca al relevo, que el
-    jugador todavía no ha visto, y no se le aplica nada. Una muerte la
-    registra igual quien la deja apuntada para el bot.
+    Se mira quién es la activa antes de ponerla al día y quién después: si no
+    es la misma (por ejemplo, porque `activa_al_dia` sacó al relevo en esta
+    misma petición), es una que el jugador todavía no ha visto, y no se le
+    aplica nada.
     """
     antes = db.criatura_activa(jugador.usuario_id, jugador.guild_id)
     despues = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)

@@ -1,5 +1,4 @@
 from dataclasses import replace
-from datetime import timedelta
 
 import db
 import especies as esp
@@ -32,7 +31,7 @@ def test_recien_llegado_no_tiene_ni_avatar_ni_gachamon(cliente, monkeypatch):
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     estado = cliente.get(ESTADO).json()
     assert estado["avatar"] is None and estado["gachamon"] is None
-    assert estado["globos"] == [] and estado["difunto"] is None
+    assert estado["globos"] == []
     assert estado["saldos"] == {"monedas": 50, "gemas": 50}
     assert estado["persona"] == {"usuario": "felipe", "vinculada": False}
     assert estado["ahora"] == T0.isoformat()
@@ -59,7 +58,7 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
     }
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
     assert set(estado) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar", "sin_nombre",
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar", "sin_nombre",
     }
     assert estado["sin_nombre"] is None
 
@@ -115,17 +114,6 @@ def test_el_de_una_cuenta_web_se_queda_desfallecido_y_vivo(cliente, monkeypatch)
     assert gachamon["cara"] == "mal"
 
 
-def test_los_muertos_de_antes_de_tener_cuenta_no_se_cuentan(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    antiguo = nace(usuario=ANA_DISCORD, nombre="Antiguo")
-    db.guardar(replace(antiguo, muerta_en=T0, causa_muerte="hambre"))
-    reloj.pasar(days=30)
-    entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
-    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora)
-    assert cliente.get(ESTADO).json()["difunto"] is None
-
-
 def test_cada_cual_ve_su_estado(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente, 1)
@@ -135,40 +123,58 @@ def test_cada_cual_ve_su_estado(cliente, monkeypatch):
     assert estado["gachamon"] is None and estado["avatar"]["nombre"] == "Ana"
 
 
-def test_marcar_visto_hasta_una_muerte_deja_pendiente_la_siguiente(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "RUTA", tmp_path / "dos.db")
-    db.inicializar()
-    db.crear_identidad_web(5, G, T0)
-    yo = identidad.de_cuenta_web(5)
-    primero = nace(usuario=yo, nombre="Uno")
-    segundo = nace(usuario=yo, nombre="Dos", activa=False)
-    m1, m2 = T0 + timedelta(days=1), T0 + timedelta(days=2)
-    db.guardar(replace(primero, muerta_en=m1, causa_muerte="hambre"))
-    db.guardar(replace(segundo, muerta_en=m2, causa_muerte="hambre"))
-    assert db.difunto_pendiente(5).nombre == "Dos"
-    db.marcar_difuntos_vistos(5, m1)
-    assert db.difunto_pendiente(5).nombre == "Dos"
-    db.marcar_difuntos_vistos(5, m2)
-    assert db.difunto_pendiente(5) is None
+def morir_de_antes(criatura, cuando):
+    """Una muerte de antes del cambio, que la cuenta nunca vio: `muerta_en` a mano."""
+    db.guardar(replace(db.por_id(criatura.id), hambre=0.0, muerta_en=cuando, causa_muerte="hambre"))
 
 
-def test_visto_sin_nada_pendiente_no_escribe(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
+def test_el_estado_ya_no_habla_de_difuntos(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR)
-    with db.conectar() as con:
-        fila = con.execute("SELECT difuntos_vistos_hasta FROM cuentas_web").fetchone()
-    assert fila[0] is None
+    viejo = nace(nombre="Viejo")
+    vivo = nace(nombre="Pelusa", activa=False)
+    reloj.pasar(days=3)
+    morir_de_antes(viejo, reloj.ahora)
+    estado = cliente.get(ESTADO).json()
+    assert "difunto" not in estado
+    assert estado["gachamon"]["id"] == vivo.id and estado["gachamon"]["nombre"] == "Pelusa"
 
 
-def test_difunto_visto_exige_cabecera_sesion_y_cuenta(cliente):
-    url = "/gachamon/api/difunto/visto"
-    assert cliente.post(url, headers=ESCRIBIR).status_code == 401
-    entrar(cliente, 1)
-    assert cliente.post(url).status_code == 403
-    respuesta = cliente.post(url, headers=ESCRIBIR)
-    assert respuesta.status_code == 409
-    assert respuesta.json()["detail"]["clave"] == "sin_cuenta"
+def test_una_muerte_de_antes_sin_ver_no_rompe_nada(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    viejo = nace(nombre="Viejo")
+    reloj.pasar(days=3)
+    morir_de_antes(viejo, reloj.ahora)
+    estado = cliente.get(ESTADO).json()
+    assert estado["gachamon"] is None and "difunto" not in estado
+    assert estado["sin_nombre"] is None and estado["globos"] == []
+    assert db.por_id(viejo.id).muerta_en == reloj.ahora
+
+
+def test_difunto_visto_ya_no_existe(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    viejo = nace(nombre="Viejo")
+    morir_de_antes(viejo, reloj.ahora)
+    respuesta = cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR)
+    # Lo mismo que cualquier dirección que no existe.
+    assert respuesta.status_code == 404
+    assert respuesta.json() == {"detail": {"clave": "no_existe", "mensaje": "Eso no existe."}}
+
+
+def test_cualquiera_con_la_comida_en_cero_esta_desfallecido(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    entrar(cliente, 2)
+    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, T0) == "ok"
+    creado = nace(usuario=ANA_DISCORD)
+    db.guardar(replace(creado, hambre=0.0))
+    estado = cliente.get(ESTADO).json()
+    assert estado["persona"]["vinculada"] is True
+    assert estado["gachamon"]["barras"]["comida"] == 0
+    assert estado["gachamon"]["desfallecido"] is True
 
 
 def test_el_lugar_dice_lo_que_ofrece_y_el_gachamon_su_titulo(cliente, monkeypatch):

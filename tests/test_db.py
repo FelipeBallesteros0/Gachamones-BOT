@@ -208,6 +208,21 @@ def test_una_base_sin_difuntos_vistos_hasta_la_gana_al_inicializar():
     assert db.cuenta_web(1) is not None
 
 
+def test_la_base_ya_no_lleva_la_cuenta_de_los_difuntos_vistos():
+    """La columna se queda en el esquema, pero ya nadie la lee ni la escribe."""
+    assert not hasattr(db, "difunto_pendiente") and not hasattr(db, "marcar_difuntos_vistos")
+    db.crear_identidad_web(1, "g1", T0)
+    codigo = db.pedir_codigo_de_vinculo(1, T0)
+    # Vincular una cuenta que ya existía no apunta nada en ella.
+    assert db.canjear_codigo_de_vinculo(codigo, "111111111111111111", "g1", T0) == "ok"
+    with db.conectar() as con:
+        fila = con.execute(
+            "SELECT difuntos_vistos_hasta FROM cuentas_web WHERE rowino_uid = 1"
+        ).fetchone()
+    assert fila[0] is None
+    assert db.cuenta_web(1).vinculada
+
+
 def test_una_base_sin_lugar_la_gana_al_inicializar():
     db.inicializar()
     db.crear_identidad_web(1, "g1", datetime(2026, 1, 1, tzinfo=timezone.utc))

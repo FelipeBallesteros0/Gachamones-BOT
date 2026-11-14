@@ -76,17 +76,6 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
     }
 
 
-def _difunto(jugador: Jugador) -> dict | None:
-    muerto = db.difunto_pendiente(jugador.persona.rowino_uid)
-    if muerto is None:
-        return None
-    return {
-        "nombre": muerto.nombre,
-        "nombre_especie": muerto.def_especie.nombre,
-        "dias": (muerto.muerta_en - muerto.nacida_en).days,
-    }
-
-
 def _sin_nombre(jugador: Jugador, activa: sim.Criatura | None) -> dict | None:
     """El recluta que espera nombre cuando no queda ninguna activa (el de menor id).
 
@@ -187,7 +176,6 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         "saldos": {"monedas": saldos.asciicoins, "gemas": saldos.asciigems},
         "hogar": estado_hogar,
         "gachamon": None if activa is None else ficha(activa, ahora),
-        "difunto": _difunto(jugador),
         "globos": [] if activa is None else [
             {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, del_lugar)
         ],

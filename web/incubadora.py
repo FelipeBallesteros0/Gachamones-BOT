@@ -104,8 +104,6 @@ def sacar(
         raise problema(422, "peticion", "La petición no se entiende.")
     en_la_incubadora(jugador)
     ahora = db.ahora_utc()
-    # Si al ponerlo al día murió el activo, el cambio sigue: el `estado` trae
-    # al difunto y la pantalla decide.
     hecho = economia.cambiar_de_activo(jugador.usuario_id, jugador.guild_id, gachamon_id, ahora)
     return {
         **_dicho(hecho),

@@ -87,8 +87,9 @@ test('un cuidado que sale bien dice su frase', () => {
 });
 
 test('un cuidado que la regla no deja también dice su frase', () => {
-  assert.equal(avisoDelCuidado({ ok: false, mensaje: 'Tu gachamon ya no está entre nosotros.' }),
-    'Tu gachamon ya no está entre nosotros.');
+  // Hoy el servidor sólo manda «Todavía no.»; si trae otra frase, es ésa la que se dice.
+  assert.equal(avisoDelCuidado({ ok: false, mensaje: 'Todavía no.' }), 'Todavía no.');
+  assert.equal(avisoDelCuidado({ ok: false, mensaje: 'Ahora no puede.' }), 'Ahora no puede.');
 });
 
 test('sin frase, sólo el que no salió dice algo: «Todavía no.»', () => {
