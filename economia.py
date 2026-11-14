@@ -2174,19 +2174,21 @@ def equipar_cosmetico(
         if cosmetico.clave not in db._ropero_disponible(con, usuario_id, guild_id):
             # Se distingue no tenerlo de tenerlo puesto en otro: son problemas
             # distintos y se arreglan distinto —uno se compra, el otro se quita—.
-            lo_lleva = db.quien_lleva(
+            lleva = db.quien_lleva(
                 con, usuario_id, guild_id, cosmetico.clave, cosmetico.tipo
             )
+            # La frase de Discord se decide por el nombre crudo, como siempre;
+            # el motivo, por si lo lleva alguien (aunque no tenga nombre).
             return ResultadoCosmetico(
                 criatura=criatura, saldo=saldo,
                 problema=(
-                    f"**{cosmetico.nombre}** lo lleva **{lo_lleva}**. "
+                    f"**{cosmetico.nombre}** lo lleva **{lleva.nombre}**. "
                     "Quítaselo primero."
-                    if lo_lleva
+                    if lleva and lleva.nombre
                     else f"No tienes **{cosmetico.nombre}** en tu ropero."
                 ),
-                motivo="lo_lleva_otro" if lo_lleva else "no_lo_tienes",
-                lo_lleva=lo_lleva or None,
+                motivo="lo_lleva_otro" if lleva else "no_lo_tienes",
+                lo_lleva=sim.nombre_visible(lleva) if lleva else None,
             )
 
         vestido, sustituido = _vestir_en(

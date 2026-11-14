@@ -2048,18 +2048,21 @@ def _ropero_disponible(
 def quien_lleva(
     con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str,
     tipo: str,
-) -> str | None:
-    """El nombre del gachamon vivo que lleva esa pieza, si la lleva alguno.
+) -> sim.Criatura | None:
+    """El gachamon vivo que lleva esa pieza, o None si no la lleva ninguno.
+
+    Devuelve la criatura y no su nombre: un gachamon sin nombre tiene
+    `nombre == ""`, y eso no debe confundirse con «nadie la lleva».
 
     Para poder decir «lo lleva Kuro» en vez del genérico «no lo tienes», que
     ahora sería mentira: sí lo tiene, lo que pasa es que está puesto.
     """
     fila = con.execute(
-        f"SELECT nombre FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+        f"SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
         f"AND muerta_en IS NULL AND {tipo} = ?",
         (usuario_id, guild_id, clave),
     ).fetchone()
-    return fila["nombre"] if fila else None
+    return _a_criatura(fila) if fila else None
 
 
 def quien_lleva_cada(usuario_id: str, guild_id: str) -> dict[str, str]:
