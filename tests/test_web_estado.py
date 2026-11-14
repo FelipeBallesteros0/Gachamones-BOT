@@ -58,7 +58,10 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
         "titulo": None,
     }
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
-    assert set(estado) == {"ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar"}
+    assert set(estado) == {
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar", "sin_nombre",
+    }
+    assert estado["sin_nombre"] is None
 
 
 def test_las_barras_bajan_con_el_reloj_y_leer_no_guarda(cliente, monkeypatch):

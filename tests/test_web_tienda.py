@@ -6,8 +6,10 @@ import casas
 import cosmeticos
 import db
 import economia
+import especies as esp
 import huerto
 import identidad
+import nacer
 import objetos
 from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, poner_reloj
 from web import tienda
@@ -136,6 +138,11 @@ def test_ninguna_descripcion_lleva_marcas_de_discord(cliente, monkeypatch):
 
 
 def test_los_saldos_son_los_de_la_cuenta(cliente, monkeypatch):
+    # El huevo da una especie común: con una rara (una de cada veinticinco)
+    # nacer pagaría «Uno entre veinticinco» y habría 20 gemas más.
+    comun = esp.ESPECIES["pollito"]
+    assert comun.rareza == esp.COMUN
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: comun)
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     ir(cliente, "tienda")

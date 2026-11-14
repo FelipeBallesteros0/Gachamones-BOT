@@ -111,7 +111,7 @@ DEL_LUGAR: dict[str, tuple[str, ...]] = {
     "incubadora": (
         "Aquí hace un calorcito muy suave.",
         "Huele a cáscara tibia.",
-        "Todo está quietito, como si durmiera.",
+        "Se oye un zumbido tibio, muy bajito.",
     ),
     "tienda": (
         "Cuántas cosas hay en los estantes.",

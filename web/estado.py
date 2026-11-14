@@ -38,6 +38,14 @@ def _esperas(criatura: sim.Criatura, ahora: datetime) -> dict[str, int]:
     return esperas
 
 
+def retrato_de(criatura: sim.Criatura) -> str:
+    """La dirección de su retrato: su especie, su etapa, la cara que pone y su sombrero."""
+    return (
+        f"{PREFIJO}/retrato/{criatura.especie}/{criatura.etapa}/{criatura.animo_visual}/"
+        f"{criatura.sombrero or 'sin'}.png?v={retrato.version()}"
+    )
+
+
 def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
     """El gachamon ya avanzado hasta `ahora`, tal como lo ve la pantalla."""
     especie = criatura.def_especie
@@ -60,10 +68,7 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
         },
         "cara": cara,
         "desfallecido": criatura.viva and _barra(criatura.hambre) == 0,
-        "retrato": (
-            f"{PREFIJO}/retrato/{criatura.especie}/{criatura.etapa}/{cara}/"
-            f"{criatura.sombrero or 'sin'}.png?v={retrato.version()}"
-        ),
+        "retrato": retrato_de(criatura),
         "esperas": _esperas(criatura, ahora),
         "titulo": cos.texto_del_titulo(criatura.titulo, criatura.genero) or None,
     }
@@ -77,6 +82,25 @@ def _difunto(jugador: Jugador) -> dict | None:
         "nombre": muerto.nombre,
         "nombre_especie": muerto.def_especie.nombre,
         "dias": (muerto.muerta_en - muerto.nacida_en).days,
+    }
+
+
+def _sin_nombre(jugador: Jugador, activa: sim.Criatura | None) -> dict | None:
+    """El recluta que espera nombre cuando no queda ninguna activa (el de menor id).
+
+    Sin activa, `activa_al_dia` ya intentó sacar a uno con nombre: si sigue sin
+    haberla, los vivos que quedan son reclutas sin nombre, y bautizar a uno es
+    poder seguir jugando.
+    """
+    if activa is not None:
+        return None
+    recluta = next(
+        (c for c in db.plantel(jugador.usuario_id, jugador.guild_id) if sim.esta_sin_nombrar(c)), None
+    )
+    if recluta is None:
+        return None
+    return {
+        "id": recluta.id, "nombre_especie": recluta.def_especie.nombre, "retrato": retrato_de(recluta),
     }
 
 
@@ -125,4 +149,5 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
             {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, del_lugar)
         ],
         "lugar": lugar,
+        "sin_nombre": _sin_nombre(jugador, activa),
     }

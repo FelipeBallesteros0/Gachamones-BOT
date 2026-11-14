@@ -22,7 +22,7 @@ def test_son_los_nueve_lugares_en_su_orden_con_su_parte():
     assert [l.parte for l in pueblo.LUGARES.values()] == ["A"] * 4 + ["B"] * 5
     assert pueblo.LUGARES["casa"] == pueblo.Lugar("casa", "Tu casa", "A", pueblo.YA)
     assert pueblo.LUGARES["tienda"].abre == pueblo.YA
-    assert pueblo.LUGARES["incubadora"].abre == pueblo.PRONTO
+    assert pueblo.LUGARES["incubadora"].abre == pueblo.YA
     assert all(pueblo.LUGARES[c].abre == pueblo.DESPUES for c in NUEVE[4:])
     assert pueblo.DATOS["nodos"]["casa"] == [75, 330] and pueblo.DATOS["nodos"]["aventura"] == [640, 170]
 
@@ -54,7 +54,7 @@ A_LA_INTEMPERIE = (
 @pytest.mark.parametrize("clave, vinculada, hogar, del_gachamon, frase", [
     ("estadio", True, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante. Por ahora se juega en Discord."),
     ("estadio", False, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante."),
-    ("incubadora", True, casas.REFUGIO, casas.REFUGIO, "Aquí todavía no hay nada que hacer. Abre pronto."),
+    ("incubadora", True, casas.REFUGIO, casas.REFUGIO, None),
     ("casa", False, casas.REFUGIO, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
     ("casa", False, casas.INTEMPERIE, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
     ("casa", True, casas.PROPIA, casas.PROPIA, None),
@@ -68,6 +68,12 @@ A_LA_INTEMPERIE = (
 ])
 def test_cada_lugar_avisa_lo_suyo(clave, vinculada, hogar, del_gachamon, frase):
     assert pueblo.aviso(clave, vinculada, hogar, del_gachamon) == frase
+
+
+def test_un_lugar_que_abre_pronto_lo_avisa(monkeypatch):
+    # Ya no queda ninguno así en el archivo, pero la regla sigue: se prueba con uno de mentira.
+    monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
+    assert pueblo.aviso("tienda", True, casas.REFUGIO, casas.REFUGIO) == "Aquí todavía no hay nada que hacer. Abre pronto."
 
 
 def _roto(cambio):
@@ -136,6 +142,7 @@ def test_a_la_intemperie_es_estar_en_el_refugio_sin_vivir_ya_en_el(clave, del_ga
 def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(monkeypatch):
     assert set(pueblo.OFRECE) <= set(pueblo.LUGARES)
     assert pueblo.ofrece("tienda") == ("tienda",)
+    assert pueblo.ofrece("incubadora") == ("incubadora",)
     assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
     assert pueblo.ofrece("tienda") == ()

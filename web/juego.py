@@ -52,12 +52,12 @@ def romper_el_huevo(jugador: Jugador = Depends(jugador_actual)) -> dict:
         nacer.romper_el_huevo(jugador.usuario_id, jugador.guild_id, ahora)
     except nacer.YaTieneGachamon:
         if db.criatura_activa(jugador.usuario_id, jugador.guild_id) is None:
-            # Ninguna activa, pero hay alguien: un recluta sin nombre, que sólo
-            # se bautiza en Discord. Sin esto el huevo se repetiría para siempre.
+            # Ninguna activa, pero hay alguien: un recluta sin nombre, que no
+            # sale de la incubadora hasta tenerlo. El estado lo trae en
+            # `sin_nombre`, y se le pone con `POST /bautizar` y su `gachamon_id`.
             raise problema(
                 409, "ya_tienes",
-                "Tienes un gachamon esperando nombre en la incubadora. "
-                "Ponle nombre en Discord y vuelve.",
+                "Antes, ponle nombre al gachamon que espera en la incubadora.",
             ) from None
         raise problema(
             409, "ya_tienes",
@@ -79,12 +79,21 @@ def bautizar(
     jugador: Jugador = Depends(jugador_actual),
 ) -> dict:
     # El cuerpo se revisa a mano: así todo fallo sale con nuestra forma.
-    nombre = cuerpo.get("nombre") if isinstance(cuerpo, dict) else None
+    datos = cuerpo if isinstance(cuerpo, dict) else {}
+    nombre = datos.get("nombre")
     if not isinstance(nombre, str):
         raise problema(422, "nombre", "Falta el nombre.")
+    # Con `gachamon_id`, el de la pantalla (un recluta de la incubadora), que se
+    # comprueba que sea tuyo; sin él, la activa, como siempre.
+    gachamon_id = datos.get("gachamon_id")
+    if "gachamon_id" in datos and type(gachamon_id) is not int:
+        raise problema(422, "peticion", "La petición no se entiende.")
     ahora = db.ahora_utc()
     try:
-        nacer.bautizar(jugador.usuario_id, jugador.guild_id, nombre, ahora)
+        if gachamon_id is None:
+            nacer.bautizar(jugador.usuario_id, jugador.guild_id, nombre, ahora)
+        else:
+            nacer.bautizar_a(jugador.usuario_id, jugador.guild_id, gachamon_id, nombre, ahora)
     except nacer.NombreNoVale as error:
         raise problema(422, "nombre", str(error)) from None
     except nacer.NoSePuedeBautizar as error:

@@ -56,6 +56,28 @@ def test_un_nombre_malo_vuelve_con_su_frase(cliente, monkeypatch):
         assert respuesta.json()["detail"]["mensaje"]
 
 
+def test_un_gachamon_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    cliente.post(HUEVO, headers=ESCRIBIR)
+    yo = db.criatura_activa(YO, G).id
+    for gachamon_id in (str(yo), None, True, float(yo), [yo]):
+        respuesta = cliente.post(BAUTIZAR, json={"nombre": "Pelusa", "gachamon_id": gachamon_id}, headers=ESCRIBIR)
+        assert respuesta.status_code == 422, gachamon_id
+        assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert cliente.get("/gachamon/api/estado").json()["gachamon"]["espera_nombre"] is True
+
+
+def test_sin_gachamon_id_se_bautiza_a_la_activa_como_siempre(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    cliente.post(HUEVO, headers=ESCRIBIR)
+    recluta = db.crear(YO, G, "pulpo", "", (10, 10, 10, 10), db.ahora_utc(), activa=False)
+    respuesta = cliente.post(BAUTIZAR, json={"nombre": "Pelusa"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Pelusa"
+    assert db.por_id(recluta.id).nombre == ""
+
+
 def test_bautizar_sin_gachamon(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
@@ -120,7 +142,7 @@ def test_al_nacer_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch):
     assert respuesta.json()["saldos"]["gemas"] == 70
     assert economia.saldos(YO, G).asciigems == 70
     assert set(respuesta.json()) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar",
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "difunto", "globos", "lugar", "sin_nombre",
     }
 
 
@@ -146,8 +168,7 @@ def test_con_la_activa_muerta_y_un_recluta_sin_nombre_el_huevo_dice_que_hacer(cl
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == {
         "clave": "ya_tienes",
-        "mensaje": "Tienes un gachamon esperando nombre en la incubadora. "
-                   "Ponle nombre en Discord y vuelve.",
+        "mensaje": "Antes, ponle nombre al gachamon que espera en la incubadora.",
     }
     assert db.por_id(recluta.id).nombre == "" and not db.por_id(recluta.id).activa
 
