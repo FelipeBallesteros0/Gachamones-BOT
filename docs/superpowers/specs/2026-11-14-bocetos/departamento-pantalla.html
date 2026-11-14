@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La pantalla de tu departamento</title>
+<style>
+  :root { --fondo:#1b1e27; --papel:#252a36; --tinta:#eef0f5; --suave:#a6adbd; --linea:#3a4152; --acento:#f2b84b; --bien:#4fbf73; --mal:#e2705f; }
+  * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--fondo); color:var(--tinta); font:16px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width:1120px; margin:0 auto; padding:26px 18px 64px; display:grid; grid-template-columns:minmax(0,392px) minmax(0,1fr); gap:28px; align-items:start; }
+  @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+  h1 { font-size:1.6rem; margin:0 0 6px; }
+  h2 { font-size:1.05rem; margin:0 0 6px; }
+  p { margin:0; color:var(--suave); }
+  .telefono { background:#f3f4f6; color:#161920; border-radius:26px; padding:0 0 14px; overflow:hidden; border:6px solid #0c0e13; }
+  .barra { background:#14161d; color:#fff; padding:12px 14px; display:flex; justify-content:space-between; font-weight:700; }
+  .barra span:last-child { font-variant-numeric:tabular-nums; }
+  canvas { width:100%; height:auto; display:block; background:#dfe6ee; cursor:pointer; }
+  .tarjeta { background:#fff; border:1px solid #dfe2e8; border-radius:16px; margin:10px 12px 0; padding:12px 14px; display:grid; gap:8px; }
+  .tarjeta h3 { margin:0; font-size:1.15rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .chapa { font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; background:#fde9b8; color:#6a4a00; padding:2px 8px; border-radius:999px; }
+  .medidores { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; font-size:.82rem; font-weight:600; }
+  .pista { height:8px; border-radius:999px; background:#e3e6eb; overflow:hidden; margin-top:3px; }
+  .pista i { display:block; height:100%; background:var(--bien); border-radius:999px; }
+  .botones { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .botones.tres { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  button { font:inherit; font-weight:600; padding:9px 10px; border-radius:12px; border:1px solid #d3d7de; background:#fff; color:#161920; cursor:pointer; }
+  button.fuerte { background:#2f6fed; color:#fff; border-color:#2f6fed; }
+  button.suave { background:#eef0f4; }
+  button:disabled { opacity:.45; cursor:default; }
+  .rotulo { font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6a7080; }
+  .aviso { min-height:1.5em; margin:8px 12px 0; padding:8px 12px; border-radius:10px; background:#161920; color:#fff; font-weight:600; font-size:.92rem; }
+  .aviso.es-error { background:#8a2f24; }
+  .aviso:empty { visibility:hidden; }
+  .escenario { position:relative; }
+  .menu-mueble { position:absolute; transform:translate(-50%,-100%); background:#14161d; color:#fff; border-radius:12px; padding:6px; display:flex; gap:6px; align-items:center; box-shadow:0 6px 18px rgba(0,0,0,.35); white-space:nowrap; }
+  .menu-mueble span { font-size:.8rem; font-weight:700; padding:0 4px; }
+  .menu-mueble button { padding:6px 9px; font-size:.82rem; border-radius:9px; }
+  .bandeja { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+  .bandeja button { flex:0 0 auto; min-width:92px; display:grid; gap:2px; text-align:left; font-size:.85rem; }
+  .bandeja button[aria-pressed="true"] { border-color:#2f6fed; box-shadow:0 0 0 2px #2f6fed inset; }
+  .bandeja small { color:#6a7080; font-weight:500; }
+  .lado { display:grid; gap:18px; }
+  .caja { background:var(--papel); border:1px solid var(--linea); border-radius:14px; padding:16px; }
+  .caja ul { margin:6px 0 0; padding-left:20px; color:var(--suave); display:grid; gap:5px; }
+  .caja li strong, .caja p strong { color:var(--tinta); font-weight:600; }
+  table { border-collapse:collapse; margin-top:8px; width:100%; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:5px 10px 5px 0; border-bottom:1px solid var(--linea); color:var(--suave); font-weight:400; }
+  td:last-child, th:last-child { text-align:right; color:var(--tinta); }
+  .mio { border-left:3px solid var(--acento); }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <div class="telefono">
+      <div class="barra"><span>🏢 Tu departamento</span><span id="saldo"></span></div>
+      <div class="escenario">
+        <canvas id="pieza" width="760" height="620" aria-label="Tu departamento en vista isométrica"></canvas>
+        <div class="menu-mueble" id="menu" hidden>
+          <span id="menu-nombre"></span>
+          <button type="button" id="mover">✋ Mover</button>
+          <button type="button" id="girar">🔄 Girar</button>
+          <button type="button" id="guardar">📦 Guardar</button>
+        </div>
+      </div>
+      <div class="aviso" id="aviso" role="status"></div>
+
+      <div id="vivir">
+        <div class="tarjeta" id="tarjeta-guardados" hidden>
+          <span class="rotulo">Guardados · toca uno y después una casilla</span>
+          <div class="bandeja" id="bandeja"></div>
+        </div>
+        <div class="tarjeta" id="ficha"></div>
+        <div class="tarjeta">
+          <span class="rotulo">A todos</span>
+          <div class="botones">
+            <button type="button" data-todos="comida">🍖 Alimentar a todos</button>
+            <button type="button" data-todos="animo">🎮 Jugar con todos</button>
+            <button type="button" data-todos="entrenar">🏋️ Entrenar con todos</button>
+            <button type="button" data-todos="aseo">🧼 Bañar a todos</button>
+          </div>
+        </div>
+        <div class="tarjeta">
+          <div class="botones tres">
+            <button type="button" class="fuerte" id="guardados-boton">📦 Guardados</button>
+            <button type="button" id="ampliar">📐 Ampliar</button>
+            <button type="button" id="reclutar">🥚 Reclutar</button>
+          </div>
+          <div class="botones">
+            <button type="button" class="suave" disabled>🎒 Mochila</button>
+            <button type="button" class="suave" disabled>🗺️ Pueblo</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="ampliando" hidden>
+        <div class="tarjeta">
+          <span class="rotulo">Ampliar el departamento</span>
+          <div class="botones">
+            <button type="button" id="fila"></button>
+            <button type="button" id="columna"></button>
+          </div>
+          <button type="button" class="suave" id="no-ampliar">Volver</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lado">
+    <div>
+      <h1>La pantalla de tu departamento</h1>
+      <p>Cuarta versión: a un gachamon también lo puedes mover (tócalo y «Mover»), para que no estorbe al poner muebles. Prueba <strong style="color:var(--tinta)">tocar un mueble</strong>: encima salen «Mover · Girar · Guardar». Toca «Mover» y después la casilla de destino. Con <strong style="color:var(--tinta)">Guardados</strong> sacas uno nuevo.</p>
+    </div>
+
+    <div class="caja">
+      <h2>Lo que muestra</h2>
+      <ul>
+        <li><strong>La pieza arriba, la ficha abajo.</strong> Tocas a un gachamon y su ficha queda abajo con sus cuidados; «Salir con él» lo hace el activo.</li>
+        <li><strong>«A todos»</strong> hace el cuidado a cada uno que pueda recibirlo.</li>
+        <li><strong>Tocas un mueble</strong> y encima salen sus opciones: Mover, Girar y Guardar. Con «Mover», tocas la casilla de destino.</li>
+        <li><strong>Guardados</strong> abre lo que tienes sin poner: tocas uno y después una casilla.</li>
+        <li><strong>A un gachamon también lo mueves</strong>: lo tocas, «Mover», y la casilla de destino.</li>
+        <li><strong>Ampliar</strong> suma una fila o una columna; cuesta según las casillas que añade.</li>
+        <li><strong>Reclutar</strong> (aquí de mentira): solo acepta si hay una cama libre.</li>
+      </ul>
+    </div>
+
+    <div class="caja mio">
+      <h2>Los números que propongo</h2>
+      <p>Hoy se ganan entre <strong>12 y 20 monedas por día</strong> jugando. Para que el segundo gachamon llegue en una semana:</p>
+      <table>
+        <tr><th>Cosa</th><th>Precio</th></tr>
+        <tr><td>Cada casilla de ampliación</td><td>15 monedas</td></tr>
+        <tr><td>Una fila o columna en el 3 × 3 (3 casillas)</td><td>45 monedas</td></tr>
+        <tr><td><strong>Cama sencilla (2 casillas)</strong></td><td><strong>85 monedas ≈ 7 días</strong></td></tr>
+        <tr><td>Tamaño máximo</td><td>8 × 8</td></tr>
+        <tr><td>Llegar de 3 × 3 a 8 × 8</td><td>825 monedas</td></tr>
+      </table>
+      <ul>
+        <li><strong>El límite son solo las casillas</strong>: en el 3 × 3 caben las camas que quepan. Por eso el segundo gachamon cuesta una cama, y la cama es lo que tarda una semana.</li>
+        <li><strong>Los muebles de hoy conservan su precio</strong> (de 30 a 280) y su comodidad; la «Cama grande» de 280 también cuenta como cama.</li>
+        <li><strong>Se puede tener más de uno de cada mueble</strong> (hoy solo uno): hacen falta varias camas y sillas.</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var PRECIO_CASILLA = 15, MAXIMO = 8, ANCHO = 380, ALTO_LIENZO = 310, ESC = 2;
+  var CATALOGO = {
+    cama: { nombre: 'Cama', w: 2, d: 1, color: '#5a7fd6' },
+    mesa: { nombre: 'Mesa de gato', w: 1, d: 1, color: '#b9824a' },
+    silla: { nombre: 'Silla', w: 1, d: 1, color: '#c9a46a' },
+    planta: { nombre: 'Maceta', w: 1, d: 1, color: '#a0562f' },
+    estante: { nombre: 'Estantería', w: 2, d: 1, color: '#8a6f55' },
+  };
+  var estado = {
+    I: 3, J: 3, monedas: 130, modo: 'vivir', elegido: null, puesto: null, visto: 0, moviendo: false, bandeja: false, gSel: null, moviendoG: false,
+    yo: { i: 1, j: 2 },
+    muebles: [{ tipo: 'cama', i: 0, j: 0, w: 2, d: 1 }, { tipo: 'planta', i: 0, j: 2, w: 1, d: 1 }],
+    guardados: { cama: 1, mesa: 1, silla: 2, estante: 1 },
+    gachamones: [{ nombre: 'Nube', especie: 'Piollito cría', color: '#f6d743', i: 2, j: 1, comida: 62, animo: 80, aseo: 45, activo: true }],
+  };
+  var NUEVOS = [
+    { nombre: 'Rulo', especie: 'Gelatín cría', color: '#7fe3e0' },
+    { nombre: 'Pipa', especie: 'Octopul cría', color: '#f29bb5' },
+    { nombre: 'Geo', especie: 'Geo cría', color: '#a9aeb8' },
+  ];
+
+  var lienzo = document.getElementById('pieza'), ctx = lienzo.getContext('2d');
+  var aviso = document.getElementById('aviso'), relojAviso = null;
+  var TW, TH, OX, OY, PARED, U;
+
+  function decir(texto, error) {
+    aviso.textContent = texto; aviso.classList.toggle('es-error', Boolean(error));
+    clearTimeout(relojAviso); relojAviso = setTimeout(function () { aviso.textContent = ''; }, 4200);
+  }
+  function medir() {
+    var suma = estado.I + estado.J;
+    TW = Math.min(2 * (ANCHO - 28) / suma, (ALTO_LIENZO - 34) / (1.05 + suma / 4));
+    TH = TW / 2; PARED = TW * 1.05; U = TW / 72;
+    OX = ANCHO / 2 - (estado.I - estado.J) * TW / 4; OY = 16 + PARED;
+  }
+  function P(i, j, h) { return [OX + (i - j) * TW / 2, OY + (i + j) * TH / 2 - (h || 0) * U]; }
+  function poli(puntos, relleno, borde) {
+    ctx.beginPath();
+    puntos.forEach(function (p, n) { if (n) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); });
+    ctx.closePath();
+    if (relleno) { ctx.fillStyle = relleno; ctx.fill(); }
+    if (borde) { ctx.strokeStyle = borde; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+  function tono(color, f) {
+    var n = parseInt(color.slice(1), 16);
+    return 'rgb(' + Math.min(255, Math.round(((n >> 16) & 255) * f)) + ',' + Math.min(255, Math.round(((n >> 8) & 255) * f)) + ',' + Math.min(255, Math.round((n & 255) * f)) + ')';
+  }
+  function caja(i, j, w, d, h, color, base) {
+    var z = base || 0;
+    var A = P(i, j, z + h), B = P(i + w, j, z + h), C = P(i + w, j + d, z + h), D = P(i, j + d, z + h);
+    var B0 = P(i + w, j, z), C0 = P(i + w, j + d, z), D0 = P(i, j + d, z);
+    poli([D, C, C0, D0], tono(color, 0.78), 'rgba(0,0,0,.35)');
+    poli([C, B, B0, C0], tono(color, 0.6), 'rgba(0,0,0,.35)');
+    poli([A, B, C, D], color, 'rgba(0,0,0,.35)');
+    return [A, B, C, D];
+  }
+  function mezcla(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+  function raya(a, b, color, ancho) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = color; ctx.lineWidth = ancho; ctx.stroke(); }
+  function cartel(texto, x, y) {
+    ctx.font = '600 11px system-ui, sans-serif';
+    var ancho = ctx.measureText(texto).width + 10;
+    ctx.fillStyle = 'rgba(15,17,24,.82)'; ctx.fillRect(x - ancho / 2, y - 15, ancho, 16);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(texto, x, y - 3);
+  }
+
+  function dibujarMueble(m, tenue) {
+    var c = CATALOGO[m.tipo].color;
+    ctx.globalAlpha = tenue ? 0.55 : 1;
+    if (m.tipo === 'cama') {
+      caja(m.i, m.j, m.w, m.d, 14, c);
+      if (m.w >= m.d) caja(m.i + 0.1, m.j + 0.15, 0.5, 0.7, 6, '#f4f1e8', 14); else caja(m.i + 0.15, m.j + 0.1, 0.7, 0.5, 6, '#f4f1e8', 14);
+    } else if (m.tipo === 'mesa') {
+      var t = caja(m.i + 0.08, m.j + 0.08, 0.84, 0.84, 22, c);
+      [1 / 3, 2 / 3].forEach(function (f) { raya(mezcla(t[0], t[1], f), mezcla(t[3], t[2], f), '#3b2613', 1.5); raya(mezcla(t[0], t[3], f), mezcla(t[1], t[2], f), '#3b2613', 1.5); });
+    } else if (m.tipo === 'silla') {
+      caja(m.i + 0.25, m.j + 0.25, 0.5, 0.5, 13, c); caja(m.i + 0.25, m.j + 0.25, 0.5, 0.1, 16, c, 13);
+    } else if (m.tipo === 'planta') {
+      caja(m.i + 0.3, m.j + 0.3, 0.4, 0.4, 12, c);
+      var hoja = P(m.i + 0.5, m.j + 0.5, 30); ctx.fillStyle = '#4fae5d'; ctx.beginPath(); ctx.arc(hoja[0], hoja[1], TW * 0.2, 0, Math.PI * 2); ctx.fill();
+    } else {
+      caja(m.i + 0.05, m.j + 0.05, m.w - 0.1, m.d - 0.1, 44, c);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function dibujarGachamon(g, n) {
+    var c = P(g.i + 0.5, g.j + 0.5, 0), r = TW * 0.21;
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(c[0], c[1], r * 0.9, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = g.color; ctx.beginPath(); ctx.arc(c[0], c[1] - r, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = n === estado.visto && estado.modo === 'vivir' ? '#2f6fed' : 'rgba(0,0,0,.45)'; ctx.lineWidth = n === estado.visto && estado.modo === 'vivir' ? 3 : 1.2; ctx.stroke();
+    ctx.fillStyle = '#1b1e27'; ctx.beginPath(); ctx.arc(c[0] - r * 0.35, c[1] - r * 1.1, 1.8, 0, Math.PI * 2); ctx.arc(c[0] + r * 0.35, c[1] - r * 1.1, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(c[0], c[1] - r * 0.85, r * 0.3, 0.15 * Math.PI, 0.85 * Math.PI); ctx.strokeStyle = '#1b1e27'; ctx.lineWidth = 1.4; ctx.stroke();
+    cartel(g.nombre + (g.activo ? ' ★' : ''), c[0], c[1] - r * 2 - 4);
+  }
+  function dibujarYo() {
+    var c = P(estado.yo.i + 0.5, estado.yo.j + 0.5, 0), u = U;
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(c[0], c[1], 13 * u, 5.5 * u, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3c4a6b'; ctx.fillRect(c[0] - 7 * u, c[1] - 14 * u, 6 * u, 14 * u); ctx.fillRect(c[0] + 1 * u, c[1] - 14 * u, 6 * u, 14 * u);
+    ctx.fillStyle = '#3f9a5b'; ctx.fillRect(c[0] - 9 * u, c[1] - 32 * u, 18 * u, 19 * u);
+    ctx.fillStyle = '#eec39a'; ctx.fillRect(c[0] - 7 * u, c[1] - 46 * u, 14 * u, 14 * u);
+    ctx.fillStyle = '#2b2118'; ctx.fillRect(c[0] - 8 * u, c[1] - 49 * u, 16 * u, 6 * u);
+  }
+
+  function muebleEn(i, j, salvo) {
+    return estado.muebles.find(function (m) { return m !== salvo && i >= m.i && i < m.i + m.w && j >= m.j && j < m.j + m.d; });
+  }
+  function alguienEn(i, j) {
+    return (estado.yo.i === i && estado.yo.j === j) || estado.gachamones.some(function (g) { return g.i === i && g.j === j; });
+  }
+  function cabe(i, j, w, d, salvo) {
+    for (var a = i; a < i + w; a++) for (var b = j; b < j + d; b++) {
+      if (a < 0 || b < 0 || a >= estado.I || b >= estado.J || muebleEn(a, b, salvo) || alguienEn(a, b)) return false;
+    }
+    return true;
+  }
+  function camas() { return estado.muebles.filter(function (m) { return m.tipo === 'cama'; }).length; }
+
+  function dibujar() {
+    medir();
+    ctx.setTransform(ESC, 0, 0, ESC, 0, 0);
+    ctx.clearRect(0, 0, ANCHO, ALTO_LIENZO);
+    var I = estado.I, J = estado.J, i, j;
+    poli([P(0, 0), P(0, J), P(0, J, PARED / U), P(0, 0, PARED / U)], '#c9b79a', 'rgba(0,0,0,.3)');
+    poli([P(0, 0), P(I, 0), P(I, 0, PARED / U), P(0, 0, PARED / U)], '#b3a084', 'rgba(0,0,0,.3)');
+    poli([P(I * 0.4, 0, PARED / U * 0.35), P(I * 0.75, 0, PARED / U * 0.35), P(I * 0.75, 0, PARED / U * 0.8), P(I * 0.4, 0, PARED / U * 0.8)], '#9fd6f2', '#f4f1e8');
+    for (i = 0; i < I; i++) for (j = 0; j < J; j++) {
+      poli([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], (i + j) % 2 ? '#8a6a4a' : '#94734f', 'rgba(0,0,0,.25)');
+      if (estado.moviendo || estado.elegido || estado.moviendoG) {
+        poli([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], muebleEn(i, j, estado.moviendo ? estado.puesto : null) ? 'rgba(242,120,60,.45)' : 'rgba(120,220,140,.28)', 'rgba(255,255,255,.6)');
+      }
+    }
+    var cosas = estado.muebles.map(function (m) { return { clave: m.i + m.w + m.j + m.d, m: m }; })
+      .concat(estado.gachamones.map(function (g, n) { return { clave: g.i + g.j + 1.5, g: g, n: n }; }))
+      .concat([{ clave: estado.yo.i + estado.yo.j + 1.6 }]);
+    cosas.sort(function (a, b) { return a.clave - b.clave; });
+    cosas.forEach(function (c) {
+      if (c.m) {
+        dibujarMueble(c.m);
+        if (c.m === estado.puesto) { var s = c.m; poli([P(s.i, s.j), P(s.i + s.w, s.j), P(s.i + s.w, s.j + s.d), P(s.i, s.j + s.d)], null, '#2f6fed'); ctx.lineWidth = 3; ctx.stroke(); }
+      } else if (c.g) dibujarGachamon(c.g, c.n); else dibujarYo();
+    });
+    ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#3b4252';
+    var usadas = 0; estado.muebles.forEach(function (m) { usadas += m.w * m.d; });
+    ctx.fillText(I + ' × ' + J + ' · ' + usadas + ' de ' + (I * J) + ' casillas · camas: ' + camas() + ' · gachamones: ' + estado.gachamones.length, 10, ALTO_LIENZO - 8);
+    document.getElementById('saldo').textContent = '🪙 ' + estado.monedas;
+  }
+
+  function medidor(nombre, valor) {
+    return '<div>' + nombre + ' ' + Math.round(valor) + '<div class="pista"><i style="width:' + valor + '%"></i></div></div>';
+  }
+  function pintarFicha() {
+    var g = estado.gachamones[estado.visto], ficha = document.getElementById('ficha');
+    ficha.innerHTML = '<h3>' + g.nombre + (g.activo ? ' <span class="chapa">Sale contigo</span>' : '') + '</h3>' +
+      '<p style="color:#6a7080">' + g.especie + '</p>' +
+      '<div class="medidores">' + medidor('🍖 Comida', g.comida) + medidor('😊 Ánimo', g.animo) + medidor('🧼 Aseo', g.aseo) + '</div>' +
+      '<div class="botones">' +
+      '<button type="button" data-uno="comida">🍖 Alimentar</button><button type="button" data-uno="animo">🎮 Jugar</button>' +
+      '<button type="button" data-uno="entrenar">🏋️ Entrenar</button><button type="button" data-uno="aseo">🧼 Bañar</button>' +
+      '</div>' + (g.activo ? '' : '<button type="button" class="fuerte" data-salir="1">Salir con ' + g.nombre + '</button>');
+  }
+  function cuidar(g, que) {
+    if (que === 'entrenar') { g.animo = Math.max(0, g.animo - 6); return; }
+    g[que] = Math.min(100, g[que] + 30);
+  }
+  var VERBO = { comida: 'Alimentaste', animo: 'Jugaste con', entrenar: 'Entrenaste con', aseo: 'Bañaste' };
+
+  function pintarBandeja() {
+    var bandeja = document.getElementById('bandeja'); bandeja.innerHTML = '';
+    var hay = false;
+    Object.keys(estado.guardados).forEach(function (tipo) {
+      var n = estado.guardados[tipo]; if (!n) return; hay = true;
+      var c = CATALOGO[tipo], b = document.createElement('button');
+      b.type = 'button'; b.setAttribute('aria-pressed', String(estado.elegido === tipo));
+      b.innerHTML = '<span>' + c.nombre + ' × ' + n + '</span><small>' + (c.w * c.d) + (c.w * c.d === 1 ? ' casilla' : ' casillas') + '</small>';
+      b.addEventListener('click', function () {
+        estado.elegido = estado.elegido === tipo ? null : tipo; estado.puesto = null; estado.moviendo = false; estado.gSel = null; estado.moviendoG = false;
+        if (estado.elegido) decir('Toca la casilla donde lo quieres.');
+        todo();
+      });
+      bandeja.appendChild(b);
+    });
+    if (!hay) bandeja.innerHTML = '<p style="color:#6a7080">No queda nada guardado.</p>';
+  }
+  function pintarAmpliar() {
+    var fila = document.getElementById('fila'), columna = document.getElementById('columna');
+    fila.textContent = '+ fila (' + estado.I + ' casillas) · ' + estado.I * PRECIO_CASILLA + ' 🪙';
+    columna.textContent = '+ columna (' + estado.J + ' casillas) · ' + estado.J * PRECIO_CASILLA + ' 🪙';
+    fila.disabled = estado.J >= MAXIMO; columna.disabled = estado.I >= MAXIMO;
+  }
+  function ponerMenu() {
+    var menu = document.getElementById('menu'), m = estado.puesto, g = estado.gSel === null ? null : estado.gachamones[estado.gSel];
+    if ((!m && !g) || estado.moviendo || estado.moviendoG || estado.modo !== 'vivir') { menu.hidden = true; return; }
+    var escala = lienzo.clientWidth / ANCHO;
+    var punta = g ? P(g.i + 0.5, g.j + 0.5, 62) : P(m.i + m.w / 2, m.j + m.d / 2, 50);
+    document.getElementById('menu-nombre').textContent = g ? g.nombre : CATALOGO[m.tipo].nombre;
+    document.getElementById('girar').hidden = Boolean(g);
+    document.getElementById('guardar').hidden = Boolean(g);
+    menu.hidden = false;
+    var mitad = menu.offsetWidth / 2;
+    menu.style.left = Math.max(mitad + 4, Math.min(lienzo.clientWidth - mitad - 4, punta[0] * escala)) + 'px';
+    menu.style.top = Math.max(menu.offsetHeight + 4, punta[1] * escala) + 'px';
+  }
+  function todo() {
+    document.getElementById('vivir').hidden = estado.modo !== 'vivir';
+    document.getElementById('tarjeta-guardados').hidden = !estado.bandeja;
+    document.getElementById('ampliando').hidden = estado.modo !== 'ampliar';
+    dibujar(); pintarFicha(); pintarBandeja(); pintarAmpliar(); ponerMenu();
+  }
+
+  lienzo.addEventListener('click', function (evento) {
+    var marco = lienzo.getBoundingClientRect();
+    var x = (evento.clientX - marco.left) * (ANCHO / marco.width) - OX, y = (evento.clientY - marco.top) * (ALTO_LIENZO / marco.height) - OY;
+    var i = Math.floor((y / (TH / 2) + x / (TW / 2)) / 2), j = Math.floor((y / (TH / 2) - x / (TW / 2)) / 2);
+    if (i < 0 || j < 0 || i >= estado.I || j >= estado.J) return;
+    var m = muebleEn(i, j);
+    if (estado.modo !== 'vivir') return;
+    if (estado.moviendoG && estado.gSel !== null) {
+      var quien = estado.gachamones[estado.gSel];
+      if (quien.i === i && quien.j === j) { estado.moviendoG = false; todo(); return; }
+      if (m || alguienEn(i, j)) { decir('Ahí no cabe.', true); return; }
+      quien.i = i; quien.j = j; estado.moviendoG = false; decir('Moviste a ' + quien.nombre + '.'); todo(); return;
+    }
+    if (estado.moviendo && estado.puesto) {
+      var p = estado.puesto;
+      if (m === p && i === p.i && j === p.j) { estado.moviendo = false; todo(); return; }
+      if (!cabe(i, j, p.w, p.d, p)) { decir('Ahí no cabe.', true); return; }
+      p.i = i; p.j = j; estado.moviendo = false; decir('Moviste ' + CATALOGO[p.tipo].nombre + '.'); todo(); return;
+    }
+    if (estado.elegido) {
+      var c = CATALOGO[estado.elegido];
+      var forma = cabe(i, j, c.w, c.d) ? [c.w, c.d] : (cabe(i, j, c.d, c.w) ? [c.d, c.w] : null);
+      if (!forma) { decir('Ahí no cabe.', true); return; }
+      var nuevo = { tipo: estado.elegido, i: i, j: j, w: forma[0], d: forma[1] };
+      estado.muebles.push(nuevo); estado.guardados[estado.elegido] -= 1;
+      estado.elegido = null; estado.puesto = nuevo; decir('Pusiste ' + c.nombre + '.'); todo(); return;
+    }
+    var cual = estado.gachamones.findIndex(function (g) { return g.i === i && g.j === j; });
+    if (cual >= 0) { estado.visto = cual; estado.gSel = estado.gSel === cual ? null : cual; estado.puesto = null; todo(); return; }
+    if (m) { estado.puesto = estado.puesto === m ? null : m; estado.gSel = null; todo(); return; }
+    estado.puesto = null; estado.gSel = null; estado.yo = { i: i, j: j }; todo();
+  });
+
+  document.addEventListener('click', function (evento) {
+    var b = evento.target.closest('button'); if (!b) return;
+    var g = estado.gachamones[estado.visto];
+    if (b.dataset.uno) { cuidar(g, b.dataset.uno); decir(VERBO[b.dataset.uno] + ' ' + (b.dataset.uno === 'comida' || b.dataset.uno === 'aseo' ? 'a ' : '') + g.nombre + '.'); todo(); }
+    if (b.dataset.todos) {
+      estado.gachamones.forEach(function (x) { cuidar(x, b.dataset.todos); });
+      var n = estado.gachamones.length;
+      decir(VERBO[b.dataset.todos] + ' ' + (b.dataset.todos === 'comida' || b.dataset.todos === 'aseo' ? 'a ' : '') + (n === 1 ? g.nombre : 'tus ' + n + ' gachamones') + '.'); todo();
+    }
+    if (b.dataset.salir) { estado.gachamones.forEach(function (x) { x.activo = false; }); g.activo = true; decir(g.nombre + ' sale contigo.'); todo(); }
+  });
+  document.getElementById('guardados-boton').addEventListener('click', function () { estado.bandeja = !estado.bandeja; estado.elegido = null; estado.moviendo = false; estado.gSel = null; estado.moviendoG = false; todo(); });
+  document.getElementById('mover').addEventListener('click', function () {
+    if (estado.gSel !== null) estado.moviendoG = true; else if (estado.puesto) estado.moviendo = true; else return;
+    decir('Toca la casilla donde lo quieres.'); todo();
+  });
+  document.getElementById('ampliar').addEventListener('click', function () { estado.modo = 'ampliar'; estado.puesto = null; estado.moviendo = false; estado.elegido = null; estado.gSel = null; estado.moviendoG = false; todo(); });
+  document.getElementById('no-ampliar').addEventListener('click', function () { estado.modo = 'vivir'; todo(); });
+  document.getElementById('girar').addEventListener('click', function () {
+    var m = estado.puesto; if (!m) return;
+    if (m.w === m.d) { decir('Ese mueble se ve igual girado.'); return; }
+    if (!cabe(m.i, m.j, m.d, m.w, m)) { decir('Girado no cabe ahí.', true); return; }
+    var w = m.w; m.w = m.d; m.d = w; todo();
+  });
+  document.getElementById('guardar').addEventListener('click', function () {
+    var m = estado.puesto; if (!m) return;
+    if (m.tipo === 'cama' && camas() - 1 < estado.gachamones.length) { decir('Cada gachamon necesita su cama: esa no se puede guardar.', true); return; }
+    estado.muebles.splice(estado.muebles.indexOf(m), 1);
+    estado.guardados[m.tipo] = (estado.guardados[m.tipo] || 0) + 1; estado.puesto = null;
+    decir('Guardaste ' + CATALOGO[m.tipo].nombre + '.'); todo();
+  });
+  function ampliar(eje) {
+    var casillas = eje === 'fila' ? estado.I : estado.J, precio = casillas * PRECIO_CASILLA;
+    if (estado.monedas < precio) { decir('Te faltan ' + (precio - estado.monedas) + ' monedas.', true); return; }
+    estado.monedas -= precio; if (eje === 'fila') estado.J += 1; else estado.I += 1;
+    decir('Tu departamento ahora es de ' + estado.I + ' × ' + estado.J + '.'); todo();
+  }
+  document.getElementById('fila').addEventListener('click', function () { ampliar('fila'); });
+  document.getElementById('columna').addEventListener('click', function () { ampliar('columna'); });
+  document.getElementById('reclutar').addEventListener('click', function () {
+    if (camas() <= estado.gachamones.length) { decir('No aceptó: no tienes una cama libre.', true); return; }
+    var nuevo = NUEVOS[(estado.gachamones.length - 1) % NUEVOS.length], sitio = null;
+    for (var i = 0; i < estado.I && !sitio; i++) for (var j = 0; j < estado.J && !sitio; j++) if (!muebleEn(i, j) && !alguienEn(i, j)) sitio = [i, j];
+    if (!sitio) { decir('No aceptó: no hay sitio donde pararse.', true); return; }
+    estado.gachamones.push({ nombre: nuevo.nombre, especie: nuevo.especie, color: nuevo.color, i: sitio[0], j: sitio[1], comida: 40, animo: 55, aseo: 70, activo: false });
+    estado.visto = estado.gachamones.length - 1; decir(nuevo.nombre + ' se viene a vivir contigo.'); todo();
+  });
+
+  todo();
+})();
+</script>
+</body>
+</html>

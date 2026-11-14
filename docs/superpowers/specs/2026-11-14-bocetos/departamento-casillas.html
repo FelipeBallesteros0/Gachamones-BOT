@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tu departamento, por casillas</title>
+<style>
+  :root { --fondo:#1b1e27; --papel:#252a36; --tinta:#eef0f5; --suave:#a6adbd; --linea:#3a4152; --acento:#f2b84b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--fondo); color:var(--tinta); font:16px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width:1220px; margin:0 auto; padding:28px 18px 64px; }
+  h1 { font-size:1.7rem; margin:0 0 6px; }
+  h2 { font-size:1.12rem; margin:0; }
+  p { margin:0; color:var(--suave); }
+  .intro { max-width:72ch; margin-bottom:22px; }
+  .piezas { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:18px; }
+  .pieza { background:var(--papel); border:1px solid var(--linea); border-radius:14px; padding:16px; display:grid; gap:10px; align-content:start; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:#141720; cursor:pointer; }
+  .fila { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; }
+  button { font:inherit; padding:7px 14px; border-radius:999px; border:1px solid var(--linea); background:#303746; color:var(--tinta); cursor:pointer; }
+  button[aria-pressed="true"] { background:var(--acento); color:#1b1e27; border-color:var(--acento); }
+  .cuenta { color:var(--tinta); font-variant-numeric:tabular-nums; }
+  ul { margin:8px 0 0; padding-left:20px; color:var(--suave); display:grid; gap:4px; }
+  li strong { color:var(--tinta); font-weight:600; }
+  .nota { margin-top:22px; padding:14px 16px; border-left:3px solid var(--acento); background:var(--papel); border-radius:0 10px 10px 0; max-width:78ch; }
+  .nota h2 { margin-bottom:2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tu departamento, por casillas</h1>
+  <p class="intro">Dos bocetos para ver si hablamos de lo mismo. Son cajas de colores, no el arte final.
+  <strong style="color:var(--tinta)">Toca una casilla para caminar hasta ella</strong>; en el departamento grande, prueba pisar un teletransportador.</p>
+
+  <div class="piezas">
+    <section class="pieza">
+      <h2>La casa inicial · 3 × 3</h2>
+      <p>Tú y tu primer gachamon. Una cama (2 casillas), una planta, una ventana. Sin balcón.</p>
+      <canvas id="lienzo-a" width="1320" height="840" aria-label="Boceto de la casa inicial de 3 por 3 casillas en vista isométrica"></canvas>
+      <div class="fila">
+        <button type="button" id="ver-a" aria-pressed="false">Ver casillas ocupadas</button>
+        <span class="cuenta" id="cuenta-a"></span>
+      </div>
+    </section>
+
+    <section class="pieza">
+      <h2>El departamento ampliado · 6 × 5 + balcón</h2>
+      <p>Tres camas, tres gachamones. Mesa de gato, atril para pintar, dos teletransportadores y el balcón de 2 × 2 con el huerto.</p>
+      <canvas id="lienzo-b" width="1320" height="840" aria-label="Boceto de un departamento ampliado de 6 por 5 casillas con balcón, en vista isométrica"></canvas>
+      <div class="fila">
+        <button type="button" id="ver-b" aria-pressed="false">Ver casillas ocupadas</button>
+        <span class="cuenta" id="cuenta-b"></span>
+      </div>
+    </section>
+  </div>
+
+  <div class="nota">
+    <h2>Lo que estoy suponiendo (dime si no)</h2>
+    <ul>
+      <li><strong>Te mueves casilla a casilla</strong> tocando el suelo, como en Habbo.</li>
+      <li><strong>Cada mueble ocupa casillas enteras</strong>: la cama 2, la mesa 1. El límite es lo que cabe.</li>
+      <li><strong>Los cuadros y las ventanas van en la pared</strong> y no ocupan suelo.</li>
+      <li><strong>El balcón se pega por fuera</strong> a un borde de la pieza y ahí está el huerto.</li>
+      <li><strong>Tus gachamones andan sueltos</strong> por la pieza; cada uno tiene su cama.</li>
+    </ul>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  function pieza(cfg) {
+    var lienzo = document.getElementById(cfg.lienzo);
+    var ctx = lienzo.getContext('2d');
+    var boton = document.getElementById(cfg.boton);
+    var cuenta = document.getElementById(cfg.cuenta);
+    var ESC = 2, TW = cfg.tw, TH = cfg.tw / 2, OX = cfg.ox, OY = cfg.oy, ALTO = cfg.pared;
+    var verCasillas = false;
+    var yo = { i: cfg.yo[0], j: cfg.yo[1] };
+
+    function P(i, j, h) { return [OX + (i - j) * TW / 2, OY + (i + j) * TH / 2 - (h || 0)]; }
+    function poli(puntos, relleno, borde) {
+      ctx.beginPath();
+      puntos.forEach(function (p, n) { if (n) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); });
+      ctx.closePath();
+      if (relleno) { ctx.fillStyle = relleno; ctx.fill(); }
+      if (borde) { ctx.strokeStyle = borde; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+    function enLaPieza(i, j) { return i >= 0 && j >= 0 && i < cfg.I && j < cfg.J; }
+    function enElBalcon(i, j) {
+      var b = cfg.balcon;
+      return Boolean(b) && i >= b.i && i < b.i + b.w && j >= b.j && j < b.j + b.d;
+    }
+    function muebleEn(i, j) {
+      return cfg.muebles.find(function (m) { return i >= m.i && i < m.i + m.w && j >= m.j && j < m.j + m.d; });
+    }
+    function tono(color, f) {
+      var n = parseInt(color.slice(1), 16);
+      var r = Math.min(255, Math.round(((n >> 16) & 255) * f)), g = Math.min(255, Math.round(((n >> 8) & 255) * f)), b = Math.min(255, Math.round((n & 255) * f));
+      return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
+    function caja(i, j, w, d, h, color, base) {
+      var z = base || 0;
+      var A = P(i, j, z + h), B = P(i + w, j, z + h), C = P(i + w, j + d, z + h), D = P(i, j + d, z + h);
+      var B0 = P(i + w, j, z), C0 = P(i + w, j + d, z), D0 = P(i, j + d, z);
+      poli([D, C, C0, D0], tono(color, 0.78), 'rgba(0,0,0,.35)');
+      poli([C, B, B0, C0], tono(color, 0.6), 'rgba(0,0,0,.35)');
+      poli([A, B, C, D], color, 'rgba(0,0,0,.35)');
+      return { A: A, B: B, C: C, D: D };
+    }
+    function rotulo(texto, x, y) {
+      ctx.font = '600 11px system-ui, sans-serif';
+      var ancho = ctx.measureText(texto).width + 10;
+      ctx.fillStyle = 'rgba(15,17,24,.82)';
+      ctx.fillRect(x - ancho / 2, y - 15, ancho, 16);
+      ctx.fillStyle = '#eef0f5';
+      ctx.textAlign = 'center';
+      ctx.fillText(texto, x, y - 3);
+    }
+    function mezcla(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+    function linea(a, b, color, ancho) {
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      ctx.strokeStyle = color; ctx.lineWidth = ancho || 1.5; ctx.stroke();
+    }
+
+    var DIBUJOS = {
+      cama: function (m) {
+        var c = caja(m.i, m.j, m.w, m.d, 14, '#5a7fd6');
+        if (m.w >= m.d) caja(m.i + 0.1, m.j + 0.15, 0.5, 0.7, 6, '#f4f1e8', 14);
+        else caja(m.i + 0.15, m.j + 0.1, 0.7, 0.5, 6, '#f4f1e8', 14);
+        return c;
+      },
+      mesa: function (m) {
+        var c = caja(m.i + 0.08, m.j + 0.08, 0.84, 0.84, 22, '#b9824a');
+        [1 / 3, 2 / 3].forEach(function (t) {
+          linea(mezcla(c.A, c.B, t), mezcla(c.D, c.C, t), '#3b2613', 1.6);
+          linea(mezcla(c.A, c.D, t), mezcla(c.B, c.C, t), '#3b2613', 1.6);
+        });
+        return c;
+      },
+      silla: function (m) {
+        var c = caja(m.i + 0.25, m.j + 0.25, 0.5, 0.5, 13, '#c9a46a');
+        caja(m.i + 0.25, m.j + 0.25, 0.5, 0.1, 16, '#c9a46a', 13);
+        return c;
+      },
+      planta: function (m) {
+        var c = caja(m.i + 0.3, m.j + 0.3, 0.4, 0.4, 12, '#a0562f');
+        var centro = P(m.i + 0.5, m.j + 0.5, 30);
+        ctx.fillStyle = '#4fae5d';
+        ctx.beginPath(); ctx.arc(centro[0], centro[1], TW * 0.2, 0, Math.PI * 2); ctx.fill();
+        return c;
+      },
+      atril: function (m) {
+        var pie = P(m.i + 0.5, m.j + 0.5, 0);
+        linea([pie[0] - 9, pie[1] + 4], [pie[0], pie[1] - 46], '#7a5a34', 2.5);
+        linea([pie[0] + 11, pie[1] + 2], [pie[0], pie[1] - 46], '#7a5a34', 2.5);
+        var dx = 0.62 * TW / 2, dy = 0.62 * TH / 2;
+        var s = [pie[0] - dx / 2, pie[1] - dy / 2];
+        var tela = [[s[0], s[1] - 18], [s[0] + dx, s[1] + dy - 18], [s[0] + dx, s[1] + dy - 58], [s[0], s[1] - 58]];
+        poli(tela, '#fbfaf5', '#7a5a34');
+        ctx.strokeStyle = '#d2463c'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(s[0] + 4, s[1] - 30); ctx.quadraticCurveTo(s[0] + dx / 2, s[1] - 52, s[0] + dx - 4, s[1] + dy - 34); ctx.stroke();
+        return { A: [pie[0], pie[1] - 58] };
+      },
+      tele: function (m) {
+        var c = P(m.i + 0.5, m.j + 0.5, 0);
+        var grad = ctx.createLinearGradient(0, c[1] - 62, 0, c[1]);
+        grad.addColorStop(0, 'rgba(90,230,255,0)'); grad.addColorStop(1, 'rgba(90,230,255,.45)');
+        ctx.fillStyle = grad; ctx.fillRect(c[0] - TW * 0.26, c[1] - 62, TW * 0.52, 62);
+        ctx.fillStyle = '#1f6f86'; ctx.beginPath(); ctx.ellipse(c[0], c[1], TW * 0.33, TH * 0.33, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#7ff0ff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(c[0], c[1], TW * 0.26, TH * 0.26, 0, 0, Math.PI * 2); ctx.stroke();
+        return { A: [c[0], c[1] - 62] };
+      },
+      bancal: function (m) {
+        var c = caja(m.i + 0.12, m.j + 0.12, 0.76, 0.76, 6, '#6b4a2c');
+        var centro = P(m.i + 0.5, m.j + 0.5, 12);
+        ctx.fillStyle = '#69c56f';
+        [[-8, 0], [6, -3], [0, 6]].forEach(function (p) { ctx.beginPath(); ctx.arc(centro[0] + p[0], centro[1] + p[1], 4, 0, Math.PI * 2); ctx.fill(); });
+        return c;
+      },
+    };
+
+    function dibujarGachamon(g) {
+      var c = P(g.i + 0.5, g.j + 0.5, 0), r = TW * 0.21;
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(c[0], c[1], r * 0.9, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g.color; ctx.beginPath(); ctx.arc(c[0], c[1] - r, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = '#1b1e27';
+      ctx.beginPath(); ctx.arc(c[0] - r * 0.35, c[1] - r * 1.1, 1.8, 0, Math.PI * 2); ctx.arc(c[0] + r * 0.35, c[1] - r * 1.1, 1.8, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(c[0], c[1] - r * 0.85, r * 0.3, 0.15 * Math.PI, 0.85 * Math.PI); ctx.strokeStyle = '#1b1e27'; ctx.lineWidth = 1.4; ctx.stroke();
+      rotulo(g.nombre, c[0], c[1] - r * 2 - 4);
+    }
+    function dibujarYo() {
+      var c = P(yo.i + 0.5, yo.j + 0.5, 0), u = TW / 72;
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(c[0], c[1], 13 * u, 5.5 * u, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3c4a6b'; ctx.fillRect(c[0] - 7 * u, c[1] - 14 * u, 6 * u, 14 * u); ctx.fillRect(c[0] + 1 * u, c[1] - 14 * u, 6 * u, 14 * u);
+      ctx.fillStyle = '#3f9a5b'; ctx.fillRect(c[0] - 9 * u, c[1] - 32 * u, 18 * u, 19 * u);
+      ctx.fillStyle = '#eec39a'; ctx.fillRect(c[0] - 7 * u, c[1] - 46 * u, 14 * u, 14 * u);
+      ctx.fillStyle = '#2b2118'; ctx.fillRect(c[0] - 8 * u, c[1] - 49 * u, 16 * u, 6 * u);
+      rotulo('Tú', c[0], c[1] - 52 * u);
+    }
+
+    function suelo(i, j, color, borde) { poli([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], color, borde); }
+
+    function dibujar() {
+      ctx.setTransform(ESC, 0, 0, ESC, 0, 0);
+      ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+      var I = cfg.I, J = cfg.J, i, j;
+
+      // Las dos paredes del fondo.
+      poli([P(0, 0), P(0, J), P(0, J, ALTO), P(0, 0, ALTO)], cfg.pared1, 'rgba(0,0,0,.35)');
+      poli([P(0, 0), P(I, 0), P(I, 0, ALTO), P(0, 0, ALTO)], cfg.pared2, 'rgba(0,0,0,.35)');
+      // Una ventana en la pared derecha y un cuadro en la izquierda: no ocupan suelo.
+      var v = cfg.ventana;
+      poli([P(v[0], 0, ALTO * 0.35), P(v[1], 0, ALTO * 0.35), P(v[1], 0, ALTO * 0.8), P(v[0], 0, ALTO * 0.8)], '#9fd6f2', '#f4f1e8');
+      var q = cfg.cuadro;
+      poli([P(0, q[0], ALTO * 0.42), P(0, q[1], ALTO * 0.42), P(0, q[1], ALTO * 0.78), P(0, q[0], ALTO * 0.78)], '#f2d16b', '#7a4b1c');
+      var qc = P(0, (q[0] + q[1]) / 2, ALTO * 0.6);
+      ctx.fillStyle = '#d2463c'; ctx.beginPath(); ctx.arc(qc[0], qc[1], 5, 0, Math.PI * 2); ctx.fill();
+
+      // El suelo.
+      for (i = 0; i < I; i++) for (j = 0; j < J; j++) {
+        var ocupada = muebleEn(i, j);
+        var base = (i + j) % 2 ? cfg.suelo1 : cfg.suelo2;
+        suelo(i, j, base, 'rgba(0,0,0,.25)');
+        if (verCasillas) suelo(i, j, ocupada ? 'rgba(242,120,60,.62)' : 'rgba(120,220,140,.16)', 'rgba(255,255,255,.55)');
+      }
+      // El balcón, pegado por fuera a un borde.
+      var b = cfg.balcon;
+      if (b) {
+        for (i = b.i; i < b.i + b.w; i++) for (j = b.j; j < b.j + b.d; j++) {
+          suelo(i, j, '#8c8f99', 'rgba(0,0,0,.3)');
+          if (verCasillas) suelo(i, j, muebleEn(i, j) ? 'rgba(242,120,60,.62)' : 'rgba(120,220,140,.16)', 'rgba(255,255,255,.55)');
+        }
+      }
+
+      // Muebles, gachamones y tú, de atrás hacia adelante.
+      var cosas = cfg.muebles.map(function (m) { return { clave: m.i + m.w + m.j + m.d, mueble: m }; })
+        .concat(cfg.gachamones.map(function (g) { return { clave: g.i + g.j + 1.5, gachamon: g }; }))
+        .concat([{ clave: yo.i + yo.j + 1.6, yo: true }]);
+      cosas.sort(function (a, c2) { return a.clave - c2.clave; });
+      cosas.forEach(function (c) {
+        if (c.mueble) {
+          var caras = DIBUJOS[c.mueble.tipo](c.mueble);
+          if (c.mueble.rotulo) rotulo(c.mueble.rotulo, caras.A[0] + (c.mueble.w - c.mueble.d) * TW / 4, caras.A[1] - 4);
+        } else if (c.gachamon) dibujarGachamon(c.gachamon);
+        else dibujarYo();
+      });
+
+      // La baranda del balcón, por delante.
+      if (b) {
+        var h = 20, fuera = [P(b.i + b.w, b.j), P(b.i + b.w, b.j + b.d), P(b.i, b.j + b.d)];
+        [[fuera[0], fuera[1]], [fuera[1], fuera[2]]].forEach(function (tramo) {
+          linea([tramo[0][0], tramo[0][1] - h], [tramo[1][0], tramo[1][1] - h], '#d7dbe6', 2.5);
+          [0, 0.25, 0.5, 0.75, 1].forEach(function (t) { var p = mezcla(tramo[0], tramo[1], t); linea(p, [p[0], p[1] - h], '#d7dbe6', 1.5); });
+        });
+        var rb = P(b.i + b.w / 2, b.j + b.d / 2, 0);
+        rotulo('Balcón · huerto', rb[0], rb[1] + TH * b.d / 2 + 30);
+      }
+
+      var total = I * J + (b ? b.w * b.d : 0), usadas = 0;
+      cfg.muebles.forEach(function (m) { usadas += m.w * m.d; });
+      cuenta.textContent = 'Casillas ocupadas: ' + usadas + ' de ' + total;
+    }
+
+    lienzo.addEventListener('click', function (evento) {
+      var caja2 = lienzo.getBoundingClientRect();
+      var x = (evento.clientX - caja2.left) * (lienzo.width / caja2.width) / ESC - OX;
+      var y = (evento.clientY - caja2.top) * (lienzo.height / caja2.height) / ESC - OY;
+      var i = Math.floor((y / (TH / 2) + x / (TW / 2)) / 2), j = Math.floor((y / (TH / 2) - x / (TW / 2)) / 2);
+      if (!enLaPieza(i, j) && !enElBalcon(i, j)) return;
+      var m = muebleEn(i, j);
+      if (m && m.tipo !== 'tele') return;
+      if (cfg.gachamones.some(function (g) { return g.i === i && g.j === j; })) return;
+      yo.i = i; yo.j = j; dibujar();
+      if (m && m.tipo === 'tele') {
+        var otro = cfg.muebles.find(function (o) { return o.tipo === 'tele' && o !== m; });
+        if (otro) setTimeout(function () { yo.i = otro.i; yo.j = otro.j; dibujar(); }, 380);
+      }
+    });
+    boton.addEventListener('click', function () {
+      verCasillas = !verCasillas;
+      boton.setAttribute('aria-pressed', String(verCasillas));
+      dibujar();
+    });
+    dibujar();
+  }
+
+  pieza({
+    lienzo: 'lienzo-a', boton: 'ver-a', cuenta: 'cuenta-a',
+    tw: 150, ox: 330, oy: 162, pared: 128, I: 3, J: 3,
+    pared1: '#c9b79a', pared2: '#b3a084', suelo1: '#8a6a4a', suelo2: '#94734f',
+    ventana: [1.1, 2.3], cuadro: [1.0, 1.8], yo: [1, 2],
+    muebles: [
+      { tipo: 'cama', i: 0, j: 0, w: 2, d: 1, rotulo: 'Cama · 2 casillas' },
+      { tipo: 'planta', i: 0, j: 2, w: 1, d: 1 },
+    ],
+    gachamones: [{ i: 2, j: 1, color: '#f6d743', nombre: 'Nube' }],
+  });
+
+  pieza({
+    lienzo: 'lienzo-b', boton: 'ver-b', cuenta: 'cuenta-b',
+    tw: 84, ox: 267, oy: 126, pared: 100, I: 6, J: 5,
+    pared1: '#b9c6b0', pared2: '#a3b29a', suelo1: '#8a6a4a', suelo2: '#94734f',
+    ventana: [3.6, 4.8], cuadro: [3.3, 4.3], yo: [2, 3],
+    balcon: { i: 6, j: 1, w: 2, d: 2 },
+    muebles: [
+      { tipo: 'cama', i: 0, j: 0, w: 1, d: 2, rotulo: 'Cama' },
+      { tipo: 'cama', i: 0, j: 2, w: 1, d: 2 },
+      { tipo: 'cama', i: 2, j: 0, w: 2, d: 1 },
+      { tipo: 'atril', i: 5, j: 0, w: 1, d: 1, rotulo: 'Atril' },
+      { tipo: 'mesa', i: 3, j: 2, w: 1, d: 1, rotulo: 'Mesa de gato' },
+      { tipo: 'silla', i: 4, j: 2, w: 1, d: 1 },
+      { tipo: 'tele', i: 1, j: 4, w: 1, d: 1, rotulo: 'Teletransportador' },
+      { tipo: 'tele', i: 5, j: 4, w: 1, d: 1 },
+      { tipo: 'planta', i: 0, j: 4, w: 1, d: 1 },
+      { tipo: 'bancal', i: 6, j: 1, w: 1, d: 1 },
+      { tipo: 'bancal', i: 7, j: 1, w: 1, d: 1 },
+      { tipo: 'bancal', i: 7, j: 2, w: 1, d: 1 },
+    ],
+    gachamones: [
+      { i: 1, j: 1, color: '#f6d743', nombre: 'Nube' },
+      { i: 3, j: 3, color: '#7fe3e0', nombre: 'Rulo' },
+      { i: 4, j: 1, color: '#f29bb5', nombre: 'Pipa' },
+    ],
+  });
+})();
+</script>
+</body>
+</html>
