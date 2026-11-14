@@ -301,7 +301,64 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   plan 5. También una ayuda de pruebas (`vinculada_sin_gachamon`) repite pasos
   de otras.
 
+## Salió al ejecutar el rework 1 (nadie muere)
+
+### Lo decidido
+
+- Ningún gachamon muere: con la comida en 0 se queda en 0 y sigue vivo, sea de
+  quien sea. Lo que antes sólo valía para quien juega sólo en la web vale ahora
+  para todos, y la excepción (`identidad.sin_aviso_de_hambre`) desapareció.
+- Quien antes moría ahora cobra lo de siempre: un viaje que deja la comida en 0
+  paga su hallazgo y su experiencia, y cuidar a uno que lleva días en 0 paga su
+  moneda. No abre ningún provecho nuevo: salir de aventura y competir siguen
+  pidiendo comida.
+- Los que murieron antes siguen muertos, en el cementerio, con las medallas que
+  tenían. Un gachamon al que ya le tocaba morir cuando llega el cambio y el bot
+  no había procesado sigue vivo, con la comida en 0.
+- Se fueron: el bucle de muertes del bot (queda un mantenimiento que sólo limpia
+  el uso de la IA), el aviso de hambre, el anuncio de una muerte, la pantalla
+  del difunto de la web y su ruta, el instante de muerte y de aviso que guardaba
+  cada fila, y la tabla de las muertes por anunciar (las filas que hubiera
+  pendientes se van sin anunciarse).
+- «Superviviente» son 100 aventuras, sin más condición.
+- Queda «el remiendo»: si una persona se quedó sin activa viva por un muerto de
+  antes, sale de la incubadora la primera que tenga nombre.
+- Pulsar el panel viejo de Discord de un gachamon que murió antes hace lo de
+  siempre: actúa sobre el relevo si lo hay y apaga ese panel, o dice que no
+  tienes gachamon vivo.
+- En el manual de Discord, el bloque «Quién le ha tocado ser» pasó de la página
+  1 a la 4: la frase nueva de «Cuidarlo» es más larga y la página 1 se salía
+  del margen.
+
+### Al publicar
+
+- El bot y la web tienen que reiniciarse a la vez. Si la web nueva arranca y
+  tira la tabla de las muertes por anunciar mientras el bot viejo sigue vivo, el
+  bucle del bot viejo falla hasta que se reinicie.
+- Mientras exista la intemperie (se va con el plan de la vivienda), su suelo de
+  25 protege la comida mejor que estar bajo techo, donde llega a 0. No llega a
+  ningún jugador: todo el rediseño se publica junto.
+
+### Pendiente
+
+- Las columnas `muere_en`, `avisa_en` y `avisada` de `criaturas` y
+  `difuntos_vistos_hasta` de `cuentas_web` siguen en el esquema, sin que nadie
+  las lea; `Criatura.avisada` sigue como campo, siempre en falso.
+- `.claude/skills/generated/` (lo genera GitNexus) todavía nombra el bucle de
+  muertes: se corrige solo cuando se regeneren.
+
+### Pruebas
+
+- La prueba del mantenimiento del bot no fija el argumento de la limpieza ni el
+  intervalo del bucle.
+- La frase del `/cementerio` vacío («Aquí no descansa nadie.») no la fija
+  ninguna prueba: ninguna llega a ese comando.
+- No hay prueba del adaptador web de romper un huevo después de una muerta de
+  antes (lo cubren el dominio y el recorrido).
+
 ## Para el plan 6 (tu casa)
+
+> El rediseño del 2026-11-14 cambió el rumbo: lo que sigue se replantea en docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md.
 
 - Elegir casa al comprar un mueble, colocar y retirar. Un mueble comprado en la
   web va a la primera casa. Los rechazos propios de `colocar_mueble` («No
@@ -315,6 +372,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   nuevo por decidir.
 
 ## Para el plan 7 (hablar y la apertura)
+
+> El rediseño del 2026-11-14 cambió el rumbo: lo que sigue se replantea en docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md.
 
 - Hablar: la navegación del lugar lo gana (hoy sólo están «Pueblo», la tienda y
   la mochila).

@@ -364,10 +364,10 @@ aceptada]**:
   hay un solo día del cambio. Publicado a medias el juego queda roto (los
   gachamones tendrían hambre mientras la Incubadora dice que ahí no pasa el
   tiempo; Discord perdería las casas antes de que exista el departamento).
-- Esto no cabe en un plan. Corte sugerido **[propuesta]**: (1) el tiempo para
-  todos y el fin de la muerte; (2) la vivienda por casillas en el servidor, el
-  día del cambio y Discord; (3) el departamento en pantalla; (4) los muebles
-  que se usan solos; (5) el pueblo sin Refugio ni Incubadora y los documentos.
+- Esto no cabe en un plan. Corte sugerido **[propuesta]**: (1) nadie muere;
+  (2) el tiempo para todos; (3) la vivienda por casillas en el servidor, el
+  día del cambio y Discord; (4) el departamento en pantalla; (5) los muebles
+  que se usan solos; (6) el pueblo sin Refugio ni Incubadora y los documentos.
 
 ## 11. Lo que queda al constructor
 

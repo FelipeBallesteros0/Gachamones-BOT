@@ -74,10 +74,8 @@ CANAL_ID=123456789012345678,987654321098765432
 Los comandos funcionan en todos ellos, y cada persona sigue teniendo **un solo
 plantel por servidor** — los canales son salas distintas para las mismas
 mascotas, no mascotas distintas. Cada criatura recuerda el canal donde se la
-atendió por última vez, y ahí es donde le llegan los avisos de hambre y el
-anuncio de su muerte; si cambias de canal, los avisos te siguen. El primero de
-la lista es el principal: se usa como respaldo para criaturas sin canal
-guardado o cuyo canal ya no existe.
+atendió por última vez. El primero de la lista es el principal: se usa como
+respaldo para criaturas sin canal guardado o cuyo canal ya no existe.
 
 ### 3. Arrancar en local
 
@@ -248,18 +246,17 @@ queda sin manual, así que ponle uno a cada uno.
 
 **El plantel.** Hasta **10 gachamones** por persona y servidor, con **uno
 activo**: el que recibe los botones y los comandos. Los demás esperan en la
-**incubadora**, y ahí **no les pasa el tiempo** — ni hambre, ni ánimo, ni aseo,
-y no pueden morir. No es un adorno: los cuidados sólo llegan al activo, así que
-si la reserva decayera se moriría de hambre hiciera lo que hiciera su dueño.
+**incubadora**, y ahí **no les pasa el tiempo** — ni hambre, ni ánimo, ni aseo.
+No es un adorno: los cuidados sólo llegan al activo, así que si la reserva
+decayera se quedaría sin comida hiciera lo que hiciera su dueño.
 
-Encaja en dos sitios y ninguno es una regla nueva: `avanzar()` devuelve intacta
-a la que no está activa, y al guardarla se dejan a NULL `muere_en` y `avisa_en`,
-que es lo único que hace falta para que los bucles de muerte y de aviso la
-ignoren —los dos ya pedían `IS NOT NULL`—. Al sacarla se le pone
-`actualizada_en` al día, o las horas dormidas se le caerían encima de golpe.
+Encaja en un sitio y no es una regla nueva: `avanzar()` devuelve intacta a la
+que no está activa. Al sacarla se le pone `actualizada_en` al día, o las horas
+dormidas se le caerían encima de golpe.
 
 `/huevo` da **sólo el de partida**: los demás hay que ganárselos en
-`/aventura`. Si muere el activo, sale solo el siguiente de la incubadora.
+`/aventura`. Si una persona se queda sin activo vivo porque el suyo murió antes, sale
+solo el siguiente de la incubadora.
 
 **Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
 azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
@@ -285,8 +282,8 @@ vas tú. Atada al gachamon era un agujero: con varios en el plantel se salía
 varias veces seguidas cambiando de activo entre viaje y viaje.
 
 Son **dos decisiones**. Acertar lleva a la escena siguiente; fallar cierra el
-viaje ahí mismo, así que un viaje jugado trae **un fallo como mucho**. Si vuelve
-con vida gana **+4 XP por el viaje**; morir por el desgaste no da XP.
+viaje ahí mismo, así que un viaje jugado trae **un fallo como mucho**. Al volver
+gana **+4 XP por el viaje**.
 
 Las escenas **las inventa el LLM** (JSON validado antes de usarlo: si falta una
 opción o una etiqueta no cabe en un botón de Discord, se descarta) y hay escenas
@@ -380,22 +377,16 @@ respuesta inmediata a una interacción, así que no cabe enseñar la criatura y
 pedir el nombre a la vez.)
 
 **Cuidar.** Tres barras bajan con el tiempo, y sólo las del gachamon activo. Si
-**COMIDA** llega a 0, la criatura muere: sale el siguiente de la incubadora si
-lo hay, y si no, a empezar con otro huevo. Una criatura típica aguanta unas
-73 h; la salud alarga ese margen (una Magora sana llega a ~86 h, un Pyro frágil
-baja a ~62 h). El ánimo y el aseo no matan: el aseo bajo amarga el ánimo, y el
-ánimo bajo penaliza en las competencias.
-
-**Aviso.** Cuando la comida baja del 10 %, el bot menciona al dueño en el canal
-y publica la pantalla con los botones para poder alimentarla desde ahí mismo.
-Quedan unas 7 h de margen. El aviso salta **una sola vez** por bajada y se
-rearma al alimentarla, así que ni machaca el canal ni se pierde si la criatura
-vuelve a pasar hambre días después.
+**COMIDA** llega a 0, la criatura **no se muere**: se queda en 0 hasta que le
+des de comer. Una criatura típica tarda unas 73 h en vaciarla; la salud alarga
+ese margen (una Magora sana llega a ~86 h, un Pyro frágil baja a ~62 h). El
+ánimo y el aseo tampoco matan: el aseo bajo amarga el ánimo, y el ánimo bajo
+penaliza en las competencias. Los que murieron antes siguen en `/cementerio`.
 
 **Crecer y evolucionar.** Cada nivel es una etapa, y **el dibujo cambia**:
 cría → niño → adolescente → adulto → adulto grande. La experiencia sale tanto
 de competir (+10 al ganar, +4 al perder) como de cuidar (+1 alimentar,
-+2 jugar, +3 entrenar) y de volver con vida de una aventura (+4), para que quien
++2 jugar, +3 entrenar) y de volver de una aventura (+4), para que quien
 no quiera pelear también vea crecer a su criatura. Competir sigue siendo lo más
 rentable por acción.
 
@@ -549,7 +540,7 @@ testean sin conexión. Los cogs son capas finas encima.
 | `jardin.py` | El reparto de varias criaturas en una sola escena. |
 | `personalidad.py` | La voz de cada especie, los diez caracteres y cómo se le explica todo al modelo. |
 | `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. |
-| `simulacion.py` | Decaimiento, muerte, acciones de cuidado, estadísticas y niveles. |
+| `simulacion.py` | Decaimiento, acciones de cuidado, estadísticas y niveles. |
 | `competir.py` | Resolución y narración de carreras, sumo, asaltos al tótem y laberintos de ecos. |
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
 | `pantalla.py` | Dibuja la pantalla como texto de Discord. |
@@ -640,11 +631,10 @@ Dos decisiones más que explican el resto del diseño:
 
 - **El decaimiento es perezoso.** No hay ningún bucle tocando cada mascota cada
   minuto: se guarda cuándo se actualizó y el valor se calcula al leer. Como el
-  hambre baja de forma estrictamente lineal, la hora de la muerte se despeja con
-  una fórmula cerrada y se guarda en `muere_en`; el bucle que mata criaturas es
-  entonces un `WHERE muere_en <= ahora`. Por eso la suciedad castiga al ánimo y
-  no al hambre: si acelerase el hambre, dos barras cayendo a la vez se
-  acoplarían y la muerte dejaría de ser predecible.
+  hambre baja de forma estrictamente lineal, basta con saber cuándo se
+  actualizó para saber cuánta lleva perdida. Por eso la suciedad castiga al
+  ánimo y no al hambre: si acelerase el hambre, dos barras cayendo a la vez se
+  acoplarían y la comida dejaría de ser predecible.
 - **Los botones son persistentes.** `timeout=None` y `custom_id` fijos,
   registrados con `bot.add_view()` al arrancar. Siguen respondiendo tras un
   reinicio sin necesidad de recordar en qué mensajes estaban.
@@ -707,8 +697,7 @@ Para comprobar manualmente los mismos gates del hook sobre todo el repositorio:
 GitHub Actions ejecuta la suite completa con las dos versiones soportadas de
 Python, 3.12 y 3.14, en cada `push` y `pull_request`.
 
-Cubren la distribución de rarezas y del 2d6, la curva de decaimiento y el
-momento exacto de la muerte, las estadísticas, la resolución de competencias con
+Cubren la distribución de rarezas y del 2d6, la curva de decaimiento, las estadísticas, la resolución de competencias con
 dados fijos, la ida y vuelta contra SQLite, y que **ningún marco se descuadre**
 en las 60 combinaciones de especie, ánimo y etapa. El último es el que más veces
 ha salvado el proyecto: el ASCII se rompe con una facilidad asombrosa.

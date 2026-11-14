@@ -112,7 +112,7 @@ Instala el hook local cuando prepares el entorno:
 - El refugio no se amuebla, y a la intemperie no hay dónde poner nada.
 - El hogar sólo afecta a la criatura activa; las de reserva siguen congeladas.
 - La intemperie acelera el decaimiento, pero nunca puede matar.
-- La comodidad frena el ánimo y no toca el hambre, que lleva su instante de muerte precalculado.
+- La comodidad frena el ánimo y no toca el hambre.
 - Visitar una casa sólo mira: nunca le empieza a nadie su estancia en el refugio.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.
@@ -124,7 +124,7 @@ Instala el hook local cuando prepares el entorno:
 - Una sopaipilla da el mismo bonus en todas las estadísticas que toque, y no se acumula.
 - El dado de una sopaipilla de color sale del carácter al comerla; el del arcoíris se sortea al cocinarla y va en su clave.
 - Lo que no se vende no sale de botín ni ocupa sitio en la tienda.
-- Casi todos los logros son de la criatura y se pierden con ella.
+- Casi todos los logros son de la criatura.
 - Son de la persona los que la persona hace: reclutar salvajes y que le salga una especie rara.
 - Los logros de la persona sobreviven a todo su plantel.
 - Un logro pertenece a un dueño o al otro, nunca a los dos.
@@ -144,13 +144,11 @@ Instala el hook local cuando prepares el entorno:
 - Desbloquear un logro y pagarlo ocurren en la misma transacción.
 - Los contadores del marcador suben dentro de la transacción que resuelve la acción.
 - Una identidad web es una persona más: su `usuario_id` no puede ser un id de Discord, y sólo `identidad.py` sabe reconocerla.
-- El gachamon de quien no tiene aviso de hambre no muere de hambre: la comida se queda en 0 y no se le guarda instante de muerte ni de aviso.
-- Esa excepción se pregunta siempre con `identidad.sin_aviso_de_hambre`, nunca mirando el id.
+- Ningún gachamon muere: con la comida en 0 se queda en 0 y sigue vivo, y no se guarda instante de muerte ni de aviso. Los que murieron antes siguen en el cementerio.
 - Una cuenta de Rowino va con una sola identidad, y una identidad de Discord con una sola cuenta de Rowino.
 - Sólo se vincula mientras la identidad web no tenga gachamones: dos planteles no se funden.
 - Un código de vinculación sirve una vez, caduca, y canjearlo nunca revela si existía.
 - Quién escribió `/vincular` es la única prueba de identidad: el código lo pide la cuenta de Rowino y lo canjea la persona de Discord.
-- La web nunca habla en Discord: la muerte que registra queda apuntada en `muertes_por_anunciar` y la anuncia el bucle del bot en su siguiente vuelta.
 - Lo que el gachamon dice por su cuenta son frases escritas en `globos.py`, nunca una llamada a la IA, y un globo no anuncia nada que no esté pasando.
 - Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
 - El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
