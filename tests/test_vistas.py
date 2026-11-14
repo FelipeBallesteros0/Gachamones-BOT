@@ -757,16 +757,13 @@ def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
     nueva = criatura(2, "Nueva", True, "ficha-nueva")
     ahora = object()
-    monkeypatch.setattr(
-        equipo.db, "criatura_activa", Mock(side_effect=[anterior, nueva])
-    )
     eventos = []
 
-    def activar(*args):
-        eventos.append(("activar", *args))
-        return True
+    def cambiar(*args):
+        eventos.append(("cambiar", *args))
+        return economia.ResultadoCambio(ok=True, criatura=nueva, saliente=anterior)
 
-    monkeypatch.setattr(equipo.db, "activar", activar)
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", cambiar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=ahora))
 
     async def responder(**_):
@@ -789,7 +786,7 @@ def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
     asyncio.run(menu.callback(interaccion))
 
     assert eventos == [
-        ("activar", nueva.id, "u1", "g1", ahora),
+        ("cambiar", "u1", "g1", nueva.id, ahora),
         ("congelar", canal, "ficha-anterior"),
         "respuesta",
         ("publicar", canal, nueva, ahora),
@@ -798,9 +795,10 @@ def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
 
 def test_cambiar_al_mismo_activo_no_congela_ni_publica(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
-    monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=anterior))
-    activar = Mock()
-    monkeypatch.setattr(equipo.db, "activar", activar)
+    cambiar = Mock(return_value=economia.ResultadoCambio(
+        motivo="ya_es_el_activo", criatura=anterior
+    ))
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", cambiar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     congelar = AsyncMock()
     publicar = AsyncMock()
@@ -813,16 +811,19 @@ def test_cambiar_al_mismo_activo_no_congela_ni_publica(monkeypatch):
 
     asyncio.run(menu.callback(interaccion))
 
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content="**Anterior** ya era el activo.", view=None
+    )
     congelar.assert_not_awaited()
     publicar.assert_not_awaited()
-    activar.assert_not_called()
 
 
 def test_cambio_de_activo_invalido_no_congela_ni_publica(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
     ajena = criatura(2, "Ajena", False, "ficha-ajena")
-    monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=anterior))
-    monkeypatch.setattr(equipo.db, "activar", Mock(return_value=False))
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", Mock(
+        return_value=economia.ResultadoCambio(motivo="no_esta", criatura=anterior)
+    ))
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     congelar = AsyncMock()
     publicar = AsyncMock()
@@ -835,8 +836,66 @@ def test_cambio_de_activo_invalido_no_congela_ni_publica(monkeypatch):
 
     asyncio.run(menu.callback(interaccion))
 
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content="Ese gachamon no es tuyo o ya no está.", view=None
+    )
     congelar.assert_not_awaited()
     publicar.assert_not_awaited()
+
+
+def test_el_menu_explica_el_sin_nombre_que_llega_de_la_regla(monkeypatch):
+    """La foto del menú lo daba por bautizado; la regla, releída, dice que no."""
+    anterior = criatura(1, "Anterior", True, "ficha-anterior")
+    otra = criatura(2, "Otra", False, None)
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", Mock(
+        return_value=economia.ResultadoCambio(motivo="sin_nombre", criatura=anterior)
+    ))
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    menu = equipo.MenuPlantel([anterior, otra], congelar, publicar=publicar)
+    menu._values = [str(otra.id)]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content="Ese gachamon no sale de la incubadora hasta que le pongas nombre.",
+        view=None,
+    )
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+
+
+def test_el_menu_pone_al_dia_a_la_que_vuelve_a_la_incubadora(
+    bd_temporal, monkeypatch
+):
+    """De verdad, sin dobles: el menú pasa por la regla y no por `db.activar`."""
+    cinco = T0 + timedelta(hours=5)
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=cinco))
+    anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0)
+    reserva = db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
+    menu = equipo.MenuPlantel([anterior, reserva], AsyncMock(), publicar=AsyncMock())
+    menu._values = [str(reserva.id)]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content="🧬 Sale de la incubadora **Reserva**. Míralo con `/mascota`.",
+        view=None,
+    )
+    vuelta = db.por_id(anterior.id)
+    assert vuelta is not None and vuelta.actualizada_en == cinco
+    assert vuelta.hambre < anterior.hambre
+    activa = db.criatura_activa("u1", "g1")
+    assert activa is not None and activa.id == reserva.id
 
 
 # --- La ficha vive en su canal, no en el que se escribe ----------------------
@@ -980,8 +1039,11 @@ def test_cambiar_de_activo_congela_en_hilo_y_publica_en_canal_actual(
     assert recargada is not None and recargada.canal_id == "222"
 
 
-def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(bd_temporal):
+def test_cambiar_de_activo_con_un_canal_guardado_ilegible_responde_igual(
+    bd_temporal, monkeypatch
+):
     """Una ficha vieja con un canal que no es un número no rompe el menú."""
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
     anterior = db.crear("u1", "g1", SIN_RETRATO, "Anterior", STATS, T0)
     db.guardar_pantalla(anterior.id, "555", "canal-viejo")
     reserva = db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
@@ -1028,9 +1090,8 @@ def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo_sin_publicar(monkeypatch
     """Elegirlo no es un error del que quejarse: es el momento de nombrarlo."""
     activa = criatura(1, "Activa", True, "ficha-activa")
     recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
-    monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
-    activar = Mock()
-    monkeypatch.setattr(equipo.db, "activar", activar)
+    cambiar = Mock()
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", cambiar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     bautizar = AsyncMock()
     publicar = AsyncMock()
@@ -1046,15 +1107,14 @@ def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo_sin_publicar(monkeypatch
     bautizar.assert_awaited_once_with(interaccion, recluta)
     publicar.assert_not_awaited()
     # Y no se activa: eso es justo lo que no puede pasar sin nombre.
-    activar.assert_not_called()
+    cambiar.assert_not_called()
 
 
 def test_sin_bautizo_inyectado_se_explica_sin_activar_ni_publicar(monkeypatch):
     activa = criatura(1, "Activa", True, "ficha-activa")
     recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
-    monkeypatch.setattr(equipo.db, "criatura_activa", Mock(return_value=activa))
-    activar = Mock()
-    monkeypatch.setattr(equipo.db, "activar", activar)
+    cambiar = Mock()
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", cambiar)
     monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
     publicar = AsyncMock()
     menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), publicar=publicar)
@@ -1067,7 +1127,7 @@ def test_sin_bautizo_inyectado_se_explica_sin_activar_ni_publicar(monkeypatch):
 
     asyncio.run(menu.callback(cast(Any, interaccion)))
 
-    activar.assert_not_called()
+    cambiar.assert_not_called()
     publicar.assert_not_awaited()
     assert editar.await_args is not None
     assert "nombre" in editar.await_args.kwargs["content"]

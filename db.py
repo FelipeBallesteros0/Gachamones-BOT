@@ -1121,9 +1121,9 @@ def activar(
     hasta que se lo pongan; la comprobación vive aquí y no en la vista porque es
     un invariante del plantel, no una regla de un menú.
 
-    **`actualizada_en` se pone al día aquí**, y este es el único sitio por el que
-    se sale de la incubadora. Sin eso, las horas que pasó dormida se le
-    aplicarían de golpe en el primer `avanzar` y saldría muerta de hambre.
+    **`actualizada_en` se pone al día en `_activar_en`**, que es el único sitio
+    por el que se sale de la incubadora. Sin eso, las horas que pasó dormida se
+    le aplicarían de golpe en el primer `avanzar` y saldría muerta de hambre.
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1134,23 +1134,36 @@ def activar(
         ).fetchone()
         if fila is None:
             return False
+        _activar_en(con, criatura_id, ahora)
+    return True
 
-        con.execute(
-            "UPDATE criaturas SET activa = 0, muere_en = NULL, avisa_en = NULL "
-            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
-            (usuario_id, guild_id),
-        )
-        con.execute(
-            "UPDATE criaturas SET activa = 1, actualizada_en = ? WHERE id = ?",
-            (ahora.isoformat(), criatura_id),
-        )
+
+def _activar_en(
+    con: sqlite3.Connection, criatura_id: int, ahora: datetime
+) -> sim.Criatura:
+    """Lo de `activar` para quien ya tiene la transacción abierta y ya ha
+    comprobado que esa criatura se puede sacar. Devuelve a la que despierta.
+    """
+    dueño = con.execute(
+        "SELECT usuario_id, guild_id FROM criaturas WHERE id = ?", (criatura_id,)
+    ).fetchone()
+    con.execute(
+        "UPDATE criaturas SET activa = 0, muere_en = NULL, avisa_en = NULL "
+        "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
+        (dueño["usuario_id"], dueño["guild_id"]),
+    )
+    con.execute(
+        "UPDATE criaturas SET activa = 1, actualizada_en = ? WHERE id = ?",
+        (ahora.isoformat(), criatura_id),
+    )
 
     # Un guardado normal recalcula `muere_en` y `avisa_en` de la que acaba de
     # despertar, que el UPDATE de arriba dejó en blanco junto a las demás.
-    despierta = por_id(criatura_id)
-    if despierta is not None:
-        guardar(despierta)
-    return True
+    despierta = _a_criatura(con.execute(
+        "SELECT * FROM criaturas WHERE id = ?", (criatura_id,)
+    ).fetchone())
+    _guardar(con, despierta)
+    return despierta
 
 
 def criatura_por_pantalla(mensaje_id: str) -> sim.Criatura | None:
@@ -1293,6 +1306,36 @@ def poner_nombre_a_la_activa(
             "UPDATE criaturas SET nombre = ? WHERE id = ?", (nombre, activa.id)
         )
     return "hecho", replace(activa, nombre=nombre)
+
+
+def poner_nombre_a(
+    usuario_id: str,
+    guild_id: str,
+    criatura_id: int,
+    nombre: str,
+    puede: Callable[[sim.Criatura], bool],
+) -> tuple[str, sim.Criatura | None]:
+    """Como `poner_nombre_a_la_activa`, pero a esa criatura, si es tuya y vive.
+
+    Devuelve `("no_esta", None)`, `("no_puede", criatura)` o
+    `("hecho", criatura_con_su_nombre)`. Sólo escribe la columna `nombre`.
+    """
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        criatura = criatura_en(con, criatura_id)
+        if (
+            criatura is None
+            or criatura.usuario_id != usuario_id
+            or criatura.guild_id != guild_id
+            or not criatura.viva
+        ):
+            return "no_esta", None
+        if not puede(criatura):
+            return "no_puede", criatura
+        con.execute(
+            "UPDATE criaturas SET nombre = ? WHERE id = ?", (nombre, criatura.id)
+        )
+    return "hecho", replace(criatura, nombre=nombre)
 
 
 def guardar(criatura: sim.Criatura) -> None:

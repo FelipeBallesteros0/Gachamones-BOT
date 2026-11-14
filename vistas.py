@@ -26,6 +26,7 @@ import db
 import economia
 import equipo
 import especies as esp
+import nacer
 import objetos as obj
 import pantalla
 import retrato
@@ -584,29 +585,47 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
 
         ahora = db.ahora_utc()
 
-        if self.criatura_id is None:
+        if self.criatura_id is not None:
+            # La regla del juego: sólo a uno tuyo, vivo y que todavía espere
+            # nombre. Un formulario enviado dos veces no le pisa el primero.
+            try:
+                criatura = nacer.bautizar_a(
+                    str(interaccion.user.id), str(interaccion.guild_id),
+                    self.criatura_id, nombre, ahora,
+                )
+            except nacer.NombreNoVale as error:
+                await interaccion.response.send_message(
+                    f"Nombre no válido. {error}", ephemeral=True
+                )
+                return
+            except nacer.NoSePuedeBautizar as error:
+                await interaccion.response.send_message(
+                    "Ese gachamon ya tiene nombre."
+                    if error.motivo == nacer.YA_BAUTIZADO
+                    else "Ya no tienes ningún gachamon vivo.",
+                    ephemeral=True,
+                )
+                return
+            # La regla no pone al día a nadie; la ficha, si se publica, sí.
+            if criatura.activa:
+                criatura = db.avanzar(criatura, ahora)
+        else:
             criatura = db.criatura_activa(
                 str(interaccion.user.id), str(interaccion.guild_id)
             )
-        else:
-            criatura = db.por_id(self.criatura_id)
-            if criatura is not None and (
-                criatura.usuario_id != str(interaccion.user.id)
-                or criatura.guild_id != str(interaccion.guild_id)
-            ):
-                criatura = None
-        if criatura is None:
-            await interaccion.response.send_message(
-                "Ya no tienes ningún gachamon vivo.", ephemeral=True
-            )
-            return
+            if criatura is None:
+                await interaccion.response.send_message(
+                    "Ya no tienes ningún gachamon vivo.", ephemeral=True
+                )
+                return
 
-        # A la que duerme en la incubadora no se le adelanta el reloj: sólo la
-        # activa decae, y `avanzar` le comería el hambre por estar guardada.
-        if criatura.activa:
-            criatura = db.avanzar(criatura, ahora)
-        criatura = replace(criatura, nombre=nombre)
-        db.guardar(criatura)
+            # A la que duerme en la incubadora no se le adelanta el reloj: sólo
+            # la activa decae, y `avanzar` le comería el hambre por estar
+            # guardada.
+            if criatura.activa:
+                criatura = db.avanzar(criatura, ahora)
+            criatura = replace(criatura, nombre=nombre)
+            db.guardar(criatura)
 
         # La revelación pierde el botón: ya está bautizada.
         await interaccion.response.edit_message(view=None)

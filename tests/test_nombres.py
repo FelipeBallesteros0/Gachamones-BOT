@@ -2,11 +2,12 @@
 import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 import db
+import nacer
 import simulacion as sim
 import vistas
 
@@ -177,7 +178,61 @@ def test_no_se_puede_bautizar_al_recluta_de_otra_persona(tmp_path, monkeypatch):
     )
 
     assert db.por_id(recluta.id).nombre == sim.NOMBRE_PENDIENTE
-    assert bandeja.enviados[0][1].get("ephemeral") is True
+    assert bandeja.enviados == [
+        ("Ya no tienes ningún gachamon vivo.", {"ephemeral": True})
+    ]
+
+
+def test_el_modal_del_recluta_bautiza_con_la_regla_del_juego(tmp_path, monkeypatch):
+    _, recluta = montar_plantel(tmp_path, monkeypatch)
+    bandeja = Bandeja()
+    monkeypatch.setattr(vistas, "publicar_pantalla", AsyncMock())
+    regla = Mock(wraps=nacer.bautizar_a)
+    monkeypatch.setattr(vistas.nacer, "bautizar_a", regla)
+    modal = SimpleNamespace(nombre="Pelusa", criatura_id=recluta.id)
+
+    asyncio.run(vistas.NombreModal.on_submit(modal, bandeja.interaccion()))
+
+    regla.assert_called_once_with("u1", "g1", recluta.id, "Pelusa", db.ahora_utc())
+    assert db.por_id(recluta.id).nombre == "Pelusa"
+    assert bandeja.editado == {"view": None}
+    assert bandeja.enviados == [("✨ <@u1> la ha llamado **Pelusa**.", {})]
+
+
+def test_el_modal_del_recluta_enviado_dos_veces_dice_que_ya_tiene_nombre(
+    tmp_path, monkeypatch
+):
+    """Un formulario abierto dos veces no le pisa el nombre al primero."""
+    _, recluta = montar_plantel(tmp_path, monkeypatch)
+    bandeja = Bandeja()
+    monkeypatch.setattr(vistas, "publicar_pantalla", AsyncMock())
+
+    for nombre in ("Pelusa", "Otro"):
+        modal = SimpleNamespace(nombre=nombre, criatura_id=recluta.id)
+        asyncio.run(vistas.NombreModal.on_submit(modal, bandeja.interaccion()))
+
+    assert db.por_id(recluta.id).nombre == "Pelusa"
+    assert bandeja.enviados[-1] == (
+        "Ese gachamon ya tiene nombre.", {"ephemeral": True}
+    )
+
+
+def test_el_modal_del_recluta_no_acepta_el_nombre_de_su_especie(
+    tmp_path, monkeypatch
+):
+    _, recluta = montar_plantel(tmp_path, monkeypatch)
+    bandeja = Bandeja()
+    modal = SimpleNamespace(
+        nombre=recluta.def_especie.nombre, criatura_id=recluta.id
+    )
+
+    asyncio.run(vistas.NombreModal.on_submit(modal, bandeja.interaccion()))
+
+    assert db.por_id(recluta.id).nombre == sim.NOMBRE_PENDIENTE
+    assert bandeja.enviados == [(
+        "Nombre no válido. Ese es el nombre de su especie. Ponle uno propio.",
+        {"ephemeral": True},
+    )]
 
 
 def test_el_boton_del_recluta_busca_al_que_espera_nombre(tmp_path, monkeypatch):

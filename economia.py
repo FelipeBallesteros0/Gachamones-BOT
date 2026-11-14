@@ -1606,6 +1606,59 @@ def mudar_gachamon(
 
 
 @dataclass(frozen=True)
+class ResultadoCambio:
+    """Cómo salió sacar a un gachamon de la incubadora."""
+
+    ok: bool = False
+    motivo: str | None = None          # ya_es_el_activo, no_esta o sin_nombre
+    criatura: sim.Criatura | None = None   # la activa después
+    saliente: sim.Criatura | None = None   # la que estaba, ya al día
+
+
+def cambiar_de_activo(
+    usuario_id: str, guild_id: str, criatura_id: int, ahora: datetime
+) -> ResultadoCambio:
+    """Saca de la incubadora a ese gachamon tuyo y mete dentro al activo.
+
+    **La que vuelve a la incubadora se pone antes al día** con el ritmo de su
+    casa, y se guarda así. Sin esto, cambiar de activo borraba las horas que
+    llevaba sin comer: en la incubadora no corren, y al sacarla otra vez se le
+    empezaba a contar desde ese momento.
+
+    Si al ponerla al día resulta muerta, se guarda muerta, se apunta para que el
+    bot la anuncie, y el cambio sigue: a quien eligió a otro no se le niega.
+    """
+    # Por si la activa se murió: se registra y sale el relevo, como en
+    # `nacer.bautizar`. Entonces el relevo es «la que estaba».
+    db.activa_al_dia(usuario_id, guild_id, ahora)
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        elegida = db.criatura_en(con, criatura_id)
+        activa = db.criatura_activa_en(con, usuario_id, guild_id)
+        if activa is not None and activa.id == criatura_id:
+            return ResultadoCambio(motivo="ya_es_el_activo", criatura=activa)
+        if (
+            elegida is None
+            or elegida.usuario_id != usuario_id
+            or elegida.guild_id != guild_id
+            or not elegida.viva
+        ):
+            return ResultadoCambio(motivo="no_esta", criatura=activa)
+        if sim.esta_sin_nombrar(elegida):
+            return ResultadoCambio(motivo="sin_nombre", criatura=activa)
+
+        if activa is not None:
+            al_dia = db._avanzar_en(con, activa, ahora)
+            db._guardar(con, al_dia)
+            if not al_dia.viva:
+                db._apuntar_muerte(con, al_dia)
+        nueva = db._activar_en(con, criatura_id, ahora)
+        # Releída: lo que quedó en la base, ya fuera de los relojes del activo.
+        saliente = None if activa is None else db.criatura_en(con, activa.id)
+        return ResultadoCambio(ok=True, criatura=nueva, saliente=saliente)
+
+
+@dataclass(frozen=True)
 class ResultadoMueble:
     """Cómo salió comprar, colocar o retirar un mueble."""
 

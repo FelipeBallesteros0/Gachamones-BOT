@@ -25,6 +25,7 @@ class YaNoEsSuIdentidad(Exception):
 
 SIN_GACHAMON = "sin_gachamon"
 YA_BAUTIZADO = "ya_bautizado"
+NO_ESTA = "no_esta"
 
 
 class NombreNoVale(ValueError):
@@ -109,4 +110,37 @@ def bautizar(
         raise NoSePuedeBautizar(SIN_GACHAMON, "No tienes ningún gachamon vivo.")
     if resultado == "no_puede":
         raise NoSePuedeBautizar(YA_BAUTIZADO, "Tu gachamon ya tiene nombre.")
+    return criatura
+
+
+def bautizar_a(
+    usuario_id: str, guild_id: str, criatura_id: int, nombre: str,
+    ahora: datetime,
+) -> sim.Criatura:
+    """Le pone nombre a ese gachamon tuyo, sólo si todavía lo espera.
+
+    Es el bautizo del recluta, que duerme en la incubadora y no sale de ella
+    hasta tener nombre. Recibe `ahora` como `bautizar`, pero no pone al día a
+    nadie: a la que duerme no le pasa el tiempo, y sólo se le escribe el nombre.
+    """
+    try:
+        nombre = sim.normalizar_nombre(nombre)
+    except ValueError as error:
+        raise NombreNoVale(str(error)) from None
+
+    def puede(criatura: sim.Criatura) -> bool:
+        if not espera_nombre(criatura):
+            return False
+        # Se mira aquí, con la criatura releída en la transacción: es su especie.
+        if nombre.casefold() == criatura.def_especie.nombre.casefold():
+            raise NombreNoVale("Ese es el nombre de su especie. Ponle uno propio.")
+        return True
+
+    resultado, criatura = db.poner_nombre_a(
+        usuario_id, guild_id, criatura_id, nombre, puede
+    )
+    if resultado == "no_esta":
+        raise NoSePuedeBautizar(NO_ESTA, "Ese gachamon ya no está.")
+    if resultado == "no_puede":
+        raise NoSePuedeBautizar(YA_BAUTIZADO, "Ese gachamon ya tiene nombre.")
     return criatura

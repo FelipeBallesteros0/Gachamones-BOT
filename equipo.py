@@ -11,6 +11,7 @@ import logging
 import discord
 
 import db
+import economia
 import especies as esp
 import pantalla
 import simulacion as sim
@@ -19,6 +20,9 @@ log = logging.getLogger(__name__)
 
 SEGUNDOS_DE_MENU = 120
 EMOJI_INCUBADORA = "🥚"
+NO_SALE_SIN_NOMBRE = (
+    "Ese gachamon no sale de la incubadora hasta que le pongas nombre."
+)
 
 
 def _como_esta(criatura: sim.Criatura) -> str:
@@ -87,13 +91,6 @@ class MenuPlantel(discord.ui.Select):
         elegido = int(self.values[0])
         ahora = db.ahora_utc()
 
-        actual = db.criatura_activa(usuario_id, guild_id)
-        if actual is not None and actual.id == elegido:
-            await interaccion.response.edit_message(
-                content=f"**{actual.nombre}** ya era el activo.", view=None
-            )
-            return
-
         # Elegir a un recluta sin bautizar no es un error del que quejarse: es
         # justo el momento de ponerle nombre. El formulario tiene que salir como
         # respuesta inmediata, así que va antes de cualquier otra respuesta.
@@ -107,23 +104,34 @@ class MenuPlantel(discord.ui.Select):
                 await self.bautizar(interaccion, pendiente)
             else:
                 await interaccion.response.edit_message(
-                    content="Ese gachamon no sale de la incubadora hasta que "
-                            "le pongas nombre.",
-                    view=None,
+                    content=NO_SALE_SIN_NOMBRE, view=None
                 )
             return
 
-        # `activar` comprueba que sea tuyo: un identificador copiado de otro
+        # La regla comprueba que sea tuyo: un identificador copiado de otro
         # mensaje no puede sacar la mascota de otra persona.
-        if not db.activar(elegido, usuario_id, guild_id, ahora):
+        resultado = economia.cambiar_de_activo(usuario_id, guild_id, elegido, ahora)
+        if resultado.motivo == "ya_es_el_activo" and resultado.criatura is not None:
+            await interaccion.response.edit_message(
+                content=f"**{resultado.criatura.nombre}** ya era el activo.",
+                view=None,
+            )
+            return
+        if resultado.motivo == "sin_nombre":
+            await interaccion.response.edit_message(
+                content=NO_SALE_SIN_NOMBRE, view=None
+            )
+            return
+        if not resultado.ok or resultado.criatura is None:
             await interaccion.response.edit_message(
                 content="Ese gachamon no es tuyo o ya no está.", view=None
             )
             return
 
-        nueva = db.criatura_activa(usuario_id, guild_id)
-        if self.congelar is not None and actual is not None:
-            await self.congelar(interaccion.channel, actual.pantalla_msg_id)
+        nueva = resultado.criatura
+        saliente = resultado.saliente
+        if self.congelar is not None and saliente is not None:
+            await self.congelar(interaccion.channel, saliente.pantalla_msg_id)
         await interaccion.response.edit_message(
             content=esp.concordar(
                 f"🧬 Sale de la incubadora **{nueva.nombre}**. "
