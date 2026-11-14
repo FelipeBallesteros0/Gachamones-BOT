@@ -198,32 +198,33 @@ ANA_DISCORD = "222222222222222222"
 STATS = (10, 10, 10, 10)
 
 
-def _vinculada_que_se_muere_con_relevo(cliente, reloj):
-    """Ana, vinculada: su activa se muere de hambre y en la incubadora hay otro."""
+def _vinculada_con_una_muerta_sin_relevo(cliente, reloj):
+    """Ana, vinculada: su activa murió cuando todavía se moría de hambre, y el
+    de la incubadora aún no ha salido a relevarla."""
     entrar(cliente, 2)
     codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
     activa = db.crear(ANA_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
     relevo = db.crear(ANA_DISCORD, G, "pulpo", "Tinta", STATS, reloj.ahora, activa=False)
     reloj.pasar(days=5)
-    return activa, relevo
+    db.guardar(replace(activa, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+    return relevo
 
 
 @pytest.mark.parametrize("hacer", [
     lambda c: cuidar(c, "jugar", "evento-relevo"),
     lambda c: c.post(ACARICIAR, headers=ESCRIBIR),
 ], ids=["cuidar", "acariciar"])
-def test_si_la_activa_muere_en_la_peticion_no_se_le_aplica_al_relevo(cliente, monkeypatch, hacer):
+def test_si_el_relevo_sale_en_la_peticion_no_se_le_aplica(cliente, monkeypatch, hacer):
     reloj = poner_reloj(monkeypatch)
-    activa, relevo = _vinculada_que_se_muere_con_relevo(cliente, reloj)
+    relevo = _vinculada_con_una_muerta_sin_relevo(cliente, reloj)
 
     respuesta = hacer(cliente)
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == {
         "clave": "sin_gachamon", "mensaje": "Tu gachamon ya no es el mismo. Mira otra vez.",
     }
-    # La muerte sí quedó registrada y el relevo salió, pero nadie lo tocó.
-    assert db.por_id(activa.id).causa_muerte == "hambre"
+    # El relevo salió en esta petición, pero nadie lo tocó.
     guardado = db.por_id(relevo.id)
     assert guardado.activa and guardado.xp == 0 and guardado.animo == relevo.animo
     assert all(s == timedelta(0) for s in db.esperas(

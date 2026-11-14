@@ -376,22 +376,6 @@ def test_cooldown_de_cualquiera_rechaza_sin_mutacion_ni_ledger(bloqueada):
     assert filas_economia() == []
 
 
-def test_muerte_perezosa_persiste_solo_la_activa():
-    activa, reserva = pareja()
-    db.guardar(replace(activa, hambre=0.1))
-
-    resultado = entrenar(
-        "evento", seleccion(activa, reserva), T0 + timedelta(hours=1)
-    )
-
-    muerta = db.obtener(activa.id)
-    assert resultado.problema == "activo_muerto"
-    assert muerta is not None and not muerta.viva
-    assert db.obtener(reserva.id) == reserva
-    assert filas_economia() == []
-    assert db.marcador(activa.id) == db.marcador(reserva.id) == {}
-
-
 def test_evento_incompleto_o_de_otro_tipo_falla_antes_del_plantel():
     activa, reserva = pareja()
     with db.conectar() as con:

@@ -365,58 +365,6 @@ def test_mascota_ajena_ascii_gana_a_la_preferencia_imagen_del_visitante(
     assert "sin_arte" not in render.call_args.kwargs
 
 
-def test_mascota_ajena_que_muere_no_consulta_ni_muestra_saldo(monkeypatch, bd_temporal):
-    from types import SimpleNamespace
-    from typing import Any, cast
-    from unittest.mock import AsyncMock, Mock
-
-    import economia
-    import pantalla
-    from cogs import mascota as cog_mascota
-
-    ahora = datetime(2026, 1, 2, tzinfo=timezone.utc)
-    criatura = criatura_de_prueba(
-        usuario_id="2",
-        actualizada_en=ahora - timedelta(days=1),
-        hambre=1.0,
-    )
-    saldos = Mock(side_effect=AssertionError("una lápida no consulta saldo"))
-    estilo = Mock(side_effect=AssertionError("una lápida no consulta estilo"))
-    guardar = Mock()
-    render = Mock(wraps=pantalla.render)
-    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
-    monkeypatch.setattr(db, "criatura_activa", Mock(return_value=criatura))
-    monkeypatch.setattr(db, "guardar", guardar)
-    monkeypatch.setattr(db, "esperas_de_ficha", Mock(return_value={}))
-    monkeypatch.setattr(db, "efectos_activos", Mock(return_value={}))
-    monkeypatch.setattr(db, "estilo_de_ficha", estilo)
-    monkeypatch.setattr(economia, "saldos", saldos)
-    monkeypatch.setattr(pantalla, "render", render)
-
-    respuesta = AsyncMock()
-    interaccion = cast(discord.Interaction, SimpleNamespace(
-        user=SimpleNamespace(id=1),
-        guild_id="g1",
-        response=SimpleNamespace(send_message=respuesta),
-    ))
-    rival = cast(discord.User, UsuarioFalso(2))
-    cog = cog_mascota.Mascota.__new__(cog_mascota.Mascota)
-
-    callback = cast(Any, cog_mascota.Mascota.mascota.callback)
-    asyncio.run(callback(cog, interaccion, rival))
-
-    saldos.assert_not_called()
-    estilo.assert_not_called()
-    lapida = guardar.call_args.args[0]
-    assert not lapida.viva
-    assert render.call_args.args[0] == lapida
-    assert render.call_args.kwargs["asciicoins"] is None
-    llamada = respuesta.await_args
-    assert llamada is not None
-    assert set(llamada.kwargs) == {"content"}
-    assert "monedas" not in llamada.kwargs["content"]
-
-
 def test_el_aviso_de_hambre_para_competir_concuerda():
     """Vive en un cog, fuera del alcance del constructor de `ResultadoAccion`,
     así que lleva su propia llamada a `concordar` y hay que vigilarla."""

@@ -256,22 +256,11 @@ def test_sin_gachamon_se_ve_la_mochila_pero_no_se_usa(cliente, monkeypatch):
     assert db.inventario(YO, G) == {"pocion_comida": 1}
 
 
-def test_si_el_gachamon_murio_entre_medias_no_se_gasta(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    con_vinculo(cliente)
-    dar(LA_DE_DISCORD, "pocion_comida")
-    reloj.pasar(days=5)
-    r = usar(cliente, "pocion_comida")
-    assert r.status_code == 409 and r.json()["detail"]["clave"] == "sin_gachamon"
-    assert db.inventario(LA_DE_DISCORD, G) == {"pocion_comida": 1}
-    assert db.criatura_activa(LA_DE_DISCORD, G) is None   # de verdad murió
-
-
 # --- El gachamon que la pantalla enseñaba ------------------------------------------
 #
 # Si el cambio de gachamon quedó registrado antes de la petición (otro activado
-# desde Discord, una muerte que leyó otra pestaña), sólo se nota comparando con
-# el que la pantalla tenía, que el cliente manda como `gachamon_id`.
+# desde Discord), sólo se nota comparando con el que la pantalla tenía, que el
+# cliente manda como `gachamon_id`.
 
 def con_relevo(cliente):
     """La cuenta vinculada con Pelusa activa y Nube esperando en la incubadora."""
@@ -294,20 +283,6 @@ def test_si_ya_se_activo_a_otro_no_se_le_aplica_el_objeto(cliente, monkeypatch):
     assert r.json()["detail"] == {"clave": "sin_gachamon", "mensaje": "Tu gachamon ya no es el mismo. Mira otra vez."}
     assert db.inventario(LA_DE_DISCORD, G) == {"golosinas": 1}
     assert (db.por_id(pelusa.id), db.por_id(nube.id)) == antes
-
-
-def test_si_la_muerte_ya_estaba_registrada_no_se_gasta(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    pelusa, nube = con_relevo(cliente)
-    dar(LA_DE_DISCORD, "pocion_comida")
-    visto = cliente.get(ESTADO).json()["gachamon"]["id"]
-    reloj.pasar(days=5)
-    # Otra lectura del estado registra la muerte y asciende al relevo.
-    assert cliente.get(ESTADO).json()["gachamon"]["id"] == nube.id
-    assert not db.por_id(pelusa.id).viva
-    r = usar(cliente, "pocion_comida", gachamon_id=visto)
-    assert r.status_code == 409 and r.json()["detail"]["clave"] == "sin_gachamon"
-    assert db.inventario(LA_DE_DISCORD, G) == {"pocion_comida": 1}
 
 
 def test_con_el_gachamon_que_se_ve_o_sin_decirlo_se_usa_como_siempre(cliente, monkeypatch):

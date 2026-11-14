@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-import casas
 import db
 import economia
 import huerto as hue
@@ -45,17 +44,6 @@ def hambrear(criatura, comida):
     db.guardar(replace(criatura, hambre=float(comida)))
 
 
-def cuando_ya_murio_de_hambre(desde):
-    """Un instante en que la activa ya murió de hambre sin que nadie lo apuntara.
-
-    Cae dentro de su estancia en el refugio: a la intemperie el hambre tiene un
-    suelo y no mata, y en el refugio a una identidad de Discord sí.
-    """
-    muerte = sim.momento_de_muerte(db.criatura_activa(U, G)) + timedelta(hours=1)
-    assert muerte < desde + timedelta(days=casas.DIAS_DE_REFUGIO)
-    return muerte
-
-
 def efectos(criatura_id, ahora=T0):
     return {
         stat: bonus
@@ -85,25 +73,6 @@ def test_ningun_rechazo_gasta_el_objeto(base):
     assert economia.usar_objeto("evento-uso-03", U, G, obj.CATALOGO["semilla"], T0).motivo == "no_se_usa"
     assert economia.usar_objeto("evento-uso-04", U, G, obj.CATALOGO["silbato"], T0).motivo == "no_tienes"
     assert db.inventario(U, G) == {"pocion_comida": 1, "semilla": 1}
-
-
-def test_a_un_gachamon_que_ya_murio_no_se_le_gasta_nada(base):
-    nace()
-    dar(U, "pocion_comida", 1)
-    despues = cuando_ya_murio_de_hambre(T0)   # una identidad de Discord, sin casa
-    assert economia.usar_objeto("evento-uso-05", U, G, obj.CATALOGO["pocion_comida"], despues).motivo == "sin_gachamon"
-    assert db.inventario(U, G) == {"pocion_comida": 1}
-
-
-def test_el_que_ya_murio_queda_guardado_muerto(base):
-    """Se entera de la muerte al avanzarlo, y la guarda: no la deja sin apuntar."""
-    nace()
-    dar(U, "pocion_comida", 1)
-    despues = cuando_ya_murio_de_hambre(T0)
-
-    economia.usar_objeto("evento-uso-06", U, G, obj.CATALOGO["pocion_comida"], despues)
-
-    assert db.criatura_activa(U, G) is None
 
 
 def test_el_replay_no_vuelve_a_tirar_el_dado(base):

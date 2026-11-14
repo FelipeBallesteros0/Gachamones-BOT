@@ -173,15 +173,27 @@ def test_el_desgaste_aplica_la_penalizacion_solo_si_hay_percance():
     assert (accidentada.hambre, accidentada.animo) == (55.0, 70.0)
 
 
-def test_el_desgaste_que_agota_el_hambre_mata_en_ese_instante():
+def test_un_viaje_no_mata():
     ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     gastada = av.aplicar_desgaste(
-        criatura(hambre=2.0, animo=3.0), salida_con_fallos(2), ahora, av.PERCANCE
+        criatura(hambre=3.0, animo=3.0), salida_con_fallos(2), ahora, av.PERCANCE
     )
     assert (gastada.hambre, gastada.animo) == (0.0, 0.0)
-    assert gastada.muerta_en == ahora
-    assert gastada.causa_muerte == "hambre"
-    assert not gastada.viva
+    assert gastada.viva
+    assert (gastada.muerta_en, gastada.causa_muerte) == (None, None)
+
+
+def test_un_viaje_que_deja_en_cero_da_igual_su_xp():
+    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    viajera = criatura(hambre=3.0, xp=7)
+
+    despues, subidas = av.aplicar_viaje(
+        viajera, salida_con_fallos(2), ahora, av.PERCANCE, random.Random(0)
+    )
+
+    assert despues.viva and despues.hambre == 0.0
+    assert despues.xp == viajera.xp + sim.XP_AVENTURA
+    assert subidas == []
 
 
 def test_el_viaje_sobrevivido_siempre_da_cuatro_xp_sin_cambiar_el_desgaste():
@@ -204,20 +216,6 @@ def test_el_viaje_sobrevivido_siempre_da_cuatro_xp_sin_cambiar_el_desgaste():
             assert subidas == []
 
     assert sim.XP_VICTORIA > sim.XP_AVENTURA
-
-
-def test_el_viaje_fatal_no_da_xp():
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
-    viajera = criatura(hambre=2.0, xp=20)
-
-    despues, subidas = av.aplicar_viaje(
-        viajera, salida_con_fallos(2), ahora, av.PERCANCE, random.Random(0)
-    )
-
-    assert not despues.viva
-    assert despues.xp == viajera.xp
-    assert despues.nivel == viajera.nivel
-    assert subidas == []
 
 
 def test_el_viaje_puede_evolucionar_sin_usar_el_rng_inyectado():
@@ -423,62 +421,6 @@ def test_las_medallas_se_revisan_tras_narrar_y_antes_del_salvaje(monkeypatch):
     revisadas = [quien for tipo, quien, _ in eventos if tipo == "logros"]
     assert revisadas == [guardadas[-1]]
     assert orden.index("guardar") < orden.index("logros") < len(orden) - 1
-
-
-def test_la_aventura_fatal_persiste_y_no_narra_regala_ni_abre_encuentro(monkeypatch):
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
-    viajera = criatura(
-        hambre=20.0, xp=20, actualizada_en=ahora,
-        pantalla_msg_id="ficha-fatal",
-    )
-    salida = salida_con_fallos(2)
-    eventos = []
-
-    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
-    monkeypatch.setattr(cog_av.db, "plantel", lambda *_: [])
-    monkeypatch.setattr(cog_av.av, "tirar_percance", lambda *_: av.PERCANCE)
-    def confirmar(*args, **kwargs):
-        actualizada, rupturas = av.aplicar_viaje(
-            viajera, args[3], args[4], args[5]
-        )
-        eventos.append(("guardar", actualizada))
-        return economia.ResultadoViaje(
-            actualizada, antes=viajera, rupturas=tuple(rupturas)
-        )
-
-    monkeypatch.setattr(cog_av.economia, "ejecutar_viaje", confirmar)
-    narrar = AsyncMock(return_value="narración que no debe salir")
-    regalar = Mock()
-    abrir_encuentro = Mock()
-    monkeypatch.setattr(cog_av, "_narrar", narrar)
-    monkeypatch.setattr(cog_av.db, "regalar", regalar)
-    monkeypatch.setattr(cog_av, "EncuentroView", abrir_encuentro)
-
-    async def enviar(mensaje, **_):
-        eventos.append(("canal", mensaje))
-
-    canal = SimpleNamespace(send=enviar)
-    dueño = SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe")
-    cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    for hallazgo in (av.OBJETO, av.SALVAJE):
-        eventos.clear()
-        narrar.reset_mock()
-        regalar.reset_mock()
-        abrir_encuentro.reset_mock()
-        monkeypatch.setattr(cog_av.av, "tirar_hallazgo", lambda *_: hallazgo)
-
-        asyncio.run(cog.resolver(canal, dueño, "g1", viajera, viaje_con(salida)))
-
-        assert [tipo for tipo, _ in eventos] == ["guardar", "canal", "canal"]
-        persistida = eventos[0][1]
-        assert persistida.muerta_en == ahora
-        assert persistida.causa_muerte == "hambre"
-        assert persistida.xp == viajera.xp
-        assert "XP por el viaje" not in eventos[1][1]
-        assert "no sobrevivió al viaje" in eventos[-1][1]
-        narrar.assert_not_awaited()
-        regalar.assert_not_called()
-        abrir_encuentro.assert_not_called()
 
 
 def test_la_aventura_rechazada_no_congela_la_ficha(monkeypatch):

@@ -280,8 +280,7 @@ def test_imagen_sin_asset_cae_silenciosamente_a_ascii():
 
 
 def test_una_lapida_no_consulta_la_preferencia(monkeypatch):
-    criatura = sim.avanzar(geo(), T0.replace(year=2027))
-    assert not criatura.viva
+    criatura = replace(geo(), hambre=0.0, muerta_en=T0, causa_muerte="hambre")
     getter = Mock(side_effect=AssertionError("una lápida no consulta estilo"))
     monkeypatch.setattr(db, "estilo_de_ficha", getter)
 

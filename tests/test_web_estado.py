@@ -115,42 +115,6 @@ def test_el_de_una_cuenta_web_se_queda_desfallecido_y_vivo(cliente, monkeypatch)
     assert gachamon["cara"] == "mal"
 
 
-def test_el_de_una_cuenta_vinculada_muere_y_la_web_lo_cuenta_una_vez(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
-    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, T0)
-    muerto = nace(usuario=ANA_DISCORD, nombre="Viejo")
-    relevo = nace(usuario=ANA_DISCORD, especie="pulpo", nombre="Tinta", activa=False)
-    reloj.pasar(days=5)
-
-    estado = cliente.get(ESTADO).json()
-    # Vivió lo que aguanta sin comer con salud 10: 62 horas, o sea dos días enteros.
-    assert estado["difunto"] == {
-        "nombre": "Viejo", "nombre_especie": esp.ESPECIES["pollito"].nombre, "dias": 2,
-    }
-    assert estado["gachamon"]["id"] == relevo.id
-    assert db.por_id(muerto.id).causa_muerte == "hambre"
-    assert cliente.get(ESTADO).json()["difunto"]["nombre"] == "Viejo"
-
-    visto = cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR)
-    assert visto.status_code == 200 and visto.json()["difunto"] is None
-    assert cliente.get(ESTADO).json()["difunto"] is None
-
-
-def test_una_muerte_que_proceso_el_bot_tambien_se_cuenta(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
-    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, T0)
-    muerto = nace(usuario=ANA_DISCORD, nombre="Viejo")
-    reloj.pasar(days=5)
-    db.guardar(db.avanzar(db.por_id(muerto.id), reloj.ahora))   # lo que hace el bucle del bot
-
-    estado = cliente.get(ESTADO).json()
-    assert estado["difunto"]["nombre"] == "Viejo" and estado["gachamon"] is None
-
-
 def test_los_muertos_de_antes_de_tener_cuenta_no_se_cuentan(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
     antiguo = nace(usuario=ANA_DISCORD, nombre="Antiguo")
@@ -162,19 +126,6 @@ def test_los_muertos_de_antes_de_tener_cuenta_no_se_cuentan(cliente, monkeypatch
     assert cliente.get(ESTADO).json()["difunto"] is None
 
 
-def test_activa_al_dia_es_repetible(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "RUTA", tmp_path / "relevo.db")
-    db.inicializar()
-    nace(usuario=ANA_DISCORD, nombre="Viejo")
-    primero = nace(usuario=ANA_DISCORD, especie="pulpo", nombre="Uno", activa=False)
-    nace(usuario=ANA_DISCORD, especie="pulpo", nombre="Dos", activa=False)
-    tarde = T0 + timedelta(days=5)
-    assert db.activa_al_dia(ANA_DISCORD, G, tarde).id == primero.id
-    assert db.activa_al_dia(ANA_DISCORD, G, tarde).id == primero.id
-    activas = [c for c in db.plantel(ANA_DISCORD, G) if c.activa]
-    assert [c.id for c in activas] == [primero.id]
-
-
 def test_cada_cual_ve_su_estado(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente, 1)
@@ -182,19 +133,6 @@ def test_cada_cual_ve_su_estado(cliente, monkeypatch):
     alta(cliente, 2, nombre="Ana")
     estado = cliente.get(ESTADO).json()
     assert estado["gachamon"] is None and estado["avatar"]["nombre"] == "Ana"
-
-
-def test_una_muerte_anterior_al_vinculo_no_es_noticia(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    entrar(cliente, 2)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
-    muerto = nace(usuario=ANA_DISCORD, nombre="Viejo")
-    reloj.pasar(days=5)
-    db.guardar(db.avanzar(db.por_id(muerto.id), reloj.ahora))
-    reloj.pasar(days=5)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
-    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora)
-    assert cliente.get(ESTADO).json()["difunto"] is None
 
 
 def test_marcar_visto_hasta_una_muerte_deja_pendiente_la_siguiente(tmp_path, monkeypatch):
@@ -221,17 +159,6 @@ def test_visto_sin_nada_pendiente_no_escribe(cliente, monkeypatch):
     with db.conectar() as con:
         fila = con.execute("SELECT difuntos_vistos_hasta FROM cuentas_web").fetchone()
     assert fila[0] is None
-
-
-def test_visto_no_da_por_vista_una_muerte_que_se_descubre_en_la_misma_peticion(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
-    db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, T0)
-    nace(usuario=ANA_DISCORD, nombre="Viejo")
-    reloj.pasar(days=5)
-    respuesta = cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR).json()
-    assert respuesta["difunto"]["nombre"] == "Viejo"
 
 
 def test_difunto_visto_exige_cabecera_sesion_y_cuenta(cliente):

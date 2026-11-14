@@ -763,35 +763,3 @@ def test_lo_que_discord_no_puede_producir_no_se_inventa_una_frase():
         tienda.texto_del_uso(
             placa, economia.ResultadoUso(motivo="no_se_usa", objeto=placa.clave)
         )
-
-
-# La única diferencia buscada: antes, a un gachamon que ya había muerto sin que
-# nadie lo apuntara, el menú le gastaba la unidad y se la aplicaba igual.
-
-def test_a_un_gachamon_que_ya_murio_la_mochila_no_le_gasta_nada(monkeypatch):
-    criatura = nacer()
-    pocion = obj.CATALOGO["pocion_comida"]
-    dar(pocion)
-    muerto = sim.momento_de_muerte(criatura) + timedelta(hours=1)
-    monkeypatch.setattr(db, "ahora_utc", lambda: muerto)
-    congelar = AsyncMock()
-
-    assert elegir_en_la_mochila(pocion, congelar) == (
-        "No tienes ningún gachamon vivo. Empieza con `/huevo`."
-    )
-    assert db.inventario("u1", "g1") == {"pocion_comida": 1}
-    congelar.assert_not_awaited()
-
-
-def test_a_un_gachamon_que_ya_murio_la_placa_no_le_gasta_nada(monkeypatch):
-    criatura = nacer()
-    dar(obj.CATALOGO["placa"])
-    muerto = sim.momento_de_muerte(criatura) + timedelta(hours=1)
-    monkeypatch.setattr(db, "ahora_utc", lambda: muerto)
-    congelar = AsyncMock()
-
-    assert confirmar_la_placa("Pelusa", congelar) == (
-        "No se ha podido. Ya no tienes ningún gachamon activo."
-    )
-    assert db.inventario("u1", "g1") == {"placa": 1}
-    congelar.assert_not_awaited()

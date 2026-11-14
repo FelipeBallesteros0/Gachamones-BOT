@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import db
 import identidad
 from ayudas_web import ESCRIBIR, PUEBLO, alta, entrar, poner_reloj
@@ -178,9 +180,10 @@ def test_con_la_activa_muerta_y_un_recluta_sin_nombre_el_huevo_dice_que_hacer(cl
     codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
     assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
-    db.crear(ANA_DISCORD, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
+    viejo = db.crear(ANA_DISCORD, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
     recluta = db.crear(ANA_DISCORD, G, "pulpo", "", (10, 10, 10, 10), reloj.ahora, activa=False)
     reloj.pasar(days=5)
+    db.guardar(replace(viejo, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
 
     assert cliente.get("/gachamon/api/estado").json()["gachamon"] is None
     respuesta = cliente.post(HUEVO, headers=ESCRIBIR)

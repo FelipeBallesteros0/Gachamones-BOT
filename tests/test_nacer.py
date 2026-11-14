@@ -50,7 +50,8 @@ def test_con_uno_en_la_incubadora_tampoco_hay_huevo():
 
 
 def test_cuando_se_le_murio_el_unico_puede_sacar_otro():
-    nacer.romper_el_huevo("d", "g", T0)
+    unico = nacer.romper_el_huevo("d", "g", T0)
+    db.guardar(replace(unico, muerta_en=T0, causa_muerte="hambre"))
     otro = nacer.romper_el_huevo("d", "g", T0 + timedelta(days=5))
     assert otro.viva and len(db.plantel("d", "g")) == 1
 

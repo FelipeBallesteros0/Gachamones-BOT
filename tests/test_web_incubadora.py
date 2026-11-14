@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import db
 import economia
 import especies as esp
@@ -201,21 +203,6 @@ def test_sacar_a_uno_ajeno_es_no_esta(cliente, monkeypatch):
     assert db.criatura_activa(OTRA_PERSONA, G).id == ajeno.id
 
 
-def test_si_el_activo_murio_al_sacar_el_cambio_sigue_y_el_estado_trae_al_difunto(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    vinculada_sin_gachamon(cliente)
-    viejo = db.crear(LA_DE_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
-    db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", STATS, reloj.ahora, activa=False)
-    bruma = db.crear(LA_DE_DISCORD, G, "pulpo", "Bruma", STATS, reloj.ahora, activa=False)
-    ir(cliente)
-    reloj.pasar(days=5)   # Viejo se muere de hambre, y nadie lo ha visto todavía
-    cuerpo = sacar(cliente, bruma.id).json()
-    assert (cuerpo["ok"], cuerpo["mensaje"]) == (True, "Bruma sale de la incubadora.")
-    assert cuerpo["estado"]["difunto"]["nombre"] == "Viejo"
-    assert cuerpo["estado"]["gachamon"]["id"] == bruma.id
-    assert not db.por_id(viejo.id).viva
-
-
 def test_sacar_con_un_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     pelusa, nube, _ = con_plantel(cliente)
@@ -290,10 +277,12 @@ def test_bautizar_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, m
 def test_si_solo_queda_un_recluta_sin_nombre_se_puede_seguir(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
     vinculada_sin_gachamon(cliente)
-    db.crear(LA_DE_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
+    viejo = db.crear(LA_DE_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
     recluta = db.crear(LA_DE_DISCORD, G, "pulpo", "", STATS, reloj.ahora, activa=False)
     otro = db.crear(LA_DE_DISCORD, G, "pollito", "", STATS, reloj.ahora, activa=False)
-    reloj.pasar(days=5)   # Viejo se muere de hambre y nadie con nombre lo releva
+    reloj.pasar(days=5)
+    # Viejo murió cuando todavía se moría de hambre, y nadie con nombre lo relevó.
+    db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
 
     estado = cliente.get(ESTADO).json()
     assert estado["gachamon"] is None and estado["difunto"]["nombre"] == "Viejo"

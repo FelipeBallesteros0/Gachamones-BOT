@@ -17,7 +17,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 
 import especies as esp
-import identidad
 import objetos as obj
 import pantalla
 import personalidad as per
@@ -1369,22 +1368,13 @@ def aplicar_desgaste(
 ) -> sim.Criatura:
     """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho.
 
-    Es, junto a `sim.avanzar`, el otro sitio que mata de hambre. Por eso también
-    pregunta a `identidad.sin_aviso_de_hambre`: quien no tiene cómo enterarse de
-    que su gachamon se muere de hambre no lo pierde por olvido. Vuelve vivo, con
-    la comida en 0 y el ánimo descontado como siempre.
+    No mata: si el viaje le gasta toda la comida, vuelve con ella en 0.
     """
     hambre_perdida, animo_perdido = coste_desgaste(salida, percance)
-    hambre = max(0.0, min(100.0, criatura.hambre - hambre_perdida))
-    muere = hambre == 0.0 and not identidad.sin_aviso_de_hambre(
-        criatura.usuario_id
-    )
     return replace(
         criatura,
-        hambre=hambre,
+        hambre=max(0.0, min(100.0, criatura.hambre - hambre_perdida)),
         animo=max(0.0, min(100.0, criatura.animo - animo_perdido)),
-        muerta_en=ahora if muere else criatura.muerta_en,
-        causa_muerte="hambre" if muere else criatura.causa_muerte,
     )
 
 
@@ -1407,10 +1397,8 @@ def aplicar_viaje(
     criatura: sim.Criatura, salida: Salida, ahora: datetime,
     percance: Percance | None = None, rng: random.Random | None = None,
 ) -> tuple[sim.Criatura, list[sim.Ruptura]]:
-    """Cobra el viaje, emite sus pruebas y da XP sólo si vuelve con vida."""
+    """Cobra el viaje, emite sus pruebas y da su XP."""
     cansada = aplicar_desgaste(criatura, salida, ahora, percance)
-    if not cansada.viva:
-        return cansada, []
     estado, rupturas = sim.aplicar_evento(
         cansada, esfuerzos_de_viaje(salida), sim.XP_AVENTURA, rng
     )

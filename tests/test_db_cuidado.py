@@ -2,7 +2,7 @@
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -58,18 +58,6 @@ def test_fallo_al_guardar_cooldown_revierte_criatura_y_premio():
 
 def test_rechazos_sin_mutacion_no_escriben_recibo():
     assert economia.ejecutar_cuidado("sin", "u1", "g1", sim.JUGAR, T0) is None
-    with db.conectar() as con:
-        assert con.execute("SELECT COUNT(*) FROM operaciones_economia").fetchone()[0] == 0
-
-
-def test_cuidado_registra_la_muerte_al_avanzar_sin_recibo():
-    criatura = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
-    resultado = economia.ejecutar_cuidado(
-        "tarde", "u1", "g1", sim.JUGAR, T0 + timedelta(days=10)
-    )
-
-    assert resultado is not None and not resultado.criatura.viva and not resultado.ok
-    assert db.obtener(criatura.id).muerta_en == resultado.criatura.muerta_en
     with db.conectar() as con:
         assert con.execute("SELECT COUNT(*) FROM operaciones_economia").fetchone()[0] == 0
 

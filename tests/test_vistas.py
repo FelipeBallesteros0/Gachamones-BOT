@@ -722,37 +722,6 @@ def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
     ]
 
 
-def test_muerte_lazy_congela_ficha_activa_autoritativa_y_no_toca_reserva(
-    bd_temporal, monkeypatch
-):
-    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
-    reserva = db.crear(
-        "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
-    )
-    db.guardar(replace(activa, hambre=0.1))
-    db.guardar_pantalla(activa.id, "ficha-b", "canal")
-    monkeypatch.setattr(
-        vistas.db, "ahora_utc", Mock(return_value=T0 + timedelta(hours=1))
-    )
-    congelar = AsyncMock()
-    publicar = AsyncMock()
-    monkeypatch.setattr(vistas, "congelar", congelar)
-    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha-a")
-    menu._values = [str(reserva.id)]
-    interaccion, respuesta, canal = interaccion_de(evento_id="selector")
-
-    asyncio.run(menu.callback(interaccion))
-
-    respuesta.edit_message.assert_awaited_once_with(
-        content="Tu gachamon ya no está entre nosotros.", view=None
-    )
-    congelar.assert_awaited_once_with(canal, "ficha-b")
-    canal.send.assert_awaited_once()
-    publicar.assert_not_awaited()
-    assert db.obtener(reserva.id) == reserva
-
-
 def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
     anterior = criatura(1, "Anterior", True, "ficha-anterior")
     nueva = criatura(2, "Nueva", True, "ficha-nueva")
@@ -1331,35 +1300,6 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
     canal.send.assert_not_awaited()
 
 
-def test_actualizar_que_descubre_muerte_edita_la_misma_ficha_sin_botones(
-    bd_temporal, monkeypatch
-):
-    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
-    db.guardar_pantalla(criatura.id, "ficha", "canal")
-    ahora = T0 + timedelta(days=10)
-    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))
-    congelar = AsyncMock()
-    publicar = AsyncMock()
-    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
-    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
-    saldos = Mock(side_effect=AssertionError("una lápida no consulta saldo"))
-    monkeypatch.setattr(economia, "saldos", saldos)
-    interaccion, respuesta, canal = interaccion_de()
-
-    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
-
-    guardada = db.obtener(criatura.id)
-    assert guardada is not None and not guardada.viva
-    respuesta.edit_message.assert_awaited_once_with(
-        content=pantalla.render(guardada, ahora),
-        attachments=[], embed=None, view=None,
-    )
-    saldos.assert_not_called()
-    congelar.assert_not_awaited()
-    publicar.assert_not_awaited()
-    canal.send.assert_not_awaited()
-
-
 @pytest.mark.parametrize("caso", ["muerta-tras-ascenso", "sin-mapeo"])
 def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
     bd_temporal, monkeypatch, caso
@@ -1371,7 +1311,9 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
             "u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False
         )
         db.guardar_pantalla(antigua.id, "ficha", "canal")
-        db.guardar(sim.avanzar(antigua, ahora))
+        db.guardar(replace(
+            db.obtener(antigua.id), hambre=0.0, muerta_en=ahora, causa_muerte="hambre",
+        ))
         ascendida = db.ascender_de_la_incubadora("u1", "g1", ahora)
         assert ascendida is not None and ascendida.id == reserva.id
 

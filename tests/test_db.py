@@ -28,6 +28,11 @@ def nacer(usuario="u1", guild="g1", especie="pulpo", nombre="Prueba", ahora=T0):
     return db.crear(usuario, guild, especie, nombre, STATS, ahora)
 
 
+def muerta_de_antes(criatura, cuando=T0 + timedelta(days=10)):
+    """Una que murió cuando todavía se moría de hambre: sigue muerta."""
+    return replace(criatura, hambre=0.0, muerta_en=cuando, causa_muerte="hambre")
+
+
 def test_crear_y_recuperar():
     creada = nacer()
     recuperada = db.criatura_activa("u1", "g1")
@@ -130,15 +135,6 @@ def test_alimentar_aleja_la_hora_de_la_muerte():
     assert sim.momento_de_muerte(db.criatura_activa("u1", "g1")) > antes
 
 
-def test_una_criatura_muerta_no_vuelve_a_salir_como_pendiente():
-    criatura = nacer()
-    muerta = sim.avanzar(criatura, T0 + timedelta(days=10))
-    assert not muerta.viva
-    db.guardar(muerta)
-
-    assert db.pendientes_de_morir(T0 + timedelta(days=20)) == []
-
-
 def test_el_aviso_de_hambre_se_dispara_una_sola_vez():
     from dataclasses import replace
     criatura = nacer()
@@ -172,12 +168,6 @@ def test_alimentarla_hace_que_vuelva_a_avisar_mas_adelante():
     guardada = db.criatura_activa("u1", "g1")
     assert not guardada.avisada
     assert sim.momento_de_aviso(guardada) > momento
-
-
-def test_una_criatura_muerta_no_genera_avisos():
-    criatura = nacer()
-    db.guardar(sim.avanzar(criatura, T0 + timedelta(days=10)))
-    assert db.pendientes_de_aviso(T0 + timedelta(days=20)) == []
 
 
 def test_migracion_de_una_base_de_datos_antigua():
@@ -483,7 +473,7 @@ def test_una_criatura_nueva_empieza_sin_recuerdos():
     relación empieza de cero sin código que lo gestione."""
     primera = nacer()
     db.guardar_turnos(primera.id, "hola", "¡pío!", T0)
-    db.guardar(sim.avanzar(primera, T0 + timedelta(days=10)))
+    db.guardar(muerta_de_antes(primera))
 
     segunda = nacer(nombre="Segunda")
     assert db.historial(segunda.id) == []
@@ -547,8 +537,7 @@ def test_las_vivas_del_servidor_son_las_del_jardin():
     nacer(usuario="u1", nombre="Viva1")
     nacer(usuario="u2", nombre="Viva2")
     nacer(usuario="u3", guild="otro", nombre="DeOtroServidor")
-    muerta = sim.avanzar(nacer(usuario="u4", nombre="Finada"), T0 + timedelta(days=10))
-    db.guardar(muerta)
+    db.guardar(muerta_de_antes(nacer(usuario="u4", nombre="Finada")))
 
     nombres = [c.nombre for c in db.vivas_del_servidor("g1")]
     assert nombres == ["Viva1", "Viva2"]
@@ -556,8 +545,7 @@ def test_las_vivas_del_servidor_son_las_del_jardin():
 
 def test_el_cementerio_solo_tiene_muertas():
     viva = nacer(usuario="u1")
-    muerta = sim.avanzar(nacer(usuario="u2", nombre="Finada"), T0 + timedelta(days=10))
-    db.guardar(muerta)
+    db.guardar(muerta_de_antes(nacer(usuario="u2", nombre="Finada")))
 
     nombres = [c.nombre for c in db.cementerio("g1")]
     assert nombres == ["Finada"]
@@ -629,8 +617,7 @@ def test_el_monedero_y_los_objetos_sobreviven_a_la_criatura():
     economia.comprar("compra-1", "u1", "g1", obj.CATALOGO["silbato"])
     saldo = economia.saldos("u1", "g1")
 
-    muerta = sim.avanzar(db.criatura_activa("u1", "g1"), T0 + timedelta(days=10))
-    db.guardar(muerta)
+    db.guardar(muerta_de_antes(db.criatura_activa("u1", "g1")))
     db.crear("u1", "g1", "pulpo", "Segunda", STATS, T0 + timedelta(days=10))
     assert economia.saldos("u1", "g1") == saldo
     assert db.inventario("u1", "g1") == {"silbato": 1}
@@ -859,7 +846,7 @@ def test_al_morir_la_activa_asciende_la_siguiente():
     activa = nacer(nombre="Primera")
     colar_dormida("Segunda")
 
-    db.guardar(sim.avanzar(activa, T0 + timedelta(days=10)))
+    db.guardar(muerta_de_antes(activa))
     assert db.criatura_activa("u1", "g1") is None
 
     relevo = db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(days=10))
@@ -870,7 +857,7 @@ def test_al_morir_la_activa_asciende_la_siguiente():
 
 def test_si_no_hay_nadie_esperando_no_asciende_nadie():
     activa = nacer()
-    db.guardar(sim.avanzar(activa, T0 + timedelta(days=10)))
+    db.guardar(muerta_de_antes(activa))
 
     assert db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(days=10)) is None
 
@@ -914,7 +901,7 @@ def test_al_morir_la_activa_no_asciende_un_recluta_sin_nombre():
     colar_dormida(sim.NOMBRE_PENDIENTE)
     con_nombre = colar_dormida("Tercera")
 
-    db.guardar(sim.avanzar(activa, T0 + timedelta(days=10)))
+    db.guardar(muerta_de_antes(activa))
     relevo = db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(days=10))
 
     assert relevo is not None and relevo.id == con_nombre

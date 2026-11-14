@@ -39,30 +39,6 @@ def test_el_hambre_baja_de_forma_lineal():
     assert abs(mitad.hambre - 50.0) < 0.5
 
 
-def test_muere_justo_al_agotarse_el_hambre():
-    c = criatura()
-    horas = sim.horas_de_vida(c.salud)
-
-    antes = sim.avanzar(c, T0 + timedelta(hours=horas - 0.5))
-    assert antes.viva
-    assert antes.hambre > 0
-
-    despues = sim.avanzar(c, T0 + timedelta(hours=horas + 0.5))
-    assert not despues.viva
-    assert despues.causa_muerte == "hambre"
-    assert despues.hambre == 0.0
-
-
-def test_momento_de_muerte_coincide_con_la_simulacion():
-    """La fecha guardada en la BD tiene que cuadrar con lo que hace `avanzar`,
-    porque el bucle de muerte se fía de ella."""
-    c = criatura(hambre=42.0)
-    momento = sim.momento_de_muerte(c)
-
-    assert sim.avanzar(c, momento - timedelta(minutes=1)).viva
-    assert not sim.avanzar(c, momento + timedelta(minutes=1)).viva
-
-
 def test_avanzar_en_dos_tramos_da_lo_mismo_que_en_uno():
     c = criatura()
     de_una = sim.avanzar(c, T0 + timedelta(hours=10))
@@ -74,6 +50,24 @@ def test_avanzar_en_dos_tramos_da_lo_mismo_que_en_uno():
 def test_una_criatura_muerta_ya_no_cambia():
     muerta = criatura(muerta_en=T0, causa_muerte="hambre", hambre=0.0)
     assert sim.avanzar(muerta, T0 + timedelta(days=30)) == muerta
+
+
+def test_con_la_comida_en_cero_sigue_viva():
+    c = sim.avanzar(criatura(hambre=5.0), T0 + timedelta(hours=200))
+    assert (c.hambre, c.viva, c.muerta_en, c.causa_muerte) == (0.0, True, None, None)
+
+
+def test_tras_dias_en_cero_come_y_sube_desde_cero():
+    despues = T0 + timedelta(days=5)
+    c = sim.avanzar(criatura(hambre=5.0), despues)
+    comida = sim.aplicar_accion(c, sim.ALIMENTAR, despues).criatura
+    assert comida.hambre == 30.0 and comida.viva
+
+
+def test_no_muere_sea_de_quien_sea():
+    for usuario in ("123456789012345678", "-12"):
+        c = sim.avanzar(criatura(usuario_id=usuario, hambre=1.0), T0 + timedelta(days=30))
+        assert c.viva and c.hambre == 0.0
 
 
 def test_la_suciedad_amarga_el_animo_pero_no_mata():

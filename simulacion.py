@@ -26,7 +26,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 import especies as esp
-import identidad
 
 # --- Ritmo -----------------------------------------------------------------
 
@@ -968,19 +967,15 @@ def avanzar(
 
     A las de la incubadora no les pasa el tiempo. Es lo que hace viable tener
     tres: los cuidados sólo llegan a la activa, así que si las otras decayeran se
-    morirían de hambre hiciera lo que hiciera su dueño. Al sacarlas, `db.activar`
-    les pone `actualizada_en` al día para que las horas dormidas no se les caigan
-    encima de golpe.
+    quedarían sin comida hiciera lo que hiciera su dueño. Al sacarlas,
+    `db.activar` les pone `actualizada_en` al día para que las horas dormidas no
+    se les caigan encima de golpe.
 
     `ritmo` es lo que aporta el hogar: quien lo tiene lo calcula y lo pasa. Por
-    defecto va el de siempre, que es también el de quien tiene techo — así el
-    `muere_en` guardado en la base sigue siendo exacto para todo el mundo salvo
-    para quien esté a la intemperie, y a ése el hambre no lo puede matar.
+    defecto va el de siempre, que es también el de quien tiene techo.
 
-    Quien no tiene aviso de hambre (`identidad.sin_aviso_de_hambre`) baja las
-    barras como todos, pero con el hambre en 0 sigue viva: su dueño no tiene cómo
-    enterarse. Se decide aquí y no en `db.avanzar` porque hay sitios que llaman a
-    `avanzar` a secas, y ninguno puede matarla por olvido.
+    El tiempo no mata a nadie: con la comida en 0 se queda en 0 y sigue viva
+    hasta que le den de comer. Una que ya estaba muerta no cambia.
     """
     if not criatura.viva or not criatura.activa:
         return criatura
@@ -1004,7 +999,7 @@ def avanzar(
     animo = max(0.0, criatura.animo - ritmo_animo * horas)
     factor_tension = 0.5 ** (horas / SEMIVIDA_TENSION)
 
-    avanzada = replace(
+    return replace(
         criatura,
         hambre=hambre,
         animo=animo,
@@ -1015,18 +1010,6 @@ def avanzar(
         ten_ingenio=max(0.0, criatura.ten_ingenio * factor_tension),
         actualizada_en=ahora,
     )
-
-    if hambre <= 0.0 and identidad.sin_aviso_de_hambre(criatura.usuario_id):
-        return replace(avanzada, hambre=0.0)
-    if hambre <= 0.0:
-        momento = momento_de_muerte(criatura)
-        return replace(
-            avanzada,
-            hambre=0.0,
-            muerta_en=min(momento, ahora),
-            causa_muerte="hambre",
-        )
-    return avanzada
 
 
 # --- Acciones de cuidado ---------------------------------------------------

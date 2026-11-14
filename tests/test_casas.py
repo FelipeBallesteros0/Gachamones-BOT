@@ -695,13 +695,6 @@ def test_el_suelo_deja_margen_para_mudarse_sin_morirse():
     assert cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE > sim.UMBRAL_AVISO_HAMBRE
 
 
-def test_bajo_techo_el_hambre_sigue_matando():
-    """El suelo es sólo de la intemperie: la muerte por hambre sigue existiendo
-    para quien tiene casa, que es como ha sido siempre."""
-    muerta = _tras(24 * 5, hambre=10.0)
-    assert not muerta.viva and muerta.causa_muerte == "hambre"
-
-
 def test_la_comodidad_frena_el_animo_hasta_un_cuarto():
     """Simétrico al castigo de la intemperie, para poder contarlo en una frase."""
     assert cas.alivio_de_animo(cas.EL_REFUGIO.comodidad) == 1.0

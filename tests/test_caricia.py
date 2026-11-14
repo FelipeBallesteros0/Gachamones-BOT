@@ -96,14 +96,6 @@ def test_sin_gachamon_no_hay_a_quien():
     assert db.acariciar("nadie", "g", T0) == db.ResultadoCaricia(False, None, timedelta(0))
 
 
-def test_no_revive_ni_acaricia_a_quien_ya_murio_de_hambre():
-    nacer()
-    mucho_despues = T0 + timedelta(days=5)
-    resultado = db.acariciar("u", "g", mucho_despues)
-    assert not resultado.ok
-    assert db.criatura_activa("u", "g") is None
-
-
 def test_la_de_una_identidad_web_se_acaricia_igual():
     web = identidad.de_cuenta_web(12)
     nacer(usuario=web)
@@ -116,18 +108,6 @@ def test_dos_caricias_a_la_vez_cuentan_una():
         resultados = list(hilos.map(lambda _: db.acariciar("u", "g", T0), range(2)))
     assert sorted(r.ok for r in resultados) == [False, True]
     assert db.criatura_activa("u", "g").animo == 55.0
-
-
-def test_si_muere_al_avanzar_devuelve_la_muerta_sin_espera_ni_enfriamiento():
-    creada = nacer()
-    mucho_despues = T0 + timedelta(days=5)
-    resultado = db.acariciar("u", "g", mucho_despues)
-    assert not resultado.ok and resultado.espera == timedelta(0)
-    assert resultado.criatura is not None and resultado.criatura.id == creada.id
-    assert not resultado.criatura.viva and resultado.criatura.causa_muerte == "hambre"
-    assert db.esperas(creada.id, mucho_despues, (sim.ACARICIAR,))[sim.ACARICIAR] == timedelta(0)
-    with db.conectar() as con:
-        assert con.execute("SELECT COUNT(*) FROM cooldowns").fetchone()[0] == 0
 
 
 def test_antes_de_tiempo_devuelve_la_criatura_avanzada_y_sin_la_caricia():

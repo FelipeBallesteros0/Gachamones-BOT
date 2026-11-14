@@ -174,21 +174,6 @@ def test_sin_criatura_no_se_aprende():
     assert not economia.aprender_hablando("u1", "g1", T0).ok
 
 
-def test_una_criatura_que_ha_muerto_de_hambre_no_cobra():
-    """Se avanza en el tiempo ANTES de premiar, igual que en `cuidar`: la fila
-    sólo se marca muerta al avanzarla, así que sin esto una criatura que lleva
-    días sin comer cobraría la conversación en vez de morirse."""
-    criatura = nacer()
-    tarde = T0 + timedelta(hours=sim.horas_de_vida(criatura.salud) + 24)
-
-    premio = economia.aprender_hablando("u1", "g1", tarde)
-
-    assert not premio.ok
-    assert premio.criatura is not None and not premio.criatura.viva
-    # Y no se le ha puesto el enfriamiento a un cadáver.
-    assert premio.entrenamiento_ganado == 0
-
-
 def test_el_animo_no_se_pasa_de_cien():
     nacer(animo=98.0)
 

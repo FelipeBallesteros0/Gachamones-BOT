@@ -458,20 +458,6 @@ def test_un_evento_usado_para_una_cosa_no_sirve_para_otra(cliente, monkeypatch):
     assert economia.saldos(YO, G).asciicoins == 4990 - 200
 
 
-def test_si_el_gachamon_murio_entre_medias_no_se_cobra(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    con_vinculo(cliente)
-    ir(cliente, "tienda")
-    dar(monedas=5000, gemas=500, usuario=LA_DE_DISCORD)
-    reloj.pasar(days=5)
-    respuesta = comprar(cliente, "objeto", "pocion_comida", "evento-muerto")
-    assert respuesta.status_code == 409
-    assert respuesta.json()["detail"] == {
-        "clave": "sin_gachamon", "mensaje": "Tu gachamon ya no es el mismo. Mira otra vez."}
-    assert economia.saldos(LA_DE_DISCORD, G) == economia.Saldos(5000, 500)
-    assert db.inventario(LA_DE_DISCORD, G) == {}
-
-
 # --- El cosmético ----------------------------------------------------------------
 
 def test_el_cosmetico_cobra_gemas_y_el_gachamon_ya_lo_lleva(cliente, monkeypatch):

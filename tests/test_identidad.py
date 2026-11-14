@@ -71,12 +71,6 @@ def test_el_hambre_no_mata_al_gachamon_de_una_identidad_web():
     assert avanzada.hambre == 0.0
 
 
-def test_el_hambre_sigue_matando_al_de_una_identidad_de_discord():
-    avanzada = sim.avanzar(criatura(DISCORD), T0 + timedelta(days=30))
-    assert not avanzada.viva
-    assert avanzada.causa_muerte == "hambre"
-
-
 def test_al_de_una_identidad_web_le_bajan_las_tres_barras_como_a_cualquiera():
     diez_horas = T0 + timedelta(hours=10)
     web = sim.avanzar(criatura(WEB), diez_horas)
@@ -155,15 +149,6 @@ def test_el_viaje_no_mata_de_hambre_a_quien_no_tiene_aviso():
     assert cansada.causa_muerte is None
 
 
-def test_el_viaje_sigue_matando_de_hambre_a_una_identidad_de_discord():
-    cansada = aventura.aplicar_desgaste(
-        criatura(DISCORD, hambre=1.0), aventura.Salida(()), T0
-    )
-    assert not cansada.viva
-    assert cansada.muerta_en == T0
-    assert cansada.causa_muerte == "hambre"
-
-
 def _asigna_hambre(arbol: ast.AST) -> bool:
     for nodo in ast.walk(arbol):
         if isinstance(nodo, ast.keyword) and nodo.arg == "causa_muerte":
@@ -184,11 +169,9 @@ def _asigna_hambre(arbol: ast.AST) -> bool:
     return False
 
 
-def test_solo_la_simulacion_y_la_aventura_matan_de_hambre():
-    """Impide que aparezca un tercer camino que mate de hambre sin respetar
-    `identidad.sin_aviso_de_hambre`. Si esta prueba falla, hay un sitio nuevo
-    que asigna `causa_muerte="hambre"`: mira si respeta la excepción y, sólo
-    entonces, añádelo a la lista."""
+def test_ningun_modulo_mata_de_hambre():
+    """Nadie muere: impide que vuelva a aparecer un camino que mate de hambre.
+    Si esta prueba falla, hay un sitio que asigna `causa_muerte="hambre"`."""
     raiz = Path(__file__).resolve().parent.parent
     rutas = sorted(raiz.glob("*.py")) + sorted((raiz / "cogs").glob("*.py"))
     assert rutas
@@ -196,7 +179,7 @@ def test_solo_la_simulacion_y_la_aventura_matan_de_hambre():
         ruta.name for ruta in rutas
         if _asigna_hambre(ast.parse(ruta.read_text(encoding="utf-8")))
     }
-    assert con_hambre == {"simulacion.py", "aventura.py"}
+    assert con_hambre == set()
 
 
 def test_quien_juega_solo_en_la_web_no_tiene_plazo_en_el_refugio():
