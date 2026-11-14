@@ -1,8 +1,8 @@
-// Lo común a las pantallas que enseñan una lista de cosas —la tienda y la
-// mochila—: la cabecera con los saldos, la fila de cada cosa, la pregunta del
-// primer toque, la zona donde se dice lo que contestó el juego, la espera de
-// la lista y qué hacer con un error. Cada pantalla pone lo suyo encima. Todo
-// texto entra por `el` o por `textContent`.
+// Lo común a las pantallas que enseñan una lista de cosas —la tienda, la
+// mochila, el ropero y la incubadora—: la cabecera con los saldos, la fila de
+// cada cosa, la pregunta del primer toque, la zona donde se dice lo que
+// contestó el juego, la espera de la lista y qué hacer con un error. Cada
+// pantalla pone lo suyo encima. Todo texto entra por `el` o por `textContent`.
 
 import { conReintentos, pedir } from './api.js';
 import { lienzoDePieza } from './arte.js';
@@ -61,11 +61,16 @@ export function cabeceraConSaldos(icono, nombre) {
 export const linea = (texto, clase) => el('p', { class: clase }, texto);
 
 // Una fila: el ícono, el nombre, lo que se dice de ella y, a la derecha, lo
-// que se puede hacer. `apagada`, lo que no se puede comprar; `debajo`, lo que
-// va a lo ancho bajo todo lo demás.
+// que se puede hacer. `icono` es la ruta de una pieza del arte, que se pinta
+// en su lienzo, o un nodo ya hecho (un retrato), que se usa tal cual.
+// `apagada`, lo que no se puede comprar; `debajo`, lo que va a lo ancho bajo
+// todo lo demás.
 export function filaDeArticulo({ id, icono, nombre, lineas, accion, apagada = false, debajo = null }) {
-  const dibujo = lienzoDePieza(icono, LADO_DEL_ICONO, LADO_DEL_ICONO);
-  dibujo.classList.add('articulo-icono');
+  let dibujo = icono;
+  if (!(icono instanceof Node)) {
+    dibujo = lienzoDePieza(icono, LADO_DEL_ICONO, LADO_DEL_ICONO);
+    dibujo.classList.add('articulo-icono');
+  }
   return el('li', { class: apagada ? 'articulo apagado' : 'articulo', 'data-fila': id },
     dibujo,
     el('div', { class: 'articulo-texto' }, el('p', { class: 'articulo-nombre' }, nombre), lineas),

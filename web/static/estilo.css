@@ -1230,15 +1230,78 @@ a { color: var(--principal-hundido); font-weight: 600; }
   .cuidado-espera { font-size: 0.875rem; }
 }
 
-/* Bajo los cuidados, entrar a comprar (donde se puede) a lo ancho, y debajo la
-   mochila y la salida al pueblo, las dos en una fila. */
+/* Bajo los cuidados, entrar a comprar o a tu plantel (donde se puede) a lo
+   ancho, y debajo la mochila y la salida al pueblo, las dos en una fila. */
 .salidas-lugar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
-.boton-comprar { grid-column: 1 / -1; }
+.boton-comprar,
+.boton-plantel { grid-column: 1 / -1; }
 
 .boton-pueblo > span,
 .boton-mochila > span,
-.boton-comprar > span { font-size: 1.25rem; line-height: 1; }
+.boton-comprar > span,
+.boton-plantel > span { font-size: 1.25rem; line-height: 1; }
+
+/* En el Refugio, bajo su franja: quién de los tuyos vive ahí, de dos en dos o
+   más si caben, y cuánto le queda a tu estancia. */
+.viven-aqui {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+}
+
+.viven-aqui-titulo {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.viven-aqui-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.viven-aqui-uno {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+/* El retrato chico sobre su pared y su piso, como en la ficha. */
+.viven-aqui-retrato {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radio-chico);
+  background: linear-gradient(to bottom, var(--pared) 0, var(--pared) 68%, var(--piso) 68%, var(--piso) 100%);
+  object-fit: contain;
+  object-position: 50% 100%;
+  image-rendering: pixelated;
+}
+
+.viven-aqui-nombre { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+
+.viven-aqui-ninguno { color: var(--texto-suave); font-weight: 600; }
+
+.viven-aqui-estancia {
+  padding-top: 10px;
+  border-top: 1px solid var(--linea);
+  color: var(--texto-suave);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
 
 /* --- el pueblo --- */
 
@@ -1587,11 +1650,13 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .articulo.apagado .articulo-nombre { color: var(--texto-suave); }
 
-/* El precio que se toca para comprar, y «Usar» en la mochila: un botón lleno,
-   que se ve pulsable. */
+/* El precio que se toca para comprar, «Usar» en la mochila y «Sacar» y
+   «Ponerle nombre» en la incubadora: un botón lleno, que se ve pulsable. */
 .boton-precio,
 .boton-usar,
-.boton-poner {
+.boton-poner,
+.boton-sacar,
+.boton-nombrar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1613,7 +1678,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .boton-precio:active:not([aria-disabled="true"]),
 .boton-usar:active:not([aria-disabled="true"]),
-.boton-poner:active:not([aria-disabled="true"]) {
+.boton-poner:active:not([aria-disabled="true"]),
+.boton-sacar:active:not([aria-disabled="true"]),
+.boton-nombrar:active:not([aria-disabled="true"]) {
   transform: translateY(1px);
   box-shadow: 0 1px 0 var(--principal-hundido);
 }
@@ -1635,7 +1702,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 @media (hover: hover) {
   .boton-precio:not([aria-disabled="true"]):hover,
   .boton-usar:not([aria-disabled="true"]):hover,
-  .boton-poner:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
+  .boton-poner:not([aria-disabled="true"]):hover,
+  .boton-sacar:not([aria-disabled="true"]):hover,
+  .boton-nombrar:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
   .boton-vender:not([aria-disabled="true"]):hover { border-color: var(--error-texto); }
 }
 
@@ -1644,6 +1713,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .boton-usar[aria-disabled="true"],
 .boton-poner[aria-disabled="true"],
 .boton-quitar[aria-disabled="true"],
+.boton-sacar[aria-disabled="true"],
+.boton-nombrar[aria-disabled="true"],
 .boton-vender[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
 
 /* El precio de lo que no se vende: se lee, no se toca. */
@@ -1781,7 +1852,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   #juego[data-pantalla="tienda"],
   #juego[data-pantalla="mochila"],
   #juego[data-pantalla="ficha"],
-  #juego[data-pantalla="ropero"] { max-width: 1120px; }
+  #juego[data-pantalla="ropero"],
+  #juego[data-pantalla="incubadora"] { max-width: 1120px; }
 
   .cuerpo-tienda { padding: 24px 28px 36px; }
 
@@ -1792,7 +1864,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
   .estante .articulos,
   .cuerpo-mochila .articulos,
-  .cuerpo-ropero .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .cuerpo-ropero .articulos,
+  .cuerpo-incubadora .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
 
 /* --- la ficha completa: quién es, sus estadísticas y sus medallas --- */
@@ -2025,7 +2098,40 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 }
 
 .boton-poner.esperando,
-.boton-quitar.esperando { gap: 8px; }
+.boton-quitar.esperando,
+.boton-sacar.esperando { gap: 8px; }
+
+/* --- la incubadora: las filas, la pregunta y el aviso son los de la mochila --- */
+
+.contenido-incubadora { display: grid; gap: 12px; }
+
+/* El retrato en la baldosa del ícono, sobre su pared y su piso. */
+.retrato-plantel {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(to bottom, var(--pared) 0, var(--pared) 68%, var(--piso) 68%, var(--piso) 100%);
+  object-fit: contain;
+  object-position: 50% 100%;
+}
+
+/* El activo no tiene botón: se dice que es él. */
+.marca-activo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--hecho-fondo);
+  color: var(--hecho-texto);
+  font-size: 0.875rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.marca-activo::before { content: "✓"; content: "✓" / ""; }
+
+.incubadora-nota { color: var(--texto-suave); font-size: 0.9375rem; text-align: center; }
 
 /* En un computador, la ficha en dos columnas: quién es, sus estadísticas y
    «Volver» a un lado, las medallas al otro. */

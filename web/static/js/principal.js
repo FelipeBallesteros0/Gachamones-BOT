@@ -4,6 +4,7 @@
 import { pedir, versiones } from './api.js';
 import * as entrada from './entrada.js';
 import { ficha } from './ficha.js';
+import { incubadora } from './incubadora.js';
 import { lugar } from './lugar.js';
 import { pueblo } from './mapa.js';
 import { mochila } from './mochila.js';
@@ -29,6 +30,7 @@ const PANTALLAS = {
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),
   ficha: (destino, seguir, { estado }) => ficha(destino, estado, seguir),
   ropero: (destino, seguir, { estado }) => ropero(destino, estado, seguir),
+  incubadora: (destino, seguir, { estado }) => incubadora(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 
@@ -87,10 +89,10 @@ function recargarSiEsDeOtraVersion() {
 let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
-// `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'`, `'ficha'`, `'ropero'`
-// o nada) es lo que se quiere ver si todo está en orden, y `opciones.llegando`,
-// que se acaba de llegar caminando. Valen sólo para esta llamada: `seguir()` a
-// secas vuelve al lugar.
+// `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'`, `'ficha'`, `'ropero'`,
+// `'incubadora'` o nada) es lo que se quiere ver si todo está en orden, y
+// `opciones.llegando`, que se acaba de llegar caminando. Valen sólo para esta
+// llamada: `seguir()` a secas vuelve al lugar.
 async function seguir(estadoNuevo, opciones) {
   const { vista, llegando } = opciones || {};
   const esta = ++vuelta;

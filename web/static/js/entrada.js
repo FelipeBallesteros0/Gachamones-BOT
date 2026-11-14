@@ -549,8 +549,8 @@ export function huevo(contenedor, seguir, { sesion: quien, cuenta }) {
   }));
 
   // Ya tiene uno: se mira el estado otra vez. Si ahora toca otra pantalla (ya
-  // tiene gachamon, o hay una muerte que contar), se sigue con él; si no —un
-  // recluta sin nombre en la incubadora—, el huevo se queda con la frase del
+  // tiene gachamon, un recluta espera nombre en la incubadora o hay una muerte
+  // que contar), se sigue con él; si no, el huevo se queda con la frase del
   // servidor y el botón listo, en vez de volver a pintarse en silencio.
   async function yaTiene(error) {
     let estado;
@@ -579,15 +579,24 @@ export function huevo(contenedor, seguir, { sesion: quien, cuenta }) {
   contenedor.append(barra(quien.usuario), cuerpo);
 }
 
-// --- bautizo: el recién nacido y su nombre -------------------------------------
+// --- bautizo: el recién nacido, o un recluta, y su nombre -----------------------
 
-const BAUTIZO_YA_NO_TOCA = new Set(['sin_gachamon', 'ya_bautizado']);
+// Si ya tiene nombre, si ya no está o si ya no hay a quién bautizar, no es un
+// error que enseñar: hay que volver a decidir.
+const BAUTIZO_YA_NO_TOCA = new Set(['sin_gachamon', 'ya_bautizado', 'no_esta']);
 
 function conMayuscula(texto) {
   return texto ? texto[0].toUpperCase() + texto.slice(1) : '';
 }
 
+// El de siempre es el activo recién nacido, y se bautiza sin decir cuál. Sin
+// activo, es el recluta que espera en la incubadora (`estado.sin_nombre`), y
+// con el nombre va su `gachamon_id`.
 export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
+  if (!estado.gachamon && estado.sin_nombre) {
+    bautizoDeUnRecluta(contenedor, seguir, quien, estado.sin_nombre);
+    return;
+  }
   const nacido = estado.gachamon;
   const retrato = el('img', {
     class: 'retrato', src: nacido.retrato, alt: `Tu gachamon recién nacido, ${nacido.nombre_especie}`,
@@ -595,6 +604,39 @@ export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
   retrato.addEventListener('error', () => {
     retrato.replaceWith(el('span', { class: 'retrato-sin', role: 'img', 'aria-label': nacido.nombre_especie }, nacido.emoji));
   });
+  contenedor.append(
+    barra(quien.usuario),
+    el('div', { class: 'cuerpo' },
+      titulo('¡Nació tu gachamon!'),
+      el('div', { class: 'escena' }, ventana(), retrato),
+      el('div', { class: 'nacido' },
+        el('p', { class: 'nacido-especie' },
+          el('span', { 'aria-hidden': 'true' }, nacido.emoji), ' ', nacido.nombre_especie),
+        el('p', { class: 'nacido-detalle' }, `${conMayuscula(nacido.nombre_etapa)} · ${nacido.genero}`)),
+      formularioDelNombre(seguir, {}),
+    ),
+  );
+}
+
+// El recluta no trae más que su especie y su retrato: el retrato no se lee,
+// porque la frase de arriba ya dice quién es.
+function bautizoDeUnRecluta(contenedor, seguir, quien, recluta) {
+  const retrato = el('img', { class: 'retrato', src: recluta.retrato, alt: '' });
+  retrato.addEventListener('error', () => { retrato.hidden = true; });
+  contenedor.append(
+    barra(quien.usuario),
+    el('div', { class: 'cuerpo' },
+      titulo(`Este ${recluta.nombre_especie} espera en la incubadora y todavía no tiene nombre.`),
+      el('div', { class: 'escena' }, ventana(), retrato),
+      formularioDelNombre(seguir, { gachamon_id: recluta.id }),
+    ),
+  );
+}
+
+// El campo del nombre y su botón. Con el nombre se manda `cual` (nada para el
+// activo; `{gachamon_id}` para un recluta). Lo que contesta es el estado, con
+// el que se decide la pantalla.
+function formularioDelNombre(seguir, cual) {
   const nombre = el('input', {
     id: 'bautizo-nombre', class: 'texto', name: 'nombre', type: 'text', maxlength: 24,
     required: true, autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false',
@@ -614,7 +656,7 @@ export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
     conEspera(bautizar, async () => {
       callar(aviso);
       try {
-        await seguir(await pedir('POST', 'bautizar', { nombre: nombre.value }));
+        await seguir(await pedir('POST', 'bautizar', { nombre: nombre.value, ...cual }));
       } catch (error) {
         if (error && BAUTIZO_YA_NO_TOCA.has(error.clave)) {
           await seguir();
@@ -625,19 +667,7 @@ export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
       }
     });
   });
-
-  contenedor.append(
-    barra(quien.usuario),
-    el('div', { class: 'cuerpo' },
-      titulo('¡Nació tu gachamon!'),
-      el('div', { class: 'escena' }, ventana(), retrato),
-      el('div', { class: 'nacido' },
-        el('p', { class: 'nacido-especie' },
-          el('span', { 'aria-hidden': 'true' }, nacido.emoji), ' ', nacido.nombre_especie),
-        el('p', { class: 'nacido-detalle' }, `${conMayuscula(nacido.nombre_etapa)} · ${nacido.genero}`)),
-      formulario,
-    ),
-  );
+  return formulario;
 }
 
 // --- difunto: quién era y cuánto vivió -----------------------------------------

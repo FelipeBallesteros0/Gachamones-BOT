@@ -3,20 +3,24 @@
 // `sesion` es lo de /api/sesion (null sin sesión), `cuenta` lo de /api/cuenta y
 // `estado` lo de /api/estado (null mientras la cuenta sea nueva). El orden de
 // las preguntas es el del juego: sin avatar no se ve nada más, y una muerte
-// pendiente se cuenta antes que el huevo o el bautizo. `vista` es lo que se
-// pidió ver cuando todo está en orden: con `'pueblo'`, el mapa en vez del
-// lugar donde estás; con `'tienda'`, la tienda, si el lugar donde estás la
-// ofrece (si no, el lugar); con `'mochila'`, `'ficha'` o `'ropero'`, esa
-// pantalla, estés donde estés. Con otra, el lugar.
+// pendiente se cuenta antes que el huevo o el bautizo. Sin gachamon activo,
+// un recluta que espera nombre (`estado.sin_nombre`) se bautiza antes que
+// romper un huevo. `vista` es lo que se pidió ver cuando todo está en orden:
+// con `'pueblo'`, el mapa en vez del lugar donde estás; con `'tienda'` o
+// `'incubadora'`, esa pantalla, si el lugar donde estás la ofrece (si no, el
+// lugar); con `'mochila'`, `'ficha'` o `'ropero'`, esa pantalla, estés donde
+// estés. Con otra, el lugar.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
   if (!estado || !estado.avatar) return 'avatar';
   if (estado.difunto) return 'difunto';
+  if (!estado.gachamon && estado.sin_nombre) return 'bautizo';
   if (!estado.gachamon) return 'huevo';
   if (estado.gachamon.espera_nombre) return 'bautizo';
   if (vista === 'pueblo') return 'pueblo';
   if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : 'lugar';
+  if (vista === 'incubadora') return ofreceLaIncubadora(estado.lugar) ? 'incubadora' : 'lugar';
   if (vista === 'mochila') return 'mochila';
   if (vista === 'ficha') return 'ficha';
   if (vista === 'ropero') return 'ropero';
@@ -26,6 +30,11 @@ export function siguiente(sesion, cuenta, estado, vista) {
 // Si en ese lugar (`estado.lugar`) se puede comprar.
 export function ofreceLaTienda(lugar) {
   return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('tienda');
+}
+
+// Si en ese lugar (`estado.lugar`) se ve el plantel y se saca a otro.
+export function ofreceLaIncubadora(lugar) {
+  return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('incubadora');
 }
 
 // Si falla la petición de entrar al lugar al que se acaba de llegar: si el

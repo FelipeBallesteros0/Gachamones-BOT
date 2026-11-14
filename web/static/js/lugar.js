@@ -1,7 +1,9 @@
 // La pantalla principal: el lugar del pueblo donde estás, con su dibujo de
 // fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
 // un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo, abres su ficha
-// completa o la mochila o, donde el lugar tiene la tienda, entras a comprar.
+// completa o la mochila o, donde el lugar tiene la tienda, entras a comprar, y
+// donde tiene la incubadora, a tu plantel. En el Refugio se ve, además, quién
+// de los tuyos vive ahí y cuánto le queda a tu estancia.
 //
 // `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
 // estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
@@ -21,7 +23,7 @@ import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, faltante, olvidarLasQueFaltan } from './arte.js';
 import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
-import { ofreceLaTienda, siguiente } from './pantallas.js';
+import { ofreceLaIncubadora, ofreceLaTienda, siguiente } from './pantallas.js';
 import {
   avisoDelCuidado, avisosDeMedallas, cuantasGemas, cuantasMonedas, dondeVive, elegirGlobo,
   formatoEspera, seCelebraLaEvolucion,
@@ -219,12 +221,24 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   // mientras el servidor lo diga; sin aviso, no hay franja.
   const franjaDelLugar = el('p', { class: 'franja-del-lugar', hidden: true });
 
+  // En el Refugio, bajo su franja, quién de los tuyos vive ahí, cada uno con su
+  // retrato (que no se lee: su nombre va al lado), o que no vive ninguno; y
+  // debajo, si la hay, cuánto le queda a tu estancia. Fuera de él no se ve.
+  const vivenLista = el('ul', { class: 'viven-aqui-lista' });
+  const vivenNinguno = el('p', { class: 'viven-aqui-ninguno', hidden: true }, 'Ninguno de tus gachamones vive aquí.');
+  const estancia = el('p', { class: 'viven-aqui-estancia', hidden: true });
+  const vivenAqui = el('section', { class: 'viven-aqui', 'aria-labelledby': 'viven-aqui-titulo', hidden: true },
+    el('h2', { class: 'viven-aqui-titulo', id: 'viven-aqui-titulo' }, 'Viven aquí'),
+    vivenLista,
+    vivenNinguno,
+    estancia);
+
   // Después, lo que contesta el juego, o, si no hay nada que decir, la pista de
   // que se le puede acariciar.
   const aviso = el('p', { class: 'aviso-lugar', 'aria-live': 'polite' });
   const pista = el('p', { class: 'pista-lugar' });
   const avisos = el('div', { class: 'avisos-lugar' }, aviso, pista);
-  const bajoLaFicha = el('div', { class: 'bajo-la-ficha' }, franjaDelLugar, avisos);
+  const bajoLaFicha = el('div', { class: 'bajo-la-ficha' }, franjaDelLugar, vivenAqui, avisos);
 
   // --- los cuidados ---------------------------------------------------------------
 
@@ -239,7 +253,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     return cuidado;
   });
 
-  // --- comprar, donde el lugar lo ofrece, la mochila e ir al pueblo ----------
+  // --- comprar o tu plantel, donde el lugar lo ofrece, la mochila e ir al pueblo ----
 
   // Se ve sólo mientras el lugar donde estás tenga la tienda.
   const aComprar = el('button', { type: 'button', class: 'boton principal boton-comprar', hidden: true },
@@ -247,6 +261,14 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   aComprar.addEventListener('click', () => {
     parar();
     seguir(actual, { vista: 'tienda' });
+  });
+
+  // En el mismo sitio, sólo mientras el lugar donde estás tenga la incubadora.
+  const aTuPlantel = el('button', { type: 'button', class: 'boton principal boton-plantel', hidden: true },
+    el('span', { 'aria-hidden': 'true' }, '🥚'), 'Tu plantel');
+  aTuPlantel.addEventListener('click', () => {
+    parar();
+    seguir(actual, { vista: 'incubadora' });
   });
 
   const alPueblo = el('button', { type: 'button', class: 'boton boton-pueblo' },
@@ -269,7 +291,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     ficha,
     bajoLaFicha,
     el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),
-    el('div', { class: 'salidas-lugar' }, aComprar, aLaMochila, alPueblo));
+    el('div', { class: 'salidas-lugar' }, aComprar, aTuPlantel, aLaMochila, alPueblo));
   contenedor.append(cabecera, cuerpo);
 
   // --- pintar lo que dice el estado -----------------------------------------------
@@ -304,6 +326,8 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     if (franjaDelLugar.textContent !== avisoDelLugar) franjaDelLugar.textContent = avisoDelLugar;
     franjaDelLugar.hidden = !avisoDelLugar;
     aComprar.hidden = !ofreceLaTienda(actual.lugar);
+    aTuPlantel.hidden = !ofreceLaIncubadora(actual.lugar);
+    ponerElRefugio(actual.lugar.refugio);
     // Sin el dibujo del lugar, la pared y el piso siguen siendo los del hogar.
     escena.dataset.hogar = actual.hogar;
     escena.dataset.etapa = g.etapa;
@@ -345,6 +369,33 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       callarGlobo();
     }
     contar();
+  }
+
+  // --- quién vive en el refugio -------------------------------------------------------
+
+  // Los que se pintaron, para no volver a poner los mismos retratos (y que
+  // parpadeen) cada vez que llega el estado.
+  let vivenPintados = null;
+
+  function ponerElRefugio(refugio) {
+    vivenAqui.hidden = !refugio;
+    if (!refugio) {
+      vivenPintados = null;
+      return;
+    }
+    const viven = Array.isArray(refugio.viven) ? refugio.viven : [];
+    const huella = JSON.stringify(viven);
+    if (huella !== vivenPintados) {
+      vivenPintados = huella;
+      vivenLista.replaceChildren(...viven.map((g) => el('li', { class: 'viven-aqui-uno' },
+        el('img', { class: 'viven-aqui-retrato', src: g.retrato, alt: '', draggable: 'false' }),
+        el('span', { class: 'viven-aqui-nombre' }, g.nombre))));
+      vivenLista.hidden = !viven.length;
+      vivenNinguno.hidden = Boolean(viven.length);
+    }
+    const cuanto = refugio.estancia || '';
+    if (estancia.textContent !== cuanto) estancia.textContent = cuanto;
+    estancia.hidden = !cuanto;
   }
 
   // --- el fondo de la escena ----------------------------------------------------------
