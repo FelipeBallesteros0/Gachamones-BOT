@@ -119,10 +119,11 @@ SIN_GACHAMON_VIVO = "No tienes ningún gachamon vivo. Empieza con `/huevo`."
 def texto_del_uso(objeto: obj.Objeto, resultado: economia.ResultadoUso) -> str:
     """Lo que se le contesta en Discord a quien usa algo de la mochila.
 
-    Las frases de siempre, letra por letra. Las de la placa salen del
-    formulario y las demás del menú, por eso un mismo motivo se dice distinto
-    según el objeto. Un resultado que Discord no puede producir revienta en vez
-    de inventarse una frase.
+    Las frases de siempre, letra por letra, salvo la del ticket usado, que ya no
+    avisa de que se pierda tiempo; y las de `no_hace_falta`, para lo que no
+    haría nada. Las de la placa salen del formulario y las demás del menú, por
+    eso un mismo motivo se dice distinto según el objeto. Un resultado que
+    Discord no puede producir revienta en vez de inventarse una frase.
     """
     if not resultado.ok:
         if objeto.renombra:

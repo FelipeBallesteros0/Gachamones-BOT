@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 
 import db
@@ -67,9 +69,7 @@ def test_usar_dos_veces_con_el_mismo_evento_gasta_una(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     dar(YO, "golosinas", 2)
-    # Con el reloj quieto no decae nada: la comida queda justo donde se deja.
-    with db.conectar() as con:
-        con.execute("UPDATE criaturas SET hambre = 50 WHERE usuario_id = ? AND guild_id = ?", (YO, G))
+    con_hambre(YO)
     cuerpo = {"evento_id": "evento-mochila-01", "clave": "golosinas"}
     primera = cliente.post(USAR, json=cuerpo, headers=ESCRIBIR).json()
     segunda = cliente.post(USAR, json=cuerpo, headers=ESCRIBIR).json()
@@ -129,6 +129,31 @@ def test_la_pocion_de_comida_con_la_barra_llena_no_se_gasta(cliente, monkeypatch
         False, "no_hace_falta", "Pelusa no tiene hambre: su comida ya está a 100. No se gastó nada.")
     assert db.inventario(YO, G) == {"pocion_comida": 1}
     assert [o["cantidad"] for o in r.json()["mochila"]["objetos"]] == [1]
+
+
+def test_el_silbato_sin_espera_de_entrenar_no_se_gasta(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)                     # recién nacido: sin ninguna espera
+    dar(YO, "silbato")
+    r = usar(cliente, "silbato")
+    assert r.status_code == 200
+    assert (r.json()["ok"], r.json()["clave"], r.json()["mensaje"]) == (
+        False, "no_hace_falta", "Pelusa ya puede entrenar: no hace falta. No se gastó nada.")
+    assert db.inventario(YO, G) == {"silbato": 1}
+
+
+def test_el_ticket_que_no_alargaria_la_estancia_no_se_gasta(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_vinculo(cliente)
+    dar(LA_DE_DISCORD, "ticket_refugio")
+    ahora = db.ahora_utc()
+    db.hogar_de(LA_DE_DISCORD, G, ahora)      # empieza ahora: ya llega a ahora + 7 días
+    assert db.hogar_leido(LA_DE_DISCORD, G, ahora).refugio_hasta == ahora + timedelta(days=7)
+    r = usar(cliente, "ticket_refugio")
+    assert r.status_code == 200
+    assert (r.json()["ok"], r.json()["clave"], r.json()["mensaje"]) == (
+        False, "no_hace_falta", "El ticket no alargaría tu estancia en el refugio. No se gastó nada.")
+    assert db.inventario(LA_DE_DISCORD, G) == {"ticket_refugio": 1}
 
 
 def test_la_semilla_no_se_usa_desde_la_mochila(cliente, monkeypatch):
@@ -289,8 +314,7 @@ def test_con_el_gachamon_que_se_ve_o_sin_decirlo_se_usa_como_siempre(cliente, mo
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     dar(YO, "golosinas", 2)
-    with db.conectar() as con:
-        con.execute("UPDATE criaturas SET hambre = 50 WHERE usuario_id = ? AND guild_id = ?", (YO, G))
+    con_hambre(YO)
     visto = cliente.get(ESTADO).json()["gachamon"]["id"]
     # Sin `gachamon_id`, como mandan las páginas de antes durante el despliegue.
     sin_decirlo = usar(cliente, "golosinas", evento="evento-mochila-02").json()
