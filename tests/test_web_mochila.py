@@ -3,6 +3,7 @@ import pytest
 import db
 import identidad
 import objetos
+import simulacion as sim
 from ayudas_web import ESCRIBIR, PUEBLO, con_gachamon, entrar, poner_reloj
 from test_web_tienda import LA_DE_DISCORD, con_vinculo
 
@@ -18,6 +19,13 @@ def dar(usuario, clave, cantidad=1):
 
 def usar(cliente, clave, evento="evento-mochila-01", **mas):
     return cliente.post(USAR, json={"evento_id": evento, "clave": clave, **mas}, headers=ESCRIBIR)
+
+
+def con_hambre(usuario, comida=50):
+    """Con el reloj quieto no decae nada: la comida queda justo donde se deja.
+    Con la barra llena, la comida ni se usaría (`no_hace_falta`)."""
+    with db.conectar() as con:
+        con.execute("UPDATE criaturas SET hambre = ? WHERE usuario_id = ? AND guild_id = ?", (comida, usuario, G))
 
 
 def test_la_mochila_ensena_lo_que_llevas_y_como_se_usa(cliente, monkeypatch):
@@ -104,10 +112,23 @@ def test_la_placa_con_el_mismo_nombre(cliente, monkeypatch):
 def test_usar_lo_que_no_llevas(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
+    con_hambre(YO)
     r = usar(cliente, "pocion_comida")
     assert r.status_code == 200
     assert (r.json()["ok"], r.json()["clave"], r.json()["mensaje"]) == (
         False, "no_tienes", "Ya no te queda ninguno.")
+
+
+def test_la_pocion_de_comida_con_la_barra_llena_no_se_gasta(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)                     # recién nacido: la comida a 100
+    dar(YO, "pocion_comida")
+    r = usar(cliente, "pocion_comida")
+    assert r.status_code == 200
+    assert (r.json()["ok"], r.json()["clave"], r.json()["mensaje"]) == (
+        False, "no_hace_falta", "Pelusa no tiene hambre: su comida ya está a 100. No se gastó nada.")
+    assert db.inventario(YO, G) == {"pocion_comida": 1}
+    assert [o["cantidad"] for o in r.json()["mochila"]["objetos"]] == [1]
 
 
 def test_la_semilla_no_se_usa_desde_la_mochila(cliente, monkeypatch):
@@ -130,9 +151,12 @@ def test_el_ticket_sin_plazo_no_hace_falta(cliente, monkeypatch):
 
 
 def test_el_ticket_con_plazo_da_otra_estancia(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
+    reloj = poner_reloj(monkeypatch)
     con_vinculo(cliente)
     dar(LA_DE_DISCORD, "ticket_refugio")
+    # Con la estancia entera no la alargaría (`no_hace_falta`): empezó ayer.
+    db.hogar_de(LA_DE_DISCORD, G, db.ahora_utc())
+    reloj.pasar(days=1)
     r = usar(cliente, "ticket_refugio").json()
     assert r["ok"] is True
     assert r["mensaje"].startswith("Tienes otra estancia en el refugio, hasta el ")
@@ -143,6 +167,10 @@ def test_las_frases_de_cada_efecto(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
     con_vinculo(cliente)
     reloj.pasar(hours=1)
+    # Que los reinicios tengan una espera que borrar: si no, ni se usan.
+    pelusa = db.criatura_activa(LA_DE_DISCORD, G)
+    for accion in (sim.ENTRENAR, sim.COMPETIR):
+        db.poner_cooldown(pelusa.id, accion, db.ahora_utc())
     ok = []
     for objeto in objetos.CATALOGO.values():
         if not objeto.se_aplica_al_momento or objeto.dias_de_refugio:
@@ -173,6 +201,7 @@ def test_una_clave_que_no_existe_es_un_422(cliente, monkeypatch):
 def test_un_evento_para_otra_cosa_es_un_409(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
+    con_hambre(YO)                # con la barra llena ni se usaría, ni se anotaría
     dar(YO, "pocion_comida"); dar(YO, "placa")
     assert usar(cliente, "pocion_comida", evento="evento-doble-01").status_code == 200
     r = usar(cliente, "placa", evento="evento-doble-01", nombre="Nube")
@@ -306,6 +335,7 @@ def test_cada_cuenta_ve_y_usa_su_mochila(cliente, monkeypatch):
     dar(YO, "pocion_comida", 2)
     entrar(cliente, 2)
     con_gachamon(cliente, 2, "Nube")
+    con_hambre(identidad.de_cuenta_web(2))
     assert cliente.get(MOCHILA).json()["objetos"] == []
     assert usar(cliente, "pocion_comida").json()["clave"] == "no_tienes"
     entrar(cliente, 1)

@@ -358,6 +358,7 @@ def test_usar_un_objeto_con_un_canal_guardado_ilegible_responde_igual(monkeypatc
 
 def test_objeto_agotado_no_congela_la_ficha(monkeypatch):
     criatura = nacer()
+    db.poner_cooldown(criatura.id, sim.ENTRENAR, T0)   # con espera: si no, ni haría falta
     db.guardar_pantalla(criatura.id, "ficha-agotada", "canal-viejo")
     silbato = obj.CATALOGO["silbato"]
     monkeypatch.setattr(db, "ahora_utc", lambda: T0)
@@ -477,9 +478,15 @@ def test_ningun_objeto_miente_sobre_lo_que_hizo():
     Usar cualquier cosa del catálogo desde la mochila **o hace lo que dice, o se
     niega**. Lo que no puede es devolver un mensaje inventado, que es lo que
     pasaba por tener un caso por descarte al final de `usar`.
+
+    Cada uno con algo que hacer (hambre, esperas, estancia por alargar): lo que
+    no haría nada se niega con `no_hace_falta`, y eso tiene sus propias pruebas.
     """
+    db.hogar_de("u1", "g1", T0 - timedelta(days=1))
     for clave, objeto in obj.CATALOGO.items():
         criatura = con_hambre(40.0)
+        for accion in (sim.ENTRENAR, sim.COMPETIR):
+            db.poner_cooldown(criatura.id, accion, T0)
         antes = db.criatura_activa("u1", "g1")
         dar(objeto)
 
@@ -608,9 +615,11 @@ FRASES_AL_USAR = {
         "🌈 **Prueba** se come una sopaipilla arcoíris.\n"
         "-# **+5** en las cuatro estadísticas (1d10) durante 5 minutos."
     ),
+    # La única frase que cambió a propósito: desde que un ticket que no alargaría
+    # la estancia no se gasta, ya nunca se pierde tiempo usándolo.
     "ticket_refugio": (
         "🎟️ Otra estancia en el refugio, hasta el **08/01**.\n"
-        "-# Cuenta desde ahora: si te sobraba tiempo, lo has perdido."
+        "-# Cuenta desde ahora."
     ),
     "golosinas": "🍬 **Prueba** se come Golosinas de campo. Comida +25 (ahora 65).",
     "pocion_comida": "🧃 **Prueba** se come Poción de comida. Comida +60 (ahora 100).",
@@ -619,7 +628,11 @@ FRASES_AL_USAR = {
 
 @pytest.mark.parametrize("clave", sorted(FRASES_AL_USAR))
 def test_la_mochila_cuenta_lo_de_siempre(clave, reloj_y_dado):
-    con_hambre(40.0)              # nace con el carácter de siempre: alegre
+    criatura = con_hambre(40.0)   # nace con el carácter de siempre: alegre
+    # Que cada uno tenga algo que hacer: si no, ni se gasta (`no_hace_falta`).
+    for accion in (sim.ENTRENAR, sim.COMPETIR):
+        db.poner_cooldown(criatura.id, accion, T0)
+    db.hogar_de("u1", "g1", T0 - timedelta(days=1))
     objeto = obj.CATALOGO[clave]
     dar(objeto)
 
@@ -655,8 +668,38 @@ def test_lo_que_no_se_usa_en_la_mochila_lo_dice_y_no_se_gasta(reloj_y_dado):
     assert db.inventario("u1", "g1") == {"semilla": 1}
 
 
-def test_lo_que_ya_no_tienes_lo_dice(reloj_y_dado):
+FRASES_DE_LO_QUE_NO_HACE_FALTA = {
+    "pocion_comida": (
+        "🧃 **Prueba** no tiene hambre: su comida ya está a 100. No se gastó nada."
+    ),
+    "golosinas": (
+        "🍬 **Prueba** no tiene hambre: su comida ya está a 100. No se gastó nada."
+    ),
+    "silbato": "📣 **Prueba** ya puede entrenar: no hace falta. No se gastó nada.",
+    "descanso_rapido": (
+        "😮‍💨 **Prueba** ya puede competir: no hace falta. No se gastó nada."
+    ),
+    "ticket_refugio": (
+        "🎟️ El ticket no alargaría tu estancia en el refugio. No se gastó nada."
+    ),
+}
+
+
+@pytest.mark.parametrize("clave", sorted(FRASES_DE_LO_QUE_NO_HACE_FALTA))
+def test_lo_que_no_haria_nada_lo_dice_y_no_se_gasta(clave, reloj_y_dado):
+    """Recién nacido: la comida a 100, sin esperas y con la estancia entera."""
     nacer()
+    objeto = obj.CATALOGO[clave]
+    dar(objeto)
+    congelar = AsyncMock()
+
+    assert elegir_en_la_mochila(objeto, congelar) == FRASES_DE_LO_QUE_NO_HACE_FALTA[clave]
+    assert db.inventario("u1", "g1") == {clave: 1}
+    congelar.assert_not_awaited()
+
+
+def test_lo_que_ya_no_tienes_lo_dice(reloj_y_dado):
+    db.poner_cooldown(nacer().id, sim.ENTRENAR, T0)   # con espera que borrar
 
     assert elegir_en_la_mochila(obj.CATALOGO["silbato"]) == "Ya no te queda ninguno."
 

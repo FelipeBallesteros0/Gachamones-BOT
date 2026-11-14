@@ -159,6 +159,7 @@ Instala el hook local cuando prepares el entorno:
 - Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
 - En la web se compra estando en la Tienda; lo que hoy sólo sirve en Discord se le vende sólo a quien tiene Discord vinculado.
+- Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar, un ticket que no alargaría la estancia— se rechaza sin gastarlo, en Discord y en la web.
 
 ## Arte ASCII
 

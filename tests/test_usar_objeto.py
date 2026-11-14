@@ -80,7 +80,8 @@ def test_ningun_rechazo_gasta_el_objeto(base):
     dar(U, "pocion_comida", 1)
     dar(U, "semilla", 1)
     assert economia.usar_objeto("evento-uso-02", U, G, obj.CATALOGO["pocion_comida"], T0).motivo == "sin_gachamon"
-    nace()
+    kuro = nace()
+    db.poner_cooldown(kuro.id, sim.ENTRENAR, T0)   # con espera: si no, ni haría falta
     assert economia.usar_objeto("evento-uso-03", U, G, obj.CATALOGO["semilla"], T0).motivo == "no_se_usa"
     assert economia.usar_objeto("evento-uso-04", U, G, obj.CATALOGO["silbato"], T0).motivo == "no_tienes"
     assert db.inventario(U, G) == {"pocion_comida": 1, "semilla": 1}
@@ -123,7 +124,7 @@ def test_el_replay_no_vuelve_a_tirar_el_dado(base):
 
 
 def test_un_evento_no_sirve_para_usar_otra_cosa(base):
-    nace()
+    hambrear(nace(), 40)          # con la barra llena ni se usaría, ni se anotaría
     dar(U, "pocion_comida", 1)
     dar(U, "silbato", 1)
     economia.usar_objeto("evento-uso-08", U, G, obj.CATALOGO["pocion_comida"], T0)
@@ -134,7 +135,8 @@ def test_un_evento_no_sirve_para_usar_otra_cosa(base):
 
 
 def test_si_el_efecto_falla_despues_de_gastar_el_objeto_vuelve_a_la_mochila(base, monkeypatch):
-    nace()
+    kuro = nace()
+    db.poner_cooldown(kuro.id, sim.ENTRENAR, T0)   # sin espera no llegaría a gastarlo
     dar(U, "silbato", 1)
 
     def revienta(*_args, **_kwargs):
@@ -160,7 +162,8 @@ def test_un_objeto_sin_efecto_conocido_es_un_error_y_no_se_gasta(base, monkeypat
 
 def test_un_rechazo_no_se_anota_y_repetirlo_vuelve_a_decidir(base):
     """Entre un intento y el reintento puede haber llegado el objeto."""
-    nace()
+    kuro = nace()
+    db.poner_cooldown(kuro.id, sim.ENTRENAR, T0)
     assert economia.usar_objeto("evento-uso-09", U, G, obj.CATALOGO["silbato"], T0).motivo == "no_tienes"
     dar(U, "silbato", 1)
 
@@ -237,9 +240,11 @@ def test_la_sopaipilla_arcoiris_va_a_las_cuatro_con_su_dado(base):
 
 
 def test_el_ticket_da_otra_semana_desde_ahora(base):
-    """Una identidad de Discord que nunca había mirado su casa: el ticket le
-    escribe la estancia y no se queda en la que se le supone al leerla."""
+    """Una identidad de Discord con la estancia empezada ayer: el ticket se la
+    escribe desde ahora, no desde que acababa. (Quien nunca había mirado su casa
+    ya tiene la semana entera que se le supone: ése no lo gasta.)"""
     nace()
+    db.hogar_de(U, G, T0)
     dar(U, "ticket_refugio", 1)
     ahora = T0 + timedelta(days=1)
 
@@ -254,6 +259,7 @@ def test_el_ticket_da_otra_semana_desde_ahora(base):
 
 def test_el_replay_del_ticket_devuelve_la_misma_fecha(base):
     nace()
+    db.hogar_de(U, G, T0)
     dar(U, "ticket_refugio", 2)
     ahora = T0 + timedelta(days=1)
     primera = economia.usar_objeto("evento-uso-15", U, G, TICKET, ahora)
@@ -421,3 +427,106 @@ def test_el_replay_contesta_lo_de_la_primera_vez_aunque_el_activo_ya_sea_otro(ba
     assert otro_uso.ok and otro_uso.replay and otro_uso.comida == uso.comida == 25
     assert otra_placa.ok and otra_placa.replay and otra_placa.nombre_anterior == "Kuro"
     assert db.inventario(U, G) == {"golosinas": 1, "placa": 1}
+
+
+# --- Lo que no haría nada no se gasta ----------------------------------------------
+#
+# Tres casos, ni uno más: comida que no sumaría nada, un reinicio sin espera que
+# borrar y un ticket que no alargaría la estancia. Se mira con el gachamon ya
+# puesto al día y antes de gastar, y no se anota: es un rechazo como los demás.
+
+POCION_COMIDA = obj.CATALOGO["pocion_comida"]
+SILBATO = obj.CATALOGO["silbato"]
+
+
+def test_la_comida_con_la_barra_llena_no_se_gasta(base):
+    kuro = nace()                                   # recién nacido: la comida a 100
+    dar(U, "pocion_comida", 1)
+
+    llena = economia.usar_objeto("evento-uso-50", U, G, POCION_COMIDA, T0)
+
+    assert llena.ok is False and llena.motivo == "no_hace_falta"
+    assert llena.efecto == "comida" and llena.criatura.id == kuro.id
+    assert db.inventario(U, G) == {"pocion_comida": 1}
+    # No quedó anotado: el mismo evento, con la barra ya baja, sí la usa.
+    hambrear(db.criatura_activa(U, G), 40)
+    baja = economia.usar_objeto("evento-uso-50", U, G, POCION_COMIDA, T0)
+    assert baja.ok and not baja.replay and baja.comida == 60
+    assert db.inventario(U, G) == {}
+
+
+def test_con_la_comida_casi_llena_tambien_es_no_hace_falta_si_sumaria_cero(base):
+    """Se cuenta redondeado, como en la frase: «Comida +0» no se le dice a nadie."""
+    nace()
+    dar(U, "golosinas", 2)
+
+    hambrear(db.criatura_activa(U, G), 99.6)
+    casi = economia.usar_objeto("evento-uso-51", U, G, GOLOSINAS, T0)
+    assert (casi.ok, casi.motivo, casi.efecto) == (False, "no_hace_falta", "comida")
+    assert db.inventario(U, G) == {"golosinas": 2}
+
+    hambrear(db.criatura_activa(U, G), 99.4)
+    usada = economia.usar_objeto("evento-uso-52", U, G, GOLOSINAS, T0)
+    assert usada.ok and usada.comida == 1
+    assert db.inventario(U, G) == {"golosinas": 1}
+
+
+def test_un_reinicio_sin_espera_no_se_gasta(base):
+    kuro = nace()
+    dar(U, "silbato", 1)
+
+    sin_espera = economia.usar_objeto("evento-uso-53", U, G, SILBATO, T0)
+    assert (sin_espera.ok, sin_espera.motivo) == (False, "no_hace_falta")
+    assert sin_espera.efecto == "reinicia" and sin_espera.accion == sim.ENTRENAR
+    # Una espera que ya pasó tampoco es nada que borrar.
+    db.poner_cooldown(kuro.id, sim.ENTRENAR, T0 - sim.COOLDOWNS[sim.ENTRENAR])
+    assert economia.usar_objeto("evento-uso-54", U, G, SILBATO, T0).motivo == "no_hace_falta"
+    assert db.inventario(U, G) == {"silbato": 1}
+
+    db.poner_cooldown(kuro.id, sim.ENTRENAR, T0)
+    con_espera = economia.usar_objeto("evento-uso-55", U, G, SILBATO, T0)
+    assert con_espera.ok and con_espera.efecto == "reinicia"
+    assert db.espera_de(kuro.id, sim.ENTRENAR, T0) == timedelta(0)
+    assert db.inventario(U, G) == {}
+
+
+def test_un_ticket_que_no_alargaria_no_se_gasta(base):
+    nace()
+    dar(U, "ticket_refugio", 1)
+    # Sin estancia empezada, la que se le supone ya llega a ahora + 7 días; y
+    # mirarla para decir que no tampoco se la empieza.
+    sin_empezar = economia.usar_objeto("evento-uso-56", U, G, TICKET, T0)
+    assert (sin_empezar.motivo, sin_empezar.efecto) == ("no_hace_falta", "refugio")
+    with db.conectar() as con:
+        assert not db._hay_hogar(con, U, G)
+
+    db.hogar_de(U, G, T0)                           # recién empezada: hasta T0 + 7 días
+    recien = economia.usar_objeto("evento-uso-57", U, G, TICKET, T0)
+    assert (recien.ok, recien.motivo, recien.efecto) == (False, "no_hace_falta", "refugio")
+    assert db.inventario(U, G) == {"ticket_refugio": 1}
+
+    a_la_mitad = T0 + timedelta(days=3, hours=12)
+    # Sin comer no llegaría vivo a la mitad de la estancia: come a los dos días.
+    hambrear(db.avanzar(db.criatura_activa(U, G), T0 + timedelta(days=2)), 100)
+    usado = economia.usar_objeto("evento-uso-58", U, G, TICKET, a_la_mitad)
+    assert usado.ok and usado.refugio_hasta == a_la_mitad + timedelta(days=7)
+    assert db.hogar_leido(U, G, a_la_mitad).refugio_hasta == a_la_mitad + timedelta(days=7)
+    assert db.inventario(U, G) == {}
+
+
+def test_las_pociones_y_las_sopaipillas_siempre_se_usan(base):
+    """Ponen su efecto o lo renuevan: con todo lleno y sin esperas, también."""
+    nace()
+    pocion = obj.CATALOGO["fuerza_1d4"]
+    sopaipilla = obj.CATALOGO[hue.clave_de_sopaipilla("rojo")]
+    dar(U, pocion.clave, 2)
+    dar(U, sopaipilla.clave, 2)
+
+    for vez in (1, 2):                              # la segunda, renovando
+        assert economia.usar_objeto(
+            f"evento-uso-6{vez}", U, G, pocion, T0, random.Random(7)
+        ).ok
+        assert economia.usar_objeto(
+            f"evento-uso-7{vez}", U, G, sopaipilla, T0, random.Random(7)
+        ).ok
+    assert db.inventario(U, G) == {}

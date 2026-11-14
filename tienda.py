@@ -155,10 +155,11 @@ def texto_del_uso(objeto: obj.Objeto, resultado: economia.ResultadoUso) -> str:
         )
 
     if resultado.efecto == "refugio":
+        # Ya no avisa de que se pierda tiempo: un ticket que no alargaría la
+        # estancia no se gasta (`no_hace_falta`).
         return (
             f"{objeto.emoji} Otra estancia en el refugio, hasta el "
-            f"**{resultado.refugio_hasta:%d/%m}**.\n-# Cuenta desde ahora: si te "
-            "sobraba tiempo, lo has perdido."
+            f"**{resultado.refugio_hasta:%d/%m}**.\n-# Cuenta desde ahora."
         )
 
     if resultado.efecto == "comida":
@@ -187,6 +188,22 @@ def _por_que_no(objeto: obj.Objeto, resultado: economia.ResultadoUso) -> str:
         )
     if resultado.motivo == "no_tienes":
         return "Ya no te queda ninguno."
+    if resultado.motivo == "no_hace_falta":
+        if resultado.efecto == "comida":
+            return (
+                f"{objeto.emoji} **{resultado.criatura.nombre}** no tiene hambre: "
+                "su comida ya está a 100. No se gastó nada."
+            )
+        if resultado.efecto == "reinicia":
+            return (
+                f"{objeto.emoji} **{resultado.criatura.nombre}** ya puede "
+                f"{resultado.accion}: no hace falta. No se gastó nada."
+            )
+        if resultado.efecto == "refugio":
+            return (
+                f"{objeto.emoji} El ticket no alargaría tu estancia en el "
+                "refugio. No se gastó nada."
+            )
     # `sin_plazo` es sólo de quien juega en la web: en Discord no puede salir.
     raise ValueError(f"rechazo sin frase en la mochila: {resultado.motivo}")
 

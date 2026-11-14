@@ -2068,9 +2068,9 @@ def alargar_el_refugio_en(
 ) -> datetime:
     """Le da otra estancia en el refugio y devuelve hasta cuándo llega.
 
-    Va dentro de una transacción ya abierta. Cuenta **desde ahora** y no desde el final de la que hubiera: quien lo use
-    con estancia de sobra estaría tirando el ticket, así que el aviso lo dice y
-    el menú lo deja para cuando haga falta.
+    Va dentro de una transacción ya abierta. Cuenta **desde ahora** y no desde
+    el final de la que hubiera; por eso el ticket sólo se gasta cuando alarga
+    la estancia (`economia.usar_objeto` dice que no hace falta si no).
     """
     _hogar_de(con, usuario_id, guild_id, ahora)     # la crea si no está
     hasta = ahora + timedelta(days=dias)

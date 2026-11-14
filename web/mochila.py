@@ -94,6 +94,8 @@ def frase(objeto: obj.Objeto, hecho: economia.ResultadoUso, propuesto: str = "")
         raise problema(409, "sin_gachamon", _YA_NO_ES_EL_MISMO)
     if hecho.motivo == "nombre":
         return dicho_no("nombre", hecho.problema or "Ese nombre no vale.")
+    if hecho.motivo == "no_hace_falta":
+        return dicho_no("no_hace_falta", _no_hace_falta(hecho))
     if hecho.motivo is not None:
         return dicho_no(hecho.motivo, _NO_DEL_USO[hecho.motivo])
     minutos = obj.MINUTOS_DE_EFECTO
@@ -127,6 +129,17 @@ def frase(objeto: obj.Objeto, hecho: economia.ResultadoUso, propuesto: str = "")
         return dicho_si(f"{hecho.nombre_anterior} pasa a llamarse {sim.normalizar_nombre(propuesto)}.")
     # Un efecto que no conocemos es un fallo nuestro y no se disfraza.
     raise RuntimeError(f"efecto de uso sin frase: {hecho.efecto!r}")
+
+
+def _no_hace_falta(hecho: economia.ResultadoUso) -> str:
+    """Por qué no se usó lo que no habría hecho nada; `efecto` es el que habría tenido."""
+    if hecho.efecto == "comida":
+        return f"{_quien(hecho)} no tiene hambre: su comida ya está a 100. No se gastó nada."
+    if hecho.efecto == "reinicia":
+        return f"{_quien(hecho)} ya puede {hecho.accion}: no hace falta. No se gastó nada."
+    if hecho.efecto == "refugio":
+        return "El ticket no alargaría tu estancia en el refugio. No se gastó nada."
+    raise RuntimeError(f"no_hace_falta sin frase: {hecho.efecto!r}")
 
 
 @router.post("/mochila/usar", dependencies=[Depends(con_cabecera)])

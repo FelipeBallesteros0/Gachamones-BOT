@@ -788,14 +788,15 @@ def test_el_ticket_devuelve_una_estancia_entera():
 
 
 def test_el_ticket_cuenta_desde_que_se_usa():
-    """Y el aviso lo dice: usarlo con estancia de sobra es tirarlo."""
+    """Y el aviso lo dice. Ya no avisa de que se pierda tiempo: un ticket que no
+    alargaría la estancia ni se gasta."""
     nacer()
     db.hogar_de("u1", "g1", T0)
     dar(TICKET)
 
     _, aviso = usar(TICKET, T0 + timedelta(days=1))
 
-    assert "lo has perdido" in aviso
+    assert aviso.endswith("\n-# Cuenta desde ahora.")
     assert db.hogar_de("u1", "g1", T0).refugio_hasta == (
         T0 + timedelta(days=1 + TICKET.dias_de_refugio)
     )

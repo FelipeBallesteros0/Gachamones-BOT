@@ -2226,10 +2226,14 @@ def comprar(
 
 @dataclass(frozen=True)
 class ResultadoUso:
-    """Cómo salió usar algo de la mochila, con los datos para contarlo."""
+    """Cómo salió usar algo de la mochila, con los datos para contarlo.
+
+    En el rechazo `no_hace_falta` (no habría hecho nada), `efecto` y `accion`
+    son los que habría tenido, y `criatura` cómo está: lo que piden las frases.
+    """
 
     ok: bool = False
-    motivo: str | None = None            # sin_gachamon | no_tienes | no_se_usa | sin_plazo | nombre | mismo_nombre
+    motivo: str | None = None            # sin_gachamon | no_tienes | no_se_usa | sin_plazo | nombre | mismo_nombre | no_hace_falta
     problema: str | None = None          # la frase de quien valida el nombre, cuando motivo == "nombre"
     objeto: str = ""
     criatura: sim.Criatura | None = None  # cómo queda
@@ -2253,9 +2257,10 @@ def usar_objeto(
     """Gasta una unidad y aplica lo que hace, en una sola transacción.
 
     Ningún rechazo cuesta el objeto: todo lo que puede decir que no va antes de
-    gastar. Repetirlo con el mismo evento contesta lo que salió la primera vez,
-    sin gastar ni volver a tirar el dado. La placa no se usa aquí: necesita un
-    nombre, y va por `renombrar_con_placa`.
+    gastar, también que no haría nada (`no_hace_falta`). Repetirlo con el mismo
+    evento contesta lo que salió la primera vez, sin gastar ni volver a tirar el
+    dado. La placa no se usa aquí: necesita un nombre, y va por
+    `renombrar_con_placa`.
 
     `criatura_id` es el gachamon a quien se le da (la web manda el que enseñaba
     su pantalla): si el activo ya es otro, o no hay, no se le da a nadie y no se
@@ -2341,6 +2346,12 @@ def _usar(
             return ResultadoUso(
                 motivo="mismo_nombre", objeto=objeto.clave, criatura=criatura
             )
+        sin_efecto = None if placa else _no_haria_nada(con, criatura, objeto, ahora)
+        if sin_efecto is not None:
+            return ResultadoUso(
+                motivo="no_hace_falta", objeto=objeto.clave, criatura=criatura,
+                efecto=sin_efecto, accion=objeto.reinicia,
+            )
         if not db.gastar_en(con, usuario_id, guild_id, objeto.clave):
             return ResultadoUso(
                 motivo="no_tienes", objeto=objeto.clave, criatura=criatura
@@ -2413,10 +2424,43 @@ def _aplicar_objeto(
     # devuelve la unidad.
     if not objeto.alimenta:
         raise ValueError(f"objeto sin efecto conocido: {objeto.clave}")
+    alimentada, comida = _alimentar(criatura, objeto)
+    return alimentada, {"efecto": "comida", "comida": comida}
+
+
+def _alimentar(
+    criatura: sim.Criatura, objeto: obj.Objeto
+) -> tuple[sim.Criatura, int]:
+    """Cómo queda al comérselo y cuánta comida gana, redondeada como se cuenta."""
     alimentada = obj.aplicar_a_la_criatura(objeto, criatura)
-    return alimentada, {
-        "efecto": "comida", "comida": round(alimentada.hambre - criatura.hambre)
-    }
+    return alimentada, round(alimentada.hambre - criatura.hambre)
+
+
+def _no_haria_nada(
+    con, criatura: sim.Criatura, objeto: obj.Objeto, ahora: datetime
+) -> str | None:
+    """Si usarlo ahora no haría nada, el efecto que habría tenido; si no, `None`.
+
+    Tres casos, ni uno más, mirados como los aplicaría `_aplicar_objeto` y con
+    sus mismas cuentas: un reinicio sin espera que borrar, un ticket que no
+    alargaría la estancia (el hogar se lee, no se escribe) y comida que sumaría
+    0 redondeado. Las pociones y las sopaipillas siempre ponen o renuevan su
+    efecto.
+    """
+    if objeto.reinicia:
+        if db.espera_en(con, criatura.id, objeto.reinicia, ahora):
+            return None
+        return "reinicia"
+    if objeto.stat or objeto.es_sopaipilla:
+        return None
+    if objeto.dias_de_refugio:
+        hogar = db._hogar_leido(con, criatura.usuario_id, criatura.guild_id, ahora)
+        if hogar.refugio_hasta < ahora + timedelta(days=objeto.dias_de_refugio):
+            return None
+        return "refugio"
+    if objeto.alimenta and _alimentar(criatura, objeto)[1] == 0:
+        return "comida"
+    return None
 
 
 def _resultado_del_uso(
