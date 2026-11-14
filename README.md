@@ -154,7 +154,12 @@ abiertos tu casa, el refugio y la tienda, y los demás avisan de que abren más
 adelante. En la Tienda del pueblo se compran objetos, cosméticos (con gemas),
 casas y muebles, con el mismo dinero que en Discord; lo que hoy sólo sirve en
 Discord se le vende sólo a quien tiene Discord vinculado. La mochila se abre
-desde cualquier lugar y sirve para usar lo que llevas.
+desde cualquier lugar y sirve para usar lo que llevas. Desde cualquier lugar
+también se abre la ficha completa de tu gachamon, con sus medallas y los efectos
+que lleva activos, y el ropero, donde le pones y le quitas el sombrero y el
+título. La Incubadora enseña tu plantel: ahí sacas a otro gachamon para que sea
+el activo y le pones nombre a un recluta que aún no lo tiene. Y al mirar el
+Refugio se ve quién vive en él.
 
 En local:
 

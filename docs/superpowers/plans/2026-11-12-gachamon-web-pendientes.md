@@ -210,24 +210,57 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   reinicio borra la espera; y, en la tienda, «nunca caminó», «lugar que ya no
   existe» y «tienda cerrada».
 
-## Para el plan 5 (la ficha, el ropero, la incubadora y el refugio)
+## Salió al ejecutar el plan 5
 
-- El ropero: quitar y cambiar cosméticos. `equipar_cosmetico` y
-  `quitar_cosmetico` todavía no dan `motivo` en sus rechazos (sólo la frase de
-  Discord) y el ropero de la web lo necesitará. Un cosmético comprado en la web
-  se lo pone el gachamon activo; quitarlo o cambiarlo llega con el ropero.
-- La ficha completa, con los efectos activos. El contrato de arte tiene dos
-  efectos que el juego todavía no dibuja (el corazón y la estrella).
-- La incubadora y sus frases: el aviso de «abre pronto» se quita cambiando
-  `abre` a `ya` en `web/static/datos/pueblo.json`, y «Todo está quietito, como si
-  durmiera.» (`globos.py`) caduca al abrirla, así que se cambia en la misma
-  tarea.
-- Quien tiene casa pero su gachamon activo no cabe en ella y agotó la estancia
-  del refugio lee en el Refugio «Las casas se compran en la tienda.», que para
-  él debería hablar de mudarlo o de una casa más grande.
-- Los estáticos versionados no llevan `Cache-Control` propio; con uno
-  inmutable, el mapa no repetiría sus peticiones en cada visita. (No es de
-  ningún plan en particular: se dejó aquí.)
+### Reglas y dinero
+
+- Mirar la ficha no paga medallas: «Veterano» y «Bien criado» se cobran en el
+  siguiente cuidado, y mientras tanto la ficha enseña su progreso lleno. En
+  Discord, `/logros` las paga al abrirse.
+- La regla del progreso de las medallas (sólo si no la tiene y la meta es mayor
+  que 1, topado en la meta) está escrita dos veces: en la ficha de la web y en
+  el panel de `/logros`, que vive en un módulo con Discord. Lo limpio sería una
+  función pura en `logros.py` que usen los dos.
+- `economia.saldos` crea el monedero si no existe, así que leer la ficha o el
+  estado puede escribir esa fila (inocuo: quien tiene gachamon ya tiene
+  monedero).
+- La comprobación del bautizo (normalizar el nombre y rechazar el de su especie)
+  está dos veces en `nacer.py`: en el bautizo de la activa y en el de un
+  gachamon concreto.
+- En Discord, bautizar a un recluta con el nombre de su especie contesta
+  «Nombre no válido. Ese es el nombre de su especie. Ponle uno propio.», y
+  elegir en el menú del plantel a una activa que ya había muerto sin registrar
+  registra su muerte y contesta «Ese gachamon no es tuyo o ya no está.».
+
+### La web
+
+- En el ropero, tocar «Poner» en un título que ya lleva repite «Ahora es Pelusa
+  la Invicta.»: la frase de «ya lo lleva» es la de ponerlo.
+- La ruta del ropero convierte una regla que no devuelve gachamon en el 409
+  «Tu gachamon ya no es el mismo»; esa rama no debería darse, y un error interno
+  sería más honesto. Además relee el activo antes de armar el estado: si muriera
+  justo entre la regla y esa lectura, contestaría 409 con el cambio ya hecho
+  (ventana mínima, como la mochila).
+- `GET /incubadora` se puede pedir desde cualquier lugar; sólo sacar exige estar
+  en la Incubadora. Un `gachamon_id: null` en `/bautizar` es un 422, porque la
+  pantalla omite la clave para bautizar a la activa.
+- `web/incubadora.py` escribe a mano la forma de sus respuestas en vez de usar
+  las ayudas de `web/tienda.py` que usan el ropero y la mochila. La pantalla del
+  ropero copia por tercera vez piezas de la mochila (el id del gachamon, devolver
+  el foco a la fila, el fallo sin respuesta), y la frase «No hubo respuesta.
+  Revisa tu conexión.» está repetida en tres pantallas. Todo eso podría vivir en
+  `articulos.js`.
+
+### Pruebas
+
+- La ayuda de pruebas `con_gachamon` rompe el huevo con azar real: si sale una
+  especie rara, nacer paga una medalla de 20 gemas. Se arregló la prueba de la
+  tienda que fallaba por eso, fijando la especie, pero la causa sigue en la
+  ayuda.
+- Faltan pruebas de: una medalla «tuya» con progreso en la ficha; el ropero con
+  títulos en «ya lo lleva», «lo lleva otro» y «ya no lo tienes»; y que mirar el
+  Refugio no crea la fila del hogar. También una ayuda de pruebas
+  (`vinculada_sin_gachamon`) repite pasos de otras.
 
 ## Para el plan 6 (tu casa)
 

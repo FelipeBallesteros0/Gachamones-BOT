@@ -160,6 +160,9 @@ Instala el hook local cuando prepares el entorno:
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
 - En la web se compra estando en la Tienda; lo que hoy sólo sirve en Discord se le vende sólo a quien tiene Discord vinculado.
 - Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar, un ticket que no alargaría la estancia— se rechaza sin gastarlo, en Discord y en la web.
+- Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): la que sale queda al día antes de dormirse, y elegir a la que ya es la activa no cambia nada.
+- Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo, vivo y sin nombre, nunca con el nombre de su especie, y sólo se escribe el nombre.
+- En la web se cambia de activo estando en la Incubadora; vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
 
 ## Arte ASCII
 
