@@ -909,7 +909,7 @@ def tasa_hambre_por_hora(salud: int) -> float:
 
 
 def horas_de_vida(salud: int) -> float:
-    """Cuánto aguanta desde el hambre a tope hasta morir."""
+    """Cuánto tarda la comida en vaciarse desde el tope."""
     return HORAS_BASE_HAMBRE + salud * HORAS_POR_SALUD
 
 

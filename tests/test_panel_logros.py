@@ -112,6 +112,13 @@ def panel_de(bicho, ahora=T0, persona="Felipe"):
     )
 
 
+def test_el_panel_de_logros_no_habla_de_morir():
+    panel = panel_de(nacer())
+
+    assert "Las de arriba son de tu gachamon y las otras son tuyas." in panel
+    assert "si se muere" not in panel
+
+
 def test_el_panel_las_lista_todas_tenga_las_que_tenga():
     """Las que faltan también salen: son la lista de lo que hay por hacer."""
     panel = panel_de(nacer())

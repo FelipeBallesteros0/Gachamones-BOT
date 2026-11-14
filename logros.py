@@ -7,16 +7,17 @@ probar sin partida y sin red.
 Hay dos dueños y conviene no confundirlos:
 
 * **Casi todas son del gachamon**: dos gachamones de la misma persona llevan
-  medallas distintas, y si uno se muere se va con las suyas. Es lo que hace que
-  signifiquen algo.
+  medallas distintas, y cada uno tiene las suyas. Es lo que hace que
+  signifiquen algo. Los que murieron antes de que nadie muriera conservan las
+  que tenían.
 * **Las tres de la persona** —Domador, Flautista y Uno entre veinticinco— son
-  tuyos y se quedan aunque se te muera el plantel entero. A la aventura vas tú,
+  tuyos, no de ningún gachamon. A la aventura vas tú,
   así que convencer a un salvaje lo haces tú; y que te salga una rara es tu
   suerte, no un mérito suyo.
 
 Los hechos del gachamon vienen de dos sitios y `hechos_de()` los junta: el
 **marcador**, que cuenta lo que va pasando y vive en la base, y la **criatura
-misma**, de donde salen el nivel, la edad y si sigue viva. Los de la persona los
+misma**, de donde salen el nivel y la edad. Los de la persona los
 junta `hechos_de_la_persona()`, con su propio marcador y con las especies que ha
 tenido alguna vez.
 """
@@ -67,7 +68,6 @@ VICTORIAS = "victorias"
 DIAS_DE_VIDA = "dias_de_vida"
 BIOMAS_PISADOS = "biomas_pisados"
 NACIO_EN_LA_ALFA = "nacio_en_la_alfa"
-SIGUE_VIVA = "sigue_viva"
 
 # Hecho que no sale del marcador sino del historial de la persona: si alguna de
 # sus criaturas fue rara, valgan vivas o muertas.
@@ -121,7 +121,7 @@ LOGROS: tuple[Logro, ...] = (
           NACIO_EN_LA_ALFA, 1, 25),
     Logro("uno_entre_veinticinco", "Uno entre veinticinco",
           "que te salga una especie rara", TUVO_RARA, 1, 20, PERSONA),
-    Logro("superviviente", "Superviviente", "100 aventuras y seguir vivo",
+    Logro("superviviente", "Superviviente", "100 aventuras",
           AVENTURAS, 100, 30),
 )
 
@@ -157,7 +157,6 @@ def hechos_de(
             1 for clave in marcador if clave.startswith(PREFIJO_BIOMA)
         ),
         NACIO_EN_LA_ALFA: 1 if nacio_en_la_alfa else 0,
-        SIGUE_VIVA: 1 if criatura.viva else 0,
     })
     return hechos
 
@@ -168,7 +167,7 @@ def hechos_de_la_persona(
     """Lo que puede desbloquear algo tuyo, en un solo diccionario.
 
     `especies` son las de **todas** tus criaturas, vivas y muertas: que te haya
-    salido una rara no deja de haber pasado porque se te muera.
+    salido una rara no deja de haber pasado.
     """
     hechos = dict(marcador)
     hechos[TUVO_RARA] = 1 if any(
@@ -188,16 +187,10 @@ def cumplidos(hechos: dict[str, int], de_quien: str) -> tuple[Logro, ...]:
     evaluaría el juego de medallas equivocado contra hechos que no le tocan, y
     sin enterarse.
     """
-    conseguidos = [
+    return tuple(
         logro for logro in LOGROS
         if logro.de_quien == de_quien and hechos.get(logro.hecho, 0) >= logro.meta
-    ]
-    # Superviviente pide además seguir en pie, y es el único con dos
-    # condiciones: se trata aparte en vez de complicar la forma de `Logro` por
-    # un caso.
-    if not hechos.get(SIGUE_VIVA, 1):
-        conseguidos = [l for l in conseguidos if l.clave != "superviviente"]
-    return tuple(conseguidos)
+    )
 
 
 def clave_de_bioma(bioma: str) -> str:

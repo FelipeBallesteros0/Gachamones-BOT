@@ -172,17 +172,11 @@ def test_un_jugador_que_lo_ha_hecho_todo_gana_las_tres():
     assert conseguidos == {l.clave for l in logros.de_la_persona()}
 
 
-def test_superviviente_pide_seguir_vivo():
-    """El único con dos condiciones: cien aventuras no valen si te has muerto
-    por el camino."""
-    marcador = {logros.AVENTURAS: 100}
-    assert "superviviente" in cumplidos(marcador)
-
-    muerta = criatura(muerta_en=T0, causa_muerte="hambre")
-    conseguidos = cumplidos(marcador, bicho=muerta)
-    assert "superviviente" not in conseguidos
-    # Y los demás sí los conserva: morirse no borra lo que hizo en vida.
-    assert "explorador" in conseguidos
+def test_superviviente_son_cien_aventuras():
+    """Sin segunda condición: nadie muere, así que sólo cuentan las aventuras."""
+    assert "superviviente" in cumplidos({logros.AVENTURAS: 100})
+    assert "superviviente" not in cumplidos({logros.AVENTURAS: 99})
+    assert logros.POR_CLAVE["superviviente"].como == "100 aventuras"
 
 
 def test_la_alfa_se_puede_cerrar(monkeypatch):

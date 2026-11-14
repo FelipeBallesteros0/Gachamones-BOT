@@ -64,23 +64,14 @@ def test_los_logros_son_del_gachamon_y_no_del_jugador():
     assert set(db.logros_de(novato.id)) == {"de_la_alfa"}
 
 
-def test_al_morir_conserva_lo_que_hizo_pero_no_superviviente():
+def test_superviviente_se_paga_con_cien_aventuras():
     bicho = nacer()
     db.apuntar(bicho.id, logros.AVENTURAS, 100)
     economia.pagar_logros(bicho, T0)
-    assert "superviviente" in db.logros_de(bicho.id)
 
-    otro = nacer(usuario="u2", nombre="Muerto")
-    db.apuntar(otro.id, logros.AVENTURAS, 100)
-    muerto = sim.Criatura(**{
-        **otro.__dict__, "muerta_en": T0, "causa_muerte": "hambre",
-    })
-    db.guardar(muerto)
-    economia.pagar_logros(muerto, T0)
-    conseguidos = db.logros_de(otro.id)
-
+    conseguidos = db.logros_de(bicho.id)
     assert "explorador" in conseguidos
-    assert "superviviente" not in conseguidos
+    assert "superviviente" in conseguidos
 
 
 def test_cartografo_pide_los_diez_biomas_de_verdad():

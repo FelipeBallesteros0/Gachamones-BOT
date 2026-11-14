@@ -101,8 +101,8 @@ def panel_de_logros(
         + f"\n-# {len(todos)} de {len(lgr.LOGROS)} · "
         f"{obj.EMOJI_GEMA} **{reserva}** en reserva · "
         f"le quedan {por_ganar} por ganar.\n"
-        "-# Las de arriba se van con el gachamon si se muere; las tuyas se "
-        "quedan. Las gemas van a tu monedero en los dos casos."
+        "-# Las de arriba son de tu gachamon y las otras son tuyas. Las gemas "
+        "van a tu monedero en los dos casos."
     )
 
 
@@ -285,8 +285,9 @@ sólo te los encuentras en `/aventura`.
 Los botones bajo la pantalla: 🍖 alimentar, 🎮 jugar, 🏋️ entrenar fuerza, \
 🧼 limpiar, 🔄 actualizar. Cada acción publica una pantalla nueva abajo y deja \
 la anterior apagada.
--# Si la comida llega a 0, **se muere**. Aguanta unas {horas} h sin comer; \
-la estadística de salud alarga ese margen.
+-# Si la comida llega a 0, **no se muere**: se queda en 0 hasta que le des de \
+comer. Tarda unas {horas} h en vaciarse; la estadística de salud alarga ese \
+margen.
 
 **Crecer**
 Cuidarlo da experiencia: alimentar +1, jugar +2, entrenar fuerza +3. Ganar una \
@@ -302,13 +303,7 @@ velocidad, salud e ingenio. Las acciones dan puntos de entrenamiento:
 Velocidad +1 entrenamiento. **Entrenar fuerza** → Fuerza +2 entrenamiento.
 -# **Laberinto completado** → Ingenio +1 entrenamiento por participante. La \
 estadística visible usa raíz cuadrada: hay rendimientos decrecientes y una \
-acción no siempre cambia el número visible.
-
-**Quién le ha tocado ser**
-Al salir del huevo se sortean también su **género** (♂️ o ♀️, mitad y mitad) y \
-su **personalidad**, una de diez: {caracteres_txt}.
--# Las dos salen en la ficha y no cambian nunca. No tocan ninguna estadística: \
-sólo cómo te habla y cómo se porta en el jardín. Ninguna es mejor que otra."""
+acción no siempre cambia el número visible."""
 
     que_hacer = f"""## 🏁 Y qué hacer con él
 
@@ -353,8 +348,8 @@ La segunda escena trae **las otras dos**, así que en un viaje entero aparecen l
 cuatro, cada una una sola vez.
 Son **{av.NIVELES_DE_AVENTURA} decisiones**: acertar te mete más adentro y \
 fallar cierra el viaje. Cuanto más hondo llegues, mejor lo que encuentras, y \
-sólo al fondo puede aparecer un **gachamon salvaje**. Si vuelve con vida gana \
-**+{sim.XP_AVENTURA} XP**; si muere por el desgaste, no.
+sólo al fondo puede aparecer un **gachamon salvaje**. Al volver gana \
+**+{sim.XP_AVENTURA} XP**.
 Convencerlo va por turnos y con **dos barras**: hay que llenar la confianza \
 sin llenar el recelo, en {av.PACIENCIA_INICIAL} jugadas. 🎭 Presumir y 🍬 golosinas \
 convencen mucho pero **levantan mucho recelo**; 💬 hablar es lo seguro; 🧘 esperar \
@@ -371,6 +366,12 @@ no te lo salta, porque el que sale al campo eres tú."""
     # la página de qué hacer se pasaba del tope de un mensaje de Discord.
     tus_cosas = f"""## 🧬 Tu plantel y tus cosas
 
+**Quién le ha tocado ser**
+Al salir del huevo se sortean también su **género** (♂️ o ♀️, mitad y mitad) y \
+su **personalidad**, una de diez: {caracteres_txt}.
+-# Las dos salen en la ficha y no cambian nunca. No tocan ninguna estadística: \
+sólo cómo te habla y cómo se porta en el jardín. Ninguna es mejor que otra.
+
 **Hablarle**
 Menciona al bot y tu gachamon te contesta: `@{nombre_bot} te acaricio`.
 Cada especie tiene su carácter, y el tono cambia según cómo lo tengas: un \
@@ -381,8 +382,7 @@ gachamon hambriento contesta de mal humor. Se acuerda de la última conversació
 **El plantel**
 Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**: \
 es el que recibe los botones y los comandos. Los demás esperan en la \
-**incubadora**, donde no les pasa el tiempo —ni comida, ni ánimo, ni aseo—, así \
-que no se te mueren mientras juegas con otro.
+**incubadora**, donde no les pasa el tiempo: ni comida, ni ánimo, ni aseo.
 -# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
 partida: los demás hay que ganárselos por ahí.
 
@@ -472,9 +472,9 @@ Sobre todo con los **logros**: `/logros` te enseña los {len(lgr.LOGROS)} y \
 cuánto te falta para cada uno. Van desde ganar tu primera competencia hasta pisar los \
 diez biomas o llegar a los 30 días de vida, y se pagan **una sola vez**.
 -# **{len(lgr.del_gachamon())}** son de cada gachamon \
-({sum(l.gemas for l in lgr.del_gachamon())} {obj.EMOJI_GEMA}) y se van con él; \
+({sum(l.gemas for l in lgr.del_gachamon())} {obj.EMOJI_GEMA}); \
 los otros **{len(lgr.de_la_persona())}** son tuyos \
-({sum(l.gemas for l in lgr.de_la_persona())} {obj.EMOJI_GEMA}) y se quedan. Las \
+({sum(l.gemas for l in lgr.de_la_persona())} {obj.EMOJI_GEMA}). Las \
 gemas caen siempre en tu monedero: las de uno sirven para todo tu plantel.
 
 **Gastar {obj.EMOJI_GEMA} gemas**
@@ -770,7 +770,7 @@ class Social(commands.Cog):
 
         await interaccion.response.send_message(
             "## 🪦 Cementerio\n"
-            + _tabla(lineas, "-# Todavía no ha muerto nadie. Que siga así.")
+            + _tabla(lineas, "-# Aquí no descansa nadie.")
         )
 
     # Los mismos menús que abren los botones de abajo de la ficha, para poder

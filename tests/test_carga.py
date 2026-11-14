@@ -772,12 +772,22 @@ def test_los_comandos_de_competencia_anuncian_sus_fases_y_regla():
     assert all(len(descripcion) <= 100 for descripcion in comandos.values())
 
 
-def test_la_ayuda_condiciona_la_xp_de_aventura_a_volver_con_vida():
+def test_la_ayuda_da_la_xp_de_aventura_al_volver():
     from cogs.social import paginas_de_ayuda
 
     texto = "\n".join(paginas_de_ayuda("Gachamon"))
-    assert f"+{sim.XP_AVENTURA} XP" in texto
-    assert "si vuelve con vida" in texto.lower()
+    assert f"Al volver gana **+{sim.XP_AVENTURA} XP**." in texto
+
+
+def test_la_ayuda_no_habla_de_morir():
+    from cogs.social import paginas_de_ayuda
+
+    texto = "\n".join(paginas_de_ayuda("Gachamon"))
+    assert "no se muere" in texto
+    assert "Al volver gana" in texto
+    for vieja in ("**se muere**", "si muere por el desgaste", "se te mueren",
+                  "se van con él", "y se quedan"):
+        assert vieja not in texto, vieja
 
 
 def test_la_ayuda_no_dice_que_solo_cabe_una():
