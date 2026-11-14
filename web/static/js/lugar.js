@@ -20,7 +20,7 @@
 // por `el` o por `textContent`.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
-import { cargar, faltante, olvidarLasQueFaltan } from './arte.js';
+import { cargar, faltante, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
 import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
 import { ofreceLaIncubadora, ofreceLaTienda, siguiente } from './pantallas.js';
@@ -535,11 +535,13 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
 
   function corazones() {
     for (let i = 0; i < CORAZONES; i += 1) {
-      const corazon = el('span', {
-        class: 'corazon',
-        'aria-hidden': 'true',
-        style: `left: ${48 + Math.random() * 30}%; font-size: ${16 + Math.random() * 12}px; animation-delay: ${i * 90}ms`,
-      }, '❤');
+      const corazon = lienzoDePieza('efectos/corazon.png', 32, 32);
+      const lado = `${Math.round(24 + Math.random() * 8)}px`;
+      corazon.classList.add('corazon');
+      corazon.style.width = lado;
+      corazon.style.height = lado;
+      corazon.style.left = `${48 + Math.random() * 30}%`;
+      corazon.style.animationDelay = `${i * 90}ms`;
       escena.append(corazon);
       luego(CORAZON_DURA_MS + i * 90, () => corazon.remove());
     }
@@ -581,7 +583,8 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
 
   // Una medalla nueva: su aviso se queda un rato y se va solo.
   function medalla(texto) {
-    const nodo = el('p', { class: 'medalla' }, texto);
+    const nodo = el('p', { class: 'medalla' },
+      lienzoDePieza('efectos/estrella.png', 20, 20), texto);
     medallas.append(nodo);
     luego(MEDALLA_DURA_MS, () => nodo.remove());
   }

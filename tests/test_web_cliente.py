@@ -440,3 +440,10 @@ def test_las_frases_de_la_incubadora_del_refugio_y_del_recluta_son_las_del_plan(
                   "ofreceLaIncubadora("):
         assert frase in lugar, frase
     assert "} espera en la incubadora y todavía no tiene nombre.`" in _guion("entrada.js")
+
+
+def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():
+    lugar = _sin_comentarios(_guion("lugar.js"))
+    assert "efectos/corazon.png" in lugar and "efectos/estrella.png" in lugar
+    assert "\u2764" not in lugar
+    assert "efectos/estrella.png" in _sin_comentarios(_guion("ficha.js"))

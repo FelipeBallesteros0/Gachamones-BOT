@@ -13,7 +13,7 @@
 // cuando ya se dejó la pantalla no pinta. La cabecera y la espera son las de
 // `articulos.js`. Todo texto entra por `el` o por `textContent`.
 
-import { olvidarLasQueFaltan } from './arte.js';
+import { lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
 import { GEMAS, cabeceraConSaldos, linea, listaQueSePide } from './articulos.js';
 import { el } from './dom.js';
 
@@ -148,7 +148,8 @@ export function ficha(contenedor, estado, seguir) {
   // La conseguida lleva delante su marca, que se ve, y para el lector, que la tiene.
   function medalla(m) {
     return el('li', { class: m.tiene ? 'ficha-medalla conseguida' : 'ficha-medalla' },
-      el('span', { class: 'ficha-medalla-marca', 'aria-hidden': 'true' }, m.tiene ? '✓' : ''),
+      el('span', { class: 'ficha-medalla-marca', 'aria-hidden': 'true' },
+        m.tiene ? lienzoDePieza('efectos/estrella.png', 20, 20) : null),
       el('div', { class: 'ficha-medalla-texto' },
         el('p', { class: 'ficha-medalla-nombre' },
           m.nombre, m.tiene ? el('span', { class: 'solo-lector' }, ', conseguida') : null),

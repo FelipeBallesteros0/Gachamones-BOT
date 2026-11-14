@@ -393,6 +393,29 @@ def test_los_estaticos_llevan_las_de_siempre(cliente):
     assert respuesta.status_code == 200 and _lleva_siempre(respuesta)
 
 
+def test_los_estaticos_versionados_se_guardan_para_siempre(cliente):
+    version = cliente.app.state.version
+    for ruta in ("js/principal.js", "estilo.css", "arte/efectos/corazon.png"):
+        respuesta = cliente.get(f"/gachamon/static/{version}/{ruta}")
+        assert respuesta.status_code == 200
+        assert respuesta.headers["cache-control"] == "public, max-age=31536000, immutable"
+        assert _lleva_siempre(respuesta)
+
+
+def test_un_estatico_que_falta_no_se_guarda(cliente):
+    version = cliente.app.state.version
+    respuesta = cliente.get(f"/gachamon/static/{version}/arte/efectos/no-existe.png")
+    assert respuesta.status_code == 404
+    assert "immutable" not in respuesta.headers.get("cache-control", "")
+    assert _lleva_siempre(respuesta)
+
+
+def test_la_portada_sigue_sin_guardarse_y_lo_de_otra_version_tampoco(cliente):
+    assert cliente.get("/gachamon/").headers["cache-control"] == "no-cache"
+    otra = cliente.get("/gachamon/static/otra/js/principal.js")
+    assert otra.status_code == 404 and "immutable" not in otra.headers.get("cache-control", "")
+
+
 def test_un_retrato_conserva_su_cache_de_un_año(cliente):
     import retrato
 

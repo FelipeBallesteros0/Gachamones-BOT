@@ -95,9 +95,10 @@ tono, pero cada color es un archivo aparte.
 
 Fondo transparente y la figura centrada.
 
-El juego todavía no dibuja `efectos/corazon.png` ni `efectos/estrella.png`: los
-corazones de la caricia son un carácter de texto y la estrella no se usa.
-Reemplazarlos hoy no cambia nada en pantalla.
+El juego dibuja `efectos/corazon.png` en los corazones que suben al acariciar
+al gachamon (se ve entre 24 y 32 píxeles) y `efectos/estrella.png`, a 20
+píxeles, delante de cada medalla conseguida de la ficha y en el aviso de una
+medalla nueva. Si falta un archivo, se ve el recuadro de esa pieza.
 
 ### Íconos (`iconos/`)
 

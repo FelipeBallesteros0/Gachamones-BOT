@@ -114,6 +114,10 @@ class _Cabeceras:
             await self.app(scope, receive, send)
             return
         de_la_api = scope["path"].startswith(API)
+        # Lo que cuelga de la versión vigente nunca cambia de contenido: una
+        # versión nueva es otra dirección. Sólo el 200 se guarda; un 404 (un
+        # dibujo que falta y se vuelve a pedir) no.
+        versionado = scope["path"].startswith(f"{PREFIJO}/static/{self.version}/")
 
         async def con_cabeceras(mensaje: Message) -> None:
             if mensaje["type"] == "http.response.start":
@@ -121,6 +125,8 @@ class _Cabeceras:
                 cabeceras = MutableHeaders(scope=mensaje)
                 cabeceras["X-Content-Type-Options"] = "nosniff"
                 cabeceras["Content-Security-Policy"] = "frame-ancestors 'none'"
+                if versionado and mensaje["status"] == 200:
+                    cabeceras["Cache-Control"] = "public, max-age=31536000, immutable"
                 if de_la_api:
                     cabeceras["Cache-Control"] = "no-store"
                     cabeceras["X-Gachamon-Version"] = self.version

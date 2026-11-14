@@ -891,14 +891,12 @@ a { color: var(--principal-hundido); font-weight: 600; }
   transform: rotate(45deg);
 }
 
-/* Salen de la cabeza del gachamon. */
-.corazon {
+/* Salen de la cabeza del gachamon. `.escena > canvas` pone a los lienzos en el
+   flujo, y los corazones son lienzos: por eso este selector pesa lo mismo. */
+.escena > .corazon {
   position: absolute;
   z-index: 4;
   bottom: calc(2% + var(--alto));
-  color: #e5484d;
-  line-height: 1;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
   pointer-events: none;
   opacity: 0;
   animation: sube 1.5s ease-out forwards;
@@ -950,6 +948,10 @@ a { color: var(--principal-hundido); font-weight: 600; }
 }
 
 .medalla {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 6px 14px;
   border: 1px solid var(--alerta-borde);
   border-radius: var(--radio);
