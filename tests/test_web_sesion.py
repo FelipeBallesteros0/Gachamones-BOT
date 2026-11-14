@@ -179,3 +179,18 @@ def test_una_ruta_con_espacios_y_signos_raros_se_lee(cliente, monkeypatch, tmp_p
     monkeypatch.setattr(config, "RUTA_ROWINO_BD", carpeta / "rowino 1.db")
     entrar(cliente, 2)
     assert cliente.get(RUTA).json() == {"usuario": "ana"}
+
+
+# --- El id de un gachamon que llega en el cuerpo -------------------------------
+#
+# SQLite guarda enteros de 64 bits con signo: uno mayor no se puede ni buscar
+# (`OverflowError`), y un id de fila nunca es 0 ni negativo.
+
+@pytest.mark.parametrize("valor", [1, 7, 2**63 - 1])
+def test_un_id_es_un_entero_positivo_que_cabe_en_sqlite(valor):
+    assert sesion.es_un_id(valor) is True
+
+
+@pytest.mark.parametrize("valor", [0, -1, 2**63, 2**70, True, False, 1.0, "1", None, [1]])
+def test_lo_demas_no_es_un_id(valor):
+    assert sesion.es_un_id(valor) is False

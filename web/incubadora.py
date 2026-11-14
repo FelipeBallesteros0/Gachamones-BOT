@@ -23,7 +23,7 @@ import especies as esp
 import simulacion as sim
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
-from web.sesion import con_cabecera, problema
+from web.sesion import con_cabecera, es_un_id, problema
 
 router = APIRouter()
 
@@ -100,7 +100,7 @@ def sacar(
     # `gachamon_id` es el que enseña la pantalla: la regla mira que sea tuyo.
     datos = cuerpo if isinstance(cuerpo, dict) else {}
     gachamon_id = datos.get("gachamon_id")
-    if type(gachamon_id) is not int:   # ni un texto, ni un decimal, ni `true`
+    if not es_un_id(gachamon_id):
         raise problema(422, "peticion", "La petición no se entiende.")
     en_la_incubadora(jugador)
     ahora = db.ahora_utc()

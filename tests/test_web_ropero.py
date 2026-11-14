@@ -202,6 +202,21 @@ def test_peticiones_mal_hechas(cliente, monkeypatch):
     assert puestos() == [("Pelusa", None, None)]
 
 
+def test_un_gachamon_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    con_nube()
+    dar("corona", "chistera")
+    poner_a(activa().id, "chistera", "sombrero")
+    antes = puestos()
+    for gachamon_id in (2**70, 2**63, 0, -1):
+        for hecho in (poner(cliente, "corona", gachamon_id=gachamon_id),
+                      quitar(cliente, "sombrero", gachamon_id=gachamon_id)):
+            assert hecho.status_code == 422, gachamon_id
+            assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert puestos() == antes
+
+
 def test_sin_gachamon_o_sin_sesion(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     assert cliente.get(ROPERO).status_code == 401

@@ -20,7 +20,7 @@ import economia
 import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual, la_misma_activa
-from web.sesion import con_cabecera, problema
+from web.sesion import con_cabecera, es_un_id, problema
 from web.tienda import dicho_no, dicho_si, no_se_entiende
 
 router = APIRouter()
@@ -62,7 +62,7 @@ def ver_el_ropero(jugador: Jugador = Depends(jugador_actual)) -> dict:
 
 def _gachamon_id(datos: dict) -> int:
     gachamon_id = datos.get("gachamon_id")
-    if type(gachamon_id) is not int:
+    if not es_un_id(gachamon_id):
         raise no_se_entiende()
     return gachamon_id
 

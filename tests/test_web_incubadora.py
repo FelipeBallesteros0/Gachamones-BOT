@@ -229,6 +229,23 @@ def test_sacar_con_un_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
     assert activa().id == pelusa.id
 
 
+# Más allá de lo que cabe en SQLite, ni siquiera se puede buscar: sería un 500.
+FUERA_DE_RANGO = (2**70, 2**63, 0, -1)
+
+
+def test_sacar_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, nube, recluta = con_plantel(cliente)
+    ir(cliente)
+    antes = [db.por_id(c.id) for c in (pelusa, nube, recluta)]
+    for gachamon_id in FUERA_DE_RANGO:
+        hecho = sacar(cliente, gachamon_id)
+        assert hecho.status_code == 422, gachamon_id
+        assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert activa().id == pelusa.id
+    assert [db.por_id(c.id) for c in (pelusa, nube, recluta)] == antes
+
+
 # --- Ponerle nombre a un recluta ---------------------------------------------------
 
 def test_bautizar_a_un_recluta_desde_la_incubadora(cliente, monkeypatch):
@@ -255,6 +272,19 @@ def test_bautizar_a_un_recluta_desde_la_incubadora(cliente, monkeypatch):
     assert hecho.status_code == 409
     assert hecho.json()["detail"] == {"clave": "no_esta", "mensaje": "Ese gachamon ya no está."}
     assert db.por_id(ajeno.id).nombre == "" and db.por_id(recluta.id).nombre == "Bruma"
+
+
+def test_bautizar_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, nube, recluta = con_plantel(cliente)
+    ir(cliente)
+    antes = [db.por_id(c.id) for c in (pelusa, nube, recluta)]
+    for gachamon_id in FUERA_DE_RANGO:
+        hecho = bautizar(cliente, gachamon_id, "Bruma")
+        assert hecho.status_code == 422, gachamon_id
+        assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert activa().id == pelusa.id and db.por_id(recluta.id).nombre == ""
+    assert [db.por_id(c.id) for c in (pelusa, nube, recluta)] == antes
 
 
 def test_si_solo_queda_un_recluta_sin_nombre_se_puede_seguir(cliente, monkeypatch):

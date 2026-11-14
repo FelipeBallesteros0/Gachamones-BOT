@@ -335,6 +335,20 @@ def test_un_gachamon_id_que_no_es_un_entero_es_un_422(cliente, monkeypatch):
     assert db.inventario(YO, G) == {"golosinas": 1}
 
 
+def test_un_gachamon_id_fuera_de_rango_es_un_422_y_no_gasta_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    dar(YO, "golosinas")
+    con_hambre(YO)
+    antes = db.criatura_activa(YO, G)
+    for n, raro in enumerate((2**70, 2**63, 0, -1)):
+        r = usar(cliente, "golosinas", evento=f"evento-mochila-1{n}", gachamon_id=raro)
+        assert r.status_code == 422, raro
+        assert r.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert db.inventario(YO, G) == {"golosinas": 1}
+    assert db.criatura_activa(YO, G) == antes
+
+
 def test_un_replay_sin_gachamon_activo_es_un_409_y_no_un_500(monkeypatch):
     import web.mochila as mochila
     from economia import ResultadoUso

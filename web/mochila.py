@@ -23,7 +23,7 @@ import objetos as obj
 import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual, la_misma_activa
-from web.sesion import con_cabecera, problema
+from web.sesion import con_cabecera, es_un_id, problema
 from web.tienda import datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, no_se_entiende
 
 router = APIRouter()
@@ -157,9 +157,10 @@ def usar_de_la_mochila(
     # El gachamon que enseñaba la pantalla. `la_misma_activa` sólo ve un cambio
     # que pasa en esta petición; uno ya registrado lo ve `economia` con esto.
     # Sin él (las páginas de antes, durante el despliegue), todo como siempre;
-    # si viene, es un entero: ni un texto, ni un decimal, ni `true`.
+    # si viene, es un id: ni un texto, ni un decimal, ni `true`, ni uno que no
+    # quepa en SQLite.
     gachamon_id = datos.get("gachamon_id")
-    if "gachamon_id" in datos and type(gachamon_id) is not int:
+    if "gachamon_id" in datos and not es_un_id(gachamon_id):
         raise no_se_entiende()
     ahora = db.ahora_utc()
     la_misma_activa(jugador, ahora, _SIN_GACHAMON)

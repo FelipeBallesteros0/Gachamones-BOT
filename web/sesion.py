@@ -40,6 +40,15 @@ def problema(estado: int, clave: str, mensaje: str) -> HTTPException:
     )
 
 
+def es_un_id(valor: object) -> bool:
+    """Si `valor` puede ser el id de un gachamon: un entero positivo que cabe en SQLite.
+
+    Ni un texto, ni un decimal, ni `true`; y uno de 2**63 o más no se puede ni
+    buscar (SQLite lanzaría `OverflowError`, que saldría como un 500).
+    """
+    return type(valor) is int and 0 < valor < 2**63
+
+
 def leer_cookie(valor: str | None) -> int | None:
     """El `uid` de una cookie firmada por Rowino; `None` ante cualquier duda."""
     try:

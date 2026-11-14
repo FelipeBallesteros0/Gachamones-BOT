@@ -15,7 +15,7 @@ import nacer
 import simulacion as sim
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual, la_misma_activa
-from web.sesion import con_cabecera, problema
+from web.sesion import con_cabecera, es_un_id, problema
 
 log = logging.getLogger("gachamones")
 router = APIRouter()
@@ -86,7 +86,7 @@ def bautizar(
     # Con `gachamon_id`, el de la pantalla (un recluta de la incubadora), que se
     # comprueba que sea tuyo; sin él, la activa, como siempre.
     gachamon_id = datos.get("gachamon_id")
-    if "gachamon_id" in datos and type(gachamon_id) is not int:
+    if "gachamon_id" in datos and not es_un_id(gachamon_id):
         raise problema(422, "peticion", "La petición no se entiende.")
     ahora = db.ahora_utc()
     try:
