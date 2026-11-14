@@ -260,13 +260,23 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   el foco a la fila, el fallo sin respuesta), y la frase «No hubo respuesta.
   Revisa tu conexión.» está repetida en tres pantallas. Todo eso podría vivir en
   `articulos.js`.
+- En la Incubadora, un bautizo que sale bien no deja frase en la zona de aviso:
+  la fila cambia a su nombre, con «Sacar». Y si el bautizo llegó pero la
+  relectura del plantel falla, tampoco se dice nada.
+- Dos reclutas sin nombre de la misma especie se leen igual para el lector de
+  pantalla: «Ponerle nombre a Purreon» dos veces.
+- A quien tiene Discord vinculado y nunca empezó su estancia (sin fila de
+  hogar), el Refugio le dice cada día «Tu estancia en el refugio dura 7 días
+  más.». Es cierto en el modelo, pero se lee igual todos los días; quizá pide
+  otra frase.
 
 ### Pruebas
 
-- La ayuda de pruebas `con_gachamon` rompe el huevo con azar real: si sale una
-  especie rara, nacer paga una medalla de 20 gemas. Se arregló la prueba de la
-  tienda que fallaba por eso, fijando la especie, pero la causa sigue en la
-  ayuda.
+- Las pruebas de texto de la incubadora vigilan la forma del código y no los
+  flujos, como las de la tienda, la mochila y el ropero. Y una prueba de
+  `articulos.js` comprueba detalles de `lienzoDePieza`.
+- Ninguna prueba vigila el selector de los corazones (`.escena > .corazon`), ni
+  que un 304 o un HEAD no lleven la cabecera inmutable.
 - Faltan pruebas de: una medalla «tuya» con progreso en la ficha; el ropero con
   títulos en «ya lo lleva», «lo lleva otro» y «ya no lo tienes»; y que mirar el
   Refugio no crea la fila del hogar. También una ayuda de pruebas

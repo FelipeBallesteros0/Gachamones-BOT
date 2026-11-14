@@ -3,11 +3,14 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import URLSafeSerializer
 
 import config
 import db
+import especies as esp
+import nacer
 
 CLAVE = "clave-de-prueba"
 PUEBLO = 777
@@ -79,9 +82,16 @@ def alta(cliente, uid: int = 1, nombre: str = "Feli") -> None:
 
 
 def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
-    """Una cuenta con avatar y un gachamon ya bautizado. Devuelve el estado."""
+    """Una cuenta con avatar y un gachamon ya bautizado. Devuelve el estado.
+
+    El huevo da una especie común: con una rara (una de cada veinticinco)
+    nacer pagaría «Uno entre veinticinco» y habría 20 gemas más según la suerte.
+    """
     alta(cliente, uid)
-    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
+    comun = esp.ESPECIES["pollito"]
+    with pytest.MonkeyPatch.context() as parche:
+        parche.setattr(nacer.esp, "elegir_del_huevo", lambda rng: comun)
+        assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
     hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
     return hecho.json()

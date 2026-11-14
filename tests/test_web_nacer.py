@@ -146,6 +146,25 @@ def test_al_nacer_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch):
     }
 
 
+def test_la_ayuda_con_gachamon_nace_siempre_de_una_especie_comun(cliente, monkeypatch):
+    import economia
+    import especies as esp
+    import nacer
+    from ayudas_web import con_gachamon
+
+    poner_reloj(monkeypatch)
+    # Aunque al huevo le tocara una rara, la ayuda nace de una común: nacer no
+    # paga «Uno entre veinticinco» y las gemas no dependen de la suerte.
+    rara = esp.ESPECIES["dragoncito"]
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: rara)
+    estado = con_gachamon(cliente)
+    assert esp.ESPECIES[estado["gachamon"]["especie"]].rareza == esp.COMUN
+    assert estado["gachamon"]["nombre"] == "Pelusa"
+    assert estado["saldos"]["gemas"] == economia.saldos(YO, G).asciigems == 50
+    # Y al salir de la ayuda, el huevo vuelve a ser el que era.
+    assert nacer.esp.elegir_del_huevo(None) is rara
+
+
 # --- El huevo cuando hay un recluta sin nombre ---------------------------------
 
 ANA_DISCORD = "222222222222222222"

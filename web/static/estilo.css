@@ -892,7 +892,8 @@ a { color: var(--principal-hundido); font-weight: 600; }
 }
 
 /* Salen de la cabeza del gachamon. `.escena > canvas` pone a los lienzos en el
-   flujo, y los corazones son lienzos: por eso este selector pesa lo mismo. */
+   flujo, y los corazones son lienzos: este selector pesa más (dos clases, 0,2,0,
+   frente a una clase y una etiqueta, 0,1,1), y por eso su `position` gana. */
 .escena > .corazon {
   position: absolute;
   z-index: 4;

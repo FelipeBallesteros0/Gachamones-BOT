@@ -150,8 +150,8 @@ Rowino.
 
 El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
 tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy están
-abiertos tu casa, el refugio y la tienda, y los demás avisan de que abren más
-adelante. En la Tienda del pueblo se compran objetos, cosméticos (con gemas),
+abiertos tu casa, el refugio, la Incubadora y la tienda, y los demás avisan de que
+abren más adelante. En la Tienda del pueblo se compran objetos, cosméticos (con gemas),
 casas y muebles, con el mismo dinero que en Discord; lo que hoy sólo sirve en
 Discord se le vende sólo a quien tiene Discord vinculado. La mochila se abre
 desde cualquier lugar y sirve para usar lo que llevas. Desde cualquier lugar
