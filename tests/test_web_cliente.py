@@ -345,3 +345,30 @@ def test_las_frases_de_la_ficha_y_del_ropero_son_las_del_plan():
     for frase in ("Sombreros", "Títulos", "Poner", "Quitar", "Lo lleva ",
                   "Tu ropero está vacío. Los sombreros y los títulos se compran en la tienda, con gemas."):
         assert frase in ropero, frase
+
+
+def test_la_ficha_dice_lo_que_lleva_y_de_quien_son_las_medallas_con_su_genero():
+    ficha = _guion("ficha.js")
+    assert "Lleva " in ficha and "Las de " in ficha
+    # El pie concuerda con el gachamon: «se van con él» o «se van con ella».
+    assert re.search(r"se van con \$\{[^}]*'él'[^}]*'ella'[^}]*\} si se muere", ficha)
+
+
+def test_la_ficha_y_el_ropero_vuelven_a_decidir_si_llega_otro_gachamon():
+    # El ropero viste al gachamon que enseña el estado: si lo que llega es de
+    # otro (cambió en otra pestaña o en Discord), se vuelve a decidir.
+    for nombre in ("ficha.js", "ropero.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        assert re.search(
+            r"\b\w+\.gachamon\.id\s*!==\s*(estado\.gachamon\.id|gachamonId)\)\s*\{\s*irse\(\);", codigo,
+        ), nombre
+
+
+def test_tras_releer_el_ropero_no_enfoca_nada_si_ya_se_fue():
+    # Releer puede acabar en irse (llegó otro gachamon): entonces no se enfoca
+    # un botón de una pantalla que se deja.
+    ropero = _sin_comentarios(_guion("ropero.js"))
+    releidas = re.findall(r"if \(await laLista\.releer\(\)[^)]*\)", ropero)
+    assert releidas
+    for releida in releidas:
+        assert "sigueAqui()" in releida, releida

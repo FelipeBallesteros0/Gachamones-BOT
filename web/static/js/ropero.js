@@ -197,9 +197,10 @@ export function ropero(contenedor, estado, seguir) {
         return;
       }
       // Pudo haberse hecho igual: lo que se ve ya no vale. Se dice, y el
-      // ropero se vuelve a pedir; si tampoco llega, el ropero no carga.
+      // ropero se vuelve a pedir; si tampoco llega, el ropero no carga. Si lo
+      // que llega es de otro gachamon, se fue: ya no se enfoca nada aquí.
       avisar(error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error), true);
-      if (await laLista.releer()) enfocarLaFila(pieza.clave);
+      if (await laLista.releer() && sigueAqui()) enfocarLaFila(pieza.clave);
       return;
     }
     if (!sigueAqui()) return;

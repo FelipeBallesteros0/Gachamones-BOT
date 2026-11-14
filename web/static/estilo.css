@@ -1848,9 +1848,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .ficha-especie,
 .ficha-genero { color: var(--texto-suave); font-size: 0.9375rem; }
 
+/* Lo que lleva puesto y, al lado, el ropero; si no cabe, el ropero debajo. */
+.ficha-vestido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 6px;
+}
+
 .ficha-sombrero {
-  justify-self: start;
-  margin-top: 4px;
   padding: 2px 10px;
   border-radius: 999px;
   background: var(--elegido);
@@ -1983,10 +1990,10 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .ficha-pie { color: var(--texto-suave); font-size: 0.875rem; }
 
-/* El ropero y volver, en una fila. */
-.salidas-ficha { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+/* Sin sombrero, el ropero va bajo la experiencia, a lo ancho de la tarjeta. */
+.ficha-al-ropero { grid-column: 1 / -1; }
 
-.boton-ropero > span { font-size: 1.25rem; line-height: 1; }
+.boton-ropero > span { font-size: 1.125rem; line-height: 1; }
 
 /* --- el ropero: las filas, el aviso y la espera son los de la mochila --- */
 
@@ -2021,7 +2028,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .boton-quitar.esperando { gap: 8px; }
 
 /* En un computador, la ficha en dos columnas: quién es, sus estadísticas y
-   los botones a un lado, las medallas al otro. */
+   «Volver» a un lado, las medallas al otro. */
 @media (min-width: 900px) {
   .cuerpo-ficha {
     display: grid;
@@ -2040,9 +2047,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
   .ficha-de-medallas { grid-column: 2; grid-row: 1 / span 3; }
 
-  .salidas-ficha { grid-column: 1; grid-row: 2; display: flex; gap: 12px; }
-
-  .salidas-ficha > .boton { width: auto; min-width: 200px; }
+  .cuerpo-ficha > .boton-volver { grid-column: 1; grid-row: 2; justify-self: start; }
 
   .ficha-quien { grid-template-columns: 128px minmax(0, 1fr); padding: 20px 22px 22px; }
 

@@ -67,13 +67,9 @@ export function ficha(contenedor, estado, seguir) {
   // Hasta que llega la ficha no hay ficha: hay una frase.
   const espera = el('div', { class: 'espera-tienda' });
   const contenido = el('div', { class: 'ficha-completa', hidden: true });
-  const alRopero = el('button', { type: 'button', class: 'boton principal boton-ropero' },
-    el('span', { 'aria-hidden': 'true' }, '👒'), 'Ropero');
-  alRopero.addEventListener('click', () => irse(estado, { vista: 'ropero' }));
   const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
   volver.addEventListener('click', () => irse());
-  const cuerpo = el('div', { class: 'cuerpo cuerpo-tienda cuerpo-ficha' },
-    espera, contenido, el('div', { class: 'salidas-ficha' }, alRopero, volver));
+  const cuerpo = el('div', { class: 'cuerpo cuerpo-tienda cuerpo-ficha' }, espera, contenido, volver);
   contenedor.append(cabecera, cuerpo);
 
   // --- quién es ------------------------------------------------------------------------
@@ -101,11 +97,24 @@ export function ficha(contenedor, estado, seguir) {
       el('span', { class: 'medidor-pista', 'aria-hidden': 'true' }, relleno));
   }
 
+  // El ropero se abre desde arriba, con lo que lleva puesto: a la vista sin
+  // tener que bajar por las medallas.
+  function botonAlRopero() {
+    const boton = el('button', { type: 'button', class: 'boton boton-chico principal boton-ropero' },
+      el('span', { 'aria-hidden': 'true' }, '👒'), 'Ropero');
+    boton.addEventListener('click', () => irse(estado, { vista: 'ropero' }));
+    return boton;
+  }
+
+  // Con sombrero, «Ropero» va justo tras «Lleva …»; sin él, tras la experiencia.
   function quienEs(g, detalle) {
     const genero = Object.hasOwn(GENEROS, g.genero) ? GENEROS[g.genero] : null;
     const comoEs = el('p', { class: 'ficha-genero' },
       genero ? [el('span', { 'aria-hidden': 'true' }, `${genero.simbolo} `), `${genero.nombre} · `] : null,
       conMayuscula(detalle.caracter));
+    const vestido = detalle.sombrero
+      ? el('div', { class: 'ficha-vestido' }, linea(`Lleva ${detalle.sombrero}`, 'ficha-sombrero'), botonAlRopero())
+      : null;
     return el('section', { class: 'ficha-quien', 'aria-labelledby': 'ficha-nombre' },
       retratoDe(g),
       el('div', { class: 'ficha-quien-texto' },
@@ -113,8 +122,9 @@ export function ficha(contenedor, estado, seguir) {
           g.nombre, g.titulo ? el('span', { class: 'titulo-del-gachamon' }, ` ${g.titulo}`) : null),
         linea(`${g.nombre_especie} ${g.nombre_etapa} · nivel ${g.nivel}`, 'ficha-especie'),
         comoEs,
-        detalle.sombrero ? linea(`Lleva ${detalle.sombrero}`, 'ficha-sombrero') : null),
-      experiencia(detalle.experiencia));
+        vestido),
+      experiencia(detalle.experiencia),
+      vestido ? null : el('div', { class: 'ficha-al-ropero' }, botonAlRopero()));
   }
 
   // --- las estadísticas --------------------------------------------------------------
