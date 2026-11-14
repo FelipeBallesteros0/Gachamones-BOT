@@ -2019,6 +2019,28 @@ def quien_lleva(
     return fila["nombre"] if fila else None
 
 
+def quien_lleva_cada(usuario_id: str, guild_id: str) -> dict[str, str]:
+    """Cada pieza puesta en un gachamon **vivo** de esa persona, y quién la lleva.
+
+    Clave de la pieza → `sim.nombre_visible` de quien la lleva. Es lo que el
+    ropero necesita para decir «la lleva Nube» sin una consulta por pieza.
+    """
+    llevan: dict[str, str] = {}
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+            "AND muerta_en IS NULL",
+            (usuario_id, guild_id),
+        ).fetchall()
+    for fila in filas:
+        criatura = _a_criatura(fila)
+        for tipo in cos.TIPOS:
+            clave = getattr(criatura, tipo)
+            if clave:
+                llevan[clave] = sim.nombre_visible(criatura)
+    return llevan
+
+
 def guardar_en_el_ropero_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str
 ) -> bool:

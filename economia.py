@@ -1211,6 +1211,8 @@ class ResultadoCosmetico:
     # Por qué no se pudo, como clave; None si salió bien o si el rechazo aún no
     # tiene una (equipar y quitar).
     motivo: str | None = None
+    # En `lo_lleva_otro`: el nombre visible del gachamon que lleva la pieza.
+    lo_lleva: str | None = None
     replay: bool = False            # la compra ya estaba hecha con ese evento
 
 
@@ -2080,9 +2082,13 @@ def cocinar(
 
 
 def equipar_cosmetico(
-    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico
+    usuario_id: str, guild_id: str, cosmetico: cos.Cosmetico,
+    criatura_id: int | None = None,
 ) -> ResultadoCosmetico:
     """Le pone al activo algo que tengas **libre**. No cobra nada.
+
+    `criatura_id`, si viene, es el gachamon que enseña la pantalla: si ya no es
+    el activo no se viste a nadie y el motivo es `sin_gachamon`.
 
     Libre y no sólo «tuyo»: una pieza la lleva un gachamon vivo o ninguno, así
     que la que ya está puesta en otro no se puede duplicar. Se comprueba
@@ -2100,13 +2106,16 @@ def equipar_cosmetico(
         con.execute("BEGIN IMMEDIATE")
         saldo = _saldos_en(con, usuario_id, guild_id).asciigems
         criatura = db.criatura_activa_en(con, usuario_id, guild_id)
-        if criatura is None:
+        if criatura is None or (
+            criatura_id is not None and criatura.id != criatura_id
+        ):
             return ResultadoCosmetico(
-                saldo=saldo, problema="No tienes ningún gachamon activo."
+                saldo=saldo, problema="No tienes ningún gachamon activo.",
+                motivo="sin_gachamon",
             )
         if getattr(criatura, cosmetico.tipo) == cosmetico.clave:
             return ResultadoCosmetico(
-                criatura=criatura, saldo=saldo,
+                criatura=criatura, saldo=saldo, motivo="ya_lo_lleva",
                 problema=f"{sim.nombre_visible(criatura)} ya lo lleva puesto.",
             )
         if cosmetico.clave not in db._ropero_disponible(con, usuario_id, guild_id):
@@ -2123,6 +2132,8 @@ def equipar_cosmetico(
                     if lo_lleva
                     else f"No tienes **{cosmetico.nombre}** en tu ropero."
                 ),
+                motivo="lo_lleva_otro" if lo_lleva else "no_lo_tienes",
+                lo_lleva=lo_lleva or None,
             )
 
         vestido, sustituido = _vestir_en(
@@ -2134,9 +2145,13 @@ def equipar_cosmetico(
 
 
 def quitar_cosmetico(
-    usuario_id: str, guild_id: str, tipo: str
+    usuario_id: str, guild_id: str, tipo: str,
+    criatura_id: int | None = None,
 ) -> ResultadoCosmetico:
-    """Le quita una pieza al activo. Se queda en el ropero, no se pierde."""
+    """Le quita una pieza al activo. Se queda en el ropero, no se pierde.
+
+    `criatura_id` funciona como en `equipar_cosmetico`.
+    """
     if tipo not in cos.TIPOS:
         raise ValueError(f"tipo de cosmético desconocido: {tipo!r}")
 
@@ -2144,13 +2159,16 @@ def quitar_cosmetico(
         con.execute("BEGIN IMMEDIATE")
         saldo = _saldos_en(con, usuario_id, guild_id).asciigems
         criatura = db.criatura_activa_en(con, usuario_id, guild_id)
-        if criatura is None:
+        if criatura is None or (
+            criatura_id is not None and criatura.id != criatura_id
+        ):
             return ResultadoCosmetico(
-                saldo=saldo, problema="No tienes ningún gachamon activo."
+                saldo=saldo, problema="No tienes ningún gachamon activo.",
+                motivo="sin_gachamon",
             )
         if getattr(criatura, tipo) is None:
             return ResultadoCosmetico(
-                criatura=criatura, saldo=saldo,
+                criatura=criatura, saldo=saldo, motivo="no_lleva_nada",
                 problema=f"{sim.nombre_visible(criatura)} no lleva nada de eso.",
             )
 
