@@ -280,3 +280,68 @@ def test_ningun_archivo_del_cliente_escribe_una_clave_del_catalogo_de_objetos():
         codigo = re.sub(r"""\bclass\s*[:=]\s*(['"])[^'"]*\1""", "", codigo)
         citadas = set(re.findall(r"""['"`]([a-z0-9_]+)['"`]""", codigo))
         assert not citadas & claves, (archivo.name, citadas & claves)
+
+
+# --- la ficha y el ropero --------------------------------------------------------
+
+def test_la_ficha_y_el_ropero_estan_y_se_usan():
+    assert {"ficha.js", "ropero.js"} <= {g.name for g in GUIONES}
+    principal = _guion("principal.js")
+    for nombre in ("ficha", "ropero"):
+        assert f"./{nombre}.js" in principal
+        # Una fila más en la tabla de las pantallas.
+        assert re.search(rf"^\s*{nombre}:", principal, re.M), nombre
+
+
+def test_la_ficha_y_el_ropero_no_meten_marcado_ni_dependen_de_fuera():
+    for nombre in ("ficha.js", "ropero.js"):
+        codigo = _guion(nombre)
+        assert "innerHTML" not in codigo, nombre
+        assert "http://" not in codigo and "https://" not in codigo, nombre
+
+
+def test_del_lugar_se_abre_la_ficha_de_la_ficha_el_ropero_y_del_ropero_se_vuelve_a_la_ficha():
+    assert "Ver ficha" in _guion("lugar.js")
+    assert "vista: 'ficha'" in _guion("lugar.js")
+    assert "vista: 'ropero'" in _guion("ficha.js")
+    assert "vista: 'ficha'" in _guion("ropero.js")
+
+
+def test_el_ropero_viste_al_gachamon_de_la_pantalla_al_poner_y_al_quitar():
+    ropero = _sin_comentarios(_guion("ropero.js"))
+    assert "'ropero/poner'" in ropero and "'ropero/quitar'" in ropero
+    llamadas = list(re.finditer(r"\bconReintentos\(", ropero))
+    assert llamadas
+    for llamada in llamadas:
+        reintentado = _argumentos(ropero, llamada.end())
+        # El cuerpo se arma una vez, antes de reintentar, y lleva el gachamon.
+        enviado = re.search(r"pedir\('POST',\s*\w+,\s*(\w+)\)", reintentado)
+        assert enviado, reintentado
+        assert "gachamon" not in reintentado
+        antes = ropero[:llamada.start()]
+        funcion = list(re.finditer(r"\bfunction\s+\w+\s*\(", antes))
+        assert funcion
+        dentro = antes[funcion[-1].start():]
+        cuerpo = enviado.group(1)
+        assert re.search(rf"\bconst\s+{cuerpo}\s*=\s*\{{[^;]*\bgachamon_id:\s*gachamonId\b", dentro), dentro
+
+
+def test_el_ropero_y_la_ficha_no_escriben_claves_del_catalogo_de_cosmeticos():
+    import cosmeticos as cos
+
+    claves = set(cos.CATALOGO)
+    for nombre in ("ficha.js", "ropero.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        citadas = set(re.findall(r"""['"`]([a-z0-9_]+)['"`]""", codigo))
+        assert not citadas & claves, (nombre, citadas & claves)
+
+
+def test_las_frases_de_la_ficha_y_del_ropero_son_las_del_plan():
+    ficha = _guion("ficha.js")
+    for frase in ("Estadísticas", "Experiencia: ", " para el nivel ", "Medallas de ", "Tuyas",
+                  " si se muere; las tuyas se quedan.", "Ropero"):
+        assert frase in ficha, frase
+    ropero = _guion("ropero.js")
+    for frase in ("Sombreros", "Títulos", "Poner", "Quitar", "Lo lleva ",
+                  "Tu ropero está vacío. Los sombreros y los títulos se compran en la tienda, con gemas."):
+        assert frase in ropero, frase

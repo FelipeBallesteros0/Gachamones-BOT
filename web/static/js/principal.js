@@ -3,10 +3,12 @@
 
 import { pedir, versiones } from './api.js';
 import * as entrada from './entrada.js';
+import { ficha } from './ficha.js';
 import { lugar } from './lugar.js';
 import { pueblo } from './mapa.js';
 import { mochila } from './mochila.js';
 import { hayQueRecargar, siguiente, trasUnFalloAlArrancar } from './pantallas.js';
+import { ropero } from './ropero.js';
 import { tienda } from './tienda.js';
 
 const contenedor = document.getElementById('juego');
@@ -25,6 +27,8 @@ const PANTALLAS = {
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),
+  ficha: (destino, seguir, { estado }) => ficha(destino, estado, seguir),
+  ropero: (destino, seguir, { estado }) => ropero(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 
@@ -83,10 +87,10 @@ function recargarSiEsDeOtraVersion() {
 let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
-// `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'` o nada) es lo que se
-// quiere ver si todo está en orden, y `opciones.llegando`, que se acaba de
-// llegar caminando. Valen sólo para esta llamada: `seguir()` a secas vuelve
-// al lugar.
+// `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'`, `'ficha'`, `'ropero'`
+// o nada) es lo que se quiere ver si todo está en orden, y `opciones.llegando`,
+// que se acaba de llegar caminando. Valen sólo para esta llamada: `seguir()` a
+// secas vuelve al lugar.
 async function seguir(estadoNuevo, opciones) {
   const { vista, llegando } = opciones || {};
   const esta = ++vuelta;

@@ -6,7 +6,8 @@
 // pendiente se cuenta antes que el huevo o el bautizo. `vista` es lo que se
 // pidió ver cuando todo está en orden: con `'pueblo'`, el mapa en vez del
 // lugar donde estás; con `'tienda'`, la tienda, si el lugar donde estás la
-// ofrece (si no, el lugar); con `'mochila'`, la mochila. Con otra, el lugar.
+// ofrece (si no, el lugar); con `'mochila'`, `'ficha'` o `'ropero'`, esa
+// pantalla, estés donde estés. Con otra, el lugar.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
@@ -17,6 +18,8 @@ export function siguiente(sesion, cuenta, estado, vista) {
   if (vista === 'pueblo') return 'pueblo';
   if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : 'lugar';
   if (vista === 'mochila') return 'mochila';
+  if (vista === 'ficha') return 'ficha';
+  if (vista === 'ropero') return 'ropero';
   return 'lugar';
 }
 

@@ -992,6 +992,13 @@ a { color: var(--principal-hundido); font-weight: 600; }
   font-weight: 800;
 }
 
+/* «Ver ficha», al otro lado del nombre: se abre la ficha completa. */
+.boton-ver-ficha {
+  margin-left: auto;
+  border: 1px solid var(--borde);
+  background: var(--tarjeta);
+}
+
 .ficha-detalle {
   margin-top: -6px;
   color: var(--texto-suave);
@@ -1583,7 +1590,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 /* El precio que se toca para comprar, y «Usar» en la mochila: un botón lleno,
    que se ve pulsable. */
 .boton-precio,
-.boton-usar {
+.boton-usar,
+.boton-poner {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1604,7 +1612,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 }
 
 .boton-precio:active:not([aria-disabled="true"]),
-.boton-usar:active:not([aria-disabled="true"]) {
+.boton-usar:active:not([aria-disabled="true"]),
+.boton-poner:active:not([aria-disabled="true"]) {
   transform: translateY(1px);
   box-shadow: 0 1px 0 var(--principal-hundido);
 }
@@ -1625,13 +1634,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 @media (hover: hover) {
   .boton-precio:not([aria-disabled="true"]):hover,
-  .boton-usar:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
+  .boton-usar:not([aria-disabled="true"]):hover,
+  .boton-poner:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
   .boton-vender:not([aria-disabled="true"]):hover { border-color: var(--error-texto); }
 }
 
 /* Mientras va una compra (o un uso), ningún otro botón compra (ni usa). */
 .boton-precio[aria-disabled="true"],
 .boton-usar[aria-disabled="true"],
+.boton-poner[aria-disabled="true"],
+.boton-quitar[aria-disabled="true"],
 .boton-vender[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
 
 /* El precio de lo que no se vende: se lee, no se toca. */
@@ -1752,8 +1764,10 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 /* --- la mochila: las filas, la pregunta y el aviso son los de la tienda --- */
 
-/* Sin nada que llevar: la frase en un hueco, donde estaría la lista. */
-.mochila-vacia {
+/* Sin nada que llevar (o que ponerse): la frase en un hueco, donde estaría la
+   lista. */
+.mochila-vacia,
+.ropero-vacio {
   padding: 28px 20px;
   border: 1px dashed var(--borde);
   border-radius: var(--radio);
@@ -1765,7 +1779,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 /* En un computador, la lista en dos columnas. */
 @media (min-width: 900px) {
   #juego[data-pantalla="tienda"],
-  #juego[data-pantalla="mochila"] { max-width: 1120px; }
+  #juego[data-pantalla="mochila"],
+  #juego[data-pantalla="ficha"],
+  #juego[data-pantalla="ropero"] { max-width: 1120px; }
 
   .cuerpo-tienda { padding: 24px 28px 36px; }
 
@@ -1775,7 +1791,264 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .pestana { font-size: 0.9375rem; }
 
   .estante .articulos,
-  .cuerpo-mochila .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .cuerpo-mochila .articulos,
+  .cuerpo-ropero .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
+
+/* --- la ficha completa: quién es, sus estadísticas y sus medallas --- */
+
+.ficha-completa { display: grid; gap: 14px; }
+
+.ficha-columna { display: grid; gap: 14px; align-content: start; }
+
+/* Quién es: el retrato en su baldosa, al lado lo que es, y debajo la
+   experiencia a lo ancho. */
+.ficha-quien {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 14px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-grande);
+  background: var(--tarjeta);
+}
+
+.ficha-retrato {
+  position: relative;
+  display: grid;
+  place-items: end center;
+  width: 96px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radio);
+  background: linear-gradient(to bottom, var(--pared) 0, var(--pared) 68%, var(--piso) 68%, var(--piso) 100%);
+}
+
+.retrato-ficha {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  image-rendering: pixelated;
+}
+
+.ficha-retrato > .retrato-sin { font-size: 56px; line-height: 1.3; }
+
+.ficha-quien-texto { display: grid; gap: 2px; min-width: 0; }
+
+.ficha-nombre {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.ficha-especie,
+.ficha-genero { color: var(--texto-suave); font-size: 0.9375rem; }
+
+.ficha-sombrero {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--elegido);
+  color: var(--elegido-texto);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.ficha-experiencia { grid-column: 1 / -1; display: grid; gap: 6px; }
+
+.ficha-experiencia-texto { font-size: 0.9375rem; font-weight: 700; }
+
+.ficha-experiencia .medidor-relleno { background: var(--principal); }
+
+.ficha-seccion { display: grid; gap: 10px; align-content: start; }
+
+.ficha-subtitulo {
+  margin: 6px 0 0;
+  color: var(--texto-suave);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Las cuatro estadísticas, de dos en dos: el nombre, la cifra en grande y,
+   si tiene uno encima, el efecto. */
+.ficha-estadisticas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ficha-estadistica {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+}
+
+.ficha-estadistica-nombre {
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ficha-estadistica-valor {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-efecto {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--hecho-fondo);
+  color: var(--hecho-texto);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Las medallas: una por fila, la marca de las conseguidas delante y, a la
+   derecha, sus gemas y lo que llevas. */
+.ficha-medallas {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ficha-medalla {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: var(--secundario);
+}
+
+.ficha-medalla.conseguida {
+  border-color: var(--alerta-borde);
+  background: var(--alerta-fondo);
+}
+
+.ficha-medalla-marca {
+  align-self: start;
+  color: var(--alerta-texto);
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.ficha-medalla-texto { display: grid; gap: 1px; min-width: 0; }
+
+.ficha-medalla-nombre { font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+
+.ficha-medalla-como { color: var(--texto-suave); font-size: 0.875rem; line-height: 1.35; }
+
+.ficha-medalla.conseguida .ficha-medalla-como { color: var(--alerta-texto); }
+
+.ficha-medalla-lado {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ficha-medalla-progreso { color: var(--texto-suave); }
+
+.ficha-pie { color: var(--texto-suave); font-size: 0.875rem; }
+
+/* El ropero y volver, en una fila. */
+.salidas-ficha { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+.boton-ropero > span { font-size: 1.25rem; line-height: 1; }
+
+/* --- el ropero: las filas, el aviso y la espera son los de la mochila --- */
+
+.contenido-ropero { display: grid; gap: 14px; }
+
+.seccion-ropero { display: grid; gap: 10px; }
+
+/* Quitar no es poner: un botón claro. */
+.boton-quitar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--tarjeta);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .boton-quitar:not([aria-disabled="true"]):hover { border-color: var(--principal); }
+}
+
+.boton-poner.esperando,
+.boton-quitar.esperando { gap: 8px; }
+
+/* En un computador, la ficha en dos columnas: quién es, sus estadísticas y
+   los botones a un lado, las medallas al otro. */
+@media (min-width: 900px) {
+  .cuerpo-ficha {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    gap: 16px 28px;
+  }
+
+  .cuerpo-ficha > .espera-tienda { grid-column: 1 / -1; }
+
+  /* Sus dos partes se reparten en la rejilla de arriba. */
+  .cuerpo-ficha > .ficha-completa { display: contents; }
+
+  .ficha-columna { grid-column: 1; grid-row: 1; }
+
+  .ficha-de-medallas { grid-column: 2; grid-row: 1 / span 3; }
+
+  .salidas-ficha { grid-column: 1; grid-row: 2; display: flex; gap: 12px; }
+
+  .salidas-ficha > .boton { width: auto; min-width: 200px; }
+
+  .ficha-quien { grid-template-columns: 128px minmax(0, 1fr); padding: 20px 22px 22px; }
+
+  .ficha-retrato { width: 128px; }
+
+  .ficha-nombre { font-size: 1.75rem; }
 }
 
 /* Quien pidió menos movimiento en su sistema no ve animaciones: lo que

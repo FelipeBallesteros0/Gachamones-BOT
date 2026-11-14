@@ -1,7 +1,7 @@
 // La pantalla principal: el lugar del pueblo donde estás, con su dibujo de
 // fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
-// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo, abres la
-// mochila o, donde el lugar tiene la tienda, entras a comprar.
+// un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo, abres su ficha
+// completa o la mochila o, donde el lugar tiene la tienda, entras a comprar.
 //
 // `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
 // estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
@@ -203,8 +203,14 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       el('span', { class: 'medidor-pista', 'aria-hidden': 'true' }, relleno));
     return { clave, nodo, cifra, relleno };
   });
+  // La ficha completa (estadísticas, experiencia, medallas…) se abre aparte.
+  const aLaFicha = el('button', { type: 'button', class: 'boton boton-chico boton-ver-ficha' }, 'Ver ficha');
+  aLaFicha.addEventListener('click', () => {
+    parar();
+    seguir(actual, { vista: 'ficha' });
+  });
   const ficha = el('section', { class: 'ficha', 'aria-label': 'Ficha' },
-    el('div', { class: 'ficha-cabeza' }, titulo, insignia),
+    el('div', { class: 'ficha-cabeza' }, titulo, insignia, aLaFicha),
     detalle,
     el('div', { class: 'medidores' }, medidores.map((m) => m.nodo)));
 

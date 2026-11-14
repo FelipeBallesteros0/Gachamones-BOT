@@ -90,6 +90,29 @@ test('lo que va antes del juego gana a la tienda y a la mochila', () => {
   }
 });
 
+test('la ficha y el ropero se abren con todo en orden, estés donde estés, como la mochila', () => {
+  const en = (ofrece) => ({ ...jugando, lugar: { clave: 'x', nombre: 'X', ofrece } });
+  for (const vista of ['ficha', 'ropero']) {
+    assert.equal(siguiente(sesion, cuenta, jugando, vista), vista, vista);
+    assert.equal(siguiente(sesion, cuenta, en([]), vista), vista, vista);
+    assert.equal(siguiente(sesion, cuenta, en(['tienda']), vista), vista, vista);
+  }
+});
+
+test('lo que va antes del juego gana a la ficha y al ropero', () => {
+  for (const vista of ['ficha', 'ropero']) {
+    assert.equal(siguiente(null, null, null, vista), 'sesion', vista);
+    assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida', vista);
+    assert.equal(siguiente(sesion, cuenta, estado({ avatar: null }), vista), 'avatar', vista);
+    assert.equal(siguiente(sesion, cuenta, estado({ difunto: { nombre: 'Viejo' } }), vista), 'difunto', vista);
+    assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null }), vista), 'huevo', vista);
+    assert.equal(
+      siguiente(sesion, cuenta, estado({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
+      'bautizo', vista,
+    );
+  }
+});
+
 test('si falla la llegada: si el servidor dice que no se decide de nuevo; lo demás se reintenta', () => {
   assert.equal(trasFallarLaLlegada({ estado: 401, clave: 'sin_sesion' }), 'decidir');
   assert.equal(trasFallarLaLlegada({ estado: 409, clave: 'sin_cuenta' }), 'decidir');
