@@ -115,13 +115,23 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 
 ### El despliegue
 
-- Mientras la suite corre en la Pi durante un despliegue, la web vieja sirve
-  los archivos estáticos nuevos: quien cargue la página en esos minutos puede
-  recibir módulos nuevos mezclados con módulos viejos que su navegador guardó en
-  la caché bajo la dirección de la versión vieja, y la página se queda en
-  «Cargando…» para siempre. Es del guion de despliegue, no del juego. Se evita
-  desplegando sin repetir la suite en la Pi cuando la CI ya pasó, o parando el
-  servicio de la web durante la ventana.
+- Los módulos mezclados quedaron resueltos en el plan 5. La web vieja servía
+  los archivos nuevos bajo la dirección de su versión vieja mientras la suite
+  corría en la Pi, y desde el plan 5 esos estáticos se guardan un año. Ahora
+  `actualizar-pi.sh` para la web antes de tocar sus archivos y la vuelve a
+  arrancar en el reinicio del final o, si la suite sale en rojo, en cuanto la
+  Pi vuelve al commit de antes. A cambio, durante el despliegue la web no
+  contesta: unos segundos con `SIN_TESTS=1`, unos minutos con la suite en la
+  Pi. Una página abierta dice que el juego no está disponible y deja
+  reintentar; quien la abre en ese rato no recibe la portada. Si el despliegue
+  se corta por otra cosa (se cae la conexión, falla `pip`), la web se queda
+  parada hasta el siguiente despliegue o hasta arrancarla a mano.
+- `deploy.sh`, que copia esta carpeta con `rsync`, no para la web: entre la
+  copia y el reinicio (lo que tarda `pip`, sin suite) la web vieja sigue
+  sirviendo los archivos nuevos, y la caché puede guardar la mezcla.
+- Mejora posible: correr la suite en un clon aparte antes de tocar el árbol
+  vivo, y parar la web sólo para cambiar los archivos y reiniciar; así no
+  estaría parada esos minutos.
 
 ### Pruebas
 

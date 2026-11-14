@@ -114,11 +114,12 @@ def _de_mentira(ruta: Path, apuntes: Path, nombre: str, despues: str = "exit 0")
 
 
 def _correr_la_orden_remota(tmp_path, codigo, anterior=None):
-    """Ejecuta en local la orden que iría por ssh, con `python` y `git` de mentira.
+    """Ejecuta en local la orden que iría por ssh, con `python`, `git` y `sudo` de mentira.
 
     El `python` del venv contesta a pytest con `codigo`; `anterior`, si no es
     None, es lo que hay en `.git/gachamon-anterior`. Devuelve lo que pasó, lo
-    que apuntaron las órdenes de mentira y el temporal de la suite.
+    que apuntaron las órdenes de mentira y el temporal de la suite. El `sudo`
+    de mentira impide que la prueba toque los servicios de esta máquina.
     """
     bash = shutil.which("bash")
     if bash is None:
@@ -134,6 +135,7 @@ def _correr_la_orden_remota(tmp_path, codigo, anterior=None):
         f'if [ "$1 $2" = "-m pytest" ]; then echo resultado de mentira; exit {codigo}; fi',
     )
     _de_mentira(ordenes / "git", apuntes, "git")
+    _de_mentira(ordenes / "sudo", apuntes, "sudo")
 
     linea = _linea_de_pytest_en_la_pi()
     crudo = linea.split('ssh "$PI" "', 1)[1].rsplit('"', 1)[0]
@@ -190,6 +192,54 @@ def test_sin_commit_guardado_no_se_intenta_volver(anterior, tmp_path):
     hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, 1, anterior=anterior)
     assert hecho.returncode == 1
     assert not [a for a in apuntes if a.startswith("git ") or " pip " in a]
+
+
+# --- La web, parada mientras se tocan sus archivos ---------------------------
+#
+# Los estáticos versionados se guardan un año (`immutable`). Si la web vieja
+# siguiera en marcha mientras se cambian los archivos, serviría los nuevos bajo
+# su versión vieja y navegadores y Cloudflare se quedarían con copias mezcladas.
+
+ARRANCAR_LA_WEB = "sudo systemctl start gachamon-web"
+
+
+def test_la_web_se_para_antes_de_tocar_sus_archivos():
+    remoto = _bloque_remoto()
+    assert "sudo systemctl stop gachamon-web" in remoto
+    assert remoto.index("systemctl stop gachamon-web") < remoto.index("git reset -q --hard")
+    # El bot no sirve archivos: sigue en marcha hasta el reinicio del final.
+    assert "stop tamagotchi" not in leer("actualizar-pi.sh")
+
+
+def test_el_bloque_remoto_no_lleva_comillas_invertidas():
+    # Va en un heredoc sin comillas: una comilla invertida, aunque esté en un
+    # comentario, ejecutaría aquí lo que encierra antes de mandarlo a la Pi.
+    assert "`" not in _bloque_remoto()
+
+
+@pytest.mark.parametrize("codigo", [1, 2])
+def test_con_la_suite_en_rojo_la_web_vuelve_a_arrancar_tras_volver_atras(codigo, tmp_path):
+    hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, codigo, anterior="abc1234\n")
+    # El código de salida sigue siendo el de pytest: el guion corta igual.
+    assert hecho.returncode == codigo, hecho.stderr
+    assert apuntes.count(ARRANCAR_LA_WEB) == 1
+    instalar = "python -m pip install -q -r requirements.txt"
+    assert (apuntes.index("git reset -q --hard abc1234") < apuntes.index(instalar)
+            < apuntes.index(ARRANCAR_LA_WEB))
+
+
+@pytest.mark.parametrize("anterior", [None, ""], ids=["sin_archivo", "vacio"])
+def test_sin_commit_al_que_volver_la_web_vuelve_a_arrancar_igual(anterior, tmp_path):
+    # Se paró antes de tocar los archivos: si no arrancara, se quedaría parada.
+    hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, 1, anterior=anterior)
+    assert hecho.returncode == 1
+    assert apuntes.count(ARRANCAR_LA_WEB) == 1
+
+
+def test_con_la_suite_en_verde_la_web_arranca_con_el_reinicio_del_final(tmp_path):
+    hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, 0, anterior="abc1234\n")
+    assert hecho.returncode == 0
+    assert not [a for a in apuntes if a.startswith("sudo ")]
 
 
 def _bloque_remoto() -> str:

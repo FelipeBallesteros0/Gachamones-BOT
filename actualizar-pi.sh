@@ -12,6 +12,9 @@
 #
 # El .env, la base de datos y el venv viven sólo en la Pi y están en .gitignore,
 # así que `git reset --hard` no los toca. Aun así se copia el .db antes.
+#
+# Mientras dura, la web no contesta: se para antes de tocar sus archivos (unos
+# segundos con SIN_TESTS=1; con la suite en la Pi, unos minutos).
 set -euo pipefail
 
 PI="${PI:-felipe@192.168.1.109}"
@@ -66,6 +69,19 @@ else
 fi
 
 git fetch -q origin '$RAMA'
+
+# La web se para antes de tocar sus archivos. Sus estáticos versionados se
+# guardan un año como inmutables: si el proceso viejo siguiera en marcha,
+# serviría los archivos nuevos bajo su versión vieja, y navegadores y
+# Cloudflare se quedarían con copias mezcladas. Vuelve a arrancar con el
+# reinicio del final o, si la suite sale en rojo, en la Pi después de volver al
+# commit de antes. El bot sigue: no sirve archivos. La primera vez la unidad
+# aún no está instalada y no hay nada que parar.
+if [ -f /etc/systemd/system/gachamon-web.service ]; then
+    echo "    la web se para mientras cambian sus archivos"
+    sudo systemctl stop gachamon-web
+fi
+
 # --hard sobre los ficheros versionados; los ignorados (.env, *.db, venv/) no se
 # tocan. Es lo que hace que esto sea repetible y no dependa del estado previo.
 git reset -q --hard "origin/$RAMA"
@@ -88,21 +104,24 @@ if [ -z "$SIN_TESTS" ]; then
     # Orden remota: con pipefail, el estado del pipe es el de pytest y no el de
     # `tail`; se guarda en `estado` y se borra el temporal (también si la suite
     # falla). En rojo, si hay un commit apuntado, la Pi vuelve a él y reinstala
-    # sus requisitos. Se sale con el estado de pytest. Los \$ son de la Pi, no
-    # de aquí. La política es `failed` y no `none`: sólo `failed` borra la
-    # carpeta de cada prueba que pasa; con `none` el temporal en memoria crece.
-    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; exit \$estado"
+    # sus requisitos; y, haya vuelto o no, arranca la web, que se paró antes de
+    # tocar los archivos y aquí no llega al reinicio del final. Se sale con el
+    # estado de pytest. Los \$ son de la Pi, no de aquí. La política es
+    # `failed` y no `none`: sólo `failed` borra la carpeta de cada prueba que
+    # pasa; con `none` el temporal en memoria crece.
+    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; if [ \$estado -ne 0 ]; then sudo systemctl start gachamon-web; fi; exit \$estado"
 fi
 
-# El servicio se toca al final y sólo si todo lo anterior salió bien: con
-# `set -e` aquí y `set -o pipefail` en la orden remota, una suite en rojo hace
-# que `ssh` devuelva el estado de pytest (y no el de `tail`) y el guion corta
-# sin reiniciar. Antes de cortar, la Pi vuelve al commit en el que estaba y
-# reinstala su `requirements.txt`, así que en disco queda el código que corre
-# el proceso en marcha, y un reinicio posterior del servicio o de la máquina
-# levanta esa versión y no la que salió en rojo. La primera vez no hay commit
-# anterior y el código nuevo se queda. Mientras corre la suite, la web vieja
-# sí sirve los archivos estáticos nuevos.
+# Los servicios se reinician al final y sólo si todo lo anterior salió bien:
+# con `set -e` aquí y `set -o pipefail` en la orden remota, una suite en rojo
+# hace que `ssh` devuelva el estado de pytest (y no el de `tail`) y el guion
+# corta sin reiniciar. Antes de cortar, la Pi vuelve al commit en el que estaba
+# y reinstala su `requirements.txt`, así que en disco queda el código que corre
+# el bot en marcha, y un reinicio posterior del servicio o de la máquina
+# levanta esa versión y no la que salió en rojo; y arranca la web, que calcula
+# su versión con los archivos que encuentra al arrancar. La primera vez no hay
+# commit anterior y el código nuevo se queda. La web está parada desde antes de
+# tocar los archivos (ver el bloque remoto): aquí la arranca su `restart`.
 echo "==> Reiniciando los servicios (primero el bot, después la web)"
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
