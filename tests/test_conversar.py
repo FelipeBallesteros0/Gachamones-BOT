@@ -6,7 +6,10 @@ red: donde hace falta un veredicto se inyecta el transporte, como en
 `test_ia.py`.
 """
 import asyncio
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -174,6 +177,22 @@ def test_sin_criatura_no_se_aprende():
     assert not economia.aprender_hablando("u1", "g1", T0).ok
 
 
+def test_con_la_comida_en_cero_se_aprende_hablando():
+    """Días en 0 ya no la matan al ponerla al día: aprende y cobra su efecto."""
+    antes = nacer()
+    db.guardar(replace(antes, hambre=0.0))
+    tres_dias = T0 + timedelta(days=3)
+
+    premio = economia.aprender_hablando("u1", "g1", tres_dias)
+
+    assert premio.ok and premio.entrenamiento_ganado == 1
+    assert premio.animo_ganado == sim.EFECTO_CONVERSACION["animo"]
+    despues = db.criatura_activa("u1", "g1")
+    assert despues.viva and despues.hambre == 0.0
+    assert despues.ent_ingenio == antes.ent_ingenio + 1
+    assert despues.actualizada_en == tres_dias
+
+
 def test_el_animo_no_se_pasa_de_cien():
     nacer(animo=98.0)
 
@@ -320,3 +339,45 @@ def test_el_aviso_no_promete_ingenio_que_no_ha_subido(cog_con_juez):
     assert "Ingenio **+1**" in primero
     assert "Ingenio **+" not in segundo
     assert "Entrenamiento de ingenio **+1**" in segundo
+
+
+class _Escribiendo:
+    """El «está escribiendo…» del canal, sin Discord."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        return False
+
+
+def test_con_la_comida_en_cero_la_charla_contesta(monkeypatch):
+    """Días en 0 ya no la matan al ponerla al día: sigue contestando."""
+    import cogs.charla as charla
+
+    db.guardar(replace(nacer(), hambre=0.0))
+    tres_dias = T0 + timedelta(days=3)
+    monkeypatch.setattr(charla.db, "ahora_utc", lambda: tres_dias)
+    monkeypatch.setattr(charla.config, "CANALES", ())
+
+    async def responder(**_):
+        return "Aquí sigo.", False
+
+    monkeypatch.setattr(charla.ia, "responder", responder)
+    bot = SimpleNamespace(user=object())
+    mensaje = SimpleNamespace(
+        author=SimpleNamespace(id="u1", bot=False, display_name="Felipe"),
+        guild=SimpleNamespace(id="g1"),
+        channel=SimpleNamespace(id=1, typing=_Escribiendo),
+        content="<@1> hola",
+        mentions=[bot.user],
+        reply=AsyncMock(),
+    )
+
+    correr(charla.Charla(bot=bot).on_message(mensaje))
+
+    mensaje.reply.assert_awaited_once()
+    texto = mensaje.reply.await_args.args[0]
+    assert "Aquí sigo." in texto and "🪦" not in texto
+    guardada = db.criatura_activa("u1", "g1")
+    assert guardada.viva and guardada.actualizada_en == tres_dias

@@ -143,6 +143,25 @@ def test_con_la_activa_muerta_de_antes_sale_el_relevo_y_el_cambio_sigue():
     assert db.por_id(b.id).activa is False
 
 
+def test_cambiar_con_la_saliente_en_cero_no_apunta_nada():
+    a = nace("Ana")
+    db.guardar(replace(a, hambre=0.0))
+    b = nace("Bea", activa=False)
+
+    resultado = economia.cambiar_de_activo(U, G, b.id, TARDE)
+
+    assert resultado.ok
+    assert db.criatura_activa(U, G).id == b.id
+    saliente = db.por_id(a.id)
+    assert saliente.viva and saliente.hambre == 0.0
+    assert saliente.actualizada_en == TARDE and saliente.activa is False
+    assert resultado.saliente == saliente
+    with db.conectar() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM muertes_por_anunciar"
+        ).fetchone()[0] == 0
+
+
 def test_si_la_elegida_es_el_relevo_que_acaba_de_salir_ya_es_el_activo():
     a = nace("Ana")
     b = nace("Bea", activa=False)

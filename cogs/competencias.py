@@ -37,8 +37,6 @@ def _problema_para_competir(
     """
     if criatura is None:
         return f"{quien} no tiene ningún gachamon vivo."
-    if not criatura.viva:
-        return f"El gachamon de {quien} ha muerto."
     if criatura.hambre < sim.HAMBRE_MINIMA_COMPETIR:
         # El hambre va antes que el enfriamiento: de las dos cosas, es la única
         # que quien lea el aviso puede arreglar.

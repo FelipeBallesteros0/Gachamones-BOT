@@ -247,7 +247,7 @@ def test_menu_entrenamiento_conjunto_acusa_antes_de_publicar_y_anuncia_ambos(
     monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
     monkeypatch.setattr(vistas.comun, "anunciar_logros", anunciar)
     monkeypatch.setattr(vistas.db, "ahora_utc", Mock(return_value=T0))
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva])
     menu._values = [str(reserva.id)]
     canal = SimpleNamespace()
     interaccion = SimpleNamespace(
@@ -335,7 +335,7 @@ def test_menu_entrenamiento_conjunto_cierra_errores_sin_publicar(
     )
     publicar = AsyncMock()
     monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva])
     menu._values = [str(reserva.id)]
     interaccion, respuesta, _ = interaccion_de()
 
@@ -356,7 +356,7 @@ def test_menu_entrenamiento_conjunto_nombra_quien_tiene_el_cooldown(monkeypatch)
         "ejecutar_entrenamiento_conjunto",
         Mock(return_value=resultado),
     )
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva])
     menu._values = [str(reserva.id)]
     interaccion, respuesta, _ = interaccion_de()
 
@@ -370,7 +370,7 @@ def test_menu_entrenamiento_conjunto_nombra_quien_tiene_el_cooldown(monkeypatch)
 def test_menu_entrenamiento_conjunto_falla_cerrado_si_el_valor_no_fue_capturado():
     activa = criatura(1, "Mia", True, "ficha")
     reserva = criatura(2, "Lúa", False, None)
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva])
     menu._values = ["999"]
     interaccion, respuesta, _ = interaccion_de()
 
@@ -703,7 +703,7 @@ def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
     publicar = AsyncMock(side_effect=RuntimeError("Discord cayó"))
     monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
     monkeypatch.setattr(vistas.comun, "anunciar_logros", AsyncMock())
-    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva], "ficha")
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva])
     menu._values = [str(reserva.id)]
     interaccion, respuesta, _ = interaccion_de(evento_id="selector")
 
@@ -720,6 +720,34 @@ def test_fallo_de_publicacion_deja_commit_y_el_replay_no_republica(
         call(content="Entrenamiento conjunto completado.", view=None),
         call(content="Esta interacción ya estaba procesada.", view=None),
     ]
+
+
+def test_entrenar_juntos_con_el_activo_en_cero_se_completa(
+    bd_temporal, monkeypatch
+):
+    """Días en 0 ya no matan al activo al ponerlo al día: se entrena y se
+    publica su ficha viva, sin lápida."""
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    db.guardar(replace(activa, hambre=0.0))
+    reserva = db.crear("u1", "g1", "michi", "Lúa", STATS, T0, activa=False)
+    monkeypatch.setattr(
+        vistas.db, "ahora_utc", Mock(return_value=T0 + timedelta(days=3))
+    )
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    monkeypatch.setattr(vistas.comun, "anunciar_logros", AsyncMock())
+    menu = vistas.MenuEntrenamientoConjunto(activa, [reserva])
+    menu._values = [str(reserva.id)]
+    interaccion, respuesta, canal = interaccion_de(evento_id="selector")
+
+    asyncio.run(menu.callback(interaccion))
+
+    respuesta.edit_message.assert_awaited_once_with(
+        content="Entrenamiento conjunto completado.", view=None
+    )
+    publicada = publicar.await_args.args[1]
+    assert publicada.id == activa.id and publicada.viva
+    canal.send.assert_not_awaited()
 
 
 def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
@@ -1239,6 +1267,85 @@ def test_responder_y_publicar_no_consultan_saldo_para_una_lapida(monkeypatch):
         None,
         None,
     ]
+
+
+def test_el_panel_de_un_muerto_de_antes_sigue_ensenando_la_lapida(bd_temporal):
+    """Los que ya murieron siguen muertos: su ficha es la lápida y sin botones."""
+    nacida = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    db.guardar(replace(
+        nacida, hambre=0.0, muerta_en=T0 + timedelta(days=2),
+        causa_muerte="hambre",
+    ))
+    muerta = db.por_id(nacida.id)
+    assert muerta is not None and not muerta.viva
+    ahora = T0 + timedelta(days=9)
+    lapida = pantalla.render_lapida(muerta, ahora)
+    assert "🪦" in lapida and "murió de hambre" in lapida
+
+    interaccion, respuesta, _ = interaccion_de()
+    interaccion.channel_id = "canal"
+    interaccion.original_response = AsyncMock(
+        return_value=SimpleNamespace(id="respuesta")
+    )
+    asyncio.run(vistas.responder_pantalla(interaccion, muerta, ahora))
+    canal = SimpleNamespace(
+        id="canal",
+        send=AsyncMock(return_value=SimpleNamespace(id="publicada")),
+    )
+    asyncio.run(vistas.publicar_pantalla(cast(Any, canal), muerta, ahora))
+
+    respuesta.send_message.assert_awaited_once_with(content=lapida)
+    canal.send.assert_awaited_once_with(content=lapida)
+
+
+def test_cuidar_con_la_comida_en_cero_publica_la_ficha_viva(
+    bd_temporal, monkeypatch
+):
+    """Días en 0 ya no la matan al ponerla al día: el cuidado se publica en
+    una ficha viva, no en una lápida."""
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    db.guardar(replace(criatura, hambre=0.0))
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    monkeypatch.setattr(
+        db, "ahora_utc", Mock(return_value=T0 + timedelta(days=3))
+    )
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
+
+    congelar.assert_awaited_once_with(interaccion)
+    publicada = publicar.await_args.args[1]
+    assert publicada.viva and publicada.hambre == 30.0
+    respuesta.send_message.assert_not_awaited()
+    assert not any(
+        "🪦" in llamada.args[0] for llamada in canal.send.await_args_list
+    )
+
+
+def test_actualizar_con_la_comida_en_cero_edita_la_ficha_viva_con_botones(
+    bd_temporal, monkeypatch
+):
+    criatura = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    db.guardar(replace(criatura, hambre=0.0))
+    db.guardar_pantalla(criatura.id, "ficha", "canal")
+    monkeypatch.setattr(
+        db, "ahora_utc", Mock(return_value=T0 + timedelta(days=3))
+    )
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
+
+    respuesta.edit_message.assert_awaited_once()
+    contenido = respuesta.edit_message.await_args.kwargs["content"]
+    vista = respuesta.edit_message.await_args.kwargs["view"]
+    assert "🪦" not in contenido
+    assert "🪙 50 monedas" in contenido
+    assert isinstance(vista, vistas.PantallaView)
+    canal.send.assert_not_awaited()
 
 
 def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(

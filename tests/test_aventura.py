@@ -165,18 +165,16 @@ def test_los_umbrales_del_percance_son_inclusivos():
 
 def test_el_desgaste_aplica_la_penalizacion_solo_si_hay_percance():
     salida = salida_con_fallos(1)
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
-    normal = av.aplicar_desgaste(criatura(), salida, ahora)
-    accidentada = av.aplicar_desgaste(criatura(), salida, ahora, av.PERCANCE)
+    normal = av.aplicar_desgaste(criatura(), salida)
+    accidentada = av.aplicar_desgaste(criatura(), salida, av.PERCANCE)
 
     assert (normal.hambre, normal.animo) == (60.0, 75.0)
     assert (accidentada.hambre, accidentada.animo) == (55.0, 70.0)
 
 
 def test_un_viaje_no_mata():
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     gastada = av.aplicar_desgaste(
-        criatura(hambre=3.0, animo=3.0), salida_con_fallos(2), ahora, av.PERCANCE
+        criatura(hambre=3.0, animo=3.0), salida_con_fallos(2), av.PERCANCE
     )
     assert (gastada.hambre, gastada.animo) == (0.0, 0.0)
     assert gastada.viva
@@ -184,11 +182,10 @@ def test_un_viaje_no_mata():
 
 
 def test_un_viaje_que_deja_en_cero_da_igual_su_xp():
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     viajera = criatura(hambre=3.0, xp=7)
 
     despues, subidas = av.aplicar_viaje(
-        viajera, salida_con_fallos(2), ahora, av.PERCANCE, random.Random(0)
+        viajera, salida_con_fallos(2), av.PERCANCE, random.Random(0)
     )
 
     assert despues.viva and despues.hambre == 0.0
@@ -197,16 +194,14 @@ def test_un_viaje_que_deja_en_cero_da_igual_su_xp():
 
 
 def test_el_viaje_sobrevivido_siempre_da_cuatro_xp_sin_cambiar_el_desgaste():
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
-
     for fallos in range(av.NIVELES_DE_AVENTURA + 1):
         for percance in (None, av.PERCANCE):
             viajera = criatura(xp=7)
             salida = salida_con_fallos(fallos)
-            solo_desgaste = av.aplicar_desgaste(viajera, salida, ahora, percance)
+            solo_desgaste = av.aplicar_desgaste(viajera, salida, percance)
 
             despues, subidas = av.aplicar_viaje(
-                viajera, salida, ahora, percance, random.Random(0)
+                viajera, salida, percance, random.Random(0)
             )
 
             assert despues.xp == 11, (fallos, percance)
@@ -219,14 +214,11 @@ def test_el_viaje_sobrevivido_siempre_da_cuatro_xp_sin_cambiar_el_desgaste():
 
 
 def test_el_viaje_puede_evolucionar_sin_usar_el_rng_inyectado():
-    ahora = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
     elegir_stat = Mock(return_value=["salud"])
     rng = SimpleNamespace(choices=elegir_stat)
     viajera = criatura(xp=sim.xp_para_subir(1) - 1)
 
-    despues, rupturas = av.aplicar_viaje(
-        viajera, salida_con_fallos(0), ahora, rng=rng
-    )
+    despues, rupturas = av.aplicar_viaje(viajera, salida_con_fallos(0), rng=rng)
 
     assert (despues.nivel, despues.xp) == (2, 3)
     assert all(isinstance(ruptura, sim.Ruptura) for ruptura in rupturas)
@@ -272,11 +264,11 @@ def ejecutar_aventura_final(
     monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
 
     def confirmar(
-        _usuario_id, _guild_id, _criatura_id, salida_real, ahora_real,
+        _usuario_id, _guild_id, _criatura_id, salida_real, _ahora,
         percance_real, viaje=None,
     ):
         actualizada, rupturas = av.aplicar_viaje(
-            viajera, salida_real, ahora_real, percance_real
+            viajera, salida_real, percance_real
         )
         guardadas.append(actualizada)
         eventos.append(("guardar", actualizada, None))
@@ -362,6 +354,28 @@ def test_la_aventura_sobrevivida_anuncia_y_persiste_cuatro_xp(monkeypatch):
     # Primero se persiste y después se cuenta: no se anuncia una mutación hasta
     # que está guardada.
     assert [tipo for tipo, _, _ in eventos[:2]] == ["guardar", "canal"]
+
+
+def test_la_aventura_que_deja_en_cero_anuncia_su_xp_y_se_narra(monkeypatch):
+    """El viaje que le gasta toda la comida ya no la mata: vuelve, cobra su XP
+    y se cuenta como cualquier otro."""
+    viajera = criatura(
+        hambre=3.0,
+        xp=7,
+        actualizada_en=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+
+    eventos, guardadas, _, _ = ejecutar_aventura_final(
+        monkeypatch, viajera, salida_con_fallos(2), percance=av.PERCANCE
+    )
+
+    persistida = guardadas[-1]
+    assert persistida.viva and persistida.hambre == 0.0
+    assert persistida.xp == viajera.xp + sim.XP_AVENTURA
+    mensajes = [mensaje for tipo, mensaje, _ in eventos if tipo == "canal"]
+    assert f"✨ +{sim.XP_AVENTURA} XP por el viaje." in mensajes[0]
+    assert mensajes[-1] == "NARRACIÓN"
+    assert not any("💀" in mensaje for mensaje in mensajes)
 
 
 def test_la_evolucion_se_anuncia_antes_de_narrar_y_el_salvaje_queda_ultimo(

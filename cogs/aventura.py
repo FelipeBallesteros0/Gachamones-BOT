@@ -701,13 +701,8 @@ class Aventura(commands.Cog):
             criatura_avanzada, viaje.bioma, salida, percance,
             dueño=dueño.display_name,
         )
-        if cansada.viva:
-            pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
+        pruebas += f"\n✨ +{sim.XP_AVENTURA} XP por el viaje."
         await canal.send(pruebas)
-
-        if not cansada.viva:
-            await canal.send(f"💀 **{cansada.nombre}** no sobrevivió al viaje.")
-            return
 
         if criatura_avanzada.etapa != cansada.etapa:
             await canal.send(**vistas.presentacion(

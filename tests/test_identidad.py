@@ -141,7 +141,7 @@ def test_volver_a_arrancar_no_le_pone_aviso_a_la_de_la_incubadora():
 
 def test_el_viaje_no_mata_de_hambre_a_quien_no_tiene_aviso():
     cansada = aventura.aplicar_desgaste(
-        criatura(WEB, hambre=1.0), aventura.Salida(()), T0
+        criatura(WEB, hambre=1.0), aventura.Salida(())
     )
     assert cansada.viva
     assert cansada.hambre == 0.0

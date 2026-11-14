@@ -106,6 +106,22 @@ def test_solo_la_activa_avanza_el_tiempo_y_la_reserva_conserva_su_reloj():
     assert not despues_reserva.activa
 
 
+def test_con_el_activo_en_cero_el_entrenamiento_conjunto_se_hace():
+    """Días en 0 ya no matan al activo al ponerlo al día: se entrena igual."""
+    activa, reserva = pareja()
+    db.guardar(replace(activa, hambre=0.0))
+    tres_dias = T0 + timedelta(days=3)
+
+    resultado = entrenar("evento", seleccion(activa, reserva), tres_dias)
+
+    assert resultado.problema is None and resultado.bloqueada is None
+    assert len(resultado.participantes) == 2
+    guardada = db.obtener(activa.id)
+    assert guardada is not None and guardada.viva
+    assert guardada.hambre == 0.0 and guardada.xp == 2
+    assert resultado.delta_asciicoins == 1
+
+
 def test_el_tope_de_cuidado_no_impide_el_entrenamiento():
     activa, reserva = pareja()
     fecha = T0.date().isoformat()

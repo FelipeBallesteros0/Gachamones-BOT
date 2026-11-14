@@ -53,13 +53,6 @@ class Charla(commands.Cog):
             return
 
         criatura = db.avanzar(criatura, ahora)
-        if not criatura.viva:
-            db.guardar(criatura)
-            await mensaje.reply(
-                f"**{criatura.nombre}** ya no puede contestarte. 🪦",
-                mention_author=False,
-            )
-            return
         db.guardar(criatura)
 
         aviso = self._limite_alcanzado(str(mensaje.author.id), ahora)

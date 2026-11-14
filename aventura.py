@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import dataclass, replace
-from datetime import datetime
 
 import especies as esp
 import objetos as obj
@@ -1363,8 +1362,7 @@ def coste_desgaste(
 
 
 def aplicar_desgaste(
-    criatura: sim.Criatura, salida: Salida, ahora: datetime,
-    percance: Percance | None = None,
+    criatura: sim.Criatura, salida: Salida, percance: Percance | None = None,
 ) -> sim.Criatura:
     """El cansancio del viaje. Se cobra pase lo que pase: ya se ha hecho.
 
@@ -1394,11 +1392,11 @@ def esfuerzos_de_viaje(salida: Salida) -> tuple[sim.Esfuerzo, ...]:
 
 
 def aplicar_viaje(
-    criatura: sim.Criatura, salida: Salida, ahora: datetime,
-    percance: Percance | None = None, rng: random.Random | None = None,
+    criatura: sim.Criatura, salida: Salida, percance: Percance | None = None,
+    rng: random.Random | None = None,
 ) -> tuple[sim.Criatura, list[sim.Ruptura]]:
     """Cobra el viaje, emite sus pruebas y da su XP."""
-    cansada = aplicar_desgaste(criatura, salida, ahora, percance)
+    cansada = aplicar_desgaste(criatura, salida, percance)
     estado, rupturas = sim.aplicar_evento(
         cansada, esfuerzos_de_viaje(salida), sim.XP_AVENTURA, rng
     )

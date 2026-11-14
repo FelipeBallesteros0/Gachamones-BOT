@@ -174,9 +174,7 @@ def ejecutar_viaje(
                 problema="La aventura ya no pertenece al gachamon activo.",
             )
         avanzado = db._avanzar_en(con, actual, ahora)
-        nueva, rupturas = av.aplicar_viaje(
-            avanzado, salida, ahora, percance
-        )
+        nueva, rupturas = av.aplicar_viaje(avanzado, salida, percance)
         db._guardar(con, nueva)
         if viaje is not None:
             db.apuntar_en(con, nueva.id, lgr.AVENTURAS)
@@ -640,11 +638,6 @@ def ejecutar_cuidado(
         if criatura is None:
             return None
         criatura = db._avanzar_en(con, criatura, ahora)
-        if not criatura.viva:
-            db._guardar(con, criatura)
-            return ResultadoCuidado(
-                criatura, "Tu gachamon ya no está entre nosotros.", ok=False
-            )
 
         espera = db.espera_en(con, criatura.id, accion, ahora)
         if espera and not sim.puede_saltarse_espera(criatura, accion):
@@ -738,13 +731,9 @@ def aprender_hablando(
         criatura = db.criatura_activa_en(con, usuario_id, guild_id)
         if criatura is None:
             return ResultadoConversacion()
-        # Se avanza antes de premiar, igual que en `cuidar`: sin esto, una
-        # criatura que lleva días sin comer cobraría por la conversación en vez
-        # de morirse, porque la fila sólo se marca muerta al avanzarla.
+        # Se avanza antes de premiar, igual que en `cuidar`: el ánimo que gana
+        # se suma al que tiene ahora, no al de la última vez que se guardó.
         criatura = db._avanzar_en(con, criatura, ahora)
-        if not criatura.viva:
-            db._guardar(con, criatura)
-            return ResultadoConversacion(criatura=criatura)
         if db.espera_en(con, criatura.id, sim.CONVERSAR, ahora):
             db._guardar(con, criatura)
             return ResultadoConversacion(criatura=criatura)
@@ -873,11 +862,6 @@ def ejecutar_entrenamiento_conjunto(
         # y llamando directo se entrenaría con el de quien tiene techo aunque
         # esté a la intemperie. La reserva no avanza, que es su invariante.
         activo_avanzado = db._avanzar_en(con, activo, ahora)
-        if not activo_avanzado.viva:
-            db._guardar(con, activo_avanzado)
-            return ResultadoEntrenamientoConjunto(
-                problema="activo_muerto", bloqueada=activo_avanzado
-            )
 
         participantes = (
             sim.aplicar_entrenamiento_conjunto(activo_avanzado),
@@ -1035,13 +1019,6 @@ def ejecutar_competencia(
         for criatura in criaturas:
             db._guardar(con, criatura)
         for usuario_id, criatura in zip(usuarios, criaturas):
-            if not criatura.viva:
-                return ResultadoCompetencia(
-                    None, antes=antes, despues=criaturas,
-                    problema="Un gachamon ha muerto antes de competir.",
-                    problema_usuario_id=usuario_id,
-                    problema_criatura=criatura,
-                )
             if criatura.hambre < sim.HAMBRE_MINIMA_COMPETIR:
                 return ResultadoCompetencia(
                     None, antes=antes, despues=criaturas,
@@ -1624,12 +1601,10 @@ def cambiar_de_activo(
     casa, y se guarda así. Sin esto, cambiar de activo borraba las horas que
     llevaba sin comer: en la incubadora no corren, y al sacarla otra vez se le
     empezaba a contar desde ese momento.
-
-    Si al ponerla al día resulta muerta, se guarda muerta, se apunta para que el
-    bot la anuncie, y el cambio sigue: a quien eligió a otro no se le niega.
     """
-    # Por si la activa se murió: se registra y sale el relevo, como en
-    # `nacer.bautizar`. Entonces el relevo es «la que estaba».
+    # Por si no le queda ninguna activa viva (la tenía muerta de antes): sale
+    # el relevo de la incubadora, como en `nacer.bautizar`. Entonces el relevo
+    # es «la que estaba».
     db.activa_al_dia(usuario_id, guild_id, ahora)
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1648,10 +1623,7 @@ def cambiar_de_activo(
             return ResultadoCambio(motivo="sin_nombre", criatura=activa)
 
         if activa is not None:
-            al_dia = db._avanzar_en(con, activa, ahora)
-            db._guardar(con, al_dia)
-            if not al_dia.viva:
-                db._apuntar_muerte(con, al_dia)
+            db._guardar(con, db._avanzar_en(con, activa, ahora))
         nueva = db._activar_en(con, criatura_id, ahora)
         # Releída: lo que quedó en la base, ya fuera de los relojes del activo.
         saliente = None if activa is None else db.criatura_en(con, activa.id)
@@ -2380,8 +2352,8 @@ def _usar(
 
         # Va detrás del replay, que contesta lo de la primera vez aunque el
         # activo ya sea otro, y delante de todo lo demás: si el cambio de
-        # gachamon ya estaba registrado (otro activado desde Discord, una muerte
-        # que ascendió al relevo), sólo se nota aquí.
+        # gachamon ya estaba registrado (otro activado desde Discord, por
+        # ejemplo), sólo se nota aquí.
         if criatura_id is not None:
             activa = db.criatura_activa_en(con, usuario_id, guild_id)
             if activa is None or activa.id != criatura_id:
@@ -2408,13 +2380,9 @@ def _usar(
                 motivo="sin_plazo", objeto=objeto.clave, criatura=criatura
             )
 
-        # Como en `ejecutar_cuidado`: si al ponerlo al día resulta que ya había
-        # muerto, se guarda así y no se le aplica nada. Antes el menú le gastaba
-        # la unidad y se la daba igual.
+        # Como en `ejecutar_cuidado`: se pone al día antes de mirar si haría
+        # falta y de aplicarle nada.
         criatura = db._avanzar_en(con, criatura, ahora)
-        if not criatura.viva:
-            db._guardar(con, criatura)
-            return ResultadoUso(motivo="sin_gachamon", objeto=objeto.clave)
         if placa and nombre == criatura.nombre:
             return ResultadoUso(
                 motivo="mismo_nombre", objeto=objeto.clave, criatura=criatura

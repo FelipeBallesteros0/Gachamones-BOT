@@ -692,6 +692,43 @@ def test_competencia_rechaza_invitado_sin_activa_sin_filas_ni_deltas():
         assert con.execute("SELECT COUNT(*) FROM monederos").fetchone()[0] == 0
 
 
+def test_con_la_comida_en_cero_la_competencia_se_rechaza_por_hambre():
+    """Días en 0 ya no la matan al ponerla al día: lo que la frena es el hambre."""
+    uno = nacer("u1")
+    db.guardar(replace(uno, hambre=0.0))
+    nacer("u2")
+
+    resultado = competir("evento", T0 + timedelta(days=3))
+
+    assert resultado.problema == "Un gachamon tiene demasiada hambre para competir."
+    assert resultado.problema_usuario_id == "u1"
+    criatura = resultado.problema_criatura
+    assert criatura is not None and criatura.viva and criatura.hambre == 0.0
+    assert criatura.hambre < sim.HAMBRE_MINIMA_COMPETIR
+    with db.conectar() as con:
+        assert con.execute("SELECT COUNT(*) FROM operaciones_economia").fetchone()[0] == 0
+
+
+def test_con_la_comida_en_cero_el_reto_se_cancela_por_hambre(monkeypatch):
+    uno = nacer("u1")
+    db.guardar(replace(uno, hambre=0.0))
+    nacer("u2")
+    monkeypatch.setattr(cog_comp.db, "ahora_utc", lambda: T0 + timedelta(days=3))
+    cog = Competencias.__new__(Competencias)
+    canal = SimpleNamespace(send=AsyncMock())
+    participantes = [
+        SimpleNamespace(id="u1", display_name="Ana"),
+        SimpleNamespace(id="u2", display_name="Beto"),
+    ]
+
+    asyncio.run(cog.disputar(canal, participantes, comp.CARRERA, "g1", "evento"))
+
+    canal.send.assert_awaited_once()
+    texto = canal.send.await_args.args[0]
+    assert texto.startswith("❌ Se cancela: **u1** está demasiado hambrient")
+    assert "muert" not in texto
+
+
 def test_dos_resoluciones_concurrentes_del_mismo_evento_aplican_una_vez():
     nacer("u1")
     nacer("u2")

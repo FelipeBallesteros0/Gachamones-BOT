@@ -80,6 +80,21 @@ def test_limpiar_a_una_criatura_limpia_queda_marcado_sin_efecto_y_no_paga():
     assert cuidar("refresco", "g1", sim.ACTUALIZAR, T0).sin_efecto is False
 
 
+def test_con_la_comida_en_cero_el_cuidado_se_aplica():
+    """Días en 0 ya no la matan al ponerla al día: come como cualquier otra."""
+    db.guardar(replace(nacer(), hambre=0.0))
+    tres_dias = T0 + timedelta(days=3)
+
+    resultado = cuidar("comer", "g1", sim.ALIMENTAR, tres_dias)
+
+    assert resultado.ok
+    assert resultado.criatura.viva and resultado.criatura.hambre == 30.0
+    assert resultado.delta_asciicoins == 1
+    guardada = db.criatura_activa("u1", "g1")
+    assert guardada is not None
+    assert guardada.hambre == 30.0 and guardada.actualizada_en == tres_dias
+
+
 def test_tope_12_rollover_utc_y_aislamiento_por_servidor():
     nacer()
     nacer(nombre="Otro", guild="g2")

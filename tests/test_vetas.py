@@ -861,7 +861,7 @@ def test_competencia_descubre_identidad_por_el_camino_real():
 def test_aventura_descubre_identidad_por_el_camino_real():
     antes = _a_una_veta_de_identidad()
     salida = av.Salida((av.Prueba("f", "fuerza", 20, 0, 20),))
-    actualizada, rupturas = av.aplicar_viaje(antes, salida, T0)
+    actualizada, rupturas = av.aplicar_viaje(antes, salida)
     texto = pantalla.render_rupturas(actualizada, rupturas)
 
     assert rupturas

@@ -405,7 +405,6 @@ class MenuEntrenamientoConjunto(discord.ui.Select):
         self,
         activo: sim.Criatura,
         reservas: list[sim.Criatura],
-        pantalla_msg_id: str,
     ):
         super().__init__(
             placeholder="¿Con quién entrena?",
@@ -419,7 +418,6 @@ class MenuEntrenamientoConjunto(discord.ui.Select):
         self.reservas = {
             str(reserva.id): (reserva.id, reserva.nombre) for reserva in reservas
         }
-        self.pantalla_msg_id = pantalla_msg_id
 
     async def callback(self, interaction: discord.Interaction) -> None:
         reserva = self.reservas.get(self.values[0] if self.values else "")
@@ -457,20 +455,11 @@ class MenuEntrenamientoConjunto(discord.ui.Select):
                 f"Todavía no. {resultado.bloqueada.nombre} puede volver a "
                 f"entrenar en {pantalla.formato_espera(resultado.espera)}."
             )
-        elif resultado.problema == "activo_muerto":
-            texto = "Tu gachamon ya no está entre nosotros."
         else:
             texto = ""
 
         if texto:
             await interaction.response.edit_message(content=texto, view=None)
-            if resultado.problema == "activo_muerto" and resultado.bloqueada:
-                canal = _canal_de(interaction)
-                await congelar(
-                    canal,
-                    resultado.bloqueada.pantalla_msg_id or self.pantalla_msg_id,
-                )
-                await canal.send(pantalla.render(resultado.bloqueada, ahora))
             return
 
         if len(resultado.participantes) != 2:
@@ -495,12 +484,9 @@ class VistaEntrenamientoConjunto(discord.ui.View):
         self,
         activo: sim.Criatura,
         reservas: list[sim.Criatura],
-        pantalla_msg_id: str,
     ):
         super().__init__(timeout=120)
-        self.add_item(
-            MenuEntrenamientoConjunto(activo, reservas, pantalla_msg_id)
-        )
+        self.add_item(MenuEntrenamientoConjunto(activo, reservas))
 
 
 async def abrir_entrenamiento_conjunto(
@@ -549,7 +535,7 @@ async def abrir_entrenamiento_conjunto(
         return
     await interaccion.response.send_message(
         "Elige una reserva para entrenar con tu gachamon activo.",
-        view=VistaEntrenamientoConjunto(activo, reservas, mensaje_id),
+        view=VistaEntrenamientoConjunto(activo, reservas),
         ephemeral=True,
     )
 
@@ -794,20 +780,13 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
                     resultado.criatura.usuario_id, resultado.criatura.guild_id
                 )) - 1,
             ),
-            asciicoins=(
-                economia.saldos(
-                    resultado.criatura.usuario_id, resultado.criatura.guild_id
-                ).asciicoins
-                if resultado.criatura.viva else None
-            ),
+            asciicoins=economia.saldos(
+                resultado.criatura.usuario_id, resultado.criatura.guild_id
+            ).asciicoins,
         )
-        vista = PantallaView() if resultado.criatura.viva else None
-        await interaccion.response.edit_message(**_como_edicion(ficha), view=vista)
-        return
-
-    if not resultado.criatura.viva:
-        await _congelar_pulsada(interaccion)
-        await _canal_de(interaccion).send(pantalla.render(resultado.criatura, ahora))
+        await interaccion.response.edit_message(
+            **_como_edicion(ficha), view=PantallaView()
+        )
         return
 
     if resultado.espera:

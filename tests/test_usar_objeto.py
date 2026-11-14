@@ -75,6 +75,24 @@ def test_ningun_rechazo_gasta_el_objeto(base):
     assert db.inventario(U, G) == {"pocion_comida": 1, "semilla": 1}
 
 
+def test_con_la_comida_en_cero_el_objeto_se_usa(base):
+    """Días en 0 ya no la matan al ponerla al día: el objeto se gasta y se aplica."""
+    hambrear(nace(), 0)
+    dar(U, "pocion_comida", 1)
+    tres_dias = T0 + timedelta(days=3)
+
+    usado = economia.usar_objeto(
+        "evento-uso-cero", U, G, obj.CATALOGO["pocion_comida"], tres_dias
+    )
+
+    assert usado.ok and usado.motivo is None and usado.efecto == "comida"
+    assert usado.comida == 100
+    assert usado.criatura.viva and usado.criatura.hambre == 100.0
+    assert db.inventario(U, G) == {}
+    guardada = db.criatura_activa(U, G)
+    assert guardada.hambre == 100.0 and guardada.actualizada_en == tres_dias
+
+
 def test_el_replay_no_vuelve_a_tirar_el_dado(base):
     """Lo que salió la primera vez es lo que se cuenta: ni otro bonus ni otro
     efecto puesto encima."""
