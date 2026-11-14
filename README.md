@@ -120,10 +120,17 @@ el directorio en un clon de git; el `.env`, la base y el `venv` están en
 `.gitignore`, así que no los toca.
 
 ```bash
-./actualizar-pi.sh              # lo normal
-SIN_TESTS=1 ./actualizar-pi.sh  # sin correr la suite en la Pi
+SIN_TESTS=1 ./actualizar-pi.sh  # lo habitual, con la CI ya en verde
+./actualizar-pi.sh              # corriendo además la suite en la Pi
 RAMA=otra ./actualizar-pi.sh    # otra rama
 ```
+
+La forma habitual es `SIN_TESTS=1 ./actualizar-pi.sh`, cuando la integración
+continua ya pasó en las dos versiones de Python: la web se para unos segundos;
+con la suite en la Raspberry, unos minutos. Si el despliegue se corta después
+de pararla (falla `pip`, se cae la conexión), la Pi la vuelve a arrancar con lo
+que haya en disco, y si el guion termina con error su última línea es el
+comando exacto para arrancarla a mano.
 
 `deploy.sh` también copia la base de datos (misma rotación de 5) antes de reiniciar, y no corre la suite. Su `rsync --delete` no toca la base ni su diario (`*.db`, `*.db-journal`, `*.db-wal`, `*.db-shm`).
 

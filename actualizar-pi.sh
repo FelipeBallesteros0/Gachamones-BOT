@@ -1,8 +1,8 @@
 #!/bin/bash
 # Deja la Raspberry exactamente en lo que haya en GitHub.
 #
-#   ./actualizar-pi.sh                 # lo normal
-#   SIN_TESTS=1 ./actualizar-pi.sh     # sin correr la suite en la Pi
+#   SIN_TESTS=1 ./actualizar-pi.sh     # lo habitual, con la CI ya en verde
+#   ./actualizar-pi.sh                 # corriendo además la suite en la Pi
 #   RAMA=otra ./actualizar-pi.sh       # otra rama
 #   PI=usuario@ip DEST=/ruta ./actualizar-pi.sh
 #
@@ -14,7 +14,9 @@
 # así que `git reset --hard` no los toca. Aun así se copia el .db antes.
 #
 # Mientras dura, la web no contesta: se para antes de tocar sus archivos (unos
-# segundos con SIN_TESTS=1; con la suite en la Pi, unos minutos).
+# segundos con SIN_TESTS=1; con la suite en la Pi, unos minutos). Si el
+# despliegue se corta después de pararla, la Pi la vuelve a arrancar; y si el
+# guion termina con error, su última línea dice cómo arrancarla a mano.
 set -euo pipefail
 
 PI="${PI:-felipe@192.168.1.109}"
@@ -38,6 +40,19 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 echo "==> Actualizando $PI:$DEST desde $RAMA"
+
+# Desde aquí la web puede quedar parada: el bloque remoto la para antes de
+# tocar sus archivos. Si el guion no llega al final (falla algo, se cae la
+# conexión, Ctrl+C), lo último que escribe es cómo arrancarla a mano. Se mira
+# una marca y no el código de salida: al cortar con una señal, la trampa de
+# EXIT ve el código de la última orden, que puede ser 0.
+web_en_marcha=""
+avisar_si_la_web_puede_estar_parada() {
+    if [ -z "$web_en_marcha" ]; then
+        echo "La web puede haber quedado parada. Para arrancarla: ssh $PI 'sudo systemctl start gachamon-web'"
+    fi
+}
+trap avisar_si_la_web_puede_estar_parada EXIT
 
 ssh "$PI" "bash -s" <<REMOTO
 set -euo pipefail
@@ -77,9 +92,19 @@ git fetch -q origin '$RAMA'
 # reinicio del final o, si la suite sale en rojo, en la Pi después de volver al
 # commit de antes. El bot sigue: no sirve archivos. La primera vez la unidad
 # aún no está instalada y no hay nada que parar.
+#
+# Si este bloque sale con error después de pararla (falla pip, se cae la
+# conexión), la trampa de EXIT la vuelve a arrancar con los archivos que haya
+# en disco: la web calcula su versión al arrancar, así que sirve lo que hay de
+# forma coherente. Se ignora SIGPIPE para que una conexión caída sea un error
+# que la trampa ve (el siguiente echo falla) y no una muerte por señal, con la
+# que la trampa vería el 0 de la orden anterior. Si el bloque sale bien no hace
+# nada: la arranca el reinicio del final, después del bot.
 if [ -f /etc/systemd/system/gachamon-web.service ]; then
     echo "    la web se para mientras cambian sus archivos"
     sudo systemctl stop gachamon-web
+    trap '' PIPE
+    trap 'if [ \$? -ne 0 ]; then sudo systemctl start gachamon-web; echo "    el despliegue se cortó: la web volvió a arrancar con lo que hay en disco"; fi' EXIT
 fi
 
 # --hard sobre los ficheros versionados; los ignorados (.env, *.db, venv/) no se
@@ -108,8 +133,11 @@ if [ -z "$SIN_TESTS" ]; then
     # tocar los archivos y aquí no llega al reinicio del final. Se sale con el
     # estado de pytest. Los \$ son de la Pi, no de aquí. La política es
     # `failed` y no `none`: sólo `failed` borra la carpeta de cada prueba que
-    # pasa; con `none` el temporal en memoria crece.
-    ssh "$PI" "set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; if [ \$estado -ne 0 ]; then sudo systemctl start gachamon-web; fi; exit \$estado"
+    # pasa; con `none` el temporal en memoria crece. Empieza ignorando SIGPIPE:
+    # si se cae la conexión mientras corre la suite, el `tail` y el aviso del
+    # camino en rojo escriben a nadie, y con la señal la orden moría antes de
+    # volver atrás y de arrancar la web; así sólo fallan esas escrituras.
+    ssh "$PI" "trap '' PIPE; set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; if [ \$estado -ne 0 ]; then sudo systemctl start gachamon-web; fi; exit \$estado"
 fi
 
 # Los servicios se reinician al final y sólo si todo lo anterior salió bien:
@@ -121,7 +149,8 @@ fi
 # levanta esa versión y no la que salió en rojo; y arranca la web, que calcula
 # su versión con los archivos que encuentra al arrancar. La primera vez no hay
 # commit anterior y el código nuevo se queda. La web está parada desde antes de
-# tocar los archivos (ver el bloque remoto): aquí la arranca su `restart`.
+# tocar los archivos (ver el bloque remoto): aquí la arranca su `restart`, y
+# sólo cuando ya contesta se da por en marcha; si no, el aviso dice cómo.
 echo "==> Reiniciando los servicios (primero el bot, después la web)"
 TTY_FLAG=""
 [ -t 0 ] && TTY_FLAG="-t"
@@ -133,6 +162,7 @@ ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tama
     sudo systemctl restart gachamon-web && \
     sleep 3 && systemctl is-active tamagotchi && systemctl is-active gachamon-web && \
     curl -fsS --retry 10 --retry-delay 1 --retry-connrefused -o /dev/null http://127.0.0.1:8010/gachamon/api/salud"
+web_en_marcha=1
 
 echo
 echo "Listo. Registro en vivo:  ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'"

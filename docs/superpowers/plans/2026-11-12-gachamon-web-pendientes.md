@@ -123,9 +123,19 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   Pi vuelve al commit de antes. A cambio, durante el despliegue la web no
   contesta: unos segundos con `SIN_TESTS=1`, unos minutos con la suite en la
   Pi. Una página abierta dice que el juego no está disponible y deja
-  reintentar; quien la abre en ese rato no recibe la portada. Si el despliegue
-  se corta por otra cosa (se cae la conexión, falla `pip`), la web se queda
-  parada hasta el siguiente despliegue o hasta arrancarla a mano.
+  reintentar; quien la abre en ese rato no recibe la portada.
+- Resuelto en los retoques del plan 5: un despliegue que se corta por otra
+  cosa después de parar la web (falla `pip`, se cae la conexión, falla el
+  reinicio del final) ya no la deja parada sin decir nada. El bloque remoto la
+  vuelve a arrancar con los archivos que haya en disco si sale con error; la
+  orden de la suite ignora SIGPIPE, así que una conexión caída no le impide
+  arrancarla en el camino en rojo; y si el guion termina con error, su última
+  línea es el comando exacto para arrancarla a mano. Una conexión caída durante
+  la suite cuenta como suite en rojo aunque pasara (el `tail` no puede
+  escribir): la Pi vuelve al commit de antes y arranca la web. Lo que no cubre:
+  si el corte llega cuando el bloque remoto y la suite ya terminaron bien (al
+  conectar para el reinicio del final o durante él), la web queda parada y sólo
+  queda ese aviso.
 - `deploy.sh`, que copia esta carpeta con `rsync`, no para la web: entre la
   copia y el reinicio (lo que tarda `pip`, sin suite) la web vieja sigue
   sirviendo los archivos nuevos, y la caché puede guardar la mezcla.

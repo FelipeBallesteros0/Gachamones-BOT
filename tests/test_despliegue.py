@@ -113,13 +113,14 @@ def _de_mentira(ruta: Path, apuntes: Path, nombre: str, despues: str = "exit 0")
     ruta.chmod(0o755)
 
 
-def _correr_la_orden_remota(tmp_path, codigo, anterior=None):
+def _correr_la_orden_remota(tmp_path, codigo, anterior=None, cortada=False):
     """Ejecuta en local la orden que iría por ssh, con `python`, `git` y `sudo` de mentira.
 
     El `python` del venv contesta a pytest con `codigo`; `anterior`, si no es
-    None, es lo que hay en `.git/gachamon-anterior`. Devuelve lo que pasó, lo
-    que apuntaron las órdenes de mentira y el temporal de la suite. El `sudo`
-    de mentira impide que la prueba toque los servicios de esta máquina.
+    None, es lo que hay en `.git/gachamon-anterior`. Con `cortada`, la conexión
+    está caída: lo que la orden escriba ya no lo lee nadie. Devuelve lo que
+    pasó, lo que apuntaron las órdenes de mentira y el temporal de la suite. El
+    `sudo` de mentira impide que la prueba toque los servicios de esta máquina.
     """
     bash = shutil.which("bash")
     if bash is None:
@@ -152,7 +153,17 @@ def _correr_la_orden_remota(tmp_path, codigo, anterior=None):
     ).stdout
     assert str(destino) in orden and "\\" not in orden
     entorno = {**os.environ, "PATH": f"{ordenes}{os.pathsep}{os.environ.get('PATH', '')}"}
-    hecho = subprocess.run([bash, "-c", orden], capture_output=True, text=True, env=entorno)
+    if cortada:
+        lectura, escritura = os.pipe()
+        os.close(lectura)
+        try:
+            hecho = subprocess.run(
+                [bash, "-c", orden], stdout=escritura, stderr=subprocess.PIPE, text=True, env=entorno
+            )
+        finally:
+            os.close(escritura)
+    else:
+        hecho = subprocess.run([bash, "-c", orden], capture_output=True, text=True, env=entorno)
     lineas = apuntes.read_text().splitlines() if apuntes.exists() else []
     return hecho, lineas, temporal
 
@@ -290,6 +301,170 @@ def test_apuntar_el_commit_de_antes_lo_guarda_o_lo_borra(tmp_path):
     (primera / ".git" / "gachamon-anterior").write_text("viejo\n")
     subprocess.run([bash, "-c", f"set -euo pipefail\n{bloque}"], cwd=primera, check=True)
     assert not (primera / ".git" / "gachamon-anterior").exists()
+
+
+# --- Un despliegue cortado no deja la web parada -----------------------------
+#
+# Desde que el bloque remoto para la web hasta el reinicio del final, cualquier
+# corte (falla pip, se cae la conexión, falla el reinicio) la dejaba parada
+# hasta que alguien la arrancara a mano.
+
+PARAR_LA_WEB = "sudo systemctl stop gachamon-web"
+
+
+def _correr_el_bloque_remoto(tmp_path, pip=0, con_unidad=True, cortar=False):
+    """Ejecuta en local el bloque remoto tal como le llega a la Pi, con `git`, `sudo` y `python` de mentira.
+
+    `pip` es el código con el que sale la instalación de requisitos;
+    `con_unidad`, si la unidad de la web ya está instalada. Con `cortar`, la
+    conexión se cae justo después de parar la web: lo que el bloque escriba
+    desde ahí ya no lo lee nadie. Devuelve el código de salida y lo que
+    apuntaron las órdenes de mentira.
+    """
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no hay bash")
+    destino, ordenes = tmp_path / "destino", tmp_path / "bin"
+    for carpeta in (destino / "venv" / "bin", destino / ".git", ordenes):
+        carpeta.mkdir(parents=True)
+    apuntes, cortada, unidad = tmp_path / "apuntes", tmp_path / "cortada", tmp_path / "gachamon-web.service"
+    if con_unidad:
+        unidad.write_text("")
+    _de_mentira(destino / "venv" / "bin" / "python", apuntes, "python", f"exit {pip}")
+    _de_mentira(ordenes / "git", apuntes, "git")
+    # Con `cortar`, parar la web espera a que la prueba haya cortado la conexión.
+    espera = (
+        'if [ "$*" = "systemctl stop gachamon-web" ]; then\n'
+        f"    for _ in $(seq 1000); do [ -f '{cortada}' ] && exit 0; sleep 0.01; done\n"
+        "    exit 1\n"
+        "fi\n"
+    ) if cortar else ""
+    _de_mentira(ordenes / "sudo", apuntes, "sudo", espera + "exit 0")
+
+    crudo = _bloque_remoto().replace("/etc/systemd/system/gachamon-web.service", str(unidad))
+    # El heredoc no lleva comillas: a la Pi le llega lo que expande el bash de aquí.
+    variables = {**os.environ, "DEST": str(destino), "RAMA": "main", "REMOTO_URL": "origen", "SIN_TESTS": "1"}
+    bloque = subprocess.run(
+        [bash, "-c", f"cat <<REMOTO\n{crudo}\nREMOTO\n"], env=variables,
+        capture_output=True, text=True, check=True,
+    ).stdout
+    entorno = {**os.environ, "PATH": f"{ordenes}{os.pathsep}{os.environ.get('PATH', '')}"}
+    if cortar:
+        with open(tmp_path / "errores", "w") as errores:
+            proceso = subprocess.Popen(
+                [bash, "-c", bloque], stdout=subprocess.PIPE, stderr=errores, text=True, env=entorno
+            )
+            primera = proceso.stdout.readline()
+            proceso.stdout.close()       # se cae la conexión
+            cortada.touch()
+            codigo = proceso.wait(timeout=30)
+        assert "la web se para" in primera
+    else:
+        codigo = subprocess.run([bash, "-c", bloque], capture_output=True, text=True, env=entorno).returncode
+    return codigo, apuntes.read_text().splitlines() if apuntes.exists() else []
+
+
+def _de_sudo(apuntes):
+    return [a for a in apuntes if a.startswith("sudo ")]
+
+
+def test_tras_parar_la_web_el_bloque_remoto_pone_su_trap():
+    remoto = _bloque_remoto()
+    trap = next(l for l in remoto.splitlines() if l.lstrip().startswith("trap ") and "EXIT" in l)
+    assert "systemctl start gachamon-web" in trap
+    # Después de pararla y antes de tocar nada: un corte anterior no la ha parado.
+    assert remoto.index(PARAR_LA_WEB) < remoto.index(trap) < remoto.index("git reset -q --hard")
+
+
+def test_si_el_bloque_remoto_sale_bien_no_arranca_la_web(tmp_path):
+    # La arranca el reinicio del final, después del bot.
+    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, pip=0)
+    assert codigo == 0
+    assert _de_sudo(apuntes) == [PARAR_LA_WEB]
+
+
+@pytest.mark.parametrize("pip", [1, 2])
+def test_si_falla_pip_la_web_vuelve_a_arrancar(pip, tmp_path):
+    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, pip=pip)
+    assert codigo == pip                   # y el guion corta igual
+    assert _de_sudo(apuntes) == [PARAR_LA_WEB, ARRANCAR_LA_WEB]
+    assert apuntes.index("python -m pip install -q -r requirements.txt") < apuntes.index(ARRANCAR_LA_WEB)
+
+
+def test_si_se_cae_la_conexion_tras_pararla_la_web_vuelve_a_arrancar(tmp_path):
+    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, cortar=True)
+    assert codigo != 0
+    assert _de_sudo(apuntes) == [PARAR_LA_WEB, ARRANCAR_LA_WEB]
+
+
+def test_sin_la_unidad_instalada_no_se_para_ni_se_arranca_nada(tmp_path):
+    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, pip=1, con_unidad=False)
+    assert codigo == 1
+    assert _de_sudo(apuntes) == []
+
+
+def test_la_orden_de_la_suite_ignora_sigpipe_antes_de_correrla():
+    linea = _linea_de_pytest_en_la_pi()
+    assert linea.index("trap '' PIPE") < linea.index("pytest")
+
+
+def test_si_se_cae_la_conexion_durante_la_suite_la_web_vuelve_a_arrancar(tmp_path):
+    # Sin respuesta que leer, el `tail` y el aviso del camino en rojo escriben a
+    # nadie: un SIGPIPE cortaba la orden antes de volver atrás y de arrancar la web.
+    hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, 1, anterior="abc1234\n", cortada=True)
+    assert hecho.returncode != 0
+    assert "git reset -q --hard abc1234" in apuntes
+    assert apuntes.count(ARRANCAR_LA_WEB) == 1
+
+
+AVISO_DE_LA_WEB_PARADA = (
+    "La web puede haber quedado parada. Para arrancarla: ssh usuario@pi 'sudo systemctl start gachamon-web'"
+)
+
+
+def _aviso_local() -> str:
+    """Las líneas del guion que preparan el aviso de la web parada."""
+    lineas = leer("actualizar-pi.sh").splitlines()
+    inicio = next(i for i, l in enumerate(lineas) if l.startswith("web_en_marcha="))
+    fin = next(i for i in range(inicio, len(lineas)) if lineas[i].startswith("trap ") and "EXIT" in lineas[i])
+    return "\n".join(lineas[inicio:fin + 1])
+
+
+@pytest.mark.parametrize("final", ["exit 1", "false", "kill -INT $$"], ids=["error", "orden_fallida", "ctrl_c"])
+def test_si_el_guion_no_termina_bien_lo_ultimo_es_como_arrancar_la_web(final):
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no hay bash")
+    hecho = subprocess.run(
+        [bash, "-c", f"set -euo pipefail\n{_aviso_local()}\necho '==> lo que iba haciendo'\n{final}\n"],
+        env={**os.environ, "PI": "usuario@pi"}, capture_output=True, text=True,
+    )
+    assert hecho.returncode != 0
+    assert hecho.stdout.splitlines() == ["==> lo que iba haciendo", AVISO_DE_LA_WEB_PARADA]
+
+
+def test_si_el_guion_termina_bien_no_avisa():
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no hay bash")
+    hecho = subprocess.run(
+        [bash, "-c", f"set -euo pipefail\n{_aviso_local()}\nweb_en_marcha=1\n"],
+        env={**os.environ, "PI": "usuario@pi"}, capture_output=True, text=True,
+    )
+    assert hecho.returncode == 0
+    assert hecho.stdout == ""
+
+
+def test_el_aviso_se_arma_antes_de_parar_la_web_y_se_calla_al_final():
+    texto = leer("actualizar-pi.sh")
+    aviso = _aviso_local()
+    # Cancelar por los commits sin subir no ha parado nada: no avisa.
+    assert texto.index('echo "Cancelado."') < texto.index(aviso) < texto.index('ssh "$PI" "bash -s" <<REMOTO')
+    # La web queda en marcha sólo cuando el reinicio del final ya la vio contestar.
+    assert texto.count("web_en_marcha=1") == 1
+    assert texto.index(SALUD) < texto.index("web_en_marcha=1")
+    # La dirección sale de `$PI`, no se escribe a mano.
+    assert "ssh $PI 'sudo systemctl start gachamon-web'" in aviso
 
 
 SALUD = (
