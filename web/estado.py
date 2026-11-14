@@ -139,11 +139,15 @@ def _estancia(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> str | No
 
 
 def _refugio(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> dict:
-    viven = casas.reparto(db.plantel(jugador.usuario_id, jugador.guild_id), hogar).get(None, [])
+    # A la intemperie no se vive en el refugio: la estancia se acabó.
+    viven = [] if hogar.estado_de(None, ahora) == casas.INTEMPERIE else (
+        casas.reparto(db.plantel(jugador.usuario_id, jugador.guild_id), hogar).get(None, [])
+    )
     return {
         "viven": [
             {
-                "id": c.id, "nombre": sim.nombre_visible(c), "nombre_especie": c.def_especie.nombre,
+                "id": c.id, "nombre": "Sin nombre" if sim.esta_sin_nombrar(c) else c.nombre,
+                "nombre_especie": c.def_especie.nombre,
                 "retrato": retrato_de(c),
             }
             for c in viven
