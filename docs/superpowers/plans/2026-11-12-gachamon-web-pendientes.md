@@ -126,16 +126,23 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   reintentar; quien la abre en ese rato no recibe la portada.
 - Resuelto en los retoques del plan 5: un despliegue que se corta por otra
   cosa después de parar la web (falla `pip`, se cae la conexión, falla el
-  reinicio del final) ya no la deja parada sin decir nada. El bloque remoto la
-  vuelve a arrancar con los archivos que haya en disco si sale con error; la
-  orden de la suite ignora SIGPIPE, así que una conexión caída no le impide
-  arrancarla en el camino en rojo; y si el guion termina con error, su última
-  línea es el comando exacto para arrancarla a mano. Una conexión caída durante
-  la suite cuenta como suite en rojo aunque pasara (el `tail` no puede
-  escribir): la Pi vuelve al commit de antes y arranca la web. Lo que no cubre:
-  si el corte llega cuando el bloque remoto y la suite ya terminaron bien (al
-  conectar para el reinicio del final o durante él), la web queda parada y sólo
-  queda ese aviso.
+  reinicio del final) ya no la deja parada sin decir nada. Si el bloque remoto
+  no llega al final (lo decide una marca, no el código de salida, para que
+  también cuente una señal), hace lo mismo que la suite en rojo: vuelve al
+  commit en el que estaba la Pi y reinstala sus requisitos, y reinicia la web.
+  No la arranca con el código nuevo porque la web arranca por
+  `economia.poner_al_dia`, que migraría la base mientras el bot sigue con el
+  viejo. La orden de la suite ignora SIGPIPE, así que una conexión caída no le
+  impide volver atrás y reiniciar la web en el camino en rojo. Los dos caminos
+  usan `restart` y no `start`: si alguien la arrancó a mano siguiendo el aviso,
+  un `start` no haría nada y la web serviría los archivos de antes bajo la
+  versión nueva. Si el guion termina con error, su última línea es el comando
+  exacto para arrancarla a mano. Una conexión caída durante la suite cuenta
+  como suite en rojo aunque pasara (el `tail` no puede escribir): la Pi vuelve
+  al commit de antes y reinicia la web. Lo que no cubre: si el corte llega
+  cuando el bloque remoto y la suite ya terminaron bien (al conectar para el
+  reinicio del final o durante él), o la Pi no se entera de él, la web queda
+  parada y sólo queda ese aviso.
 - `deploy.sh`, que copia esta carpeta con `rsync`, no para la web: entre la
   copia y el reinicio (lo que tarda `pip`, sin suite) la web vieja sigue
   sirviendo los archivos nuevos, y la caché puede guardar la mezcla.
@@ -275,10 +282,11 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   relectura del plantel falla, tampoco se dice nada.
 - Dos reclutas sin nombre de la misma especie se leen igual para el lector de
   pantalla: «Ponerle nombre a Purreon» dos veces.
-- A quien tiene Discord vinculado y nunca empezó su estancia (sin fila de
-  hogar), el Refugio le dice cada día «Tu estancia en el refugio dura 7 días
-  más.». Es cierto en el modelo, pero se lee igual todos los días; quizá pide
-  otra frase.
+- Resuelto en los retoques del plan 5: a quien tiene Discord vinculado y nunca
+  empezó su estancia (sin fila de hogar), el Refugio le decía cada día «Tu
+  estancia en el refugio dura 7 días más.». Era cierto en el modelo, pero se
+  leía igual todos los días. Ahora le dice «Tu semana en el refugio todavía no
+  ha empezado.»; saber si hay fila es una lectura (`db.estancia_empezada`).
 
 ### Pruebas
 
@@ -287,10 +295,11 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   `articulos.js` comprueba detalles de `lienzoDePieza`.
 - Ninguna prueba vigila el selector de los corazones (`.escena > .corazon`), ni
   que un 304 o un HEAD no lleven la cabecera inmutable.
-- Faltan pruebas de: una medalla «tuya» con progreso en la ficha; el ropero con
-  títulos en «ya lo lleva», «lo lleva otro» y «ya no lo tienes»; y que mirar el
-  Refugio no crea la fila del hogar. También una ayuda de pruebas
-  (`vinculada_sin_gachamon`) repite pasos de otras.
+- Faltan pruebas de: una medalla «tuya» con progreso en la ficha; y el ropero
+  con títulos en «ya lo lleva», «lo lleva otro» y «ya no lo tienes». La de que
+  mirar el Refugio no crea la fila del hogar quedó resuelta en los retoques del
+  plan 5. También una ayuda de pruebas (`vinculada_sin_gachamon`) repite pasos
+  de otras.
 
 ## Para el plan 6 (tu casa)
 

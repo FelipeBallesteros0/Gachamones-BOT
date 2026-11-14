@@ -112,7 +112,7 @@ Hay **dos scripts y no hacen lo mismo**:
 está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
 datos antes de tocar nada (guarda las 5 últimas), pone la Pi en el commit de
 `main`, corre la suite allí y **sólo reinicia si pasa** (si no, la Pi vuelve al
-commit en el que estaba y no reinicia nada). La suite usa un temporal
+commit en el que estaba, no reinicia el bot y vuelve a arrancar la web). La suite usa un temporal
 en memoria (`--basetemp=/dev/shm/...`) que se borra al terminar, y para ello
 instala `requirements-dev.txt` (con `SIN_TESTS=1` instala sólo
 `requirements.txt`). La primera vez convierte
@@ -128,9 +128,12 @@ RAMA=otra ./actualizar-pi.sh    # otra rama
 La forma habitual es `SIN_TESTS=1 ./actualizar-pi.sh`, cuando la integración
 continua ya pasó en las dos versiones de Python: la web se para unos segundos;
 con la suite en la Raspberry, unos minutos. Si el despliegue se corta después
-de pararla (falla `pip`, se cae la conexión), la Pi la vuelve a arrancar con lo
-que haya en disco, y si el guion termina con error su última línea es el
-comando exacto para arrancarla a mano.
+de pararla (falla `pip`, se cae la conexión) y la Pi se entera, hace lo mismo
+que con la suite en rojo: vuelve al commit en el que estaba, que es el código
+que corre el bot, y reinicia la web con él. Un corte que llega cuando el bloque
+remoto y la suite ya terminaron bien, o que la Pi no detecta, puede dejar la web
+parada: por eso, si el guion termina con error, su última línea es el comando
+exacto para arrancarla a mano.
 
 `deploy.sh` también copia la base de datos (misma rotación de 5) antes de reiniciar, y no corre la suite. Su `rsync --delete` no toca la base ni su diario (`*.db`, `*.db-journal`, `*.db-wal`, `*.db-shm`).
 

@@ -15,6 +15,17 @@ def leer(nombre: str) -> str:
     return (RAIZ / nombre).read_text(encoding="utf-8")
 
 
+def _reinicio_del_final(guion: str) -> str:
+    """El reinicio del camino verde, desde su `daemon-reload` hasta el final del guion.
+
+    En `actualizar-pi.sh`, antes de él, los caminos de fallo reinician sólo la
+    web (y a propósito no el bot): las reglas del reinicio final se miran aquí.
+    """
+    texto = leer(guion)
+    assert texto.count("systemctl daemon-reload") == 1
+    return texto[texto.index("systemctl daemon-reload"):]
+
+
 def test_el_servicio_web_escucha_solo_en_la_propia_maquina():
     unidad = leer("gachamon-web.service")
     assert "uvicorn web.app:app" in unidad
@@ -34,8 +45,8 @@ def test_cada_guion_reinicia_los_dos_servicios(guion):
 
 @pytest.mark.parametrize("guion", GUIONES)
 def test_cada_guion_reinicia_el_bot_antes_que_la_web(guion):
-    texto = leer(guion)
-    assert texto.index("restart tamagotchi") < texto.index("restart gachamon-web")
+    final = _reinicio_del_final(guion)
+    assert final.index("restart tamagotchi") < final.index("restart gachamon-web")
 
 
 @pytest.mark.parametrize("guion", GUIONES)
@@ -58,7 +69,8 @@ def test_cada_guion_comprueba_cada_servicio_por_separado(guion):
     assert "is-active tamagotchi &&" in unidos
     assert "&& systemctl is-active gachamon-web" in unidos
     # y van después de reiniciar la web: si no queda activa, el guion falla
-    assert texto.index("restart gachamon-web") < texto.index("is-active gachamon-web")
+    final = _reinicio_del_final(guion)
+    assert final.index("restart gachamon-web") < final.index("is-active gachamon-web")
 
 
 @pytest.mark.parametrize("guion", GUIONES)
@@ -212,6 +224,10 @@ def test_sin_commit_guardado_no_se_intenta_volver(anterior, tmp_path):
 # su versión vieja y navegadores y Cloudflare se quedarían con copias mezcladas.
 
 ARRANCAR_LA_WEB = "sudo systemctl start gachamon-web"
+# En la Pi la web vuelve siempre con `restart`: si alguien la arrancó a mano
+# mientras tanto, un `start` no haría nada y seguiría sirviendo lo que leyó al
+# arrancar bajo una versión que ya no es la de los archivos en disco.
+REINICIAR_LA_WEB = "sudo systemctl restart gachamon-web"
 
 
 def test_la_web_se_para_antes_de_tocar_sus_archivos():
@@ -233,10 +249,13 @@ def test_con_la_suite_en_rojo_la_web_vuelve_a_arrancar_tras_volver_atras(codigo,
     hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, codigo, anterior="abc1234\n")
     # El código de salida sigue siendo el de pytest: el guion corta igual.
     assert hecho.returncode == codigo, hecho.stderr
-    assert apuntes.count(ARRANCAR_LA_WEB) == 1
+    assert apuntes.count(REINICIAR_LA_WEB) == 1
+    assert ARRANCAR_LA_WEB not in apuntes
     instalar = "python -m pip install -q -r requirements.txt"
     assert (apuntes.index("git reset -q --hard abc1234") < apuntes.index(instalar)
-            < apuntes.index(ARRANCAR_LA_WEB))
+            < apuntes.index(REINICIAR_LA_WEB))
+    # Y lo dice.
+    assert "    la web volvió a arrancar" in hecho.stdout.splitlines()
 
 
 @pytest.mark.parametrize("anterior", [None, ""], ids=["sin_archivo", "vacio"])
@@ -244,7 +263,9 @@ def test_sin_commit_al_que_volver_la_web_vuelve_a_arrancar_igual(anterior, tmp_p
     # Se paró antes de tocar los archivos: si no arrancara, se quedaría parada.
     hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, 1, anterior=anterior)
     assert hecho.returncode == 1
-    assert apuntes.count(ARRANCAR_LA_WEB) == 1
+    assert apuntes.count(REINICIAR_LA_WEB) == 1
+    assert ARRANCAR_LA_WEB not in apuntes
+    assert "    la web volvió a arrancar" in hecho.stdout.splitlines()
 
 
 def test_con_la_suite_en_verde_la_web_arranca_con_el_reinicio_del_final(tmp_path):
@@ -312,14 +333,23 @@ def test_apuntar_el_commit_de_antes_lo_guarda_o_lo_borra(tmp_path):
 PARAR_LA_WEB = "sudo systemctl stop gachamon-web"
 
 
-def _correr_el_bloque_remoto(tmp_path, pip=0, con_unidad=True, cortar=False):
+INSTALAR_LO_DE_ANTES = "python -m pip install -q -r requirements.txt"
+VOLVER_ATRAS = "git reset -q --hard abc1234"
+
+
+def _correr_el_bloque_remoto(tmp_path, pip=0, con_unidad=True, cortar=False, con_commit=True,
+                             falla_volver=False, senal=None):
     """Ejecuta en local el bloque remoto tal como le llega a la Pi, con `git`, `sudo` y `python` de mentira.
 
-    `pip` es el código con el que sale la instalación de requisitos;
-    `con_unidad`, si la unidad de la web ya está instalada. Con `cortar`, la
+    Corre como con la suite: el bloque instala `requirements-dev.txt`, y
+    `requirements.txt` queda para volver atrás. `pip` es el código con el que
+    sale cada instalación; con `senal`, la del bloque le manda esa señal a su
+    bash y sale con 0. `con_unidad`, si la unidad de la web ya está instalada;
+    `con_commit`, si la Pi estaba en un commit (abc1234) al que volver;
+    `falla_volver`, si el `git reset` a ese commit falla. Con `cortar`, la
     conexión se cae justo después de parar la web: lo que el bloque escriba
-    desde ahí ya no lo lee nadie. Devuelve el código de salida y lo que
-    apuntaron las órdenes de mentira.
+    desde ahí ya no lo lee nadie. Devuelve el código de salida, lo que
+    apuntaron las órdenes de mentira y lo que escribió el bloque.
     """
     bash = shutil.which("bash")
     if bash is None:
@@ -330,8 +360,18 @@ def _correr_el_bloque_remoto(tmp_path, pip=0, con_unidad=True, cortar=False):
     apuntes, cortada, unidad = tmp_path / "apuntes", tmp_path / "cortada", tmp_path / "gachamon-web.service"
     if con_unidad:
         unidad.write_text("")
-    _de_mentira(destino / "venv" / "bin" / "python", apuntes, "python", f"exit {pip}")
-    _de_mentira(ordenes / "git", apuntes, "git")
+    python = f"exit {pip}" if senal is None else (
+        f'case "$*" in *requirements-dev.txt) kill -{senal} $PPID ;; esac\nexit 0'
+    )
+    _de_mentira(destino / "venv" / "bin" / "python", apuntes, "python", python)
+    _de_mentira(ordenes / "git", apuntes, "git", (
+        'case "$*" in\n'
+        '    "rev-parse HEAD") echo abc1234 ;;\n'
+        f'    "rev-parse -q --verify HEAD") exit {0 if con_commit else 1} ;;\n'
+        f'    "reset -q --hard abc1234") exit {1 if falla_volver else 0} ;;\n'
+        'esac\n'
+        'exit 0'
+    ))
     # Con `cortar`, parar la web espera a que la prueba haya cortado la conexión.
     espera = (
         'if [ "$*" = "systemctl stop gachamon-web" ]; then\n'
@@ -343,7 +383,7 @@ def _correr_el_bloque_remoto(tmp_path, pip=0, con_unidad=True, cortar=False):
 
     crudo = _bloque_remoto().replace("/etc/systemd/system/gachamon-web.service", str(unidad))
     # El heredoc no lleva comillas: a la Pi le llega lo que expande el bash de aquí.
-    variables = {**os.environ, "DEST": str(destino), "RAMA": "main", "REMOTO_URL": "origen", "SIN_TESTS": "1"}
+    variables = {**os.environ, "DEST": str(destino), "RAMA": "main", "REMOTO_URL": "origen", "SIN_TESTS": ""}
     bloque = subprocess.run(
         [bash, "-c", f"cat <<REMOTO\n{crudo}\nREMOTO\n"], env=variables,
         capture_output=True, text=True, check=True,
@@ -359,46 +399,85 @@ def _correr_el_bloque_remoto(tmp_path, pip=0, con_unidad=True, cortar=False):
             cortada.touch()
             codigo = proceso.wait(timeout=30)
         assert "la web se para" in primera
+        salida = ""
     else:
-        codigo = subprocess.run([bash, "-c", bloque], capture_output=True, text=True, env=entorno).returncode
-    return codigo, apuntes.read_text().splitlines() if apuntes.exists() else []
+        hecho = subprocess.run([bash, "-c", bloque], capture_output=True, text=True, env=entorno)
+        codigo, salida = hecho.returncode, hecho.stdout
+    return codigo, apuntes.read_text().splitlines() if apuntes.exists() else [], salida
 
 
 def _de_sudo(apuntes):
     return [a for a in apuntes if a.startswith("sudo ")]
 
 
+def _vuelve_atras_y_reinicia_la_web(apuntes) -> None:
+    """Lo que tiene que pasar tras un corte: el código del bot en disco y la web reiniciada con él."""
+    assert _de_sudo(apuntes) == [PARAR_LA_WEB, REINICIAR_LA_WEB]
+    assert (apuntes.index("python -m pip install -q -r requirements-dev.txt") < apuntes.index(VOLVER_ATRAS)
+            < apuntes.index(INSTALAR_LO_DE_ANTES) < apuntes.index(REINICIAR_LA_WEB))
+
+
 def test_tras_parar_la_web_el_bloque_remoto_pone_su_trap():
     remoto = _bloque_remoto()
     trap = next(l for l in remoto.splitlines() if l.lstrip().startswith("trap ") and "EXIT" in l)
-    assert "systemctl start gachamon-web" in trap
-    # Después de pararla y antes de tocar nada: un corte anterior no la ha parado.
-    assert remoto.index(PARAR_LA_WEB) < remoto.index(trap) < remoto.index("git reset -q --hard")
+    # Después de pararla y antes de bajar el código nuevo: un corte anterior no la ha parado.
+    assert remoto.index(PARAR_LA_WEB) < remoto.index(trap) < remoto.index('git reset -q --hard "origin/')
+    # En la Pi la web vuelve siempre con `restart`, nunca con `start`.
+    assert "sudo systemctl restart gachamon-web" in remoto
+    assert "systemctl start" not in remoto
 
 
 def test_si_el_bloque_remoto_sale_bien_no_arranca_la_web(tmp_path):
     # La arranca el reinicio del final, después del bot.
-    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, pip=0)
+    codigo, apuntes, salida = _correr_el_bloque_remoto(tmp_path, pip=0)
     assert codigo == 0
     assert _de_sudo(apuntes) == [PARAR_LA_WEB]
+    assert VOLVER_ATRAS not in apuntes and INSTALAR_LO_DE_ANTES not in apuntes
+    assert "abc1234" not in salida
 
 
 @pytest.mark.parametrize("pip", [1, 2])
-def test_si_falla_pip_la_web_vuelve_a_arrancar(pip, tmp_path):
-    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, pip=pip)
+def test_si_falla_pip_vuelve_al_commit_de_antes_y_reinicia_la_web(pip, tmp_path):
+    # Volver a instalar lo de antes también falla aquí: la web se reinicia igual.
+    codigo, apuntes, salida = _correr_el_bloque_remoto(tmp_path, pip=pip)
     assert codigo == pip                   # y el guion corta igual
-    assert _de_sudo(apuntes) == [PARAR_LA_WEB, ARRANCAR_LA_WEB]
-    assert apuntes.index("python -m pip install -q -r requirements.txt") < apuntes.index(ARRANCAR_LA_WEB)
+    _vuelve_atras_y_reinicia_la_web(apuntes)
+    # Y lo dice: adónde vuelve y que la web arrancó.
+    assert len([l for l in salida.splitlines() if "abc1234" in l]) == 1
+    assert "    la web volvió a arrancar" in salida.splitlines()
 
 
-def test_si_se_cae_la_conexion_tras_pararla_la_web_vuelve_a_arrancar(tmp_path):
-    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, cortar=True)
+def test_si_se_cae_la_conexion_tras_pararla_vuelve_atras_y_reinicia_la_web(tmp_path):
+    codigo, apuntes, _ = _correr_el_bloque_remoto(tmp_path, cortar=True)
     assert codigo != 0
-    assert _de_sudo(apuntes) == [PARAR_LA_WEB, ARRANCAR_LA_WEB]
+    _vuelve_atras_y_reinicia_la_web(apuntes)
+
+
+@pytest.mark.parametrize("senal", ["TERM", "HUP"])
+def test_tras_una_senal_vuelve_atras_aunque_la_ultima_orden_saliera_bien(senal, tmp_path):
+    # Con una señal, la trampa de EXIT ve el 0 de la última orden: decide la marca.
+    codigo, apuntes, _ = _correr_el_bloque_remoto(tmp_path, senal=senal)
+    assert codigo != 0
+    _vuelve_atras_y_reinicia_la_web(apuntes)
+
+
+def test_si_no_puede_volver_atras_la_web_se_reinicia_igual(tmp_path):
+    codigo, apuntes, _ = _correr_el_bloque_remoto(tmp_path, pip=1, falla_volver=True)
+    assert codigo == 1
+    assert VOLVER_ATRAS in apuntes and INSTALAR_LO_DE_ANTES not in apuntes
+    assert _de_sudo(apuntes) == [PARAR_LA_WEB, REINICIAR_LA_WEB]
+
+
+def test_sin_commit_al_que_volver_solo_reinicia_la_web(tmp_path):
+    # La primera vez no hay commit apuntado: el código nuevo se queda, como con la suite en rojo.
+    codigo, apuntes, _ = _correr_el_bloque_remoto(tmp_path, pip=1, con_commit=False)
+    assert codigo == 1
+    assert VOLVER_ATRAS not in apuntes and INSTALAR_LO_DE_ANTES not in apuntes
+    assert _de_sudo(apuntes) == [PARAR_LA_WEB, REINICIAR_LA_WEB]
 
 
 def test_sin_la_unidad_instalada_no_se_para_ni_se_arranca_nada(tmp_path):
-    codigo, apuntes = _correr_el_bloque_remoto(tmp_path, pip=1, con_unidad=False)
+    codigo, apuntes, _ = _correr_el_bloque_remoto(tmp_path, pip=1, con_unidad=False)
     assert codigo == 1
     assert _de_sudo(apuntes) == []
 
@@ -406,15 +485,20 @@ def test_sin_la_unidad_instalada_no_se_para_ni_se_arranca_nada(tmp_path):
 def test_la_orden_de_la_suite_ignora_sigpipe_antes_de_correrla():
     linea = _linea_de_pytest_en_la_pi()
     assert linea.index("trap '' PIPE") < linea.index("pytest")
+    assert "systemctl start" not in linea
 
 
-def test_si_se_cae_la_conexion_durante_la_suite_la_web_vuelve_a_arrancar(tmp_path):
+@pytest.mark.parametrize("codigo", [0, 1])
+def test_si_se_cae_la_conexion_durante_la_suite_vuelve_atras_y_reinicia_la_web(codigo, tmp_path):
     # Sin respuesta que leer, el `tail` y el aviso del camino en rojo escriben a
-    # nadie: un SIGPIPE cortaba la orden antes de volver atrás y de arrancar la web.
-    hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, 1, anterior="abc1234\n", cortada=True)
+    # nadie: un SIGPIPE cortaba la orden antes de volver atrás y de arrancar la
+    # web. Con la suite en verde también: el `tail` no puede escribir y cuenta
+    # como en rojo.
+    hecho, apuntes, _ = _correr_la_orden_remota(tmp_path, codigo, anterior="abc1234\n", cortada=True)
     assert hecho.returncode != 0
-    assert "git reset -q --hard abc1234" in apuntes
-    assert apuntes.count(ARRANCAR_LA_WEB) == 1
+    assert VOLVER_ATRAS in apuntes
+    assert apuntes.count(REINICIAR_LA_WEB) == 1
+    assert ARRANCAR_LA_WEB not in apuntes
 
 
 AVISO_DE_LA_WEB_PARADA = (
@@ -479,7 +563,8 @@ def test_cada_guion_pregunta_a_la_web_por_su_salud(guion):
     # por buena cuando contesta. Encadenada con &&, si no contesta el guion falla.
     texto = leer(guion)
     assert texto.count(SALUD) == 1
-    assert texto.index("restart gachamon-web") < texto.index("is-active gachamon-web") < texto.index(SALUD)
+    final = _reinicio_del_final(guion)
+    assert final.index("restart gachamon-web") < final.index("is-active gachamon-web") < final.index(SALUD)
     assert re.search(r"is-active gachamon-web\s*&&[\s\\]*" + re.escape(SALUD), texto)
 
 

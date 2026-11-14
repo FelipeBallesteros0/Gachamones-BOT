@@ -15,8 +15,11 @@
 #
 # Mientras dura, la web no contesta: se para antes de tocar sus archivos (unos
 # segundos con SIN_TESTS=1; con la suite en la Pi, unos minutos). Si el
-# despliegue se corta después de pararla, la Pi la vuelve a arrancar; y si el
-# guion termina con error, su última línea dice cómo arrancarla a mano.
+# despliegue se corta después de pararla y la Pi se entera, la Pi vuelve al
+# commit en el que estaba (el código que corre el bot) y reinicia la web. Un
+# corte que llega cuando el bloque remoto y la suite ya terminaron bien, o que
+# la Pi no detecta, puede dejarla parada; por eso, si el guion termina con
+# error, su última línea dice cómo arrancarla a mano.
 set -euo pipefail
 
 PI="${PI:-felipe@192.168.1.109}"
@@ -93,18 +96,36 @@ git fetch -q origin '$RAMA'
 # commit de antes. El bot sigue: no sirve archivos. La primera vez la unidad
 # aún no está instalada y no hay nada que parar.
 #
-# Si este bloque sale con error después de pararla (falla pip, se cae la
-# conexión), la trampa de EXIT la vuelve a arrancar con los archivos que haya
-# en disco: la web calcula su versión al arrancar, así que sirve lo que hay de
-# forma coherente. Se ignora SIGPIPE para que una conexión caída sea un error
-# que la trampa ve (el siguiente echo falla) y no una muerte por señal, con la
-# que la trampa vería el 0 de la orden anterior. Si el bloque sale bien no hace
-# nada: la arranca el reinicio del final, después del bot.
+# Si este bloque no llega al final después de pararla (falla pip, se cae la
+# conexión, llega una señal), la trampa de EXIT hace lo mismo que la suite en
+# rojo: vuelve al commit en el que estaba la Pi y reinstala sus requisitos, y
+# reinicia la web. No basta con arrancarla con lo que haya en disco: la web
+# arranca por economia.poner_al_dia, que migraría la base con el código nuevo
+# mientras el bot sigue con el viejo; tras un fallo, en disco queda el código
+# que corre el bot. Volver atrás puede fallar: la web se reinicia igual. Es
+# restart y no start: si alguien la arrancó a mano mientras tanto, start no
+# haría nada y seguiría sirviendo lo que leyó al arrancar. Decide la marca
+# listo, que se pone en la última línea del bloque, y no el código de salida:
+# tras una señal, la trampa vería el 0 de la última orden. Se ignora SIGPIPE
+# para que una escritura a una conexión caída (también las de la trampa) sea un
+# error y no mate al bloque. Si el bloque sale bien no hace nada: la web la
+# arranca el reinicio del final, después del bot.
 if [ -f /etc/systemd/system/gachamon-web.service ]; then
     echo "    la web se para mientras cambian sus archivos"
     sudo systemctl stop gachamon-web
     trap '' PIPE
-    trap 'if [ \$? -ne 0 ]; then sudo systemctl start gachamon-web; echo "    el despliegue se cortó: la web volvió a arrancar con lo que hay en disco"; fi' EXIT
+    listo=""
+    volver_atras_y_reiniciar_la_web() {
+        [ -z "\$listo" ] || return 0
+        set +e
+        if [ -s .git/gachamon-anterior ]; then
+            anterior=\$(cat .git/gachamon-anterior)
+            echo "    el despliegue se cortó: la Pi vuelve a \$anterior"
+            git reset -q --hard "\$anterior" && ./venv/bin/python -m pip install -q -r requirements.txt
+        fi
+        sudo systemctl restart gachamon-web && echo "    la web volvió a arrancar"
+    }
+    trap volver_atras_y_reiniciar_la_web EXIT
 fi
 
 # --hard sobre los ficheros versionados; los ignorados (.env, *.db, venv/) no se
@@ -122,6 +143,7 @@ fi
 ./venv/bin/python -m pip install -q -r "\$requisitos"
 
 echo "    en el commit: \$(git rev-parse --short HEAD) \$(git log -1 --format=%s)"
+listo=1
 REMOTO
 
 if [ -z "$SIN_TESTS" ]; then
@@ -129,15 +151,19 @@ if [ -z "$SIN_TESTS" ]; then
     # Orden remota: con pipefail, el estado del pipe es el de pytest y no el de
     # `tail`; se guarda en `estado` y se borra el temporal (también si la suite
     # falla). En rojo, si hay un commit apuntado, la Pi vuelve a él y reinstala
-    # sus requisitos; y, haya vuelto o no, arranca la web, que se paró antes de
-    # tocar los archivos y aquí no llega al reinicio del final. Se sale con el
-    # estado de pytest. Los \$ son de la Pi, no de aquí. La política es
-    # `failed` y no `none`: sólo `failed` borra la carpeta de cada prueba que
-    # pasa; con `none` el temporal en memoria crece. Empieza ignorando SIGPIPE:
-    # si se cae la conexión mientras corre la suite, el `tail` y el aviso del
-    # camino en rojo escriben a nadie, y con la señal la orden moría antes de
-    # volver atrás y de arrancar la web; así sólo fallan esas escrituras.
-    ssh "$PI" "trap '' PIPE; set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; if [ \$estado -ne 0 ]; then sudo systemctl start gachamon-web; fi; exit \$estado"
+    # sus requisitos; y, haya vuelto o no, reinicia la web (y lo dice), que se
+    # paró antes de tocar los archivos y aquí no llega al reinicio del final. Es
+    # `restart` y no `start`: si alguien la arrancó a mano siguiendo el aviso,
+    # un `start` no haría nada y serviría los archivos de antes bajo la versión
+    # nueva. Se sale con el estado de pytest. Los \$ son de la Pi, no de aquí. La
+    # política es `failed` y no `none`: sólo `failed` borra la carpeta de cada
+    # prueba que pasa; con `none` el temporal en memoria crece. Empieza
+    # ignorando SIGPIPE: si se cae la conexión mientras corre la suite, el
+    # `tail` y los avisos del camino en rojo escriben a nadie, y con la señal la
+    # orden moría antes de volver atrás y de reiniciar la web; así sólo fallan
+    # esas escrituras (y, como el `tail` falla, cuenta como en rojo aunque la
+    # suite pasara).
+    ssh "$PI" "trap '' PIPE; set -o pipefail; cd '$DEST' && ./venv/bin/python -m pytest --basetemp=/dev/shm/gachamon-pytest -o tmp_path_retention_policy=failed tests/ -q 2>&1 | tail -3; estado=\$?; rm -rf /dev/shm/gachamon-pytest; if [ \$estado -ne 0 ] && [ -s .git/gachamon-anterior ]; then anterior=\$(cat .git/gachamon-anterior); echo \"    la suite salió en rojo: la Pi vuelve a \$anterior\"; git reset -q --hard \"\$anterior\" && ./venv/bin/python -m pip install -q -r requirements.txt; fi; if [ \$estado -ne 0 ]; then sudo systemctl restart gachamon-web && echo \"    la web volvió a arrancar\"; fi; exit \$estado"
 fi
 
 # Los servicios se reinician al final y sólo si todo lo anterior salió bien:
@@ -146,7 +172,7 @@ fi
 # corta sin reiniciar. Antes de cortar, la Pi vuelve al commit en el que estaba
 # y reinstala su `requirements.txt`, así que en disco queda el código que corre
 # el bot en marcha, y un reinicio posterior del servicio o de la máquina
-# levanta esa versión y no la que salió en rojo; y arranca la web, que calcula
+# levanta esa versión y no la que salió en rojo; y reinicia la web, que calcula
 # su versión con los archivos que encuentra al arrancar. La primera vez no hay
 # commit anterior y el código nuevo se queda. La web está parada desde antes de
 # tocar los archivos (ver el bloque remoto): aquí la arranca su `restart`, y
