@@ -1056,3 +1056,38 @@ def test_casa_y_visitar_se_pueden_ejecutar_de_verdad(bd_temporal):
     # Y sale la casa de verdad, no un aviso de error.
     primero = respuesta.send_message.await_args_list[0].args[0]
     assert "Kuro" in primero and "roto por dentro" not in primero
+
+
+def test_el_mantenimiento_solo_limpia_el_uso_de_la_ia(bd_temporal, monkeypatch):
+    """El bucle ya no mata, avisa ni anuncia: con la comida en 0 hace días no
+    manda ningún mensaje ni toca la fila; sólo limpia el uso de la IA."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    import cogs.mascota as mascota
+
+    hace_dias = db.ahora_utc() - timedelta(days=5)
+    db.crear("11", "22", "pulpo", "Kuro", (15, 15, 15, 15), hace_dias)
+    antes = db.plantel("11", "22")
+
+    canal = SimpleNamespace(send=AsyncMock())
+    bot = MagicMock()
+    bot.get_channel.return_value = canal
+    limpiar = MagicMock(return_value=0)
+    monkeypatch.setattr(db, "limpiar_uso_ia", limpiar)
+
+    cog = mascota.Mascota(bot)
+    asyncio.run(mascota.Mascota.mantenimiento.coro(cog))
+
+    limpiar.assert_called_once()
+    canal.send.assert_not_awaited()
+    assert db.plantel("11", "22") == antes
+    assert all(c.viva for c in antes)
+
+
+def test_el_cog_ya_no_tiene_bucle_de_muertes():
+    import cogs.mascota as mascota
+
+    for nombre in ("revisar_muertes", "_anunciar_muerte",
+                   "_avisar_hambrientas", "_canal_de"):
+        assert not hasattr(mascota.Mascota, nombre)

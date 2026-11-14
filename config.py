@@ -187,7 +187,7 @@ IA_ACTIVA = any(resolver_modelo(m)[0].api_key for m in MODELOS_IA)
 LIMITE_CHARLA_POR_HORA = 20
 SEGUNDOS_ENTRE_MENSAJES = 4
 
-# Cada cuánto se revisa si alguna criatura se ha muerto de hambre.
+# Cada cuánto corre el mantenimiento del bot (limpiar el uso de la IA).
 MINUTOS_ENTRE_REVISIONES = 15
 
 

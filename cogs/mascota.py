@@ -1,8 +1,5 @@
-"""Nacimiento, pantalla y muerte de las mascotas."""
+"""Nacimiento y pantalla de las mascotas."""
 from __future__ import annotations
-
-import logging
-from dataclasses import replace
 
 import discord
 from discord import app_commands
@@ -12,13 +9,9 @@ import comun
 import config
 import db
 import economia
-import especies as esp
 import nacer
 import pantalla
-import simulacion as sim
 import vistas
-
-log = logging.getLogger(__name__)
 
 
 class HuevoView(discord.ui.View):
@@ -89,33 +82,22 @@ class Mascota(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
-        self.revisar_muertes.start()
+        self.mantenimiento.start()
 
     async def cog_unload(self) -> None:
-        self.revisar_muertes.cancel()
+        self.mantenimiento.cancel()
 
     # -- comandos -----------------------------------------------------------
 
     @app_commands.command(name="huevo", description="Consigue un huevo y haz nacer tu gachamon")
     @comun.solo_en_el_canal()
     async def huevo(self, interaccion: discord.Interaction) -> None:
-        ahora = db.ahora_utc()
         usuario_id = str(interaccion.user.id)
         guild_id = str(interaccion.guild_id)
 
         # Se mira el plantel entero y no sólo la activa: el huevo es el de
         # partida y sólo sale si no tienes ninguno, esté donde esté. El segundo y
         # el tercero se ganan reclutándolos.
-        actual = db.criatura_activa(usuario_id, guild_id)
-        if actual is not None:
-            actual = db.avanzar(actual, ahora)
-            if not actual.viva:
-                # Se murió mientras nadie miraba: se registra y, si queda alguna
-                # en la incubadora, sale ella en vez de un huevo nuevo.
-                db.guardar(actual)
-                await vistas.congelar(interaccion.channel, actual.pantalla_msg_id)
-                db.ascender_de_la_incubadora(usuario_id, guild_id, ahora)
-
         vivos = db.plantel(usuario_id, guild_id)
         if vivos:
             nombres = ", ".join(f"**{c.nombre}**" for c in vivos)
@@ -151,8 +133,6 @@ class Mascota(commands.Cog):
             return
 
         criatura = db.avanzar(criatura, ahora)
-        if not criatura.viva:
-            db.guardar(criatura)
 
         if not propia:
             # Sin botones: no es tuya, no la puedes cuidar. Los efectos sí se
@@ -172,115 +152,15 @@ class Mascota(commands.Cog):
 
         await vistas.responder_pantalla(interaccion, criatura, ahora)
 
-    # -- bucle de muerte ----------------------------------------------------
+    # -- mantenimiento ------------------------------------------------------
 
     @tasks.loop(minutes=config.MINUTOS_ENTRE_REVISIONES)
-    async def revisar_muertes(self) -> None:
-        """Avisa a quien tenga la criatura en las últimas y mata a las que ya
-        llegaron a cero.
+    async def mantenimiento(self) -> None:
+        """Tira los registros de uso de la IA que ya no cuentan para el límite
+        por hora."""
+        db.limpiar_uso_ia(db.ahora_utc())
 
-        Son dos consultas contra `avisa_en` y `muere_en`: nada de recorrer y
-        simular todas las filas cada cuarto de hora.
-        """
-        ahora = db.ahora_utc()
-
-        # Aprovechamos el paso para tirar los registros de uso de la IA que ya
-        # no cuentan para el límite por hora.
-        db.limpiar_uso_ia(ahora)
-
-        await self._avisar_hambrientas(ahora)
-
-        for pendiente in db.pendientes_de_morir(ahora):
-            muerta = db.avanzar(pendiente, ahora)
-            if muerta.viva:  # la alimentaron entre medias
-                continue
-
-            db.guardar(muerta)
-            # Si la web la apuntó entre medias, no se anuncia dos veces.
-            db.muerte_anunciada(muerta.id)
-            # Carrera que no se cubre: si la web ya la había registrado y sacado
-            # al relevo, `releva` sale `None` y ese relevo no se anuncia. La
-            # lista de pendientes se lee entera al principio y entre una y otra
-            # se esperan los envíos a Discord, así que puede durar segundos.
-            # Si tenía compañeros esperando, sale uno: quedarse sin activo
-            # teniendo dos en la incubadora sería desconcertante.
-            releva = db.ascender_de_la_incubadora(
-                muerta.usuario_id, muerta.guild_id, ahora
-            )
-            await self._anunciar_muerte(muerta, releva, ahora)
-
-        # Las que registró la web, que no habla en Discord. Primero se borra el
-        # apunte y después se anuncia: un anuncio que falla no se reintenta.
-        for muerta, releva in db.muertes_por_anunciar():
-            db.muerte_anunciada(muerta.id)
-            await self._anunciar_muerte(muerta, releva, ahora)
-
-    async def _anunciar_muerte(self, muerta, releva, ahora) -> None:
-        """Publica la muerte y, si lo hay, al relevo que sale de la incubadora."""
-        canal = self._canal_de(muerta)
-        if canal is None:
-            return
-
-        await vistas.congelar(canal, muerta.pantalla_msg_id)
-        try:
-            await canal.send(
-                f"💀 <@{muerta.usuario_id}>, **{muerta.nombre}** ha muerto "
-                "de hambre."
-            )
-            await canal.send(pantalla.render(muerta, ahora))
-            if releva is not None:
-                await canal.send(esp.concordar(
-                    f"🧬 Sale de la incubadora **{releva.nombre}**, que "
-                    "pasa a ser tu gachamon activ{o/a}.",
-                    releva.genero,
-                ))
-                await vistas.publicar_pantalla(canal, releva, ahora)
-        except discord.HTTPException:
-            log.warning("No se pudo anunciar la muerte de %s", muerta.id,
-                        exc_info=True)
-
-    def _canal_de(self, criatura: sim.Criatura):
-        """Dónde avisar: el canal donde se atendió por última vez.
-
-        Si esa criatura es anterior a los canales múltiples, o el canal ya no
-        existe, se cae al principal en vez de quedarse callado.
-        """
-        if criatura.canal_id:
-            canal = self.bot.get_channel(int(criatura.canal_id))
-            if canal is not None:
-                return canal
-        return self.bot.get_channel(config.CANAL_PRINCIPAL)
-
-    async def _avisar_hambrientas(self, ahora) -> None:
-        """Un aviso por criatura y por bajada. Se rearma al alimentarla."""
-        for pendiente in db.pendientes_de_aviso(ahora):
-            criatura = db.avanzar(pendiente, ahora)
-            if not criatura.viva:
-                continue  # ya no es un aviso, es un funeral: lo hace el bucle
-            if criatura.hambre > sim.UMBRAL_AVISO_HAMBRE:
-                continue  # la alimentaron justo antes de la revisión
-
-            canal = self._canal_de(criatura)
-            if canal is None:
-                continue
-
-            marcada = replace(criatura, avisada=True)
-            db.guardar(marcada)
-
-            restante = sim.momento_de_muerte(marcada) - ahora
-            try:
-                await canal.send(
-                    f"⚠️ <@{marcada.usuario_id}>, **{marcada.nombre}** se está "
-                    f"muriendo de hambre.\n-# Le quedan unas "
-                    f"{pantalla.formato_espera(restante)}. Dale de comer."
-                )
-                # Con botones, para poder alimentarla desde el propio aviso.
-                await vistas.publicar_pantalla(canal, marcada, ahora)
-            except discord.HTTPException:
-                log.warning("No se pudo avisar del hambre de %s", marcada.id,
-                            exc_info=True)
-
-    @revisar_muertes.before_loop
+    @mantenimiento.before_loop
     async def esperar_conexion(self) -> None:
         await self.bot.wait_until_ready()
 

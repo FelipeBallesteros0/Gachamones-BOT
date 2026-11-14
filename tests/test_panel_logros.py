@@ -221,7 +221,7 @@ def test_al_romper_el_huevo_una_rara_se_canta_como_tuya(monkeypatch):
 
     canal = SimpleNamespace(send=AsyncMock())
     monkeypatch.setattr(
-        cog_mascota.esp, "elegir_del_huevo", lambda _: esp.ESPECIES["dragoncito"]
+        esp, "elegir_del_huevo", lambda _: esp.ESPECIES["dragoncito"]
     )
     vista = cog_mascota.HuevoView("1")
 
