@@ -50,6 +50,7 @@ buzón que le seguía no se hace.
 - Los muebles que los gachamones usan solos (refrigerador, consola, ducha,
   pesas).
 - Que el día del cambio nadie pierda nada.
+- Partir sin gachamon: el primero se gana en una primera aventura.
 
 **No entra** (es de otro proyecto): el balcón y el huerto; el pueblo y los
 demás lugares en isométrico; el edificio de viviendas y visitar; ver a otras
@@ -92,11 +93,18 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   recibirlo (al que le serviría y no está esperando) y dice a cuántos les tocó
   **[propuesta]**.
 - **El límite de gachamones son las camas** **[Felipe]**: cada gachamon
-  necesita una cama puesta. Al reclutar, el salvaje sólo acepta si tienes una
-  cama libre **[Felipe]**. Una cama no se puede guardar si deja a alguien sin
-  la suya **[propuesta]**.
-- **Todo departamento nace con una cama sencilla puesta**, y romper el huevo
-  pide una cama libre, igual que reclutar **[propuesta]**.
+  necesita una cama puesta, y **la primera cama es la tuya** **[Felipe]**: hacen
+  falta siempre tantas camas puestas como gachamones más una. Al reclutar, el
+  salvaje sólo acepta si tienes una cama libre **[Felipe]**. Una cama no se
+  puede guardar si deja a alguien, o a ti, sin la suya **[propuesta]**.
+- **Se parte sin gachamon y sin huevo** **[Felipe]**. El departamento nace con
+  tu cama puesta y **una segunda cama sencilla guardada**, y quien empieza tiene
+  **0 monedas y 0 gemas** **[Felipe]**.
+- **El primero se gana en la primera aventura** **[Felipe]**: es fija, vas tú
+  solo con tu avatar, encuentras a un gachamon básico **sorteado entre los
+  comunes** y se une siempre; hay diálogo, pero sin opciones. Se abre cuando ya
+  pusiste la segunda cama: el juego lo pide como primer paso **[propuesta,
+  aceptada]**. Después, las aventuras son las de siempre, con tu activo.
 - **El nombre de un recluta se pone al reclutarlo. Si no se lo pones, se pone
   uno él solo** **[Felipe]**. El nombre sale de una lista del juego, nunca es
   el de su especie ni uno que ya tengas, y se le puede cambiar una vez desde su
@@ -164,7 +172,8 @@ y su comodidad **[propuesta, aceptada]**:
 
 Felipe pidió que el segundo gachamon tarde **una semana jugando todos los
 días** **[Felipe]**. Hoy se ganan hasta 12 monedas por día cuidando y 20 con
-todo; como la segunda cama cabe en el 3 × 3, lo que tarda una semana es la
+todo. El primero no cuesta nada (su cama viene de regalo); el segundo pide una
+tercera cama, que cabe en el 3 × 3, así que lo que tarda una semana es esa
 cama: de ahí los 85.
 
 ### 4.3 La comodidad
@@ -241,11 +250,13 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
 **[propuesta]**:
 
 - A cada persona se le crea su departamento de 3 × 3.
-- **El alcalde regala una cama sencilla por cada gachamon vivo —y al menos
-  una, aunque no te quede ninguno— y las deja puestas**, y **agranda gratis**
-  el departamento de quien no le quepan: el
-  primer tamaño de la serie 3 × 3, 4 × 3, 4 × 4, 5 × 4… con al menos
-  `2 × gachamones + 5` casillas, hasta 8 × 8.
+- **El alcalde regala camas sencillas hasta que tengas una por cada gachamon
+  vivo más la tuya, y las deja puestas**, y **agranda gratis** el departamento
+  de quien no le quepan: el primer tamaño de la serie 3 × 3, 4 × 3, 4 × 4,
+  5 × 4… con al menos `2 × camas + 5` casillas, hasta 8 × 8. A quien no le
+  quede ningún gachamon le deja lo que a quien empieza: su cama puesta, otra
+  guardada y la primera aventura por hacer. Las monedas y las gemas que cada
+  uno tenía no se tocan.
 - **Las casas compradas se devuelven enteras en monedas** (lo que cuesta cada
   una en el catálogo). Es una devolución: no pasa por el tope diario, y se paga
   una sola vez por persona.
@@ -279,6 +290,8 @@ aceptada]**:
   enlace.
 - **Sigue igual**: cuidar al activo, competir, las aventuras, reclutar (con la
   regla de la cama libre y el nombre al reclutar), conversar, los logros.
+- **`/huevo` deja de dar un huevo**: contesta que se empieza en la página, con
+  el enlace **[propuesta, aceptada]**. Quien llega nuevo empieza ahí.
 - **Elegir al activo sigue en Discord** (`/plantel`), sin hablar ya de la
   incubadora **[propuesta]**.
 - Desaparecen el bucle de muertes, el aviso de hambre y la lápida de un
@@ -301,6 +314,12 @@ aceptada]**:
   **[propuesta, aceptada]**. Quien entra por primera vez parte ahí.
 - La pantalla de la Incubadora y lo del Refugio desaparecen. Lo que hacían se
   hace en el departamento.
+- **La entrada cambia**: ya no es avatar → huevo → nombre, sino avatar → tu
+  departamento (poner la segunda cama) → la primera aventura → el nombre. El
+  lugar «Aventura» del mapa abre sólo esa primera aventura; las demás siguen
+  siendo del proyecto 6.
+- **Todo tiene que funcionar sin ningún gachamon**: el estado, el pueblo, cada
+  lugar y el departamento se ven y se usan sin activo.
 - **La Tienda** deja de vender casas; los muebles se venden de a varios. Las
   ampliaciones se compran en el departamento **[propuesta]**.
 - **La ficha, el ropero y la mochila** se abren para el gachamon que tengas
@@ -355,9 +374,9 @@ aceptada]**:
 Los nombres de tablas, módulos y rutas; cómo se guarda cada mueble (cada uno
 necesita su identidad, porque puede haber varios iguales); el tamaño en píxeles
 de una casilla y de las imágenes; cómo camina solo un gachamon; la lista de
-nombres para los reclutas; el texto exacto de cada frase nueva (se le presentan
-a Felipe antes de publicarlas, como siempre); el orden y el tamaño de las
-tareas.
+nombres para los reclutas; el texto exacto de cada frase nueva, entre ellas el
+diálogo de la primera aventura (se le presentan a Felipe antes de publicarlas,
+como siempre); el orden y el tamaño de las tareas.
 
 ## 12. Lo que Felipe ya dijo de los proyectos que siguen
 
