@@ -1,5 +1,6 @@
 """Persistencia: ida y vuelta, el plantel con su incubadora y muere_en."""
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
@@ -906,6 +907,47 @@ def test_al_morir_la_activa_no_asciende_un_recluta_sin_nombre():
 
     assert relevo is not None and relevo.id == con_nombre
     assert relevo.nombre == "Tercera"
+
+
+# --- Sin activa, la activa al día saca a alguien (el remiendo) --------------
+
+def test_sin_activa_saca_al_de_la_incubadora_que_tiene_nombre():
+    espera = db.crear("u1", "g1", "pulpo", "Espera", STATS, T0, activa=False)
+    assert db.activa_al_dia("u1", "g1", T0).id == espera.id
+    assert db.criatura_activa("u1", "g1").id == espera.id
+
+
+def test_sin_activa_y_con_uno_sin_nombre_no_cambia_nada():
+    sin_nombre = db.crear("u1", "g1", "pulpo", "", STATS, T0, activa=False)
+    assert db.activa_al_dia("u1", "g1", T0) is None
+    assert db.criatura_activa("u1", "g1") is None
+    assert db.por_id(sin_nombre.id).activa is False
+
+
+def test_activa_al_dia_es_repetible():
+    db.guardar(muerta_de_antes(nacer(nombre="Viejo")))
+    primero = colar_dormida("Uno")
+    colar_dormida("Dos")
+    tarde = T0 + timedelta(days=10)
+
+    assert db.activa_al_dia("u1", "g1", tarde).id == primero
+    assert db.activa_al_dia("u1", "g1", tarde).id == primero
+    activas = [c for c in db.plantel("u1", "g1") if c.activa]
+    assert [c.id for c in activas] == [primero]
+
+
+def test_dos_a_la_vez_sacan_un_solo_relevo():
+    db.guardar(muerta_de_antes(nacer(nombre="Viejo")))
+    relevo = colar_dormida("Tinta")
+    tarde = T0 + timedelta(days=10)
+
+    with ThreadPoolExecutor(max_workers=2) as hilos:
+        resultados = list(hilos.map(
+            lambda _: db.activa_al_dia("u1", "g1", tarde), range(2)))
+
+    assert [r.id for r in resultados] == [relevo, relevo]
+    activas = [c for c in db.plantel("u1", "g1") if c.activa]
+    assert [c.id for c in activas] == [relevo]
 
 
 # --- La espera de aventura es de la persona ---------------------------------

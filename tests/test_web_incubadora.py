@@ -203,6 +203,22 @@ def test_sacar_a_uno_ajeno_es_no_esta(cliente, monkeypatch):
     assert db.criatura_activa(OTRA_PERSONA, G).id == ajeno.id
 
 
+def test_si_el_activo_ya_estaba_muerto_sacar_a_otro_sigue_funcionando(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    vinculada_sin_gachamon(cliente)
+    viejo = db.crear(LA_DE_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
+    db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", STATS, reloj.ahora, activa=False)
+    bruma = db.crear(LA_DE_DISCORD, G, "pulpo", "Bruma", STATS, reloj.ahora, activa=False)
+    ir(cliente)
+    reloj.pasar(days=5)
+    # Viejo murió cuando todavía se moría de hambre, y nadie sacó todavía al relevo.
+    db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+    cuerpo = sacar(cliente, bruma.id).json()
+    assert (cuerpo["ok"], cuerpo["mensaje"]) == (True, "Bruma sale de la incubadora.")
+    assert cuerpo["estado"]["gachamon"]["id"] == bruma.id
+    assert not db.por_id(viejo.id).viva
+
+
 def test_sacar_con_un_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     pelusa, nube, _ = con_plantel(cliente)

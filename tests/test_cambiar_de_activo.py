@@ -9,6 +9,7 @@ import economia
 import simulacion as sim
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+TARDE = T0 + timedelta(days=5)
 STATS = (10, 10, 10, 10)
 U = "222222222222222222"     # una identidad de Discord: tiene aviso de hambre
 OTRA = "333333333333333333"
@@ -26,7 +27,8 @@ def nace(nombre, activa=True, usuario=U, guild=G):
 
 
 def muere(criatura):
-    db.guardar(replace(criatura, muerta_en=T0, causa_muerte="hambre"))
+    """Como la dejaba la muerte de antes: con la comida en 0 y la marca puesta."""
+    db.guardar(replace(criatura, hambre=0.0, muerta_en=T0, causa_muerte="hambre"))
 
 
 def relojes(criatura_id):
@@ -124,3 +126,32 @@ def test_no_se_saca_a_uno_ajeno_muerto_ni_inexistente():
     assert db.por_id(ajena.id) == ajena
     assert db.por_id(de_otro_servidor.id) == de_otro_servidor
     assert db.por_id(muerta.id) == muerta
+
+
+def test_con_la_activa_muerta_de_antes_sale_el_relevo_y_el_cambio_sigue():
+    a = nace("Ana")
+    b = nace("Bea", activa=False)      # el relevo: el primero con nombre
+    c = nace("Cata", activa=False)
+    muere(a)
+
+    resultado = economia.cambiar_de_activo(U, G, c.id, TARDE)
+
+    assert resultado.ok
+    assert db.criatura_activa(U, G).id == c.id
+    # El relevo que sacó el remiendo es «la que estaba» y vuelve a la incubadora.
+    assert resultado.saliente.id == b.id
+    assert db.por_id(b.id).activa is False
+
+
+def test_si_la_elegida_es_el_relevo_que_acaba_de_salir_ya_es_el_activo():
+    a = nace("Ana")
+    b = nace("Bea", activa=False)
+    nace("Cata", activa=False)
+    muere(a)
+
+    resultado = economia.cambiar_de_activo(U, G, b.id, TARDE)
+
+    assert resultado.motivo == "ya_es_el_activo"
+    assert resultado.ok is False
+    assert resultado.criatura.id == b.id
+    assert db.criatura_activa(U, G).id == b.id

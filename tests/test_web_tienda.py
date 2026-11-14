@@ -458,6 +458,25 @@ def test_un_evento_usado_para_una_cosa_no_sirve_para_otra(cliente, monkeypatch):
     assert economia.saldos(YO, G).asciicoins == 4990 - 200
 
 
+def test_si_el_relevo_sale_en_la_peticion_no_se_cobra(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_vinculo(cliente)
+    ir(cliente, "tienda")
+    dar(monedas=5000, gemas=500, usuario=LA_DE_DISCORD)
+    nube = db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", (15, 15, 15, 15), reloj.ahora, activa=False)
+    # Pelusa murió cuando todavía se moría de hambre, y nadie sacó todavía al relevo.
+    pelusa = db.criatura_activa(LA_DE_DISCORD, G)
+    db.guardar(replace(pelusa, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+
+    respuesta = comprar(cliente, "objeto", "pocion_comida", "evento-relevo")
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {
+        "clave": "sin_gachamon", "mensaje": "Tu gachamon ya no es el mismo. Mira otra vez."}
+    assert economia.saldos(LA_DE_DISCORD, G) == economia.Saldos(5000, 500)
+    assert db.inventario(LA_DE_DISCORD, G) == {}
+    assert db.criatura_activa(LA_DE_DISCORD, G).id == nube.id   # el relevo sí salió
+
+
 # --- El cosmético ----------------------------------------------------------------
 
 def test_el_cosmetico_cobra_gemas_y_el_gachamon_ya_lo_lleva(cliente, monkeypatch):

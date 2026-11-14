@@ -40,19 +40,6 @@ def test_una_identidad_web_nunca_deja_apunte(monkeypatch):
     assert apuntes() == []
 
 
-def test_sin_activa_saca_al_de_la_incubadora_que_tiene_nombre():
-    espera = nace(activa=False)
-    assert db.activa_al_dia(ANA, G, T0).id == espera.id
-    assert db.criatura_activa(ANA, G).id == espera.id
-
-
-def test_sin_activa_y_con_uno_sin_nombre_no_cambia_nada():
-    sin_nombre = nace(nombre="", activa=False)
-    assert db.activa_al_dia(ANA, G, T0) is None
-    assert db.criatura_activa(ANA, G) is None
-    assert db.por_id(sin_nombre.id).activa is False
-
-
 def test_una_base_sin_la_tabla_la_gana_al_inicializar():
     with db.conectar() as con:
         con.execute("DROP TABLE muertes_por_anunciar")
