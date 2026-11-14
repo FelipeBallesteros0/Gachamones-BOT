@@ -2345,6 +2345,12 @@ def hogar_leido(usuario_id: str, guild_id: str, ahora: datetime) -> cas.Hogar:
         return _hogar_leido(con, usuario_id, guild_id, ahora)
 
 
+def estancia_empezada(usuario_id: str, guild_id: str) -> bool:
+    """Si su semana de refugio ya empezó, es decir, si tiene fila de hogar. Sólo mira."""
+    with conectar() as con:
+        return _hay_hogar(con, usuario_id, guild_id)
+
+
 def abrir_o_cerrar_la_casa(
     usuario_id: str, guild_id: str, publica: bool, ahora: datetime
 ) -> None:

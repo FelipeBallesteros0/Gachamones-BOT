@@ -873,6 +873,25 @@ def test_mirar_la_casa_de_otro_no_le_estrena_el_refugio():
         assert not db._hay_hogar(con, "u2", "g1")
 
 
+def filas_del_hogar():
+    with db.conectar() as con:
+        return [tuple(f) for f in con.execute("SELECT * FROM hogar ORDER BY usuario_id, guild_id")]
+
+
+def test_saber_si_la_estancia_empezo_solo_mira():
+    """Lo que pregunta el Refugio de la web: sin fila, la semana no ha empezado,
+    y preguntarlo no la empieza."""
+    assert db.estancia_empezada("u1", "g1") is False
+    assert filas_del_hogar() == []
+
+    hogar()                                   # ahora sí: la empieza
+    antes = filas_del_hogar()
+
+    assert db.estancia_empezada("u1", "g1") is True
+    assert db.estancia_empezada("u1", "g2") is False   # cada persona y servidor
+    assert filas_del_hogar() == antes
+
+
 def test_el_regalo_sale_de_tu_mochila_y_llega_a_su_buzon():
     db.regalar("u1", "g1", GOLOSINAS)
 

@@ -14,14 +14,16 @@ A_LA_INTEMPERIE_CON_CASA = (
 A_LA_INTEMPERIE_SIN_CASA = (
     "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. Las casas se compran en la tienda."
 )
+NO_HA_EMPEZADO = "Tu semana en el refugio todavía no ha empezado."
+SIN_PLAZO = "Tu estancia aquí no tiene plazo."
 
 
 def ir(cliente, lugar):
     return cliente.post(LUGAR, json={"lugar": lugar}, headers=ESCRIBIR)
 
 
-def vinculada_con_gachamon(cliente) -> None:
-    """La cuenta 1, ligada a una identidad de Discord sintética, con su gachamon; la estancia ya empezó."""
+def vinculada_sin_estancia(cliente) -> None:
+    """La cuenta 1, ligada a una identidad de Discord sintética, con su gachamon; la estancia no ha empezado."""
     entrar(cliente, 1)
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
@@ -29,8 +31,18 @@ def vinculada_con_gachamon(cliente) -> None:
     assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
     assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
     assert cliente.post("/gachamon/api/bautizar", json={"nombre": "Pelusa"}, headers=ESCRIBIR).status_code == 200
+
+
+def vinculada_con_gachamon(cliente) -> None:
+    """La misma cuenta, con la estancia ya empezada."""
+    vinculada_sin_estancia(cliente)
     cuenta = db.cuenta_web(1)
     db.hogar_de(cuenta.usuario_id, cuenta.guild_id, db.ahora_utc())   # empieza la estancia
+
+
+def filas_del_hogar() -> list[tuple]:
+    with db.conectar() as con:
+        return [tuple(f) for f in con.execute("SELECT * FROM hogar ORDER BY usuario_id, guild_id")]
 
 
 def comprar_una_casa(reloj) -> None:
@@ -48,7 +60,7 @@ def test_en_el_refugio_se_ve_quien_vive_ahi(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     estado = con_gachamon(cliente)
     refugio = cliente.get(ESTADO).json()["lugar"]["refugio"]
-    assert refugio["estancia"] == "Tu estancia aquí no tiene plazo."
+    assert refugio["estancia"] == SIN_PLAZO
     assert refugio["viven"] == [{
         "id": estado["gachamon"]["id"], "nombre": "Pelusa",
         "nombre_especie": estado["gachamon"]["nombre_especie"], "retrato": estado["gachamon"]["retrato"],
@@ -75,6 +87,33 @@ def test_las_frases_de_la_estancia(cliente, monkeypatch, pasa, frase):
     vinculada_con_gachamon(cliente)
     reloj.pasar(**pasa)
     assert cliente.get(ESTADO).json()["lugar"]["refugio"]["estancia"] == frase
+
+
+def test_sin_estancia_empezada_dice_que_su_semana_no_ha_empezado(cliente, monkeypatch):
+    # Contar siete días cada día se leía igual siempre: su semana empieza cuando la estrena.
+    poner_reloj(monkeypatch)
+    vinculada_sin_estancia(cliente)
+    antes = filas_del_hogar()
+    assert ir(cliente, "refugio").json()["lugar"]["refugio"]["estancia"] == NO_HA_EMPEZADO
+    assert cliente.get(ESTADO).json()["lugar"]["refugio"]["estancia"] == NO_HA_EMPEZADO
+    # Mirar no escribe: el Refugio no le estrena la estancia.
+    assert filas_del_hogar() == antes == []
+
+
+def test_con_la_estancia_empezada_cuenta_los_dias(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    vinculada_con_gachamon(cliente)
+    assert ir(cliente, "refugio").json()["lugar"]["refugio"]["estancia"] == (
+        "Tu estancia en el refugio dura 7 días más."
+    )
+
+
+def test_quien_juega_solo_en_la_web_no_tiene_plazo_aunque_no_tenga_fila(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    assert filas_del_hogar() == []
+    assert ir(cliente, "refugio").json()["lugar"]["refugio"]["estancia"] == SIN_PLAZO
+    assert filas_del_hogar() == []
 
 
 def test_fuera_del_refugio_no_viene(cliente, monkeypatch):

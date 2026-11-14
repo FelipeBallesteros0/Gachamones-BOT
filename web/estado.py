@@ -124,9 +124,15 @@ def _lugar(
 
 
 def _estancia(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> str | None:
-    """Cuánto le queda a la estancia en el refugio, en una frase; `None` si ya venció."""
+    """Cuánto le queda a la estancia en el refugio, en una frase; `None` si ya venció.
+
+    Sin fila de hogar, `hogar` le supone una semana entera desde ahora, y contar
+    siete días cada día no dice nada: su semana empieza cuando la estrena.
+    """
     if identidad.sin_plazo_de_refugio(jugador.usuario_id):
         return "Tu estancia aquí no tiene plazo."
+    if not db.estancia_empezada(jugador.usuario_id, jugador.guild_id):
+        return "Tu semana en el refugio todavía no ha empezado."
     resta = hogar.refugio_hasta - ahora
     if resta.days >= 1:
         return f"Tu estancia en el refugio dura {resta.days} {'día' if resta.days == 1 else 'días'} más."
