@@ -54,8 +54,8 @@ def romper_el_huevo(
 ) -> sim.Criatura:
     """Hace nacer al gachamon de partida, con el nombre de su especie."""
     rng = rng or random.Random()
-    # Primero se pone al día: si el único se murió, aquí se registra y sale el
-    # relevo de la incubadora, y entonces sí cuenta como que le queda uno.
+    # El remiendo de siempre: si quedó un plantel sin activa, aquí sale una de
+    # la incubadora. Con plantel, vivo aunque no tenga activa, no hay huevo.
     db.activa_al_dia(usuario_id, guild_id, ahora)
     if db.plantel(usuario_id, guild_id):
         raise YaTieneGachamon
@@ -92,7 +92,8 @@ def bautizar(
         nombre = sim.normalizar_nombre(nombre)
     except ValueError as error:
         raise NombreNoVale(str(error)) from None
-    # Por si la activa se murió: se registra y, si hay relevo, es a él.
+    # El remiendo de siempre: si quedó un plantel sin activa, sale una de la
+    # incubadora antes de mirar a quién se bautiza.
     db.activa_al_dia(usuario_id, guild_id, ahora)
 
     def puede(activa: sim.Criatura) -> bool:

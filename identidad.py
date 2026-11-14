@@ -4,14 +4,11 @@ Un id de Discord es un entero positivo. Una identidad web es el número de su
 cuenta en negativo (`"-12"`), así que nunca puede chocar con uno de Discord.
 Módulo puro: no importa nada del proyecto.
 
-`sin_aviso_de_hambre` existe aparte de `es_web` a propósito. Es la pregunta que
-hacen las reglas ("¿tiene esta persona cómo enterarse de que su gachamon se
-muere de hambre?"). Hoy la respuesta coincide con `es_web`, pero el día que haya
-notificaciones dejará de coincidir. Es el único sitio donde se **pregunta** por
-la excepción, y las reglas preguntan por ella y nunca por `es_web`; pero cerrarla
-pide además poner al día el reloj de quien sale de ella, como hace `db.activar`
-con quien sale de la incubadora: su gachamon puede llevar días en 0 y, sin eso,
-moriría en el siguiente `avanzar` con una fecha de muerte en el pasado.
+`sin_plazo_de_refugio` existe aparte de `es_web` a propósito: es la pregunta
+que hacen las reglas, y las reglas preguntan por ella y nunca por `es_web`. Hoy
+la respuesta coincide con `es_web`, pero el día que cambie la excepción se
+cambia sólo aquí. Del hambre ya no hay excepción que preguntar: no se muere
+nadie, juegue donde juegue.
 """
 
 from __future__ import annotations
@@ -33,11 +30,6 @@ def de_cuenta_web(rowino_uid: int) -> str:
     if rowino_uid < 1:
         raise ValueError("el número de cuenta web empieza en 1")
     return str(-rowino_uid)
-
-
-def sin_aviso_de_hambre(usuario_id: str) -> bool:
-    """¿Su dueño no tiene cómo enterarse de que el hambre llega a 0?"""
-    return es_web(usuario_id)
 
 
 def sin_plazo_de_refugio(usuario_id: str) -> bool:

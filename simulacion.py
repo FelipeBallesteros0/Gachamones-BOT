@@ -9,11 +9,9 @@ No hay ningún bucle tocando cada mascota cada minuto. Se guarda cuándo se
 actualizó por última vez y el valor real se calcula al leer, en función de las
 horas transcurridas. Es barato, exacto y sobrevive a los reinicios del bot.
 
-El hambre decae de forma estrictamente lineal (su ritmo depende sólo de la
-salud, que no cambia entre acciones), así que la hora de la muerte se despeja
-con una fórmula cerrada en vez de simulando. Por eso la suciedad castiga al
-ánimo y no al hambre: si acelerase el hambre, dos barras que caen a la vez se
-acoplarían y la muerte dejaría de ser predecible.
+El hambre decae de forma lineal, a un ritmo que sólo depende de la salud y de
+dónde vive (`Ritmo`). La suciedad castiga al ánimo y no al hambre. Con la
+comida en 0 no se muere nadie: se queda en 0 hasta que le den de comer.
 """
 from __future__ import annotations
 
@@ -293,11 +291,6 @@ UMBRAL_BARRA_MAL = 30.0    # por debajo de aquí, rojo
 # Comer estando ya lleno sienta mal.
 UMBRAL_EMPACHO = 90.0
 
-# Cuando la comida baja de aquí, el bot avisa al dueño. Al 10% quedan todavía
-# un 10% de las horas de vida (unas 7 h en una criatura típica): margen de sobra
-# para reaccionar sin que el aviso llegue tan pronto que se ignore.
-UMBRAL_AVISO_HAMBRE = 10.0
-
 # --- Competencias ----------------------------------------------------------
 
 # Competir sigue siendo lo más rentable por acción, para que las carreras no
@@ -362,15 +355,14 @@ class Criatura:
     causa_muerte: str | None = None
     pantalla_msg_id: str | None = None
     # Canal donde se atendió por última vez. Con el bot en varios canales, es
-    # ahí donde llegan los avisos de hambre y muerte: donde estabas jugando.
+    # ahí donde se busca su pantalla vieja para congelarla al publicar la nueva.
     canal_id: str | None = None
     # En cuál de las casas de su dueño vive. `None` es el refugio, que es adonde
     # va quien no cabe en ninguna. Es de la criatura y no de la persona porque
     # con varias casas dos gachamones del mismo dueño viven en sitios distintos.
     casa_id: int | None = None
-    # Si ya se avisó de que está en las últimas. Se reinicia al alimentarla,
-    # para que el aviso no se repita cada cuarto de hora ni se pierda si la
-    # criatura vuelve a caer al mismo punto días después.
+    # Siempre en falso: el aviso de hambre se fue con la muerte. Se queda porque
+    # la columna sigue en el esquema.
     avisada: bool = False
     # La que recibe los comandos y los botones. Sólo puede haber una por persona
     # y servidor —lo impone un índice único—; las demás esperan en la incubadora,
@@ -921,10 +913,9 @@ class Ritmo:
     de casas ni de refugios, sólo de multiplicadores. `casas.ritmo_de` es quien
     los saca del hogar.
 
-    `suelo_de_hambre` es lo que hace que la intemperie **no pueda matar**: por
-    debajo de ahí el hambre no baja, así que se pasa mal indefinidamente pero no
-    se pierde el gachamon por no haber comprado casa. Bajo techo vale 0, que es
-    el comportamiento de siempre.
+    `suelo_de_hambre` es de la intemperie: por debajo de ahí el hambre no baja.
+    Bajo techo vale 0, así que ahí la comida sí llega a 0 (lo que tampoco mata:
+    no se muere nadie).
     """
 
     hambre: float = 1.0
@@ -934,30 +925,6 @@ class Ritmo:
 
 
 RITMO_BAJO_TECHO = Ritmo()
-
-
-def momento_de_aviso(criatura: Criatura) -> datetime:
-    """Instante en que la comida bajará del umbral de aviso.
-
-    Se guarda en la base de datos por el mismo motivo que `muere_en`: el bucle
-    de vigilancia es entonces un `WHERE avisa_en <= ahora` y no hace falta
-    simular todas las criaturas cada cuarto de hora.
-    """
-    restante = criatura.hambre - UMBRAL_AVISO_HAMBRE
-    if restante <= 0:
-        return criatura.actualizada_en
-    horas = restante / tasa_hambre_por_hora(criatura.salud)
-    return criatura.actualizada_en + timedelta(hours=horas)
-
-
-def momento_de_muerte(criatura: Criatura) -> datetime:
-    """Instante exacto en que el hambre llegará a 0 si nadie la alimenta.
-
-    Se guarda en la base de datos para que el bucle de muerte sea una única
-    consulta (`WHERE muere_en <= ahora`) en vez de recorrer y simular cada fila.
-    """
-    horas = criatura.hambre / tasa_hambre_por_hora(criatura.salud)
-    return criatura.actualizada_en + timedelta(hours=horas)
 
 
 def avanzar(
@@ -1201,10 +1168,6 @@ def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:
             criatura,
             hambre=_limitar(criatura.hambre + efecto["hambre"]),
             ent_salud=criatura.ent_salud + efecto["ent_salud"],
-            # Alimentarla rearma el aviso: si vuelve a pasar hambre, se avisa
-            # otra vez. Es la única acción que sube la comida, así que es el
-            # único sitio donde hace falta reiniciarlo.
-            avisada=False,
         )
         return ResultadoAccion(nueva, "Ñam. Se lo ha comido todo.")
 

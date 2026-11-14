@@ -283,17 +283,12 @@ def caben_mas(casa: Casa, puestos: Collection[str]) -> bool:
 # * **La comodidad por encima del refugio frena el ánimo**, hasta ese mismo 25 %
 #   en la casa mejor amueblada.
 #
-# El hambre no la toca la comodidad, y es a propósito: `muere_en` va precalculado
-# en la base para que el bucle de la muerte sea una consulta y no una simulación
-# de todas las filas. Si la casa cambiara el ritmo del hambre, ese instante
-# guardado dejaría de ser cierto en cuanto alguien se mudara.
+# El hambre no la toca la comodidad.
 
 PENALIZACION_INTEMPERIE = 1.25
 ALIVIO_MAXIMO_DE_ANIMO = 0.25
 
-# Por debajo de esto el hambre no baja mientras se esté a la intemperie. Deja
-# margen de sobra por encima del aviso: quien por fin compre casa no puede
-# encontrarse con que su gachamon se muere a los dos minutos de mudarse.
+# Por debajo de esto el hambre no baja mientras se esté a la intemperie.
 SUELO_DE_HAMBRE_A_LA_INTEMPERIE = 25.0
 
 

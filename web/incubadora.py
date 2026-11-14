@@ -1,7 +1,8 @@
 """La Incubadora del pueblo: tu plantel entero y sacar a otro gachamon.
 
-Ver el plantel sólo lee: pone la activa al día (lo único que escribe una
-lectura es la muerte que descubre) y lista a los vivos. Sacar es un adaptador
+Ver el plantel sólo lee: pone la activa al día (lo único que puede escribir
+una lectura es el remiendo: sacar a alguien de la incubadora si no hay activa)
+y lista a los vivos. Sacar es un adaptador
 fino: valida la petición, comprueba que se está en la incubadora y llama a la
 regla de `economia`, que decide y escribe bajo `BEGIN IMMEDIATE`; aquí sólo se
 traduce lo que pasó a una frase de la web, en texto llano. Un «no» del juego no

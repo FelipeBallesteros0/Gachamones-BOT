@@ -11,7 +11,7 @@ import simulacion as sim
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 TARDE = T0 + timedelta(days=5)
 STATS = (10, 10, 10, 10)
-U = "222222222222222222"     # una identidad de Discord: tiene aviso de hambre
+U = "222222222222222222"     # una identidad de Discord
 OTRA = "333333333333333333"
 G = "g"
 
@@ -63,7 +63,7 @@ def test_cambiar_pone_al_dia_a_la_que_sale():
     assert resultado.criatura.id == b.id
 
 
-def test_la_que_entra_sale_con_su_reloj_al_dia():
+def test_la_que_entra_sale_al_dia_y_sin_reloj():
     nace("Ana")
     b = nace("Bea", activa=False)
     ahora = T0 + timedelta(hours=3)
@@ -73,9 +73,7 @@ def test_la_que_entra_sale_con_su_reloj_al_dia():
     entra = db.por_id(b.id)
     assert entra.activa is True
     assert entra.actualizada_en == ahora
-    muere_en, avisa_en = relojes(b.id)
-    assert muere_en is not None and avisa_en is not None
-    assert datetime.fromisoformat(muere_en) == sim.momento_de_muerte(entra)
+    assert relojes(b.id) == (None, None)
     assert resultado.criatura == entra
 
 
@@ -143,7 +141,7 @@ def test_con_la_activa_muerta_de_antes_sale_el_relevo_y_el_cambio_sigue():
     assert db.por_id(b.id).activa is False
 
 
-def test_cambiar_con_la_saliente_en_cero_no_apunta_nada():
+def test_cambiar_con_la_saliente_en_cero_la_deja_viva_en_cero():
     a = nace("Ana")
     db.guardar(replace(a, hambre=0.0))
     b = nace("Bea", activa=False)
@@ -156,10 +154,6 @@ def test_cambiar_con_la_saliente_en_cero_no_apunta_nada():
     assert saliente.viva and saliente.hambre == 0.0
     assert saliente.actualizada_en == TARDE and saliente.activa is False
     assert resultado.saliente == saliente
-    with db.conectar() as con:
-        assert con.execute(
-            "SELECT COUNT(*) FROM muertes_por_anunciar"
-        ).fetchone()[0] == 0
 
 
 def test_si_la_elegida_es_el_relevo_que_acaba_de_salir_ya_es_el_activo():

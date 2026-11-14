@@ -1,4 +1,4 @@
-"""Persistencia: ida y vuelta, el plantel con su incubadora y muere_en."""
+"""Persistencia: ida y vuelta, el plantel con su incubadora y la base sin relojes de muerte."""
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -14,6 +14,8 @@ import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
+U = "u1"
+G = "g1"
 COLUMNAS_INGENIO = (
     "base_ingenio", "ent_ingenio", "niv_ingenio", "ten_ingenio",
 )
@@ -115,69 +117,128 @@ def test_guardar_conserva_todos_los_campos():
     assert db.criatura_activa("u1", "g1") == modificada
 
 
-def test_muere_en_se_guarda_y_lo_usa_el_bucle_de_muerte():
+# --- Sin relojes de muerte --------------------------------------------------
+
+def crear_activa(hambre):
     criatura = nacer()
-    momento = sim.momento_de_muerte(criatura)
-
-    assert db.pendientes_de_morir(momento - timedelta(minutes=1)) == []
-
-    pendientes = db.pendientes_de_morir(momento + timedelta(minutes=1))
-    assert [c.id for c in pendientes] == [criatura.id]
+    db.guardar(replace(criatura, hambre=hambre))
+    return db.por_id(criatura.id)
 
 
-def test_alimentar_aleja_la_hora_de_la_muerte():
-    criatura = nacer()
-    antes = sim.momento_de_muerte(criatura)
-
-    hambrienta = sim.avanzar(criatura, T0 + timedelta(hours=40))
-    llena = sim.aplicar_accion(hambrienta, sim.ALIMENTAR, T0 + timedelta(hours=40))
-    db.guardar(llena.criatura)
-
-    assert sim.momento_de_muerte(db.criatura_activa("u1", "g1")) > antes
-
-
-def test_el_aviso_de_hambre_se_dispara_una_sola_vez():
-    from dataclasses import replace
-    criatura = nacer()
-    momento = sim.momento_de_aviso(criatura)
-
-    assert db.pendientes_de_aviso(momento - timedelta(minutes=1)) == []
-
-    pendientes = db.pendientes_de_aviso(momento + timedelta(minutes=1))
-    assert [c.id for c in pendientes] == [criatura.id]
-
-    # Una vez avisada, deja de aparecer aunque siga con hambre.
-    avisada = sim.avanzar(criatura, momento + timedelta(minutes=1))
-    db.guardar(replace(avisada, avisada=True))
-    assert db.pendientes_de_aviso(momento + timedelta(hours=1)) == []
+def poner_en_la_fila(criatura_id, **columnas):
+    """Escribe columnas a pelo, como las dejó el código de antes."""
+    asignaciones = ", ".join(f"{c} = ?" for c in columnas)
+    with db.conectar() as con:
+        con.execute(
+            f"UPDATE criaturas SET {asignaciones} WHERE id = ?",
+            (*columnas.values(), criatura_id),
+        )
 
 
-def test_alimentarla_hace_que_vuelva_a_avisar_mas_adelante():
-    criatura = nacer()
-    momento = sim.momento_de_aviso(criatura)
+def leer_fila(criatura_id):
+    with db.conectar() as con:
+        return con.execute(
+            "SELECT * FROM criaturas WHERE id = ?", (criatura_id,)
+        ).fetchone()
 
-    hambrienta = sim.avanzar(criatura, momento + timedelta(minutes=1))
-    from dataclasses import replace
-    db.guardar(replace(hambrienta, avisada=True))
 
-    llena = sim.aplicar_accion(
-        db.criatura_activa("u1", "g1"), sim.ALIMENTAR, momento
-    ).criatura
-    db.guardar(llena)
+def tablas():
+    with db.conectar() as con:
+        return {f["name"] for f in con.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'")}
 
-    assert db.pendientes_de_aviso(momento + timedelta(minutes=2)) == []
-    guardada = db.criatura_activa("u1", "g1")
-    assert not guardada.avisada
-    assert sim.momento_de_aviso(guardada) > momento
+
+def indices():
+    with db.conectar() as con:
+        return {f["name"] for f in con.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'index'")}
+
+
+def crear_la_tabla_vieja_con_una_fila():
+    """La tabla de las muertes por anunciar como la dejaba el código de antes,
+    con una muerte que el bot todavía no había anunciado."""
+    muerta = nacer(nombre="Pendiente")
+    db.guardar(muerta_de_antes(muerta))
+    with db.conectar() as con:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS muertes_por_anunciar "
+            "(criatura_id INTEGER PRIMARY KEY, relevo_id INTEGER)"
+        )
+        con.execute(
+            "INSERT INTO muertes_por_anunciar (criatura_id) VALUES (?)",
+            (muerta.id,),
+        )
+    return muerta
+
+
+def volcado():
+    """La base entera, tabla por tabla: cualquier escritura la cambia."""
+    with db.conectar() as con:
+        return list(con.iterdump())
+
+
+def test_a_quien_le_tocaba_morir_sigue_vivo_y_sin_reloj():
+    c = crear_activa(hambre=2.0)
+    poner_en_la_fila(
+        c.id,
+        muere_en=(T0 - timedelta(days=1)).isoformat(),
+        avisa_en=(T0 - timedelta(days=2)).isoformat(),
+        avisada=1,
+    )
+    db.inicializar()
+    fila = leer_fila(c.id)
+    assert fila["muere_en"] is None and fila["avisa_en"] is None and fila["muerta_en"] is None
+    assert fila["avisada"] == 0
+    al_dia = db.activa_al_dia(U, G, T0 + timedelta(days=3))
+    assert al_dia.viva and al_dia.hambre == 0.0
+
+
+def test_guardar_no_escribe_relojes():
+    c = crear_activa(hambre=80.0)
+    # Aunque llegue marcada como avisada: la marca ya no se guarda.
+    db.guardar(replace(c, avisada=True))
+    fila = leer_fila(c.id)
+    assert (fila["muere_en"], fila["avisa_en"], fila["avisada"]) == (None, None, 0)
+
+
+def test_la_tabla_de_muertes_por_anunciar_se_va_y_arrancar_dos_veces_no_falla():
+    muerta = crear_la_tabla_vieja_con_una_fila()
+    db.inicializar(); db.inicializar()
+    assert "muertes_por_anunciar" not in tablas()
+    # Se va sin anunciar nada: la muerta de antes sigue muerta y no hay relevo.
+    assert db.por_id(muerta.id).muerta_en is not None
+    assert db.criatura_activa(U, G) is None
+
+
+def test_los_indices_de_los_relojes_se_van_y_no_vuelven():
+    with db.conectar() as con:
+        con.execute("CREATE INDEX IF NOT EXISTS idx_muere "
+                    "ON criaturas(muere_en) WHERE muerta_en IS NULL")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_avisa "
+                    "ON criaturas(avisa_en) WHERE muerta_en IS NULL AND avisada = 0")
+    db.inicializar(); db.inicializar()
+    assert not {"idx_muere", "idx_avisa"} & indices()
+
+
+def test_una_base_nueva_nace_sin_relojes_ni_tabla_de_muertes():
+    assert "muertes_por_anunciar" not in tablas()
+    assert not {"idx_muere", "idx_avisa"} & indices()
+
+
+def test_activa_al_dia_no_escribe():
+    crear_activa(hambre=0.0)
+    antes = volcado()
+    db.activa_al_dia(U, G, T0 + timedelta(days=10))
+    assert volcado() == antes
 
 
 def test_migracion_de_una_base_de_datos_antigua():
     """Una BD de la versión anterior no tiene avisa_en ni avisada: al abrirla
-    hay que añadir las columnas y rellenarlas sin perder las criaturas."""
+    hay que añadir las columnas sin perder las criaturas."""
     criatura = nacer(nombre="Veterana")
 
     with db.conectar() as con:
-        # El índice referencia las columnas: hay que quitarlo primero.
+        # El índice viejo referenciaba las columnas: hay que quitarlo primero.
         con.execute("DROP INDEX IF EXISTS idx_avisa")
         for columna in ("avisa_en", "avisada"):
             con.execute(f"ALTER TABLE criaturas DROP COLUMN {columna}")
@@ -190,8 +251,9 @@ def test_migracion_de_una_base_de_datos_antigua():
     assert recuperada is not None
     assert recuperada.nombre == "Veterana"
     assert not recuperada.avisada
-    # Y el aviso vuelve a estar programado.
-    assert db.pendientes_de_aviso(sim.momento_de_aviso(criatura) + timedelta(minutes=1))
+    # Las columnas vuelven, pero vacías: ya no se programa ningún aviso.
+    fila = leer_fila(criatura.id)
+    assert (fila["avisa_en"], fila["avisada"]) == (None, 0)
 
 
 def test_una_base_sin_difuntos_vistos_hasta_la_gana_al_inicializar():
@@ -737,27 +799,6 @@ def test_a_la_incubadora_no_le_pasa_el_tiempo():
     assert tres_dias.animo == dormida.animo
     assert tres_dias.limpieza == dormida.limpieza
     assert tres_dias.viva
-
-
-def test_una_incubada_no_entra_en_el_bucle_que_mata():
-    """El bucle busca `muere_en <= ahora`; dejando ese campo a NULL para las
-    incubadas quedan invisibles sin tocar la consulta."""
-    incubar(nacer(), hambre=1.0)
-
-    with db.conectar() as con:
-        fila = con.execute("SELECT muere_en, avisa_en FROM criaturas").fetchone()
-    assert fila["muere_en"] is None
-    assert fila["avisa_en"] is None
-
-    muy_tarde = T0 + timedelta(days=30)
-    assert db.pendientes_de_morir(muy_tarde) == []
-    assert db.pendientes_de_aviso(muy_tarde) == []
-
-
-def test_la_activa_si_sigue_muriendo():
-    """El contraste: la incubadora no puede haber apagado el bucle entero."""
-    db.guardar(replace(nacer(), hambre=1.0))
-    assert db.pendientes_de_morir(T0 + timedelta(days=30))
 
 
 def test_al_sacarla_de_la_incubadora_no_se_le_cae_el_tiempo_encima():

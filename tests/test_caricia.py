@@ -96,6 +96,17 @@ def test_sin_gachamon_no_hay_a_quien():
     assert db.acariciar("nadie", "g", T0) == db.ResultadoCaricia(False, None, timedelta(0))
 
 
+def test_con_la_comida_en_cero_se_acaricia_igual():
+    nacer()
+    mucho_despues = T0 + timedelta(days=5)
+    resultado = db.acariciar("u", "g", mucho_despues)
+    assert resultado.ok and resultado.espera == ESPERA
+    assert resultado.criatura.viva and resultado.criatura.hambre == 0.0
+    guardada = db.criatura_activa("u", "g")
+    assert guardada.viva and guardada.hambre == 0.0
+    assert guardada.animo == resultado.criatura.animo
+
+
 def test_la_de_una_identidad_web_se_acaricia_igual():
     web = identidad.de_cuenta_web(12)
     nacer(usuario=web)

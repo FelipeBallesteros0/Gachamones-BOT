@@ -689,10 +689,18 @@ def test_la_intemperie_no_puede_matar():
     assert tras_un_mes.muerta_en is None
 
 
-def test_el_suelo_deja_margen_para_mudarse_sin_morirse():
-    """Quien por fin compre casa no puede encontrarse con que su gachamon se
-    muere a los dos minutos: el suelo tiene que quedar por encima del aviso."""
-    assert cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE > sim.UMBRAL_AVISO_HAMBRE
+def test_el_suelo_del_hambre_es_solo_de_la_intemperie():
+    """A la intemperie la comida no baja del suelo; bajo techo, en el refugio o
+    en una casa, sí llega a 0."""
+    fuera = cas.ritmo_de(un_hogar(None, T0), T0 + timedelta(days=1), 1)
+    en_el_refugio = cas.ritmo_de(un_hogar(None, T0 + timedelta(days=1)), T0)
+    en_casa = cas.ritmo_de(un_hogar(GRANDE, T0), T0, 1)
+
+    assert cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE > 0
+    assert (_tras(24 * 30, fuera, hambre=30.0).hambre
+            == cas.SUELO_DE_HAMBRE_A_LA_INTEMPERIE)
+    for ritmo in (en_el_refugio, en_casa):
+        assert _tras(24 * 30, ritmo, hambre=30.0).hambre == 0.0
 
 
 def test_la_comodidad_frena_el_animo_hasta_un_cuarto():
@@ -711,8 +719,7 @@ def test_la_mejor_casa_conserva_mas_animo_que_el_refugio():
     en_refugio = _tras(24, cas.ritmo_de(refugio, T0))
 
     assert en_casa.animo > en_refugio.animo
-    # Y el hambre no la toca la comodidad: `muere_en` va precalculado en la base
-    # y dejaría de ser cierto en cuanto alguien se mudara.
+    # Y el hambre no la toca la comodidad.
     assert en_casa.hambre == en_refugio.hambre
 
 

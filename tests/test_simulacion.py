@@ -79,49 +79,8 @@ def test_la_suciedad_amarga_el_animo_pero_no_mata():
     b = sim.avanzar(sucia, T0 + horas)
 
     assert b.animo < a.animo
-    # Lo que no puede hacer la suciedad es tocar el hambre: si lo hiciera, la
-    # hora de la muerte dejaría de ser predecible.
+    # Lo que no hace la suciedad es tocar el hambre.
     assert abs(a.hambre - b.hambre) < 0.001
-
-
-# --- Aviso de hambre -------------------------------------------------------
-
-def test_el_aviso_salta_al_llegar_al_umbral():
-    c = criatura()
-    momento = sim.momento_de_aviso(c)
-
-    antes = sim.avanzar(c, momento - timedelta(minutes=5))
-    assert antes.hambre > sim.UMBRAL_AVISO_HAMBRE
-
-    despues = sim.avanzar(c, momento + timedelta(minutes=5))
-    assert despues.hambre <= sim.UMBRAL_AVISO_HAMBRE
-    assert despues.viva
-
-
-def test_el_aviso_deja_margen_de_reaccion():
-    """Al 10% de comida queda el 10% de la vida: horas, no minutos."""
-    c = criatura()
-    margen = sim.momento_de_muerte(c) - sim.momento_de_aviso(c)
-    assert margen > timedelta(hours=5)
-
-
-def test_si_ya_esta_por_debajo_el_aviso_es_inmediato():
-    c = criatura(hambre=3.0)
-    assert sim.momento_de_aviso(c) == c.actualizada_en
-
-
-def test_alimentarla_rearma_el_aviso():
-    hambrienta = criatura(hambre=5.0, avisada=True)
-    llena = sim.aplicar_accion(hambrienta, sim.ALIMENTAR, T0).criatura
-    assert not llena.avisada
-    assert llena.hambre > sim.UMBRAL_AVISO_HAMBRE
-
-
-def test_las_demas_acciones_no_rearman_el_aviso():
-    """Sólo alimentar sube la comida; jugar o entrenar la bajan todavía más."""
-    for accion in (sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR):
-        c = criatura(hambre=8.0, avisada=True)
-        assert sim.aplicar_accion(c, accion, T0).criatura.avisada, accion
 
 
 # --- Etapas y cara ---------------------------------------------------------

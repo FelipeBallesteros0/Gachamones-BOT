@@ -4,10 +4,11 @@ Las consultas son síncronas dentro del bucle de eventos de discord.py. Con una
 base de datos local de unas pocas decenas de filas cada operación tarda menos de
 un milisegundo, así que meter una capa async sólo añadiría complejidad.
 
-Detalle importante: en cada guardado se recalcula `muere_en`, el instante en que
-el hambre llegará a cero. Como el hambre decae linealmente, ese momento se
-despeja con una fórmula cerrada, y el bucle que mata criaturas se reduce a un
-`WHERE muere_en <= ahora` en vez de recorrer y simular todas las filas.
+El paso del tiempo no se guarda en ningún reloj: cada criatura lleva cuándo se
+actualizó por última vez, y sus barras se calculan al leerla (`avanzar`). Nadie
+se muere de hambre, así que tampoco hay instante de muerte ni de aviso que
+guardar: `muere_en`, `avisa_en` y `avisada` siguen en el esquema, siempre
+vacías.
 """
 from __future__ import annotations
 
@@ -285,13 +286,6 @@ CREATE TABLE IF NOT EXISTS cuentas_web (
     UNIQUE (usuario_id, guild_id)
 );
 
--- Muertes que registró quien no puede hablar en Discord (la web). El bucle
--- del bot las anuncia en su siguiente vuelta y borra la fila.
-CREATE TABLE IF NOT EXISTS muertes_por_anunciar (
-    criatura_id INTEGER PRIMARY KEY,
-    relevo_id INTEGER
-);
-
 -- Códigos de un solo uso para vincular una cuenta de Rowino con Discord. Cada
 -- cuenta tiene como mucho uno vivo (UNIQUE sobre `rowino_uid`).
 CREATE TABLE IF NOT EXISTS vinculos_pendientes (
@@ -432,12 +426,6 @@ SCHEMA_INDICES = """
 -- en `crear()`.
 CREATE UNIQUE INDEX IF NOT EXISTS una_activa
     ON criaturas(usuario_id, guild_id) WHERE muerta_en IS NULL AND activa = 1;
-
-CREATE INDEX IF NOT EXISTS idx_muere
-    ON criaturas(muere_en) WHERE muerta_en IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_avisa
-    ON criaturas(avisa_en) WHERE muerta_en IS NULL AND avisada = 0;
 
 CREATE INDEX IF NOT EXISTS idx_conversacion
     ON conversaciones(criatura_id, id);
@@ -758,17 +746,21 @@ def _migrar(con: sqlite3.Connection) -> None:
     # sustituye, y este paso corre justo entre las tablas y los índices.
     con.execute("DROP INDEX IF EXISTS una_viva")
 
-    # Las criaturas anteriores a esta versión no tienen calculado su avisa_en.
-    for fila in con.execute(
-        "SELECT * FROM criaturas WHERE muerta_en IS NULL AND avisa_en IS NULL"
-    ).fetchall():
-        criatura = _a_criatura(fila)
-        if not _lleva_relojes(criatura):
-            continue
-        con.execute(
-            "UPDATE criaturas SET avisa_en = ? WHERE id = ?",
-            (sim.momento_de_aviso(criatura).isoformat(), criatura.id),
-        )
+    # Nadie se muere de hambre ya, así que no queda instante de muerte ni de
+    # aviso que guardar. Las columnas se quedan —quitarlas obligaría a rehacer
+    # la tabla—, pero vacías: a quien ya le tocaba morir sigue vivo con la
+    # comida en 0. Se van los dos índices que las recorrían y la tabla de las
+    # muertes que la web dejaba para que el bot las anunciara; lo que quedara
+    # pendiente en ella no se anuncia. Como con `una_viva`, se tiran aquí
+    # porque los scripts del esquema sólo crean. Repetirlo no hace nada: los
+    # `DROP` llevan `IF EXISTS` y el `UPDATE` ya no encuentra filas.
+    con.execute("DROP INDEX IF EXISTS idx_muere")
+    con.execute("DROP INDEX IF EXISTS idx_avisa")
+    con.execute("DROP TABLE IF EXISTS muertes_por_anunciar")
+    con.execute(
+        "UPDATE criaturas SET muere_en = NULL, avisa_en = NULL, avisada = 0 "
+        "WHERE muere_en IS NOT NULL OR avisa_en IS NOT NULL OR avisada != 0"
+    )
 
     # Una personalidad al azar para cada criatura anterior al carácter. Fila a
     # fila y no de una sola pasada: con un UPDATE global les tocaría la misma a
@@ -883,42 +875,17 @@ def _a_criatura(fila: sqlite3.Row) -> sim.Criatura:
     return sim.Criatura(id=fila["id"], **datos)
 
 
-def _lleva_relojes(criatura: sim.Criatura) -> bool:
-    """¿Se le guardan `muere_en` y `avisa_en`? Sólo a la viva, activa y con aviso.
-
-    Lo comparten `_a_valores` y el relleno de `inicializar`, para que no puedan
-    discrepar sobre quién los lleva.
-    """
-    return (
-        criatura.viva
-        and criatura.activa
-        and not identidad.sin_aviso_de_hambre(criatura.usuario_id)
-    )
-
-
 def _a_valores(criatura: sim.Criatura) -> dict:
     datos = {c: getattr(criatura, c) for c in CAMPOS}
     for campo in ("nacida_en", "actualizada_en", "muerta_en"):
         valor = datos[campo]
         datos[campo] = valor.isoformat() if valor else None
-    datos["avisada"] = int(criatura.avisada)
     datos["activa"] = int(criatura.activa)
-    # Los dos instantes se recalculan en cada guardado: dependen de la comida
-    # actual y de la salud, que cambian con cada acción.
-    #
-    # A las de la incubadora se les dejan a NULL, y eso es lo único que hace
-    # falta para que los bucles de muerte y de aviso las ignoren: los dos piden
-    # `IS NOT NULL`, así que no hay que tocar ninguna de las dos consultas.
-    #
-    # Lo mismo vale para quien no tiene aviso de hambre (una identidad web): el
-    # hambre no la mata, así que no se le guarda instante de muerte ni de aviso.
-    corre_el_tiempo = _lleva_relojes(criatura)
-    datos["muere_en"] = (
-        sim.momento_de_muerte(criatura).isoformat() if corre_el_tiempo else None
-    )
-    datos["avisa_en"] = (
-        sim.momento_de_aviso(criatura).isoformat() if corre_el_tiempo else None
-    )
+    # Ni instante de muerte ni aviso de hambre: nadie se muere. Las columnas
+    # siguen en el esquema y se escriben vacías en cada guardado.
+    datos["avisada"] = 0
+    datos["muere_en"] = None
+    datos["avisa_en"] = None
     return datos
 
 
@@ -983,8 +950,9 @@ def ascender_de_la_incubadora(
 ) -> sim.Criatura | None:
     """Saca a la primera de la incubadora si no queda ninguna activa.
 
-    Se llama al morir la activa. Sin esto te quedarías con dos gachamones
-    esperando y el bot diciéndote que no tienes ninguno.
+    Es el remiendo de `activa_al_dia`. Sin esto, quien se quedó sin activa
+    —porque se le murió cuando todavía se moría, por ejemplo— tendría
+    gachamones esperando y el juego le diría que no tiene ninguno.
     """
     if criatura_activa(usuario_id, guild_id) is not None:
         return None
@@ -997,106 +965,23 @@ def ascender_de_la_incubadora(
     return criatura_activa(usuario_id, guild_id)
 
 
-def _apuntar_muerte(con: sqlite3.Connection, muerta: sim.Criatura) -> bool:
-    """Deja apuntada una muerte para que el bot la anuncie en Discord.
-
-    Sólo a quien tiene aviso de hambre: a los demás nadie les va a anunciar nada.
-    Va aparte para que la regla esté escrita una vez. Devuelve si apuntó.
-    """
-    if identidad.sin_aviso_de_hambre(muerta.usuario_id):
-        return False
-    con.execute(
-        "INSERT OR IGNORE INTO muertes_por_anunciar (criatura_id) VALUES (?)",
-        (muerta.id,),
-    )
-    return True
-
-
 def activa_al_dia(
     usuario_id: str, guild_id: str, ahora: datetime
 ) -> sim.Criatura | None:
-    """La activa, viva y avanzada hasta `ahora`, sin guardarle el paso del tiempo.
+    """La activa, avanzada hasta `ahora`, sin guardarle el paso del tiempo.
 
-    Sólo escribe cuando se entera de una muerte: la guarda muerta, la apunta en
-    `muertes_por_anunciar` para que el bot la anuncie (la web no habla en
-    Discord) y saca al relevo de la incubadora, que es lo que hace `/huevo` en el
-    bot. Devuelve al relevo (avanzado) o `None` si no queda nadie. Repetirla, o
-    correrla desde dos procesos, deja una sola muerte apuntada y un solo relevo:
-    sólo apunta quien la vio viva en la base, y `ascender_de_la_incubadora` no
-    hace nada si ya hay una activa. Si no hay ninguna activa intenta ascender a
-    alguien antes de rendirse, por si un proceso se cortó entre guardar la muerte
-    y sacar al relevo.
+    No escribe nunca, salvo el remiendo: si no hay activa y sí alguien con
+    nombre en la incubadora, saca a una (`ascender_de_la_incubadora`) y la
+    devuelve avanzada. Repetirla, o correrla desde dos procesos, deja una sola
+    activa. Sin nadie a quien sacar devuelve `None`.
     """
     activa = criatura_activa(usuario_id, guild_id)
     if activa is None:
         ascender_de_la_incubadora(usuario_id, guild_id, ahora)
-        relevo = criatura_activa(usuario_id, guild_id)
-        return None if relevo is None else avanzar(relevo, ahora)
-    avanzada = avanzar(activa, ahora)
-    if avanzada.viva:
-        return avanzada
-
-    # Se vuelve a leer y a avanzar dentro de la transacción: si el bot u otra
-    # petición ya la registraron muerta, o la alimentaron entre medias, no se
-    # escribe ni se apunta nada; y lo que se guarda parte de la fila releída, no
-    # de la leída antes (que habría pisado, por ejemplo, `pantalla_msg_id`).
-    apuntada = False
-    with conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        actual = criatura_en(con, avanzada.id)
-        if actual is not None and actual.viva:
-            muerta = _avanzar_en(con, actual, ahora)
-            if not muerta.viva:
-                _guardar(con, muerta)
-                apuntada = _apuntar_muerte(con, muerta)
-    # Sin meterlo en la transacción: abre su propia conexión.
-    ascender_de_la_incubadora(usuario_id, guild_id, ahora)
-    relevo = criatura_activa(usuario_id, guild_id)
-    if relevo is None:
-        return None
-    if apuntada:
-        with conectar() as con:
-            con.execute("BEGIN IMMEDIATE")
-            con.execute(
-                "UPDATE muertes_por_anunciar SET relevo_id = ? "
-                "WHERE criatura_id = ?",
-                (relevo.id, avanzada.id),
-            )
-    return avanzar(relevo, ahora)
-
-
-def muertes_por_anunciar() -> list[tuple[sim.Criatura, sim.Criatura | None]]:
-    """Cada muerta apuntada con su relevo, por orden de id.
-
-    El relevo es `None` si no se apuntó ninguno o si ya no está vivo y activo.
-    """
-    with conectar() as con:
-        filas = con.execute(
-            "SELECT criatura_id, relevo_id FROM muertes_por_anunciar "
-            "ORDER BY criatura_id"
-        ).fetchall()
-        resultado = []
-        for fila in filas:
-            muerta = criatura_en(con, fila["criatura_id"])
-            if muerta is None:
-                continue
-            relevo = (
-                criatura_en(con, fila["relevo_id"])
-                if fila["relevo_id"] is not None else None
-            )
-            if relevo is not None and not (relevo.viva and relevo.activa):
-                relevo = None
-            resultado.append((muerta, relevo))
-    return resultado
-
-
-def muerte_anunciada(criatura_id: int) -> None:
-    """Borra el apunte. No falla si no existe."""
-    with conectar() as con:
-        con.execute(
-            "DELETE FROM muertes_por_anunciar WHERE criatura_id = ?",
-            (criatura_id,),
-        )
+        activa = criatura_activa(usuario_id, guild_id)
+        if activa is None:
+            return None
+    return avanzar(activa, ahora)
 
 
 def plantel(usuario_id: str, guild_id: str) -> list[sim.Criatura]:
@@ -1123,7 +1008,7 @@ def activar(
 
     **`actualizada_en` se pone al día en `_activar_en`**, que es el único sitio
     por el que se sale de la incubadora. Sin eso, las horas que pasó dormida se
-    le aplicarían de golpe en el primer `avanzar` y saldría muerta de hambre.
+    le aplicarían de golpe en el primer `avanzar` y saldría con la comida en 0.
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1148,7 +1033,7 @@ def _activar_en(
         "SELECT usuario_id, guild_id FROM criaturas WHERE id = ?", (criatura_id,)
     ).fetchone()
     con.execute(
-        "UPDATE criaturas SET activa = 0, muere_en = NULL, avisa_en = NULL "
+        "UPDATE criaturas SET activa = 0 "
         "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
         (dueño["usuario_id"], dueño["guild_id"]),
     )
@@ -1156,14 +1041,9 @@ def _activar_en(
         "UPDATE criaturas SET activa = 1, actualizada_en = ? WHERE id = ?",
         (ahora.isoformat(), criatura_id),
     )
-
-    # Un guardado normal recalcula `muere_en` y `avisa_en` de la que acaba de
-    # despertar, que el UPDATE de arriba dejó en blanco junto a las demás.
-    despierta = _a_criatura(con.execute(
+    return _a_criatura(con.execute(
         "SELECT * FROM criaturas WHERE id = ?", (criatura_id,)
     ).fetchone())
-    _guardar(con, despierta)
-    return despierta
 
 
 def criatura_por_pantalla(mensaje_id: str) -> sim.Criatura | None:
@@ -1355,8 +1235,8 @@ def guardar_pantalla(
 ) -> None:
     """Apunta dónde está la pantalla viva y en qué canal.
 
-    El canal se actualiza en cada publicación, así que los avisos siguen a la
-    persona si se cambia de canal a media partida.
+    El canal se actualiza en cada publicación, así que la pantalla vieja se
+    encuentra aunque la persona se cambie de canal a media partida.
     """
     with conectar() as con:
         if canal_id is None:
@@ -1394,29 +1274,6 @@ def guardar_publicacion(canal_id: str, indice: int, mensaje_id: str) -> None:
             "mensaje_id = excluded.mensaje_id",
             (canal_id, indice, mensaje_id),
         )
-
-
-def pendientes_de_morir(ahora: datetime) -> list[sim.Criatura]:
-    """Criaturas vivas cuya hora de muerte ya pasó. Una sola consulta."""
-    with conectar() as con:
-        filas = con.execute(
-            "SELECT * FROM criaturas "
-            "WHERE muerta_en IS NULL AND muere_en IS NOT NULL AND muere_en <= ?",
-            (ahora.isoformat(),),
-        ).fetchall()
-    return [_a_criatura(f) for f in filas]
-
-
-def pendientes_de_aviso(ahora: datetime) -> list[sim.Criatura]:
-    """Criaturas vivas que han bajado del umbral de comida y aún no lo saben."""
-    with conectar() as con:
-        filas = con.execute(
-            "SELECT * FROM criaturas "
-            "WHERE muerta_en IS NULL AND avisada = 0 "
-            "AND avisa_en IS NOT NULL AND avisa_en <= ?",
-            (ahora.isoformat(),),
-        ).fetchall()
-    return [_a_criatura(f) for f in filas]
 
 
 # --- Cooldowns -------------------------------------------------------------
@@ -1587,11 +1444,9 @@ class ResultadoCaricia:
 def acariciar(usuario_id: str, guild_id: str, ahora: datetime) -> ResultadoCaricia:
     """Acaricia al gachamon activo, con su enfriamiento, en una sola transacción.
 
-    La criatura se avanza hasta `ahora` antes de nada. Si así resulta que murió
-    se guarda muerta y se contesta `ok=False` sin enfriamiento: sacar al relevo
-    de la incubadora no es cosa de la caricia. Antes de tiempo no se guarda
-    nada: la criatura que se devuelve va avanzada hasta `ahora`, pero en la
-    base sigue como estaba (el avance se recalcula igual la próxima vez).
+    La criatura se avanza hasta `ahora` antes de nada. Antes de tiempo no se
+    guarda nada: la criatura que se devuelve va avanzada hasta `ahora`, pero en
+    la base sigue como estaba (el avance se recalcula igual la próxima vez).
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1599,10 +1454,6 @@ def acariciar(usuario_id: str, guild_id: str, ahora: datetime) -> ResultadoCaric
         if criatura is None:
             return ResultadoCaricia(False, None, timedelta(0))
         criatura = _avanzar_en(con, criatura, ahora)
-        if not criatura.viva:
-            _guardar(con, criatura)
-            _apuntar_muerte(con, criatura)
-            return ResultadoCaricia(False, criatura, timedelta(0))
 
         espera = espera_en(con, criatura.id, sim.ACARICIAR, ahora)
         if espera:

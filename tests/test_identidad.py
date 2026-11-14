@@ -60,9 +60,8 @@ def test_la_identidad_de_una_cuenta_es_su_numero_en_negativo():
         identidad.de_cuenta_web(0)
 
 
-def test_hoy_quien_no_tiene_aviso_es_justo_la_identidad_web():
-    assert identidad.sin_aviso_de_hambre(WEB)
-    assert not identidad.sin_aviso_de_hambre(DISCORD)
+def test_ya_no_hay_excepcion_del_hambre():
+    assert not hasattr(identidad, "sin_aviso_de_hambre")
 
 
 def test_el_hambre_no_mata_al_gachamon_de_una_identidad_web():
@@ -81,20 +80,11 @@ def test_al_de_una_identidad_web_le_bajan_las_tres_barras_como_a_cualquiera():
     assert web.hambre < 100
 
 
-def test_a_una_identidad_web_no_se_le_guarda_reloj_de_muerte_ni_de_aviso():
+def test_a_nadie_se_le_guarda_reloj_de_muerte_ni_de_aviso():
     db.crear(WEB, "g", "pollito", "Pelusa", STATS, T0)
     db.crear(DISCORD, "g", "pollito", "Otra", STATS, T0)
     assert relojes_de(WEB) == [(None, None, None)]
-    muere_en, avisa_en, _ = relojes_de(DISCORD)[0]
-    assert muere_en is not None and avisa_en is not None
-
-
-def test_los_bucles_del_bot_nunca_ven_a_una_identidad_web():
-    db.crear(WEB, "g", "pollito", "Pelusa", STATS, T0)
-    db.crear(DISCORD, "g", "pollito", "Otra", STATS, T0)
-    lejos = T0 + timedelta(days=30)
-    assert {c.usuario_id for c in db.pendientes_de_morir(lejos)} == {DISCORD}
-    assert {c.usuario_id for c in db.pendientes_de_aviso(lejos)} == {DISCORD}
+    assert relojes_de(DISCORD) == [(None, None, None)]
 
 
 def test_cambiar_de_activo_no_le_devuelve_la_muerte():
@@ -116,27 +106,6 @@ def test_tras_dias_en_cero_come_con_normalidad_y_sigue_sin_reloj():
     assert resultado.criatura.viva
     assert resultado.criatura.hambre == sim.EFECTOS_CUIDADO[sim.ALIMENTAR]["hambre"]
     assert relojes_de(WEB) == [(None, None, None)]
-
-
-def test_volver_a_arrancar_no_le_devuelve_el_reloj_de_aviso():
-    db.crear(WEB, "g", "pollito", "Pelusa", STATS, T0)
-    db.crear(DISCORD, "g", "pollito", "Otra", STATS, T0)
-    antes = relojes_de(DISCORD)
-    db.inicializar()
-    assert relojes_de(WEB) == [(None, None, None)]
-    assert relojes_de(DISCORD) == antes
-    lejos = T0 + timedelta(days=30)
-    assert {c.usuario_id for c in db.pendientes_de_aviso(lejos)} == {DISCORD}
-
-
-def test_volver_a_arrancar_no_le_pone_aviso_a_la_de_la_incubadora():
-    db.crear(DISCORD, "g", "pollito", "Uno", STATS, T0)
-    db.crear(DISCORD, "g", "pulpo", "Dos", STATS, T0, activa=False)
-    db.inicializar()
-    with db.conectar() as con:
-        avisos = [f[0] for f in con.execute(
-            "SELECT avisa_en FROM criaturas WHERE activa = 0")]
-    assert avisos == [None]
 
 
 def test_el_viaje_no_mata_de_hambre_a_quien_no_tiene_aviso():
