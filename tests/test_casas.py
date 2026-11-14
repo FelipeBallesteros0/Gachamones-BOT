@@ -1,5 +1,6 @@
 """El hogar: que nadie duerma en la calle de entrada y que la casa cuadre."""
 import re
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -243,6 +244,23 @@ def _criatura(i):
         nombre=f"Bicho{i}", nacida_en=T0, actualizada_en=T0,
         base_fuerza=15, base_velocidad=15, base_salud=15,
     )
+
+
+def test_el_reparto_manda_al_refugio_a_quien_no_tiene_casa_conocida():
+    dentro, sin_casa, vendida = (replace(_criatura(i), casa_id=c) for i, c in ((0, 7), (1, None), (2, 99)))
+    suyo = un_hogar(GRANDE, T0, id_=7)
+    assert cas.reparto([dentro, vendida, sin_casa], suyo) == {7: [dentro], None: [vendida, sin_casa]}
+    assert cas.reparto([], suyo) == {}
+
+
+def test_el_reparto_no_cuenta_a_los_muertos_del_plantel():
+    nacer("Vivo")
+    muerto = nacer("Muerto", activa=False)
+    with db.conectar() as con:
+        con.execute("UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?",
+                    (T0.isoformat(), muerto.id))
+    reparto = cas.reparto(db.plantel("u1", "g1"), hogar())
+    assert [c.nombre for c in reparto[None]] == ["Vivo"]
 
 
 def test_la_casa_cabe_en_un_mensaje_de_discord():

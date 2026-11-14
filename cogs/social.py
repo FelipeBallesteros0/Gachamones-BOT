@@ -130,12 +130,7 @@ def texto_de_la_casa(
     El arte ASCII sigue en su sitio en la ficha, en `/jardin` y en las
     competencias; lo que se retiró es el tejado de la casa, y sólo eso.
     """
-    por_casa: dict[int | None, list[sim.Criatura]] = {}
-    for criatura in vivos:
-        # El `id` que no sea de una casa suya cuenta como refugio: es lo que
-        # pasa el rato entre vender una casa y refrescar la pantalla.
-        propia = hogar.casa_por_id(criatura.casa_id)
-        por_casa.setdefault(propia.id if propia else None, []).append(criatura)
+    por_casa = cas.reparto(vivos, hogar)
 
     bloques = []
     for propia in hogar.casas:

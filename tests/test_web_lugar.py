@@ -18,9 +18,9 @@ def ir(cliente, lugar):
 def test_quien_llega_esta_en_su_hogar(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
-    assert cliente.get(ESTADO).json()["lugar"] == {
-        "clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": None, "ofrece": [],
-    }
+    lugar = cliente.get(ESTADO).json()["lugar"]
+    lugar.pop("refugio")   # quién vive ahí se prueba en test_web_refugio
+    assert lugar == {"clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": None, "ofrece": []}
     assert db.lugar_de_cuenta(1) is None
 
 
@@ -206,6 +206,7 @@ def test_a_la_intemperie_el_refugio_lo_dice_y_el_gachamon_no_habla_del_refugio(c
     assert db.lugar_de_cuenta(1) is None
     for estado in (al_entrar, ir(cliente, "refugio").json(), cliente.get(ESTADO).json()):
         assert estado["hogar"] == "intemperie"
+        assert estado["lugar"].pop("refugio")["estancia"] is None
         assert estado["lugar"] == {"clave": "refugio", "nombre": "Refugio", "abre": "ya", "aviso": A_LA_INTEMPERIE,
             "ofrece": [],
         }

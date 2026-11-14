@@ -49,6 +49,10 @@ def test_se_parte_del_hogar():
 A_LA_INTEMPERIE = (
     "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. Las casas se compran en la tienda."
 )
+A_LA_INTEMPERIE_CON_CASA = (
+    "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
+    "Puedes mudarlo a tu casa, por ahora desde Discord, o comprar una más grande en la tienda."
+)
 
 
 @pytest.mark.parametrize("clave, vinculada, hogar, del_gachamon, frase", [
@@ -60,7 +64,7 @@ A_LA_INTEMPERIE = (
     ("casa", True, casas.PROPIA, casas.PROPIA, None),
     ("refugio", False, casas.REFUGIO, casas.REFUGIO, None),
     ("refugio", False, casas.REFUGIO, casas.INTEMPERIE, A_LA_INTEMPERIE),
-    ("refugio", True, casas.PROPIA, casas.INTEMPERIE, A_LA_INTEMPERIE),
+    ("refugio", True, casas.PROPIA, casas.INTEMPERIE, A_LA_INTEMPERIE_CON_CASA),
     ("casa", False, casas.REFUGIO, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
     ("estadio", False, casas.REFUGIO, casas.INTEMPERIE, "Esto se abre más adelante."),
     # Sin gachamon activo no hay a quién avisarle que vive a la intemperie.

@@ -89,6 +89,11 @@ def aviso(clave: str, vinculada: bool, hogar: str, hogar_del_gachamon: str | Non
     if sin_casa(clave, hogar):
         return "Todavía no tienes casa. Se compran en la tienda."
     if hogar_del_gachamon is not None and a_la_intemperie(clave, hogar_del_gachamon):
+        if hogar == casas.PROPIA:
+            return (
+                "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
+                "Puedes mudarlo a tu casa, por ahora desde Discord, o comprar una más grande en la tienda."
+            )
         return (
             "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
             "Las casas se compran en la tienda."

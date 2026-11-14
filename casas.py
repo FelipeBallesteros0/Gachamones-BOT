@@ -13,7 +13,7 @@ porcentaje y pasa a ser una puntuación: se enseña como número y nunca con `%`
 """
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -168,6 +168,20 @@ class Hogar:
 
     def puede_comprar_otra(self) -> bool:
         return len(self.casas) < MAXIMO_CASAS
+
+
+def reparto(plantel: Iterable[sim.Criatura], hogar: Hogar) -> dict[int | None, list[sim.Criatura]]:
+    """Los gachamones agrupados por la casa donde viven, en el orden en que llegan.
+
+    Quien no tiene casa (`casa_id` `None`) o apunta a una que ya no es suya, como
+    pasa un rato entre vender una casa y refrescar la pantalla, va bajo `None`:
+    es el refugio.
+    """
+    por_casa: dict[int | None, list[sim.Criatura]] = {}
+    for criatura in plantel:
+        propia = hogar.casa_por_id(criatura.casa_id)
+        por_casa.setdefault(propia.id if propia else None, []).append(criatura)
+    return por_casa
 
 
 def estancia_desde(ahora: datetime) -> datetime:

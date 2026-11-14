@@ -10,11 +10,13 @@ import math
 from dataclasses import asdict
 from datetime import datetime
 
+import casas
 import cosmeticos as cos
 import db
 import economia
 import especies as esp
 import globos
+import identidad
 import nacer
 import retrato
 import simulacion as sim
@@ -121,6 +123,35 @@ def _lugar(
     }
 
 
+def _estancia(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> str | None:
+    """Cuánto le queda a la estancia en el refugio, en una frase; `None` si ya venció."""
+    if identidad.sin_plazo_de_refugio(jugador.usuario_id):
+        return "Tu estancia aquí no tiene plazo."
+    resta = hogar.refugio_hasta - ahora
+    if resta.days >= 1:
+        return f"Tu estancia en el refugio dura {resta.days} {'día' if resta.days == 1 else 'días'} más."
+    if resta.total_seconds() <= 0:
+        return None
+    if resta.total_seconds() < 3600:
+        return "Tu estancia en el refugio se acaba en menos de una hora."
+    horas = math.ceil(resta.total_seconds() / 3600)
+    return f"Tu estancia en el refugio se acaba en {horas} {'hora' if horas == 1 else 'horas'}."
+
+
+def _refugio(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> dict:
+    viven = casas.reparto(db.plantel(jugador.usuario_id, jugador.guild_id), hogar).get(None, [])
+    return {
+        "viven": [
+            {
+                "id": c.id, "nombre": sim.nombre_visible(c), "nombre_especie": c.def_especie.nombre,
+                "retrato": retrato_de(c),
+            }
+            for c in viven
+        ],
+        "estancia": _estancia(jugador, hogar, ahora),
+    }
+
+
 def armar(jugador: Jugador, ahora: datetime) -> dict:
     activa = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
     avatar = db.avatar_de(jugador.usuario_id, jugador.guild_id)
@@ -130,6 +161,8 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
     # Se parte de donde vive el gachamon; «Tu casa» mira si la persona tiene una.
     hogar_de_la_persona = hogar.estado(ahora)
     lugar = _lugar(jugador, estado_hogar, hogar_de_la_persona, activa is not None)
+    if lugar["clave"] == "refugio":
+        lugar["refugio"] = _refugio(jugador, hogar, ahora)
     # Sin casa propia, «Tu casa» avisa que no la hay, y a la intemperie el
     # Refugio avisa que ya no vive en él: el gachamon no habla de ese lugar.
     aqui = lugar["clave"]
