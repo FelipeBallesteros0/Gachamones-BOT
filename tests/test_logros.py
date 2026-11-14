@@ -179,6 +179,14 @@ def test_superviviente_son_cien_aventuras():
     assert logros.POR_CLAVE["superviviente"].como == "100 aventuras"
 
 
+def test_superviviente_no_mira_si_sigue_viva():
+    """Una muerta de antes con cien aventuras también lo tiene: ya no hay segunda
+    condición."""
+    muerta = criatura(muerta_en=T0, causa_muerte="hambre")
+    conseguidos = cumplidos({logros.AVENTURAS: 100}, bicho=muerta)
+    assert "superviviente" in conseguidos
+
+
 def test_la_alfa_se_puede_cerrar(monkeypatch):
     """Mientras `FIN_DE_LA_ALFA` sea None la alfa sigue abierta y cualquiera se
     lleva la medalla. Al ponerle fecha, quien nazca después ya no."""

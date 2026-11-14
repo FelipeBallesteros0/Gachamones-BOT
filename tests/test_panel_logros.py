@@ -117,6 +117,10 @@ def test_el_panel_de_logros_no_habla_de_morir():
 
     assert "Las de arriba son de tu gachamon y las otras son tuyas." in panel
     assert "si se muere" not in panel
+    assert (
+        "-# Las de arriba son de tu gachamon y las otras son tuyas. Las gemas "
+        "van a tu monedero en los dos casos."
+    ) in panel
 
 
 def test_el_panel_las_lista_todas_tenga_las_que_tenga():

@@ -5,6 +5,7 @@ ven: un decorador mal puesto, dos comandos con el mismo nombre, un custom_id
 repetido o un import roto en un cog.
 """
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
@@ -785,6 +786,15 @@ def test_la_ayuda_no_habla_de_morir():
     texto = "\n".join(paginas_de_ayuda("Gachamon"))
     assert "no se muere" in texto
     assert "Al volver gana" in texto
+    assert (
+        "no se muere**: se queda en 0 hasta que le des de comer. Tarda unas "
+    ) in texto
+    assert (
+        " h en vaciarse; la estadística de salud alarga ese margen."
+    ) in texto
+    assert "donde no les pasa el tiempo: ni comida, ni ánimo, ni aseo." in texto
+    assert re.search(r"\d+ 💎\); los otros \*\*\d+\*\* son tuyos", texto)
+    assert re.search(r"son tuyos \(\d+ 💎\)\. Las gemas caen siempre", texto)
     for vieja in ("**se muere**", "si muere por el desgaste", "se te mueren",
                   "se van con él", "y se quedan"):
         assert vieja not in texto, vieja
