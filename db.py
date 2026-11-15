@@ -431,6 +431,20 @@ CREATE TABLE IF NOT EXISTS cambios_hechos (
     hecho_en TEXT NOT NULL
 );
 
+-- Las cartas que le llegan a cada quien, una de cada clave: la primera es la
+-- del alcalde el día del cambio. `contenido` es JSON con lo que cuenta, en
+-- datos y no en frases (las frases las pone la web), y `vista_en` vacía es que
+-- todavía no la ha visto.
+CREATE TABLE IF NOT EXISTS cartas (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    carta TEXT NOT NULL,
+    contenido TEXT NOT NULL,
+    escrita_en TEXT NOT NULL,
+    vista_en TEXT,
+    PRIMARY KEY (usuario_id, guild_id, carta)
+);
+
 """
 
 SCHEMA_INDICES = """
@@ -2628,6 +2642,49 @@ def asentar_el_plantel_en(
     for criatura in asentados:
         _guardar(con, criatura)
     return asentados
+
+
+# --- Las cartas --------------------------------------------------------------
+
+def guardar_carta_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, carta: str,
+    contenido: dict, ahora: datetime,
+) -> None:
+    """Le deja esa carta, sin ver, dentro de la transacción de quien la escribe.
+
+    Un `INSERT` a secas y no `OR IGNORE`: cada carta se escribe una vez, así que
+    un choque sería un error y debe deshacer a quien la escribe entero.
+    """
+    con.execute(
+        "INSERT INTO cartas (usuario_id, guild_id, carta, contenido, escrita_en) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (usuario_id, guild_id, carta, json.dumps(contenido), ahora.isoformat()),
+    )
+
+
+def carta_sin_ver(usuario_id: str, guild_id: str, carta: str) -> dict | None:
+    """Lo que cuenta esa carta si todavía no la ha visto; `None` si ya la vio o
+    no tiene ninguna."""
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT contenido FROM cartas WHERE usuario_id = ? AND guild_id = ? "
+            "AND carta = ? AND vista_en IS NULL",
+            (usuario_id, guild_id, carta),
+        ).fetchone()
+    return None if fila is None else json.loads(fila["contenido"])
+
+
+def marcar_carta_vista(
+    usuario_id: str, guild_id: str, carta: str, ahora: datetime
+) -> None:
+    """Apunta que ya la vio. Repetirlo no cambia la primera vez; sin carta, nada."""
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(
+            "UPDATE cartas SET vista_en = ? WHERE usuario_id = ? AND guild_id = ? "
+            "AND carta = ? AND vista_en IS NULL",
+            (ahora.isoformat(), usuario_id, guild_id, carta),
+        )
 
 
 def especies_de(usuario_id: str, guild_id: str) -> tuple[str, ...]:

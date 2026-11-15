@@ -6,6 +6,7 @@ migraciones y los repositorios de dominio; la dependencia va sólo de aquí a db
 from __future__ import annotations
 
 import json
+import logging
 import random
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,8 @@ import identidad
 import logros as lgr
 import objetos as obj
 import simulacion as sim
+
+logger = logging.getLogger(__name__)
 
 # El bote diario. Es **uno solo para todo** lo que se gana: cuidar, evolucionar,
 # competir y lo que te encuentres en una aventura salen de aquí. Antes no había
@@ -273,12 +276,293 @@ def devolver_cosmeticos_retirados(ahora: datetime) -> ResumenDevolucion:
     return ResumenDevolucion(len(personas), piezas, total)
 
 
+# --- El día del cambio -------------------------------------------------------
+#
+# Las casas, el refugio y el huerto de cada casa se cambian por un solo
+# departamento por casillas. Ese día se convierte, una sola vez, lo de cada
+# quien, y nadie pierde nada: lo que no tiene sitio en lo nuevo se le devuelve.
+
+CAMBIO_DE_LA_VIVIENDA = "la_vivienda_por_casillas"
+# Lo que costaban el día del cambio. Van escritos aquí y no se leen de
+# `casas.py` ni de `objetos.py`, que dejan de tenerlos: se devuelve lo que valían
+# entonces. Cada casa vuelve al precio de la que es (una pequeña que se mejoró a
+# grande vuelve como grande).
+PRECIO_DE_LAS_CASAS_DE_ANTES = {"pequena": 200, "mediana": 500, "grande": 1200}
+PRECIO_DEL_TICKET_DE_ANTES = 40
+_TICKET_DE_ANTES = "ticket_refugio"
+_CAMA_SENCILLA = "cama_sencilla"
+# Las que caben en el departamento más grande, el de 8 × 8.
+_CAMAS_QUE_CABEN = dep.MAXIMO_DE_GACHAMONES + 1
+# Dónde puede tener filas cada quien, y con qué columna: tener alguna en
+# cualquiera de ellas es ser alguien a quien el cambio le toca.
+_LO_DE_CADA_QUIEN = (
+    ("criaturas", "usuario_id"), ("monederos", "usuario_id"),
+    ("inventario", "usuario_id"), ("casas_propias", "usuario_id"),
+    ("mobiliario", "usuario_id"), ("huerto", "usuario_id"),
+    ("hogar", "usuario_id"), ("avatares", "usuario_id"),
+    ("cuentas_web", "usuario_id"), ("buzon", "para_usuario"),
+)
+
+
+@dataclass(frozen=True)
+class ResumenDelCambio:
+    """A cuántas personas tocó, cuántas camas regaló entre puestas y guardadas,
+    y cuántas monedas devolvió."""
+
+    personas: int = 0
+    camas: int = 0
+    monedas: int = 0
+
+
+def el_dia_del_cambio(
+    ahora: datetime, rng: random.Random | None = None
+) -> ResumenDelCambio:
+    """Pasa a cada quien a la vivienda por casillas, una sola vez.
+
+    Todo va bajo un único `BEGIN IMMEDIATE` con la marca de `cambios_hechos`
+    dentro: o se hace entero, marca incluida, o no queda nada hecho, y de dos
+    arranques a la vez sólo el primero encuentra algo que hacer. Como en
+    `devolver_cosmeticos_retirados`, lo devuelto no pasa por
+    `operaciones_economia`: una devolución no es una ganancia.
+
+    A cada persona le entrega el buzón, le cosecha lo plantado, le devuelve los
+    tickets y las casas, le crea el departamento con sus camas, le guarda los
+    muebles y le escribe la carta del alcalde (`_mudar_a`). Y a todos los
+    gachamones vivos el reloj les parte de `ahora`: a nadie se le cobra el
+    tiempo que pasó desde la última vez que se guardó.
+    """
+    rng = rng or random.Random()
+    personas = camas = monedas = 0
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        if not db._una_sola_vez(con, CAMBIO_DE_LA_VIVIENDA, ahora):
+            return ResumenDelCambio()
+        for usuario_id, guild_id in _quienes_ya_estaban(con):
+            regaladas, devueltas = _mudar_a(con, usuario_id, guild_id, ahora, rng)
+            personas += 1
+            camas += regaladas
+            monedas += devueltas
+        con.execute(
+            "UPDATE criaturas SET actualizada_en = ? WHERE muerta_en IS NULL",
+            (ahora.isoformat(),),
+        )
+    return ResumenDelCambio(personas, camas, monedas)
+
+
+def _quienes_ya_estaban(con) -> list[tuple[str, str]]:
+    """Cada pareja persona + servidor con alguna fila de lo suyo, en orden."""
+    union = " UNION ".join(
+        f"SELECT {quien}, guild_id FROM {tabla}" for tabla, quien in _LO_DE_CADA_QUIEN
+    )
+    return [(f[0], f[1]) for f in con.execute(f"{union} ORDER BY 1, 2")]
+
+
+def _mudar_a(
+    con, usuario_id: str, guild_id: str, ahora: datetime, rng: random.Random
+) -> tuple[int, int]:
+    """El cambio de una persona. Devuelve cuántas camas le regaló y cuántas
+    monedas le devolvió.
+
+    El monedero se le asegura le toque o no una devolución: quien ya jugaba lo
+    conserva tal cual, aunque todavía no tuviera fila. El buzón va antes que
+    los tickets, para que un ticket regalado también se devuelva.
+    """
+    _asegurar_monedero(con, usuario_id, guild_id)
+    regalos = _entregar_el_buzon(con, usuario_id, guild_id)
+    cosecha = _cosechar_lo_plantado(con, usuario_id, guild_id, rng)
+    tickets = _sacar_los_tickets(con, usuario_id, guild_id)
+    casas, monedas_por_casas = _cerrar_las_casas(con, usuario_id, guild_id)
+    monedas_por_tickets = tickets * PRECIO_DEL_TICKET_DE_ANTES
+    devueltas = monedas_por_casas + monedas_por_tickets
+    if devueltas:
+        con.execute(
+            "UPDATE monederos SET asciicoins = asciicoins + ? "
+            "WHERE usuario_id = ? AND guild_id = ?",
+            (devueltas, usuario_id, guild_id),
+        )
+    vivos = db.plantel_en(con, usuario_id, guild_id)
+    ancho, fondo, puestas, regaladas = _departamento_del_alcalde(
+        con, usuario_id, guild_id, len(vivos), ahora
+    )
+    muebles = _guardar_los_muebles_de_antes(con, usuario_id, guild_id)
+    db.guardar_carta_en(con, usuario_id, guild_id, CAMBIO_DE_LA_VIVIENDA, {
+        "ancho": ancho, "fondo": fondo, "camas": puestas, "vivos": len(vivos),
+        "casas": casas, "monedas_por_casas": monedas_por_casas,
+        "muebles": muebles, "cosecha": cosecha,
+        "tickets": tickets, "monedas_por_tickets": monedas_por_tickets,
+        "regalos": regalos,
+        # Como todo se publica junto, ese día los que se pusieron el nombre
+        # solos son justo los reclutas que lo esperaban.
+        "nombres": [
+            {"especie": c.especie, "nombre": c.nombre}
+            for c in vivos if c.se_nombro_solo
+        ],
+    }, ahora)
+    return regaladas, devueltas
+
+
+def _entregar_el_buzon(con, usuario_id: str, guild_id: str) -> int:
+    """Cada regalo sin recoger pasa a la mochila y queda recogido. Dice cuántos."""
+    regalos = con.execute(
+        "SELECT id, objeto FROM buzon "
+        "WHERE para_usuario = ? AND guild_id = ? AND recogido = 0 ORDER BY id",
+        (usuario_id, guild_id),
+    ).fetchall()
+    for regalo in regalos:
+        db.guardar_en_la_mochila_en(con, usuario_id, guild_id, regalo["objeto"])
+        con.execute("UPDATE buzon SET recogido = 1 WHERE id = ?", (regalo["id"],))
+    return len(regalos)
+
+
+def _cosechar_lo_plantado(
+    con, usuario_id: str, guild_id: str, rng: random.Random
+) -> dict[str, int]:
+    """Cosecha cada bancal plantado como si estuviera maduro y lo deja en barbecho.
+
+    Es la cuenta de `cosechar`: el color lo hereda lo sembrado o se sortea,
+    salen de 2 a 4 porotos y un arcoíris sustituye a uno. Dice qué salió y
+    cuánto de cada cosa.
+    """
+    cosecha: dict[str, int] = {}
+    for bancal in con.execute(
+        "SELECT sembrado FROM huerto WHERE usuario_id = ? AND guild_id = ? "
+        "ORDER BY casa_id, bancal",
+        (usuario_id, guild_id),
+    ).fetchall():
+        color = hue.color_sembrado(bancal["sembrado"]) or hue.tirar_color(rng)
+        lote = hue.tirar_cuantos(rng)
+        arcoiris = hue.tirar_arcoiris(rng)
+        normales = lote - 1 if arcoiris else lote
+        for clave, cuantos in (
+            (hue.clave_de_poroto(color), normales),
+            (hue.clave_de_poroto(hue.ARCOIRIS), int(arcoiris)),
+        ):
+            if cuantos:
+                db.guardar_en_la_mochila_en(con, usuario_id, guild_id, clave, cuantos)
+                cosecha[clave] = cosecha.get(clave, 0) + cuantos
+    con.execute(
+        "DELETE FROM huerto WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    )
+    return cosecha
+
+
+def _sacar_los_tickets(con, usuario_id: str, guild_id: str) -> int:
+    """Saca de la mochila los tickets del refugio y dice cuántos eran."""
+    fila = con.execute(
+        "SELECT cantidad FROM inventario "
+        "WHERE usuario_id = ? AND guild_id = ? AND objeto = ?",
+        (usuario_id, guild_id, _TICKET_DE_ANTES),
+    ).fetchone()
+    con.execute(
+        "DELETE FROM inventario WHERE usuario_id = ? AND guild_id = ? AND objeto = ?",
+        (usuario_id, guild_id, _TICKET_DE_ANTES),
+    )
+    return max(fila["cantidad"], 0) if fila else 0
+
+
+def _cerrar_las_casas(
+    con, usuario_id: str, guild_id: str
+) -> tuple[list[str], int]:
+    """Borra sus casas y les vacía `casa_id` a sus gachamones. Dice cuáles se
+    devuelven, en orden de compra, y cuánto suman.
+
+    Una clave que no está en la tabla de precios no paga: deja un aviso, sin
+    decir de quién era, y no tumba el cambio.
+    """
+    claves: list[str] = []
+    monedas = 0
+    for casa in con.execute(
+        "SELECT id, casa FROM casas_propias "
+        "WHERE usuario_id = ? AND guild_id = ? ORDER BY id",
+        (usuario_id, guild_id),
+    ).fetchall():
+        precio = PRECIO_DE_LAS_CASAS_DE_ANTES.get(casa["casa"])
+        if precio is None:
+            logger.warning(
+                "El día del cambio, una casa de clave desconocida (%r) no se devolvió",
+                casa["casa"],
+            )
+        else:
+            claves.append(casa["casa"])
+            monedas += precio
+        con.execute(
+            "UPDATE criaturas SET casa_id = NULL "
+            "WHERE usuario_id = ? AND guild_id = ? AND casa_id = ?",
+            (usuario_id, guild_id, casa["id"]),
+        )
+    con.execute(
+        "DELETE FROM casas_propias WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    )
+    return claves, monedas
+
+
+def _departamento_del_alcalde(
+    con, usuario_id: str, guild_id: str, vivos: int, ahora: datetime
+) -> tuple[int, int, int, int]:
+    """Le crea el departamento con una cama puesta por gachamon vivo más la suya.
+
+    Del primer tamaño donde caben (`dep.tamano_para`) y con las camas donde
+    dice `dep.acomodar_camas`. A quien no le queda ningún vivo, además, otra
+    guardada: lo mismo que a quien empieza. Si no cupieran todas —más de 32 en
+    8 × 8; con el tope de 25 de antes no puede pasar—, las que sobran quedan
+    guardadas.
+
+    Nadie tiene departamento todavía, así que nace con un `INSERT` a secas: si
+    alguien ya tuviera uno, el cambio entero se deshace en vez de sumarle camas.
+
+    Dice el ancho, el fondo, cuántas camas dejó puestas y cuántas regaló en
+    total.
+    """
+    camas = vivos + 1
+    ancho, fondo = dep.tamano_para(camas)
+    sitios = dep.acomodar_camas(ancho, fondo, min(camas, _CAMAS_QUE_CABEN))
+    con.execute(
+        "INSERT INTO departamentos (usuario_id, guild_id, ancho, fondo, creado_en) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (usuario_id, guild_id, ancho, fondo, ahora.isoformat()),
+    )
+    for x, y, giro in sitios:
+        db.anadir_mueble_en(con, usuario_id, guild_id, _CAMA_SENCILLA, x, y, giro)
+    guardadas = camas - len(sitios) + (0 if vivos else 1)
+    for _ in range(guardadas):
+        db.anadir_mueble_en(con, usuario_id, guild_id, _CAMA_SENCILLA)
+    return ancho, fondo, len(sitios), len(sitios) + guardadas
+
+
+def _guardar_los_muebles_de_antes(con, usuario_id: str, guild_id: str) -> int:
+    """Cada mueble de antes pasa a guardados con su misma clave, y su fila vieja
+    se borra. Dice cuántos eran."""
+    viejos = con.execute(
+        "SELECT mueble FROM mobiliario WHERE usuario_id = ? AND guild_id = ? "
+        "ORDER BY mueble",
+        (usuario_id, guild_id),
+    ).fetchall()
+    for viejo in viejos:
+        db.anadir_mueble_en(con, usuario_id, guild_id, viejo["mueble"])
+    con.execute(
+        "DELETE FROM mobiliario WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    )
+    return len(viejos)
+
+
 def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
-    """El arranque: prepara la base y hace la devolución de lo retirado.
+    """El arranque: prepara la base, hace el día del cambio y la devolución de
+    lo retirado.
 
     Lo llaman el bot y la web, y nadie más prepara la base fuera de las pruebas.
+    El día del cambio sólo hace algo la primera vez; si toca a alguien, lo deja
+    en el registro con sus tres cifras y sin decir a quién.
     """
     db.inicializar(ahora)
+    cambio = el_dia_del_cambio(ahora)
+    if cambio.personas:
+        logger.info(
+            "El día del cambio: %d personas, %d camas regaladas, %d monedas devueltas",
+            cambio.personas, cambio.camas, cambio.monedas,
+        )
     return devolver_cosmeticos_retirados(ahora)
 
 
