@@ -77,6 +77,12 @@ GUILD_WEB = _entero("GUILD_WEB") or (GUILDS[0] if GUILDS else 0)
 # necesita el suyo —un canal vive en un servidor y sólo lo ve quien está en él—.
 CANALES_INFO = _lista_enteros("CANAL_INFO_ID")
 
+# Dónde se juega ahora: el juego de Discord está en pausa y el bot manda aquí a
+# quien le escribe, con el aviso de la mudanza y en la página del manual.
+URL_DE_LA_PAGINA = (
+    os.environ.get("URL_GACHAMON", "").strip() or "https://rowino.online/gachamon"
+)
+
 RUTA_BD = Path(os.environ.get("RUTA_BD", RAIZ / "tamagotchi.db"))
 
 # La web de Gachamon no tiene cuentas propias: entra con la sesión de Rowino.

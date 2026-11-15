@@ -1432,6 +1432,26 @@ def guardar_publicacion(canal_id: str, indice: int, mensaje_id: str) -> None:
         )
 
 
+def publicaciones_de(canal_id: str) -> dict[int, str]:
+    """Las páginas apuntadas en ese canal: índice → id del mensaje."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT indice, mensaje_id FROM publicaciones "
+            "WHERE canal_id = ? ORDER BY indice",
+            (canal_id,),
+        ).fetchall()
+    return {fila["indice"]: fila["mensaje_id"] for fila in filas}
+
+
+def borrar_publicacion(canal_id: str, indice: int) -> None:
+    """Olvida dónde estaba esa página, una vez quitado su mensaje del canal."""
+    with conectar() as con:
+        con.execute(
+            "DELETE FROM publicaciones WHERE canal_id = ? AND indice = ?",
+            (canal_id, indice),
+        )
+
+
 # --- Cooldowns -------------------------------------------------------------
 
 def espera_en(

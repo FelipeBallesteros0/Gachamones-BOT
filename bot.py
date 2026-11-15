@@ -17,20 +17,12 @@ import comun
 import config
 import db
 import economia
-from vistas import (
-    BotonNombrarRecluta,
-    NombrarReclutaView,
-    NombrarView,
-    PantallaAnteriorView,
-    PantallaView,
-)
 
 log = logging.getLogger("gachamones")
 
-EXTENSIONES = (
-    "cogs.mascota", "cogs.competencias", "cogs.aventura", "cogs.social",
-    "cogs.charla",
-)
+# El juego de Discord está en pausa: el bot sólo vincula cuentas y contesta que
+# el juego se mudó a la página.
+EXTENSIONES = ("cogs.mudanza",)
 
 
 class Tamagotchi(commands.Bot):
@@ -56,16 +48,6 @@ class Tamagotchi(commands.Bot):
 
         for extension in EXTENSIONES:
             await self.load_extension(extension)
-
-        # Vistas persistentes: los botones siguen vivos tras un reinicio sin
-        # tener que recordar en qué mensajes estaban.
-        self.add_view(PantallaView())
-        self.add_view(PantallaAnteriorView())
-        self.add_view(NombrarView())
-        # La vista vieja, sólo para los botones de reclutas ya publicados; los
-        # nuevos llevan su id y se reconocen por la plantilla del dinámico.
-        self.add_view(NombrarReclutaView())
-        self.add_dynamic_items(BotonNombrarRecluta)
 
         self.tree.on_error = comun.manejar_error
 
@@ -102,15 +84,15 @@ class Tamagotchi(commands.Bot):
                          len(comandos), guild_id)
 
     async def on_message(self, mensaje: discord.Message) -> None:
-        """Este bot no tiene comandos de texto, sólo slash commands y botones.
+        """Este bot no tiene comandos de texto, sólo slash commands.
 
         Por defecto `commands.Bot` intentaría interpretar cada mensaje como un
-        comando con prefijo. Como el prefijo es la propia mención, hablarle a
-        la criatura con `@Gachamon cómo estás` se interpretaba además como el
-        comando «cómo» y llenaba el registro de `CommandNotFound`.
+        comando con prefijo. Como el prefijo es la propia mención, escribirle
+        `@Gachamon cómo estás` se interpretaba además como el comando «cómo» y
+        llenaba el registro de `CommandNotFound`.
 
-        El listener de `cogs/charla.py` no se ve afectado: los listeners de los
-        cogs se despachan aparte de este método.
+        El listener de `cogs/mudanza.py`, que contesta a las menciones, no se ve
+        afectado: los listeners de los cogs se despachan aparte de este método.
         """
 
     async def on_ready(self) -> None:

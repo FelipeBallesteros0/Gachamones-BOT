@@ -8,7 +8,7 @@ import pytest
 import config
 import db
 import vinculo
-from cogs import social
+from cogs import mudanza
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PUEBLO = 777
@@ -28,8 +28,8 @@ def escribir(codigo: str, servidor: int = PUEBLO, quien: int = 555):
         user=SimpleNamespace(id=quien),
         response=SimpleNamespace(send_message=AsyncMock()),
     )
-    cog = social.Social(SimpleNamespace())
-    asyncio.run(social.Social.vincular.callback(cog, interaccion, codigo))
+    cog = mudanza.Mudanza(SimpleNamespace())
+    asyncio.run(mudanza.Mudanza.vincular.callback(cog, interaccion, codigo))
     return interaccion.response.send_message
 
 
@@ -49,6 +49,6 @@ def test_un_codigo_malo_tambien_se_contesta_en_privado():
 def test_en_otro_servidor_no_canjea_nada():
     codigo = db.pedir_codigo_de_vinculo(12, T0)
     respuesta = escribir(codigo, servidor=1)
-    respuesta.assert_awaited_once_with(social.SERVIDOR_SIN_WEB, ephemeral=True)
+    respuesta.assert_awaited_once_with(mudanza.SERVIDOR_SIN_WEB, ephemeral=True)
     assert db.cuenta_web(12) is None
     assert escribir(codigo).await_args.args[0] == vinculo.MENSAJES[vinculo.OK]

@@ -12,6 +12,7 @@ import pytest
 from discord import app_commands
 
 import comun
+import config
 
 
 class RespuestaFalsa:
@@ -52,10 +53,10 @@ def manejar(error, ya_diferida=False):
 
 # --- Lo que ya se contestaba -----------------------------------------------
 
-def test_el_canal_equivocado_se_explica():
+def test_el_canal_equivocado_se_explica(monkeypatch):
+    monkeypatch.setattr(config, "CANALES", (111, 222))
     interaccion, _ = manejar(comun.CanalEquivocado())
-    assert interaccion.response.avisos
-    assert "viven en" in interaccion.response.avisos[0]
+    assert interaccion.response.avisos == ["Escríbeme en <#111>, <#222>."]
 
 
 def test_el_enfriamiento_dice_cuánto_falta():

@@ -25,13 +25,13 @@ from vistas import (
     PantallaView,
 )
 
-# Sin `ayuda`: el manual dejó de ser un comando efímero y vive publicado en su
-# canal, donde el bot lo mantiene al día solo.
+# El juego de Discord está en pausa: queda `/vincular`, y `/mascota` y `/huevo`
+# sólo contestan que el juego se mudó. La descripción es lo único que se ve al
+# escribir «/» en Discord, así que también se fija.
 COMANDOS_ESPERADOS = {
-    "huevo", "mascota", "carrera", "sumo", "totem", "laberinto",
-    "ranking", "cementerio",
-    "jardin", "aventura", "mochila", "tienda", "plantel", "logros",
-    "casa", "visitar", "buzon", "vincular",
+    "vincular": "Une tu cuenta de Rowino con tus gachamones de aquí",
+    "mascota": "Gachamon se mudó a la página",
+    "huevo": "Gachamon se mudó a la página",
 }
 
 
@@ -50,11 +50,8 @@ def _cargar_todo():
         )
         for extension in modulo_bot.EXTENSIONES:
             await cliente.load_extension(extension)
-        cliente.add_view(PantallaView())
-        cliente.add_view(PantallaAnteriorView())
-        cliente.add_view(NombrarView())
         comandos = list(cliente.tree.get_commands())
-        # Descargar para que el bucle de mantenimiento no quede suelto.
+        # Descargar, como al apagar el bot, para que no quede nada suelto.
         for extension in reversed(modulo_bot.EXTENSIONES):
             await cliente.unload_extension(extension)
         return comandos
@@ -63,23 +60,7 @@ def _cargar_todo():
 
 
 def test_todos_los_cogs_cargan_y_registran_sus_comandos():
-    assert {c.name for c in _cargar_todo()} == COMANDOS_ESPERADOS
-
-
-def test_los_comandos_directos_se_anuncian_como_toca():
-    """`/mochila`, `/tienda` y `/plantel` abren lo que hasta ahora sólo estaba
-    bajo los botones de la ficha. La descripción es lo único que se ve al
-    escribir «/» en Discord, así que si miente el comando no se encuentra."""
-    esperadas = {
-        "mochila": "Abre tu mochila y usa lo que lleves",
-        "tienda": "Compra objetos, cosméticos y casas",
-        "casa": "Mira tu hogar y a todos los que viven en él",
-        "plantel": "Mira tu plantel y cambia de gachamon activo",
-        "vincular": "Une tu cuenta de Rowino con tus gachamones de aquí",
-    }
-    directos = {c.name: c.description for c in _cargar_todo() if c.name in esperadas}
-
-    assert directos == esperadas
+    assert {c.name: c.description for c in _cargar_todo()} == COMANDOS_ESPERADOS
 
 
 def test_ningun_comando_se_sale_de_su_canal(monkeypatch):
@@ -216,41 +197,6 @@ def test_el_boton_de_nombrar_tambien_es_persistente():
     assert vista.timeout is None
     assert len(vista.children) == 1
     assert vista.children[0].custom_id == "tama:nombrar"
-
-
-def test_el_bot_registra_el_boton_de_cada_recluta_y_la_vista_vieja(
-    bd_temporal, monkeypatch
-):
-    """Sin `add_dynamic_items`, el botón bajo un recluta dejaría de responder
-    tras un reinicio; sin la vista vieja, los botones ya publicados."""
-    from unittest.mock import AsyncMock
-
-    import config
-    import vistas
-
-    monkeypatch.setattr(config, "GUILDS", [])
-
-    async def arrancar():
-        cliente = modulo_bot.Tamagotchi()
-        # Los cogs ya los carga `_cargar_todo`; aquí sólo importa lo que se
-        # registra para los botones, y sin red.
-        monkeypatch.setattr(cliente, "load_extension", AsyncMock())
-        monkeypatch.setattr(cliente.tree, "sync", AsyncMock(return_value=[]))
-        registrados = []
-        original = cliente.add_dynamic_items
-
-        def registrar(*items):
-            registrados.extend(items)
-            original(*items)
-
-        monkeypatch.setattr(cliente, "add_dynamic_items", registrar)
-        await cliente.setup_hook()
-        return registrados, [type(v) for v in cliente.persistent_views]
-
-    registrados, persistentes = asyncio.run(arrancar())
-
-    assert registrados == [vistas.BotonNombrarRecluta]
-    assert vistas.NombrarReclutaView in persistentes
 
 
 def test_los_custom_id_no_chocan_entre_vistas():
@@ -791,21 +737,6 @@ def test_la_ayuda_habla_de_lo_que_hay():
         assert esperado in texto, esperado
     assert "Se acuerda de la última conversación." in texto
     assert "hayáis" not in texto
-
-
-def test_los_comandos_de_competencia_anuncian_sus_fases_y_regla():
-    comandos = {
-        c.name: c.description
-        for c in _cargar_todo()
-        if c.name in {"carrera", "sumo", "totem", "laberinto"}
-    }
-    assert "SALIDA, TERRENO y FONDO" in comandos["carrera"]
-    assert "POSICIÓN, EMPUJE y AGUANTE" in comandos["sumo"]
-    assert "mejor de tres" in comandos["sumo"]
-    assert "AL CENTRO, FORCEJEO y HUIDA" in comandos["totem"]
-    assert "SEÑALES, TRAZADO y NO PERDERSE" in comandos["laberinto"]
-    assert "Laberinto de Ecos" in comandos["laberinto"]
-    assert all(len(descripcion) <= 100 for descripcion in comandos.values())
 
 
 def test_la_ayuda_da_la_xp_de_aventura_al_volver():
