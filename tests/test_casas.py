@@ -730,13 +730,18 @@ def test_los_muebles_cuentan_para_el_ritmo():
     assert cas.ritmo_de(llena, T0, 1).animo < cas.ritmo_de(vacia, T0, 1).animo
 
 
-def test_las_de_la_incubadora_siguen_congeladas_vivan_donde_vivan():
-    """El invariante que no se toca: si las de reserva decayeran, con el
-    plantel lleno se quedarían sin comida hiciera lo que hiciera su dueño."""
+def test_el_hogar_le_marca_el_ritmo_tambien_a_la_que_no_es_la_activa():
+    """El ritmo es el de la casa donde vive, sea o no el activo."""
     fuera = cas.ritmo_de(un_hogar(None, T0), T0 + timedelta(days=1), 1)
-    guardada = _viva(activa=False)
+    un_dia = T0 + timedelta(days=1)
+    otra = sim.avanzar(_viva(activa=False), un_dia, fuera)
+    activa = sim.avanzar(_viva(activa=True), un_dia, fuera)
+    bajo_techo = sim.avanzar(_viva(activa=False), un_dia)
 
-    assert sim.avanzar(guardada, T0 + timedelta(days=30), fuera) == guardada
+    assert (otra.hambre, otra.animo, otra.limpieza) == (
+        activa.hambre, activa.animo, activa.limpieza
+    )
+    assert otra.limpieza < bajo_techo.limpieza
 
 
 def test_avanzar_mira_el_hogar_de_quien_sea_la_criatura():
@@ -1439,7 +1444,7 @@ def test_lo_sembrado_sobrevive_a_una_base_de_antes_del_cambio():
             (casa, T0.isoformat()),
         )
         con.commit()
-        db._migrar(con)
+        db._migrar(con, T0)
 
     bancal = bancales()[0]
     assert bancal.plantado and bancal.sembrado == hue.SEMILLA

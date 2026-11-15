@@ -6,6 +6,7 @@ import especies as esp
 import globos
 import identidad
 import retrato
+import simulacion as sim
 from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, T0, alta, con_gachamon, entrar, poner_reloj
 from test_web_tienda import LA_DE_DISCORD, con_vinculo
 from web import pueblo
@@ -119,6 +120,20 @@ def test_quien_juega_solo_en_la_web_ve_a_su_unico_gachamon(cliente, monkeypatch)
     assert plantel[0]["retrato"] == gachamon["retrato"]
     # Y mirar no le guarda el paso del tiempo.
     assert db.por_id(pelusa["id"]).actualizada_en == T0
+
+
+def test_el_plantel_ensena_a_cada_uno_como_esta_ahora(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    otro = db.crear(YO, G, "pulpo", "Nube", STATS, reloj.ahora, activa=False)
+    reloj.pasar(days=3)
+    plantel = cliente.get(INCUBADORA).json()["plantel"]
+    cara = sim.avanzar(otro, reloj.ahora).animo_visual
+    assert cara != "feliz"
+    assert plantel[1]["id"] == otro.id
+    assert plantel[1]["retrato"] == el_retrato("pulpo", cara)
+    # Mirar tampoco le guarda a él el paso del tiempo.
+    assert db.por_id(otro.id).actualizada_en == T0
 
 
 def test_el_plantel_pide_sesion_y_cuenta(cliente, monkeypatch):

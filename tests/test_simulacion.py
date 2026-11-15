@@ -52,6 +52,14 @@ def test_una_criatura_muerta_ya_no_cambia():
     assert sim.avanzar(muerta, T0 + timedelta(days=30)) == muerta
 
 
+def test_el_tiempo_le_pasa_igual_a_la_que_no_es_la_activa():
+    despues = T0 + timedelta(hours=10)
+    activa = sim.avanzar(criatura(activa=True), despues)
+    otra = sim.avanzar(criatura(activa=False), despues)
+    assert (otra.hambre, otra.animo, otra.limpieza) == (activa.hambre, activa.animo, activa.limpieza)
+    assert otra.hambre < 100.0 and otra.actualizada_en == despues
+
+
 def test_con_la_comida_en_cero_sigue_viva():
     c = sim.avanzar(criatura(hambre=5.0), T0 + timedelta(hours=200))
     assert (c.hambre, c.viva, c.muerta_en, c.causa_muerte) == (0.0, True, None, None)

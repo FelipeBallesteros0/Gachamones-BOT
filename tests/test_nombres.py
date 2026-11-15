@@ -135,7 +135,7 @@ class Bandeja:
 
 def test_bautizar_al_recluta_no_le_toca_el_nombre_al_activo(tmp_path, monkeypatch):
     """De aquí saldría el fallo: el modal buscaba «la activa», y el recluta
-    duerme en la incubadora."""
+    no lo es."""
     activa, recluta = montar_plantel(tmp_path, monkeypatch)
     bandeja = Bandeja()
 

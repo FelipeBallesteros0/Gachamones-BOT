@@ -592,9 +592,8 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
                     ephemeral=True,
                 )
                 return
-            # La regla no pone al día a nadie; la ficha, si se publica, sí.
-            if criatura.activa:
-                criatura = db.avanzar(criatura, ahora)
+            # La regla no pone al día a nadie; aquí sí, para la ficha.
+            criatura = db.avanzar(criatura, ahora)
         else:
             criatura = db.criatura_activa(
                 str(interaccion.user.id), str(interaccion.guild_id)
@@ -605,11 +604,7 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
                 )
                 return
 
-            # A la que duerme en la incubadora no se le adelanta el reloj: sólo
-            # la activa decae, y `avanzar` le comería el hambre por estar
-            # guardada.
-            if criatura.activa:
-                criatura = db.avanzar(criatura, ahora)
+            criatura = db.avanzar(criatura, ahora)
             criatura = replace(criatura, nombre=nombre)
             db.guardar(criatura)
 

@@ -272,9 +272,7 @@ def caben_mas(casa: Casa, puestos: Collection[str]) -> bool:
 
 # --- Lo que el hogar le hace al gachamon ------------------------------------
 #
-# Sólo a la **activa**: las de la incubadora siguen congeladas, como manda el
-# invariante. Un hogar no puede despertarlas sin romper lo que hace viable tener
-# diez.
+# A cada gachamon vivo, sea o no el activo: el ritmo es el de la casa donde vive.
 #
 # Dos efectos, simétricos a propósito para que se puedan explicar en una frase:
 #

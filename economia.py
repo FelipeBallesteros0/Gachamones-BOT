@@ -288,7 +288,7 @@ def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
 
     Lo llaman el bot y la web, y nadie más prepara la base fuera de las pruebas.
     """
-    db.inicializar()
+    db.inicializar(ahora)
     return devolver_cosmeticos_retirados(ahora)
 
 
@@ -858,14 +858,15 @@ def ejecutar_entrenamiento_conjunto(
                 problema="cooldown", bloqueada=bloqueada, espera=espera
             )
 
-        # Por `db` y no por `sim` a secas: el hogar cambia el ritmo del activo,
+        # Por `db` y no por `sim` a secas: el hogar de cada uno cambia su ritmo,
         # y llamando directo se entrenaría con el de quien tiene techo aunque
-        # esté a la intemperie. La reserva no avanza, que es su invariante.
+        # esté a la intemperie. A los dos les pasa el tiempo.
         activo_avanzado = db._avanzar_en(con, activo, ahora)
+        reserva_avanzada = db._avanzar_en(con, reserva, ahora)
 
         participantes = (
             sim.aplicar_entrenamiento_conjunto(activo_avanzado),
-            sim.aplicar_entrenamiento_conjunto(reserva),
+            sim.aplicar_entrenamiento_conjunto(reserva_avanzada),
         )
         for participante in participantes:
             db._guardar(con, participante.criatura)

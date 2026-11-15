@@ -90,9 +90,9 @@ def test_persiste_la_pareja_cooldowns_marcadores_y_una_oportunidad():
     )
 
 
-def test_solo_la_activa_avanza_el_tiempo_y_la_reserva_conserva_su_reloj():
+def test_el_entrenamiento_conjunto_pone_al_dia_a_los_dos():
     activa, reserva = pareja()
-    ahora = T0 + timedelta(hours=1)
+    ahora = T0 + timedelta(hours=10)
 
     entrenar("evento", seleccion(activa, reserva), ahora)
 
@@ -100,9 +100,9 @@ def test_solo_la_activa_avanza_el_tiempo_y_la_reserva_conserva_su_reloj():
     despues_reserva = db.obtener(reserva.id)
     assert despues_activa is not None and despues_reserva is not None
     assert despues_activa.actualizada_en == ahora
+    assert despues_reserva.actualizada_en == ahora
     assert despues_activa.hambre < 90.0
-    assert despues_reserva.actualizada_en == T0
-    assert despues_reserva.hambre == 90.0
+    assert despues_reserva.hambre == sim.avanzar(reserva, ahora).hambre - 10
     assert not despues_reserva.activa
 
 

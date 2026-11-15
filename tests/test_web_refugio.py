@@ -3,7 +3,9 @@ import pytest
 import casas
 import db
 import economia
-from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, con_gachamon, entrar, poner_reloj
+import retrato
+import simulacion as sim
+from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, T0, con_gachamon, entrar, poner_reloj
 
 ESTADO, LUGAR = "/gachamon/api/estado", "/gachamon/api/lugar"
 LA_DE_DISCORD = "222222222222222222"
@@ -65,6 +67,21 @@ def test_en_el_refugio_se_ve_quien_vive_ahi(cliente, monkeypatch):
         "id": estado["gachamon"]["id"], "nombre": "Pelusa",
         "nombre_especie": estado["gachamon"]["nombre_especie"], "retrato": estado["gachamon"]["retrato"],
     }]
+
+
+def test_el_refugio_ensena_a_cada_uno_como_esta_ahora(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    cuenta = db.cuenta_web(1)
+    otro = db.crear(cuenta.usuario_id, cuenta.guild_id, "pulpo", "Nube", (10, 10, 10, 10), reloj.ahora, activa=False)
+    reloj.pasar(days=3)
+    viven = cliente.get(ESTADO).json()["lugar"]["refugio"]["viven"]
+    cara = sim.avanzar(otro, reloj.ahora).animo_visual
+    assert cara != "feliz"
+    assert {v["id"]: v["retrato"] for v in viven}[otro.id] == (
+        f"/gachamon/retrato/pulpo/bebe/{cara}/sin.png?v={retrato.version()}"
+    )
+    assert db.por_id(otro.id).actualizada_en == T0
 
 
 def test_con_casa_y_el_gachamon_dentro_no_vive_nadie_aqui(cliente, monkeypatch):

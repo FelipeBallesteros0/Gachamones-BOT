@@ -415,6 +415,14 @@ CREATE TABLE IF NOT EXISTS avatares (
     PRIMARY KEY (usuario_id, guild_id)
 );
 
+-- Los cambios de reglas que tocan filas y se hacen una sola vez, con su
+-- instante. La clave primaria es lo que impide hacerlos dos veces: la apunta
+-- `_una_sola_vez` en la misma transacción que el cambio.
+CREATE TABLE IF NOT EXISTS cambios_hechos (
+    clave TEXT PRIMARY KEY,
+    hecho_en TEXT NOT NULL
+);
+
 """
 
 SCHEMA_INDICES = """
@@ -558,10 +566,14 @@ CREATE TABLE huerto (
 """
 
 
-def inicializar() -> None:
+def inicializar(ahora: datetime | None = None) -> None:
+    """Prepara la base. `ahora` es el instante de los cambios que se hacen una
+    sola vez; sin él, el de `ahora_utc()`."""
+    if ahora is None:
+        ahora = ahora_utc()
     with conectar() as con:
         con.executescript(SCHEMA_TABLAS)
-        _migrar(con)
+        _migrar(con, ahora)
         con.commit()
         _migrar_monederos(con)
         _migrar_operaciones(con)
@@ -724,7 +736,20 @@ def _migrar_casas(con: sqlite3.Connection) -> None:
     con.commit()
 
 
-def _migrar(con: sqlite3.Connection) -> None:
+def _una_sola_vez(con: sqlite3.Connection, clave: str, ahora: datetime) -> bool:
+    """Apunta el cambio `clave` hecho en `ahora` y dice si es la primera vez.
+
+    Va dentro de la transacción de quien hace el cambio, que es la que lo
+    serializa: la marca y el cambio se confirman juntos o ninguno. No abre
+    conexión ni transacción propias.
+    """
+    return con.execute(
+        "INSERT OR IGNORE INTO cambios_hechos (clave, hecho_en) VALUES (?, ?)",
+        (clave, ahora.isoformat()),
+    ).rowcount == 1
+
+
+def _migrar(con: sqlite3.Connection, ahora: datetime) -> None:
     # El turno de escritura se toma ANTES de mirar qué columnas hay, igual que
     # en `_migrar_monederos`. Sin esto, dos arranques a la vez pueden leer los
     # dos que falta la misma columna y lanzar los dos el ALTER: el segundo
@@ -739,6 +764,17 @@ def _migrar(con: sqlite3.Connection) -> None:
     for tabla, columna, sentencia in MIGRACIONES_DE_TABLAS:
         if columna not in _columnas(con, tabla):
             con.execute(sentencia)
+
+    # A todos los vivos les pasa el tiempo, no sólo a la activa. Las demás
+    # tenían el reloj parado desde la última vez que se guardaron, y el primer
+    # `avanzar` les cobraría de golpe todo ese tiempo: su día empieza el del
+    # cambio. Una sola vez, y la marca va en esta misma transacción.
+    if _una_sola_vez(con, "el_tiempo_para_todos", ahora):
+        con.execute(
+            "UPDATE criaturas SET actualizada_en = ? "
+            "WHERE muerta_en IS NULL AND activa = 0",
+            (ahora.isoformat(),),
+        )
 
     # El índice viejo prohibía una segunda criatura viva; el nuevo sólo prohíbe
     # una segunda ACTIVA. Se tira aquí y no en el script de índices porque
@@ -987,12 +1023,31 @@ def activa_al_dia(
 def plantel(usuario_id: str, guild_id: str) -> list[sim.Criatura]:
     """Las criaturas vivas de una persona, la activa primero."""
     with conectar() as con:
-        filas = con.execute(
-            "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
-            "AND muerta_en IS NULL ORDER BY activa DESC, id",
-            (usuario_id, guild_id),
-        ).fetchall()
+        return plantel_en(con, usuario_id, guild_id)
+
+
+def plantel_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> list[sim.Criatura]:
+    """Lo de `plantel`, para quien ya tiene la conexión."""
+    filas = con.execute(
+        "SELECT * FROM criaturas WHERE usuario_id = ? AND guild_id = ? "
+        "AND muerta_en IS NULL ORDER BY activa DESC, id",
+        (usuario_id, guild_id),
+    ).fetchall()
     return [_a_criatura(f) for f in filas]
+
+
+def plantel_al_dia(
+    usuario_id: str, guild_id: str, ahora: datetime
+) -> list[sim.Criatura]:
+    """Los vivos, la activa primero, cada uno avanzado hasta `ahora` con el
+    ritmo de su hogar. Sólo lee: no les guarda el paso del tiempo."""
+    with conectar() as con:
+        return [
+            _avanzar_en(con, criatura, ahora)
+            for criatura in plantel_en(con, usuario_id, guild_id)
+        ]
 
 
 def activar(
@@ -1089,8 +1144,9 @@ def crear(
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
 
-    `activa=False` la mete directa a la incubadora. Lo usa el reclutamiento: uno
-    que se une en una aventura no puede desbancar sin avisar al que llevabas.
+    `activa=False` la crea sin hacerla la activa: no sale contigo, pero el
+    tiempo le pasa igual. Lo usa el reclutamiento: uno que se une en una
+    aventura no puede desbancar sin avisar al que llevabas.
 
     `reclutada` dice que llega de una aventura, y le apunta el reclutamiento a
     **la persona** aquí dentro: si el alta se cae por el tope del plantel, no
@@ -2449,9 +2505,8 @@ def _especies_de(
 def vivas_del_servidor(guild_id: str) -> list[sim.Criatura]:
     """Las criaturas **activas** de un servidor, para la escena del jardín.
 
-    Sólo las activas: las de la incubadora están dormidas y con el tiempo
-    parado, así que dibujarlas paseando por el jardín no se sostiene. En
-    `/ranking` y `/cementerio` sí salen todas, porque eso es historial.
+    Sólo las activas: son las que salen con su dueño, y al jardín se sale con
+    él. En `/ranking` y `/cementerio` sí salen todas, porque eso es historial.
     """
     with conectar() as con:
         filas = con.execute(

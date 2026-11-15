@@ -382,9 +382,8 @@ def test_al_avanzar_el_tiempo_manda_la_casa_del_gachamon():
     """La tubería entera, no sólo `ritmo_de`: **la misma criatura** pierde menos
     ánimo en un día viviendo en la casa grande que en el refugio.
 
-    Se compara consigo misma y no con otra porque sólo hay una activa por
-    persona, y las reservas no decaen: medir contra una reserva compararía el
-    paso del tiempo con el hecho de estar congelada.
+    Se compara consigo misma y no con otra para que lo único distinto entre
+    las dos medidas sea la casa.
     """
     casa = con_casa("grande")
     bicho = db.crear("u1", "g1", "pulpo", "Kuro", STATS, T0)

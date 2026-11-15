@@ -365,8 +365,8 @@ class Criatura:
     # la columna sigue en el esquema.
     avisada: bool = False
     # La que recibe los comandos y los botones. Sólo puede haber una por persona
-    # y servidor —lo impone un índice único—; las demás esperan en la incubadora,
-    # donde no les pasa el tiempo. Ver `avanzar`.
+    # y servidor —lo impone un índice único—; a las demás el tiempo les pasa
+    # igual. Ver `avanzar`.
     activa: bool = True
     # Lo que lleva puesto: uno de cada tipo como mucho, y por eso van en cuatro
     # campos y no en una lista. Guardar la clave y no el cosmético entero deja
@@ -932,11 +932,8 @@ def avanzar(
 ) -> Criatura:
     """Aplica el paso del tiempo hasta `ahora`. Idempotente y sin efectos.
 
-    A las de la incubadora no les pasa el tiempo. Es lo que hace viable tener
-    tres: los cuidados sólo llegan a la activa, así que si las otras decayeran se
-    quedarían sin comida hiciera lo que hiciera su dueño. Al sacarlas,
-    `db.activar` les pone `actualizada_en` al día para que las horas dormidas no
-    se les caigan encima de golpe.
+    Le pasa a cualquiera que viva, sea o no la activa: salir contigo no cambia
+    cómo le corre el reloj.
 
     `ritmo` es lo que aporta el hogar: quien lo tiene lo calcula y lo pasa. Por
     defecto va el de siempre, que es también el de quien tiene techo.
@@ -944,7 +941,7 @@ def avanzar(
     El tiempo no mata a nadie: con la comida en 0 se queda en 0 y sigue viva
     hasta que le den de comer. Una que ya estaba muerta no cambia.
     """
-    if not criatura.viva or not criatura.activa:
+    if not criatura.viva:
         return criatura
 
     horas = (ahora - criatura.actualizada_en).total_seconds() / 3600.0

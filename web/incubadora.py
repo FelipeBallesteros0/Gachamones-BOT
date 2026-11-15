@@ -1,8 +1,8 @@
 """La Incubadora del pueblo: tu plantel entero y sacar a otro gachamon.
 
-Ver el plantel sólo lee: pone la activa al día (lo único que puede escribir
-una lectura es el remiendo: sacar a alguien de la incubadora si no hay activa)
-y lista a los vivos. Sacar es un adaptador
+Ver el plantel sólo lee: lista a los vivos, cada uno al día (lo único que
+puede escribir una lectura es el remiendo: sacar a alguien de la incubadora si
+no hay activa). Sacar es un adaptador
 fino: valida la petición, comprueba que se está en la incubadora y llama a la
 regla de `economia`, que decide y escribe bajo `BEGIN IMMEDIATE`; aquí sólo se
 traduce lo que pasó a una frase de la web, en texto llano. Un «no» del juego no
@@ -56,12 +56,13 @@ def _del_plantel(criatura: sim.Criatura) -> dict:
 
 
 def el_plantel(jugador: Jugador, ahora: datetime) -> dict:
-    """Los vivos de la cuenta, la activa primero y luego por id, y cuántos caben."""
-    activa = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
-    vivos = db.plantel(jugador.usuario_id, jugador.guild_id)
-    # La activa, tal como está ahora: con la cara que se le ve en el estado.
-    if activa is not None:
-        vivos = [activa if c.id == activa.id else c for c in vivos]
+    """Los vivos de la cuenta, la activa primero y luego por id, y cuántos caben.
+
+    Cada uno tal como está ahora, con la cara que tiene a esta hora.
+    """
+    # El remiendo, si no hay activa; lo que devuelve ya viene en el plantel.
+    db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
+    vivos = db.plantel_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
     dinero = economia.saldos(jugador.usuario_id, jugador.guild_id)
     return {
         "plantel": [_del_plantel(c) for c in vivos],

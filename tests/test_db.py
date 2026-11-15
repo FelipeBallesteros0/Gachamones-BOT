@@ -234,6 +234,67 @@ def test_activa_al_dia_no_escribe():
     assert volcado() == antes
 
 
+# --- El tiempo para todos -----------------------------------------------------
+
+def borrar_la_marca(clave):
+    with db.conectar() as con:
+        con.execute("DELETE FROM cambios_hechos WHERE clave = ?", (clave,))
+
+
+def test_el_dia_del_cambio_el_reloj_de_las_que_dormian_parte_de_ahi():
+    activa = nacer(nombre="Ana")
+    dormida = db.crear(U, G, "pulpo", "Bea", STATS, T0, activa=False)
+    borrar_la_marca("el_tiempo_para_todos")
+    cambio = T0 + timedelta(days=40)
+    db.inicializar(cambio)
+    assert db.por_id(dormida.id).actualizada_en == cambio
+    assert db.por_id(activa.id).actualizada_en == T0
+    assert db.avanzar(db.por_id(dormida.id), cambio + timedelta(hours=1)).hambre > 95.0
+
+
+def test_el_reloj_de_las_que_dormian_se_pone_una_sola_vez():
+    nacer(nombre="Ana")
+    dormida = db.crear(U, G, "pulpo", "Bea", STATS, T0, activa=False)
+    borrar_la_marca("el_tiempo_para_todos")
+    cambio = T0 + timedelta(days=40)
+    db.inicializar(cambio)
+    db.inicializar(cambio + timedelta(days=3))
+    assert db.por_id(dormida.id).actualizada_en == cambio
+
+
+def test_dos_arranques_a_la_vez_ponen_el_reloj_una_vez():
+    nacer(nombre="Ana")
+    dormida = db.crear(U, G, "pulpo", "Bea", STATS, T0, activa=False)
+    borrar_la_marca("el_tiempo_para_todos")
+    momentos = [T0 + timedelta(days=40), T0 + timedelta(days=41)]
+    with ThreadPoolExecutor(max_workers=2) as hilos:
+        list(hilos.map(db.inicializar, momentos))
+    with db.conectar() as con:
+        marca = con.execute("SELECT hecho_en FROM cambios_hechos WHERE clave = 'el_tiempo_para_todos'").fetchone()[0]
+    assert db.por_id(dormida.id).actualizada_en.isoformat() == marca
+
+
+def test_el_dia_del_cambio_una_muerta_de_antes_no_cambia():
+    activa = nacer(nombre="Ana")
+    finada = db.crear(U, G, "pulpo", "Bea", STATS, T0, activa=False)
+    db.guardar(muerta_de_antes(finada))
+    antes = db.por_id(finada.id)
+    borrar_la_marca("el_tiempo_para_todos")
+    db.inicializar(T0 + timedelta(days=40))
+    assert db.por_id(finada.id) == antes
+    assert db.por_id(finada.id).actualizada_en == T0
+    assert db.por_id(activa.id).actualizada_en == T0
+
+
+def test_el_plantel_al_dia_avanza_a_cada_uno_y_no_escribe():
+    nacer(nombre="Ana")
+    otra = db.crear(U, G, "pulpo", "Bea", STATS, T0, activa=False)
+    antes = volcado()
+    al_dia = db.plantel_al_dia(U, G, T0 + timedelta(hours=10))
+    assert [c.nombre for c in al_dia] == ["Ana", "Bea"]
+    assert all(c.hambre < 100.0 for c in al_dia) and volcado() == antes
+
+
 def test_migracion_de_una_base_de_datos_antigua():
     """Una BD de la versión anterior no tiene avisa_en ni avisada: al abrirla
     hay que añadir las columnas sin perder las criaturas."""
@@ -789,17 +850,16 @@ def colar_dormida(nombre="Dormida"):
         ).fetchone()["id"]
 
 
-def test_a_la_incubadora_no_le_pasa_el_tiempo():
-    """Es lo que hace viable tener varios: si decayeran todos, los que no son el
-    activo se quedarían sin comida hiciera lo que hiciera su dueño."""
-    dormida = incubar(nacer(), hambre=40.0)
-    assert not dormida.activa
+def test_a_la_que_no_es_la_activa_tambien_le_pasa_el_tiempo():
+    """Salir contigo no cambia cómo le corre el reloj: decae como la activa."""
+    otra = incubar(nacer(), hambre=40.0)
+    assert not otra.activa
 
-    tres_dias = sim.avanzar(dormida, T0 + timedelta(days=3))
-    assert tres_dias.hambre == dormida.hambre
-    assert tres_dias.animo == dormida.animo
-    assert tres_dias.limpieza == dormida.limpieza
-    assert tres_dias.viva
+    tres_dias = db.avanzar(otra, T0 + timedelta(days=3))
+    assert tres_dias.hambre < otra.hambre
+    assert tres_dias.animo < otra.animo
+    assert tres_dias.limpieza < otra.limpieza
+    assert tres_dias.viva and tres_dias.actualizada_en == T0 + timedelta(days=3)
 
 
 def test_al_sacarla_de_la_incubadora_no_se_le_cae_el_tiempo_encima():
@@ -891,8 +951,7 @@ def test_no_se_puede_activar_la_de_otro():
 
 
 def test_el_jardin_solo_ve_a_las_activas():
-    """Las de la incubadora están dormidas y con el tiempo parado: dibujarlas
-    paseando por el jardín no se sostiene."""
+    """Al jardín se sale con el activo: los demás no pasean por él."""
     nacer(nombre="Despierta")
     colar_dormida("Dormida")
     nacer(usuario="u2", nombre="DeOtro")

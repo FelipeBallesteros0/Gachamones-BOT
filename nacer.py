@@ -120,9 +120,9 @@ def bautizar_a(
 ) -> sim.Criatura:
     """Le pone nombre a ese gachamon tuyo, sólo si todavía lo espera.
 
-    Es el bautizo del recluta, que duerme en la incubadora y no sale de ella
-    hasta tener nombre. Recibe `ahora` como `bautizar`, pero no pone al día a
-    nadie: a la que duerme no le pasa el tiempo, y sólo se le escribe el nombre.
+    Es el bautizo del recluta, que no puede ser el activo hasta tener nombre.
+    Recibe `ahora` como `bautizar`, pero no pone al día a nadie: sólo se le
+    escribe el nombre.
     """
     try:
         nombre = sim.normalizar_nombre(nombre)

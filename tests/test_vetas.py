@@ -127,7 +127,7 @@ def test_emision_profunda_multiplica_y_no_deja_tension_negativa():
     ) < 1e-12
 
 
-def test_decaimiento_de_tension_es_lazy_y_no_toca_reservas_ni_muertas():
+def test_decaimiento_de_tension_es_lazy_toca_a_las_reservas_y_no_a_las_muertas():
     c = criatura(ten_fuerza=20, ten_velocidad=10, ten_salud=5, ten_ingenio=8)
     una = sim.avanzar(c, T0 + timedelta(hours=18))
     assert una.ten_fuerza == 10
@@ -137,7 +137,7 @@ def test_decaimiento_de_tension_es_lazy_y_no_toca_reservas_ni_muertas():
     assert sim.avanzar(una, T0 + timedelta(hours=18)) == una
     reserva = replace(c, activa=False)
     muerta = replace(c, muerta_en=T0, causa_muerte="hambre")
-    assert sim.avanzar(reserva, T0 + timedelta(days=2)) == reserva
+    assert sim.avanzar(reserva, T0 + timedelta(hours=18)) == replace(una, activa=False)
     assert sim.avanzar(muerta, T0 + timedelta(days=2)) == muerta
 
 
@@ -356,9 +356,6 @@ def test_persistencia_roundtrip_de_vetas(tmp_path, monkeypatch):
     assert db.criatura_activa("u1", "g1") == modificada
     recuperada = db.criatura_activa("u1", "g1")
     assert recuperada is not None and recuperada.historial_vetas == "FVS"
-    reserva = db.crear("u1", "g1", "pulpo", "Reserva", (15, 15, 15, 15), T0, activa=False)
-    dormida = sim.avanzar(reserva, T0 + timedelta(days=3))
-    assert dormida == reserva
 
 
 def test_migracion_conserva_niveles_y_anade_defaults_vetas(tmp_path, monkeypatch):
@@ -562,7 +559,7 @@ def test_la_tension_de_ingenio_decae_con_la_misma_semivida():
     c = criatura(ten_ingenio=18)
     assert sim.avanzar(c, T0 + timedelta(hours=18)).ten_ingenio == 9
     reserva = replace(c, activa=False)
-    assert sim.avanzar(reserva, T0 + timedelta(days=2)) == reserva
+    assert sim.avanzar(reserva, T0 + timedelta(hours=18)).ten_ingenio == 9
 
 
 def test_la_reserva_de_crecimiento_cuenta_al_ingenio_como_visible():
