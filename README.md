@@ -165,8 +165,7 @@ desde cualquier lugar y sirve para usar lo que llevas. Desde cualquier lugar
 también se abre la ficha completa de tu gachamon, con sus medallas y los efectos
 que lleva activos, y el ropero, donde le pones y le quitas el sombrero y el
 título. La Incubadora enseña tu plantel: ahí sacas a otro gachamon para que sea
-el activo y le pones nombre a un recluta que aún no lo tiene. Y al mirar el
-Refugio se ve quién vive en él.
+el activo. Y al mirar el Refugio se ve quién vive en él.
 
 En local:
 
@@ -244,20 +243,25 @@ queda sin manual, así que ponle uno a cada uno.
 ## Reglas
 
 **El plantel.** Hasta **25 gachamones** por persona y servidor, con **uno
-activo**: el que recibe los botones y los comandos. Los demás esperan en la
-**incubadora**, y ahí **no les pasa el tiempo** — ni hambre, ni ánimo, ni aseo.
-No es un adorno: los cuidados sólo llegan al activo, así que si la reserva
-decayera se quedaría sin comida hiciera lo que hiciera su dueño.
+activo**: el que sale contigo, el que compite, va de aventura y conversa, y el
+que recibe los botones y los comandos. **A todos les pasa el tiempo**, sean o no
+el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con el de su
+casa. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
+nadie, así que ir y volver no ahorra ni duplica nada.
 
-Encaja en un sitio y no es una regla nueva: `avanzar()` devuelve intacta a la
-que no está activa. Al sacarla se le pone `actualizada_en` al día, o las horas
-dormidas se le caerían encima de golpe.
+Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
+activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo
+por persona. Existe también cuidar **a todos** de una vez: le hace un cuidado a
+cada gachamon que puede recibirlo y paga como esos mismos cuidados hechos de a
+uno. Eso vive en el servidor de la web, que todavía no tiene botones para ello;
+en Discord se sigue cuidando sólo al activo, y para cuidar a otro se sale con
+él.
 
 `/huevo` da **sólo el de partida**: los demás hay que ganárselos en
 `/aventura`. Si una persona se quedó sin activo vivo porque el suyo murió antes,
-el siguiente de la incubadora sale solo al entrar a la web, al romper el huevo,
-al poner nombre o al cambiar de activo; en Discord, al elegir otro en
-`/plantel`. Sólo sale uno que ya tenga nombre.
+el primero que siga vivo sale solo al entrar a la web, al romper el huevo, al
+poner nombre o al cambiar de activo; en Discord, al elegir otro en `/plantel`.
+Sólo cambia la marca de quién sale contigo: su reloj sigue donde estaba.
 
 **Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
 azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
@@ -357,12 +361,12 @@ también la confianza de partida:
 La última fila es la que justifica el árbol: quien se vuelve a la primera se
 encuentra la mitad de cosas. Ahí es donde la decisión pesa.
 
-**Al unirse no trae nombre.** Se guarda ya en la incubadora —para que un
-formulario cerrado o una conexión caída no cuesten el gachamon recién
-convencido—, pero con el nombre vacío no puede activarse: `db.activar` lo
-rechaza, el menú del plantel lo lista como «sin nombrar» y pulsarlo abre el
-bautizo. Es lo que se pidió, «no entra al equipo hasta nombrarlo», sin que un
-despiste te lo cueste.
+**Al unirse se pone un nombre él solo.** Lo saca de una lista de cuarenta
+(`nombres.py`), nunca el de su especie ni uno que ya tenga su dueño, y se queda
+en casa en vez de desbancar al activo. Su dueño se lo puede cambiar una vez: el
+botón «Ponerle otro nombre» que sale al unirse lleva dentro a qué recluta
+pertenece y le cambia el nombre a ése. Así ya no existe un gachamon sin nombre,
+y un formulario cerrado o una conexión caída no cuestan nada.
 
 **Nacer.** La especie sale por
 rareza: 12 % cada una de las siete comunes, 6 % las dos poco comunes y 4 % el
@@ -377,7 +381,7 @@ sigue siendo tuya, y el botón de nombrar aguanta reinicios del bot.
 respuesta inmediata a una interacción, así que no cabe enseñar la criatura y
 pedir el nombre a la vez.)
 
-**Cuidar.** Tres barras bajan con el tiempo, y sólo las del gachamon activo. Si
+**Cuidar.** Tres barras bajan con el tiempo, en todos los gachamones vivos. Si
 **COMIDA** llega a 0, la criatura **no se muere**: se queda en 0 hasta que le
 des de comer. Una criatura típica tarda unas 73 h en vaciarla; la salud alarga
 ese margen (una Magora sana llega a ~86 h, un Pyro frágil baja a ~62 h). El
@@ -498,7 +502,7 @@ para que el mensaje pueda decir cuánto ha tocado.
 competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta
 tres competencias premiadas al día UTC), y evolucionar da +10 una vez al día
 UTC. Los topes pertenecen a la persona y al servidor: cambiar de activo,
-reclutar o ascender desde la incubadora no los reinicia. Agotar un tope no
+reclutar o evolucionar no los reinicia. Agotar un tope no
 detiene el juego, la experiencia ni la evolución; sólo deja el premio en cero.
 
 Las compras y los premios se confirman en SQLite antes de enviar nada a Discord.

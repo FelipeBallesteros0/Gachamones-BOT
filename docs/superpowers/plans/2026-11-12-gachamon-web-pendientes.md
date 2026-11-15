@@ -396,6 +396,101 @@ Son observaciones de la revisión final, no decisiones.
 - No hay prueba del adaptador web de romper un huevo después de una muerta de
   antes (lo cubren el dominio y el recorrido).
 
+## Salió al ejecutar el rework 2 (el tiempo para todos)
+
+### Lo decidido
+
+- A todos los gachamones vivos les pasa el tiempo, sean o no el activo: la
+  comida, el ánimo y el aseo les bajan al mismo ritmo, con el ritmo de su casa.
+  Antes sólo le pasaba a la activa y las demás «dormían en la incubadora».
+- El día del cambio, a los que no eran el activo el reloj les parte de ese
+  momento: no se les viene encima lo que durmieron. Pasa una sola vez, aunque
+  el bot y la web arranquen a la vez, y queda apuntado en una tabla nueva,
+  `cambios_hechos`, en la misma transacción que el cambio. Lo que haya que
+  hacer una sola vez en los planes que siguen usa esa misma marca.
+- El activo es sólo «el que sale contigo»: el que compite, va de aventura y
+  conversa. Cambiar de activo ya no toca el reloj de nadie ni guarda nada: ir y
+  volver muchas veces no ahorra ni duplica el paso del tiempo.
+- Un cuidado o una caricia le cae al gachamon que se elija (en la web,
+  mandando su `gachamon_id`), o al activo si no se elige ninguno. Las esperas
+  son de cada gachamon; el tope diario de monedas sigue siendo uno solo por
+  persona. Uno ajeno, de otro servidor, muerto de antes o que no existe no
+  cambia nada, no cobra y contesta lo mismo en todos los casos.
+- «A todos» le hace un cuidado a cada gachamon que puede recibirlo y dice a
+  cuántos les tocó. Paga una moneda por cada uno, igual que cuidarlos de a uno
+  y dentro del tope de siempre. No se alimenta al que se empacharía ni se baña
+  al que ya está limpio; jugar y entrenar les sirven siempre, porque entrenan.
+  Todo va en una sola transacción: o a todos los que tocaba, o a ninguno.
+- En Discord se sigue cuidando sólo al activo: para cuidar a otro se sale con
+  él, que no cuesta nada. Cuidar a cualquiera sin cambiar y «a todos» son de la
+  página.
+- Un recluta llega con un nombre que se pone él solo, de una lista de cuarenta
+  (`nombres.py`), nunca el de su especie ni uno que ya tenga su dueño, y se le
+  puede cambiar una vez. En Discord, el botón que sale al unirse lleva dentro a
+  qué recluta pertenece y le cambia el nombre a ése. Los que estaban sin nombre
+  se lo pusieron solos al arrancar, y ya no existe un gachamon sin nombre.
+- Quien tenía el activo muerto de antes y un único recluta sin nombre no podía
+  jugar: ahora el recluta recibe nombre, pasa a ser el activo y la persona
+  recupera su partida.
+- Las frases de Discord y de la web ya no hablan de la incubadora como un sitio
+  donde el tiempo se para: los que no salen contigo están «en casa».
+
+### Pendiente
+
+- Las reglas de cuidar a otro gachamon y de «a todos» están en el servidor,
+  pero la página todavía no tiene botones para ellas: llegan con el
+  departamento en pantalla. Ahí también se decide si hay que estar en el
+  departamento para cuidar a los que no salen contigo.
+- Cambiarle el nombre a un recluta desde su ficha de la web no existe todavía:
+  el servidor ya lo permite (`POST bautizar` con su `gachamon_id`) y la ficha
+  ya dice si se nombró solo.
+- El cliente de la web todavía sabe qué hacer con un recluta sin nombre
+  (`pantallas.js`, `entrada.js`, `incubadora.js`), aunque el servidor ya no
+  manda ninguno. Se va cuando se rehaga la entrada.
+- El lugar «Incubadora» de la web sigue existiendo, con su nombre: ahí se
+  elige con quién sales. Se va con el pueblo sin Refugio ni Incubadora.
+- La mochila y el ropero siguen siendo sólo para el activo.
+- El monedero de quien empieza sigue siendo de 50 monedas y 50 gemas, y el
+  huevo sigue existiendo: partir sin gachamon y con el monedero en 0 es del
+  plan de la vivienda.
+- En Discord, el botón «Ponerle nombre» que sale bajo el huevo deja renombrar
+  al activo las veces que se quiera, sin gastar una placa. Es anterior al
+  rediseño y no se tocó aquí (sólo deja anotado que el nombre lo eligió su
+  dueño). Se decide cuando se rehaga `/huevo`.
+- Los botones «Ponerle nombre» publicados en Discord antes del cambio (los de
+  reclutas que estaban sin nombre) no saben a quién pertenecen: buscan al
+  recluta más antiguo de esa persona que todavía conserve el nombre que se puso
+  solo.
+- Si un reintento de «a todos» llega después de que el pago de una medalla
+  fallara, la respuesta no vuelve a mirar las medallas: esas gemas se cobran en
+  el siguiente cuidado de ese gachamon. No se pierden.
+- `.claude/skills/generated/` (lo genera GitNexus) y los documentos históricos
+  de `docs/` todavía nombran `ascender_de_la_incubadora`, que ahora es
+  `ascender_un_relevo`.
+
+### De producto, para decidir más adelante
+
+Son observaciones, no decisiones.
+
+- Quien juega sólo en Discord y tiene varios gachamones los ve bajar a todos y
+  sólo puede cuidarlos de a uno, saliendo con cada uno.
+- Con muchos gachamones el tope de 12 cuidados pagados al día se alcanza en uno
+  o dos toques de «a todos».
+
+### Pruebas
+
+- Ninguna prueba cubre que un cuidado a un gachamon de otro servidor se
+  rechace (el código lo rechaza; los casos «ajenos» de las pruebas son de otra
+  persona en el mismo servidor).
+- Ninguna prueba cubre que «a todos» le dé de comer a un gachamon con hambre
+  que todavía tiene la espera corriendo (la regla de siempre: por debajo de 60
+  de comida, alimentar no espera).
+- `POST acariciar` con un cuerpo que no es un objeto se trata como si no
+  hubiera cuerpo y acaricia al activo.
+- La regla del nombre de un recluta está escrita dos veces: al reclutar
+  (`nacer.nombre_de_recluta`) y en el paso de arranque que nombra a los que
+  estaban sin nombre.
+
 ## Para el plan 6 (tu casa)
 
 > El rediseño del 2026-11-14 cambió el rumbo: lo que sigue se replantea en docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md.

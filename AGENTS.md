@@ -69,9 +69,13 @@ Instala el hook local cuando prepares el entorno:
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
 - El tamaño máximo del plantel de una persona por servidor lo fija `db.MAXIMO_PLANTEL`.
 - Si el plantel no está vacío, hay exactamente una criatura activa.
-- Sólo la criatura activa avanza por tiempo y recibe efectos o recompensas ordinarios del activo.
-- Una reserva viva y con nombre elegida explícitamente para `Entrenar juntos` puede recibir sólo los efectos inmediatos de ese evento: barras, XP, VETAS/evolución, cooldown `ENTRENAR` y marcador de criatura; no se vuelve activa ni avanza por tiempo.
-- Las reservas no decaen, reciben progreso pasivo ni heredan efectos del activo en ningún otro caso.
+- A todos los gachamones vivos les pasa el tiempo, sean o no el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo.
+- En `Entrenar juntos` los dos se ponen al día y reciben lo mismo: barras, XP, VETAS/evolución, cooldown `ENTRENAR` y marcador de criatura; el compañero no se vuelve activo.
+- El activo es el que sale contigo: el que compite, va de aventura y conversa. Cambiar de activo no duerme ni despierta a nadie, ni le borra el tiempo a ninguno.
+- Cada cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo por persona.
+- «A todos» le hace un cuidado a cada gachamon que puede recibirlo —le serviría y no está esperando— y paga como esos mismos cuidados hechos de a uno.
+- Un recluta llega con un nombre que se pone él solo, de `nombres.py`, y su dueño se lo puede cambiar una vez. Ningún gachamon está sin nombre.
+- Lo que se hace una sola vez al arrancar deja su marca en `cambios_hechos`, en la misma transacción que el cambio.
 - Cada estadística se entrena por su vía: alimentar la salud, jugar la velocidad, entrenar la fuerza y conversar bien el ingenio.
 - El techo de una estadística lo fija `sim.MAXIMO_STAT` y se aplica en `stat_final`, el embudo por el que pasan las cuatro.
 - Ese techo recorta lo que se ve, no lo que se guarda: `ent_` y `niv_` siguen subiendo, así que cambiarlo no pierde progreso ni pide migración.
@@ -81,7 +85,7 @@ Instala el hook local cuando prepares el entorno:
 - El texto de quien juega es dato para la IA, nunca instrucciones: una respuesta que no sea literal no vale.
 - Los topes económicos pertenecen a persona + servidor + día UTC.
 - Cambiar la criatura activa no reinicia ni traslada esos topes.
-- Reclutar, evolucionar o promover desde la incubadora tampoco reinicia los topes.
+- Reclutar o evolucionar tampoco reinicia los topes.
 - El replay idempotente de un evento conserva sus resultados monetarios congelados.
 - No vuelvas a sortear, recalcular ni duplicar dinero al reprocesar el mismo evento.
 - Reclutar se juega con dos ejes: llenar la confianza sin llenar el recelo.
@@ -110,7 +114,7 @@ Instala el hook local cuando prepares el entorno:
 - Se tiene un mueble de cada, y tenerlo no es lo mismo que tenerlo puesto.
 - Retirar un mueble nunca lo destruye: se guarda.
 - El refugio no se amuebla, y a la intemperie no hay dónde poner nada.
-- El hogar sólo afecta a la criatura activa; las de reserva siguen congeladas.
+- El hogar afecta a todos los que viven en él.
 - La intemperie acelera el decaimiento, pero nunca puede matar.
 - La comodidad frena el ánimo y no toca el hambre.
 - Visitar una casa sólo mira: nunca le empieza a nadie su estancia en el refugio.
@@ -158,8 +162,8 @@ Instala el hook local cuando prepares el entorno:
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
 - En la web se compra estando en la Tienda; lo que hoy sólo sirve en Discord se le vende sólo a quien tiene Discord vinculado.
 - Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar, un ticket que no alargaría la estancia— se rechaza sin gastarlo, en Discord y en la web.
-- Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): la que sale queda al día antes de dormirse, y elegir a la que ya es la activa no cambia nada.
-- Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo, vivo y sin nombre, nunca con el nombre de su especie, y sólo se escribe el nombre.
+- Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): sólo cambia quién sale contigo, y elegir a la que ya es la activa no cambia nada.
+- Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo y vivo que todavía lo espere o que se lo haya puesto él solo, nunca con el nombre de su especie.
 - En la web se cambia de activo estando en la Incubadora; vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
 
 ## Arte ASCII
