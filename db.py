@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 
 RUTA: Path = config.RUTA_BD
 
-# Cuántos gachamones puede tener una persona por servidor. Uno activo y el resto
-# en la incubadora. El primero sale de `/huevo`; los demás sólo reclutándolos.
+# Cuántos gachamones puede tener una persona por servidor. Uno es el activo, el
+# que sale contigo, y a todos les pasa el tiempo. El primero sale de `/huevo`;
+# los demás sólo reclutándolos.
 #
 # Subió de 3 a 10 y de 10 a 25 para que coleccionar sea un objetivo largo. Lo
 # que de verdad cambia con este número es `/aventura`: con el plantel lleno los
@@ -981,23 +982,24 @@ def por_id(criatura_id: int) -> sim.Criatura | None:
     return _a_criatura(fila) if fila else None
 
 
-def ascender_de_la_incubadora(
-    usuario_id: str, guild_id: str, ahora: datetime
+def ascender_un_relevo(
+    usuario_id: str, guild_id: str
 ) -> sim.Criatura | None:
-    """Saca a la primera de la incubadora si no queda ninguna activa.
+    """Hace activo al primero vivo y con nombre si no queda ningún activo.
 
-    Es el remiendo de `activa_al_dia`. Sin esto, quien se quedó sin activa
+    Es el remiendo de `activa_al_dia`. Sin esto, quien se quedó sin activo
     —porque se le murió cuando todavía se moría, por ejemplo— tendría
-    gachamones esperando y el juego le diría que no tiene ninguno.
+    gachamones vivos y el juego le diría que no tiene ninguno. Sólo cambia la
+    marca, como `activar`: el reloj del relevo sigue donde estaba.
     """
     if criatura_activa(usuario_id, guild_id) is not None:
         return None
-    # Sólo las que tienen nombre: `activar` no deja salir a un recluta sin
+    # Sólo los que tienen nombre: `activar` no deja salir a un recluta sin
     # bautizar, así que ascender a uno dejaría el plantel sin activa ninguna.
     vivas = [c for c in plantel(usuario_id, guild_id) if c.nombre]
     if not vivas:
         return None
-    activar(vivas[0].id, usuario_id, guild_id, ahora)
+    activar(vivas[0].id, usuario_id, guild_id)
     return criatura_activa(usuario_id, guild_id)
 
 
@@ -1006,14 +1008,14 @@ def activa_al_dia(
 ) -> sim.Criatura | None:
     """La activa, avanzada hasta `ahora`, sin guardarle el paso del tiempo.
 
-    No escribe nunca, salvo el remiendo: si no hay activa y sí alguien con
-    nombre en la incubadora, saca a una (`ascender_de_la_incubadora`) y la
-    devuelve avanzada. Repetirla, o correrla desde dos procesos, deja una sola
-    activa. Sin nadie a quien sacar devuelve `None`.
+    No escribe nunca, salvo el remiendo: si no hay activa y sí alguien vivo y
+    con nombre, lo hace el activo (`ascender_un_relevo`) y lo devuelve
+    avanzado. Repetirla, o correrla desde dos procesos, deja una sola activa.
+    Sin nadie que pueda serlo devuelve `None`.
     """
     activa = criatura_activa(usuario_id, guild_id)
     if activa is None:
-        ascender_de_la_incubadora(usuario_id, guild_id, ahora)
+        ascender_un_relevo(usuario_id, guild_id)
         activa = criatura_activa(usuario_id, guild_id)
         if activa is None:
             return None
@@ -1050,20 +1052,17 @@ def plantel_al_dia(
         ]
 
 
-def activar(
-    criatura_id: int, usuario_id: str, guild_id: str, ahora: datetime
-) -> bool:
-    """Saca una criatura de la incubadora y mete dentro a la que estaba.
+def activar(criatura_id: int, usuario_id: str, guild_id: str) -> bool:
+    """La hace el activo, el que sale contigo, en lugar del que lo era.
 
     Devuelve si se pudo: pide que la criatura sea de quien la reclama, para que
     un identificador copiado de otro mensaje no active la mascota de otro, y que
-    **tenga nombre**. Un recluta se guarda sin nombre y no sale de la incubadora
+    **tenga nombre**. Un recluta se guarda sin nombre y no puede ser el activo
     hasta que se lo pongan; la comprobación vive aquí y no en la vista porque es
     un invariante del plantel, no una regla de un menú.
 
-    **`actualizada_en` se pone al día en `_activar_en`**, que es el único sitio
-    por el que se sale de la incubadora. Sin eso, las horas que pasó dormida se
-    le aplicarían de golpe en el primer `avanzar` y saldría con la comida en 0.
+    Sólo cambia la marca `activa`: a todos les pasa el tiempo, salgan contigo o
+    no, así que nadie se duerme ni se despierta y `actualizada_en` no se toca.
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1074,15 +1073,16 @@ def activar(
         ).fetchone()
         if fila is None:
             return False
-        _activar_en(con, criatura_id, ahora)
+        _activar_en(con, criatura_id)
     return True
 
 
-def _activar_en(
-    con: sqlite3.Connection, criatura_id: int, ahora: datetime
-) -> sim.Criatura:
+def _activar_en(con: sqlite3.Connection, criatura_id: int) -> None:
     """Lo de `activar` para quien ya tiene la transacción abierta y ya ha
-    comprobado que esa criatura se puede sacar. Devuelve a la que despierta.
+    comprobado que esa criatura puede ser el activo.
+
+    Primero todas a 0 y después ésa a 1: el índice `una_activa` no admite el
+    orden contrario. Sólo se toca la marca, nunca `actualizada_en`.
     """
     dueño = con.execute(
         "SELECT usuario_id, guild_id FROM criaturas WHERE id = ?", (criatura_id,)
@@ -1092,13 +1092,7 @@ def _activar_en(
         "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
         (dueño["usuario_id"], dueño["guild_id"]),
     )
-    con.execute(
-        "UPDATE criaturas SET activa = 1, actualizada_en = ? WHERE id = ?",
-        (ahora.isoformat(), criatura_id),
-    )
-    return _a_criatura(con.execute(
-        "SELECT * FROM criaturas WHERE id = ?", (criatura_id,)
-    ).fetchone())
+    con.execute("UPDATE criaturas SET activa = 1 WHERE id = ?", (criatura_id,))
 
 
 def criatura_por_pantalla(mensaje_id: str) -> sim.Criatura | None:

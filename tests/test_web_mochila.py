@@ -276,7 +276,7 @@ def test_si_ya_se_activo_a_otro_no_se_le_aplica_el_objeto(cliente, monkeypatch):
     visto = cliente.get(ESTADO).json()["gachamon"]["id"]
     assert visto == pelusa.id
     assert [o["clave"] for o in cliente.get(MOCHILA).json()["objetos"]] == ["golosinas"]
-    assert db.activar(nube.id, LA_DE_DISCORD, G, db.ahora_utc())     # desde Discord
+    assert db.activar(nube.id, LA_DE_DISCORD, G)     # desde Discord
     antes = (db.por_id(pelusa.id), db.por_id(nube.id))
     r = usar(cliente, "golosinas", gachamon_id=visto)
     assert r.status_code == 409

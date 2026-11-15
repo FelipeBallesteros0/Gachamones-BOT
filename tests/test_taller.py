@@ -191,7 +191,7 @@ def test_la_corona_se_puede_pasar_de_un_gachamon_a_otro():
     comprar(CORONA)
     quitar(cos.SOMBRERO)
 
-    db.activar(segundo.id, "u1", "g1", T0)
+    db.activar(segundo.id, "u1", "g1")
     assert poner(CORONA).ok
 
     assert db.por_id(segundo.id).sombrero == "corona"
@@ -371,7 +371,7 @@ def test_el_desplegable_que_va_solo_en_su_mensaje_si_pregunta():
     import equipo
 
     assert tienda.MenuInventario({}).placeholder == "¿Qué usas?"
-    assert equipo.MenuPlantel([], None, None, None).placeholder == "¿A cuál sacas?"
+    assert equipo.MenuPlantel([], None, None, None).placeholder == "¿Con cuál sales?"
 
 
 def test_la_tienda_marca_lo_que_ya_tienes_en_vez_de_ofrecerlo():
@@ -558,7 +558,7 @@ def test_lo_puesto_no_se_le_puede_poner_a_otro():
     con_gemas(200)
     comprar(CORONA)                       # se la pone a Uno al comprarla
 
-    db.activar(segundo.id, "u1", "g1", T0)
+    db.activar(segundo.id, "u1", "g1")
     resultado = poner(CORONA)
 
     assert not resultado.ok
@@ -577,7 +577,7 @@ def test_pasa_con_los_dos_tipos_no_solo_con_el_sombrero(cosmetico):
     con_gemas(500)
     comprar(cosmetico)
 
-    db.activar(otro.id, "u1", "g1", T0)
+    db.activar(otro.id, "u1", "g1")
 
     assert cosmetico.clave not in db.ropero_disponible("u1", "g1")
     assert not economia.equipar_cosmetico("u1", "g1", cosmetico).ok
@@ -595,7 +595,7 @@ def test_quitarsela_la_deja_libre_otra_vez():
     economia.quitar_cosmetico("u1", "g1", CORONA.tipo)
 
     assert CORONA.clave in db.ropero_disponible("u1", "g1")
-    db.activar(otro.id, "u1", "g1", T0)
+    db.activar(otro.id, "u1", "g1")
     assert poner(CORONA).ok, "y ahora sí se le puede poner al otro"
 
 

@@ -84,7 +84,7 @@ def test_el_plantel_en_orden(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     pelusa, nube, recluta = con_plantel(cliente)
     # La activa va primero aunque no sea la de menor id; las demás, por id.
-    assert db.activar(nube.id, LA_DE_DISCORD, G, db.ahora_utc())
+    assert db.activar(nube.id, LA_DE_DISCORD, G)
     cuerpo = cliente.get(INCUBADORA).json()
     assert [g["id"] for g in cuerpo["plantel"]] == [nube.id, pelusa.id, recluta.id]
     assert [g["activo"] for g in cuerpo["plantel"]] == [True, False, False]
@@ -155,7 +155,7 @@ def test_sacar_a_otro(cliente, monkeypatch):
     hecho = sacar(cliente, nube.id)
     assert hecho.status_code == 200
     cuerpo = hecho.json()
-    assert (cuerpo["ok"], cuerpo["clave"], cuerpo["mensaje"]) == (True, None, "Nube sale de la incubadora.")
+    assert (cuerpo["ok"], cuerpo["clave"], cuerpo["mensaje"]) == (True, None, "Ahora sales con Nube.")
     assert cuerpo["estado"]["gachamon"]["id"] == nube.id
     assert [(g["id"], g["activo"]) for g in cuerpo["incubadora"]["plantel"]] == [
         (nube.id, True), (pelusa.id, False), (recluta.id, False),
@@ -229,7 +229,7 @@ def test_si_el_activo_ya_estaba_muerto_sacar_a_otro_sigue_funcionando(cliente, m
     # Viejo murió cuando todavía se moría de hambre, y nadie sacó todavía al relevo.
     db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
     cuerpo = sacar(cliente, bruma.id).json()
-    assert (cuerpo["ok"], cuerpo["mensaje"]) == (True, "Bruma sale de la incubadora.")
+    assert (cuerpo["ok"], cuerpo["mensaje"]) == (True, "Ahora sales con Bruma.")
     assert cuerpo["estado"]["gachamon"]["id"] == bruma.id
     assert not db.por_id(viejo.id).viva
 

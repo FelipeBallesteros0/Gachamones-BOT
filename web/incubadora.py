@@ -78,7 +78,7 @@ def ver_la_incubadora(jugador: Jugador = Depends(jugador_actual)) -> dict:
 
 def _dicho(hecho: economia.ResultadoCambio) -> dict:
     if hecho.ok:
-        return {"ok": True, "clave": None, "mensaje": f"{sim.nombre_visible(hecho.criatura)} sale de la incubadora."}
+        return {"ok": True, "clave": None, "mensaje": f"Ahora sales con {sim.nombre_visible(hecho.criatura)}."}
     if hecho.motivo == "ya_es_el_activo":
         # Lo que ya está como se pidió es un sí: un toque doble no enseña un error.
         return {

@@ -88,7 +88,7 @@ def test_el_enfriamiento_es_de_cada_gachamon():
     nacer()
     otro = db.crear("u", "g", "pulpo", "Tinta", STATS, T0, activa=False)
     db.acariciar("u", "g", T0)
-    assert db.activar(otro.id, "u", "g", T0)
+    assert db.activar(otro.id, "u", "g")
     assert db.acariciar("u", "g", T0).ok
 
 

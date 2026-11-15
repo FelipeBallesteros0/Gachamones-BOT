@@ -159,10 +159,10 @@ def test_bautizado_el_recluta_ya_sale_de_la_incubadora(tmp_path, monkeypatch):
     monkeypatch.setattr(vistas, "publicar_pantalla", AsyncMock())
     modal = SimpleNamespace(nombre="Pelusa", criatura_id=recluta.id)
 
-    assert not db.activar(recluta.id, "u1", "g1", db.ahora_utc())
+    assert not db.activar(recluta.id, "u1", "g1")
     asyncio.run(vistas.NombreModal.on_submit(modal, bandeja.interaccion()))
 
-    assert db.activar(recluta.id, "u1", "g1", db.ahora_utc())
+    assert db.activar(recluta.id, "u1", "g1")
     assert db.criatura_activa("u1", "g1").nombre == "Pelusa"
 
 

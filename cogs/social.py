@@ -380,9 +380,9 @@ gachamon hambriento contesta de mal humor. Se acuerda de la última conversació
 -# 🧠 Y si le escribes **de forma culta** —bien redactado, sin abreviaturas de chat— aprende algo: **entrena el ingenio** y le sube el ánimo. Es la única forma de entrenar esa estadística fuera del laberinto. Una vez cada **{int(sim.COOLDOWNS[sim.CONVERSAR].total_seconds() // 60)} min**, y no vale repetir el mismo mensaje.
 
 **El plantel**
-Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones, pero sólo **uno activo**: \
-es el que recibe los botones y los comandos. Los demás esperan en la \
-**incubadora**, donde no les pasa el tiempo: ni comida, ni ánimo, ni aseo.
+Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones. **Uno es el activo**: el \
+que sale contigo y recibe los botones y los comandos. A los demás también les \
+pasa el tiempo: para cuidar a otro, sal con él.
 -# Se cambia con 🧬 **Cambiar** o con `/plantel`. `/huevo` sólo da el de \
 partida: los demás hay que ganárselos por ahí.
 

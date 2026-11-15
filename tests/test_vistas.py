@@ -867,7 +867,7 @@ def test_el_menu_explica_el_sin_nombre_que_llega_de_la_regla(monkeypatch):
     publicar.assert_not_awaited()
 
 
-def test_el_menu_pone_al_dia_a_la_que_vuelve_a_la_incubadora(
+def test_el_menu_cambia_de_activo_sin_tocarle_el_reloj_a_nadie(
     bd_temporal, monkeypatch
 ):
     """De verdad, sin dobles: el menú pasa por la regla y no por `db.activar`."""
@@ -885,14 +885,83 @@ def test_el_menu_pone_al_dia_a_la_que_vuelve_a_la_incubadora(
     asyncio.run(menu.callback(interaccion))
 
     interaccion.response.edit_message.assert_awaited_once_with(
-        content="🧬 Sale de la incubadora **Reserva**. Míralo con `/mascota`.",
+        content="🧬 Ahora sales con **Reserva**. Míralo con `/mascota`.",
         view=None,
     )
-    vuelta = db.por_id(anterior.id)
-    assert vuelta is not None and vuelta.actualizada_en == cinco
-    assert vuelta.hambre < anterior.hambre
+    # Nadie se duerme ni se despierta: a los dos les sigue corriendo el tiempo
+    # desde donde estaba.
+    for antes in (anterior, reserva):
+        guardada = db.por_id(antes.id)
+        assert guardada is not None and guardada.actualizada_en == T0
+        assert guardada.hambre == antes.hambre
     activa = db.criatura_activa("u1", "g1")
     assert activa is not None and activa.id == reserva.id
+
+
+@pytest.mark.parametrize(
+    ("genero", "mira"), [(esp.MACHO, "Míralo"), (esp.HEMBRA, "Mírala")]
+)
+def test_al_cambiar_dice_con_quien_sales(monkeypatch, genero, mira):
+    anterior = criatura(1, "Ana", True, "ficha-ana")
+    nueva = replace(criatura(2, "Bea", True, None), genero=genero)
+    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", Mock(
+        return_value=economia.ResultadoCambio(
+            ok=True, criatura=nueva, saliente=replace(anterior, activa=False)
+        )
+    ))
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
+    menu = equipo.MenuPlantel([anterior, nueva], AsyncMock(), publicar=AsyncMock())
+    menu._values = [str(nueva.id)]
+    interaccion = SimpleNamespace(
+        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
+        response=SimpleNamespace(edit_message=AsyncMock()),
+    )
+
+    asyncio.run(menu.callback(interaccion))
+
+    interaccion.response.edit_message.assert_awaited_once_with(
+        content=f"🧬 Ahora sales con **Bea**. {mira} con `/mascota`.",
+        view=None,
+    )
+
+
+def test_el_plantel_dice_quien_se_quedo_en_casa():
+    activa = criatura(1, "Ana", True, "ficha-ana")
+    otra = criatura(2, "Bea", False, None)
+
+    texto = equipo.texto_del_plantel([activa, otra])
+    menu = equipo.MenuPlantel([activa, otra])
+
+    assert "en casa" in texto and pantalla.EMOJI_EN_CASA in texto
+    assert texto.endswith(
+        "\n-# A todos les pasa el tiempo, salgan contigo o no. "
+        "Elige abajo con cuál sales."
+    )
+    assert "incubadora" not in texto
+    assert menu.placeholder == "¿Con cuál sales?"
+    assert [o.description.endswith("· en casa") for o in menu.options] == [False, True]
+
+
+def test_pulsar_la_ficha_de_uno_que_se_quedo_en_casa_lo_explica(
+    bd_temporal, monkeypatch
+):
+    db.crear("u1", "g1", SIN_RETRATO, "Ana", STATS, T0)
+    otra = db.crear("u1", "g1", SIN_RETRATO, "Bea", STATS, T0, activa=False)
+    db.guardar_pantalla(otra.id, "ficha", "canal")
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=T0))
+    ejecutar_cuidado = Mock()
+    monkeypatch.setattr(vistas.economia, "ejecutar_cuidado", ejecutar_cuidado)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Ese gachamon se quedó en casa. "
+        "Elígelo con `/plantel` para cuidarlo desde aquí.",
+        ephemeral=True,
+    )
+    ejecutar_cuidado.assert_not_called()
+    canal.send.assert_not_awaited()
 
 
 # --- La ficha vive en su canal, no en el que se escribe ----------------------
@@ -972,7 +1041,7 @@ def test_cambiar_de_activo_publica_ficha_canonica_en_el_canal_actual(
         T0,
         esperas=db.esperas_de_ficha(activa, T0, pantalla.ACCIONES_EN_FICHA),
         efectos=db.efectos_activos(activa.id, T0),
-        en_la_incubadora=1,
+        en_casa=1,
         asciicoins=economia.saldos("u1", "g1").asciicoins,
     )
     actual.send.assert_awaited_once()
@@ -1309,7 +1378,7 @@ PULSA = T0 + timedelta(days=9)
 def muerta_de_antes_con_panel(*, con_reserva=False):
     """Como la dejaba la muerte de antes: la comida en 0, la marca puesta,
     activa en 1 y su panel («ficha») todavía en el canal. Con `con_reserva`
-    deja además a una viva y con nombre en la incubadora, y la devuelve."""
+    deja además a una viva y con nombre en casa, y la devuelve."""
     nacida = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     reserva = (
         db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
@@ -1326,10 +1395,11 @@ def muerta_de_antes_con_panel(*, con_reserva=False):
 
 
 def con_relevo():
-    """La muerta de antes y su relevo: la reserva que ya ascendió y es la activa."""
+    """La muerta de antes y su relevo: la reserva que ya ascendió y es la activa,
+    con la comida en 50 a la hora de pulsar."""
     muerta, reserva = muerta_de_antes_con_panel(con_reserva=True)
-    db.guardar(replace(reserva, hambre=50.0))
-    relevo = db.ascender_de_la_incubadora("u1", "g1", PULSA)
+    db.guardar(replace(reserva, hambre=50.0, actualizada_en=PULSA))
+    relevo = db.ascender_un_relevo("u1", "g1")
     assert relevo is not None and relevo.id == reserva.id
     return muerta, relevo
 
@@ -1509,7 +1579,7 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
             guardada, ahora, pantalla.ACCIONES_EN_FICHA
         ),
         efectos=db.efectos_activos(guardada.id, ahora),
-        en_la_incubadora=1,
+        en_casa=1,
         asciicoins=73,
     )
     respuesta.edit_message.assert_awaited_once()
@@ -1522,7 +1592,7 @@ def test_actualizar_edita_la_ficha_viva_con_estado_y_controles_actuales(
     assert pantalla.ICONOS_ACCION[sim.JUGAR] in contenido
     assert pantalla.ICONOS_ACCION[sim.AVENTURA] in contenido
     assert pantalla.EMOJI_POCION in contenido
-    assert pantalla.EMOJI_INCUBADORA in contenido
+    assert pantalla.EMOJI_EN_CASA in contenido
     assert isinstance(vista, vistas.PantallaView)
     assert all(not getattr(boton, "disabled") for boton in vista.children)
     congelar.assert_not_awaited()
@@ -1544,7 +1614,7 @@ def test_actualizar_ficha_obsoleta_no_muta_ni_edita(
         db.guardar(replace(
             db.obtener(antigua.id), hambre=0.0, muerta_en=ahora, causa_muerte="hambre",
         ))
-        ascendida = db.ascender_de_la_incubadora("u1", "g1", ahora)
+        ascendida = db.ascender_un_relevo("u1", "g1")
         assert ascendida is not None and ascendida.id == reserva.id
 
     monkeypatch.setattr(db, "ahora_utc", Mock(return_value=ahora))

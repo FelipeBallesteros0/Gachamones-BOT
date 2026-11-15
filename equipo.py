@@ -19,7 +19,6 @@ import simulacion as sim
 log = logging.getLogger(__name__)
 
 SEGUNDOS_DE_MENU = 120
-EMOJI_INCUBADORA = "🥚"
 NO_SALE_SIN_NOMBRE = (
     "Ese gachamon no sale de la incubadora hasta que le pongas nombre."
 )
@@ -30,11 +29,11 @@ def _como_esta(criatura: sim.Criatura) -> str:
         return "activo ahora"
     if sim.esta_sin_nombrar(criatura):
         return "esperando nombre"
-    return "en la incubadora"
+    return "en casa"
 
 
 def _resumen(criatura: sim.Criatura) -> str:
-    """`Piollito · adulto · nivel 3 · en la incubadora`, para la lista."""
+    """`Piollito · adulto · nivel 3 · en casa`, para la lista."""
     definicion = criatura.def_especie
     etapa = esp.nombre_etapa(criatura.etapa, criatura.genero)
     return (
@@ -48,7 +47,7 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
         return "No tienes ningún gachamon. Empieza con `/huevo`."
 
     lineas = "\n".join(
-        f"{'▶️' if c.activa else EMOJI_INCUBADORA} **{sim.nombre_visible(c)}** "
+        f"{'▶️' if c.activa else pantalla.EMOJI_EN_CASA} **{sim.nombre_visible(c)}** "
         f"{pantalla.EMOJI_GENERO[c.genero]} — {_resumen(c)}"
         for c in plantel
     )
@@ -59,8 +58,8 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
         )
     else:
         cola = (
-            "-# En la incubadora no les pasa el tiempo: ni comida, ni ánimo, "
-            "ni aseo. Elige abajo cuál sacas."
+            "-# A todos les pasa el tiempo, salgan contigo o no. "
+            "Elige abajo con cuál sales."
         )
     return f"## 🧬 Tu plantel\n{lineas}\n{cola}"
 
@@ -79,7 +78,7 @@ class MenuPlantel(discord.ui.Select):
             )
             for criatura in plantel
         ]
-        super().__init__(placeholder="¿A cuál sacas?", options=opciones)
+        super().__init__(placeholder="¿Con cuál sales?", options=opciones)
         self.congelar = congelar
         self.bautizar = bautizar
         self.publicar = publicar
@@ -134,7 +133,7 @@ class MenuPlantel(discord.ui.Select):
             await self.congelar(interaccion.channel, saliente.pantalla_msg_id)
         await interaccion.response.edit_message(
             content=esp.concordar(
-                f"🧬 Sale de la incubadora **{nueva.nombre}**. "
+                f"🧬 Ahora sales con **{nueva.nombre}**. "
                 "Mír{alo/ala} con `/mascota`.",
                 nueva.genero,
             ),

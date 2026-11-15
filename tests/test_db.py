@@ -862,21 +862,24 @@ def test_a_la_que_no_es_la_activa_tambien_le_pasa_el_tiempo():
     assert tres_dias.viva and tres_dias.actualizada_en == T0 + timedelta(days=3)
 
 
-def test_al_sacarla_de_la_incubadora_no_se_le_cae_el_tiempo_encima():
-    """El detalle fino: si `actualizada_en` no se pusiera al día al activarla,
-    las horas de la incubadora se aplicarían de golpe y saldría con tres días
-    de hambre encima."""
-    dormida = incubar(nacer(), hambre=50.0)
+def test_activar_no_le_toca_el_reloj_a_nadie():
+    """Salir contigo no es despertar: `activar` sólo cambia la marca, y el
+    tiempo que les pasó a las dos sigue contando desde donde estaba."""
+    primera = nacer(nombre="Primera")
+    segunda = db.por_id(colar_dormida("Segunda"))
+
+    assert db.activar(segunda.id, "u1", "g1")
+
+    sale = db.por_id(segunda.id)
+    se_queda = db.por_id(primera.id)
+    assert sale.activa and not se_queda.activa
+    assert sale.actualizada_en == segunda.actualizada_en == T0
+    assert se_queda.actualizada_en == primera.actualizada_en == T0
+    assert sale.hambre == segunda.hambre
     tres_dias = T0 + timedelta(days=3)
-
-    assert db.activar(dormida.id, "u1", "g1", tres_dias)
-    despierta = db.criatura_activa("u1", "g1")
-
-    assert despierta.activa
-    assert despierta.hambre == 50.0
-    assert despierta.actualizada_en == tres_dias
-    # Y a partir de ahí vuelve a correrle el tiempo con normalidad.
-    assert sim.avanzar(despierta, tres_dias + timedelta(hours=10)).hambre < 50.0
+    assert db.avanzar(sale, tres_dias).hambre == pytest.approx(
+        db.avanzar(segunda, tres_dias).hambre
+    )
 
 
 def test_el_tope_del_plantel_lo_pone_la_constante():
@@ -935,7 +938,7 @@ def test_activar_apaga_a_la_anterior():
     primera = nacer(nombre="Primera")
     segunda_id = colar_dormida("Segunda")
 
-    assert db.activar(segunda_id, "u1", "g1", T0)
+    assert db.activar(segunda_id, "u1", "g1")
 
     assert db.criatura_activa("u1", "g1").nombre == "Segunda"
     assert not db.por_id(primera.id).activa
@@ -946,7 +949,7 @@ def test_no_se_puede_activar_la_de_otro():
     nacer(usuario="u2", nombre="Suya")
     ajena = db.criatura_activa("u2", "g1")
 
-    assert not db.activar(ajena.id, "u1", "g1", T0)
+    assert not db.activar(ajena.id, "u1", "g1")
     assert db.criatura_activa("u1", "g1").id == mia.id
 
 
@@ -967,9 +970,11 @@ def test_al_morir_la_activa_asciende_la_siguiente():
     db.guardar(muerta_de_antes(activa))
     assert db.criatura_activa("u1", "g1") is None
 
-    relevo = db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(days=10))
+    relevo = db.ascender_un_relevo("u1", "g1")
 
     assert relevo is not None and relevo.nombre == "Segunda"
+    # Sólo cambia la marca: el tiempo le sigue corriendo desde donde estaba.
+    assert relevo.actualizada_en == T0
     assert db.criatura_activa("u1", "g1").nombre == "Segunda"
 
 
@@ -977,14 +982,14 @@ def test_si_no_hay_nadie_esperando_no_asciende_nadie():
     activa = nacer()
     db.guardar(muerta_de_antes(activa))
 
-    assert db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(days=10)) is None
+    assert db.ascender_un_relevo("u1", "g1") is None
 
 
 def test_no_asciende_a_nadie_si_ya_hay_activa():
     nacer(nombre="Primera")
     colar_dormida("Segunda")
 
-    assert db.ascender_de_la_incubadora("u1", "g1", T0) is None
+    assert db.ascender_un_relevo("u1", "g1") is None
     assert db.criatura_activa("u1", "g1").nombre == "Primera"
 
 
@@ -998,7 +1003,7 @@ def test_un_recluta_sin_nombre_no_sale_de_la_incubadora():
     nacer(nombre="Primera")
     recluta = colar_dormida(sim.NOMBRE_PENDIENTE)
 
-    assert not db.activar(recluta, "u1", "g1", T0)
+    assert not db.activar(recluta, "u1", "g1")
     assert db.criatura_activa("u1", "g1").nombre == "Primera"
 
 
@@ -1008,7 +1013,7 @@ def test_al_ponerle_nombre_el_recluta_ya_puede_activarse():
 
     db.guardar(replace(db.por_id(recluta), nombre="Pelusa"))
 
-    assert db.activar(recluta, "u1", "g1", T0)
+    assert db.activar(recluta, "u1", "g1")
     assert db.criatura_activa("u1", "g1").nombre == "Pelusa"
 
 
@@ -1020,7 +1025,7 @@ def test_al_morir_la_activa_no_asciende_un_recluta_sin_nombre():
     con_nombre = colar_dormida("Tercera")
 
     db.guardar(muerta_de_antes(activa))
-    relevo = db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(days=10))
+    relevo = db.ascender_un_relevo("u1", "g1")
 
     assert relevo is not None and relevo.id == con_nombre
     assert relevo.nombre == "Tercera"

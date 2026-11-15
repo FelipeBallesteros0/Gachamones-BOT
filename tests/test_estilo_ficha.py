@@ -73,7 +73,7 @@ def test_cambiar_de_activa_conserva_el_estilo_de_la_persona():
     )
     db.guardar_estilo_de_ficha("dueno", "g1", "ascii")
 
-    db.activar(segunda.id, "dueno", "g1", T0)
+    db.activar(segunda.id, "dueno", "g1")
 
     assert primera.id != segunda.id
     assert db.estilo_de_ficha("dueno", "g1") == "ascii"

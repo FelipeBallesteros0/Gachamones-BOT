@@ -792,12 +792,29 @@ def test_la_ayuda_no_habla_de_morir():
     assert (
         " h en vaciarse; la estadística de salud alarga ese margen."
     ) in texto
-    assert "donde no les pasa el tiempo: ni comida, ni ánimo, ni aseo." in texto
+    assert (
+        "A los demás también les pasa el tiempo: para cuidar a otro, sal con él."
+    ) in texto
     assert re.search(r"\d+ 💎\); los otros \*\*\d+\*\* son tuyos", texto)
     assert re.search(r"son tuyos \(\d+ 💎\)\. Las gemas caen siempre", texto)
     for vieja in ("**se muere**", "si muere por el desgaste", "se te mueren",
                   "se van con él", "y se quedan"):
         assert vieja not in texto, vieja
+
+
+def test_el_plantel_del_manual_cuenta_que_a_todos_les_pasa_el_tiempo():
+    from cogs.social import paginas_de_ayuda
+
+    texto = "\n".join(paginas_de_ayuda("Gachamon"))
+    plantel = texto.split("**El plantel**\n", 1)[1].split("\n-# Se cambia con", 1)[0]
+    assert plantel == (
+        f"Puedes tener hasta **{db.MAXIMO_PLANTEL}** gachamones. **Uno es el "
+        "activo**: el que sale contigo y recibe los botones y los comandos. A los "
+        "demás también les pasa el tiempo: para cuidar a otro, sal con él."
+    )
+    assert "el que sale contigo" in plantel
+    assert "A los demás también les pasa el tiempo" in plantel
+    assert "no les pasa el tiempo" not in plantel
 
 
 def test_la_ayuda_no_dice_que_solo_cabe_una():

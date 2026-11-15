@@ -117,7 +117,7 @@ def test_el_cupo_continua_al_cambiar_de_activa():
     for i in range(5):
         assert limpiar(f"a-{i}", T0 + timedelta(minutes=54 * i)).delta_asciicoins == 1
 
-    assert db.activar(b.id, "u1", "g1", T0 + timedelta(hours=5))
+    assert db.activar(b.id, "u1", "g1")
     resultados = [
         limpiar(f"b-{i}", T0 + timedelta(minutes=54 * i))
         for i in range(5, 13)
@@ -129,10 +129,10 @@ def test_el_cupo_continua_al_cambiar_de_activa():
     assert anterior is not None and anterior.activa is False
 
 
-def test_cuidar_desde_la_ficha_de_una_incubada_no_acredita():
+def test_cuidar_desde_la_ficha_de_una_que_se_quedo_en_casa_no_acredita():
     activa = nacer()
-    incubada = nacer(nombre="B", activa=False)
-    db.guardar_pantalla(incubada.id, "pantalla-b")
+    en_casa = nacer(nombre="B", activa=False)
+    db.guardar_pantalla(en_casa.id, "pantalla-b")
     respuesta = SimpleNamespace(send_message=AsyncMock())
     interaccion = SimpleNamespace(
         id=99,
@@ -145,7 +145,7 @@ def test_cuidar_desde_la_ficha_de_una_incubada_no_acredita():
     asyncio.run(vistas._ejecutar(cast(Any, interaccion), sim.JUGAR))
 
     respuesta.send_message.assert_awaited_once()
-    assert "incubadora" in respuesta.send_message.await_args.args[0]
+    assert "se quedó en casa" in respuesta.send_message.await_args.args[0]
     assert db.criatura_activa("u1", "g1") == activa
     with db.conectar() as con:
         assert con.execute("SELECT COUNT(*) FROM operaciones_economia").fetchone()[0] == 0
@@ -159,7 +159,7 @@ def test_ascender_tras_muerte_conserva_cupos_del_dia():
     guardada = db.obtener(a.id)
     assert guardada is not None
     db.guardar(replace(guardada, muerta_en=T0, causa_muerte="prueba"))
-    ascendida = db.ascender_de_la_incubadora("u1", "g1", T0 + timedelta(hours=12))
+    ascendida = db.ascender_un_relevo("u1", "g1")
     assert ascendida is not None and ascendida.id == b.id
 
     resultado = limpiar("tras-ascenso", T0 + timedelta(hours=12))
@@ -174,7 +174,7 @@ def test_evolucion_topada_con_otra_criatura_del_plantel():
     primera = cuidar("evo-a", "g1", sim.ALIMENTAR, T0)
     assert primera.evoluciono and primera.delta_evolucion == 10
 
-    db.activar(b.id, "u1", "g1", T0 + timedelta(minutes=24))
+    db.activar(b.id, "u1", "g1")
     guardada = db.obtener(b.id)
     assert guardada is not None
     db.guardar(replace(guardada, xp=24, hambre=50.0))

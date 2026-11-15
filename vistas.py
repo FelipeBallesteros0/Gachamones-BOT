@@ -733,7 +733,8 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
         return
     if dueño.viva and not dueño.activa:
         await interaccion.response.send_message(
-            "Ese gachamon está en la incubadora. Cambia el activo para cuidarlo.",
+            "Ese gachamon se quedó en casa. "
+            "Elígelo con `/plantel` para cuidarlo desde aquí.",
             ephemeral=True,
         )
         return
@@ -769,7 +770,7 @@ async def _ejecutar(interaccion: discord.Interaction, accion: str) -> None:
                 resultado.criatura, ahora, pantalla.ACCIONES_EN_FICHA
             ),
             efectos=db.efectos_activos(resultado.criatura.id, ahora),
-            en_la_incubadora=max(
+            en_casa=max(
                 0,
                 len(db.plantel(
                     resultado.criatura.usuario_id, resultado.criatura.guild_id
@@ -1012,7 +1013,7 @@ async def responder_pantalla(
         criatura, ahora,
         esperas=db.esperas_de_ficha(criatura, ahora, pantalla.ACCIONES_EN_FICHA),
         efectos=db.efectos_activos(criatura.id, ahora),
-        en_la_incubadora=max(
+        en_casa=max(
             0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
         ),
         asciicoins=(
@@ -1044,7 +1045,7 @@ async def publicar_pantalla(
         esperas=db.esperas_de_ficha(criatura, ahora, pantalla.ACCIONES_EN_FICHA),
         aviso=aviso,
         efectos=db.efectos_activos(criatura.id, ahora),
-        en_la_incubadora=max(
+        en_casa=max(
             0, len(db.plantel(criatura.usuario_id, criatura.guild_id)) - 1
         ),
         asciicoins=(

@@ -31,10 +31,10 @@ import simulacion as sim
 # en `/jardin`, `/ranking` ni `/cementerio`, que se dibujan enteros dentro.
 EMOJI_GENERO = {esp.MACHO: "♂️", esp.HEMBRA: "♀️"}
 
-# Por lo mismo, la poción activa y la incubadora se anuncian en el subtexto y
-# nunca dentro del marco.
+# Por lo mismo, la poción activa y los que se quedan en casa se anuncian en el
+# subtexto y nunca dentro del marco.
 EMOJI_POCION = "⚗️"
-EMOJI_INCUBADORA = "🥚"
+EMOJI_EN_CASA = "🏠"
 
 ANCHO = 26          # espacio interior del marco
 ANCHO_BARRA = 12
@@ -379,7 +379,7 @@ def render(
     esperas: dict[str, timedelta] | None = None,
     aviso: str = "",
     efectos: dict[str, tuple[int, timedelta]] | None = None,
-    en_la_incubadora: int = 0,
+    en_casa: int = 0,
     asciicoins: int | None = None,
     sin_arte: bool = False,
 ) -> str:
@@ -459,11 +459,10 @@ def render(
             for stat, (bonus, restante) in sorted(efectos.items())
         ))
 
-    if en_la_incubadora:
-        cuantos = "1 espera" if en_la_incubadora == 1 else f"{en_la_incubadora} esperan"
+    if en_casa:
         partes.append(
-            f"-# {EMOJI_INCUBADORA} {cuantos} en la incubadora · «Cambiar» para sacarl"
-            + ("o" if en_la_incubadora == 1 else "os")
+            f"-# {EMOJI_EN_CASA} Tienes {en_casa} más en casa · "
+            "«Cambiar» para salir con otro"
         )
 
     return "\n".join(partes)

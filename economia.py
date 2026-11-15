@@ -1585,27 +1585,28 @@ def mudar_gachamon(
 
 @dataclass(frozen=True)
 class ResultadoCambio:
-    """Cómo salió sacar a un gachamon de la incubadora."""
+    """Cómo salió cambiar de gachamon activo."""
 
     ok: bool = False
     motivo: str | None = None          # ya_es_el_activo, no_esta o sin_nombre
-    criatura: sim.Criatura | None = None   # la activa después
-    saliente: sim.Criatura | None = None   # la que estaba, ya al día
+    criatura: sim.Criatura | None = None   # el activo después: con el que sales
+    saliente: sim.Criatura | None = None   # el que lo era y se queda en casa
 
 
 def cambiar_de_activo(
     usuario_id: str, guild_id: str, criatura_id: int, ahora: datetime
 ) -> ResultadoCambio:
-    """Saca de la incubadora a ese gachamon tuyo y mete dentro al activo.
+    """Sales con ese gachamon tuyo; el que era el activo se queda en casa.
 
-    **La que vuelve a la incubadora se pone antes al día** con el ritmo de su
-    casa, y se guarda así. Sin esto, cambiar de activo borraba las horas que
-    llevaba sin comer: en la incubadora no corren, y al sacarla otra vez se le
-    empezaba a contar desde ese momento.
+    Sólo cambia quién es el activo. A todos les pasa el tiempo, salgan contigo
+    o no, así que no se le guarda ni se le borra el paso del tiempo a ninguno.
+    Con `ok`, `criatura` y `saliente` vuelven releídas tras el cambio y
+    avanzadas hasta `ahora`, para enseñarlas como están; en la base se quedan
+    como estaban.
     """
     # Por si no le queda ninguna activa viva (la tenía muerta de antes): sale
-    # el relevo de la incubadora, como en `nacer.bautizar`. Entonces el relevo
-    # es «la que estaba».
+    # el relevo, como en `nacer.bautizar`. Entonces el relevo es «la que
+    # estaba».
     db.activa_al_dia(usuario_id, guild_id, ahora)
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1623,12 +1624,18 @@ def cambiar_de_activo(
         if sim.esta_sin_nombrar(elegida):
             return ResultadoCambio(motivo="sin_nombre", criatura=activa)
 
-        if activa is not None:
-            db._guardar(con, db._avanzar_en(con, activa, ahora))
-        nueva = db._activar_en(con, criatura_id, ahora)
-        # Releída: como quedó en la base, al día y ya en la incubadora.
+        db._activar_en(con, criatura_id)
+        # Releídas tras el cambio, con la marca nueva, y al día sin guardarlo.
+        nueva = db.criatura_en(con, criatura_id)
+        assert nueva is not None
         saliente = None if activa is None else db.criatura_en(con, activa.id)
-        return ResultadoCambio(ok=True, criatura=nueva, saliente=saliente)
+        return ResultadoCambio(
+            ok=True,
+            criatura=db._avanzar_en(con, nueva, ahora),
+            saliente=(
+                None if saliente is None else db._avanzar_en(con, saliente, ahora)
+            ),
+        )
 
 
 @dataclass(frozen=True)

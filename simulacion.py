@@ -364,9 +364,9 @@ class Criatura:
     # Siempre en falso: el aviso de hambre se fue con la muerte. Se queda porque
     # la columna sigue en el esquema.
     avisada: bool = False
-    # La que recibe los comandos y los botones. Sólo puede haber una por persona
-    # y servidor —lo impone un índice único—; a las demás el tiempo les pasa
-    # igual. Ver `avanzar`.
+    # El que sale contigo: recibe los comandos y los botones. Sólo puede haber
+    # uno por persona y servidor —lo impone un índice único—; a los demás el
+    # tiempo les pasa igual. Ver `avanzar`.
     activa: bool = True
     # Lo que lleva puesto: uno de cada tipo como mucho, y por eso van en cuatro
     # campos y no en una lista. Guardar la clave y no el cosmético entero deja

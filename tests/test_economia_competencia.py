@@ -98,10 +98,10 @@ def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
     plantel = [activa, sin_nombre, muerta, primera, segunda]
 
     assert cog_comp.texto_testigo_competencia(plantel, activa, gano=True) == (
-        "-# 👀 Desde la incubadora, **Luna** celebra a **Sol**."
+        "-# 👀 Desde casa, **Luna** celebra a **Sol**."
     )
     assert cog_comp.texto_testigo_competencia(plantel, activa, gano=False) == (
-        "-# 👀 Desde la incubadora, **Luna** espera a **Sol**."
+        "-# 👀 Desde casa, **Luna** espera a **Sol**."
     )
 
 
@@ -133,7 +133,7 @@ def test_testigo_con_cambio_de_activa_conserva_la_protagonista_del_evento():
 
     assert cog_comp.texto_testigo_competencia(
         plantel_tardio, protagonista, gano=True
-    ) == "-# 👀 Desde la incubadora, **Bruma** celebra a **Sol**."
+    ) == "-# 👀 Desde casa, **Bruma** celebra a **Sol**."
     assert cog_comp.texto_testigo_competencia(
         plantel_tardio[:2], protagonista, gano=True
     ) is None
@@ -192,7 +192,7 @@ def test_disputar_con_cambio_tardio_usa_protagonista_del_evento(monkeypatch):
         if "👀" in llamada.args[0]
     ]
     assert mensajes_testigo == [
-        "-# 👀 Desde la incubadora, **Bruma** celebra a **Sol**."
+        "-# 👀 Desde casa, **Bruma** celebra a **Sol**."
     ]
 
 
@@ -285,7 +285,7 @@ def test_disputar_cinco_participantes_publica_recibos_emparejados_y_cabe(
         f"**{testigo}**" in linea and f"**{nombre}**" in linea
         for testigo, nombre, linea in zip(testigos, nombres, reacciones)
     )
-    assert all("Desde la incubadora" in linea for linea in reacciones)
+    assert all("Desde casa" in linea for linea in reacciones)
     assert sum(" celebra a " in linea for linea in reacciones) == 1
     assert sum(" espera a " in linea for linea in reacciones) == 4
     assert [linea.split(" · ", 1)[0] for linea in lineas] == [

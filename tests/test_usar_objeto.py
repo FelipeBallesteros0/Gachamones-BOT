@@ -359,7 +359,7 @@ def en_la_incubadora(nombre="Nube"):
 def test_a_otro_gachamon_no_se_le_usa_nada_ni_se_gasta(base):
     kuro = nace("Kuro")
     nube = en_la_incubadora()
-    assert db.activar(nube.id, U, G, T0)
+    assert db.activar(nube.id, U, G)
     dar(U, "golosinas", 1)
     dar(U, "placa", 1)
     antes = (db.por_id(kuro.id), db.por_id(nube.id))
@@ -401,7 +401,7 @@ def test_el_replay_contesta_lo_de_la_primera_vez_aunque_el_activo_ya_sea_otro(ba
     placa = economia.renombrar_con_placa(
         "evento-uso-35", U, G, PLACA, "Pelusa", T0, criatura_id=kuro.id
     )
-    assert db.activar(nube.id, U, G, T0)
+    assert db.activar(nube.id, U, G)
 
     otro_uso = economia.usar_objeto(
         "evento-uso-34", U, G, GOLOSINAS, T0, criatura_id=kuro.id

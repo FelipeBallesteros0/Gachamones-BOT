@@ -312,7 +312,7 @@ def _alterar_identidad(caso, activa, reserva):
         tercera = db.crear(
             "u1", "g1", "michi", "Nube", STATS, T0, activa=False
         )
-        assert db.activar(tercera.id, "u1", "g1", T0)
+        assert db.activar(tercera.id, "u1", "g1")
     elif caso == "activo_nombre":
         db.guardar(replace(activa, nombre="Otra"))
     elif caso == "reserva_falta":
@@ -342,7 +342,7 @@ def _alterar_identidad(caso, activa, reserva):
     elif caso == "reserva_nombre":
         db.guardar(replace(reserva, nombre="Otra"))
     elif caso == "reserva_activa":
-        assert db.activar(reserva.id, "u1", "g1", T0)
+        assert db.activar(reserva.id, "u1", "g1")
     elif caso == "reserva_sin_nombre":
         db.guardar(replace(reserva, nombre=""))
     return elegida

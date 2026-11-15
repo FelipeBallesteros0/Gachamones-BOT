@@ -90,7 +90,7 @@ def test_a_nadie_se_le_guarda_reloj_de_muerte_ni_de_aviso():
 def test_cambiar_de_activo_no_le_pone_reloj_a_ninguno():
     db.crear(WEB, "g", "pollito", "Uno", STATS, T0)
     reserva = db.crear(WEB, "g", "pulpo", "Dos", STATS, T0, activa=False)
-    assert db.activar(reserva.id, WEB, "g", T0 + timedelta(hours=1))
+    assert db.activar(reserva.id, WEB, "g")
     assert all(reloj == (None, None, None) for reloj in relojes_de(WEB))
 
 

@@ -95,7 +95,7 @@ def _ha_cambiado_la_ficha(antes: sim.Criatura, despues: sim.Criatura) -> bool:
 def texto_testigo_competencia(
     plantel: list[sim.Criatura], protagonista: sim.Criatura, *, gano: bool
 ) -> str | None:
-    """Elige un testigo determinista que sólo reacciona desde la incubadora."""
+    """Elige un testigo determinista que sólo reacciona desde casa."""
     testigo = next(
         (
             criatura for criatura in plantel
@@ -112,7 +112,7 @@ def texto_testigo_competencia(
         f"celebra a **{protagonista.nombre}**"
         if gano else f"espera a **{protagonista.nombre}**"
     )
-    return f"-# 👀 Desde la incubadora, **{testigo.nombre}** {reaccion}."
+    return f"-# 👀 Desde casa, **{testigo.nombre}** {reaccion}."
 
 
 def texto_recibo_competencia(

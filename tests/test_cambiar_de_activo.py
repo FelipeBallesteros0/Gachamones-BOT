@@ -31,50 +31,34 @@ def muere(criatura):
     db.guardar(replace(criatura, hambre=0.0, muerta_en=T0, causa_muerte="hambre"))
 
 
-def relojes(criatura_id):
-    with db.conectar() as con:
-        fila = con.execute(
-            "SELECT muere_en, avisa_en FROM criaturas WHERE id = ?",
-            (criatura_id,),
-        ).fetchone()
-    return fila["muere_en"], fila["avisa_en"]
-
-
-def test_cambiar_pone_al_dia_a_la_que_sale():
-    a = nace("Ana")
-    db.guardar(replace(a, hambre=100.0))
-    a = db.por_id(a.id)
-    b = nace("Bea", activa=False)
-    cinco = T0 + timedelta(hours=5)
-
-    resultado = economia.cambiar_de_activo(U, G, b.id, cinco)
-
-    assert resultado.ok
-    assert resultado.motivo is None
-    assert db.criatura_activa(U, G).id == b.id
-    guardada = db.por_id(a.id)
-    assert guardada.actualizada_en == cinco
-    assert guardada.hambre == pytest.approx(sim.avanzar(a, cinco).hambre)
-    assert guardada.hambre < 100
-    # Y vuelve a la incubadora como cualquier otra: sin relojes que corran.
-    assert guardada.activa is False
-    assert relojes(a.id) == (None, None)
-    assert resultado.saliente == guardada
-    assert resultado.criatura.id == b.id
-
-
-def test_la_que_entra_sale_al_dia_y_sin_reloj():
+def test_cambiar_no_le_borra_el_tiempo_a_la_que_entra():
     nace("Ana")
     b = nace("Bea", activa=False)
-    ahora = T0 + timedelta(hours=3)
+    cinco = T0 + timedelta(hours=5)
+    resultado = economia.cambiar_de_activo(U, G, b.id, cinco)
+    assert resultado.ok and resultado.criatura.id == b.id
+    assert resultado.criatura.hambre == pytest.approx(sim.avanzar(b, cinco).hambre)
+    assert resultado.criatura.hambre < 100.0
+    assert db.por_id(b.id).actualizada_en == T0
 
-    resultado = economia.cambiar_de_activo(U, G, b.id, ahora)
 
-    entra = db.por_id(b.id)
-    assert entra.activa is True
-    assert entra.actualizada_en == ahora
-    assert relojes(b.id) == (None, None)
-    assert resultado.criatura == entra
+def test_a_la_que_se_queda_le_sigue_pasando_el_tiempo():
+    a = nace("Ana")
+    b = nace("Bea", activa=False)
+    resultado = economia.cambiar_de_activo(U, G, b.id, T0 + timedelta(hours=1))
+    assert resultado.saliente.id == a.id and resultado.saliente.activa is False
+    veinte = T0 + timedelta(hours=20)
+    assert db.avanzar(db.por_id(a.id), veinte).hambre == pytest.approx(sim.avanzar(a, veinte).hambre)
+
+
+def test_ir_y_volver_no_ahorra_ni_duplica_el_tiempo():
+    a = nace("Ana")
+    b = nace("Bea", activa=False)
+    for hora, quien in enumerate((b, a, b, a, b), start=1):
+        assert economia.cambiar_de_activo(U, G, quien.id, T0 + timedelta(hours=hora)).ok
+    final = T0 + timedelta(hours=10)
+    for c in (a, b):
+        assert db.avanzar(db.por_id(c.id), final).hambre == pytest.approx(sim.avanzar(c, final).hambre)
 
 
 def test_cambiar_al_que_ya_es_el_activo_no_toca_nada():
@@ -136,7 +120,7 @@ def test_con_la_activa_muerta_de_antes_sale_el_relevo_y_el_cambio_sigue():
 
     assert resultado.ok
     assert db.criatura_activa(U, G).id == c.id
-    # El relevo que sacó el remiendo es «la que estaba» y vuelve a la incubadora.
+    # El relevo que sacó el remiendo es «la que estaba» y se queda en casa.
     assert resultado.saliente.id == b.id
     assert db.por_id(b.id).activa is False
 
@@ -152,8 +136,11 @@ def test_cambiar_con_la_saliente_en_cero_la_deja_viva_en_cero():
     assert db.criatura_activa(U, G).id == b.id
     saliente = db.por_id(a.id)
     assert saliente.viva and saliente.hambre == 0.0
-    assert saliente.actualizada_en == TARDE and saliente.activa is False
-    assert resultado.saliente == saliente
+    # Se queda en casa sin que se le guarde el paso del tiempo: lo que devuelve
+    # la regla es cómo está ahora, no lo que quedó escrito.
+    assert saliente.actualizada_en == T0 and saliente.activa is False
+    assert resultado.saliente == db.avanzar(saliente, TARDE)
+    assert resultado.saliente.viva and resultado.saliente.hambre == 0.0
 
 
 def test_si_la_elegida_es_el_relevo_que_acaba_de_salir_ya_es_el_activo():

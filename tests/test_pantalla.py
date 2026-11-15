@@ -511,27 +511,33 @@ def test_se_ven_las_dos_pociones_a_la_vez():
     assert "fuerza" in texto and "velocidad" in texto
 
 
-# --- La incubadora ---------------------------------------------------------
+# --- Los que se quedan en casa ---------------------------------------------
 
-def test_la_incubadora_sale_en_el_subtexto_y_fuera_del_marco():
-    texto = pantalla.render(criatura(), T0, en_la_incubadora=2)
+def test_los_de_casa_salen_en_el_subtexto_y_fuera_del_marco():
+    texto = pantalla.render(criatura(), T0, en_casa=3)
 
-    assert "2 esperan" in texto
+    assert "-# 🏠 Tienes 3 más en casa · «Cambiar» para salir con otro" in texto
     dentro = texto.split("```ansi\n")[1].split("\n```")[0]
-    assert "🥚" not in dentro
+    assert pantalla.EMOJI_EN_CASA not in dentro
     for linea in ANSI.sub("", dentro).split("\n"):
         assert len(linea) == pantalla.ANCHO + 2, repr(linea)
 
 
-def test_con_uno_solo_la_incubadora_no_se_menciona():
+def test_con_uno_solo_no_se_menciona_la_casa():
     """La ficha de quien tiene un único gachamon no puede cambiar por esto."""
-    assert pantalla.render(criatura(), T0) == \
-        pantalla.render(criatura(), T0, en_la_incubadora=0)
+    sola = pantalla.render(criatura(), T0, en_casa=0)
+    assert pantalla.render(criatura(), T0) == sola
+    assert "en casa" not in sola and pantalla.EMOJI_EN_CASA not in sola
 
 
-def test_el_singular_de_la_incubadora_esta_bien():
-    texto = pantalla.render(criatura(), T0, en_la_incubadora=1)
-    assert "1 espera" in texto and "esperan" not in texto
+def test_con_uno_y_con_varios_el_pie_es_la_misma_frase():
+    uno = pantalla.render(criatura(), T0, en_casa=1)
+    tres = pantalla.render(criatura(), T0, en_casa=3)
+
+    assert "🏠 Tienes 1 más en casa · «Cambiar» para salir con otro" in uno
+    assert "🏠 Tienes 3 más en casa · «Cambiar» para salir con otro" in tres
+    for texto in (uno, tres, pantalla.render(criatura(), T0, en_casa=0)):
+        assert "incubadora" not in texto
 
 
 def test_la_ficha_adversarial_cabe_en_discord():
@@ -551,7 +557,7 @@ def test_la_ficha_adversarial_cabe_en_discord():
             "fuerza": (99, timedelta(hours=23, minutes=59)),
             "velocidad": (99, timedelta(hours=23, minutes=59)),
         },
-        en_la_incubadora=2,
+        en_casa=2,
         asciicoins=999_999_999,
     )
 
