@@ -54,7 +54,7 @@ def _cargar_todo():
         cliente.add_view(PantallaAnteriorView())
         cliente.add_view(NombrarView())
         comandos = list(cliente.tree.get_commands())
-        # Descargar para que el bucle de muerte no quede suelto.
+        # Descargar para que el bucle de mantenimiento no quede suelto.
         for extension in reversed(modulo_bot.EXTENSIONES):
             await cliente.unload_extension(extension)
         return comandos

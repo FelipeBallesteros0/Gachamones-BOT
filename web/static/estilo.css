@@ -2035,8 +2035,6 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .ficha-medalla-progreso { color: var(--texto-suave); }
 
-.ficha-pie { color: var(--texto-suave); font-size: 0.875rem; }
-
 /* Sin sombrero, el ropero va bajo la experiencia, a lo ancho de la tarjeta. */
 .ficha-al-ropero { grid-column: 1 / -1; }
 

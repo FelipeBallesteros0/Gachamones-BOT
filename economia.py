@@ -342,7 +342,7 @@ def pagar_logros_de_persona(
 
     Se separa de `pagar_logros` en vez de meterle un modo porque las dos miran
     cosas distintas: aquella necesita una criatura viva delante y ésta funciona
-    aunque se te haya muerto el plantel entero, que es de lo que van estas tres.
+    aunque no tengas ninguna: estas tres son tuyas, no de un gachamon.
     """
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1625,7 +1625,7 @@ def cambiar_de_activo(
         if activa is not None:
             db._guardar(con, db._avanzar_en(con, activa, ahora))
         nueva = db._activar_en(con, criatura_id, ahora)
-        # Releída: lo que quedó en la base, ya fuera de los relojes del activo.
+        # Releída: como quedó en la base, al día y ya en la incubadora.
         saliente = None if activa is None else db.criatura_en(con, activa.id)
         return ResultadoCambio(ok=True, criatura=nueva, saliente=saliente)
 

@@ -5,10 +5,10 @@ base de datos local de unas pocas decenas de filas cada operación tarda menos d
 un milisegundo, así que meter una capa async sólo añadiría complejidad.
 
 El paso del tiempo no se guarda en ningún reloj: cada criatura lleva cuándo se
-actualizó por última vez, y sus barras se calculan al leerla (`avanzar`). Nadie
-se muere de hambre, así que tampoco hay instante de muerte ni de aviso que
-guardar: `muere_en`, `avisa_en` y `avisada` siguen en el esquema, siempre
-vacías.
+actualizó por última vez, y sus barras se calculan al leerla (`avanzar`).
+Ningún gachamon muere, así que tampoco hay instante de muerte ni de aviso que
+guardar: `muere_en`, `avisa_en` y `avisada` siguen en el esquema, las dos
+primeras siempre vacías y `avisada` siempre en 0.
 """
 from __future__ import annotations
 
@@ -149,7 +149,8 @@ CREATE TABLE IF NOT EXISTS cooldowns_persona (
 );
 
 -- Lo que se ha hablado con cada criatura. Va atada a criatura_id, así que
--- cuando una muere y nace otra la relación empieza de cero sin código extra.
+-- cada una tiene la suya y la de una recién llegada empieza de cero sin código
+-- extra.
 CREATE TABLE IF NOT EXISTS conversaciones (
     id INTEGER PRIMARY KEY,
     criatura_id INTEGER NOT NULL REFERENCES criaturas(id),
@@ -166,9 +167,8 @@ CREATE TABLE IF NOT EXISTS uso_ia (
     cuando TEXT NOT NULL
 );
 
--- El monedero y los objetos son de la PERSONA, no de la criatura: así lo
--- comprado sobrevive a la muerte de una mascota y al nacimiento de la
--- siguiente. Por servidor, como todo lo demás.
+-- El monedero y los objetos son de la PERSONA, no de la criatura: lo comprado
+-- sirve para cualquiera de sus gachamones. Por servidor, como todo lo demás.
 CREATE TABLE IF NOT EXISTS inventario (
     usuario_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS inventario (
 );
 
 -- Los efectos sí van atados a la criatura: es ella la que se envalentona, y
--- cuando muere se los lleva. La clave primaria (criatura_id, stat) **es** la
+-- no se los pasa a nadie. La clave primaria (criatura_id, stat) **es** la
 -- regla de «una poción activa por estadística»: al beber otra, el ON CONFLICT
 -- sustituye a la anterior sin que haya que vigilarlo desde el código.
 CREATE TABLE IF NOT EXISTS efectos (
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS efectos (
 -- pisados. Es una tabla de clave y valor y no una columna por contador porque
 -- los logros se añaden a menudo: así uno nuevo se escribe en `logros.py` y no
 -- toca el esquema. Va atada a `criatura_id`, como los efectos: el marcador es
--- suyo y se lo lleva al morirse.
+-- suyo y no de su dueño.
 CREATE TABLE IF NOT EXISTS marcador (
     criatura_id INTEGER NOT NULL REFERENCES criaturas(id),
     clave TEXT NOT NULL,
@@ -213,8 +213,8 @@ CREATE TABLE IF NOT EXISTS logros (
 );
 
 -- Las dos de arriba, pero de la persona. Tres medallas no son del gachamon
--- —convencer salvajes y que te salga una rara los haces tú— y ésas se quedan
--- aunque se te muera el plantel entero, que es justamente lo que las distingue.
+-- —convencer salvajes y que te salga una rara los haces tú— y ésas son tuyas
+-- tengas el gachamon que tengas, que es justamente lo que las distingue.
 -- La clave primaria vuelve a ser la garantía de que ninguna se cobra dos veces.
 CREATE TABLE IF NOT EXISTS marcador_persona (
     usuario_id TEXT NOT NULL,
@@ -1874,12 +1874,9 @@ def _ropero_disponible(
 ) -> frozenset[str]:
     """Lo que tiene **menos lo que ya llevan puesto sus gachamones vivos**.
 
-    Se calcula en vez de guardarse, y ahí está la gracia: si al ponerse una
-    pieza se moviera de sitio, habría que devolverla también al morir, y la
-    muerte se consuma en media docena de lugares —el bucle de la muerte,
-    `cuidar`, la charla…—. Olvidar uno perdería una pieza de sesenta gemas sin
-    dejar rastro. Calculándolo, morirse la devuelve solo, porque el muerto deja
-    de contar aquí.
+    Se calcula en vez de guardarse: así la pieza de un gachamon que murió antes
+    volvió sola al ropero, sin que nadie tuviera que acordarse de devolverla,
+    porque un muerto deja de contar aquí.
 
     El muerto **conserva su columna**, así que en el cementerio se le sigue
     viendo vestido: vuelve la pieza, se queda el recuerdo.

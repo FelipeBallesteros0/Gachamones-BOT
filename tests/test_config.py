@@ -27,7 +27,7 @@ def test_ignora_comas_sobrantes(monkeypatch):
 
 
 def test_quita_repetidos_conservando_el_orden(monkeypatch):
-    """El primero es el canal principal, así que el orden importa."""
+    """El orden importa: sin `GUILD_WEB`, el pueblo es el primero de `GUILD_ID`."""
     assert lista("333,111,333,222", monkeypatch) == (333, 111, 222)
 
 
@@ -45,7 +45,7 @@ def test_un_valor_que_no_es_id_avisa_con_claridad(monkeypatch):
     assert "CANALES_PRUEBA" in str(fallo.value)
 
 
-def test_el_canal_principal_es_el_primero(monkeypatch):
+def test_el_primero_que_se_escribe_es_el_primero_de_la_lista(monkeypatch):
     canales = lista("777,888", monkeypatch)
     assert canales[0] == 777
 

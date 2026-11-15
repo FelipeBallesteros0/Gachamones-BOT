@@ -87,7 +87,7 @@ def test_a_nadie_se_le_guarda_reloj_de_muerte_ni_de_aviso():
     assert relojes_de(DISCORD) == [(None, None, None)]
 
 
-def test_cambiar_de_activo_no_le_devuelve_la_muerte():
+def test_cambiar_de_activo_no_le_pone_reloj_a_ninguno():
     db.crear(WEB, "g", "pollito", "Uno", STATS, T0)
     reserva = db.crear(WEB, "g", "pulpo", "Dos", STATS, T0, activa=False)
     assert db.activar(reserva.id, WEB, "g", T0 + timedelta(hours=1))
@@ -108,7 +108,7 @@ def test_tras_dias_en_cero_come_con_normalidad_y_sigue_sin_reloj():
     assert relojes_de(WEB) == [(None, None, None)]
 
 
-def test_el_viaje_no_mata_de_hambre_a_quien_no_tiene_aviso():
+def test_el_viaje_deja_en_cero_al_de_una_identidad_web_y_sigue_vivo():
     cansada = aventura.aplicar_desgaste(
         criatura(WEB, hambre=1.0), aventura.Salida(())
     )

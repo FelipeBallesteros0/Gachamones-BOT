@@ -596,8 +596,7 @@ class Social(commands.Cog):
         for viva in db.vivas_del_servidor(guild_id):
             avanzada = db.avanzar(viva, ahora)
             db.guardar(avanzada)
-            if avanzada.viva:
-                criaturas.append(avanzada)
+            criaturas.append(avanzada)
 
         if not criaturas:
             await interaccion.response.send_message(

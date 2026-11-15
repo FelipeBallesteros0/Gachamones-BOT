@@ -731,8 +731,8 @@ def test_los_muebles_cuentan_para_el_ritmo():
 
 
 def test_las_de_la_incubadora_siguen_congeladas_vivan_donde_vivan():
-    """El invariante que no se toca: si las de reserva decayeran, con diez por
-    persona se morirían hiciera lo que hiciera su dueño."""
+    """El invariante que no se toca: si las de reserva decayeran, con el
+    plantel lleno se quedarían sin comida hiciera lo que hiciera su dueño."""
     fuera = cas.ritmo_de(un_hogar(None, T0), T0 + timedelta(days=1), 1)
     guardada = _viva(activa=False)
 

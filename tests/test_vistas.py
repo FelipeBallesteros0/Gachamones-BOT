@@ -1269,8 +1269,9 @@ def test_responder_y_publicar_no_consultan_saldo_para_una_lapida(monkeypatch):
     ]
 
 
-def test_el_panel_de_un_muerto_de_antes_sigue_ensenando_la_lapida(bd_temporal):
-    """Los que ya murieron siguen muertos: su ficha es la lápida y sin botones."""
+def test_la_ficha_de_una_muerta_de_antes_es_su_lapida_sin_botones(bd_temporal):
+    """Los que ya murieron siguen muertos: responder o publicar la ficha de una
+    que murió antes arma su lápida, y va sola, sin ninguna vista de botones."""
     nacida = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
     db.guardar(replace(
         nacida, hambre=0.0, muerta_en=T0 + timedelta(days=2),
@@ -1296,6 +1297,128 @@ def test_el_panel_de_un_muerto_de_antes_sigue_ensenando_la_lapida(bd_temporal):
 
     respuesta.send_message.assert_awaited_once_with(content=lapida)
     canal.send.assert_awaited_once_with(content=lapida)
+
+
+# Pulsar el panel viejo de una que murió antes no enseña la lápida, ni lo hacía:
+# hace lo de siempre —cuida a la activa viva si la hay— y no rompe nada.
+
+MURIO = T0 + timedelta(days=2)
+PULSA = T0 + timedelta(days=9)
+
+
+def muerta_de_antes_con_panel(*, con_reserva=False):
+    """Como la dejaba la muerte de antes: la comida en 0, la marca puesta,
+    activa en 1 y su panel («ficha») todavía en el canal. Con `con_reserva`
+    deja además a una viva y con nombre en la incubadora, y la devuelve."""
+    nacida = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    reserva = (
+        db.crear("u1", "g1", SIN_RETRATO, "Reserva", STATS, T0, activa=False)
+        if con_reserva else None
+    )
+    db.guardar_pantalla(nacida.id, "ficha", "canal")
+    db.guardar(replace(
+        db.obtener(nacida.id), hambre=0.0, muerta_en=MURIO, causa_muerte="hambre",
+    ))
+    muerta = db.obtener(nacida.id)
+    assert muerta is not None and not muerta.viva and muerta.activa
+    assert muerta.pantalla_msg_id == "ficha"
+    return muerta, reserva
+
+
+def con_relevo():
+    """La muerta de antes y su relevo: la reserva que ya ascendió y es la activa."""
+    muerta, reserva = muerta_de_antes_con_panel(con_reserva=True)
+    db.guardar(replace(reserva, hambre=50.0))
+    relevo = db.ascender_de_la_incubadora("u1", "g1", PULSA)
+    assert relevo is not None and relevo.id == reserva.id
+    return muerta, relevo
+
+
+def test_alimentar_en_el_panel_de_una_muerta_de_antes_alimenta_al_relevo(
+    bd_temporal, monkeypatch
+):
+    muerta, relevo = con_relevo()
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=PULSA))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
+
+    alimentado = db.obtener(relevo.id)
+    assert alimentado is not None and alimentado.hambre == 80.0
+    # Apaga el panel pulsado y publica la ficha del relevo.
+    congelar.assert_awaited_once_with(interaccion)
+    publicar.assert_awaited_once()
+    llamada = publicar.await_args
+    assert llamada is not None
+    assert llamada.args[0] is canal
+    assert llamada.args[1] == alimentado
+    assert llamada.kwargs["ya_congelada"] == "ficha"
+    respuesta.send_message.assert_not_awaited()
+    assert not any("🪦" in str(c.args) for c in canal.send.await_args_list)
+    # La muerta no cambia.
+    assert db.obtener(muerta.id) == muerta
+
+
+def test_actualizar_en_el_panel_de_una_muerta_de_antes_dice_que_ya_no_esta_vigente(
+    bd_temporal, monkeypatch
+):
+    muerta, relevo = con_relevo()
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=PULSA + timedelta(hours=3)))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ACTUALIZAR))
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Esta ficha ya no está vigente. Abre la actual con `/mascota`.",
+        ephemeral=True,
+    )
+    respuesta.edit_message.assert_not_awaited()
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+    canal.send.assert_not_awaited()
+    # Ni el relevo ni la muerta se tocan.
+    assert db.obtener(relevo.id) == relevo
+    assert db.obtener(muerta.id) == muerta
+
+
+@pytest.mark.parametrize(
+    "con_reserva", [False, True], ids=["sola", "reserva-sin-ascender"]
+)
+def test_sin_activa_viva_el_panel_de_una_muerta_de_antes_dice_que_no_tienes_ninguno(
+    bd_temporal, monkeypatch, con_reserva
+):
+    """Con una reserva con nombre que todavía no ha ascendido es lo mismo que
+    sin nadie: pulsar un panel no corre el remiendo, que sale al entrar a la
+    web, romper el huevo, bautizar o cambiar de activo."""
+    muerta, reserva = muerta_de_antes_con_panel(con_reserva=con_reserva)
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=PULSA))
+    congelar = AsyncMock()
+    publicar = AsyncMock()
+    monkeypatch.setattr(vistas, "_congelar_pulsada", congelar)
+    monkeypatch.setattr(vistas, "publicar_pantalla", publicar)
+    interaccion, respuesta, canal = interaccion_de()
+
+    asyncio.run(vistas._ejecutar(interaccion, sim.ALIMENTAR))
+
+    respuesta.send_message.assert_awaited_once_with(
+        "No tienes ningún gachamon vivo. Empieza con `/huevo`.", ephemeral=True
+    )
+    respuesta.edit_message.assert_not_awaited()
+    congelar.assert_not_awaited()
+    publicar.assert_not_awaited()
+    canal.send.assert_not_awaited()
+    assert db.criatura_activa("u1", "g1") is None
+    assert db.obtener(muerta.id) == muerta
+    if reserva is not None:
+        assert db.obtener(reserva.id) == reserva
 
 
 def test_cuidar_con_la_comida_en_cero_publica_la_ficha_viva(

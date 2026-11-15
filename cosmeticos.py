@@ -5,8 +5,7 @@ Discord. Quién lo lleva puesto vive en la criatura, y pintarlo es de `pantalla`
 
 Dos tipos a la venta, sombreros y títulos, y **uno activo de cada** por
 gachamon. Se compran con las gemas que pagan los logros —es lo que cierra el
-círculo— y se quedan con el gachamon: son suyos, como sus medallas, y se van con
-él cuando se muere.
+círculo— y se quedan con el gachamon: son suyos, como sus medallas.
 
 Comprar otro del mismo tipo **sustituye** al anterior, que se pierde. Es la
 misma regla que las pociones y se impone igual, guardando uno solo: una lista

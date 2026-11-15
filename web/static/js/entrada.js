@@ -549,9 +549,9 @@ export function huevo(contenedor, seguir, { sesion: quien, cuenta }) {
   }));
 
   // Ya tiene uno: se mira el estado otra vez. Si ahora toca otra pantalla (ya
-  // tiene gachamon, un recluta espera nombre en la incubadora o hay una muerte
-  // que contar), se sigue con él; si no, el huevo se queda con la frase del
-  // servidor y el botón listo, en vez de volver a pintarse en silencio.
+  // tiene gachamon o un recluta espera nombre en la incubadora), se sigue con
+  // él; si no, el huevo se queda con la frase del servidor y el botón listo, en
+  // vez de volver a pintarse en silencio.
   async function yaTiene(error) {
     let estado;
     try {

@@ -10,9 +10,9 @@
 // segundos y al volver a la pestaña, baja sola las cuentas de espera de los
 // cuidados y hace hablar al gachamon de vez en cuando. Con `llegando` (se
 // acaba de llegar caminando), su primer globo sale enseguida y habla del
-// lugar, salvo que necesite algo. Si lo que llega pide otra pantalla (se
-// murió, hay uno sin nombre, ya no es el mismo) se lo pasa a `seguir`. Todo lo
-// que temporiza se detiene en cuanto la pantalla deja de estar en la página.
+// lugar, salvo que necesite algo. Si lo que llega pide otra pantalla (hay uno
+// sin nombre, ya no es el mismo) se lo pasa a `seguir`. Todo lo que temporiza
+// se detiene en cuanto la pantalla deja de estar en la página.
 //
 // Las reglas son del servidor: en qué lugar estás y qué se avisa ahí, y las
 // barras, que se pintan con lo que dice el estado sin simular el paso del

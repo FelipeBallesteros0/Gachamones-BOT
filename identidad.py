@@ -5,10 +5,10 @@ cuenta en negativo (`"-12"`), así que nunca puede chocar con uno de Discord.
 Módulo puro: no importa nada del proyecto.
 
 `sin_plazo_de_refugio` existe aparte de `es_web` a propósito: es la pregunta
-que hacen las reglas, y las reglas preguntan por ella y nunca por `es_web`. Hoy
-la respuesta coincide con `es_web`, pero el día que cambie la excepción se
-cambia sólo aquí. Del hambre ya no hay excepción que preguntar: no se muere
-nadie, juegue donde juegue.
+que hacen las reglas del refugio, que preguntan por ella y nunca por `es_web`;
+`db.crear` sí pregunta `es_web`, para otra cosa: si la cuenta sigue vigente.
+Hoy la respuesta coincide con `es_web`, pero el día que cambie la excepción se
+cambia sólo aquí.
 """
 
 from __future__ import annotations

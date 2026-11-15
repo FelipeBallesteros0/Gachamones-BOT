@@ -143,10 +143,9 @@ class Mascota(commands.Cog):
                     criatura, ahora, pantalla.ACCIONES_EN_FICHA
                 ),
                 efectos=db.efectos_activos(criatura.id, ahora),
-                asciicoins=(
-                    economia.saldos(criatura.usuario_id, criatura.guild_id).asciicoins
-                    if criatura.viva else None
-                ),
+                asciicoins=economia.saldos(
+                    criatura.usuario_id, criatura.guild_id
+                ).asciicoins,
             ))
             return
 

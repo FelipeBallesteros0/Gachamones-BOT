@@ -278,8 +278,8 @@ def caben_mas(casa: Casa, puestos: Collection[str]) -> bool:
 #
 # Dos efectos, simétricos a propósito para que se puedan explicar en una frase:
 #
-# * **A la intemperie todo cae un 25 % más rápido**, y el hambre no baja del
-#   suelo: se pasa mal, pero no se pierde el gachamon por no tener casa.
+# * **A la intemperie todo cae un 25 % más rápido**, y el hambre no baja de
+#   `SUELO_DE_HAMBRE_A_LA_INTEMPERIE`.
 # * **La comodidad por encima del refugio frena el ánimo**, hasta ese mismo 25 %
 #   en la casa mejor amueblada.
 #

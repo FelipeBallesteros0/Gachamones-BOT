@@ -25,12 +25,6 @@ const GENEROS = {
   hembra: { simbolo: '♀', nombre: 'Hembra' },
 };
 
-// Las palabras que pone la propia pantalla concuerdan con el gachamon:
-// masculino salvo para una hembra.
-function segun(genero, masculino, femenino) {
-  return genero === 'hembra' ? femenino : masculino;
-}
-
 // El carácter llega como se dice en una frase («tímido»); aquí va solo, tras el
 // género: «♂ Macho · Tímido».
 function conMayuscula(texto) {
@@ -168,9 +162,7 @@ export function ficha(contenedor, estado, seguir) {
       el('h2', { class: 'ficha-subtitulo', id: 'ficha-medallas' }, `Medallas de ${g.nombre}`),
       el('ul', { class: 'ficha-medallas' }, delGachamon.map(medalla)),
       el('h2', { class: 'ficha-subtitulo' }, 'Tuyas'),
-      el('ul', { class: 'ficha-medallas' }, tuyas.map(medalla)),
-      linea(`Las de ${g.nombre} se van con ${segun(g.genero, 'él', 'ella')} si se muere; las tuyas se quedan.`,
-        'ficha-pie'));
+      el('ul', { class: 'ficha-medallas' }, tuyas.map(medalla)));
   }
 
   // --- lo que llega -----------------------------------------------------------------------

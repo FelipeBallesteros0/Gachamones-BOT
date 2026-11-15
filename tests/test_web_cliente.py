@@ -56,10 +56,12 @@ def test_ningun_texto_del_cliente_usa_los_nombres_viejos():
 
 
 def test_el_cliente_ya_no_tiene_difunto():
-    # Ni quien elegía la pantalla, ni quien la pintaba, ni nadie que pida darlo por visto.
-    assert {"pantallas.js", "principal.js", "entrada.js"} <= {g.name for g in GUIONES}
+    # Nadie pide darlo por visto, y ni quien elegía la pantalla ni quien la
+    # pintaba lo nombran. Una pantalla del cementerio sí podrá decir «difunto».
     for guion in GUIONES:
-        assert "difunto" not in guion.read_text(encoding="utf-8").lower(), guion.name
+        assert "difunto/visto" not in guion.read_text(encoding="utf-8"), guion.name
+    for nombre in ("pantallas.js", "principal.js", "entrada.js"):
+        assert "difunto" not in _guion(nombre).lower(), nombre
     # Y la lápida de esa pantalla no deja estilo suelto.
     assert "lapida" not in (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
 
@@ -347,8 +349,7 @@ def test_el_ropero_y_la_ficha_no_escriben_claves_del_catalogo_de_cosmeticos():
 
 def test_las_frases_de_la_ficha_y_del_ropero_son_las_del_plan():
     ficha = _guion("ficha.js")
-    for frase in ("Estadísticas", "Experiencia: ", " para el nivel ", "Medallas de ", "Tuyas",
-                  " si se muere; las tuyas se quedan.", "Ropero"):
+    for frase in ("Estadísticas", "Experiencia: ", " para el nivel ", "Medallas de ", "Tuyas", "Ropero"):
         assert frase in ficha, frase
     ropero = _guion("ropero.js")
     for frase in ("Sombreros", "Títulos", "Poner", "Quitar", "Lo lleva ",
@@ -356,11 +357,11 @@ def test_las_frases_de_la_ficha_y_del_ropero_son_las_del_plan():
         assert frase in ropero, frase
 
 
-def test_la_ficha_dice_lo_que_lleva_y_de_quien_son_las_medallas_con_su_genero():
+def test_la_ficha_dice_lo_que_lleva_y_no_habla_de_morir():
     ficha = _guion("ficha.js")
-    assert "Lleva " in ficha and "Las de " in ficha
-    # El pie concuerda con el gachamon: «se van con él» o «se van con ella».
-    assert re.search(r"se van con \$\{[^}]*'él'[^}]*'ella'[^}]*\} si se muere", ficha)
+    assert "Lleva " in ficha
+    # De quién es cada grupo de medallas ya lo dicen sus dos títulos.
+    assert "se muere" not in ficha
 
 
 def test_la_ficha_y_el_ropero_vuelven_a_decidir_si_llega_otro_gachamon():

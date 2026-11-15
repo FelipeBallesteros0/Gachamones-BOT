@@ -203,7 +203,8 @@ def test_guardar_no_escribe_relojes():
 
 def test_la_tabla_de_muertes_por_anunciar_se_va_y_arrancar_dos_veces_no_falla():
     muerta = crear_la_tabla_vieja_con_una_fila()
-    db.inicializar(); db.inicializar()
+    db.inicializar()
+    db.inicializar()
     assert "muertes_por_anunciar" not in tablas()
     # Se va sin anunciar nada: la muerta de antes sigue muerta y no hay relevo.
     assert db.por_id(muerta.id).muerta_en is not None
@@ -216,7 +217,8 @@ def test_los_indices_de_los_relojes_se_van_y_no_vuelven():
                     "ON criaturas(muere_en) WHERE muerta_en IS NULL")
         con.execute("CREATE INDEX IF NOT EXISTS idx_avisa "
                     "ON criaturas(avisa_en) WHERE muerta_en IS NULL AND avisada = 0")
-    db.inicializar(); db.inicializar()
+    db.inicializar()
+    db.inicializar()
     assert not {"idx_muere", "idx_avisa"} & indices()
 
 
@@ -272,7 +274,6 @@ def test_una_base_sin_difuntos_vistos_hasta_la_gana_al_inicializar():
 
 def test_la_base_ya_no_lleva_la_cuenta_de_los_difuntos_vistos():
     """La columna se queda en el esquema, pero ya nadie la lee ni la escribe."""
-    assert not hasattr(db, "difunto_pendiente") and not hasattr(db, "marcar_difuntos_vistos")
     db.crear_identidad_web(1, "g1", T0)
     codigo = db.pedir_codigo_de_vinculo(1, T0)
     # Vincular una cuenta que ya existía no apunta nada en ella.
@@ -427,9 +428,9 @@ def test_la_criatura_recuerda_su_canal():
     assert db.criatura_activa("u1", "g1").canal_id == "555"
 
 
-def test_publicar_en_otro_canal_mueve_los_avisos():
-    """Con el bot en varios canales, los avisos siguen a la persona: se guarda
-    el canal donde se atendió por última vez."""
+def test_guardar_pantalla_apunta_el_mensaje_y_el_canal_nuevo():
+    """Con el bot en varios canales, `guardar_pantalla` apunta el mensaje de la
+    ficha y el canal donde se publicó, que sustituye al que había."""
     criatura = db.crear("u1", "g1", "pulpo", "Prueba", STATS, T0, canal_id="111")
 
     db.guardar_pantalla(criatura.id, "msg1", "222")
@@ -496,7 +497,7 @@ def test_migracion_añade_canal_id_sin_perder_criaturas():
 
     recuperada = db.criatura_activa("u1", "g1")
     assert recuperada.nombre == "Veterana"
-    # Sin canal guardado: el bot cae al canal principal para avisar.
+    # Sin canal guardado: la pantalla vieja se busca donde se publica la nueva.
     assert recuperada.canal_id is None
 
 
@@ -789,8 +790,8 @@ def colar_dormida(nombre="Dormida"):
 
 
 def test_a_la_incubadora_no_le_pasa_el_tiempo():
-    """Es lo que hace viable tener tres: si decayeran todas, dos se morirían de
-    hambre hiciera lo que hiciera su dueño."""
+    """Es lo que hace viable tener varios: si decayeran todos, los que no son el
+    activo se quedarían sin comida hiciera lo que hiciera su dueño."""
     dormida = incubar(nacer(), hambre=40.0)
     assert not dormida.activa
 
@@ -803,7 +804,8 @@ def test_a_la_incubadora_no_le_pasa_el_tiempo():
 
 def test_al_sacarla_de_la_incubadora_no_se_le_cae_el_tiempo_encima():
     """El detalle fino: si `actualizada_en` no se pusiera al día al activarla,
-    las horas de la incubadora se aplicarían de golpe y saldría muerta."""
+    las horas de la incubadora se aplicarían de golpe y saldría con tres días
+    de hambre encima."""
     dormida = incubar(nacer(), hambre=50.0)
     tres_dias = T0 + timedelta(days=3)
 

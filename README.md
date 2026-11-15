@@ -74,8 +74,7 @@ CANAL_ID=123456789012345678,987654321098765432
 Los comandos funcionan en todos ellos, y cada persona sigue teniendo **un solo
 plantel por servidor** — los canales son salas distintas para las mismas
 mascotas, no mascotas distintas. Cada criatura recuerda el canal donde se la
-atendió por última vez. El primero de la lista es el principal: se usa como
-respaldo para criaturas sin canal guardado o cuyo canal ya no existe.
+atendió por última vez.
 
 ### 3. Arrancar en local
 

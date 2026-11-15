@@ -32,7 +32,7 @@ def _lista_enteros(nombre: str) -> tuple[int, ...]:
 
     Acepta espacios y saltos de línea alrededor, y también punto y coma, porque
     es lo que sale al pegar varios IDs a mano. Quita repetidos conservando el
-    orden: el primero es el canal principal.
+    orden: sin `GUILD_WEB`, el primero de `GUILD_ID` hace de pueblo.
     """
     crudo = os.environ.get(nombre, "").replace(";", ",").replace("\n", ",")
     valores: list[int] = []
@@ -55,10 +55,6 @@ TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
 # Canales donde vive el bot, separados por comas. Fuera de ellos los comandos
 # responden con un aviso privado en vez de ensuciar otros canales.
 CANALES = _lista_enteros("CANAL_ID")
-
-# Adonde van los avisos de una criatura que no tiene canal propio guardado
-# (las nacidas antes de que el bot admitiera varios canales).
-CANAL_PRINCIPAL = CANALES[0] if CANALES else 0
 
 # Servidores donde registrar los slash commands directamente, separados por
 # comas. Así aparecen al instante; sin esto Discord tarda hasta una hora en

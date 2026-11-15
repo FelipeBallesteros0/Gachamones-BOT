@@ -1,9 +1,9 @@
 """El estado: todo lo que la pantalla necesita, en una sola lectura.
 
 Aquí no se decide ninguna regla: se llama a quien la tiene y se traduce a
-JSON. Leer no guarda el paso del tiempo del gachamon; lo único que puede
-escribir es el remiendo de `db.activa_al_dia`, que saca a alguien de la
-incubadora si no hay activa.
+JSON. Leer no guarda el paso del tiempo del gachamon; lo único del gachamon
+que puede escribir es el remiendo de `db.activa_al_dia`, que saca a alguien de
+la incubadora si no hay activa. Leer el estado también asegura el monedero.
 """
 from __future__ import annotations
 
