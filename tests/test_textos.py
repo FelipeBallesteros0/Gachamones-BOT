@@ -55,7 +55,6 @@ def test_prompts_usan_gachamon_y_aventura_nombra_comida():
     c = gachamon()
     salvaje = aventura.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10, 15))
     charla = per.construir_prompt(c, T0, "Alan")
-    jardin = per.prompt_jardin([c], T0)[0]
     viaje = per.prompt_aventura(
         c, "al bosque", [], aventura.NADA, aventura.PERCANCE
     )[0]
@@ -66,15 +65,11 @@ def test_prompts_usan_gachamon_y_aventura_nombra_comida():
     )[0]
     voz_salvaje = per.prompt_salvaje(contexto_salvaje(salvaje, c))[0]
 
-    assert "no les hablas directamente" in jardin
-    assert "Respeta el género indicado de cada gachamon" in jardin
-    assert "no les hablas a ellas" not in jardin
-    assert "referirte a él" not in jardin
-    for sistema in (charla, jardin, viaje, escena, voz_salvaje):
+    for sistema in (charla, viaje, escena, voz_salvaje):
         restante = sistema.replace(per.REGLA_NOMBRE_GACHAMON, "").casefold()
         assert "gachamon" in sistema.casefold()
         assert not re.search(r"\b(?:criaturas?|mascotas?)\b", restante)
-    for sistema in (charla, jardin, viaje, voz_salvaje):
+    for sistema in (charla, viaje, voz_salvaje):
         assert per.REGLA_NOMBRE_GACHAMON in sistema
     assert "-5 comida y -5 ánimo" in viaje
 

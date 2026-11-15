@@ -10,7 +10,6 @@ import pytest
 import db
 import especies as esp
 import nombres
-import pantalla
 import personalidad as per
 import simulacion as sim
 
@@ -491,22 +490,6 @@ def test_la_criatura_recuerda_su_canal():
     assert db.criatura_activa("u1", "g1").canal_id == "555"
 
 
-def test_guardar_pantalla_apunta_el_mensaje_y_el_canal_nuevo():
-    """Con el bot en varios canales, `guardar_pantalla` apunta el mensaje de la
-    ficha y el canal donde se publicó, que sustituye al que había."""
-    criatura = db.crear("u1", "g1", "pulpo", "Prueba", STATS, T0, canal_id="111")
-
-    db.guardar_pantalla(criatura.id, "msg1", "222")
-    movida = db.criatura_activa("u1", "g1")
-    assert movida.canal_id == "222"
-    assert movida.pantalla_msg_id == "msg1"
-
-
-def test_guardar_pantalla_sin_canal_no_borra_el_que_habia():
-    criatura = db.crear("u1", "g1", "pulpo", "Prueba", STATS, T0, canal_id="111")
-    db.guardar_pantalla(criatura.id, "msg1")
-    assert db.criatura_activa("u1", "g1").canal_id == "111"
-
 
 def test_el_genero_y_el_caracter_van_y_vuelven():
     db.crear("u1", "g1", "pulpo", "Prueba", STATS, T0,
@@ -563,14 +546,6 @@ def test_migracion_añade_canal_id_sin_perder_criaturas():
     # Sin canal guardado: la pantalla vieja se busca donde se publica la nueva.
     assert recuperada.canal_id is None
 
-
-def test_saber_de_quien_es_una_pantalla():
-    criatura = nacer()
-    db.guardar_pantalla(criatura.id, "999")
-
-    encontrada = db.criatura_por_pantalla("999")
-    assert encontrada is not None and encontrada.id == criatura.id
-    assert db.criatura_por_pantalla("otra") is None
 
 
 # --- Memoria de la conversación --------------------------------------------
@@ -1230,18 +1205,6 @@ def test_competir_sigue_siendo_del_gachamon():
     assert db.espera_de(primero.id, sim.COMPETIR, T0) == sim.COOLDOWNS[sim.COMPETIR]
     assert db.espera_de(segundo_id, sim.COMPETIR, T0) == timedelta(0)
 
-
-def test_la_ficha_junta_lo_del_gachamon_con_lo_de_la_persona():
-    """La ficha enseña las dos clases de espera, y cada una vive en su tabla."""
-    criatura = nacer()
-    db.poner_cooldown(criatura.id, sim.COMPETIR, T0)
-    db.poner_cooldown_persona("u1", "g1", sim.AVENTURA, T0)
-
-    esperas = db.esperas_de_ficha(criatura, T0, pantalla.ACCIONES_EN_FICHA)
-
-    assert esperas[sim.COMPETIR] == sim.COOLDOWNS[sim.COMPETIR]
-    assert esperas[sim.AVENTURA] == sim.COOLDOWNS[sim.AVENTURA]
-    assert esperas[sim.ALIMENTAR] == timedelta(0)
 
 
 def test_la_migracion_conserva_la_espera_de_aventura_en_curso():

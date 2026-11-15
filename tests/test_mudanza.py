@@ -27,6 +27,8 @@ import comun
 import config
 import db
 import economia
+import personalidad as per
+import simulacion as sim
 from cogs import mudanza
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -600,3 +602,30 @@ def test_solo_el_bot_habla_con_discord():
 def test_lo_comun_es_solo_el_canal_y_el_error():
     assert {n for n in vars(comun) if not n.startswith("_") and inspect.getmodule(getattr(comun, n)) is comun} \
         == {"CanalEquivocado", "solo_en_el_canal", "manejar_error"}
+
+
+@pytest.mark.parametrize("modulo, nombre", [
+    (economia, "ejecutar_entrenamiento_conjunto"), (economia, "SeleccionEntrenamientoConjunto"),
+    (economia, "ResultadoEntrenamientoConjunto"), (economia, "freno_de"),
+    (sim, "aplicar_entrenamiento_conjunto"), (sim, "EFECTO_ENTRENAMIENTO_CONJUNTO"),
+    (db, "criatura_por_pantalla"), (db, "guardar_pantalla"), (db, "esperas_de_ficha"),
+    (db, "estilo_de_ficha"), (db, "guardar_estilo_de_ficha"), (db, "vivas_del_servidor"),
+    (per, "prompt_jardin"),
+])
+def test_lo_que_era_solo_de_discord_ya_no_esta(modulo, nombre):
+    assert not hasattr(modulo, nombre)
+
+
+@pytest.mark.parametrize("nombre", [
+    "ejecutar_viaje", "otorgar_hallazgo", "ejecutar_competencia", "puede_aprender_hablando", "aprender_hablando",
+])
+def test_lo_que_vuelve_en_la_pagina_se_queda(nombre):
+    assert callable(getattr(economia, nombre))
+
+
+def test_no_se_fue_ninguna_tabla_ni_columna():
+    with db.conectar() as con:
+        tablas = {f[0] for f in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        columnas = {f["name"] for f in con.execute("PRAGMA table_info(criaturas)")}
+    assert {"estilos_ficha", "conversaciones", "uso_ia", "buzon", "publicaciones", "cooldowns_persona"} <= tablas
+    assert {"pantalla_msg_id", "canal_id"} <= columnas

@@ -1187,19 +1187,6 @@ def _activar_en(con: sqlite3.Connection, criatura_id: int) -> None:
     con.execute("UPDATE criaturas SET activa = 1 WHERE id = ?", (criatura_id,))
 
 
-def criatura_por_pantalla(mensaje_id: str) -> sim.Criatura | None:
-    """De quién es la pantalla que se acaba de pulsar.
-
-    Sirve para no dejar que alguien actúe sobre su propia criatura pulsando en
-    la pantalla de otra persona: vería aparecer una mascota que no es la de ese
-    mensaje y no entendería nada.
-    """
-    with conectar() as con:
-        fila = con.execute(
-            "SELECT * FROM criaturas WHERE pantalla_msg_id = ?", (mensaje_id,)
-        ).fetchone()
-    return _a_criatura(fila) if fila else None
-
 
 def obtener(criatura_id: int) -> sim.Criatura | None:
     with conectar() as con:
@@ -1386,26 +1373,6 @@ def _guardar(con: sqlite3.Connection, criatura: sim.Criatura) -> None:
     con.execute(f"UPDATE criaturas SET {asignaciones} WHERE id = :id", valores)
 
 
-def guardar_pantalla(
-    criatura_id: int, mensaje_id: str | None, canal_id: str | None = None
-) -> None:
-    """Apunta dónde está la pantalla viva y en qué canal.
-
-    El canal se actualiza en cada publicación, así que la pantalla vieja se
-    encuentra aunque la persona se cambie de canal a media partida.
-    """
-    with conectar() as con:
-        if canal_id is None:
-            con.execute(
-                "UPDATE criaturas SET pantalla_msg_id = ? WHERE id = ?",
-                (mensaje_id, criatura_id),
-            )
-        else:
-            con.execute(
-                "UPDATE criaturas SET pantalla_msg_id = ?, canal_id = ? WHERE id = ?",
-                (mensaje_id, canal_id, criatura_id),
-            )
-
 
 # --- El manual publicado en su canal ---------------------------------------
 
@@ -1556,27 +1523,6 @@ def poner_cooldown_persona(
             (usuario_id, guild_id, accion, (ahora + duracion).isoformat()),
         )
 
-
-def esperas_de_ficha(
-    criatura: sim.Criatura,
-    ahora: datetime,
-    acciones: Collection[str] = sim.ACCIONES_DE_CUIDADO,
-) -> dict[str, timedelta]:
-    """Todas las esperas que salen en la ficha, cada una de su tabla.
-
-    Se junta aquí y no en cada vista porque son cuatro los sitios que pintan la
-    ficha: si cada uno tuviera que acordarse de mirar en los dos lados, el día
-    que se añada un quinto se le olvidaría y el 🧭 saldría siempre a cero.
-
-    `acciones` la pone quien llama —`pantalla.ACCIONES_EN_FICHA`— porque la lista
-    de lo que se enseña es cosa de la presentación, y este módulo no la importa.
-    """
-    todas = esperas(criatura.id, ahora, acciones)
-    if sim.AVENTURA in todas:
-        todas[sim.AVENTURA] = espera_de_persona(
-            criatura.usuario_id, criatura.guild_id, sim.AVENTURA, ahora
-        )
-    return todas
 
 
 # --- Inventario ------------------------------------------------------------
@@ -1996,28 +1942,6 @@ def anotar_accion_en(
 
 
 # --- El estilo público de la ficha ----------------------------------------
-
-def estilo_de_ficha(usuario_id: str, guild_id: str) -> str:
-    """La elección pública de la persona; Imagen si nunca eligió."""
-    with conectar() as con:
-        fila = con.execute(
-            "SELECT estilo FROM estilos_ficha "
-            "WHERE usuario_id = ? AND guild_id = ?",
-            (usuario_id, guild_id),
-        ).fetchone()
-    return fila["estilo"] if fila is not None else "imagen"
-
-
-def guardar_estilo_de_ficha(usuario_id: str, guild_id: str, estilo: str) -> None:
-    if estilo not in ("imagen", "ascii"):
-        raise ValueError(f"Estilo de ficha inválido: {estilo}")
-    with conectar() as con:
-        con.execute(
-            "INSERT INTO estilos_ficha (usuario_id, guild_id, estilo) "
-            "VALUES (?, ?, ?) "
-            "ON CONFLICT (usuario_id, guild_id) DO UPDATE SET estilo = excluded.estilo",
-            (usuario_id, guild_id, estilo),
-        )
 
 
 # --- El ropero -------------------------------------------------------------

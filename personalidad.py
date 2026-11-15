@@ -599,13 +599,11 @@ def describir_estado(criatura: sim.Criatura, ahora: datetime) -> str:
     """Cómo se siente la criatura, en palabras y sin un solo número.
 
     Redactado como frases sin sujeto, no en segunda persona. Lo usan tanto el
-    prompt de la charla («CÓMO ESTÁS: bien comido y con energía») como el del
-    jardín, que narra en tercera persona: escrito como «estás bien comido», la
-    narración del jardín se contagiaba y acababa tuteando a las criaturas.
+    prompt de la charla («CÓMO ESTÁS: bien comido y con energía») como los que
+    narran en tercera persona.
 
-    Devuelve el texto ya concordado con el género: el jardín mezcla criaturas de
-    géneros distintos en un mismo prompt, así que no se puede dejar para el
-    final como en `construir_prompt()`.
+    Devuelve el texto ya concordado con el género, así que no se puede dejar
+    para el final como en `construir_prompt()`.
     """
     partes = [
         _nivel(
@@ -738,8 +736,8 @@ CÓMO ESTÁS AHORA MISMO
 def _ficha(criatura: sim.Criatura, ahora: datetime) -> str:
     """Quién es una criatura, en corto, para meterla en un prompt compartido.
 
-    Se concorda aquí, criatura a criatura: en el jardín conviven géneros
-    distintos dentro del mismo prompt.
+    Se concorda aquí, criatura a criatura, porque en un prompt compartido
+    pueden convivir géneros distintos.
     """
     definicion = criatura.def_especie
     voz = VOCES[criatura.especie]
@@ -753,44 +751,6 @@ def _ficha(criatura: sim.Criatura, ahora: datetime) -> str:
     )
     return esp.concordar(ficha, criatura.genero)
 
-
-def prompt_jardin(
-    criaturas: list[sim.Criatura], ahora: datetime
-) -> tuple[str, str]:
-    """El prompt para narrar qué pasa en el jardín.
-
-    Devuelve `(sistema, petición)`. Se le pasan una o dos criaturas: con una
-    hace algo sola, con dos interactúan.
-    """
-    fichas = "\n".join(_ficha(c, ahora) for c in criaturas)
-    nombres = " y ".join(c.nombre for c in criaturas)
-
-    sistema = f"""Narras lo que ocurre en un jardín donde conviven gachamones de un canal de Discord.
-
-LOS GACHAMONES DE ESTA ESCENA
-{fichas}
-
-CÓMO NARRAR
-- {REGLA_ESPANOL_NEUTRO}
-- En TERCERA persona: cuentas lo que hacen, no les hablas directamente.
-- Muy breve: 40 palabras como máximo en total. Una escena pequeña, no un relato.
-- El límite es para ti, no para contarlo: no escribas el recuento de palabras ni
-  ninguna otra nota al final de la escena.
-- Empieza por lo que hacen, no por describir cómo son.
-- Cada gachamon se comporta según su carácter y cómo está de ánimo y de hambre.
-- Respeta el género indicado de cada gachamon.
-- Puedes incluir como mucho una frase dicha por uno de ellos, con su forma de
-  hablar, en la forma «Nombre: lo que dice».
-- {REGLA_NOMBRE_GACHAMON}
-- Nada de markdown, negritas, listas ni emoji. Solo texto normal.
-- No expliques la escena ni saques conclusiones: cuéntala y corta."""
-
-    peticion = (
-        f"Cuenta qué está haciendo {nombres} en el jardín ahora mismo."
-        if len(criaturas) > 1
-        else f"Cuenta qué está haciendo {nombres}, que está sol{{o/a}} en el jardín."
-    )
-    return sistema, esp.concordar(peticion, criaturas[0].genero)
 
 
 def frase_de_respaldo(criatura: sim.Criatura, semilla: int = 0) -> str:
@@ -832,7 +792,7 @@ def prompt_aventura(
     """El prompt para narrar el viaje entero de una vez.
 
     Una sola llamada por aventura, no una por tramo: el límite de IA lo comparten
-    la charla y el jardín, y con tres o cuatro llamadas por salida se agotaría en
+    la charla y las aventuras, y con tres o cuatro llamadas por salida se agotaría en
     dos aventuras.
 
     `pruebas` son objetos con `obstaculo`, `stat` y `superada`; se le pasan ya
@@ -854,7 +814,7 @@ def prompt_aventura(
     glosario_salud = REGLAS_STAT["salud"]
     glosario_ingenio = REGLAS_STAT["ingenio"]
     caracter = CARACTERES[criatura.caracter]
-    # En campos y no en una frase, como el jardín. Servido como «Juan III, pyro
+    # En campos y no en una frase. Servido como «Juan III, pyro
     # macho y perezoso» el modelo lo copiaba entero de aposición —«Juan III, ese
     # pyro macho y perezoso, se burla…»—, que es leerle la ficha a quien ya la
     # tiene delante. En campos no hay nada que copiar.

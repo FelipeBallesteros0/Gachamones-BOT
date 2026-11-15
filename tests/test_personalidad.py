@@ -169,41 +169,6 @@ def test_el_historial_de_competencias_se_refleja():
     assert "orgullosa" in ella
 
 
-# --- El jardín -------------------------------------------------------------
-
-def test_el_prompt_del_jardin_describe_a_las_dos():
-    a = criatura(especie="pollito", nombre="Kuro")
-    b = criatura(especie="michi", nombre="Nube")
-    sistema, peticion = per.prompt_jardin([a, b], T0)
-
-    assert "Kuro" in sistema and "Nube" in sistema
-    assert "pío" in sistema      # la muletilla del pollito
-    assert "zarpazo" in sistema  # cómo reacciona el michi al contacto
-    assert "Kuro" in peticion and "Nube" in peticion
-
-
-def test_el_prompt_del_jardin_admite_una_sola_criatura():
-    _, peticion = per.prompt_jardin([criatura(nombre="Solitario")], T0)
-    assert "solo" in peticion
-    _, peticion = per.prompt_jardin(
-        [criatura(nombre="Solitaria", genero=esp.HEMBRA)], T0)
-    assert "sola" in peticion
-
-
-def test_el_jardin_tambien_prohibe_el_markdown_y_los_emoji():
-    sistema, _ = per.prompt_jardin([criatura(), criatura()], T0)
-    assert "markdown" in sistema
-    assert "emoji" in sistema
-
-
-def test_el_estado_de_cada_una_entra_en_la_escena():
-    """Una criatura hambrienta tiene que comportarse como tal en el jardín."""
-    llena, _ = per.prompt_jardin([criatura(hambre=95.0)], T0)
-    vacia, _ = per.prompt_jardin([criatura(hambre=5.0)], T0)
-    assert llena != vacia
-    assert "hambre" in vacia.lower()
-
-
 def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
     import aventura as av
 
@@ -211,7 +176,6 @@ def test_todos_los_prompts_relevantes_exigen_espanol_neutro():
     salvaje = av.Salvaje("chispa", "Salvaje", c.genero, "gruñón", (10, 10, 10, 15))
     prompts = (
         per.construir_prompt(c, T0, "Felipe"),
-        per.prompt_jardin([c], T0)[0],
         per.prompt_aventura(c, "al bosque", [], av.NADA)[0],
         per.prompt_salvaje(contexto_salvaje(salvaje, c))[0],
         per.prompt_escena(
@@ -327,7 +291,6 @@ def todos_los_textos(genero: str) -> list[str]:
                              victorias=3, derrotas=1)
                 textos.append(per.construir_prompt(c, T0, "felipe"))
                 textos.append(per.describir_estado(c, T0))
-                textos.extend(per.prompt_jardin([c], T0))
                 textos.extend(per.frase_de_respaldo(c, i) for i in range(3))
                 textos.extend(_textos_de_aventura(c, genero))
     return textos
@@ -434,11 +397,9 @@ def test_la_palabra_del_caracter_concuerda_con_el_genero():
         criatura(caracter="valiente", genero=esp.HEMBRA)) == "valiente"
 
 
-def test_el_caracter_entra_en_el_prompt_y_en_el_jardin():
+def test_el_caracter_entra_en_el_prompt():
     c = criatura(caracter="perezoso")
     assert per.CARACTERES["perezoso"].rasgo in per.construir_prompt(c, T0, "felipe")
-    sistema, _ = per.prompt_jardin([c], T0)
-    assert "perezoso" in sistema
 
 
 def test_el_caracter_no_sustituye_a_la_voz_de_la_especie():

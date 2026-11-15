@@ -210,12 +210,6 @@ EFECTOS_CUIDADO = {
     ENTRENAR: {"hambre": -15, "animo": -10, "ent_fuerza": 2},
     LIMPIAR: {"limpieza": 100.0},
 }
-EFECTO_ENTRENAMIENTO_CONJUNTO = {
-    "xp": 2,
-    "hambre": -10,
-    "animo": -5,
-    "ent_fuerza": 1,
-}
 
 # Lo que deja una conversación de la que ha aprendido algo. Es el único sitio
 # donde sube `ent_ingenio`: hasta ahora la cuarta estadística sólo crecía al
@@ -1105,41 +1099,6 @@ def aplicar_caricia(criatura: Criatura) -> ResultadoAccion:
     )
     return ResultadoAccion(nueva, "Se ha quedado muy content{o/a} con la caricia.")
 
-
-def aplicar_entrenamiento_conjunto(criatura: Criatura) -> ResultadoAccion:
-    """Aplica la parte inmediata de una criatura en un entrenamiento compartido."""
-    if not criatura.viva:
-        return ResultadoAccion(
-            criatura, "Tu gachamon ya no está entre nosotros.", ok=False
-        )
-
-    efecto = EFECTO_ENTRENAMIENTO_CONJUNTO
-    entrenada = replace(
-        criatura,
-        hambre=_limitar(criatura.hambre + efecto["hambre"]),
-        animo=_limitar(criatura.animo + efecto["animo"]),
-        ent_fuerza=max(
-            0, min(100, criatura.ent_fuerza + efecto["ent_fuerza"])
-        ),
-    )
-    esfuerzo = Esfuerzo(
-        "fuerza",
-        4.0 * max(
-            10.0 / max(10.0, criatura.hambre),
-            5.0 / max(5.0, criatura.animo),
-        ),
-        causa=ENTRENAR,
-    )
-    crecida, rupturas = aplicar_evento(
-        entrenada, (esfuerzo,), efecto["xp"]
-    )
-    return ResultadoAccion(
-        criatura=crecida,
-        mensaje="Entrenamiento conjunto completado.",
-        rupturas=rupturas,
-        marca=bool(rupturas or _tensiones(crecida) != _tensiones(entrenada)),
-        etapa_anterior=criatura.etapa,
-    )
 
 
 def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:

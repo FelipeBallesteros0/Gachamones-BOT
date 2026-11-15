@@ -314,34 +314,6 @@ def test_entrenar_cuesta_hambre_y_animo():
     assert r.criatura.animo == 70.0
 
 
-def test_entrenamiento_conjunto_aplica_la_mitad_inmediata_sin_tocar_el_reloj():
-    c = criatura(hambre=80.0, animo=50.0, activa=False)
-
-    r = sim.aplicar_entrenamiento_conjunto(c)
-
-    assert r.ok
-    assert r.criatura.hambre == 70.0
-    assert r.criatura.animo == 45.0
-    assert r.criatura.ent_fuerza == 1
-    assert r.criatura.xp == 2
-    assert r.criatura.actualizada_en == T0
-    assert not r.criatura.activa
-    assert c == criatura(hambre=80.0, animo=50.0, activa=False)
-
-
-def test_entrenamiento_conjunto_limita_barras_y_rechaza_muertas():
-    viva = sim.aplicar_entrenamiento_conjunto(
-        criatura(hambre=4.0, animo=3.0, ent_fuerza=100)
-    )
-    muerta = criatura(muerta_en=T0, causa_muerte="hambre")
-
-    assert viva.criatura.hambre == 0.0
-    assert viva.criatura.animo == 0.0
-    assert viva.criatura.ent_fuerza == 100
-    assert sim.aplicar_entrenamiento_conjunto(muerta) == sim.ResultadoAccion(
-        muerta, "Tu gachamon ya no está entre nosotros.", ok=False
-    )
-
 
 def test_entrenamiento_solo_conserva_sus_numeros():
     r = sim.aplicar_accion(
