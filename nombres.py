@@ -4,7 +4,7 @@ Módulo puro: sin discord, sin SQLite y sin azar propio. Lo usan el
 reclutamiento (`nacer.unir_recluta`) y la migración que les pone nombre a los
 que se unieron antes y lo esperaban (`db._migrar`).
 
-Son cuarenta, más que el plantel entero (`db.MAXIMO_PLANTEL`), así que a quien
+Son cuarenta, más que los gachamones que caben (`departamento.MAXIMO_DE_GACHAMONES`), así que a quien
 se une siempre le queda alguno que no lleva otro de su dueño.
 """
 from __future__ import annotations

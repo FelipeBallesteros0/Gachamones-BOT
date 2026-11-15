@@ -856,31 +856,6 @@ def test_activar_no_le_toca_el_reloj_a_nadie():
     )
 
 
-def test_el_tope_del_plantel_lo_pone_la_constante():
-    """Sin el número escrito a mano: antes decía «tres pero no cuatro» y al
-    subir el tope habría habido que reescribirlo, que es justo cuando un test
-    con el número dentro se queda mintiendo."""
-    incubar(nacer(nombre="C0"))
-    for i in range(1, db.MAXIMO_PLANTEL):
-        colar_dormida(f"C{i}")
-    assert len(db.plantel("u1", "g1")) == db.MAXIMO_PLANTEL
-
-    with pytest.raises(ValueError):
-        db.crear("u1", "g1", "pulpo", "ElQueSobra", STATS, T0)
-    assert len(db.plantel("u1", "g1")) == db.MAXIMO_PLANTEL
-
-
-def test_el_tope_es_por_persona_y_por_servidor():
-    """Llenar el plantel en un servidor no te deja sin sitio en el otro, ni le
-    quita hueco a nadie más."""
-    incubar(nacer(nombre="C0"))
-    for i in range(1, db.MAXIMO_PLANTEL):
-        colar_dormida(f"C{i}")
-
-    assert db.crear("u1", "g2", "pulpo", "EnOtroServidor", STATS, T0)
-    assert db.crear("u2", "g1", "pulpo", "DeOtraPersona", STATS, T0)
-
-
 def test_solo_una_activa_a_la_vez_lo_impide_el_indice():
     """Como antes con `una_viva`: lo garantiza la base de datos y no el código,
     así que dos clics simultáneos no pueden dejar dos activas."""

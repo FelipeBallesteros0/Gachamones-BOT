@@ -8,6 +8,7 @@ import pytest
 import db
 import economia
 import logros
+from test_camas import poner_camas
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
@@ -65,6 +66,7 @@ def test_al_reclutar_domador_es_tuyo():
     import nacer as nac
 
     bicho = db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
+    poner_camas("1", 2)
     nac.unir_recluta(
         "1", "g1", especie="michi", stats=(10, 10, 10, 15), genero="macho",
         caracter="sereno", ahora=T0, rng=random.Random(1),
@@ -90,6 +92,7 @@ def test_reclutar_un_raro_tambien_da_uno_entre_veinticinco(clave):
 
     assert esp.ESPECIES[clave].rareza == esp.RARA
     db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
+    poner_camas("1", 2)
     nac.unir_recluta(
         "1", "g1", especie=clave, stats=(10, 10, 10, 15), genero=esp.MACHO,
         caracter="sereno", ahora=T0, rng=random.Random(1),

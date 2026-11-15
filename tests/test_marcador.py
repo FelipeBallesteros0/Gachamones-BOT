@@ -239,14 +239,13 @@ def test_los_reclutas_de_tus_gachamones_suman_en_el_mismo_sitio():
 
 def test_el_recluta_que_no_cabe_no_se_apunta():
     """El alta y el marcador van en la misma transacción justamente para esto:
-    con el plantel lleno no puede quedar apuntado un salvaje que no se unió."""
-    for i in range(db.MAXIMO_PLANTEL):
-        nacer(nombre=f"Relleno{i}", activa=i == 0)
+    sin cama libre no puede quedar apuntado un salvaje que no se unió."""
+    nacer(nombre="Primero")                       # tú y él, con una sola cama puesta
 
-    with pytest.raises(ValueError):
+    with pytest.raises(db.SinCamaLibre):
         db.crear(
             "u1", "g1", "michi", "Recluta", STATS, T0,
-            activa=False, reclutada=True,
+            activa=False, reclutada=True, pide_cama=True,
         )
 
     assert db.marcador_de_persona("u1", "g1") == {}

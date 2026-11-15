@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-import db
+import departamento as dep
 import especies as esp
 import nombres
 import simulacion as sim
@@ -12,7 +12,7 @@ import simulacion as sim
 # --- Los nombres que se pone un recluta -------------------------------------
 
 def test_la_lista_de_nombres_de_recluta_vale():
-    assert len(nombres.NOMBRES) == 40 > db.MAXIMO_PLANTEL + 1
+    assert len(nombres.NOMBRES) == 40 > dep.MAXIMO_DE_GACHAMONES + 1
     assert all(sim.normalizar_nombre(n) == n for n in nombres.NOMBRES)
     assert len({n.casefold() for n in nombres.NOMBRES}) == 40
     assert not {n.casefold() for n in nombres.NOMBRES} & {e.nombre.casefold() for e in esp.ESPECIES.values()}

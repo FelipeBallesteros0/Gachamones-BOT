@@ -79,9 +79,9 @@ def unir_recluta(
 
     No es el activo: uno que se une no desbanca sin avisar al que salía
     contigo. El reclutamiento se le apunta a la persona en la misma
-    transacción que lo crea (`db.crear` con `reclutada`). Deja pasar el
-    `ValueError` del plantel lleno y el `sqlite3.IntegrityError`, como
-    `db.crear`.
+    transacción que lo crea (`db.crear` con `reclutada`). Pide una cama puesta
+    libre: sin ella deja pasar `db.SinCamaLibre`, y también el
+    `sqlite3.IntegrityError`, como `db.crear`.
     """
     rng = rng or random.Random()
     return db.crear(
@@ -97,6 +97,7 @@ def unir_recluta(
         activa=False,
         reclutada=True,
         se_nombro_solo=True,
+        pide_cama=True,
     )
 
 

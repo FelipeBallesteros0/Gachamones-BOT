@@ -40,19 +40,6 @@ logger = logging.getLogger(__name__)
 
 RUTA: Path = config.RUTA_BD
 
-# Cuántos gachamones puede tener una persona por servidor. Uno es el activo, el
-# que sale contigo, y a todos les pasa el tiempo. El primero sale del huevo; los
-# demás sólo reclutándolos.
-#
-# Subió de 3 a 10 y de 10 a 25 para que coleccionar sea un objetivo largo. Lo
-# que de verdad cambia con este número es la aventura: con el plantel lleno los
-# salvajes se convierten en objetos, así que el tope decide cuánto dura la fase
-# de reclutar. Medido, se recluta en el 5,5 % de las aventuras y hay 37 minutos
-# entre una y otra: llenar dos huecos son unas 22 horas de juego.
-#
-# El 25 lo fijó el desplegable del plantel en Discord, que admitía 25 opciones.
-MAXIMO_PLANTEL = 25
-
 # El esquema va en dos trozos porque el orden importa: primero las tablas,
 # después las migraciones que añaden columnas nuevas, y sólo entonces los
 # índices — que referencian esas columnas y fallarían si se crearan antes.
@@ -1217,6 +1204,23 @@ class IdentidadCaducada(Exception):
     """La identidad web ya no figura en `cuentas_web` (se vinculó)."""
 
 
+class SinCamaLibre(ValueError):
+    """No hay una cama puesta libre para quien llega.
+
+    Hereda de `ValueError` porque quien recluta ya trata ese error como «no
+    cabe».
+    """
+
+
+def hay_cama_libre(usuario_id: str, guild_id: str) -> bool:
+    """Si a esa persona le cabe un gachamon más: sólo cuentan las camas puestas."""
+    with conectar() as con:
+        return dep.cama_libre(
+            _departamento_leido(con, usuario_id, guild_id),
+            len(plantel_en(con, usuario_id, guild_id)),
+        )
+
+
 def crear(
     usuario_id: str,
     guild_id: str,
@@ -1232,6 +1236,7 @@ def crear(
     *,
     cuenta_vigente: bool = False,
     se_nombro_solo: bool = False,
+    pide_cama: bool = False,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
 
@@ -1243,15 +1248,16 @@ def crear(
     aventura no puede desbancar sin avisar al que llevabas.
 
     `reclutada` dice que llega de una aventura, y le apunta el reclutamiento a
-    **la persona** aquí dentro: si el alta se cae por el tope del plantel, no
+    **la persona** aquí dentro: si el alta se cae por falta de cama, no
     puede quedar apuntado un salvaje que no llegó a unirse. No hace falta decir
     qué gachamon lo convenció porque la medalla ya no es suya: a la aventura va
     la persona, que es la misma que sale en esta fila.
 
     Dos defensas distintas y las dos hacen falta:
 
-    - **El tope de tres** se comprueba aquí dentro con `BEGIN IMMEDIATE`, porque
-      no cabe en un índice. Levanta `ValueError`.
+    - **La cama libre** se comprueba aquí dentro con `BEGIN IMMEDIATE`, porque
+      no cabe en un índice, y sólo si `pide_cama`: levanta `SinCamaLibre` antes
+      de insertar y de apuntar nada. Quien nace del huevo no la pide.
     - **Una sola activa** lo sigue imponiendo el índice único, que hace saltar
       `sqlite3.IntegrityError`: es la defensa contra romper dos huevos a la vez.
 
@@ -1279,22 +1285,20 @@ def crear(
     marcadores = ", ".join(f":{c}" for c in columnas)
 
     with conectar() as con:
-        # El turno de escritura se toma antes de contar: si no, dos peticiones a
-        # la vez podrían contar dos y colar una cuarta criatura entre las dos.
+        # El turno de escritura se toma antes de mirar las camas: si no, dos
+        # peticiones a la vez podrían ver la misma cama libre y llenarla las dos.
         con.execute("BEGIN IMMEDIATE")
         if cuenta_vigente and identidad.es_web(usuario_id) and con.execute(
             "SELECT 1 FROM cuentas_web WHERE usuario_id = ? AND guild_id = ?",
             (usuario_id, guild_id),
         ).fetchone() is None:
             raise IdentidadCaducada(usuario_id)
-        cuantas = con.execute(
-            "SELECT COUNT(*) c FROM criaturas "
-            "WHERE usuario_id = ? AND guild_id = ? AND muerta_en IS NULL",
-            (usuario_id, guild_id),
-        ).fetchone()["c"]
-        if cuantas >= MAXIMO_PLANTEL:
-            raise ValueError(
-                f"{usuario_id} ya tiene {cuantas} gachamones vivos en {guild_id}"
+        if pide_cama and not dep.cama_libre(
+            _departamento_leido(con, usuario_id, guild_id),
+            len(plantel_en(con, usuario_id, guild_id)),
+        ):
+            raise SinCamaLibre(
+                f"{usuario_id} no tiene una cama libre en {guild_id}"
             )
 
         # Nace en la primera casa con sitio. Sin esto llegaría al refugio

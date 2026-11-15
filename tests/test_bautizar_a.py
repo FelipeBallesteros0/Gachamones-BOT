@@ -8,6 +8,7 @@ import pytest
 import db
 import especies as esp
 import nacer
+from test_camas import poner_camas
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 STATS = (10, 10, 10, 10)
@@ -109,6 +110,7 @@ def test_bautizar_a_uno_ajeno_o_muerto_es_no_esta():
 
 def test_al_que_se_nombro_solo_se_le_cambia_el_nombre_una_vez():
     nace("Ana")
+    poner_camas(U, 2, G)
     recluta = nacer.unir_recluta(
         U, G, especie="pollito", stats=STATS, genero=esp.MACHO,
         caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(5),

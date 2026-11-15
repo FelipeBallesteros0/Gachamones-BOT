@@ -101,7 +101,7 @@ def test_el_plantel_en_orden(cliente, monkeypatch):
         "nivel": 1, "retrato": el_retrato("pollito"), "activo": False,
     }
     assert cuerpo["plantel"][1]["nombre"] == "Pelusa"
-    assert cuerpo["maximo"] == db.MAXIMO_PLANTEL == 25
+    assert cuerpo["maximo"] == 3                 # con una sola cama puesta, los tres que ya tiene
     saldos = economia.saldos(LA_DE_DISCORD, G)
     assert cuerpo["saldos"] == {"monedas": saldos.asciicoins, "gemas": saldos.asciigems}
     # Ninguna fila habla de «sin nombre»: ya no existe ese estado.
@@ -146,7 +146,7 @@ def test_el_plantel_pide_sesion_y_cuenta(cliente, monkeypatch):
     assert cliente.get(INCUBADORA).json()["detail"]["clave"] == "sin_cuenta"
     alta(cliente)
     cuerpo = cliente.get(INCUBADORA).json()
-    assert cuerpo["plantel"] == [] and cuerpo["maximo"] == db.MAXIMO_PLANTEL
+    assert cuerpo["plantel"] == [] and cuerpo["maximo"] == 0
 
 
 # --- Sacar a otro --------------------------------------------------------------

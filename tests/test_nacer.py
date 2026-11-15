@@ -10,6 +10,7 @@ import especies as esp
 import logros as lgr
 import nacer
 import nombres
+from test_camas import poner_camas
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 U, G = "u", "g"
@@ -162,6 +163,7 @@ def test_el_nombre_de_otra_especie_si_vale():
 
 def test_el_recluta_llega_con_el_nombre_que_se_puso_solo():
     activa = nace("Nube")                                  # ya hay una Nube
+    poner_camas(U, 2, G)
     recluta = nacer.unir_recluta(
         U, G, especie="pollito", stats=STATS, genero=esp.HEMBRA, caracter=esp.CARACTER_POR_DEFECTO,
         ahora=T0, rng=random.Random(3),
@@ -181,6 +183,7 @@ def test_al_activo_que_se_nombro_solo_se_le_puede_bautizar_una_vez():
     """Un recluta que se queda solo en el plantel pasa a ser el activo con el
     nombre que se puso; el bautizo del activo también se lo deja cambiar, una
     vez."""
+    poner_camas(U, 1, G)
     recluta = nacer.unir_recluta(
         U, G, especie="pollito", stats=STATS, genero=esp.HEMBRA,
         caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(3),
