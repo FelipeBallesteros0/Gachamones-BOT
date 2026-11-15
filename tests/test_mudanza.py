@@ -188,10 +188,6 @@ def test_el_bot_solo_carga_la_mudanza():
     assert bot.EXTENSIONES == ("cogs.mudanza",)
 
 
-def test_quedan_tres_comandos(cog):
-    assert {c.name for c in cog.get_app_commands()} == {"vincular", "mascota", "huevo"}
-
-
 def test_el_aviso_dice_donde_y_como():
     for texto in (mudanza.AVISO, mudanza.pagina_del_manual((CANAL_DE_JUEGO,))):
         assert config.URL_DE_LA_PAGINA in texto and "`/vincular`" in texto
@@ -252,8 +248,10 @@ def _cargar_todo():
     return correr(arrancar())
 
 
-def test_todos_los_cogs_cargan_y_registran_sus_comandos():
-    assert {c.name: c.description for c in _cargar_todo()} == COMANDOS_ESPERADOS
+def test_el_unico_cog_carga_y_registra_sus_tres_comandos():
+    comandos = _cargar_todo()
+    assert len(comandos) == len(COMANDOS_ESPERADOS) == 3
+    assert {c.name: c.description for c in comandos} == COMANDOS_ESPERADOS
 
 
 def test_ningun_comando_se_sale_de_su_canal(monkeypatch):

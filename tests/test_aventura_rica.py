@@ -641,9 +641,20 @@ def test_el_gesto_se_recuerda_por_lo_que_le_parece_a_su_caracter(opcion, le_gust
     """Un gesto no pasa por la IA: lo que se recuerda es una frase escrita, la
     de si a un salvaje sereno le gusta o no."""
     bicho = salvaje()
+    # Uno con el gusto contrario para ese mismo gesto: la frase sale de la
+    # pareja (gesto, le gusta o no), y el gusto, del carácter.
+    contrario = next(
+        salvaje(caracter=caracter) for caracter in av.REACCIONES
+        if av.le_gusta(salvaje(caracter=caracter), opcion) is not le_gusta
+    )
 
     assert av.le_gusta(bicho, opcion) is le_gusta
-    turno = av.TurnoGesto(opcion, av.frase_gesto(opcion, le_gusta))
+    frase = av.frase_gesto(opcion, av.le_gusta(bicho, opcion))
+    otra = av.frase_gesto(opcion, av.le_gusta(contrario, opcion))
+    assert frase.strip() and otra.strip()
+    assert frase != otra
+    assert frase == av.frase_gesto(opcion, le_gusta)
+    turno = av.TurnoGesto(opcion, frase)
     assert av.recordar((), turno) == (turno,)
 
 

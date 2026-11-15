@@ -567,3 +567,60 @@ def test_la_ficha_adversarial_cabe_en_discord():
 def test_el_saldo_de_una_moneda_va_en_singular():
     assert "-# 🪙 1 moneda · " in pantalla.render(criatura(), T0, asciicoins=1)
     assert "-# 🪙 0 monedas · " in pantalla.render(criatura(), T0, asciicoins=0)
+
+
+# --- Sin el dibujo -----------------------------------------------------------
+#
+# Con `sin_arte` se pinta el marco sin el bicho, para cuando el dibujo ya se ve
+# en otra parte. Lo que se quita es el dibujo y su separador: ni una fila más.
+
+def primera_linea_del_dibujo(arte: str) -> str:
+    return next(ln.strip() for ln in arte.strip("\n").split("\n") if ln.strip())
+
+
+def comprobar_sin_arte(con: str, sin: str, dibujo: str, siguen: tuple[str, ...]) -> None:
+    """El dibujo sale en `con` y no en `sin`; lo demás del marco, en los dos."""
+    marco_con, marco_sin = lineas_del_marco(con), lineas_del_marco(sin)
+
+    assert dibujo in "\n".join(marco_con)
+    assert dibujo not in "\n".join(marco_sin)
+    assert len(marco_con) - len(marco_sin) == pantalla.ALTO_ARTE + 1
+    for texto in siguen:
+        assert texto in "\n".join(marco_sin), texto
+    comprobar_marco(con)
+    comprobar_marco(sin)
+
+
+def test_la_ficha_sin_arte_quita_el_dibujo_y_deja_barras_estadisticas_y_experiencia():
+    c = criatura()
+    dibujo = primera_linea_del_dibujo(esp.arte_de(c.def_especie, c.etapa, c.animo_visual))
+
+    comprobar_sin_arte(
+        pantalla.render(c, T0), pantalla.render(c, T0, sin_arte=True), dibujo,
+        ("COMIDA", "ÁNIMO", "ASEO", "FUE", "VEL", "SAL", "ING", "EXP"),
+    )
+
+
+def test_la_evolucion_sin_arte_quita_el_dibujo_y_deja_las_estadisticas():
+    c = criatura(nivel=2)
+    anterior = esp.ETAPAS[0]
+    assert c.etapa != anterior
+    dibujo = primera_linea_del_dibujo(esp.arte_de(c.def_especie, c.etapa, esp.FELIZ))
+    con = pantalla.render_evolucion(c, anterior)
+    sin = pantalla.render_evolucion(c, anterior, sin_arte=True)
+
+    comprobar_sin_arte(con, sin, dibujo, ("FUE", "VEL", "SAL", "ING"))
+    # Lo de fuera del marco no cambia: el título y de qué etapa viene.
+    assert con.split("```ansi")[0] == sin.split("```ansi")[0]
+
+
+def test_la_revelacion_sin_arte_quita_el_dibujo_y_deja_las_estadisticas():
+    c = criatura(especie="dragoncito")
+    dibujo = primera_linea_del_dibujo(esp.arte_de(c.def_especie, esp.BEBE))
+    con = pantalla.render_revelacion(c, T0)
+    sin = pantalla.render_revelacion(c, T0, sin_arte=True)
+
+    comprobar_sin_arte(con, sin, dibujo, ("FUE", "VEL", "SAL", "ING"))
+    # La especie, su rareza y el pie se quedan.
+    assert con.split("```ansi")[0] == sin.split("```ansi")[0]
+    assert con.split("```")[-1] == sin.split("```")[-1]

@@ -64,6 +64,13 @@ def test_crear_persiste_el_ingenio_del_nacimiento():
     assert all(campo in db.CAMPOS for campo in COLUMNAS_INGENIO)
 
 
+def test_por_id_de_uno_que_no_existe_es_nada():
+    creada = db.crear("u1", "g1", "pulpo", "Prueba", STATS, T0)
+
+    assert db.por_id(creada.id + 1) is None
+    assert db.por_id(creada.id) == creada
+
+
 def test_crear_deja_siempre_una_sola_activa():
     """Lo impone el índice único de SQLite, no el código: dos `/huevo` a la vez
     no pueden dejar dos criaturas recibiendo los comandos.

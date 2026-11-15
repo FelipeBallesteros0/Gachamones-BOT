@@ -1,5 +1,6 @@
 """Las medallas que se ganan jugando: la que se cumple sólo con esperar y las
 tres tuyas, que se ganan al nacer un gachamon y al reclutar."""
+import random
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -50,7 +51,7 @@ def test_al_romper_el_huevo_una_rara_es_tuya(monkeypatch):
     monkeypatch.setattr(
         esp, "elegir_del_huevo", lambda _: esp.ESPECIES["dragoncito"]
     )
-    bicho = nac.romper_el_huevo("1", "g1", T0)
+    bicho = nac.romper_el_huevo("1", "g1", T0, random.Random(1))
 
     recibo = economia.pagar_logros_de_persona("1", "g1", T0)
 
@@ -66,7 +67,7 @@ def test_al_reclutar_domador_es_tuyo():
     bicho = db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
     nac.unir_recluta(
         "1", "g1", especie="michi", stats=(10, 10, 10, 15), genero="macho",
-        caracter="sereno", ahora=T0,
+        caracter="sereno", ahora=T0, rng=random.Random(1),
     )
 
     economia.pagar_logros_de_persona("1", "g1", T0)
@@ -91,7 +92,7 @@ def test_reclutar_un_raro_tambien_da_uno_entre_veinticinco(clave):
     db.crear("1", "g1", "pulpo", "Aventurero", STATS, T0)
     nac.unir_recluta(
         "1", "g1", especie=clave, stats=(10, 10, 10, 15), genero=esp.MACHO,
-        caracter="sereno", ahora=T0,
+        caracter="sereno", ahora=T0, rng=random.Random(1),
     )
 
     economia.pagar_logros_de_persona("1", "g1", T0)
