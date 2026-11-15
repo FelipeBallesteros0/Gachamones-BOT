@@ -166,6 +166,12 @@ class Mudanza(commands.Cog):
                     "y tiene permiso para verlo?", canal_id,
                 )
                 continue
+            if getattr(canal, "guild", None) is None:
+                log.warning(
+                    "El canal de info %s no es de ningún servidor: no le toca "
+                    "manual.", canal_id,
+                )
+                continue
             try:
                 await publicar_la_pagina(canal, _pagina_para(canal))
             except discord.Forbidden:

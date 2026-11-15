@@ -189,6 +189,25 @@ def test_subida_de_nivel_conserva_xp_y_usa_surge_determinista():
     assert subida.ten_fuerza + subida.ten_velocidad + subida.ten_salud > 0
 
 
+def test_si_la_subida_ya_hace_crecer_algo_no_se_fuerza_otra_veta():
+    c = criatura(xp=sim.xp_para_subir(1) - 1, ten_salud=19.9)
+    subida, rupturas = sim.aplicar_xp(c, 2)
+    assert subida.nivel == 2
+    assert [(r.stat, r.causa) for r in rupturas] == [("salud", "nivel")]
+    assert (subida.fuerza, subida.velocidad, subida.salud) == (c.fuerza, c.velocidad, c.salud + 1)
+
+
+def test_una_subida_con_las_vetas_cargadas_no_pasa_de_tres_rupturas():
+    c = criatura(
+        xp=sim.xp_para_subir(1) - 1,
+        ten_fuerza=100.0, ten_velocidad=100.0, ten_salud=100.0,
+    )
+    subida, rupturas = sim.aplicar_xp(c, 2)
+    assert subida.nivel == 2
+    assert len(rupturas) == sim.MAX_RUPTURAS_POR_SUCESO
+    assert all(r.causa == "nivel" for r in rupturas)
+
+
 def test_competencia_usa_margen_derrota_y_veta_profunda():
     amplia = sim.esfuerzo_de_competencia("velocidad", margen=30, gano=True)
     derrota = sim.esfuerzo_de_competencia("velocidad", margen=30, gano=False)

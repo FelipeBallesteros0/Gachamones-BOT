@@ -11,6 +11,7 @@ son de mentira, y la base es temporal.
 import asyncio
 import importlib.util
 import inspect
+import logging
 import re
 import subprocess
 from datetime import datetime, timezone
@@ -195,6 +196,22 @@ def test_el_aviso_dice_donde_y_como():
     assert config.URL_DE_LA_PAGINA not in mudanza.AVISO_SIN_PAGINA
 
 
+def arrancar_el_bot(monkeypatch, sync=None):
+    """El `setup_hook` de verdad y sin red: las extensiones no se cargan y el
+    árbol de comandos no habla con Discord."""
+    async def arrancar():
+        cliente = bot.Tamagotchi()
+        monkeypatch.setattr(cliente, "load_extension", AsyncMock())
+        monkeypatch.setattr(cliente.tree, "sync", sync or AsyncMock(return_value=[]))
+        monkeypatch.setattr(cliente.tree, "copy_global_to", Mock())
+        monkeypatch.setattr(cliente, "add_view", Mock())
+        monkeypatch.setattr(cliente, "add_dynamic_items", Mock())
+        await cliente.setup_hook()
+        return cliente
+
+    return correr(arrancar())
+
+
 def test_el_arranque_no_registra_vistas_ni_botones_del_juego(monkeypatch):
     """Con el `setup_hook` de verdad y sin red: se pone al día la base, se carga
     sólo la mudanza y ningún botón ni menú del juego queda escuchando."""
@@ -202,16 +219,7 @@ def test_el_arranque_no_registra_vistas_ni_botones_del_juego(monkeypatch):
     poner_al_dia = Mock(wraps=economia.poner_al_dia)
     monkeypatch.setattr(economia, "poner_al_dia", poner_al_dia)
 
-    async def arrancar():
-        cliente = bot.Tamagotchi()
-        monkeypatch.setattr(cliente, "load_extension", AsyncMock())
-        monkeypatch.setattr(cliente.tree, "sync", AsyncMock(return_value=[]))
-        monkeypatch.setattr(cliente, "add_view", Mock())
-        monkeypatch.setattr(cliente, "add_dynamic_items", Mock())
-        await cliente.setup_hook()
-        return cliente
-
-    cliente = correr(arrancar())
+    cliente = arrancar_el_bot(monkeypatch)
 
     poner_al_dia.assert_called_once()
     assert [c.args for c in cliente.load_extension.await_args_list] == [
@@ -220,6 +228,34 @@ def test_el_arranque_no_registra_vistas_ni_botones_del_juego(monkeypatch):
     cliente.add_view.assert_not_called()
     cliente.add_dynamic_items.assert_not_called()
     assert cliente.tree.on_error is comun.manejar_error
+
+
+def _servidores_sincronizados(cliente):
+    return [c.kwargs["guild"].id for c in cliente.tree.sync.await_args_list]
+
+
+def test_el_arranque_sincroniza_una_vez_en_cada_servidor(monkeypatch):
+    monkeypatch.setattr(config, "GUILDS", (71, 72))
+
+    cliente = arrancar_el_bot(monkeypatch)
+
+    assert _servidores_sincronizados(cliente) == [71, 72]
+
+
+def test_un_servidor_que_no_deja_sincronizar_no_frena_a_los_demas(monkeypatch, caplog):
+    """Un id equivocado o un servidor sin invitar dan 403: el siguiente se
+    sincroniza igual y el registro dice cuál falló."""
+    monkeypatch.setattr(config, "GUILDS", (71, 72))
+    sync = AsyncMock(side_effect=[discord.Forbidden(_RespuestaFalsa(), "sin permiso"), []])
+
+    with caplog.at_level(logging.WARNING):
+        cliente = arrancar_el_bot(monkeypatch, sync=sync)   # no lanza
+
+    assert _servidores_sincronizados(cliente) == [71, 72]
+    assert any(
+        r.name == "gachamones" and r.levelno == logging.WARNING and "71" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 # La descripción es lo único que se ve al escribir «/» en Discord, así que
@@ -260,25 +296,30 @@ def test_ningun_comando_se_sale_de_su_canal(monkeypatch):
     escribe de otra forma.
 
     Se recorre el árbol ENTERO, para que al próximo comando tampoco se le
-    olvide."""
+    olvide. Y se comprueba también la otra mitad: en su propio canal el check
+    deja pasar, o el bot rechazaría hasta `/vincular` donde toca."""
     async def pasar_los_checks(comando, interaccion):
-        for check in comando.checks:
-            await check(interaccion)
+        return [await check(interaccion) for check in comando.checks]
 
     monkeypatch.setattr(config, "CANALES", [111])
-    interaccion = SimpleNamespace(channel_id=222)
+    ajeno = SimpleNamespace(channel_id=222)
+    suyo = SimpleNamespace(channel_id=111)
     comandos = _cargar_todo()
     assert comandos, "sin comandos el barrido no comprueba nada"
 
     sueltos = []
     for comando in comandos:
         try:
-            correr(pasar_los_checks(comando, interaccion))
+            correr(pasar_los_checks(comando, ajeno))
         except comun.CanalEquivocado:
             continue
         sueltos.append(comando.name)
 
     assert not sueltos, f"contestan en cualquier canal: {sueltos}"
+
+    for comando in comandos:
+        resultados = correr(pasar_los_checks(comando, suyo))   # no lanza
+        assert resultados and all(r is True for r in resultados), comando.name
 
 
 def test_no_se_procesan_comandos_de_texto():
@@ -550,6 +591,44 @@ def test_un_fallo_de_discord_con_el_manual_avisa_y_se_reintenta(fallo, monkeypat
     canal.fallo = None
     correr(cog.on_ready())       # al reconectar
     assert canal.publicados == [mudanza.pagina_del_manual()]
+
+
+def test_un_canal_de_info_que_no_ve_no_frena_a_los_demas(monkeypatch, caplog):
+    """Un canal mal puesto o de un servidor del que echaron al bot: aviso en el
+    registro, y los que vienen detrás se repasan igual."""
+    visible = CanalFalso(CANAL_DE_INFO + 1)
+    cog = cog_con_info(monkeypatch, visible)
+    monkeypatch.setattr(config, "CANALES_INFO", (CANAL_DE_INFO, visible.id))
+
+    with caplog.at_level(logging.WARNING):
+        correr(cog.on_ready())   # no lanza
+
+    assert visible.publicados == [mudanza.pagina_del_manual()]
+    assert any(
+        r.name == "cogs.mudanza" and str(CANAL_DE_INFO) in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_un_canal_de_info_sin_servidor_no_corta_el_repaso(monkeypatch, caplog):
+    """Un canal de info que no es de ningún servidor —un mensaje directo, por
+    ejemplo— no tiene manual que le toque; no puede dejar sin repasar a los que
+    vienen detrás."""
+    sin_servidor = CanalFalso(CANAL_DE_INFO)
+    sin_servidor.guild = None
+    bueno = CanalFalso(CANAL_DE_INFO + 1)
+    cog = cog_con_info(monkeypatch, sin_servidor, bueno)
+
+    with caplog.at_level(logging.WARNING):
+        correr(cog.on_ready())   # no lanza
+
+    assert bueno.publicados == [mudanza.pagina_del_manual()]
+    assert sin_servidor.publicados == []
+    assert any(
+        r.name == "cogs.mudanza" and r.levelno == logging.WARNING
+        and str(CANAL_DE_INFO) in r.getMessage()
+        for r in caplog.records
+    )
 
 
 def test_un_borrado_que_falla_se_reintenta_al_reconectar(monkeypatch, caplog):

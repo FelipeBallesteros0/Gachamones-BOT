@@ -60,11 +60,12 @@ def test_el_catalogo_pide_sesion_y_cuenta(cliente, monkeypatch):
 
 NOTA_DE_COMPETIR = "Sirve en las competencias, que todavía no están en la página."
 NOTA_DEL_HUERTO = "Se siembra en el huerto, que todavía no está en la página."
-SIN_USO_AQUI = ("fuerza_1d4", "velocidad_1d12", "descanso_rapido", "semilla")
+PARA_COMPETIR = ("fuerza_1d4", "velocidad_1d12", "descanso_rapido")
+SIN_USO_AQUI = PARA_COMPETIR + ("semilla",)
 
 
 def _con_sus_notas(objetos_):
-    for clave in SIN_USO_AQUI[:3]:
+    for clave in PARA_COMPETIR:
         assert objetos_[clave]["se_vende"] is False and objetos_[clave]["nota"] == NOTA_DE_COMPETIR
     assert objetos_["semilla"]["se_vende"] is False and objetos_["semilla"]["nota"] == NOTA_DEL_HUERTO
 

@@ -33,8 +33,25 @@ async def manejar_error(
     interaccion: discord.Interaction, error: app_commands.AppCommandError
 ) -> None:
     inesperado = False
-    if isinstance(error, CanalEquivocado):
-        canales = ", ".join(f"<#{c}>" for c in config.CANALES)
+    if isinstance(error, app_commands.CommandNotFound):
+        # Uno de los comandos del juego de antes, que siguen registrados en un
+        # servidor donde la sincronización falló al arrancar.
+        # Import tardío: `cogs.mudanza` importa este módulo.
+        from cogs import mudanza
+        log.warning(
+            "Llegó /%s, que ya no existe. Mira si falló la sincronización de "
+            "comandos en el servidor %s.", error.name, interaccion.guild_id,
+        )
+        mensaje = mudanza.aviso_para(interaccion.guild_id)
+    elif isinstance(error, CanalEquivocado):
+        # Sólo los canales que se ven desde este servidor: los de otro serían
+        # enlaces a ninguna parte. Si no ve ninguno, todos, como antes.
+        servidor = interaccion.guild
+        suyos = [
+            c for c in config.CANALES
+            if servidor is not None and servidor.get_channel(c) is not None
+        ]
+        canales = ", ".join(f"<#{c}>" for c in suyos or config.CANALES)
         mensaje = f"Escríbeme en {canales}."
     elif isinstance(error, app_commands.CommandOnCooldown):
         mensaje = f"Demasiado rápido. Prueba en {error.retry_after:.0f} s."
