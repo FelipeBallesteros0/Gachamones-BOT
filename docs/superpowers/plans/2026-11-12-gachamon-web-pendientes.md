@@ -359,6 +359,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   ```
 
   Probado: nadie muere al volver y el juego de antes retoma solo.
+- Desde el rework 2 esta receta va sin `AND activa = 1`, para todos los vivos:
+  lo cuenta «Si hubiera que volver atrás» en la sección del rework 2.
 - Hoy hay muy poca gente jugando, así que el riesgo real es pequeño, pero la
   receta queda escrita.
 
@@ -429,11 +431,49 @@ Son observaciones de la revisión final, no decisiones.
   puede cambiar una vez. En Discord, el botón que sale al unirse lleva dentro a
   qué recluta pertenece y le cambia el nombre a ése. Los que estaban sin nombre
   se lo pusieron solos al arrancar, y ya no existe un gachamon sin nombre.
-- Quien tenía el activo muerto de antes y un único recluta sin nombre no podía
-  jugar: ahora el recluta recibe nombre, pasa a ser el activo y la persona
-  recupera su partida.
+- Quien tenía el activo muerto de antes y sólo reclutas sin nombre no podía
+  jugar: ahora, al arrancar el bot o la web, los reclutas reciben nombre y el
+  primero que siga vivo pasa a ser el activo, así que la persona recupera su
+  partida en Discord y en la web. El remiendo de siempre sigue ahí por si acaso.
 - Las frases de Discord y de la web ya no hablan de la incubadora como un sitio
   donde el tiempo se para: los que no salen contigo están «en casa».
+
+### Si hubiera que volver atrás
+
+Probado yendo del código nuevo al de producción de hoy y otra vez al nuevo,
+sobre la misma base.
+
+- El código de producción de hoy arranca y funciona sobre la base ya cambiada:
+  no conoce la columna `se_nombro_solo` ni la tabla `cambios_hechos`, y no las
+  toca.
+- Los que no son el activo vuelven a «dormir» con lo último que se les guardó.
+  Nadie pierde nada por eso.
+- Los que se nombraron solos conservan su nombre. Con el código viejo no se les
+  puede cambiar; al volver el nuevo recuperan su cambio.
+- Lo que el código viejo reclute llega otra vez sin nombre, y el siguiente
+  arranque del código nuevo se lo pone: por eso ese paso va sin marca.
+- **Primera trampa:** uno que no era el activo y quedó guardado con la comida
+  en 0 muere en cuanto el código viejo lo saca. La receta del rework 1 sólo
+  subía la comida a los activos; desde este plan tiene que ser para todos los
+  vivos. Con los dos servicios parados y antes de arrancar el código viejo:
+
+  ```sql
+  UPDATE criaturas SET hambre = MAX(hambre, 50), actualizada_en = <ahora en UTC, formato ISO> WHERE muerta_en IS NULL
+  ```
+
+- **Segunda trampa:** si después se vuelve a subir el código nuevo, la marca ya
+  está puesta y el reloj no se mueve: a todos los que durmieron mientras mandaba
+  el código viejo se les cobra de golpe (en la prueba, tras ocho días, las tres
+  barras a 0). Antes de arrancar el código nuevo otra vez, con los dos servicios
+  parados:
+
+  ```sql
+  DELETE FROM cambios_hechos WHERE clave = 'el_tiempo_para_todos'
+  ```
+
+  Con eso el arranque vuelve a poner los relojes.
+- Restaurar la copia de la base de antes del cambio no tiene ninguna de las dos
+  trampas, pero pierde lo jugado desde entonces.
 
 ### Pendiente
 
@@ -467,24 +507,46 @@ Son observaciones de la revisión final, no decisiones.
 - `.claude/skills/generated/` (lo genera GitNexus) y los documentos históricos
   de `docs/` todavía nombran `ascender_de_la_incubadora`, que ahora es
   `ascender_un_relevo`.
+- El manual publicado, en «Tu casa», todavía dice que la comodidad le frena el
+  ánimo «a tu activo»: ahora es a todos los que viven ahí. Se corrige cuando el
+  plan de la vivienda reescriba esa página, junto con las otras dos frases
+  del manual que quedaron apuntadas en el rework 1.
+- Los mensajes de reclutas ya publicados en Discord siguen diciendo que no
+  tienen nombre, y nadie le cuenta a su dueño que su recluta se puso uno: la
+  carta del alcalde del día del cambio podría decirlo.
+- **Para el plan de la vivienda y el de los muebles que se usan solos:** el
+  ritmo del hogar se aplica hacia atrás a todo el tiempo que un gachamon lleva
+  sin guardarse. Antes de cambiar lo que fija el ritmo de alguien (ampliar,
+  poner o guardar un mueble que suma comodidad, el refrigerador, la consola o
+  la ducha), hay que poner al día y guardar a todos los que viven ahí, en esa
+  misma transacción. Hoy mudar, comprar o vender una casa y el ticket del
+  refugio no lo hacen; no le llega a nadie porque las casas y el refugio se van
+  antes de publicar.
+- **Para el plan de la vivienda:** el día del cambio grande tiene que salir con
+  su propia sección de vuelta atrás desde el principio: cada paso de una sola
+  vez con marca tiene la misma segunda trampa. Y cuando una regla diga que «la
+  persona recupera su partida», se prueba por cada adaptador (un comando de
+  Discord y una ruta de la web), no sólo por la función de dominio.
 
 ### De producto, para decidir más adelante
 
 Son observaciones, no decisiones.
 
-- Quien juega sólo en Discord y tiene varios gachamones los ve bajar a todos y
-  sólo puede cuidarlos de a uno, saliendo con cada uno.
+- Quien juega sólo en Discord y tiene varios gachamones: les baja a todos sin
+  que en Discord se vea (`/plantel` no enseña barras), y sólo puede cuidarlos
+  de a uno, saliendo con cada uno.
 - Con muchos gachamones el tope de 12 cuidados pagados al día se alcanza en uno
   o dos toques de «a todos».
+- «Entrenar juntos» paga una moneda por dos entrenados y «a todos», una por
+  cada uno.
+- La medalla «De la alfa» es de cada gachamon, y con «a todos» se cobran todas
+  en un toque: no da más gemas que antes, sólo antes.
+- Desde el día del cambio, a quien no tiene casa y se le venció el refugio le
+  bajan más rápido todos sus gachamones, no sólo el activo. Se va con la
+  vivienda.
 
 ### Pruebas
 
-- Ninguna prueba cubre que un cuidado a un gachamon de otro servidor se
-  rechace (el código lo rechaza; los casos «ajenos» de las pruebas son de otra
-  persona en el mismo servidor).
-- Ninguna prueba cubre que «a todos» le dé de comer a un gachamon con hambre
-  que todavía tiene la espera corriendo (la regla de siempre: por debajo de 60
-  de comida, alimentar no espera).
 - `POST acariciar` con un cuerpo que no es un objeto se trata como si no
   hubiera cuerpo y acaricia al activo.
 - La regla del nombre de un recluta está escrita dos veces: al reclutar

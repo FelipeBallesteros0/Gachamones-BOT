@@ -245,8 +245,8 @@ queda sin manual, así que ponle uno a cada uno.
 **El plantel.** Hasta **25 gachamones** por persona y servidor, con **uno
 activo**: el que sale contigo, el que compite, va de aventura y conversa, y el
 que recibe los botones y los comandos. **A todos les pasa el tiempo**, sean o no
-el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con el de su
-casa. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
+el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con el ritmo
+de su casa. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
 nadie, así que ir y volver no ahorra ni duplica nada.
 
 Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
@@ -259,9 +259,11 @@ en Discord se sigue cuidando sólo al activo, y para cuidar a otro se sale con
 
 `/huevo` da **sólo el de partida**: los demás hay que ganárselos en
 `/aventura`. Si una persona se quedó sin activo vivo porque el suyo murió antes,
-el primero que siga vivo sale solo al entrar a la web, al romper el huevo, al
-poner nombre o al cambiar de activo; en Discord, al elegir otro en `/plantel`.
-Sólo cambia la marca de quién sale contigo: su reloj sigue donde estaba.
+el primero que siga vivo sale solo al arrancar el bot o la web. El remiendo de
+antes sigue ahí por si acaso: también sale al entrar a la web, al romper el
+huevo, al poner nombre o al cambiar de activo; en Discord, al elegir otro en
+`/plantel`. Sólo cambia la marca de quién sale contigo: su reloj sigue donde
+estaba.
 
 **Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
 azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
