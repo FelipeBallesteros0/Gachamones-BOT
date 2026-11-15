@@ -933,7 +933,9 @@ def test_el_plantel_dice_quien_se_quedo_en_casa():
         "Elige abajo con cuál sales."
     )
     assert "incubadora" not in texto
+    assert "**Ana**" in texto and "**Bea**" in texto
     assert menu.placeholder == "¿Con cuál sales?"
+    assert [o.label for o in menu.options] == ["Ana", "Bea"]
     assert [o.description.endswith("· en casa") for o in menu.options] == [False, True]
 
 
@@ -1281,6 +1283,22 @@ def test_el_boton_del_recluta_de_otro_no_abre_nada(bd_temporal):
     assert db.por_id(ajeno.id) == ajeno
 
 
+def test_el_boton_del_recluta_pulsado_en_otro_servidor_no_abre_nada(bd_temporal):
+    """Tuyo, pero de otro servidor: lo de cada servidor no se mezcla."""
+    db.crear("u1", "g1", "pulpo", "Activa", STATS, T0)
+    recluta = recluta_de()
+    interaccion, respuesta, _ = interaccion_de()
+    interaccion.guild_id = "g2"
+    respuesta.send_modal = AsyncMock()
+
+    pulsar_el_boton_de(f"tama:nombrar_recluta:{recluta.id}", interaccion)
+
+    respuesta.send_modal.assert_not_awaited()
+    respuesta.send_message.assert_awaited_once()
+    assert respuesta.send_message.await_args.kwargs == {"ephemeral": True}
+    assert db.por_id(recluta.id) == recluta
+
+
 def test_el_mensaje_del_recluta_lleva_un_boton_con_su_id():
     vista = vistas.vista_del_recluta(42)
     assert vista.timeout is None
@@ -1602,6 +1620,40 @@ def test_sin_activa_viva_el_panel_de_una_muerta_de_antes_dice_que_no_tienes_ning
     assert db.obtener(muerta.id) == muerta
     if reserva is not None:
         assert db.obtener(reserva.id) == reserva
+
+
+def test_tras_arrancar_mascota_ensena_al_que_salio_y_no_dice_que_no_tienes_ninguno(
+    bd_temporal, monkeypatch
+):
+    """Quien tenía el activo muerto de antes y sólo reclutas que no salían: al
+    arrancar, el primero se pone nombre y sale contigo, y `/mascota` lo enseña
+    sin que nada pase antes por la web."""
+    from cogs import mascota as cog_mascota
+
+    muerta, _ = muerta_de_antes_con_panel()
+    recluta = db.crear("u1", "g1", SIN_RETRATO, "Provisional", STATS, T0, activa=False)
+    otro = db.crear("u1", "g1", SIN_RETRATO, "Bea", STATS, T0, activa=False)
+    with db.conectar() as con:                           # como lo dejó el bot de antes
+        con.execute("UPDATE criaturas SET nombre = '' WHERE id = ?", (recluta.id,))
+    db.inicializar()
+    monkeypatch.setattr(db, "ahora_utc", Mock(return_value=PULSA))
+    interaccion, respuesta, _ = interaccion_de()
+    interaccion.channel_id = "canal"
+    interaccion.original_response = AsyncMock(
+        return_value=SimpleNamespace(id="respuesta")
+    )
+    cog = cog_mascota.Mascota.__new__(cog_mascota.Mascota)
+
+    asyncio.run(cast(Any, cog_mascota.Mascota.mascota.callback)(cog, interaccion, None))
+
+    respuesta.send_message.assert_awaited_once()
+    enviado = respuesta.send_message.await_args
+    assert "No tienes ningún gachamon vivo" not in str(enviado)
+    salio = db.por_id(recluta.id)
+    assert salio.activa and salio.se_nombro_solo and salio.nombre
+    assert salio.nombre in enviado.kwargs["content"]
+    assert salio.pantalla_msg_id == "respuesta"
+    assert not db.por_id(otro.id).activa and db.obtener(muerta.id) == muerta
 
 
 def test_cuidar_con_la_comida_en_cero_publica_la_ficha_viva(

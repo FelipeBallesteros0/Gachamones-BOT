@@ -53,6 +53,18 @@ def test_paga_como_cuidarlos_de_a_uno_y_solo_lo_que_cabe_en_el_tope():
     assert economia.saldos("u1", "g1").asciicoins == 50 + economia.TOPE_CUIDADOS
 
 
+def test_al_hambriento_le_da_de_comer_aunque_le_corra_la_espera():
+    """Como de a uno: con la comida bajo 60, alimentar no espera."""
+    hambriento = con("Ana", activa=True, hambre=40.0)
+    bien = con("Bea", hambre=70.0)
+    db.poner_cooldown(hambriento.id, sim.ALIMENTAR, T0)
+    db.poner_cooldown(bien.id, sim.ALIMENTAR, T0)
+    hecho = economia.cuidar_a_todos("ev-h", "u1", "g1", sim.ALIMENTAR, T0)
+    assert hecho.tocados == (hambriento.id,) and hecho.de_cuantos == 2
+    assert db.por_id(hambriento.id).hambre == 70.0
+    assert db.por_id(bien.id).hambre == 70.0
+
+
 def test_repetir_el_evento_no_cuida_ni_paga_otra_vez():
     a = con("Ana", activa=True, animo=40.0)
     b = con("Bea", animo=40.0)

@@ -111,8 +111,8 @@ def romper_el_huevo(
 ) -> sim.Criatura:
     """Hace nacer al gachamon de partida, con el nombre de su especie."""
     rng = rng or random.Random()
-    # El remiendo de siempre: si quedó un plantel sin activa, aquí sale una de
-    # la incubadora. Con plantel, vivo aunque no tenga activa, no hay huevo.
+    # El remiendo de siempre: si quedó un plantel sin activo, aquí pasa a serlo
+    # uno de los vivos. Con plantel, vivo aunque no tenga activo, no hay huevo.
     db.activa_al_dia(usuario_id, guild_id, ahora)
     if db.plantel(usuario_id, guild_id):
         raise YaTieneGachamon

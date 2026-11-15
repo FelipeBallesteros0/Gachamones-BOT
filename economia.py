@@ -2254,14 +2254,13 @@ def equipar_cosmetico(
             lleva = db.quien_lleva(
                 con, usuario_id, guild_id, cosmetico.clave, cosmetico.tipo
             )
-            # La frase de Discord se decide por el nombre crudo, como siempre;
-            # el motivo, por si lo lleva alguien (aunque no tenga nombre).
+            # La frase y el motivo salen de lo mismo: si lo lleva alguien.
             return ResultadoCosmetico(
                 criatura=criatura, saldo=saldo,
                 problema=(
                     f"**{cosmetico.nombre}** lo lleva **{lleva.nombre}**. "
                     "Quítaselo primero."
-                    if lleva and lleva.nombre
+                    if lleva
                     else f"No tienes **{cosmetico.nombre}** en tu ropero."
                 ),
                 motivo="lo_lleva_otro" if lleva else "no_lo_tienes",

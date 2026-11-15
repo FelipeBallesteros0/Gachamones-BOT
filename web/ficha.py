@@ -1,7 +1,7 @@
 """La ficha completa del gachamon activo: lo que la pantalla de la ficha pinta.
 
 Sólo lee. Pone la activa al día (lo único que puede escribir una lectura es
-el remiendo: sacar a alguien de la incubadora si no hay activa) y arma el JSON
+el remiendo: poner a uno de activo si no hay ninguno) y arma el JSON
 con las funciones de siempre.
 Las medallas se **miran** y no se pagan: pagarlas es cosa de Discord y de las
 reglas de `economia`, y quien sólo mira no cobra ni anota nada.

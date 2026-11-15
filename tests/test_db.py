@@ -1084,6 +1084,79 @@ def test_el_unico_vivo_sin_nombre_recibe_nombre_y_pasa_a_ser_el_activo():
     assert activa.id == recluta.id and activa.activa and activa.nombre in nombres.NOMBRES
 
 
+# --- Quien se quedó sin activo sale con uno al arrancar ---------------------
+
+def sin_activo_como_lo_dejo_el_codigo_de_antes(usuario=U, guild=G):
+    """El activo se le murió cuando todavía se moría y le quedan dos vivos que
+    no salían; el primero, un recluta que todavía no tiene nombre."""
+    muerta = nacer(usuario=usuario, guild=guild, nombre="Ana")
+    db.guardar(muerta_de_antes(muerta))
+    recluta = db.crear(usuario, guild, "pulpo", "Provisional", STATS, T0, activa=False)
+    otro = db.crear(usuario, guild, "pulpo", "Bea", STATS, T0, activa=False)
+    with db.conectar() as con:                           # como lo dejó el bot de antes
+        con.execute("UPDATE criaturas SET nombre = '' WHERE id = ?", (recluta.id,))
+    return db.por_id(muerta.id), db.por_id(recluta.id), db.por_id(otro.id)
+
+
+def test_al_arrancar_quien_no_tenia_activo_sale_con_el_de_menor_id():
+    muerta, recluta, otro = sin_activo_como_lo_dejo_el_codigo_de_antes()
+    assert db.criatura_activa(U, G) is None
+    # El índice que impide dos activas ya está puesto: el arranque corre bajo él.
+    assert "una_activa" in indices()
+
+    db.inicializar()
+
+    activa = db.criatura_activa(U, G)
+    assert activa is not None and activa.id == recluta.id < otro.id
+    assert activa.nombre in nombres.NOMBRES
+    assert [c.id for c in db.plantel(U, G) if c.activa] == [recluta.id]
+    assert db.por_id(otro.id) == otro and not otro.activa
+    assert db.por_id(muerta.id) == muerta
+
+
+def test_el_ascenso_del_arranque_no_toca_a_quien_ya_tiene_activo_y_es_repetible():
+    sin_activo_como_lo_dejo_el_codigo_de_antes()
+    # La reserva, con menor id que su activa: un ascenso que no mirara si ya
+    # hay activo la elegiría a ella, y el índice lo haría saltar.
+    reserva = db.crear("u2", G, "pulpo", "Reserva", STATS, T0, activa=False)
+    activa = nacer(usuario="u2", nombre="Activa")
+    suyas = [db.por_id(reserva.id), db.por_id(activa.id)]
+
+    db.inicializar()
+
+    assert db.criatura_activa(U, G) is not None
+    assert [db.por_id(reserva.id), db.por_id(activa.id)] == suyas
+    antes = volcado()
+    db.inicializar()
+    assert volcado() == antes
+
+
+def test_al_ascendido_del_arranque_no_se_le_viene_encima_lo_que_durmio():
+    """El paso del reloj mira a los que no son el activo: si el ascenso fuera
+    antes, al ascendido no se le movería y se le cobraría todo lo que durmió."""
+    solo = db.crear(U, G, "pulpo", "Solo", STATS, T0, activa=False)
+    borrar_la_marca("el_tiempo_para_todos")
+    cambio = T0 + timedelta(days=40)
+
+    db.inicializar(cambio)
+
+    activa = db.criatura_activa(U, G)
+    assert activa is not None and activa.id == solo.id
+    assert activa.actualizada_en == cambio
+
+
+def test_el_ascenso_del_arranque_solo_da_activo_en_el_servidor_donde_faltaba():
+    reserva = db.crear(U, G, "pulpo", "Reserva", STATS, T0, activa=False)
+    activa = nacer(nombre="Activa")
+    suyas = [db.por_id(reserva.id), db.por_id(activa.id)]
+    en_otro = [db.crear(U, "g2", "pulpo", n, STATS, T0, activa=False) for n in ("Uno", "Dos")]
+
+    db.inicializar()
+
+    assert [db.por_id(reserva.id), db.por_id(activa.id)] == suyas
+    assert [c.id for c in db.plantel(U, "g2") if c.activa] == [en_otro[0].id]
+
+
 # --- Sin activa, la activa al día saca a alguien (el remiendo) --------------
 
 def test_sin_activa_saca_al_de_la_incubadora_que_tiene_nombre():

@@ -149,18 +149,24 @@ def test_se_acaricia_al_que_se_elige():
     assert db.espera_de(activa.id, sim.ACARICIAR, T0) == timedelta(0)
 
 
-@pytest.mark.parametrize("caso", ["ajeno", "muerto", "no_existe"])
+@pytest.mark.parametrize("caso", ["ajeno", "otro_servidor", "muerto", "no_existe"])
 def test_acariciar_a_uno_ajeno_no_hace_nada(caso):
     nacer()
     ajeno = db.por_id(nacer(usuario="otro").id)
+    # Tuyo, pero de otro servidor.
+    de_otro_servidor = db.crear("u", "g2", "pulpo", "Lúa", STATS, T0)
     muerto = replace(
         db.crear("u", "g", "pulpo", "Tinta", STATS, T0, activa=False),
         muerta_en=T0, causa_muerte="hambre",
     )
     db.guardar(muerto)
-    criatura_id = {"ajeno": ajeno.id, "muerto": muerto.id, "no_existe": 999_999}[caso]
+    criatura_id = {
+        "ajeno": ajeno.id, "otro_servidor": de_otro_servidor.id,
+        "muerto": muerto.id, "no_existe": 999_999,
+    }[caso]
     assert db.acariciar("u", "g", T0, criatura_id=criatura_id) == db.ResultadoCaricia(
         False, None, timedelta(0)
     )
     assert db.por_id(ajeno.id) == ajeno and db.por_id(muerto.id) == muerto
+    assert db.por_id(de_otro_servidor.id) == de_otro_servidor
     assert db.espera_de(criatura_id, sim.ACARICIAR, T0) == timedelta(0)

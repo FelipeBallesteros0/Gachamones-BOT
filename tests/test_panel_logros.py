@@ -70,6 +70,7 @@ def test_el_anuncio_sale_una_vez_por_mucho_que_se_llame():
 
     canal.send.assert_awaited_once()
     assert "De la alfa" in canal.send.await_args.args[0]
+    assert "**Mia**" in canal.send.await_args.args[0]
 
 
 def test_sin_nada_nuevo_no_se_manda_mensaje():

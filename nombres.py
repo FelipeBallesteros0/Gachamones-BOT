@@ -26,7 +26,7 @@ def elegir(rng: random.Random, evitar: Collection[str] = ()) -> str:
     """Uno de `NOMBRES` al azar que no esté en `evitar`, sin mirar mayúsculas.
 
     Si estuvieran todos, uno cualquiera de la lista: un nombre repetido es
-    mejor que un recluta sin nombre.
+    mejor que ninguno, y ningún gachamon se queda sin nombre.
     """
     tomados = {nombre.casefold() for nombre in evitar}
     libres = [nombre for nombre in NOMBRES if nombre.casefold() not in tomados]

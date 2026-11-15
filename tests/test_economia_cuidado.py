@@ -252,16 +252,22 @@ def test_el_tope_de_cuidados_es_de_la_persona_no_de_cada_gachamon():
     assert economia.saldos("u1", "g1").asciicoins == 50 + economia.TOPE_CUIDADOS
 
 
-@pytest.mark.parametrize("caso", ["ajeno", "muerto", "no_existe"])
+@pytest.mark.parametrize("caso", ["ajeno", "otro_servidor", "muerto", "no_existe"])
 def test_cuidar_a_quien_no_es_tuyo_o_no_esta_no_hace_nada(caso):
     nacer("Ana")
     ajeno = db.crear("u2", "g1", "pulpo", "Otro", STATS, T0)
+    de_otro_servidor = nacer("Cía", guild="g2")          # tuyo, pero de otro servidor
     muerta = replace(nacer("Bea", activa=False), muerta_en=T0, causa_muerte="hambre")
     db.guardar(muerta)
-    criatura_id = {"ajeno": ajeno.id, "muerto": muerta.id, "no_existe": 999_999}[caso]
+    criatura_id = {
+        "ajeno": ajeno.id, "otro_servidor": de_otro_servidor.id,
+        "muerto": muerta.id, "no_existe": 999_999,
+    }[caso]
     assert economia.ejecutar_cuidado("ev-x", "u1", "g1", sim.JUGAR, T0, criatura_id=criatura_id) is None
     assert db.por_id(ajeno.id) == ajeno and db.por_id(muerta.id) == muerta
+    assert db.por_id(de_otro_servidor.id) == de_otro_servidor
     assert economia.saldos("u1", "g1").asciicoins == 50
+    assert economia.saldos("u1", "g2").asciicoins == 50
 
 
 def test_el_replay_devuelve_al_mismo_y_el_evento_no_sirve_para_otro():

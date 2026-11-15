@@ -794,6 +794,33 @@ def _nombrar_a_los_que_lo_esperaban(
         )
 
 
+def _ascender_un_relevo_donde_falte(con: sqlite3.Connection) -> None:
+    """Hace activo al vivo de menor id de cada plantel vivo que no tiene activo.
+
+    Hay quien se quedó así: el activo se le murió cuando todavía se moría y
+    sólo le quedaban reclutas que no podían salir. Por la web lo arreglaba el
+    remiendo de `activa_al_dia`, pero en Discord nadie lo corre: `/mascota` le
+    decía que no tenía ningún gachamon vivo mientras al que le quedaba le
+    pasaba el tiempo sin que pudiera salir con él. Elige al mismo que
+    `ascender_un_relevo`, y el remiendo se queda por si acaso.
+
+    Tiene que ir **después** del paso del reloj, que sólo mira a los que no
+    son el activo: si fuera antes, al ascendido no se le movería el reloj y se
+    le cobraría de golpe todo lo que durmió. Y después del de los nombres, así
+    que el que sale ya lleva el suyo.
+
+    Va sin marca de una sola vez: cuando todo plantel vivo tiene su activo no
+    encuentra nada que hacer, y repetirlo no cambia nada. Sólo asciende a uno
+    por persona y servidor donde no había ninguno, así que el índice
+    `una_activa` no puede saltar.
+    """
+    con.execute(
+        "UPDATE criaturas SET activa = 1 WHERE id IN ("
+        "    SELECT MIN(id) FROM criaturas WHERE muerta_en IS NULL"
+        "     GROUP BY usuario_id, guild_id HAVING MAX(activa) = 0)"
+    )
+
+
 def _migrar(con: sqlite3.Connection, ahora: datetime) -> None:
     # El turno de escritura se toma ANTES de mirar qué columnas hay, igual que
     # en `_migrar_monederos`. Sin esto, dos arranques a la vez pueden leer los
@@ -856,6 +883,7 @@ def _migrar(con: sqlite3.Connection, ahora: datetime) -> None:
         )
 
     _nombrar_a_los_que_lo_esperaban(con, rng)
+    _ascender_un_relevo_donde_falte(con)
 
     # La espera de aventura dejó de ser del gachamon y pasó a ser de quien juega.
     # Las que estén corriendo se mudan en vez de tirarse: si no, todo el que
@@ -1202,6 +1230,9 @@ def crear(
     se_nombro_solo: bool = False,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
+
+    Nadie nace sin nombre: con `nombre` vacío levanta `ValueError` y no crea
+    nada.
 
     `activa=False` la crea sin hacerla la activa: no sale contigo, pero el
     tiempo le pasa igual. Lo usa el reclutamiento: uno que se une en una
@@ -2029,9 +2060,6 @@ def quien_lleva(
     tipo: str,
 ) -> sim.Criatura | None:
     """El gachamon vivo que lleva esa pieza, o None si no la lleva ninguno.
-
-    Devuelve la criatura y no su nombre: un gachamon sin nombre tiene
-    `nombre == ""`, y eso no debe confundirse con «nadie la lleva».
 
     Para poder decir «lo lleva Kuro» en vez del genérico «no lo tienes», que
     ahora sería mentira: sí lo tiene, lo que pasa es que está puesto.

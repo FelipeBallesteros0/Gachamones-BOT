@@ -86,8 +86,8 @@ def bautizar(
     nombre = datos.get("nombre")
     if not isinstance(nombre, str):
         raise problema(422, "nombre", "Falta el nombre.")
-    # Con `gachamon_id`, el de la pantalla (un recluta de la incubadora), que se
-    # comprueba que sea tuyo; sin él, la activa, como siempre.
+    # Con `gachamon_id`, el de la pantalla (un recluta que se puso el nombre él
+    # solo), que se comprueba que sea tuyo; sin él, la activa, como siempre.
     gachamon_id = datos.get("gachamon_id")
     if "gachamon_id" in datos and not es_un_id(gachamon_id):
         raise problema(422, "peticion", "La petición no se entiende.")
