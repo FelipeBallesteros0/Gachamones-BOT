@@ -387,9 +387,12 @@ riesgo del día del cambio.
   tiempo; Discord perdería las casas antes de que exista el departamento).
 - Esto no cabe en un plan. Corte sugerido **[propuesta]**: (1) nadie muere;
   (2) el tiempo para todos; (3) el bot en pausa; (4) la vivienda por casillas
-  en el servidor y el día del cambio; (5) el departamento en pantalla; (6) los
-  muebles que se usan solos; (7) el pueblo sin Refugio ni Incubadora y los
-  documentos.
+  en el servidor y el día del cambio; (5) partir sin gachamon (sin huevo, el
+  monedero en 0, la primera aventura, y que todo funcione sin ninguno); (6) el
+  departamento en pantalla; (7) los muebles que se usan solos; (8) el pueblo
+  sin Refugio ni Incubadora y los documentos. El (5) se separó del (4) al
+  escribir su plan: entre los dos, el huevo sigue existiendo y el que nace de
+  él no pide cama.
 
 ## 11. Lo que queda al constructor
 
