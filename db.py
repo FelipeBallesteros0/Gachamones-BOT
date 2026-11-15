@@ -974,6 +974,27 @@ def criatura_en(
     return _a_criatura(fila) if fila else None
 
 
+def criatura_elegida_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, criatura_id: int | None
+) -> sim.Criatura | None:
+    """A quién le cae un cuidado o una caricia.
+
+    Sin `criatura_id`, al activo. Con él, a ese gachamon si es de esa persona,
+    de ese servidor y está vivo. `None` si no hay a quién.
+    """
+    if criatura_id is None:
+        return criatura_activa_en(con, usuario_id, guild_id)
+    criatura = criatura_en(con, criatura_id)
+    if (
+        criatura is None
+        or criatura.usuario_id != usuario_id
+        or criatura.guild_id != guild_id
+        or not criatura.viva
+    ):
+        return None
+    return criatura
+
+
 def por_id(criatura_id: int) -> sim.Criatura | None:
     with conectar() as con:
         fila = con.execute(
@@ -1491,8 +1512,14 @@ class ResultadoCaricia:
     espera: timedelta
 
 
-def acariciar(usuario_id: str, guild_id: str, ahora: datetime) -> ResultadoCaricia:
-    """Acaricia al gachamon activo, con su enfriamiento, en una sola transacción.
+def acariciar(
+    usuario_id: str, guild_id: str, ahora: datetime, criatura_id: int | None = None
+) -> ResultadoCaricia:
+    """Acaricia a un gachamon, con su enfriamiento, en una sola transacción.
+
+    Sin `criatura_id`, al activo; con él, a ese gachamon si es de esa persona,
+    de ese servidor y está vivo. Si no hay a quién, no se escribe nada y el
+    resultado va sin criatura.
 
     La criatura se avanza hasta `ahora` antes de nada. Antes de tiempo no se
     guarda nada: la criatura que se devuelve va avanzada hasta `ahora`, pero en
@@ -1500,7 +1527,7 @@ def acariciar(usuario_id: str, guild_id: str, ahora: datetime) -> ResultadoCaric
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        criatura = criatura_activa_en(con, usuario_id, guild_id)
+        criatura = criatura_elegida_en(con, usuario_id, guild_id, criatura_id)
         if criatura is None:
             return ResultadoCaricia(False, None, timedelta(0))
         criatura = _avanzar_en(con, criatura, ahora)

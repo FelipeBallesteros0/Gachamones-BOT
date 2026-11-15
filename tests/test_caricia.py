@@ -132,3 +132,35 @@ def test_antes_de_tiempo_devuelve_la_criatura_avanzada_y_sin_la_caricia():
     assert segunda.criatura.actualizada_en == poco_despues
     # Lo guardado sigue como estaba tras la primera caricia: nada se escribió.
     assert db.criatura_activa("u", "g").actualizada_en == T0
+
+
+# --- Acariciar al que elijas ---------------------------------------------------
+
+def test_se_acaricia_al_que_se_elige():
+    activa = db.por_id(nacer().id)
+    otro = db.crear("u", "g", "pulpo", "Tinta", STATS, T0, activa=False)
+    db.guardar(replace(otro, animo=40.0))
+    resultado = db.acariciar("u", "g", T0, criatura_id=otro.id)
+    assert resultado.ok and resultado.espera == ESPERA
+    assert resultado.criatura.id == otro.id and resultado.criatura.animo == 45.0
+    assert db.por_id(otro.id).animo == 45.0
+    assert db.espera_de(otro.id, sim.ACARICIAR, T0) == ESPERA
+    assert db.por_id(activa.id) == activa
+    assert db.espera_de(activa.id, sim.ACARICIAR, T0) == timedelta(0)
+
+
+@pytest.mark.parametrize("caso", ["ajeno", "muerto", "no_existe"])
+def test_acariciar_a_uno_ajeno_no_hace_nada(caso):
+    nacer()
+    ajeno = db.por_id(nacer(usuario="otro").id)
+    muerto = replace(
+        db.crear("u", "g", "pulpo", "Tinta", STATS, T0, activa=False),
+        muerta_en=T0, causa_muerte="hambre",
+    )
+    db.guardar(muerto)
+    criatura_id = {"ajeno": ajeno.id, "muerto": muerto.id, "no_existe": 999_999}[caso]
+    assert db.acariciar("u", "g", T0, criatura_id=criatura_id) == db.ResultadoCaricia(
+        False, None, timedelta(0)
+    )
+    assert db.por_id(ajeno.id) == ajeno and db.por_id(muerto.id) == muerto
+    assert db.espera_de(criatura_id, sim.ACARICIAR, T0) == timedelta(0)

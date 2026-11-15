@@ -281,7 +281,7 @@ def test_el_409_del_evento_trae_su_frase_y_no_la_de_la_excepcion(cliente, monkey
     con_gachamon(cliente)
     reloj.pasar(hours=6)
 
-    def choca(*_):
+    def choca(*_, **__):
         raise RuntimeError("texto interno de la excepción")
 
     monkeypatch.setattr(economia, "ejecutar_cuidado", choca)
@@ -322,3 +322,94 @@ def test_una_espera_con_fraccion_de_segundo_se_redondea_hacia_arriba(cliente, mo
     # Faltan 29 min menos 1,5 s: 1738,5 s, que se dicen 1739.
     assert cuerpo["ok"] is False and cuerpo["espera"] == 29 * 60 - 1
     assert cuerpo["estado"]["gachamon"]["esperas"]["jugar"] == 29 * 60 - 1
+
+
+# --- Cuidar o acariciar al que elijas -----------------------------------------
+
+def _con_otro(cliente, reloj, animo=None):
+    """La cuenta con su huevo ya bautizado y un segundo gachamon que no sale."""
+    con_gachamon(cliente)
+    otro = db.crear(YO, G, "pollito", "Bea", STATS, reloj.ahora, activa=False)
+    if animo is not None:
+        otro = replace(otro, animo=animo)
+        db.guardar(otro)
+    return db.criatura_activa(YO, G), otro
+
+
+def test_cuidar_a_otro_por_su_id(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    activo, otro = _con_otro(cliente, reloj)
+    respuesta = cliente.post(CUIDAR, headers=ESCRIBIR, json={
+        "accion": "jugar", "evento_id": "evento-otro1", "gachamon_id": otro.id,
+    })
+    cuerpo = respuesta.json()
+    assert respuesta.status_code == 200 and cuerpo["ok"] is True
+    assert cuerpo["gachamon"]["id"] == otro.id and cuerpo["monedas"] == 1
+    assert cuerpo["gachamon"]["esperas"]["jugar"] == 29 * 60
+    # Al activo no le corre la espera ni le cae nada.
+    assert cuerpo["estado"]["gachamon"]["id"] == activo.id
+    assert cuerpo["estado"]["gachamon"]["esperas"]["jugar"] == 0
+    assert db.por_id(otro.id).xp == sim.XP_POR_CUIDADO[sim.JUGAR]
+    assert db.por_id(activo.id) == activo
+    # Antes de tiempo dice que no, y la ficha sigue siendo la del elegido.
+    reloj.pasar(minutes=9)
+    pronto = cliente.post(CUIDAR, headers=ESCRIBIR, json={
+        "accion": "jugar", "evento_id": "evento-otro2", "gachamon_id": otro.id,
+    }).json()
+    assert pronto["ok"] is False and pronto["espera"] == 20 * 60
+    assert pronto["gachamon"]["id"] == otro.id
+    # Sin `gachamon_id`, al activo, como siempre, y la ficha es la suya.
+    del_activo = cuidar(cliente, "jugar", "evento-activ").json()
+    assert del_activo["ok"] is True and del_activo["gachamon"]["id"] == activo.id
+
+
+@pytest.mark.parametrize("ruta", [CUIDAR, ACARICIAR], ids=["cuidar", "acariciar"])
+def test_cuidar_a_uno_ajeno_es_no_esta(cliente, monkeypatch, ruta):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    mio = db.criatura_activa(YO, G)
+    ajeno = db.crear(identidad.de_cuenta_web(2), G, "pulpo", "Tinta", STATS, reloj.ahora)
+    respuesta = cliente.post(ruta, headers=ESCRIBIR, json={
+        "accion": "jugar", "evento_id": "evento-ajeno", "gachamon_id": ajeno.id,
+    })
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {"clave": "no_esta", "mensaje": "Ese gachamon ya no está."}
+    assert db.por_id(ajeno.id) == ajeno and db.por_id(mio.id) == mio
+    assert economia.saldos(YO, G).asciicoins == 50
+
+
+@pytest.mark.parametrize("ruta", [CUIDAR, ACARICIAR], ids=["cuidar", "acariciar"])
+@pytest.mark.parametrize("gachamon_id", ["7", -1, True])
+def test_un_gachamon_id_que_no_es_un_id_es_un_422(cliente, monkeypatch, ruta, gachamon_id):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    mio = db.criatura_activa(YO, G)
+    respuesta = cliente.post(ruta, headers=ESCRIBIR, json={
+        "accion": "jugar", "evento_id": "evento-0001", "gachamon_id": gachamon_id,
+    })
+    assert respuesta.status_code == 422
+    assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert db.por_id(mio.id) == mio and economia.saldos(YO, G).asciicoins == 50
+
+
+def test_acariciar_a_otro_por_su_id(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    activo, otro = _con_otro(cliente, reloj, animo=40.0)
+    respuesta = cliente.post(ACARICIAR, json={"gachamon_id": otro.id}, headers=ESCRIBIR)
+    cuerpo = respuesta.json()
+    assert respuesta.status_code == 200 and cuerpo["ok"] is True
+    assert cuerpo["espera"] == 19 * 60
+    assert cuerpo["gachamon"]["id"] == otro.id and cuerpo["gachamon"]["barras"]["animo"] == 45
+    assert cuerpo["gachamon"]["esperas"]["acariciar"] == 19 * 60
+    assert cuerpo["estado"]["gachamon"]["id"] == activo.id
+    assert cuerpo["estado"]["gachamon"]["esperas"]["acariciar"] == 0
+    assert db.por_id(activo.id) == activo
+    # Antes de tiempo dice que no, y la ficha sigue siendo la del elegido.
+    reloj.pasar(minutes=4)
+    segunda = cliente.post(ACARICIAR, json={"gachamon_id": otro.id}, headers=ESCRIBIR).json()
+    assert segunda["ok"] is False and segunda["espera"] == 15 * 60
+    assert segunda["gachamon"]["id"] == otro.id
+    assert segunda["gachamon"]["esperas"]["acariciar"] == 15 * 60
+    # Sin cuerpo, al activo, como siempre, y la ficha es la suya.
+    del_activo = cliente.post(ACARICIAR, headers=ESCRIBIR).json()
+    assert del_activo["ok"] is True and del_activo["gachamon"]["id"] == activo.id

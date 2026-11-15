@@ -223,3 +223,54 @@ def test_fallo_del_ledger_revierte_criatura_cooldown_y_saldo():
     assert db.criatura_activa("u1", "g1") == original
     assert db.espera_de(original.id, sim.JUGAR, T0) == timedelta(0)
     assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)
+
+
+# --- Cuidar al que elijas ------------------------------------------------------
+
+def test_se_cuida_al_que_se_elige_y_al_activo_no_le_cae_nada():
+    activa = nacer("Ana")
+    otra = replace(nacer("Bea", activa=False), animo=40.0)
+    db.guardar(otra)
+    hecho = economia.ejecutar_cuidado("ev-otra", "u1", "g1", sim.JUGAR, T0, criatura_id=otra.id)
+    assert hecho.ok and hecho.criatura.id == otra.id and hecho.criatura.animo == 65.0
+    assert hecho.delta_asciicoins == 1 and hecho.usados == 1
+    assert db.por_id(activa.id) == activa
+    assert db.espera_de(otra.id, sim.JUGAR, T0) == sim.COOLDOWNS[sim.JUGAR]
+    assert db.espera_de(activa.id, sim.JUGAR, T0) == timedelta(0)
+
+
+def test_el_tope_de_cuidados_es_de_la_persona_no_de_cada_gachamon():
+    ids = [nacer("Ana").id] + [nacer(f"G{n}", activa=False).id for n in range(12)]
+    for criatura_id in ids:
+        db.guardar(replace(db.por_id(criatura_id), limpieza=0.0))
+    pagos = [
+        economia.ejecutar_cuidado(f"ev-{n}", "u1", "g1", sim.LIMPIAR, T0, criatura_id=criatura_id)
+        for n, criatura_id in enumerate(ids)
+    ]
+    assert [p.delta_asciicoins for p in pagos] == [1] * 12 + [0]
+    assert pagos[-1].ok and pagos[-1].topada
+    assert economia.saldos("u1", "g1").asciicoins == 50 + economia.TOPE_CUIDADOS
+
+
+@pytest.mark.parametrize("caso", ["ajeno", "muerto", "no_existe"])
+def test_cuidar_a_quien_no_es_tuyo_o_no_esta_no_hace_nada(caso):
+    nacer("Ana")
+    ajeno = db.crear("u2", "g1", "pulpo", "Otro", STATS, T0)
+    muerta = replace(nacer("Bea", activa=False), muerta_en=T0, causa_muerte="hambre")
+    db.guardar(muerta)
+    criatura_id = {"ajeno": ajeno.id, "muerto": muerta.id, "no_existe": 999_999}[caso]
+    assert economia.ejecutar_cuidado("ev-x", "u1", "g1", sim.JUGAR, T0, criatura_id=criatura_id) is None
+    assert db.por_id(ajeno.id) == ajeno and db.por_id(muerta.id) == muerta
+    assert economia.saldos("u1", "g1").asciicoins == 50
+
+
+def test_el_replay_devuelve_al_mismo_y_el_evento_no_sirve_para_otro():
+    nacer("Ana")
+    otra = nacer("Bea", activa=False)
+    tercera = nacer("Cía", activa=False)
+    economia.ejecutar_cuidado("ev-r", "u1", "g1", sim.JUGAR, T0, criatura_id=otra.id)
+    otra_vez = economia.ejecutar_cuidado("ev-r", "u1", "g1", sim.JUGAR, T0, criatura_id=otra.id)
+    assert otra_vez.replay and otra_vez.criatura.id == otra.id
+    assert economia.saldos("u1", "g1").asciicoins == 51
+    with pytest.raises(RuntimeError, match="otra acción"):
+        economia.ejecutar_cuidado("ev-r", "u1", "g1", sim.JUGAR, T0, criatura_id=tercera.id)

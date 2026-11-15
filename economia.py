@@ -593,9 +593,16 @@ def _envolver_cuidado(
 
 def ejecutar_cuidado(
     evento_id: str, usuario_id: str, guild_id: str,
-    accion: str, ahora: datetime,
+    accion: str, ahora: datetime, criatura_id: int | None = None,
 ) -> ResultadoCuidado | None:
-    """Aplica cuidado, cooldown y premios bajo un único ``BEGIN IMMEDIATE``."""
+    """Aplica cuidado, cooldown y premios bajo un único ``BEGIN IMMEDIATE``.
+
+    Sin `criatura_id`, al activo. Con él, a ese gachamon si es de esa persona,
+    de ese servidor y está vivo; si no, `None` sin escribir nada. El id va en
+    la `solicitud` del ledger, así que el mismo evento no sirve para cuidar a
+    otro gachamon.
+    """
+    solicitud = accion if criatura_id is None else f"{accion}:{criatura_id}"
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         operacion = con.execute(
@@ -604,9 +611,9 @@ def ejecutar_cuidado(
             (evento_id, usuario_id, guild_id),
         ).fetchone()
         if operacion is not None:
-            if operacion["solicitud"] != accion:
+            if operacion["solicitud"] != solicitud:
                 raise RuntimeError("el evento de cuidado pertenece a otra acción")
-            criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+            criatura = db.criatura_elegida_en(con, usuario_id, guild_id, criatura_id)
             if criatura is None:
                 return None
             evolucion = con.execute(
@@ -634,53 +641,68 @@ def ejecutar_cuidado(
                 topada=operacion["resultado"] == "topada",
             )
 
-        criatura = db.criatura_activa_en(con, usuario_id, guild_id)
+        criatura = db.criatura_elegida_en(con, usuario_id, guild_id, criatura_id)
         if criatura is None:
             return None
         criatura = db._avanzar_en(con, criatura, ahora)
-
-        espera = db.espera_en(con, criatura.id, accion, ahora)
-        if espera and not sim.puede_saltarse_espera(criatura, accion):
-            db._guardar(con, criatura)
-            return ResultadoCuidado(criatura, "", ok=False, espera=espera)
-
-        resultado = sim.aplicar_accion(criatura, accion, ahora)
-        db._guardar(con, resultado.criatura)
-        sin_efecto = (
-            resultado.ok
-            and accion != sim.ACTUALIZAR
-            and resultado.criatura == criatura
+        return _cuidar_en(
+            con, evento_id, usuario_id, guild_id, criatura, accion, ahora, solicitud
         )
-        if not resultado.ok or accion == sim.ACTUALIZAR or sin_efecto:
-            return _envolver_cuidado(resultado, sin_efecto=sin_efecto)
 
-        duracion = sim.COOLDOWNS.get(accion, timedelta(0))
-        if duracion:
-            db.poner_cooldown_en(con, criatura.id, accion, ahora + duracion)
-        # Un cuidado de los que cuentan: los tres returns de arriba ya han
-        # descartado el fallo, el `/actualizar` y el que no cambió nada.
-        db.apuntar_en(con, criatura.id, lgr.CUIDADOS)
-        fecha = _fecha_economica(ahora)
-        delta, usados, topada = _registrar_recompensa(
+
+def _cuidar_en(
+    con, evento_id: str, usuario_id: str, guild_id: str,
+    criatura: sim.Criatura, accion: str, ahora: datetime, solicitud: str,
+) -> ResultadoCuidado:
+    """El cuidado en sí, de la espera al recibo, dentro de la transacción de quien llama.
+
+    `criatura` llega **ya puesta al día** hasta `ahora`. Mira la espera, aplica
+    el cuidado, lo guarda, le pone su enfriamiento, lo apunta en su marcador y
+    paga el cuidado y, si evolucionó, la evolución, con `solicitud` en las filas
+    del ledger.
+    """
+    espera = db.espera_en(con, criatura.id, accion, ahora)
+    if espera and not sim.puede_saltarse_espera(criatura, accion):
+        db._guardar(con, criatura)
+        return ResultadoCuidado(criatura, "", ok=False, espera=espera)
+
+    resultado = sim.aplicar_accion(criatura, accion, ahora)
+    db._guardar(con, resultado.criatura)
+    sin_efecto = (
+        resultado.ok
+        and accion != sim.ACTUALIZAR
+        and resultado.criatura == criatura
+    )
+    if not resultado.ok or accion == sim.ACTUALIZAR or sin_efecto:
+        return _envolver_cuidado(resultado, sin_efecto=sin_efecto)
+
+    duracion = sim.COOLDOWNS.get(accion, timedelta(0))
+    if duracion:
+        db.poner_cooldown_en(con, criatura.id, accion, ahora + duracion)
+    # Un cuidado de los que cuentan: los tres returns de arriba ya han
+    # descartado el fallo, el `/actualizar` y el que no cambió nada.
+    db.apuntar_en(con, criatura.id, lgr.CUIDADOS)
+    fecha = _fecha_economica(ahora)
+    delta, usados, topada = _registrar_recompensa(
+        con, evento_id, usuario_id, guild_id, fecha,
+        "cuidado", PREMIO_CUIDADO, TOPE_CUIDADOS, solicitud,
+    )
+    delta_evolucion = 0
+    evolucion_usadas = 0
+    if resultado.evoluciono:
+        delta_evolucion, evolucion_usadas, _ = _registrar_recompensa(
             con, evento_id, usuario_id, guild_id, fecha,
-            "cuidado", PREMIO_CUIDADO, TOPE_CUIDADOS, accion,
+            "evolucion", PREMIO_EVOLUCION, TOPE_EVOLUCIONES, solicitud,
         )
-        delta_evolucion = 0
-        evolucion_usadas = 0
-        if resultado.evoluciono:
-            delta_evolucion, evolucion_usadas, _ = _registrar_recompensa(
-                con, evento_id, usuario_id, guild_id, fecha,
-                "evolucion", PREMIO_EVOLUCION, TOPE_EVOLUCIONES, accion,
-            )
-        return _envolver_cuidado(
-            resultado,
-            delta=delta,
-            delta_evolucion=delta_evolucion,
-            ent_salud_ganada=resultado.criatura.ent_salud - criatura.ent_salud,
-            usados=usados,
-            evolucion_usadas=evolucion_usadas,
-            topada=topada,
-        )
+    return _envolver_cuidado(
+        resultado,
+        delta=delta,
+        delta_evolucion=delta_evolucion,
+        ent_salud_ganada=resultado.criatura.ent_salud - criatura.ent_salud,
+        usados=usados,
+        evolucion_usadas=evolucion_usadas,
+        topada=topada,
+    )
 
 
 @dataclass(frozen=True)

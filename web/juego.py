@@ -7,7 +7,7 @@ import math
 import re
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 import db
 import economia
@@ -26,6 +26,27 @@ EVENTO_VALIDO = re.compile(r"[A-Za-z0-9-]{8,64}")
 def _segundos(espera) -> int:
     """Una espera en segundos enteros, hacia arriba; 0 si no hay."""
     return math.ceil(espera.total_seconds()) if espera else 0
+
+
+def _elegido(datos: dict) -> int | None:
+    """El `gachamon_id` del cuerpo, que dice a quién le cae la acción.
+
+    Sin él, al activo, como siempre. Si viene y no es un id, la petición no se
+    entiende.
+    """
+    if "gachamon_id" not in datos:
+        return None
+    gachamon_id = datos["gachamon_id"]
+    if not es_un_id(gachamon_id):
+        raise problema(422, "peticion", "La petición no se entiende.")
+    return gachamon_id
+
+
+def _nadie(gachamon_id: int | None, sin_gachamon: str) -> HTTPException:
+    """El 409 de cuando el juego no encontró a quién aplicarle la acción."""
+    if gachamon_id is None:
+        return problema(409, "sin_gachamon", sin_gachamon)
+    return problema(409, "no_esta", "Ese gachamon ya no está.")
 
 
 @router.get("/estado")
@@ -117,12 +138,17 @@ def cuidar(
     evento = datos.get("evento_id")
     if not isinstance(evento, str) or not EVENTO_VALIDO.fullmatch(evento):
         raise problema(422, "evento", "Ese identificador de evento no vale.")
+    # Con `gachamon_id`, a ese gachamon tuyo; sin él, al activo, que tiene que
+    # ser el que el jugador estaba viendo.
+    gachamon_id = _elegido(datos)
     ahora = db.ahora_utc()
     sin_gachamon = "No tienes un gachamon que cuidar."
-    la_misma_activa(jugador, ahora, sin_gachamon)
+    if gachamon_id is None:
+        la_misma_activa(jugador, ahora, sin_gachamon)
     try:
         resultado = economia.ejecutar_cuidado(
-            evento, jugador.usuario_id, jugador.guild_id, accion, ahora
+            evento, jugador.usuario_id, jugador.guild_id, accion, ahora,
+            criatura_id=gachamon_id,
         )
     except RuntimeError:
         log.warning("evento de cuidado reutilizado: %s", evento, exc_info=True)
@@ -130,7 +156,7 @@ def cuidar(
             409, "evento", "Ese cuidado ya se usó para otra acción."
         ) from None
     if resultado is None:
-        raise problema(409, "sin_gachamon", sin_gachamon)
+        raise _nadie(gachamon_id, sin_gachamon)
     # Como en Discord: un cuidado que sale bien termina pagando las medallas
     # nuevas, antes de armar el estado para que sus gemas ya vayan en el saldo.
     logros = []
@@ -144,20 +170,31 @@ def cuidar(
         "monedas": resultado.delta_asciicoins,
         "evoluciono": resultado.evoluciono,
         "logros": logros,
+        # El que recibió el cuidado, que con `gachamon_id` no es el activo.
+        "gachamon": estado.ficha(db.avanzar(resultado.criatura, ahora), ahora),
         "estado": estado.armar(jugador, ahora),
     }
 
 
 @router.post("/acariciar", dependencies=[Depends(con_cabecera)])
-def acariciar(jugador: Jugador = Depends(jugador_actual)) -> dict:
+def acariciar(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # El cuerpo es opcional: sin él, o sin `gachamon_id`, al activo.
+    gachamon_id = _elegido(cuerpo if isinstance(cuerpo, dict) else {})
     ahora = db.ahora_utc()
     sin_gachamon = "No tienes un gachamon que acariciar."
-    la_misma_activa(jugador, ahora, sin_gachamon)
-    caricia = db.acariciar(jugador.usuario_id, jugador.guild_id, ahora)
+    if gachamon_id is None:
+        la_misma_activa(jugador, ahora, sin_gachamon)
+    caricia = db.acariciar(
+        jugador.usuario_id, jugador.guild_id, ahora, criatura_id=gachamon_id
+    )
     if caricia.criatura is None:
-        raise problema(409, "sin_gachamon", sin_gachamon)
+        raise _nadie(gachamon_id, sin_gachamon)
     return {
         "ok": caricia.ok,
         "espera": _segundos(caricia.espera),
+        "gachamon": estado.ficha(db.avanzar(caricia.criatura, ahora), ahora),
         "estado": estado.armar(jugador, ahora),
     }
