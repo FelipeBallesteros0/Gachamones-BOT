@@ -107,15 +107,17 @@ def test_el_modal_invalido_responde_en_privado_y_no_muta_la_bd(
 # --- Bautizar al recluta ----------------------------------------------------
 
 def montar_plantel(tmp_path, monkeypatch):
-    """Una activa con nombre y un recluta sin bautizar, como al volver de una
-    aventura en la que alguien se unió."""
+    """Una activa con nombre y un recluta que se puso el suyo solo, como al
+    volver de una aventura en la que alguien se unió."""
     ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
     monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
     monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
     db.inicializar()
     activa = db.crear("u1", "g1", "pulpo", "Vieja", (15, 15, 15, 15), ahora)
-    recluta = db.crear("u1", "g1", "michi", sim.NOMBRE_PENDIENTE, (15, 15, 15, 15), ahora,
-    activa=False,)
+    recluta = db.crear(
+        "u1", "g1", "michi", "Brote", (15, 15, 15, 15), ahora,
+        activa=False, se_nombro_solo=True,
+    )
     return activa, recluta
 
 
@@ -186,17 +188,16 @@ def test_bautizar_al_recluta_no_le_toca_el_nombre_al_activo(tmp_path, monkeypatc
 
     assert db.por_id(recluta.id).nombre == "Pelusa"
     assert db.criatura_activa("u1", "g1").nombre == activa.nombre
-    # Y no se publica su ficha: sigue en la incubadora, no es la que se cuida.
+    # Y no se publica su ficha: no es el activo, no es la que se cuida.
     assert bandeja.publicadas == []
 
 
-def test_bautizado_el_recluta_ya_sale_de_la_incubadora(tmp_path, monkeypatch):
+def test_bautizado_el_recluta_se_puede_sacar(tmp_path, monkeypatch):
     _, recluta = montar_plantel(tmp_path, monkeypatch)
     bandeja = Bandeja()
     monkeypatch.setattr(vistas, "publicar_pantalla", AsyncMock())
     modal = SimpleNamespace(nombre="Pelusa", criatura_id=recluta.id)
 
-    assert not db.activar(recluta.id, "u1", "g1")
     asyncio.run(vistas.NombreModal.on_submit(modal, bandeja.interaccion()))
 
     assert db.activar(recluta.id, "u1", "g1")
@@ -214,7 +215,7 @@ def test_no_se_puede_bautizar_al_recluta_de_otra_persona(tmp_path, monkeypatch):
         vistas.NombreModal.on_submit(modal, bandeja.interaccion(usuario="u2"))
     )
 
-    assert db.por_id(recluta.id).nombre == sim.NOMBRE_PENDIENTE
+    assert db.por_id(recluta.id).nombre == "Brote"
     assert bandeja.enviados == [
         ("Ya no tienes ningún gachamon vivo.", {"ephemeral": True})
     ]
@@ -265,7 +266,7 @@ def test_el_modal_del_recluta_no_acepta_el_nombre_de_su_especie(
 
     asyncio.run(vistas.NombreModal.on_submit(modal, bandeja.interaccion()))
 
-    assert db.por_id(recluta.id).nombre == sim.NOMBRE_PENDIENTE
+    assert db.por_id(recluta.id).nombre == "Brote"
     assert bandeja.enviados == [(
         "Nombre no válido. Ese es el nombre de su especie. Ponle uno propio.",
         {"ephemeral": True},

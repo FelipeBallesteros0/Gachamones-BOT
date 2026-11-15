@@ -168,10 +168,10 @@ def test_a_la_intemperie_no_vive_nadie_en_el_refugio(cliente, monkeypatch):
     assert refugio == {"viven": [], "estancia": None}
 
 
-def test_un_recluta_sin_nombre_se_llama_como_en_la_incubadora(cliente, monkeypatch):
+def test_un_recluta_se_llama_en_el_refugio_por_su_nombre(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     cuenta = db.cuenta_web(1)
-    recluta = db.crear(cuenta.usuario_id, cuenta.guild_id, "pollito", "", (10, 10, 10, 10), db.ahora_utc(), activa=False)
+    recluta = db.crear(cuenta.usuario_id, cuenta.guild_id, "pollito", "Brote", (10, 10, 10, 10), db.ahora_utc(), activa=False)
     viven = cliente.get(ESTADO).json()["lugar"]["refugio"]["viven"]
-    assert {v["id"]: v["nombre"] for v in viven} == {viven[0]["id"]: "Pelusa", recluta.id: "Sin nombre"}
+    assert {v["id"]: v["nombre"] for v in viven} == {viven[0]["id"]: "Pelusa", recluta.id: "Brote"}

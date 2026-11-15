@@ -32,7 +32,10 @@ def test_el_segundo_huevo_se_rechaza(cliente, monkeypatch):
     alta(cliente)
     cliente.post(HUEVO, headers=ESCRIBIR)
     respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "ya_tienes"
+    assert respuesta.status_code == 409 and respuesta.json()["detail"] == {
+        "clave": "ya_tienes",
+        "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
+    }
 
 
 def test_bautizar(cliente, monkeypatch):
@@ -74,10 +77,10 @@ def test_sin_gachamon_id_se_bautiza_a_la_activa_como_siempre(cliente, monkeypatc
     poner_reloj(monkeypatch)
     alta(cliente)
     cliente.post(HUEVO, headers=ESCRIBIR)
-    recluta = db.crear(YO, G, "pulpo", "", (10, 10, 10, 10), db.ahora_utc(), activa=False)
+    recluta = db.crear(YO, G, "pulpo", "Brote", (10, 10, 10, 10), db.ahora_utc(), activa=False)
     respuesta = cliente.post(BAUTIZAR, json={"nombre": "Pelusa"}, headers=ESCRIBIR)
     assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Pelusa"
-    assert db.por_id(recluta.id).nombre == ""
+    assert db.por_id(recluta.id).nombre == "Brote"
 
 
 def test_bautizar_sin_gachamon(cliente, monkeypatch):
@@ -144,7 +147,7 @@ def test_al_nacer_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch):
     assert respuesta.json()["saldos"]["gemas"] == 70
     assert economia.saldos(YO, G).asciigems == 70
     assert set(respuesta.json()) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar", "sin_nombre",
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar",
     }
 
 
@@ -167,12 +170,12 @@ def test_la_ayuda_con_gachamon_nace_siempre_de_una_especie_comun(cliente, monkey
     assert nacer.esp.elegir_del_huevo(None) is rara
 
 
-# --- El huevo cuando hay un recluta sin nombre ---------------------------------
+# --- El huevo cuando solo queda un recluta ------------------------------------
 
 ANA_DISCORD = "222222222222222222"
 
 
-def test_con_la_activa_muerta_y_un_recluta_sin_nombre_el_huevo_dice_que_hacer(cliente, monkeypatch):
+def test_con_la_activa_muerta_y_un_recluta_el_huevo_dice_lo_de_siempre(cliente, monkeypatch):
     from ayudas_web import AVATAR
 
     reloj = poner_reloj(monkeypatch)
@@ -181,18 +184,19 @@ def test_con_la_activa_muerta_y_un_recluta_sin_nombre_el_huevo_dice_que_hacer(cl
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
     assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
     viejo = db.crear(ANA_DISCORD, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
-    recluta = db.crear(ANA_DISCORD, G, "pulpo", "", (10, 10, 10, 10), reloj.ahora, activa=False)
+    recluta = db.crear(ANA_DISCORD, G, "pulpo", "Bruma", (10, 10, 10, 10), reloj.ahora, activa=False)
     reloj.pasar(days=5)
     db.guardar(replace(viejo, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
 
-    assert cliente.get("/gachamon/api/estado").json()["gachamon"] is None
+    # El remiendo de la lectura lo pone de activo: con plantel vivo siempre hay uno.
+    assert cliente.get("/gachamon/api/estado").json()["gachamon"]["nombre"] == "Bruma"
     respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == {
         "clave": "ya_tienes",
-        "mensaje": "Antes, ponle nombre al gachamon que espera en la incubadora.",
+        "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
     }
-    assert db.por_id(recluta.id).nombre == "" and not db.por_id(recluta.id).activa
+    assert db.por_id(recluta.id).activa
 
 
 def test_con_una_activa_el_segundo_huevo_dice_lo_de_siempre(cliente, monkeypatch):

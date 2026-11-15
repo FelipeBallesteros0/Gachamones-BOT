@@ -38,11 +38,13 @@ def activa():
 
 
 def con_plantel(cliente):
-    """La cuenta 1, vinculada: Pelusa activa, Nube con nombre y un recluta sin él, en ese orden."""
+    """La cuenta 1, vinculada: Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
     con_vinculo(cliente)
     pelusa = activa()
     nube = db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
-    recluta = db.crear(LA_DE_DISCORD, G, "pollito", "", STATS, db.ahora_utc(), activa=False)
+    recluta = db.crear(
+        LA_DE_DISCORD, G, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True
+    )
     return pelusa, nube, recluta
 
 
@@ -89,21 +91,22 @@ def test_el_plantel_en_orden(cliente, monkeypatch):
     assert [g["id"] for g in cuerpo["plantel"]] == [nube.id, pelusa.id, recluta.id]
     assert [g["activo"] for g in cuerpo["plantel"]] == [True, False, False]
     assert cuerpo["plantel"][0] == {
-        "id": nube.id, "nombre": "Nube", "sin_nombre": False,
+        "id": nube.id, "nombre": "Nube",
         "nombre_especie": esp.ESPECIES["pulpo"].nombre, "nombre_etapa": esp.nombre_etapa("bebe", "macho"),
         "nivel": 1, "retrato": el_retrato("pulpo"), "activo": True,
     }
     assert cuerpo["plantel"][2] == {
-        "id": recluta.id, "nombre": "", "sin_nombre": True,
+        "id": recluta.id, "nombre": "Brote",
         "nombre_especie": esp.ESPECIES["pollito"].nombre, "nombre_etapa": esp.nombre_etapa("bebe", "macho"),
         "nivel": 1, "retrato": el_retrato("pollito"), "activo": False,
     }
-    assert cuerpo["plantel"][1]["nombre"] == "Pelusa" and cuerpo["plantel"][1]["sin_nombre"] is False
+    assert cuerpo["plantel"][1]["nombre"] == "Pelusa"
     assert cuerpo["maximo"] == db.MAXIMO_PLANTEL == 25
     saldos = economia.saldos(LA_DE_DISCORD, G)
     assert cuerpo["saldos"] == {"monedas": saldos.asciicoins, "gemas": saldos.asciigems}
-    # Con una activa no hay nadie esperando que lo bauticen para seguir jugando.
-    assert cliente.get(ESTADO).json()["sin_nombre"] is None
+    # Ninguna fila habla de «sin nombre»: ya no existe ese estado.
+    assert all("sin_nombre" not in g for g in cuerpo["plantel"])
+    assert "sin_nombre" not in cliente.get(ESTADO).json()
 
 
 def test_quien_juega_solo_en_la_web_ve_a_su_unico_gachamon(cliente, monkeypatch):
@@ -111,8 +114,8 @@ def test_quien_juega_solo_en_la_web_ve_a_su_unico_gachamon(cliente, monkeypatch)
     pelusa = con_gachamon(cliente)["gachamon"]
     reloj.pasar(days=5)
     plantel = cliente.get(INCUBADORA).json()["plantel"]
-    assert [(g["id"], g["nombre"], g["activo"], g["sin_nombre"]) for g in plantel] == [
-        (pelusa["id"], "Pelusa", True, False),
+    assert [(g["id"], g["nombre"], g["activo"]) for g in plantel] == [
+        (pelusa["id"], "Pelusa", True),
     ]
     # El activo se ve con la cara de ahora, la misma que en el estado.
     gachamon = cliente.get(ESTADO).json()["gachamon"]
@@ -190,18 +193,16 @@ def test_sacar_al_que_ya_es_el_activo_es_un_si(cliente, monkeypatch):
     assert db.por_id(pelusa.id) == antes
 
 
-def test_sacar_a_un_recluta_sin_nombre(cliente, monkeypatch):
+def test_sacar_a_cualquiera_de_los_tuyos_es_un_si(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     pelusa, _, recluta = con_plantel(cliente)
     ir(cliente)
     hecho = sacar(cliente, recluta.id)
     assert hecho.status_code == 200
     cuerpo = hecho.json()
-    assert (cuerpo["ok"], cuerpo["clave"], cuerpo["mensaje"]) == (
-        False, "sin_nombre", "Antes de sacarlo, ponle nombre.",
-    )
-    assert cuerpo["estado"]["gachamon"]["id"] == pelusa.id
-    assert activa().id == pelusa.id and not db.por_id(recluta.id).activa
+    assert (cuerpo["ok"], cuerpo["clave"], cuerpo["mensaje"]) == (True, None, "Ahora sales con Brote.")
+    assert cuerpo["estado"]["gachamon"]["id"] == recluta.id
+    assert activa().id == recluta.id and not db.por_id(pelusa.id).activa
 
 
 def test_sacar_a_uno_ajeno_es_no_esta(cliente, monkeypatch):
@@ -274,7 +275,7 @@ def test_bautizar_a_un_recluta_desde_la_incubadora(cliente, monkeypatch):
     hecho = bautizar(cliente, recluta.id, especie.upper())
     assert hecho.status_code == 422
     assert hecho.json()["detail"] == {"clave": "nombre", "mensaje": "Ese es el nombre de su especie. Ponle uno propio."}
-    assert db.por_id(recluta.id).nombre == ""
+    assert db.por_id(recluta.id).nombre == "Brote"
 
     hecho = bautizar(cliente, recluta.id, " Bruma ")
     assert hecho.status_code == 200
@@ -285,11 +286,13 @@ def test_bautizar_a_un_recluta_desde_la_incubadora(cliente, monkeypatch):
     assert hecho.status_code == 409
     assert hecho.json()["detail"] == {"clave": "ya_bautizado", "mensaje": "Ese gachamon ya tiene nombre."}
 
-    ajeno = db.crear(OTRA_PERSONA, G, "pulpo", "", STATS, db.ahora_utc(), activa=False)
+    ajeno = db.crear(
+        OTRA_PERSONA, G, "pulpo", "Mote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True
+    )
     hecho = bautizar(cliente, ajeno.id, "Mío")
     assert hecho.status_code == 409
     assert hecho.json()["detail"] == {"clave": "no_esta", "mensaje": "Ese gachamon ya no está."}
-    assert db.por_id(ajeno.id).nombre == "" and db.por_id(recluta.id).nombre == "Bruma"
+    assert db.por_id(ajeno.id).nombre == "Mote" and db.por_id(recluta.id).nombre == "Bruma"
 
 
 def test_bautizar_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, monkeypatch):
@@ -301,44 +304,36 @@ def test_bautizar_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, m
         hecho = bautizar(cliente, gachamon_id, "Bruma")
         assert hecho.status_code == 422, gachamon_id
         assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
-    assert activa().id == pelusa.id and db.por_id(recluta.id).nombre == ""
+    assert activa().id == pelusa.id and db.por_id(recluta.id).nombre == "Brote"
     assert [db.por_id(c.id) for c in (pelusa, nube, recluta)] == antes
 
 
-def test_si_solo_queda_un_recluta_sin_nombre_se_puede_seguir(cliente, monkeypatch):
+def test_si_solo_queda_un_recluta_el_remiendo_lo_pone_de_activo(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
     vinculada_sin_gachamon(cliente)
     viejo = db.crear(LA_DE_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
-    recluta = db.crear(LA_DE_DISCORD, G, "pulpo", "", STATS, reloj.ahora, activa=False)
-    otro = db.crear(LA_DE_DISCORD, G, "pollito", "", STATS, reloj.ahora, activa=False)
+    recluta = db.crear(
+        LA_DE_DISCORD, G, "pulpo", "Brote", STATS, reloj.ahora, activa=False, se_nombro_solo=True
+    )
     reloj.pasar(days=5)
-    # Viejo murió cuando todavía se moría de hambre, y nadie con nombre lo relevó.
+    # Viejo murió cuando todavía se moría de hambre, y nadie lo relevó.
     db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
 
     estado = cliente.get(ESTADO).json()
-    assert estado["gachamon"] is None
-    # El de menor id, con la cara con que se durmió.
-    assert estado["sin_nombre"] == {
-        "id": recluta.id, "nombre_especie": esp.ESPECIES["pulpo"].nombre, "retrato": el_retrato("pulpo"),
-    }
-
-    hecho = bautizar(cliente, recluta.id, "Bruma")
-    assert hecho.status_code == 200
-    estado = hecho.json()
-    assert estado["gachamon"]["id"] == recluta.id and estado["gachamon"]["nombre"] == "Bruma"
-    assert estado["sin_nombre"] is None
-    assert activa().id == recluta.id and db.por_id(otro.id).nombre == ""
+    assert estado["gachamon"]["id"] == recluta.id and estado["gachamon"]["nombre"] == "Brote"
+    assert "sin_nombre" not in estado
+    assert activa().id == recluta.id
 
 
 # --- El huevo ------------------------------------------------------------------
 
-def test_el_huevo_con_un_recluta_lo_dice(cliente, monkeypatch):
+def test_el_huevo_con_un_recluta_dice_lo_de_siempre(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    recluta = db.crear(YO, G, "pulpo", "", STATS, db.ahora_utc(), activa=False)
+    recluta = db.crear(YO, G, "pulpo", "Brote", STATS, db.ahora_utc(), activa=False)
     hecho = cliente.post(HUEVO, headers=ESCRIBIR)
     assert hecho.status_code == 409
     assert hecho.json()["detail"] == {
-        "clave": "ya_tienes", "mensaje": "Antes, ponle nombre al gachamon que espera en la incubadora.",
+        "clave": "ya_tienes", "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
     }
     assert [c.id for c in db.plantel(YO, G)] == [recluta.id]

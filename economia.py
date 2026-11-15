@@ -943,7 +943,6 @@ def ejecutar_entrenamiento_conjunto(
             or reserva.guild_id != guild_id
             or not reserva.viva
             or reserva.activa
-            or sim.esta_sin_nombrar(reserva)
             or reserva.nombre != seleccion.reserva_nombre
         ):
             return ResultadoEntrenamientoConjunto(problema="reserva_caduca")
@@ -1688,7 +1687,7 @@ class ResultadoCambio:
     """Cómo salió cambiar de gachamon activo."""
 
     ok: bool = False
-    motivo: str | None = None          # ya_es_el_activo, no_esta o sin_nombre
+    motivo: str | None = None          # ya_es_el_activo o no_esta
     criatura: sim.Criatura | None = None   # el activo después: con el que sales
     saliente: sim.Criatura | None = None   # el que lo era y se queda en casa
 
@@ -1721,8 +1720,6 @@ def cambiar_de_activo(
             or not elegida.viva
         ):
             return ResultadoCambio(motivo="no_esta", criatura=activa)
-        if sim.esta_sin_nombrar(elegida):
-            return ResultadoCambio(motivo="sin_nombre", criatura=activa)
 
         db._activar_en(con, criatura_id)
         # Releídas tras el cambio, con la marca nueva, y al día sin guardarlo.
@@ -2249,7 +2246,7 @@ def equipar_cosmetico(
         if getattr(criatura, cosmetico.tipo) == cosmetico.clave:
             return ResultadoCosmetico(
                 criatura=criatura, saldo=saldo, motivo="ya_lo_lleva",
-                problema=f"{sim.nombre_visible(criatura)} ya lo lleva puesto.",
+                problema=f"{criatura.nombre} ya lo lleva puesto.",
             )
         if cosmetico.clave not in db._ropero_disponible(con, usuario_id, guild_id):
             # Se distingue no tenerlo de tenerlo puesto en otro: son problemas
@@ -2268,7 +2265,7 @@ def equipar_cosmetico(
                     else f"No tienes **{cosmetico.nombre}** en tu ropero."
                 ),
                 motivo="lo_lleva_otro" if lleva else "no_lo_tienes",
-                lo_lleva=sim.nombre_visible(lleva) if lleva else None,
+                lo_lleva=lleva.nombre if lleva else None,
             )
 
         vestido, sustituido = _vestir_en(
@@ -2304,7 +2301,7 @@ def quitar_cosmetico(
         if getattr(criatura, tipo) is None:
             return ResultadoCosmetico(
                 criatura=criatura, saldo=saldo, motivo="no_lleva_nada",
-                problema=f"{sim.nombre_visible(criatura)} no lleva nada de eso.",
+                problema=f"{criatura.nombre} no lleva nada de eso.",
             )
 
         desnudo, quitado = _vestir_en(con, criatura, tipo, None)

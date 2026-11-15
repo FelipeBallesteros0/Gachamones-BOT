@@ -72,7 +72,7 @@ async def anunciar_logros(
     pueda desbloquearse sin tener que pensar cuál de todas era.
     """
     recibo = economia.pagar_logros(criatura, ahora or db.ahora_utc())
-    await _cantar(canal, sim.nombre_visible(criatura), recibo)
+    await _cantar(canal, criatura.nombre, recibo)
 
 
 async def anunciar_logros_de_persona(

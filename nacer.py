@@ -150,8 +150,8 @@ def bautizar(
         nombre = sim.normalizar_nombre(nombre)
     except ValueError as error:
         raise NombreNoVale(str(error)) from None
-    # El remiendo de siempre: si quedó un plantel sin activa, sale una de la
-    # incubadora antes de mirar a quién se bautiza.
+    # El remiendo de siempre: si quedó un plantel sin activa, se pone a uno de
+    # activo antes de mirar a quién se bautiza.
     db.activa_al_dia(usuario_id, guild_id, ahora)
 
     def puede(activa: sim.Criatura) -> bool:

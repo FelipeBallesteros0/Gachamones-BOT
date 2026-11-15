@@ -2,8 +2,8 @@
 
 Aquí no se decide ninguna regla: se llama a quien la tiene y se traduce a
 JSON. Leer no guarda el paso del tiempo del gachamon; lo único del gachamon
-que puede escribir es el remiendo de `db.activa_al_dia`, que saca a alguien de
-la incubadora si no hay activa. Leer el estado también asegura el monedero.
+que puede escribir es el remiendo de `db.activa_al_dia`, que pone a uno de
+activo si no hay ninguno. Leer el estado también asegura el monedero.
 """
 from __future__ import annotations
 
@@ -78,25 +78,6 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
     }
 
 
-def _sin_nombre(jugador: Jugador, activa: sim.Criatura | None) -> dict | None:
-    """El recluta que espera nombre cuando no queda ninguna activa (el de menor id).
-
-    Sin activa, `activa_al_dia` ya intentó sacar a uno con nombre: si sigue sin
-    haberla, los vivos que quedan son reclutas sin nombre, y bautizar a uno es
-    poder seguir jugando.
-    """
-    if activa is not None:
-        return None
-    recluta = next(
-        (c for c in db.plantel(jugador.usuario_id, jugador.guild_id) if sim.esta_sin_nombrar(c)), None
-    )
-    if recluta is None:
-        return None
-    return {
-        "id": recluta.id, "nombre_especie": recluta.def_especie.nombre, "retrato": retrato_de(recluta),
-    }
-
-
 def _lugar(
     jugador: Jugador, hogar_del_gachamon: str, hogar_de_la_persona: str, hay_gachamon: bool
 ) -> dict:
@@ -143,7 +124,7 @@ def _refugio(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> dict:
     return {
         "viven": [
             {
-                "id": c.id, "nombre": "Sin nombre" if sim.esta_sin_nombrar(c) else c.nombre,
+                "id": c.id, "nombre": c.nombre,
                 "nombre_especie": c.def_especie.nombre,
                 "retrato": retrato_de(c),
             }
@@ -182,5 +163,4 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
             {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, del_lugar)
         ],
         "lugar": lugar,
-        "sin_nombre": _sin_nombre(jugador, activa),
     }

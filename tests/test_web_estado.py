@@ -58,9 +58,16 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
     }
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
     assert set(estado) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar", "sin_nombre",
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar",
     }
-    assert estado["sin_nombre"] is None
+
+
+def test_el_estado_ya_no_habla_de_reclutas_sin_nombre(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    assert "sin_nombre" not in cliente.get(ESTADO).json()
+    nace()
+    assert "sin_nombre" not in cliente.get(ESTADO).json()
 
 
 def test_las_barras_bajan_con_el_reloj_y_leer_no_guarda(cliente, monkeypatch):
@@ -163,7 +170,7 @@ def test_una_muerte_de_antes_sin_ver_no_rompe_nada(cliente, monkeypatch):
     morir_de_antes(viejo, reloj.ahora)
     estado = cliente.get(ESTADO).json()
     assert estado["gachamon"] is None and "difunto" not in estado
-    assert estado["sin_nombre"] is None and estado["globos"] == []
+    assert "sin_nombre" not in estado and estado["globos"] == []
     assert db.por_id(viejo.id).muerta_en == reloj.ahora
 
 

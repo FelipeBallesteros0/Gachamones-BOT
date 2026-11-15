@@ -374,9 +374,9 @@ def _lo_que_lleva(criatura: sim.Criatura | None) -> str:
         if cosmetico:
             puestos.append(f"{EMOJI_TIPO[tipo]} {cosmetico.nombre}")
     if not puestos:
-        return f"-# **{sim.nombre_visible(criatura)}** no lleva nada puesto."
+        return f"-# **{criatura.nombre}** no lleva nada puesto."
     return (
-        f"-# **{sim.nombre_visible(criatura)}** lleva: " + " · ".join(puestos)
+        f"-# **{criatura.nombre}** lleva: " + " · ".join(puestos)
     )
 
 
@@ -397,7 +397,7 @@ def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
     )
     if not tengo:
         return (
-            f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
+            f"## 🎨 Personalizar a {criatura.nombre}\n"
             f"Estilo de ficha: **{estilo}**\n"
             "Tu ropero está vacío. Cómprale algo en 🛒 **Tienda**.\n"
             f"-# {obj.EMOJI_GEMA} gemas: "
@@ -410,7 +410,7 @@ def texto_de_personalizacion(usuario_id: str, guild_id: str) -> str:
         else "-# Tus **{}** piezas están puestas. Quítale alguna para moverla.".format(tengo)
     )
     return (
-        f"## 🎨 Personalizar a {sim.nombre_visible(criatura)}\n"
+        f"## 🎨 Personalizar a {criatura.nombre}\n"
         f"Estilo de ficha: **{estilo}**\n"
         f"{_lo_que_lleva(criatura)}\n{pie}"
     )
@@ -425,7 +425,7 @@ def texto_resultado_compra_cosmetico(
     linea = f"{EMOJI_TIPO[cosmetico.tipo]} Comprado: **{cosmetico.nombre}**."
     if resultado.criatura is not None:
         linea += (
-            f" Se lo estrena **{sim.nombre_visible(resultado.criatura)}**."
+            f" Se lo estrena **{resultado.criatura.nombre}**."
         )
     else:
         linea += " Está en tu ropero."
@@ -446,7 +446,7 @@ def texto_resultado_equipar(
     if not resultado.ok:
         return f"❌ {resultado.problema}"
     linea = (
-        f"{EMOJI_TIPO[cosmetico.tipo]} **{sim.nombre_visible(resultado.criatura)}** "
+        f"{EMOJI_TIPO[cosmetico.tipo]} **{resultado.criatura.nombre}** "
         f"lleva ahora **{cosmetico.nombre}**."
     )
     if resultado.sustituido is not None:
@@ -460,7 +460,7 @@ def texto_resultado_quitar(resultado: economia.ResultadoCosmetico) -> str:
     if not resultado.ok:
         return f"❌ {resultado.problema}"
     return (
-        f"🧺 **{sim.nombre_visible(resultado.criatura)}** se queda sin "
+        f"🧺 **{resultado.criatura.nombre}** se queda sin "
         f"**{resultado.sustituido.nombre}**.\n"
         "-# Sigue en tu ropero: se lo puedes volver a poner cuando quieras."
     )
@@ -1190,7 +1190,7 @@ class MenuMudar(discord.ui.Select):
         casas = {c.id: c.casa.nombre for c in hogar.casas}
         opciones = [
             discord.SelectOption(
-                label=sim.nombre_visible(criatura)[:100],
+                label=criatura.nombre[:100],
                 value=str(criatura.id),
                 description=(
                     casas.get(criatura.casa_id, "En el refugio")
@@ -1254,7 +1254,7 @@ class MenuDestino(discord.ui.Select):
         donde = resultado.casa.nombre if resultado.casa else "el refugio"
         await interaccion.response.edit_message(
             content=(
-                f"🏠 **{sim.nombre_visible(resultado.criatura)}** se muda a "
+                f"🏠 **{resultado.criatura.nombre}** se muda a "
                 f"**{donde}**."
             ),
             view=None,

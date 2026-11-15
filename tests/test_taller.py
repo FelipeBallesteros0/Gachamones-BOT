@@ -371,7 +371,7 @@ def test_el_desplegable_que_va_solo_en_su_mensaje_si_pregunta():
     import equipo
 
     assert tienda.MenuInventario({}).placeholder == "¿Qué usas?"
-    assert equipo.MenuPlantel([], None, None, None).placeholder == "¿Con cuál sales?"
+    assert equipo.MenuPlantel([], None, None).placeholder == "¿Con cuál sales?"
 
 
 def test_la_tienda_marca_lo_que_ya_tienes_en_vez_de_ofrecerlo():

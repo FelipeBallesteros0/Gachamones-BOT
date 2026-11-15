@@ -82,11 +82,8 @@ def test_el_recibo_del_totem_separa_las_tres_vetas_de_la_unica_entrenada():
     )
 
 
-def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
+def test_testigo_elige_la_primera_reserva_viva_y_distingue_resultado():
     activa = db.crear("u1", "g1", "pulpo", "Sol", STATS, T0)
-    sin_nombre = db.crear(
-        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
-    )
     primera = db.crear(
         "u1", "g1", "michi", "Luna", STATS, T0, activa=False
     )
@@ -95,7 +92,7 @@ def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
     )
     # Va delante de Luna y aun así no reacciona: quien ya no está no presencia.
     muerta = replace(primera, nombre="Nube", muerta_en=T0)
-    plantel = [activa, sin_nombre, muerta, primera, segunda]
+    plantel = [activa, muerta, primera, segunda]
 
     assert cog_comp.texto_testigo_competencia(plantel, activa, gano=True) == (
         "-# 👀 Desde casa, **Luna** celebra a **Sol**."
@@ -105,16 +102,9 @@ def test_testigo_elige_la_primera_reserva_nombrada_y_distingue_resultado():
     )
 
 
-def test_testigo_no_sale_sin_reserva_nombrada():
+def test_testigo_no_sale_sin_otro_gachamon_vivo():
     activa = nacer("u1")
     assert cog_comp.texto_testigo_competencia([activa], activa, gano=True) is None
-
-    sin_nombre = db.crear(
-        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
-    )
-    assert cog_comp.texto_testigo_competencia(
-        [activa, sin_nombre], activa, gano=True
-    ) is None
 
 
 def test_testigo_con_cambio_de_activa_conserva_la_protagonista_del_evento():

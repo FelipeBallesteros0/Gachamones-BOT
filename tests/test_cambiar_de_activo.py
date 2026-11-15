@@ -75,19 +75,6 @@ def test_cambiar_al_que_ya_es_el_activo_no_toca_nada():
     assert guardada.hambre == a.hambre
 
 
-def test_no_se_saca_a_un_recluta_sin_nombre():
-    a = nace("Ana")
-    recluta = nace("", activa=False)
-
-    resultado = economia.cambiar_de_activo(U, G, recluta.id, T0 + timedelta(hours=1))
-
-    assert resultado.motivo == "sin_nombre"
-    assert resultado.ok is False
-    assert db.criatura_activa(U, G).id == a.id
-    assert db.por_id(a.id) == a
-    assert db.por_id(recluta.id) == recluta
-
-
 def test_no_se_saca_a_uno_ajeno_muerto_ni_inexistente():
     a = nace("Ana")
     ajena = nace("Otra", activa=False, usuario=OTRA)

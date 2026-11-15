@@ -49,7 +49,7 @@ def lo_que_tienes(jugador: Jugador, ahora) -> dict:
         })
     dinero = economia.saldos(jugador.usuario_id, jugador.guild_id)
     return {
-        "gachamon": {"id": activo.id, "nombre": sim.nombre_visible(activo)},
+        "gachamon": {"id": activo.id, "nombre": activo.nombre},
         "piezas": piezas,
         "saldos": {"monedas": dinero.asciicoins, "gemas": dinero.asciigems},
     }
@@ -79,7 +79,7 @@ def _quien(hecho: economia.ResultadoCosmetico) -> sim.Criatura:
 
 
 def _ya_puesta(pieza: cos.Cosmetico, criatura: sim.Criatura, sustituido=None) -> dict:
-    nombre = sim.nombre_visible(criatura)
+    nombre = criatura.nombre
     if pieza.tipo == cos.TITULO:
         frase = f"Ahora es {nombre} {cos.texto_del_titulo(pieza.clave, criatura.genero)}."
     else:
@@ -136,7 +136,7 @@ def quitar(
     )
     if hecho.motivo == "sin_gachamon":
         raise problema(409, "sin_gachamon", _YA_NO_ES_EL_MISMO)
-    nombre = sim.nombre_visible(_quien(hecho))
+    nombre = _quien(hecho).nombre
     if hecho.ok:
         dicho = dicho_si(f"{nombre} ya no lleva {hecho.sustituido.nombre}. Está en tu ropero.")
     elif hecho.motivo == "no_lleva_nada":

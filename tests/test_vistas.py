@@ -165,6 +165,27 @@ def test_recibo_de_cuidado_conserva_topes_y_recompensa_de_evolucion():
     )
 
 
+def test_abrir_entrenamiento_conjunto_ofrece_a_todos_los_vivos_que_no_son_el_activo(
+    bd_temporal
+):
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    otra = db.crear("u1", "g1", "michi", "Lúa", STATS, T0, activa=False)
+    recluta = db.crear(
+        "u1", "g1", "michi", "Brote", STATS, T0, activa=False, se_nombro_solo=True
+    )
+    db.guardar_pantalla(activa.id, "ficha", "canal")
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(vistas.abrir_entrenamiento_conjunto(interaccion))
+
+    llamada = respuesta.send_message.await_args
+    assert llamada.args == ("Elige con quién entrena tu gachamon activo.",)
+    assert [opcion.label for opcion in llamada.kwargs["view"].children[0].options] == [
+        "Lúa", "Brote"
+    ]
+    assert otra.id < recluta.id
+
+
 def test_abrir_entrenamiento_conjunto_filtra_y_captura_reservas_elegibles(
     bd_temporal, monkeypatch
 ):
@@ -172,7 +193,6 @@ def test_abrir_entrenamiento_conjunto_filtra_y_captura_reservas_elegibles(
     elegible = db.crear(
         "u1", "g1", "michi", "Lúa", STATS, T0, activa=False
     )
-    db.crear("u1", "g1", "michi", "", STATS, T0, activa=False)
     muerta = db.crear(
         "u1", "g1", "michi", "Nube", STATS, T0, activa=False
     )
@@ -213,7 +233,7 @@ def test_abrir_entrenamiento_conjunto_rechaza_ficha_caduca_o_sin_reservas(
     interaccion, respuesta, _ = interaccion_de()
     asyncio.run(vistas.abrir_entrenamiento_conjunto(interaccion))
     respuesta.send_message.assert_awaited_once_with(
-        "No tienes ninguna reserva viva y con nombre para entrenar.",
+        "No tienes otro gachamon con quien entrenar.",
         ephemeral=True,
     )
 
@@ -514,7 +534,7 @@ def test_selector_social_conserva_entrenar_juntos(monkeypatch):
         (
             "plantel",
             "plantel",
-            (vistas.congelar, vistas.bautizar, vistas.publicar_pantalla),
+            (vistas.congelar, vistas.publicar_pantalla),
         ),
         ("personalizar", "personalizar", (vistas.republicar_ficha,)),
     ],
@@ -774,7 +794,7 @@ def test_cambiar_activo_congela_responde_y_publica_en_ese_orden(monkeypatch):
     async def publicar(canal, criatura_nueva, instante):
         eventos.append(("publicar", canal, criatura_nueva, instante))
 
-    menu = equipo.MenuPlantel([anterior, nueva], congelar, None, publicar)
+    menu = equipo.MenuPlantel([anterior, nueva], congelar, publicar)
     menu._values = [str(nueva.id)]
     canal = SimpleNamespace()
     interaccion = SimpleNamespace(
@@ -837,33 +857,6 @@ def test_cambio_de_activo_invalido_no_congela_ni_publica(monkeypatch):
 
     interaccion.response.edit_message.assert_awaited_once_with(
         content="Ese gachamon no es tuyo o ya no está.", view=None
-    )
-    congelar.assert_not_awaited()
-    publicar.assert_not_awaited()
-
-
-def test_el_menu_explica_el_sin_nombre_que_llega_de_la_regla(monkeypatch):
-    """La foto del menú lo daba por bautizado; la regla, releída, dice que no."""
-    anterior = criatura(1, "Anterior", True, "ficha-anterior")
-    otra = criatura(2, "Otra", False, None)
-    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", Mock(
-        return_value=economia.ResultadoCambio(motivo="sin_nombre", criatura=anterior)
-    ))
-    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
-    congelar = AsyncMock()
-    publicar = AsyncMock()
-    menu = equipo.MenuPlantel([anterior, otra], congelar, publicar=publicar)
-    menu._values = [str(otra.id)]
-    interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
-        response=SimpleNamespace(edit_message=AsyncMock()),
-    )
-
-    asyncio.run(menu.callback(interaccion))
-
-    interaccion.response.edit_message.assert_awaited_once_with(
-        content="Ese gachamon no sale de la incubadora hasta que le pongas nombre.",
-        view=None,
     )
     congelar.assert_not_awaited()
     publicar.assert_not_awaited()
@@ -1152,66 +1145,50 @@ def test_si_el_canal_no_deja_publicar_el_cambio_sigue_hecho_y_acusado(
     assert "/mascota" in contenido
 
 
-# --- El recluta que todavía no tiene nombre ---------------------------------
+# --- Todos salen igual: no hay nadie sin nombre ------------------------------
 
-def test_elegir_a_un_recluta_sin_nombre_abre_el_bautizo_sin_publicar(monkeypatch):
-    """Elegirlo no es un error del que quejarse: es el momento de nombrarlo."""
-    activa = criatura(1, "Activa", True, "ficha-activa")
-    recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
-    cambiar = Mock()
-    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", cambiar)
-    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
-    bautizar = AsyncMock()
+def test_el_plantel_se_abre_sin_gancho_de_bautizo(bd_temporal):
+    """`abrir_plantel` ya no recibe `bautizar`: elegir a cualquiera cambia de activo."""
+    db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    db.crear("u1", "g1", "michi", "Lúa", STATS, T0, activa=False)
+    interaccion, respuesta, _ = interaccion_de()
+
+    asyncio.run(equipo.abrir_plantel(interaccion, vistas.congelar, vistas.publicar_pantalla))
+
+    respuesta.send_message.assert_awaited_once()
+    menu = respuesta.send_message.await_args.kwargs["view"].children[0]
+    assert isinstance(menu, equipo.MenuPlantel)
+    assert not hasattr(menu, "bautizar")
+
+
+def test_elegir_a_un_recluta_que_se_puso_nombre_solo_cambia_de_activo(bd_temporal, monkeypatch):
+    monkeypatch.setattr(equipo.db, "ahora_utc", Mock(return_value=T0))
+    activa = db.crear("u1", "g1", SIN_RETRATO, "Mia", STATS, T0)
+    recluta = db.crear(
+        "u1", "g1", "michi", "Brote", STATS, T0, activa=False, se_nombro_solo=True
+    )
     publicar = AsyncMock()
-    menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), bautizar, publicar)
+    menu = equipo.MenuPlantel(db.plantel("u1", "g1"), AsyncMock(), publicar)
     menu._values = [str(recluta.id)]
     interaccion = SimpleNamespace(
         user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
         response=SimpleNamespace(edit_message=AsyncMock()),
     )
 
-    asyncio.run(menu.callback(cast(Any, interaccion)))
+    asyncio.run(menu.callback(interaccion))
 
-    bautizar.assert_awaited_once_with(interaccion, recluta)
-    publicar.assert_not_awaited()
-    # Y no se activa: eso es justo lo que no puede pasar sin nombre.
-    cambiar.assert_not_called()
-
-
-def test_sin_bautizo_inyectado_se_explica_sin_activar_ni_publicar(monkeypatch):
-    activa = criatura(1, "Activa", True, "ficha-activa")
-    recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
-    cambiar = Mock()
-    monkeypatch.setattr(equipo.economia, "cambiar_de_activo", cambiar)
-    monkeypatch.setattr(equipo.db, "ahora_utc", Mock())
-    publicar = AsyncMock()
-    menu = equipo.MenuPlantel([activa, recluta], AsyncMock(), publicar=publicar)
-    menu._values = [str(recluta.id)]
-    editar = AsyncMock()
-    interaccion = SimpleNamespace(
-        user=SimpleNamespace(id="u1"), guild_id="g1", channel=SimpleNamespace(),
-        response=SimpleNamespace(edit_message=editar),
-    )
-
-    asyncio.run(menu.callback(cast(Any, interaccion)))
-
-    cambiar.assert_not_called()
-    publicar.assert_not_awaited()
-    assert editar.await_args is not None
-    assert "nombre" in editar.await_args.kwargs["content"]
+    assert db.criatura_activa("u1", "g1").id == recluta.id
+    assert db.por_id(activa.id).activa is False
+    publicar.assert_awaited_once()
 
 
-def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
-    """Discord rechaza una etiqueta vacía: sin esto el menú entero fallaría."""
-    activa = criatura(1, "Activa", True, "ficha-activa")
-    recluta = criatura(2, sim.NOMBRE_PENDIENTE, False, None)
-
-    menu = equipo.MenuPlantel([activa, recluta])
-    texto = equipo.texto_del_plantel([activa, recluta])
-
-    assert [opcion.label for opcion in menu.options] == ["Activa", sim.SIN_NOMBRE]
-    assert sim.SIN_NOMBRE in texto
-    assert "esperando nombre" in texto
+def test_el_juego_ya_no_tiene_sin_nombre():
+    assert not hasattr(sim, "NOMBRE_PENDIENTE")
+    assert not hasattr(sim, "SIN_NOMBRE")
+    assert not hasattr(sim, "esta_sin_nombrar")
+    assert not hasattr(sim, "nombre_visible")
+    assert not hasattr(equipo, "NO_SALE_SIN_NOMBRE")
+    assert not hasattr(vistas, "bautizar")
 
 
 # --- El recluta que se puso nombre él solo ----------------------------------

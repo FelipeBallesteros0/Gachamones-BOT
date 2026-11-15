@@ -102,7 +102,6 @@ def texto_testigo_competencia(
             if criatura.id != protagonista.id
             and criatura.viva
             and not criatura.activa
-            and not sim.esta_sin_nombrar(criatura)
         ),
         None,
     )

@@ -149,7 +149,7 @@ class MenuGestion(discord.ui.Select):
             await tienda.abrir_tienda(interaction)
         elif accion == "plantel":
             await equipo.abrir_plantel(
-                interaction, congelar, bautizar, publicar_pantalla
+                interaction, congelar, publicar_pantalla
             )
         elif accion == "personalizar":
             await tienda.abrir_personalizacion(interaction, republicar_ficha)
@@ -318,7 +318,7 @@ class PantallaAnteriorView(discord.ui.View):
     ):
         if not await _es_de_otro(interaccion):
             await equipo.abrir_plantel(
-                interaccion, congelar, bautizar, publicar_pantalla
+                interaccion, congelar, publicar_pantalla
             )
 
     @discord.ui.button(
@@ -525,17 +525,16 @@ async def abrir_entrenamiento_conjunto(
             criatura.id != activo.id
             and criatura.viva
             and not criatura.activa
-            and not sim.esta_sin_nombrar(criatura)
         )
     ]
     if not reservas:
         await interaccion.response.send_message(
-            "No tienes ninguna reserva viva y con nombre para entrenar.",
+            "No tienes otro gachamon con quien entrenar.",
             ephemeral=True,
         )
         return
     await interaccion.response.send_message(
-        "Elige una reserva para entrenar con tu gachamon activo.",
+        "Elige con quién entrena tu gachamon activo.",
         view=VistaEntrenamientoConjunto(activo, reservas),
         ephemeral=True,
     )
@@ -545,9 +544,9 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
     """Bautizo. La criatura ya existe: esto sólo le cambia el nombre.
 
     Con `criatura_id` bautiza a esa criatura concreta; sin él, a la activa. La
-    diferencia la trajo el reclutamiento: quien se une en una `/aventura` entra
-    en la incubadora y **no puede activarse hasta tener nombre**, así que buscar
-    «la activa» le habría cambiado el nombre a la mascota equivocada.
+    diferencia la trajo el reclutamiento: quien se une en una `/aventura` llega
+    con un nombre que se pone él solo y no es el activo, así que buscar «la
+    activa» le habría cambiado el nombre a la mascota equivocada.
     """
 
     def __init__(self, nombre_actual: str, criatura_id: int | None = None):
@@ -573,8 +572,9 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
         ahora = db.ahora_utc()
 
         if self.criatura_id is not None:
-            # La regla del juego: sólo a uno tuyo, vivo y que todavía espere
-            # nombre. Un formulario enviado dos veces no le pisa el primero.
+            # La regla del juego: sólo a uno tuyo, vivo, y que todavía espere
+            # nombre o se lo haya puesto él solo. Un formulario enviado dos
+            # veces no le pisa el primero.
             try:
                 criatura = nacer.bautizar_a(
                     str(interaccion.user.id), str(interaccion.guild_id),
@@ -593,7 +593,7 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
                     ephemeral=True,
                 )
                 return
-            # La regla no pone al día a nadie; aquí sí, para la ficha.
+            # Al día sólo para la ficha: se publica únicamente si es el activo.
             criatura = db.avanzar(criatura, ahora)
         else:
             criatura = db.criatura_activa(
@@ -758,17 +758,6 @@ class NombrarReclutaView(discord.ui.View):
             )
             return
         await interaccion.response.send_modal(NombreModal(recluta.nombre, recluta.id))
-
-
-async def bautizar(interaccion: discord.Interaction, criatura: sim.Criatura) -> None:
-    """Abre el bautizo de una criatura concreta.
-
-    Se le pasa a `equipo.abrir_plantel` igual que `congelar`, para que el menú
-    del plantel pueda mandar a poner nombre sin que `equipo` importe este módulo
-    —que ya lo importa a él— y sin que el bautizo dependa de que siga existiendo
-    el mensaje de la aventura.
-    """
-    await interaccion.response.send_modal(NombreModal("", criatura.id))
 
 
 def _eco_vetas_cuidado(resultado: economia.ResultadoCuidado) -> str:

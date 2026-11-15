@@ -12,7 +12,6 @@ import db
 import economia
 import logros
 import objetos as obj
-import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
@@ -81,19 +80,6 @@ def test_sin_nada_nuevo_no_se_manda_mensaje():
     asyncio.run(comun.anunciar_logros(canal, bicho, T0))
 
     canal.send.assert_not_awaited()
-
-
-def test_el_recluta_sin_nombre_no_sale_como_cadena_vacia():
-    """Un salvaje recién unido no tiene nombre todavía, y `**** consigue` sería
-    lo que saldría si quien anuncia no pasara por `nombre_visible`."""
-    recluta = db.crear(
-        "u2", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0, activa=False
-    )
-    canal = SimpleNamespace(send=AsyncMock())
-
-    asyncio.run(comun.anunciar_logros(canal, recluta, T0))
-
-    assert sim.SIN_NOMBRE in canal.send.await_args.args[0]
 
 
 # --- El panel --------------------------------------------------------------

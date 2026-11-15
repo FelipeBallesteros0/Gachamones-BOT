@@ -6,7 +6,6 @@ import pytest
 import cosmeticos as cos
 import db
 import economia
-import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 U, G = "u1", "g1"
@@ -143,18 +142,6 @@ def test_quien_lleva_cada(base):
             (T0.isoformat(), nube.id),
         )
     assert db.quien_lleva_cada(U, G) == {"corona": "Pelusa"}
-
-
-def test_la_pieza_en_un_gachamon_sin_nombre_sigue_siendo_de_otro(base):
-    pelusa, nube = dos_gachamones()
-    dar(CORONA)
-    poner_a(nube, CORONA)
-    with db.conectar() as con:
-        con.execute("UPDATE criaturas SET nombre = '' WHERE id = ?", (nube.id,))
-    r = economia.equipar_cosmetico(U, G, CORONA)
-    assert (r.ok, r.motivo, r.lo_lleva) == (False, "lo_lleva_otro", sim.SIN_NOMBRE)
-    assert r.problema == "No tienes **Corona** en tu ropero."
-    assert db.quien_lleva_cada(U, G) == {"corona": sim.SIN_NOMBRE}
 
 
 def test_quien_lleva_cada_respeta_persona_y_servidor(base):

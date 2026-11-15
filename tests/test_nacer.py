@@ -128,14 +128,14 @@ def test_cuenta_vigente_solo_va_por_nombre():
                  "sereno", None, True, False, True)
 
 
-def test_bautizar_no_toca_al_recluta_de_la_incubadora():
+def test_bautizar_no_toca_al_recluta():
     nacida = nacer.romper_el_huevo("u", "g", T0)
     nacer.bautizar("u", "g", "Pelusa", T0)
-    recluta = db.crear("u", "g", "pulpo", "", (10, 10, 10, 10), T0, activa=False)
+    recluta = db.crear("u", "g", "pulpo", "Brote", (10, 10, 10, 10), T0, activa=False)
     with pytest.raises(nacer.NoSePuedeBautizar) as caido:
         nacer.bautizar("u", "g", "Otra", T0)
     assert caido.value.motivo == "ya_bautizado"
-    assert db.por_id(recluta.id).nombre == ""
+    assert db.por_id(recluta.id).nombre == "Brote"
     assert db.por_id(nacida.id).nombre == "Pelusa"
 
 

@@ -880,8 +880,8 @@ def test_la_ayuda_no_dice_que_solo_cabe_una():
 def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):
     """Cada uno delega en su adaptador de siempre, con los mismos ganchos que le
     pasa `vistas`: si `/mochila` se quedara sin `congelar`, beberse una poción
-    dejaría viva la ficha anterior, y si `/plantel` se quedara sin `bautizar`,
-    elegir a un recluta recién llegado no abriría el modal del nombre.
+    dejaría viva la ficha anterior, y si `/plantel` se quedara sin `publicar`,
+    cambiar de activo no sacaría la ficha nueva.
 
     Se comprueba la delegación y no lo que sale por pantalla: el texto, la vista
     y el efímero ya son cosa de `tienda` y `equipo`, y copiarlos aquí sólo sería
@@ -912,7 +912,6 @@ def test_los_comandos_directos_abren_lo_mismo_que_los_botones(monkeypatch):
     abrir_plantel.assert_awaited_once_with(
         interaccion,
         social.vistas.congelar,
-        social.vistas.bautizar,
         social.vistas.publicar_pantalla,
     )
     # Quien contesta es el adaptador. Si además respondiera el comando, Discord

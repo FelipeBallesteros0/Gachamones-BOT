@@ -62,14 +62,6 @@ def romper_el_huevo(jugador: Jugador = Depends(jugador_actual)) -> dict:
     try:
         nacer.romper_el_huevo(jugador.usuario_id, jugador.guild_id, ahora)
     except nacer.YaTieneGachamon:
-        if db.criatura_activa(jugador.usuario_id, jugador.guild_id) is None:
-            # Ninguna activa, pero hay alguien: un recluta sin nombre, que no
-            # sale de la incubadora hasta tenerlo. El estado lo trae en
-            # `sin_nombre`, y se le pone con `POST /bautizar` y su `gachamon_id`.
-            raise problema(
-                409, "ya_tienes",
-                "Antes, ponle nombre al gachamon que espera en la incubadora.",
-            ) from None
         raise problema(
             409, "ya_tienes",
             "Ya tienes un gachamon. El huevo es sólo el de partida.",

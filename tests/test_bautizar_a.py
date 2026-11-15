@@ -22,13 +22,21 @@ def base(tmp_path, monkeypatch):
     db.inicializar()
 
 
-def nace(nombre, activa=True, usuario=U, guild=G):
-    return db.crear(usuario, guild, "pollito", nombre, STATS, T0, activa=activa)
+def nace(nombre, activa=True, usuario=U, guild=G, se_nombro_solo=False):
+    return db.crear(
+        usuario, guild, "pollito", nombre, STATS, T0, activa=activa,
+        se_nombro_solo=se_nombro_solo,
+    )
+
+
+def recluta_de(nombre="Brote", **cambios):
+    """Un recluta: no es el activo y se puso el nombre él solo."""
+    return nace(nombre, activa=False, se_nombro_solo=True, **cambios)
 
 
 def test_bautizar_a_un_recluta():
     activa = nace("Ana")
-    recluta = nace("", activa=False)
+    recluta = recluta_de()
     with db.conectar() as con:
         con.execute("UPDATE criaturas SET hambre = 42 WHERE id = ?", (recluta.id,))
     antes = db.por_id(recluta.id)
@@ -40,14 +48,14 @@ def test_bautizar_a_un_recluta():
     assert bautizada.nombre == "Pelusa"
     assert bautizada.hambre == 42
     # Sólo se escribe el nombre: el resto de la fila sigue como estaba en la base.
-    assert db.por_id(recluta.id) == replace(antes, nombre="Pelusa")
+    assert db.por_id(recluta.id) == replace(antes, nombre="Pelusa", se_nombro_solo=False)
     assert db.criatura_activa(U, G).id == activa.id
     assert db.por_id(activa.id) == activa
 
 
 def test_bautizar_a_rechaza_el_nombre_de_su_especie():
     nace("Ana")
-    recluta = nace("", activa=False)
+    recluta = recluta_de()
 
     with pytest.raises(nacer.NombreNoVale) as error:
         nacer.bautizar_a(
@@ -55,17 +63,17 @@ def test_bautizar_a_rechaza_el_nombre_de_su_especie():
         )
 
     assert str(error.value) == "Ese es el nombre de su especie. Ponle uno propio."
-    assert db.por_id(recluta.id).nombre == ""
+    assert db.por_id(recluta.id).nombre == "Brote"
 
 
 def test_bautizar_a_rechaza_un_nombre_que_no_vale():
     nace("Ana")
-    recluta = nace("", activa=False)
+    recluta = recluta_de()
 
     with pytest.raises(nacer.NombreNoVale, match="letras, números"):
         nacer.bautizar_a(U, G, recluta.id, "**Luna**", T0)
 
-    assert db.por_id(recluta.id).nombre == ""
+    assert db.por_id(recluta.id).nombre == "Brote"
 
 
 def test_bautizar_a_uno_con_nombre_es_ya_bautizado():
@@ -84,9 +92,9 @@ def test_bautizar_a_uno_con_nombre_es_ya_bautizado():
 
 def test_bautizar_a_uno_ajeno_o_muerto_es_no_esta():
     nace("Ana")
-    ajena = nace("", activa=False, usuario=OTRA)
-    de_otro_servidor = nace("", activa=False, guild="otro")
-    muerta = nace("", activa=False)
+    ajena = recluta_de("Mote", usuario=OTRA)
+    de_otro_servidor = recluta_de("Miga", guild="otro")
+    muerta = recluta_de("Nube")
     db.guardar(replace(muerta, muerta_en=T0, causa_muerte="hambre"))
 
     for criatura_id in (ajena.id, de_otro_servidor.id, muerta.id, 9999):
@@ -96,7 +104,7 @@ def test_bautizar_a_uno_ajeno_o_muerto_es_no_esta():
         assert str(error.value) == "Ese gachamon ya no está."
 
     for criatura in (ajena, de_otro_servidor, muerta):
-        assert db.por_id(criatura.id).nombre == ""
+        assert db.por_id(criatura.id).nombre == criatura.nombre
 
 
 def test_al_que_se_nombro_solo_se_le_cambia_el_nombre_una_vez():

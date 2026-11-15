@@ -11,7 +11,6 @@ import db
 import economia
 import logros
 import objetos as obj
-import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
@@ -224,7 +223,7 @@ def test_reclutar_de_verdad_paga_domador_a_la_persona():
     antes = gemas_de()
 
     db.crear(
-        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
+        "u1", "g1", "michi", "Recluta", STATS, T0,
         activa=False, reclutada=True,
     )
     recibo = economia.pagar_logros_de_persona("u1", "g1", T0)

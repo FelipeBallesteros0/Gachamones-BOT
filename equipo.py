@@ -19,16 +19,11 @@ import simulacion as sim
 log = logging.getLogger(__name__)
 
 SEGUNDOS_DE_MENU = 120
-NO_SALE_SIN_NOMBRE = (
-    "Ese gachamon no sale de la incubadora hasta que le pongas nombre."
-)
 
 
 def _como_esta(criatura: sim.Criatura) -> str:
     if criatura.activa:
         return "activo ahora"
-    if sim.esta_sin_nombrar(criatura):
-        return "esperando nombre"
     return "en casa"
 
 
@@ -47,7 +42,7 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
         return "No tienes ningún gachamon. Empieza con `/huevo`."
 
     lineas = "\n".join(
-        f"{'▶️' if c.activa else pantalla.EMOJI_EN_CASA} **{sim.nombre_visible(c)}** "
+        f"{'▶️' if c.activa else pantalla.EMOJI_EN_CASA} **{c.nombre}** "
         f"{pantalla.EMOJI_GENERO[c.genero]} — {_resumen(c)}"
         for c in plantel
     )
@@ -66,11 +61,11 @@ def texto_del_plantel(plantel: list[sim.Criatura]) -> str:
 
 class MenuPlantel(discord.ui.Select):
     def __init__(
-        self, plantel: list[sim.Criatura], congelar=None, bautizar=None, publicar=None
+        self, plantel: list[sim.Criatura], congelar=None, publicar=None
     ):
         opciones = [
             discord.SelectOption(
-                label=sim.nombre_visible(criatura)[:100],
+                label=criatura.nombre[:100],
                 value=str(criatura.id),
                 description=_resumen(criatura)[:100],
                 emoji=criatura.def_especie.emoji,
@@ -80,32 +75,13 @@ class MenuPlantel(discord.ui.Select):
         ]
         super().__init__(placeholder="¿Con cuál sales?", options=opciones)
         self.congelar = congelar
-        self.bautizar = bautizar
         self.publicar = publicar
-        self.plantel = plantel
 
     async def callback(self, interaccion: discord.Interaction) -> None:
         usuario_id = str(interaccion.user.id)
         guild_id = str(interaccion.guild_id)
         elegido = int(self.values[0])
         ahora = db.ahora_utc()
-
-        # Elegir a un recluta sin bautizar no es un error del que quejarse: es
-        # justo el momento de ponerle nombre. El formulario tiene que salir como
-        # respuesta inmediata, así que va antes de cualquier otra respuesta.
-        pendiente = next(
-            (c for c in self.plantel
-             if c.id == elegido and sim.esta_sin_nombrar(c)),
-            None,
-        )
-        if pendiente is not None:
-            if self.bautizar is not None:
-                await self.bautizar(interaccion, pendiente)
-            else:
-                await interaccion.response.edit_message(
-                    content=NO_SALE_SIN_NOMBRE, view=None
-                )
-            return
 
         # La regla comprueba que sea tuyo: un identificador copiado de otro
         # mensaje no puede sacar la mascota de otra persona.
@@ -114,11 +90,6 @@ class MenuPlantel(discord.ui.Select):
             await interaccion.response.edit_message(
                 content=f"**{resultado.criatura.nombre}** ya era el activo.",
                 view=None,
-            )
-            return
-        if resultado.motivo == "sin_nombre":
-            await interaccion.response.edit_message(
-                content=NO_SALE_SIN_NOMBRE, view=None
             )
             return
         if not resultado.ok or resultado.criatura is None:
@@ -149,14 +120,14 @@ class MenuPlantel(discord.ui.Select):
 
 class VistaPlantel(discord.ui.View):
     def __init__(
-        self, plantel: list[sim.Criatura], congelar=None, bautizar=None, publicar=None
+        self, plantel: list[sim.Criatura], congelar=None, publicar=None
     ):
         super().__init__(timeout=SEGUNDOS_DE_MENU)
-        self.add_item(MenuPlantel(plantel, congelar, bautizar, publicar))
+        self.add_item(MenuPlantel(plantel, congelar, publicar))
 
 
 async def abrir_plantel(
-    interaccion: discord.Interaction, congelar=None, bautizar=None, publicar=None
+    interaccion: discord.Interaction, congelar=None, publicar=None
 ) -> None:
     plantel = db.plantel(str(interaccion.user.id), str(interaccion.guild_id))
     # Con uno solo no hay nada que elegir: se enseña la lista y ya.
@@ -164,7 +135,7 @@ async def abrir_plantel(
     await interaccion.response.send_message(
         texto_del_plantel(plantel),
         view=(
-            VistaPlantel(plantel, congelar, bautizar, publicar)
+            VistaPlantel(plantel, congelar, publicar)
             if hay_donde_elegir else None
         ),
         ephemeral=True,

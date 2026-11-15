@@ -1054,7 +1054,7 @@ def por_id(criatura_id: int) -> sim.Criatura | None:
 def ascender_un_relevo(
     usuario_id: str, guild_id: str
 ) -> sim.Criatura | None:
-    """Hace activo al primero vivo y con nombre si no queda ningún activo.
+    """Hace activo al primero vivo si no queda ningún activo.
 
     Es el remiendo de `activa_al_dia`. Sin esto, quien se quedó sin activo
     —porque se le murió cuando todavía se moría, por ejemplo— tendría
@@ -1063,9 +1063,7 @@ def ascender_un_relevo(
     """
     if criatura_activa(usuario_id, guild_id) is not None:
         return None
-    # Sólo los que tienen nombre: `activar` no deja salir a un recluta sin
-    # bautizar, así que ascender a uno dejaría el plantel sin activa ninguna.
-    vivas = [c for c in plantel(usuario_id, guild_id) if c.nombre]
+    vivas = plantel(usuario_id, guild_id)
     if not vivas:
         return None
     activar(vivas[0].id, usuario_id, guild_id)
@@ -1077,8 +1075,8 @@ def activa_al_dia(
 ) -> sim.Criatura | None:
     """La activa, avanzada hasta `ahora`, sin guardarle el paso del tiempo.
 
-    No escribe nunca, salvo el remiendo: si no hay activa y sí alguien vivo y
-    con nombre, lo hace el activo (`ascender_un_relevo`) y lo devuelve
+    No escribe nunca, salvo el remiendo: si no hay activa y sí alguien vivo,
+    lo hace el activo (`ascender_un_relevo`) y lo devuelve
     avanzado. Repetirla, o correrla desde dos procesos, deja una sola activa.
     Sin nadie que pueda serlo devuelve `None`.
     """
@@ -1125,10 +1123,7 @@ def activar(criatura_id: int, usuario_id: str, guild_id: str) -> bool:
     """La hace el activo, el que sale contigo, en lugar del que lo era.
 
     Devuelve si se pudo: pide que la criatura sea de quien la reclama, para que
-    un identificador copiado de otro mensaje no active la mascota de otro, y que
-    **tenga nombre**. Un recluta se guarda sin nombre y no puede ser el activo
-    hasta que se lo pongan; la comprobación vive aquí y no en la vista porque es
-    un invariante del plantel, no una regla de un menú.
+    un identificador copiado de otro mensaje no active la mascota de otro.
 
     Sólo cambia la marca `activa`: a todos les pasa el tiempo, salgan contigo o
     no, así que nadie se duerme ni se despierta y `actualizada_en` no se toca.
@@ -1137,7 +1132,7 @@ def activar(criatura_id: int, usuario_id: str, guild_id: str) -> bool:
         con.execute("BEGIN IMMEDIATE")
         fila = con.execute(
             "SELECT id FROM criaturas WHERE id = ? AND usuario_id = ? "
-            "AND guild_id = ? AND muerta_en IS NULL AND nombre != ''",
+            "AND guild_id = ? AND muerta_en IS NULL",
             (criatura_id, usuario_id, guild_id),
         ).fetchone()
         if fila is None:
@@ -1233,6 +1228,8 @@ def crear(
     `se_nombro_solo` dice que `nombre` no lo eligió su dueño: es el del
     recluta, que se lo pone él solo (`nacer.unir_recluta`).
     """
+    if not nombre:
+        raise ValueError("una criatura nace con nombre")
     fuerza, velocidad, salud, ingenio = stats
     nueva = sim.Criatura(
         id=0, usuario_id=usuario_id, guild_id=guild_id, especie=especie,
@@ -2050,7 +2047,7 @@ def quien_lleva(
 def quien_lleva_cada(usuario_id: str, guild_id: str) -> dict[str, str]:
     """Cada pieza puesta en un gachamon **vivo** de esa persona, y quién la lleva.
 
-    Clave de la pieza → `sim.nombre_visible` de quien la lleva. Es lo que el
+    Clave de la pieza → nombre de quien la lleva. Es lo que el
     ropero necesita para decir «la lleva Nube» sin una consulta por pieza.
     """
     llevan: dict[str, str] = {}
@@ -2065,7 +2062,7 @@ def quien_lleva_cada(usuario_id: str, guild_id: str) -> dict[str, str]:
         for tipo in cos.TIPOS:
             clave = getattr(criatura, tipo)
             if clave:
-                llevan[clave] = sim.nombre_visible(criatura)
+                llevan[clave] = criatura.nombre
     return llevan
 
 

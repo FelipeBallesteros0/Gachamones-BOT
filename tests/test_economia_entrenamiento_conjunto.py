@@ -343,8 +343,6 @@ def _alterar_identidad(caso, activa, reserva):
         db.guardar(replace(reserva, nombre="Otra"))
     elif caso == "reserva_activa":
         assert db.activar(reserva.id, "u1", "g1")
-    elif caso == "reserva_sin_nombre":
-        db.guardar(replace(reserva, nombre=""))
     return elegida
 
 
@@ -360,7 +358,6 @@ def _alterar_identidad(caso, activa, reserva):
         ("reserva_muerta", "reserva_caduca"),
         ("reserva_nombre", "reserva_caduca"),
         ("reserva_activa", "activo_caduco"),
-        ("reserva_sin_nombre", "reserva_caduca"),
     ],
 )
 def test_identidad_caduca_no_muta_la_pareja_ni_escribe_ledger(caso, problema):

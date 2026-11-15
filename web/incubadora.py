@@ -1,8 +1,8 @@
 """La Incubadora del pueblo: tu plantel entero y sacar a otro gachamon.
 
 Ver el plantel sólo lee: lista a los vivos, cada uno al día (lo único que
-puede escribir una lectura es el remiendo: sacar a alguien de la incubadora si
-no hay activa). Sacar es un adaptador
+puede escribir una lectura es el remiendo: poner a uno de activo si no hay
+ninguno). Sacar es un adaptador
 fino: valida la petición, comprueba que se está en la incubadora y llama a la
 regla de `economia`, que decide y escribe bajo `BEGIN IMMEDIATE`; aquí sólo se
 traduce lo que pasó a una frase de la web, en texto llano. Un «no» del juego no
@@ -46,7 +46,6 @@ def _del_plantel(criatura: sim.Criatura) -> dict:
     return {
         "id": criatura.id,
         "nombre": criatura.nombre,
-        "sin_nombre": sim.esta_sin_nombrar(criatura),
         "nombre_especie": criatura.def_especie.nombre,
         "nombre_etapa": esp.nombre_etapa(criatura.etapa, criatura.genero),
         "nivel": criatura.nivel,
@@ -78,15 +77,13 @@ def ver_la_incubadora(jugador: Jugador = Depends(jugador_actual)) -> dict:
 
 def _dicho(hecho: economia.ResultadoCambio) -> dict:
     if hecho.ok:
-        return {"ok": True, "clave": None, "mensaje": f"Ahora sales con {sim.nombre_visible(hecho.criatura)}."}
+        return {"ok": True, "clave": None, "mensaje": f"Ahora sales con {hecho.criatura.nombre}."}
     if hecho.motivo == "ya_es_el_activo":
         # Lo que ya está como se pidió es un sí: un toque doble no enseña un error.
         return {
             "ok": True, "clave": None,
-            "mensaje": f"{sim.nombre_visible(hecho.criatura)} ya es tu gachamon activo.",
+            "mensaje": f"{hecho.criatura.nombre} ya es tu gachamon activo.",
         }
-    if hecho.motivo == "sin_nombre":
-        return {"ok": False, "clave": "sin_nombre", "mensaje": "Antes de sacarlo, ponle nombre."}
     if hecho.motivo == "no_esta":
         return {"ok": False, "clave": "no_esta", "mensaje": _NO_ESTA}
     # Un motivo que no conocemos es un fallo nuestro y no se disfraza.

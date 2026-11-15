@@ -90,7 +90,7 @@ def panel_de_logros(
     ganadas = sum(lgr.POR_CLAVE[c].gemas for c in todos if c in lgr.POR_CLAVE)
     por_ganar = sum(l.gemas for l in lgr.LOGROS) - ganadas
     return (
-        f"## 🏅 Logros de {sim.nombre_visible(criatura)}\n"
+        f"## 🏅 Logros de {criatura.nombre}\n"
         + "\n".join(_lineas_de_logros(lgr.del_gachamon(), hechos, conseguidos))
         + f"\n### 🏅 Tuyos, {persona}\n"
         + "\n".join(
@@ -109,7 +109,7 @@ def panel_de_logros(
 def _lista_de(criaturas: list[sim.Criatura]) -> str:
     """Los nombres con su emoji, separados por puntos. Vacío si no hay nadie."""
     return " · ".join(
-        f"{c.def_especie.emoji} {sim.nombre_visible(c)}" for c in criaturas
+        f"{c.def_especie.emoji} {c.nombre}" for c in criaturas
     ) or "-# Vacía."
 
 
@@ -744,7 +744,7 @@ class Social(commands.Cog):
         )
         if recibo.nuevos:
             panel += (
-                f"\n{comun.texto_del_anuncio(sim.nombre_visible(criatura), recibo)}"
+                f"\n{comun.texto_del_anuncio(criatura.nombre, recibo)}"
             )
         if recibo_persona.nuevos:
             panel += f"\n{comun.texto_del_anuncio(persona, recibo_persona)}"
@@ -778,8 +778,7 @@ class Social(commands.Cog):
     #
     # Se delega en los mismos adaptadores, con los mismos ganchos que les pasa
     # `vistas`: sin `congelar`, usar un objeto o cambiar de activo dejaría viva
-    # una ficha que ya miente, y sin `bautizar` el plantel no sabría mandar a
-    # poner nombre a un recluta recién llegado de una aventura.
+    # una ficha que ya miente.
     @app_commands.command(name="mochila", description="Abre tu mochila y usa lo que lleves")
     @comun.solo_en_el_canal()
     async def mochila(self, interaccion: discord.Interaction) -> None:
@@ -846,7 +845,7 @@ class Social(commands.Cog):
     @comun.solo_en_el_canal()
     async def plantel(self, interaccion: discord.Interaction) -> None:
         await equipo.abrir_plantel(
-            interaccion, vistas.congelar, vistas.bautizar, vistas.publicar_pantalla
+            interaccion, vistas.congelar, vistas.publicar_pantalla
         )
 
     @app_commands.command(

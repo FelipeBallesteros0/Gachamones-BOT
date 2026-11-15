@@ -995,42 +995,12 @@ def test_no_asciende_a_nadie_si_ya_hay_activa():
     assert db.criatura_activa("u1", "g1").nombre == "Primera"
 
 
-# --- El recluta sin bautizar ------------------------------------------------
+# --- Nadie nace sin nombre --------------------------------------------------
 
-def test_un_recluta_sin_nombre_no_sale_de_la_incubadora():
-    """Lo pedido: no entra al equipo hasta que le pongas nombre.
-
-    La comprobación vive en `activar` y no en el menú porque es un invariante
-    del plantel: por ahí pasan el cambio manual y el relevo por muerte."""
-    nacer(nombre="Primera")
-    recluta = colar_dormida(sim.NOMBRE_PENDIENTE)
-
-    assert not db.activar(recluta, "u1", "g1")
-    assert db.criatura_activa("u1", "g1").nombre == "Primera"
-
-
-def test_al_ponerle_nombre_el_recluta_ya_puede_activarse():
-    nacer(nombre="Primera")
-    recluta = colar_dormida(sim.NOMBRE_PENDIENTE)
-
-    db.guardar(replace(db.por_id(recluta), nombre="Pelusa"))
-
-    assert db.activar(recluta, "u1", "g1")
-    assert db.criatura_activa("u1", "g1").nombre == "Pelusa"
-
-
-def test_al_morir_la_activa_no_asciende_un_recluta_sin_nombre():
-    """Ascenderlo dejaría el plantel sin ninguna activa, porque `activar` lo
-    rechaza: se prefiere a quien sí tiene nombre y, si no hay, no se asciende."""
-    activa = nacer(nombre="Primera")
-    colar_dormida(sim.NOMBRE_PENDIENTE)
-    con_nombre = colar_dormida("Tercera")
-
-    db.guardar(muerta_de_antes(activa))
-    relevo = db.ascender_un_relevo("u1", "g1")
-
-    assert relevo is not None and relevo.id == con_nombre
-    assert relevo.nombre == "Tercera"
+def test_nadie_nace_sin_nombre():
+    with pytest.raises(ValueError, match="nace con nombre"):
+        db.crear(U, G, "pulpo", "", STATS, T0)
+    assert db.plantel(U, G) == []
 
 
 # --- Los que esperaban nombre se lo ponen solos al arrancar -----------------
@@ -1120,13 +1090,6 @@ def test_sin_activa_saca_al_de_la_incubadora_que_tiene_nombre():
     espera = db.crear("u1", "g1", "pulpo", "Espera", STATS, T0, activa=False)
     assert db.activa_al_dia("u1", "g1", T0).id == espera.id
     assert db.criatura_activa("u1", "g1").id == espera.id
-
-
-def test_sin_activa_y_con_uno_sin_nombre_no_cambia_nada():
-    sin_nombre = db.crear("u1", "g1", "pulpo", "", STATS, T0, activa=False)
-    assert db.activa_al_dia("u1", "g1", T0) is None
-    assert db.criatura_activa("u1", "g1") is None
-    assert db.por_id(sin_nombre.id).activa is False
 
 
 def test_activa_al_dia_es_repetible():

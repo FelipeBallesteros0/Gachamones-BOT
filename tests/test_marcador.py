@@ -213,7 +213,7 @@ def test_reclutar_se_le_apunta_a_la_persona_y_no_a_ningun_gachamon():
     ni el que se une llevan nada en su marcador."""
     aventurero = nacer(nombre="Aventurero")
     recluta = db.crear(
-        "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
+        "u1", "g1", "michi", "Recluta", STATS, T0,
         activa=False, reclutada=True,
     )
 
@@ -245,7 +245,7 @@ def test_el_recluta_que_no_cabe_no_se_apunta():
 
     with pytest.raises(ValueError):
         db.crear(
-            "u1", "g1", "michi", sim.NOMBRE_PENDIENTE, STATS, T0,
+            "u1", "g1", "michi", "Recluta", STATS, T0,
             activa=False, reclutada=True,
         )
 
