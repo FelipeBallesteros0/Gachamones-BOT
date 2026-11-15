@@ -29,6 +29,7 @@ import especies as esp
 import huerto as hue
 import identidad
 import logros as lgr
+import nombres
 import objetos as obj
 import personalidad as per
 import simulacion as sim
@@ -470,6 +471,7 @@ CAMPOS = (
     "historial_vetas",
     "xp", "nivel", "victorias", "derrotas", "pantalla_msg_id", "canal_id",
     "activa", "tinte", "sombrero", "marco", "titulo", "casa_id",
+    "se_nombro_solo",
 )
 
 
@@ -514,6 +516,11 @@ MIGRACIONES = (
     # En qué casa de su dueño vive. `NULL` es el refugio, que es adonde va quien
     # no cabe en ninguna. Lo rellena `_migrar_casas` para las que ya existían.
     ("casa_id", "ALTER TABLE criaturas ADD COLUMN casa_id INTEGER"),
+    # Si el nombre se lo puso él solo, como un recluta al unirse. Los que ya
+    # tenían nombre se lo puso su dueño, y el DEFAULT los deja en 0; a los que
+    # lo esperaban se lo pone `_migrar` y los marca.
+    ("se_nombro_solo",
+     "ALTER TABLE criaturas ADD COLUMN se_nombro_solo INTEGER NOT NULL DEFAULT 0"),
 )
 
 # Lo mismo, para tablas que no son `criaturas`. Van aparte porque `MIGRACIONES`
@@ -750,6 +757,40 @@ def _una_sola_vez(con: sqlite3.Connection, clave: str, ahora: datetime) -> bool:
     ).rowcount == 1
 
 
+def _nombrar_a_los_que_lo_esperaban(con: sqlite3.Connection) -> None:
+    """Le pone nombre a cada fila que no lo tiene, y lo marca como suyo.
+
+    Un recluta llega ya con un nombre que se pone él solo; los que se unieron
+    antes se quedaron esperando a que se lo pusieran, y se lo ponen aquí: uno
+    de `nombres.NOMBRES` que no sea el de su especie ni el de otro vivo de su
+    dueño. Fila a fila y no de una pasada, como el carácter, y releyendo los
+    vivos de cada dueño: así cuentan también los que se acaban de poner.
+
+    Va sin marca de una sola vez: cuando no queda ninguna fila sin nombre no
+    encuentra nada que hacer, y repetirlo no cambia nada.
+    """
+    rng = random.Random()
+    for fila in con.execute(
+        "SELECT id, usuario_id, guild_id, especie FROM criaturas WHERE nombre = ''"
+    ).fetchall():
+        evitar = [
+            otra["nombre"] for otra in con.execute(
+                "SELECT nombre FROM criaturas WHERE usuario_id = ? "
+                "AND guild_id = ? AND muerta_en IS NULL",
+                (fila["usuario_id"], fila["guild_id"]),
+            )
+        ]
+        # Si su especie ya no existe no hay nombre de especie que evitar, y
+        # buscarla con `[]` tiraría el arranque (ver el ingenio, más abajo).
+        especie = esp.ESPECIES.get(fila["especie"])
+        if especie is not None:
+            evitar.append(especie.nombre)
+        con.execute(
+            "UPDATE criaturas SET nombre = ?, se_nombro_solo = 1 WHERE id = ?",
+            (nombres.elegir(rng, evitar), fila["id"]),
+        )
+
+
 def _migrar(con: sqlite3.Connection, ahora: datetime) -> None:
     # El turno de escritura se toma ANTES de mirar qué columnas hay, igual que
     # en `_migrar_monederos`. Sin esto, dos arranques a la vez pueden leer los
@@ -810,6 +851,8 @@ def _migrar(con: sqlite3.Connection, ahora: datetime) -> None:
             "UPDATE criaturas SET caracter = ? WHERE id = ?",
             (per.tirar_caracter(rng), criatura_id),
         )
+
+    _nombrar_a_los_que_lo_esperaban(con)
 
     # La espera de aventura dejó de ser del gachamon y pasó a ser de quien juega.
     # Las que estén corriendo se mudan en vez de tirarse: si no, todo el que
@@ -909,6 +952,7 @@ def _a_criatura(fila: sqlite3.Row) -> sim.Criatura:
         datos[campo] = _fecha(datos[campo])
     datos["avisada"] = bool(datos["avisada"])
     datos["activa"] = bool(datos["activa"])
+    datos["se_nombro_solo"] = bool(datos["se_nombro_solo"])
     return sim.Criatura(id=fila["id"], **datos)
 
 
@@ -918,6 +962,7 @@ def _a_valores(criatura: sim.Criatura) -> dict:
         valor = datos[campo]
         datos[campo] = valor.isoformat() if valor else None
     datos["activa"] = int(criatura.activa)
+    datos["se_nombro_solo"] = int(criatura.se_nombro_solo)
     # Ni instante de muerte ni aviso de hambre: nadie se muere. Las columnas
     # siguen en el esquema y se escriben vacías en cada guardado.
     datos["avisada"] = 0
@@ -1156,6 +1201,7 @@ def crear(
     reclutada: bool = False,
     *,
     cuenta_vigente: bool = False,
+    se_nombro_solo: bool = False,
 ) -> sim.Criatura:
     """Registra una criatura recién nacida.
 
@@ -1180,6 +1226,9 @@ def crear(
     misma transacción, que `cuentas_web` sigue teniéndola. Si no, levanta
     `IdentidadCaducada` y no crea nada: así no nace un huérfano justo después
     de vincular. Para una identidad de Discord no cambia nada.
+
+    `se_nombro_solo` dice que `nombre` no lo eligió su dueño: es el del
+    recluta, que se lo pone él solo (`nacer.unir_recluta`).
     """
     fuerza, velocidad, salud, ingenio = stats
     nueva = sim.Criatura(
@@ -1188,6 +1237,7 @@ def crear(
         nacida_en=ahora, actualizada_en=ahora,
         base_fuerza=fuerza, base_velocidad=velocidad, base_salud=salud,
         base_ingenio=ingenio, canal_id=canal_id, activa=activa,
+        se_nombro_solo=se_nombro_solo,
     )
     valores = _a_valores(nueva)
     columnas = list(valores)
@@ -1242,8 +1292,9 @@ def poner_nombre_a_la_activa(
 ) -> tuple[str, sim.Criatura | None]:
     """Le cambia sólo el nombre a la activa de esa persona, si `puede(activa)`.
 
-    Relee la activa bajo `BEGIN IMMEDIATE` y no guarda nada más de ella.
-    Devuelve `("sin_gachamon", None)`, `("no_puede", activa)` o
+    Relee la activa bajo `BEGIN IMMEDIATE` y no guarda nada más de ella que el
+    nombre y que ya no se lo puso sola (`se_nombro_solo = 0`): se lo ha puesto
+    su dueño. Devuelve `("sin_gachamon", None)`, `("no_puede", activa)` o
     `("hecho", activa_con_su_nombre)`.
     """
     with conectar() as con:
@@ -1254,9 +1305,10 @@ def poner_nombre_a_la_activa(
         if not puede(activa):
             return "no_puede", activa
         con.execute(
-            "UPDATE criaturas SET nombre = ? WHERE id = ?", (nombre, activa.id)
+            "UPDATE criaturas SET nombre = ?, se_nombro_solo = 0 WHERE id = ?",
+            (nombre, activa.id),
         )
-    return "hecho", replace(activa, nombre=nombre)
+    return "hecho", replace(activa, nombre=nombre, se_nombro_solo=False)
 
 
 def poner_nombre_a(
@@ -1269,7 +1321,8 @@ def poner_nombre_a(
     """Como `poner_nombre_a_la_activa`, pero a esa criatura, si es tuya y vive.
 
     Devuelve `("no_esta", None)`, `("no_puede", criatura)` o
-    `("hecho", criatura_con_su_nombre)`. Sólo escribe la columna `nombre`.
+    `("hecho", criatura_con_su_nombre)`. Sólo escribe `nombre`, y
+    `se_nombro_solo = 0`.
     """
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -1284,9 +1337,10 @@ def poner_nombre_a(
         if not puede(criatura):
             return "no_puede", criatura
         con.execute(
-            "UPDATE criaturas SET nombre = ? WHERE id = ?", (nombre, criatura.id)
+            "UPDATE criaturas SET nombre = ?, se_nombro_solo = 0 WHERE id = ?",
+            (nombre, criatura.id),
         )
-    return "hecho", replace(criatura, nombre=nombre)
+    return "hecho", replace(criatura, nombre=nombre, se_nombro_solo=False)
 
 
 def guardar(criatura: sim.Criatura) -> None:

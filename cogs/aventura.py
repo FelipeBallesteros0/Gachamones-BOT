@@ -27,6 +27,7 @@ import db
 import economia
 import especies as esp
 import ia
+import nacer
 import objetos as obj
 import pantalla
 import personalidad as per
@@ -474,20 +475,14 @@ class EncuentroView(discord.ui.View):
         ahora = db.ahora_utc()
 
         try:
-            nuevo = db.crear(
-                usuario_id=str(self.dueño.id), guild_id=self.guild_id,
-                especie=salvaje.especie,
-                # Sin nombre a propósito: se guarda ya, para que no se pierda si
-                # se cierra el formulario o se cae la conexión, pero no sale de
-                # la incubadora hasta que lo bauticen.
-                nombre=sim.NOMBRE_PENDIENTE,
-                stats=salvaje.stats, ahora=ahora,
+            # Llega con un nombre que se pone él solo, y no te cambia el activo
+            # sin avisar. El reclutamiento se le apunta a la persona, no a
+            # ningún gachamon: a la aventura vas tú y es tuyo el mérito.
+            nuevo = nacer.unir_recluta(
+                str(self.dueño.id), self.guild_id,
+                especie=salvaje.especie, stats=salvaje.stats,
                 genero=salvaje.genero, caracter=salvaje.caracter,
-                canal_id=str(interaccion.channel_id),
-                activa=False,  # a la incubadora: no te cambia el activo sin avisar
-                # El reclutamiento se le apunta a la persona, no a ningún
-                # gachamon: a la aventura vas tú y es tuyo el mérito.
-                reclutada=True,
+                ahora=ahora, canal_id=str(interaccion.channel_id),
             )
         except (ValueError, sqlite3.IntegrityError) as error:
             # Tope de plantel (`ValueError`) o el índice único si alguien metió
@@ -502,11 +497,8 @@ class EncuentroView(discord.ui.View):
 
         await self._editar(
             interaccion,
-            esp.concordar(
-                f"{reaccion}\n\n🧬 **¡Se une a tu equipo!** Todavía no tiene "
-                "nombre, y hasta que se lo pongas no sale de la incubadora.",
-                nuevo.genero,
-            ),
+            f"{reaccion}\n\n🧬 **¡Se une a tu equipo!** Dice que se llama "
+            f"**{nuevo.nombre}**. Si prefieres otro nombre, pónselo ahora.",
             vistas.NombrarReclutaView(),
         )
         # Domador y Flautista son tuyos, y también «Uno entre veinticinco» si el

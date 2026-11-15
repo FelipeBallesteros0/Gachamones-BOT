@@ -376,6 +376,10 @@ class Criatura:
     sombrero: str | None = None
     marco: str | None = None
     titulo: str | None = None
+    # Si el nombre que lleva se lo puso él solo: un recluta llega con uno de
+    # `nombres.NOMBRES`. Su dueño se lo puede cambiar una vez; en cuanto le
+    # pone uno, con el bautizo o con la placa, pasa a falso.
+    se_nombro_solo: bool = False
 
     # -- accesos derivados --------------------------------------------------
 

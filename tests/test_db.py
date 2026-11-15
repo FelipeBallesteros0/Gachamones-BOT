@@ -8,6 +8,7 @@ import pytest
 
 import db
 import especies as esp
+import nombres
 import pantalla
 import personalidad as per
 import simulacion as sim
@@ -1029,6 +1030,62 @@ def test_al_morir_la_activa_no_asciende_un_recluta_sin_nombre():
 
     assert relevo is not None and relevo.id == con_nombre
     assert relevo.nombre == "Tercera"
+
+
+# --- Los que esperaban nombre se lo ponen solos al arrancar -----------------
+
+def test_los_reclutas_sin_nombre_se_lo_ponen_solos_al_arrancar():
+    nube = nacer(nombre="Nube")
+    uno = db.crear(U, G, "michi", "Uno", STATS, T0, activa=False)
+    otro = db.crear(U, G, "michi", "Otro", STATS, T0, activa=False)
+    with db.conectar() as con:                           # como los dejó el bot de antes
+        con.execute(
+            "UPDATE criaturas SET nombre = '' WHERE id IN (?, ?)", (uno.id, otro.id)
+        )
+
+    db.inicializar()
+
+    nombrados = [db.por_id(uno.id), db.por_id(otro.id)]
+    assert all(c.nombre in nombres.NOMBRES and c.se_nombro_solo for c in nombrados)
+    assert nombrados[0].nombre != nombrados[1].nombre
+    assert "Nube" not in {c.nombre for c in nombrados}
+
+    db.inicializar()
+
+    assert [db.por_id(uno.id), db.por_id(otro.id)] == nombrados
+    sigue = db.por_id(nube.id)
+    assert sigue.nombre == "Nube" and sigue.se_nombro_solo is False
+
+
+def test_al_arrancar_el_nombre_no_es_el_de_otro_vivo_ni_el_de_su_especie(monkeypatch):
+    """Con la lista reducida a cuatro sólo quedan dos que valgan: «Nube» la
+    lleva otro vivo y «Purreon» es su especie. «Miga» sí vale, porque quien la
+    llevaba ya no vive, y el segundo no repite el que se acaba de poner el
+    primero."""
+    monkeypatch.setattr(nombres, "NOMBRES", ("Nube", "Purreon", "Miga", "Trufa"))
+    db.guardar(muerta_de_antes(nacer(nombre="Miga")))
+    nacer(nombre="Nube")
+    uno = db.crear(U, G, "michi", "Uno", STATS, T0, activa=False)
+    otro = db.crear(U, G, "michi", "Otro", STATS, T0, activa=False)
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET nombre = '' WHERE id IN (?, ?)", (uno.id, otro.id)
+        )
+
+    db.inicializar()
+
+    assert {db.por_id(uno.id).nombre, db.por_id(otro.id).nombre} == {"Miga", "Trufa"}
+
+
+def test_el_unico_vivo_sin_nombre_recibe_nombre_y_pasa_a_ser_el_activo():
+    db.guardar(muerta_de_antes(nacer(nombre="Ana")))
+    recluta = db.crear(U, G, "pulpo", "Provisional", STATS, T0, activa=False)
+    with db.conectar() as con:                           # como lo dejó el bot de antes
+        con.execute("UPDATE criaturas SET nombre = '' WHERE id = ?", (recluta.id,))
+    assert db.criatura_activa(U, G) is None
+    db.inicializar()
+    activa = db.activa_al_dia(U, G, T0 + timedelta(hours=1))
+    assert activa.id == recluta.id and activa.activa and activa.nombre in nombres.NOMBRES
 
 
 # --- Sin activa, la activa al día saca a alguien (el remiendo) --------------

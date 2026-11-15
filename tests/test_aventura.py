@@ -12,6 +12,7 @@ import pytest
 
 import aventura as av
 import cogs.aventura as cog_av
+import db
 import economia
 import especies as esp
 import objetos as obj
@@ -496,6 +497,38 @@ def test_los_controles_del_encuentro_usan_espanol_neutro(
         assert "sereno" not in contenido
 
     asyncio.run(comprobar())
+
+
+def test_al_unirse_dice_como_se_llama_y_no_habla_de_la_incubadora(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "unirse.db")
+    db.inicializar()
+    ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    bicho = db.crear("1", "g1", "pulpo", "Aventurero", (15, 15, 15, 15), ahora)
+    salvaje = av.Salvaje(
+        "michi", esp.ESPECIES["michi"].nombre, esp.HEMBRA, "sereno", (10, 10, 10, 15)
+    )
+    vista = cog_av.EncuentroView(
+        None, SimpleNamespace(id="1", display_name="Felipe"), "g1", bicho,
+        av.Encuentro(salvaje=salvaje, confianza=100),
+    )
+    interaccion = SimpleNamespace(
+        channel_id="c1", channel=None, edit_original_response=AsyncMock()
+    )
+
+    asyncio.run(vista._unirse(interaccion, "se acerca"))
+
+    recluta = next(c for c in db.plantel("1", "g1") if c.id != bicho.id)
+    assert recluta.se_nombro_solo and not recluta.activa
+    editado = interaccion.edit_original_response.await_args.kwargs
+    assert f"Dice que se llama **{recluta.nombre}**" in editado["content"]
+    assert (
+        f"🧬 **¡Se une a tu equipo!** Dice que se llama **{recluta.nombre}**. "
+        "Si prefieres otro nombre, pónselo ahora."
+    ) in editado["content"]
+    assert "incubadora" not in editado["content"]
+    assert isinstance(editado["view"], cog_av.vistas.NombrarReclutaView)
 
 
 def contexto_salvaje(salvaje, dicho="hola"):

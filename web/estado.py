@@ -57,6 +57,7 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
         "id": criatura.id,
         "nombre": criatura.nombre,
         "espera_nombre": nacer.espera_nombre(criatura),
+        "se_nombro_solo": criatura.se_nombro_solo,
         "especie": criatura.especie,
         "nombre_especie": especie.nombre,
         "emoji": especie.emoji,

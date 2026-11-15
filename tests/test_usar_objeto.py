@@ -292,6 +292,18 @@ def test_la_placa_le_cambia_el_nombre(base):
     assert db.inventario(U, G) == {}
 
 
+def test_la_placa_deja_el_nombre_como_tuyo(base):
+    """Con la placa el nombre lo eliges tú: el que se puso solo ya no está."""
+    solo = db.crear(U, G, "pulpo", "Miga", STATS, T0, se_nombro_solo=True)
+    dar(U, "placa", 1)
+
+    resultado = economia.renombrar_con_placa("evento-uso-26", U, G, PLACA, "Pelusa", T0)
+
+    assert resultado.ok and resultado.criatura.se_nombro_solo is False
+    assert db.por_id(solo.id).nombre == "Pelusa"
+    assert db.por_id(solo.id).se_nombro_solo is False
+
+
 def test_un_nombre_que_no_vale_no_gasta_la_placa(base):
     nace("Kuro")
     dar(U, "placa", 1)

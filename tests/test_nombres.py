@@ -1,5 +1,6 @@
 """Validación pura de nombres visibles en Discord y su adaptador modal."""
 import asyncio
+import random
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -7,9 +8,26 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 import db
+import especies as esp
 import nacer
+import nombres
 import simulacion as sim
 import vistas
+
+
+# --- Los nombres que se pone un recluta -------------------------------------
+
+def test_la_lista_de_nombres_de_recluta_vale():
+    assert len(nombres.NOMBRES) == 40 > db.MAXIMO_PLANTEL + 1
+    assert all(sim.normalizar_nombre(n) == n for n in nombres.NOMBRES)
+    assert len({n.casefold() for n in nombres.NOMBRES}) == 40
+    assert not {n.casefold() for n in nombres.NOMBRES} & {e.nombre.casefold() for e in esp.ESPECIES.values()}
+
+
+def test_elegir_evita_los_que_ya_hay_sin_mirar_mayusculas():
+    todos_menos_uno = [n.upper() for n in nombres.NOMBRES if n != "Trufa"]
+    assert nombres.elegir(random.Random(7), todos_menos_uno) == "Trufa"
+    assert nombres.elegir(random.Random(7), nombres.NOMBRES) in nombres.NOMBRES
 
 
 def test_normaliza_nombres_unicode_y_espacios_internos():
@@ -235,10 +253,26 @@ def test_el_modal_del_recluta_no_acepta_el_nombre_de_su_especie(
     )]
 
 
-def test_el_boton_del_recluta_busca_al_que_espera_nombre(tmp_path, monkeypatch):
-    _, recluta = montar_plantel(tmp_path, monkeypatch)
+def test_el_boton_del_recluta_busca_al_mas_antiguo_que_se_nombro_solo(
+    tmp_path, monkeypatch
+):
+    """El que tiene el nombre que le puso su dueño no cuenta; de los que se
+    lo pusieron solos, el más antiguo, aunque el otro sea el activo."""
+    ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
+    db.inicializar()
+    db.crear("u1", "g1", "pulpo", "Vieja", (15, 15, 15, 15), ahora)
+    primero, segundo = (
+        nacer.unir_recluta(
+            "u1", "g1", especie="michi", stats=(15, 15, 15, 15),
+            genero=esp.MACHO, caracter=esp.CARACTER_POR_DEFECTO, ahora=ahora,
+            rng=random.Random(semilla),
+        )
+        for semilla in (1, 2)
+    )
+    assert db.activar(segundo.id, "u1", "g1")
 
-    encontrado = vistas.sin_nombrar_de("u1", "g1")
+    encontrado = vistas.el_que_se_nombro_solo("u1", "g1")
 
-    assert encontrado is not None and encontrado.id == recluta.id
-    assert vistas.sin_nombrar_de("u2", "g1") is None
+    assert encontrado is not None and encontrado.id == primero.id
+    assert vistas.el_que_se_nombro_solo("u2", "g1") is None

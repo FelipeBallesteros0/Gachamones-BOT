@@ -1,10 +1,12 @@
 """Bautizar a un gachamon concreto es una regla del juego: `nacer.bautizar_a`."""
+import random
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 import db
+import especies as esp
 import nacer
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -95,3 +97,24 @@ def test_bautizar_a_uno_ajeno_o_muerto_es_no_esta():
 
     for criatura in (ajena, de_otro_servidor, muerta):
         assert db.por_id(criatura.id).nombre == ""
+
+
+def test_al_que_se_nombro_solo_se_le_cambia_el_nombre_una_vez():
+    nace("Ana")
+    recluta = nacer.unir_recluta(
+        U, G, especie="pollito", stats=STATS, genero=esp.MACHO,
+        caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(5),
+    )
+
+    with pytest.raises(nacer.NombreNoVale):
+        nacer.bautizar_a(U, G, recluta.id, recluta.def_especie.nombre, T0)
+    assert db.por_id(recluta.id) == recluta              # sigue pudiendo
+
+    bautizada = nacer.bautizar_a(U, G, recluta.id, "Rayo", T0)
+
+    assert bautizada.nombre == "Rayo" and bautizada.se_nombro_solo is False
+    assert db.por_id(recluta.id) == bautizada
+    with pytest.raises(nacer.NoSePuedeBautizar) as error:
+        nacer.bautizar_a(U, G, recluta.id, "Otra", T0)
+    assert error.value.motivo == nacer.YA_BAUTIZADO
+    assert db.por_id(recluta.id).nombre == "Rayo"

@@ -2507,7 +2507,8 @@ def _usar(
             )
 
         if placa:
-            queda = replace(criatura, nombre=nombre)
+            # El nombre de la placa lo eliges tú: deja de ser el que se puso solo.
+            queda = replace(criatura, nombre=nombre, se_nombro_solo=False)
             datos = {"efecto": "nombre", "nombre_anterior": criatura.nombre}
         else:
             queda, datos = _aplicar_objeto(con, criatura, objeto, ahora, rng)

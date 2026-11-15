@@ -746,7 +746,7 @@ def test_la_ayuda_habla_de_lo_que_hay():
     texto = "\n".join(paginas_de_ayuda("Gachamon"))
     esperados = (
         "/huevo", "/carrera", "/sumo", "/jardin", "/ranking", "/cementerio",
-        "/aventura", "/mochila", "/tienda", "/plantel", "podio", "incubadora",
+        "/aventura", "/mochila", "/tienda", "/plantel", "podio",
         *comp.FASES_CARRERA, *comp.FASES_SUMO,
         "puntos acumulados", "mejor de tres", "dos intercambios",
         str(comp.MAX_CORREDORES), str(db.MAXIMO_PLANTEL),
@@ -815,6 +815,20 @@ def test_el_plantel_del_manual_cuenta_que_a_todos_les_pasa_el_tiempo():
     assert "el que sale contigo" in plantel
     assert "A los demás también les pasa el tiempo" in plantel
     assert "no les pasa el tiempo" not in plantel
+
+
+def test_la_aventura_del_manual_cuenta_que_el_recluta_llega_con_nombre():
+    from cogs.social import paginas_de_ayuda
+
+    paginas = paginas_de_ayuda("Gachamon")
+    aventura = next(p for p in paginas if p.startswith("## 🧭 Salir de aventura"))
+    assert "se pone un nombre él solo" in aventura
+    assert (
+        "Al unirse **se pone un nombre él solo**; puedes cambiárselo una vez."
+    ) in aventura
+    assert "no trae nombre" not in aventura
+    for pagina in paginas:
+        assert "incubadora" not in pagina
 
 
 def test_la_ayuda_no_dice_que_solo_cabe_una():

@@ -355,8 +355,7 @@ sin llenar el recelo, en {av.PACIENCIA_INICIAL} jugadas. 🎭 Presumir y 🍬 go
 convencen mucho pero **levantan mucho recelo**; 💬 hablar es lo seguro; 🧘 esperar \
 casi no convence pero **lo calma**. **Cada carácter reacciona distinto**, así que \
 machacar su opción favorita lo espanta: hay que empujar y dejarle respirar. Al \
-unirse **no trae nombre**: se lo pones tú, y hasta entonces no sale de la \
-incubadora.
+unirse **se pone un nombre él solo**; puedes cambiárselo una vez.
 -# Es la única forma de tener un segundo o un tercer gachamon. Con el equipo \
 lleno se sale igual, pero sólo se encuentran objetos.
 -# 🧭 El descanso entre viajes es **tuyo**, no del gachamon: cambiar de activo \

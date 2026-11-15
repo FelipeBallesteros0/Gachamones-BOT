@@ -1,6 +1,7 @@
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false
 """Las mutaciones externas apagan la ficha viva que acaba de quedar obsoleta."""
 import asyncio
+import random
 import re
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,7 @@ import db
 import economia
 import equipo
 import especies as esp
+import nacer
 import pantalla
 import retrato
 import simulacion as sim
@@ -1210,6 +1212,36 @@ def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
     assert [opcion.label for opcion in menu.options] == ["Activa", sim.SIN_NOMBRE]
     assert sim.SIN_NOMBRE in texto
     assert "esperando nombre" in texto
+
+
+# --- El recluta que se puso nombre él solo ----------------------------------
+
+def test_el_boton_del_recluta_abre_el_formulario_con_su_nombre(bd_temporal):
+    db.crear("u1", "g1", "pulpo", "Activa", STATS, T0)
+    recluta = nacer.unir_recluta(
+        "u1", "g1", especie="michi", stats=STATS, genero=esp.HEMBRA,
+        caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(4),
+    )
+    vista = vistas.NombrarReclutaView()
+    boton = vista.children[0]
+    assert (boton.label, boton.custom_id) == ("Ponerle otro nombre", "tama:nombrar_recluta")
+
+    interaccion, respuesta, _ = interaccion_de()
+    respuesta.send_modal = AsyncMock()
+    asyncio.run(vista.nombrar.callback(cast(Any, interaccion)))
+
+    modal = respuesta.send_modal.await_args.args[0]
+    assert isinstance(modal, vistas.NombreModal)
+    assert modal.criatura_id == recluta.id
+    assert modal.nombre.default == recluta.nombre
+
+    nacer.bautizar_a("u1", "g1", recluta.id, "Rayo", T0)
+    interaccion, respuesta, _ = interaccion_de()
+    asyncio.run(vista.nombrar.callback(cast(Any, interaccion)))
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Ninguno de tus gachamones espera un nombre nuevo.", ephemeral=True
+    )
 
 
 def test_todas_las_rutas_de_ficha_viva_piden_las_seis_esperas(monkeypatch):

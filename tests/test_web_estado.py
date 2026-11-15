@@ -46,7 +46,7 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
     assert estado["avatar"]["nombre"] == "Feli"
     assert estado["gachamon"] == {
         "id": creado.id, "nombre": "Pelusa", "espera_nombre": False,
-        "especie": "pollito", "nombre_especie": esp.ESPECIES["pollito"].nombre,
+        "se_nombro_solo": False, "especie": "pollito", "nombre_especie": esp.ESPECIES["pollito"].nombre,
         "emoji": esp.ESPECIES["pollito"].emoji,
         "etapa": "bebe", "nombre_etapa": esp.nombre_etapa("bebe", "hembra"),
         "nivel": 1, "genero": "hembra",
@@ -79,6 +79,21 @@ def test_el_que_espera_nombre_lo_dice(cliente, monkeypatch):
     alta(cliente)
     nace(nombre="Piollito")
     assert cliente.get(ESTADO).json()["gachamon"]["espera_nombre"] is True
+
+
+def test_el_del_huevo_no_se_nombro_solo(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
+    estado = cliente.get(ESTADO).json()
+    assert estado["gachamon"]["se_nombro_solo"] is False
+
+
+def test_el_que_se_nombro_solo_lo_dice(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    nace(nombre="Miga", se_nombro_solo=True)
+    assert cliente.get(ESTADO).json()["gachamon"]["se_nombro_solo"] is True
 
 
 def test_las_esperas_salen_en_segundos_y_la_de_alimentar_cede_con_hambre(cliente, monkeypatch):

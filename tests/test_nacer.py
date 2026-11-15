@@ -7,15 +7,23 @@ import pytest
 
 import db
 import especies as esp
+import logros as lgr
 import nacer
+import nombres
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+U, G = "u", "g"
+STATS = (10, 10, 10, 10)
 
 
 @pytest.fixture(autouse=True)
 def bd(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "RUTA", tmp_path / "nacer.db")
     db.inicializar()
+
+
+def nace(nombre):
+    return db.crear(U, G, "pulpo", nombre, STATS, T0)
 
 
 def test_del_huevo_sale_una_de_las_diez_con_nombre_provisional():
@@ -156,3 +164,41 @@ def test_el_nombre_de_otra_especie_si_vale():
     nacida = nacer.romper_el_huevo("u", "g", T0, random.Random(3))
     otra = next(e.nombre for e in esp.ESPECIES.values() if e.clave != nacida.especie)
     assert nacer.bautizar("u", "g", otra, T0).nombre == otra
+
+
+# --- El recluta llega con nombre ---------------------------------------------
+
+def test_el_recluta_llega_con_el_nombre_que_se_puso_solo():
+    activa = nace("Nube")                                  # ya hay una Nube
+    recluta = nacer.unir_recluta(
+        U, G, especie="pollito", stats=STATS, genero=esp.HEMBRA, caracter=esp.CARACTER_POR_DEFECTO,
+        ahora=T0, rng=random.Random(3),
+    )
+    assert recluta.nombre in nombres.NOMBRES and recluta.nombre != "Nube"
+    assert recluta.se_nombro_solo and recluta.activa is False
+    assert db.por_id(recluta.id) == recluta
+    assert db.criatura_activa(U, G).id == activa.id
+    assert db.marcador_de_persona(U, G)[lgr.RECLUTADOS] == 1
+
+
+def test_el_nombre_de_un_recluta_se_elige_tambien_sin_ningun_gachamon():
+    assert nacer.nombre_de_recluta(U, G, "pollito", random.Random(1)) in nombres.NOMBRES
+
+
+def test_al_activo_que_se_nombro_solo_se_le_puede_bautizar_una_vez():
+    """Un recluta que se queda solo en el plantel pasa a ser el activo con el
+    nombre que se puso; el bautizo del activo también se lo deja cambiar, una
+    vez."""
+    recluta = nacer.unir_recluta(
+        U, G, especie="pollito", stats=STATS, genero=esp.HEMBRA,
+        caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(3),
+    )
+    assert db.activa_al_dia(U, G, T0).id == recluta.id
+
+    bautizada = nacer.bautizar(U, G, "Rayo", T0)
+
+    assert bautizada.nombre == "Rayo" and bautizada.se_nombro_solo is False
+    assert db.por_id(recluta.id) == bautizada
+    with pytest.raises(nacer.NoSePuedeBautizar) as caido:
+        nacer.bautizar(U, G, "Otra", T0)
+    assert caido.value.motivo == nacer.YA_BAUTIZADO

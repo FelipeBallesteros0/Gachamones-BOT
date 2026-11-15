@@ -1,7 +1,9 @@
-"""Nacer: romper el huevo y bautizar. Lo comparten el bot y la web.
+"""Nacer: romper el huevo, unirse un recluta y bautizar. Lo comparten el bot y
+la web.
 
-Aquí está lo que decide qué nace y cuándo se puede bautizar; quien llama
-(el botón del bot, la ruta de la web) sólo traduce el resultado.
+Aquí está lo que decide qué nace, con qué nombre llega un recluta y cuándo se
+puede bautizar; quien llama (el botón del bot, la ruta de la web) sólo traduce
+el resultado.
 """
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ from datetime import datetime
 
 import db
 import especies as esp
+import nombres
 import personalidad as per
 import simulacion as sim
 
@@ -43,6 +46,60 @@ class NoSePuedeBautizar(Exception):
 def espera_nombre(criatura: sim.Criatura) -> bool:
     """Si todavía no se le ha puesto nombre propio."""
     return not criatura.nombre or criatura.nombre == criatura.def_especie.nombre
+
+
+def puede_recibir_nombre(criatura: sim.Criatura) -> bool:
+    """Si su dueño le puede poner nombre: lo espera, o el que lleva se lo puso
+    él solo. En cuanto se lo pone su dueño, ya no."""
+    return espera_nombre(criatura) or criatura.se_nombro_solo
+
+
+def nombre_de_recluta(
+    usuario_id: str, guild_id: str, especie: str, rng: random.Random
+) -> str:
+    """El nombre que se pone un recluta de `especie` al unirse a ese plantel:
+    ni el de otro de sus vivos ni el de su especie."""
+    evitar = [criatura.nombre for criatura in db.plantel(usuario_id, guild_id)]
+    evitar.append(esp.ESPECIES[especie].nombre)
+    return nombres.elegir(rng, evitar)
+
+
+def unir_recluta(
+    usuario_id: str,
+    guild_id: str,
+    *,
+    especie: str,
+    stats: tuple[int, int, int, int],
+    genero: str,
+    caracter: str,
+    ahora: datetime,
+    rng: random.Random | None = None,
+    canal_id: str | None = None,
+) -> sim.Criatura:
+    """El salvaje que se une en una aventura, ya con el nombre que se pone él
+    solo (`nombre_de_recluta`) y que su dueño le puede cambiar una vez.
+
+    No es el activo: uno que se une no desbanca sin avisar al que salía
+    contigo. El reclutamiento se le apunta a la persona en la misma
+    transacción que lo crea (`db.crear` con `reclutada`). Deja pasar el
+    `ValueError` del plantel lleno y el `sqlite3.IntegrityError`, como
+    `db.crear`.
+    """
+    rng = rng or random.Random()
+    return db.crear(
+        usuario_id=usuario_id,
+        guild_id=guild_id,
+        especie=especie,
+        nombre=nombre_de_recluta(usuario_id, guild_id, especie, rng),
+        stats=stats,
+        ahora=ahora,
+        genero=genero,
+        caracter=caracter,
+        canal_id=canal_id,
+        activa=False,
+        reclutada=True,
+        se_nombro_solo=True,
+    )
 
 
 def romper_el_huevo(
@@ -83,7 +140,8 @@ def romper_el_huevo(
 def bautizar(
     usuario_id: str, guild_id: str, nombre: str, ahora: datetime
 ) -> sim.Criatura:
-    """Le pone nombre a la activa, sólo si todavía lo espera.
+    """Le pone nombre a la activa, sólo si todavía lo espera o el que lleva se
+    lo puso ella sola (`puede_recibir_nombre`).
 
     El nombre de su especie no vale: `espera_nombre` lo lee como «sin nombre»,
     y el bautizo se repetiría.
@@ -97,7 +155,7 @@ def bautizar(
     db.activa_al_dia(usuario_id, guild_id, ahora)
 
     def puede(activa: sim.Criatura) -> bool:
-        if not espera_nombre(activa):
+        if not puede_recibir_nombre(activa):
             return False
         # Se mira aquí, con la activa releída en la transacción: es su especie.
         if nombre.casefold() == activa.def_especie.nombre.casefold():
@@ -118,11 +176,12 @@ def bautizar_a(
     usuario_id: str, guild_id: str, criatura_id: int, nombre: str,
     ahora: datetime,
 ) -> sim.Criatura:
-    """Le pone nombre a ese gachamon tuyo, sólo si todavía lo espera.
+    """Le pone nombre a ese gachamon tuyo, sólo si todavía lo espera o el que
+    lleva se lo puso él solo (`puede_recibir_nombre`).
 
-    Es el bautizo del recluta, que no puede ser el activo hasta tener nombre.
-    Recibe `ahora` como `bautizar`, pero no pone al día a nadie: sólo se le
-    escribe el nombre.
+    Es como se le cambia una vez el nombre a un recluta, que llega con uno de
+    la lista. Recibe `ahora` como `bautizar`, pero no pone al día a nadie:
+    sólo se le escribe el nombre, y que ya no se lo puso él solo.
     """
     try:
         nombre = sim.normalizar_nombre(nombre)
@@ -130,7 +189,7 @@ def bautizar_a(
         raise NombreNoVale(str(error)) from None
 
     def puede(criatura: sim.Criatura) -> bool:
-        if not espera_nombre(criatura):
+        if not puede_recibir_nombre(criatura):
             return False
         # Se mira aquí, con la criatura releída en la transacción: es su especie.
         if nombre.casefold() == criatura.def_especie.nombre.casefold():

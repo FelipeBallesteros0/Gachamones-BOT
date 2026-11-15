@@ -657,38 +657,45 @@ class NombrarView(discord.ui.View):
         await interaccion.response.send_modal(NombreModal(criatura.nombre))
 
 
-def sin_nombrar_de(usuario_id: str, guild_id: str) -> sim.Criatura | None:
-    """El recluta que espera nombre, el más antiguo si hay más de uno."""
-    for criatura in db.plantel(usuario_id, guild_id):
-        if sim.esta_sin_nombrar(criatura):
-            return criatura
-    return None
+def el_que_se_nombro_solo(usuario_id: str, guild_id: str) -> sim.Criatura | None:
+    """De sus vivos que se pusieron el nombre solos, el más antiguo.
+
+    Por id y no por el orden del plantel, que pone primero al activo: un
+    recluta que ya salió contigo sigue pudiendo cambiar de nombre.
+    """
+    return min(
+        (c for c in db.plantel(usuario_id, guild_id) if c.se_nombro_solo),
+        key=lambda c: c.id,
+        default=None,
+    )
 
 
 class NombrarReclutaView(discord.ui.View):
-    """Botón de bautizo bajo el gachamon que se acaba de unir.
+    """Botón para cambiarle el nombre al gachamon que se acaba de unir.
 
-    Persistente como el del huevo, y por el mismo motivo elevado a necesidad:
-    hasta que no tenga nombre no puede salir de la incubadora, así que si un
-    reinicio dejara el botón muerto te quedarías con un gachamon inservible.
-    Por eso busca al que espera nombre en vez de llevar su identificador dentro:
-    un `custom_id` con el id de la criatura no puede ser persistente.
+    Llega con uno que se puso él solo, y su dueño se lo puede cambiar una vez.
+    Persistente como el del huevo: hay botones ya publicados que tienen que
+    seguir respondiendo tras un reinicio. Por eso busca al que se puso el
+    nombre solo en vez de llevar su identificador dentro: un `custom_id` con el
+    id de la criatura no puede ser persistente.
     """
 
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Ponerle nombre", emoji="✏️",
+    @discord.ui.button(label="Ponerle otro nombre", emoji="✏️",
                        style=discord.ButtonStyle.success,
                        custom_id="tama:nombrar_recluta")
     async def nombrar(self, interaccion: discord.Interaction, boton: discord.ui.Button):
-        recluta = sin_nombrar_de(str(interaccion.user.id), str(interaccion.guild_id))
+        recluta = el_que_se_nombro_solo(
+            str(interaccion.user.id), str(interaccion.guild_id)
+        )
         if recluta is None:
             await interaccion.response.send_message(
-                "No tienes ningún gachamon esperando nombre.", ephemeral=True
+                "Ninguno de tus gachamones espera un nombre nuevo.", ephemeral=True
             )
             return
-        await interaccion.response.send_modal(NombreModal("", recluta.id))
+        await interaccion.response.send_modal(NombreModal(recluta.nombre, recluta.id))
 
 
 async def bautizar(interaccion: discord.Interaction, criatura: sim.Criatura) -> None:
