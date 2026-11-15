@@ -1,18 +1,13 @@
-import asyncio
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
-from typing import Any, cast
-from unittest.mock import AsyncMock
 
 import pytest
 
 import db
 import economia
 import simulacion as sim
-import vistas
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
@@ -129,26 +124,14 @@ def test_el_cupo_continua_al_cambiar_de_activa():
     assert anterior is not None and anterior.activa is False
 
 
-def test_cuidar_desde_la_ficha_de_una_que_se_quedo_en_casa_no_acredita():
-    activa = nacer()
-    en_casa = nacer(nombre="B", activa=False)
-    db.guardar_pantalla(en_casa.id, "pantalla-b")
-    respuesta = SimpleNamespace(send_message=AsyncMock())
-    interaccion = SimpleNamespace(
-        id=99,
-        user=SimpleNamespace(id="u1"),
-        guild_id="g1",
-        message=SimpleNamespace(id="pantalla-b"),
-        response=respuesta,
-    )
-
-    asyncio.run(vistas._ejecutar(cast(Any, interaccion), sim.JUGAR))
-
-    respuesta.send_message.assert_awaited_once()
-    assert "se quedó en casa" in respuesta.send_message.await_args.args[0]
-    assert db.criatura_activa("u1", "g1") == activa
-    with db.conectar() as con:
-        assert con.execute("SELECT COUNT(*) FROM operaciones_economia").fetchone()[0] == 0
+def test_el_freno_es_la_actividad_con_los_doce_gastados_y_si_no_el_bote():
+    """Con cuidados de sobra (5 de 12), lo que frenó el premio fue el bote del
+    día; con los doce gastados, el de la actividad, que manda cuando los dos
+    están agotados."""
+    assert economia.freno_de(5, economia.TOPE_CUIDADOS) == economia.FRENO_BOTE
+    assert economia.freno_de(
+        economia.TOPE_CUIDADOS, economia.TOPE_CUIDADOS
+    ) == economia.FRENO_ACTIVIDAD
 
 
 def test_ascender_tras_muerte_conserva_cupos_del_dia():

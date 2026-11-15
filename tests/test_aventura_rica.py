@@ -1,17 +1,12 @@
 # pyright: reportArgumentType=false, reportCallIssue=false, reportAttributeAccessIssue=false
 """Contrato del terreno honesto y del encuentro salvaje contextual."""
-import asyncio
 import inspect
 import random
 from dataclasses import replace
-from datetime import timedelta
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 import aventura as av
-import cogs.aventura as cog_av
 import especies as esp
 import personalidad as per
 import simulacion as sim
@@ -509,187 +504,20 @@ class RNGTraza:
         return opciones[0]
 
 
-def _vista_de(monkeypatch, viaje, bicho=None):
-    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
-    vista = cog_av.ViajeView(
-        Mock(), SimpleNamespace(id="u1", display_name="Felipe"), "g1",
-        bicho or criatura(fuerza=99), viaje,
-    )
-    vista.mensaje = SimpleNamespace(edit=AsyncMock())
-    vista.cog.resolver = AsyncMock()
-    return vista
-
-
-def _pulsar(vista, indice=0, canal=None):
-    asyncio.run(vista.children[indice].callback(SimpleNamespace(
-        response=SimpleNamespace(defer=AsyncMock()), channel=canal,
-    )))
-
-
-def test_el_comando_sortea_bioma_pareja_y_lado_en_ese_orden(monkeypatch):
-    """La traza del comando: bioma, una de las seis parejas, y el lado del
-    terreno. Nada más: el respaldo ya no gasta dados."""
-    ahora = SimpleNamespace()
-    rng = RNGTraza(valores=(4, 1))
-    monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
-    monkeypatch.setattr(cog_av.db, "ahora_utc", lambda: ahora)
-    monkeypatch.setattr(cog_av.db, "criatura_activa", lambda *_: criatura())
-    monkeypatch.setattr(cog_av.db, "avanzar", lambda c, _: c)
-    monkeypatch.setattr(cog_av.db, "guardar", lambda c: None)
-    monkeypatch.setattr(cog_av.db, "espera_de_persona", lambda *_: timedelta(0))
-    monkeypatch.setattr(cog_av.db, "poner_cooldown_persona", lambda *_: None)
-    monkeypatch.setattr(cog_av.db, "uso_ia_ultima_hora", lambda *_: 999)
-    monkeypatch.setattr(cog_av.vistas, "congelar", AsyncMock())
-    monkeypatch.setattr(cog_av.vistas, "_canal_anterior", lambda *_: None)
-    abiertas = []
-
-    async def followup(*_, **kwargs):
-        abiertas.append(kwargs.get("view"))
-        return SimpleNamespace()
-
-    interaccion = SimpleNamespace(
-        id=987654321,
-        user=SimpleNamespace(id="u1", mention="<@u1>", display_name="Felipe"),
-        guild_id="g1",
-        response=SimpleNamespace(defer=AsyncMock()),
-        followup=SimpleNamespace(send=followup),
-        channel=SimpleNamespace(send=AsyncMock()),
-    )
-    cog = cog_av.Aventura.__new__(cog_av.Aventura)
-    cog.resolver = AsyncMock()
-
-    asyncio.run(getattr(cog_av.Aventura.aventura, "callback")(cog, interaccion))
-
-    assert rng.eventos == [
-        ("choice", len(av.BIOMAS)), ("randint", 0, 5), ("randint", 0, 1)
-    ]
-    viaje = abiertas[0].viaje
-    # `randint(0, 5) -> 4` es la quinta pareja canónica y `randint(0, 1) -> 1`
-    # su segundo lado.
-    assert viaje.terreno.pareja == av.PAREJAS[4] == (av.VELOCIDAD, av.INGENIO)
-    assert viaje.escena.pareja == viaje.terreno.pareja
-    assert viaje.terreno.favorecida == av.INGENIO
-
-
-def test_primer_roll_y_siguiente_terreno_comparten_un_edit_y_orden_rng(monkeypatch):
-    rng = RNGTraza()
-    monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
-    bioma = av.BIOMAS["bosque"]
-    vista = _vista_de(monkeypatch, av.Viaje(bioma, escena(), terreno()))
-
-    _pulsar(vista)
-
-    vista.mensaje.edit.assert_awaited_once()
-    contenido = vista.mensaje.edit.await_args.kwargs["content"]
-    assert "✓ Mover la roca — 💪 99 + 20 = 119 / 22" in contenido
-    assert vista.viaje.escena.situacion in contenido
-    assert "pueden forjar marca" in contenido
-    # Sólo el dado de la prueba y el lado del terreno siguiente: el complemento
-    # no se sortea y el respaldo es determinista.
-    assert rng.eventos == [("randint", 1, 20), ("randint", 0, 1)]
-    assert vista.viaje.terreno.pareja == (av.SALUD, av.INGENIO)
-    assert vista.viaje.escena == av.escena_escrita(
-        bioma, (av.SALUD, av.INGENIO), vista.viaje.terreno.favorecida
-    )
-
-
-@pytest.mark.parametrize("pareja", av.PAREJAS)
-def test_el_segundo_nodo_es_la_complementaria_tras_acertar_y_tras_volver(
-    monkeypatch, pareja
-):
-    bioma = av.BIOMAS["bosque"]
-    inicial = av.Viaje(
-        bioma,
-        av.escena_escrita(bioma, pareja, pareja[0]),
-        av.Terreno(pareja, (bioma.dificultad - 2, bioma.dificultad + 2)),
-    )
-    complementaria = av.complementaria(pareja)
-    # Un viaje entero enseña las cuatro sendas, cada una una sola vez.
-    assert set(pareja).isdisjoint(complementaria)
-    assert sorted(pareja + complementaria) == sorted(sim.ESTADISTICAS)
-
-    for indice, valores in ((0, (20, 0)), (2, (0,))):
-        monkeypatch.setattr(
-            cog_av.random, "Random", lambda valores=valores: DadosFijos(valores)
-        )
-        vista = _vista_de(monkeypatch, inicial, bicho=criatura(
-            fuerza=99, velocidad=99, base_salud=99, base_ingenio=99
-        ))
-
-        _pulsar(vista, indice)
-
-        assert vista.viaje.terreno.pareja == complementaria
-        assert vista.viaje.escena.pareja == complementaria
-        assert vista.viaje.escena.opciones == complementaria + (av.VOLVER,)
-        # Volver no tira dado, así que tampoco deja prueba.
-        assert len(vista.viaje.pruebas) == (1 if indice == 0 else 0)
-
-
-def test_fallar_no_pide_ni_tira_el_segundo_nodo(monkeypatch):
-    """Fallar cierra el viaje ahí: ni dado del terreno ni escena que pedir."""
+def test_fallar_cierra_el_viaje_con_un_solo_dado():
+    """Fallar cierra el viaje ahí: ni dado del terreno siguiente ni otra escena,
+    y la senda se cuenta como perdida de largo."""
     rng = RNGTraza(valores=(1,))
-    monkeypatch.setattr(cog_av.random, "Random", lambda: rng)
-    pedir = AsyncMock()
-    monkeypatch.setattr(cog_av, "_pedir_escena", pedir)
-    bioma = av.BIOMAS["bosque"]
-    vista = _vista_de(
-        monkeypatch, av.Viaje(bioma, escena(), terreno()), bicho=criatura(fuerza=1)
-    )
+    viaje = av.Viaje(av.BIOMAS["bosque"], escena(), terreno())
 
-    _pulsar(vista, canal="canal")
+    despues = av.avanzar(viaje, criatura(fuerza=1), av.FUERZA, None, None, rng)
 
-    pedir.assert_not_awaited()
     assert rng.eventos == [("randint", 1, 20)]
-    assert not vista.viaje.sigue and vista.viaje.fallo
-    assert vista.viaje.terreno.pareja == (av.FUERZA, av.VELOCIDAD)
-    vista.cog.resolver.assert_awaited_once()
-
-
-@pytest.mark.parametrize("pareja", ((av.VELOCIDAD, av.INGENIO), (av.FUERZA, av.SALUD)))
-def test_los_botones_llevan_la_identidad_de_las_sendas_activas(monkeypatch, pareja):
-    bioma = av.BIOMAS["bosque"]
-    escena_larga = av.Escena(
-        "Un paso.", pareja,
-        ("A" * av.LARGO_ETIQUETA, "B" * av.LARGO_ETIQUETA), "Dar un rodeo",
+    assert not despues.sigue and despues.fallo
+    assert despues.terreno.pareja == (av.FUERZA, av.VELOCIDAD)
+    assert av.render_beat(despues.pruebas[-1]) == (
+        "✗ Mover la roca — 💪 1 + 1 = 2 / 22 · de largo, sin marca"
     )
-    terreno_dado = av.Terreno(pareja, (bioma.dificultad - 2, bioma.dificultad + 2))
-    vista = _vista_de(
-        monkeypatch, av.Viaje(bioma, escena_larga, terreno_dado),
-        bicho=criatura(fuerza=15, velocidad=15, base_salud=15, base_ingenio=15),
-    )
-
-    botones = list(vista.children)
-    assert len(botones) == 3
-    assert [str(boton.emoji) for boton in botones] == [
-        av.EMOJI_STAT[pareja[0]], av.EMOJI_STAT[pareja[1]], "🚶"
-    ]
-    assert [boton.style for boton in botones] == [
-        cog_av.ESTILO_OPCION[pareja[0]], cog_av.ESTILO_OPCION[pareja[1]],
-        cog_av.ESTILO_OPCION[av.VOLVER],
-    ]
-    assert botones[2].label == "Dar un rodeo"
-    for indice, opcion in enumerate(pareja):
-        banda = av.banda_opcion(
-            getattr(vista.criatura, opcion), terreno_dado.exigencia(opcion)
-        )
-        assert botones[indice].label.endswith(f" · {banda}")
-    assert all(len(boton.label) <= cog_av.LARGO_BOTON for boton in botones)
-
-
-def test_botones_muestran_bandas_reales_y_siguen_bajo_el_tope(monkeypatch):
-    larga = replace(
-        escena(), etiquetas=("F" * av.LARGO_ETIQUETA, "V" * av.LARGO_ETIQUETA)
-    )
-    bioma = av.BIOMAS["bosque"]
-    vista = _vista_de(
-        monkeypatch, av.Viaje(bioma, larga, terreno()), bicho=criatura()
-    )
-
-    etiquetas = [boton.label for boton in vista.children]
-    assert etiquetas[0].endswith(" · pareja")
-    assert etiquetas[1].endswith(" · pareja")
-    assert etiquetas[2] == "Dar un rodeo"
-    assert all(len(etiqueta) <= cog_av.LARGO_BOTON for etiqueta in etiquetas)
 
 
 # --- Historial y prompt salvaje -------------------------------------------
@@ -805,36 +633,25 @@ def test_catalogo_terminal_cubre_todas_las_voces_y_concuerda():
     assert "Decidida" in per.linea_desenlace(prinel_hembra, "se_une", 0)
 
 
-@pytest.mark.parametrize("opcion", (av.GOLOSINAS, av.PRESUMIR, av.ESPERAR))
-def test_gesto_no_terminal_es_determinista_y_no_llama_ia(monkeypatch, opcion):
-    monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
+@pytest.mark.parametrize(
+    ("opcion", "le_gusta"),
+    ((av.GOLOSINAS, True), (av.PRESUMIR, False), (av.ESPERAR, True)),
+)
+def test_el_gesto_se_recuerda_por_lo_que_le_parece_a_su_caracter(opcion, le_gusta):
+    """Un gesto no pasa por la IA: lo que se recuerda es una frase escrita, la
+    de si a un salvaje sereno le gusta o no."""
     bicho = salvaje()
-    antes = av.Encuentro(bicho, confianza=40, paciencia=4)
-    despues = replace(antes, confianza=48, paciencia=3, ultimo_cambio=8)
-    monkeypatch.setattr(cog_av.av, "aplicar_opcion", lambda *_: despues)
-    cog = SimpleNamespace(contestar=AsyncMock())
-    vista = cog_av.EncuentroView(
-        cog, SimpleNamespace(id="u1", display_name="Felipe"), "g1",
-        criatura(), antes,
-    )
-    interaccion = SimpleNamespace(
-        response=SimpleNamespace(is_done=lambda: True, defer=AsyncMock()),
-        edit_original_response=AsyncMock(),
-    )
 
-    asyncio.run(vista._jugar(interaccion, opcion))
-
-    cog.contestar.assert_not_awaited()
-    assert len(vista.historial) == 1
-    assert isinstance(vista.historial[0], av.TurnoGesto)
+    assert av.le_gusta(bicho, opcion) is le_gusta
+    turno = av.TurnoGesto(opcion, av.frase_gesto(opcion, le_gusta))
+    assert av.recordar((), turno) == (turno,)
 
 
 @pytest.mark.parametrize("opcion", av.OPCIONES)
 @pytest.mark.parametrize("desenlace", ("se_une", "se_va"))
-def test_turno_terminal_no_llama_ia_no_registra_y_usa_voz_cerrada(
-    monkeypatch, opcion, desenlace
-):
-    monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
+def test_el_turno_terminal_cuenta_lo_que_movio_la_jugada(opcion, desenlace):
+    """El turno que cierra el encuentro: unirse llena la confianza, y quedarse
+    sin turnos se cuenta como que se cansa y se va."""
     bicho = salvaje()
     antes = av.Encuentro(bicho, confianza=80, paciencia=2)
     despues = replace(
@@ -842,56 +659,11 @@ def test_turno_terminal_no_llama_ia_no_registra_y_usa_voz_cerrada(
         confianza=100 if desenlace == "se_une" else 50,
         paciencia=1 if desenlace == "se_une" else 0,
     )
-    monkeypatch.setattr(cog_av.av, "aplicar_opcion", lambda *_: despues)
-    cog = SimpleNamespace(contestar=AsyncMock(return_value="¡me marcho para siempre!"))
-    vista = cog_av.EncuentroView(
-        cog, SimpleNamespace(id="u1", display_name="Felipe"), "g1",
-        criatura(), antes,
+    emoji, etiqueta = av.ETIQUETAS[opcion]
+
+    assert not despues.sigue
+    assert despues.se_une is (desenlace == "se_une")
+    assert av.narrar_opcion(antes, opcion, despues) == (
+        f"-# {emoji} {etiqueta} · confianza +20" if desenlace == "se_une"
+        else f"-# {emoji} {etiqueta} · **Se cansa de esperar y se va.**"
     )
-    vista.historial = (av.TurnoHablar("antes", "respuesta"),)
-    vista._unirse = AsyncMock()
-    interaccion = SimpleNamespace(
-        response=SimpleNamespace(is_done=lambda: True, defer=AsyncMock()),
-        edit_original_response=AsyncMock(),
-        channel_id="c1",
-    )
-
-    asyncio.run(vista._jugar(interaccion, opcion, "hola"))
-
-    cog.contestar.assert_not_awaited()
-    assert vista.historial == (av.TurnoHablar("antes", "respuesta"),)
-    linea = per.linea_desenlace(
-        bicho, desenlace, despues.confianza + despues.paciencia
-    )
-    if desenlace == "se_une":
-        llamada = vista._unirse.await_args
-        assert llamada is not None
-        reaccion = llamada.args[1]
-    else:
-        reaccion = interaccion.edit_original_response.await_args.kwargs["content"]
-    assert linea in reaccion
-    assert "¡me marcho para siempre!" not in reaccion
-
-
-def test_solo_hablar_no_terminal_llama_una_vez_y_guarda_lo_mostrado(monkeypatch):
-    monkeypatch.setattr(cog_av.db, "inventario", lambda *_: {})
-    bicho = salvaje()
-    antes = av.Encuentro(bicho, confianza=40, paciencia=4)
-    despues = replace(antes, confianza=48, paciencia=3, ultimo_cambio=8)
-    monkeypatch.setattr(cog_av.av, "aplicar_opcion", lambda *_: despues)
-    cog = SimpleNamespace(contestar=AsyncMock(return_value="Mrrf. Te escucho."))
-    vista = cog_av.EncuentroView(
-        cog, SimpleNamespace(id="u1", display_name="Felipe"), "g1",
-        criatura(), antes,
-    )
-    interaccion = SimpleNamespace(
-        response=SimpleNamespace(is_done=lambda: True, defer=AsyncMock()),
-        edit_original_response=AsyncMock(),
-    )
-
-    asyncio.run(vista._jugar(interaccion, av.HABLAR, "hola"))
-
-    cog.contestar.assert_awaited_once()
-    assert vista.historial == (av.TurnoHablar("hola", "Mrrf. Te escucho."),)
-    contenido = interaccion.edit_original_response.await_args.kwargs["content"]
-    assert "> Mrrf. Te escucho." in contenido

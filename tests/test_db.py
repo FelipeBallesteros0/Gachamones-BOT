@@ -675,16 +675,6 @@ def test_ranking_ordena_por_victorias():
     assert [c.nombre for c in db.ranking("g1")] == ["u2", "u3", "u1"]
 
 
-def test_las_vivas_del_servidor_son_las_del_jardin():
-    nacer(usuario="u1", nombre="Viva1")
-    nacer(usuario="u2", nombre="Viva2")
-    nacer(usuario="u3", guild="otro", nombre="DeOtroServidor")
-    db.guardar(muerta_de_antes(nacer(usuario="u4", nombre="Finada")))
-
-    nombres = [c.nombre for c in db.vivas_del_servidor("g1")]
-    assert nombres == ["Viva1", "Viva2"]
-
-
 def test_el_cementerio_solo_tiene_muertas():
     viva = nacer(usuario="u1")
     db.guardar(muerta_de_antes(nacer(usuario="u2", nombre="Finada")))
@@ -953,16 +943,6 @@ def test_no_se_puede_activar_la_de_otro():
 
     assert not db.activar(ajena.id, "u1", "g1")
     assert db.criatura_activa("u1", "g1").id == mia.id
-
-
-def test_el_jardin_solo_ve_a_las_activas():
-    """Al jardín se sale con el activo: los demás no pasean por él."""
-    nacer(nombre="Despierta")
-    colar_dormida("Dormida")
-    nacer(usuario="u2", nombre="DeOtro")
-
-    nombres = [c.nombre for c in db.vivas_del_servidor("g1")]
-    assert nombres == ["Despierta", "DeOtro"]
 
 
 def test_al_morir_la_activa_asciende_la_siguiente():

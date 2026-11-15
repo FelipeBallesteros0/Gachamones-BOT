@@ -974,3 +974,21 @@ def test_sin_ia_configurada_no_premia_ni_llama(monkeypatch):
     monkeypatch.setattr(ia.config, "IA_ACTIVA", False)
 
     assert not correr(ia.juzgar_elocuencia("lo que sea"))
+
+
+def test_cerrar_suelta_la_sesion_compartida_y_sin_ella_no_hace_nada(monkeypatch):
+    """Lo último que se le pide al transporte al apagar: cierra la sesión que
+    haya y la olvida, y sin ninguna abierta no tiene nada que cerrar."""
+    class Sesion:
+        closed = False
+
+        async def close(self):
+            self.closed = True
+
+    abierta = Sesion()
+    monkeypatch.setattr(ia, "_sesion", abierta)
+    correr(ia.cerrar())
+    assert abierta.closed and ia._sesion is None
+
+    correr(ia.cerrar())
+    assert ia._sesion is None

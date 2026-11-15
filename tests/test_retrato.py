@@ -9,15 +9,12 @@ retrato, así que se comprueba sobre una muestra y no sobre las 1155
 combinaciones; de que no falte ninguna capa se encarga `test_capas.py`.
 """
 import io
-from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
-import pytest
 from PIL import Image
 
 import cosmeticos as cos
-import db
 import especies as esp
 import retrato
 import simulacion as sim
@@ -27,11 +24,6 @@ SOMBREROS = [c.clave for c in cos.SOMBREROS]
 
 
 NIVEL_DE_ETAPA = {etapa: nivel for nivel, etapa in enumerate(esp.ETAPAS, start=1)}
-
-
-@pytest.fixture(autouse=True)
-def estilo_imagen(monkeypatch):
-    monkeypatch.setattr(db, "estilo_de_ficha", lambda *_: "imagen")
 
 
 def criatura(especie="chispa", etapa="adulto_grande", **cambios) -> sim.Criatura:
@@ -157,63 +149,3 @@ def test_todas_las_especies_tienen_color_de_borde():
     puede salir gris por un color sin traducir."""
     for clave, definicion in esp.ESPECIES.items():
         assert definicion.color in retrato.COLORES, clave
-
-
-# --- La ficha ya montada ---------------------------------------------------
-
-def test_la_ficha_con_retrato_ata_la_miniatura_a_su_adjunto():
-    """Lo que de verdad se envía a Discord.
-
-    El embed pide la miniatura por `attachment://<nombre>` y el adjunto viaja
-    aparte; si los dos nombres no coinciden, Discord muestra el embed sin
-    imagen y **no da ningún error**. Por eso se comprueba aquí y no mirando.
-    """
-    import vistas
-
-    ficha = vistas._ficha(criatura(), T0)
-    assert ficha["content"] is None, "con retrato el texto va dentro del embed"
-
-    adjunto = ficha["file"]
-    assert ficha["embed"].image.url == f"attachment://{adjunto.filename}"
-    assert adjunto.filename.endswith(".png")
-
-
-def test_la_ficha_con_retrato_no_repite_el_bicho_en_ascii():
-    """Si además del retrato se pintara el arte, saldría dos veces."""
-    import pantalla
-    import vistas
-
-    ficha = vistas._ficha(criatura(), T0)
-    descripcion = ficha["embed"].description
-    assert "COMIDA" in descripcion and "EXP" in descripcion
-    arte = esp.arte_de(esp.ESPECIES["chispa"], "adulto_grande", "normal")
-    primera = [l for l in arte.strip("\n").split("\n") if l.strip()][0]
-    assert primera.strip() not in descripcion
-    assert len(descripcion) < len(pantalla.render(criatura(), T0))
-
-
-SIN_RETRATO = next(
-    c for c in esp.ESPECIES if c not in retrato.CON_ETAPAS_COMPLETAS
-)
-
-
-def test_la_ficha_sin_retrato_sigue_siendo_texto_pelado():
-    """Las especies sin dibujar no pueden notar nada de esto."""
-    import vistas
-
-    ficha = vistas._ficha(criatura(especie=SIN_RETRATO), T0)
-    assert set(ficha) == {"content"} and ficha["content"]
-
-
-def test_al_editar_se_limpian_siempre_adjunto_y_embed():
-    """Discord conserva lo que no mencionas. Una ficha que vuelve a ASCII
-    —porque el bicho evolucionó, se murió o se tiñó— tiene que decir
-    explícitamente que ya no lleva imagen, o se queda el retrato viejo pegado.
-    """
-    import vistas
-
-    texto = vistas._como_edicion(vistas._ficha(criatura(especie=SIN_RETRATO), T0))
-    assert texto["attachments"] == [] and texto["embed"] is None
-
-    con_foto = vistas._como_edicion(vistas._ficha(criatura(), T0))
-    assert len(con_foto["attachments"]) == 1 and con_foto["content"] is None

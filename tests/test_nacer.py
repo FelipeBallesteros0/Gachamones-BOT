@@ -114,14 +114,6 @@ def test_una_identidad_web_vigente_si_puede_nacer():
     assert nacer.romper_el_huevo(web, "g", T0).usuario_id == web
 
 
-def test_el_bot_rompe_el_huevo_por_el_mismo_camino():
-    from pathlib import Path
-
-    fuente = (Path(__file__).resolve().parent.parent / "cogs" / "mascota.py").read_text(encoding="utf-8")
-    assert "nacer.romper_el_huevo(" in fuente
-    assert "esp.tirar_stats_iniciales" not in fuente
-
-
 def test_cuenta_vigente_solo_va_por_nombre():
     with pytest.raises(TypeError):
         db.crear("u", "g", "pulpo", "Tinta", (10, 10, 10, 10), T0, esp.MACHO,

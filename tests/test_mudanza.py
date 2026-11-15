@@ -9,12 +9,18 @@ Ningún test habla con Discord: las interacciones, los canales y los mensajes
 son de mentira, y la base es temporal.
 """
 import asyncio
+import importlib.util
+import inspect
+import re
+import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
+from discord.ext import commands
 
 import bot
 import comun
@@ -23,6 +29,7 @@ import db
 import economia
 from cogs import mudanza
 
+RAIZ = Path(__file__).resolve().parent.parent
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 CANAL_DE_JUEGO = 4141
 CANAL_DE_INFO = 4242
@@ -215,6 +222,88 @@ def test_el_arranque_no_registra_vistas_ni_botones_del_juego(monkeypatch):
     cliente.add_view.assert_not_called()
     cliente.add_dynamic_items.assert_not_called()
     assert cliente.tree.on_error is comun.manejar_error
+
+
+# La descripción es lo único que se ve al escribir «/» en Discord, así que
+# también se fija.
+COMANDOS_ESPERADOS = {
+    "vincular": "Une tu cuenta de Rowino con tus gachamones de aquí",
+    "mascota": "Gachamon se mudó a la página",
+    "huevo": "Gachamon se mudó a la página",
+}
+
+
+def _cargar_todo():
+    """Las extensiones del bot, cargadas de verdad por discord.py y sin red."""
+    async def arrancar():
+        cliente = commands.Bot(
+            command_prefix="!", intents=discord.Intents.none(), help_command=None
+        )
+        for extension in bot.EXTENSIONES:
+            await cliente.load_extension(extension)
+        comandos = list(cliente.tree.get_commands())
+        # Descargar, como al apagar el bot, para que no quede nada suelto.
+        for extension in reversed(bot.EXTENSIONES):
+            await cliente.unload_extension(extension)
+        return comandos
+
+    return correr(arrancar())
+
+
+def test_todos_los_cogs_cargan_y_registran_sus_comandos():
+    assert {c.name: c.description for c in _cargar_todo()} == COMANDOS_ESPERADOS
+
+
+def test_ningun_comando_se_sale_de_su_canal(monkeypatch):
+    """Todos llevan `solo_en_el_canal`, y se comprueba ejecutando el check en un
+    canal ajeno en vez de mirar el decorador: así vale igual si algún día se
+    escribe de otra forma.
+
+    Se recorre el árbol ENTERO, para que al próximo comando tampoco se le
+    olvide."""
+    async def pasar_los_checks(comando, interaccion):
+        for check in comando.checks:
+            await check(interaccion)
+
+    monkeypatch.setattr(config, "CANALES", [111])
+    interaccion = SimpleNamespace(channel_id=222)
+    comandos = _cargar_todo()
+    assert comandos, "sin comandos el barrido no comprueba nada"
+
+    sueltos = []
+    for comando in comandos:
+        try:
+            correr(pasar_los_checks(comando, interaccion))
+        except comun.CanalEquivocado:
+            continue
+        sueltos.append(comando.name)
+
+    assert not sueltos, f"contestan en cualquier canal: {sueltos}"
+
+
+def test_no_se_procesan_comandos_de_texto():
+    """Regresión: con la mención como prefijo, `@Gachamon cómo estás` se
+    interpretaba también como el comando «cómo» y llenaba el registro de
+    CommandNotFound. El bot sólo tiene slash commands."""
+    fuente = inspect.getsource(bot.Tamagotchi.on_message)
+    assert "process_commands" not in fuente
+
+
+def test_la_mudanza_sigue_recibiendo_mensajes():
+    """El listener del cog va por `extra_events`, no por `Bot.on_message`, así
+    que anular el procesado de comandos no le quita las menciones."""
+    async def comprobar():
+        cliente = commands.Bot(
+            command_prefix="!", intents=discord.Intents.none(), help_command=None
+        )
+        await cliente.load_extension("cogs.mudanza")
+        # Hay que contar ANTES de descargar: `extra_events` guarda la lista y
+        # `unload_extension` la vacía en el sitio.
+        cuantos = len(cliente.extra_events.get("on_message", []))
+        await cliente.unload_extension("cogs.mudanza")
+        return cuantos
+
+    assert correr(comprobar()) == 1
 
 
 # --- Todo lo demás contesta que el juego se mudó ----------------------------
@@ -483,3 +572,31 @@ def test_un_borrado_que_falla_se_reintenta_al_reconectar(monkeypatch, caplog):
 
     assert sorted(canal.borrados) == ids[3:]
     assert db.publicaciones_de(str(canal.id)) == {0: str(ids[0])}
+
+
+# --- Del juego de Discord no queda nada -------------------------------------
+
+BORRADOS = ("vistas", "tienda", "equipo", "jardin", "cogs.mascota", "cogs.competencias",
+            "cogs.aventura", "cogs.social", "cogs.charla")
+
+
+@pytest.mark.parametrize("modulo", BORRADOS)
+def test_el_juego_de_discord_ya_no_esta(modulo):
+    assert importlib.util.find_spec(modulo) is None
+
+
+def test_solo_el_bot_habla_con_discord():
+    seguidos = subprocess.run(
+        ["git", "ls-files", "*.py"], cwd=RAIZ, capture_output=True, text=True, check=True
+    ).stdout.split()
+    con_discord = {
+        ruta for ruta in seguidos
+        if not ruta.startswith("tests/")
+        and re.search(r"^\s*(import|from) discord\b", (RAIZ / ruta).read_text(), re.M)
+    }
+    assert con_discord == {"bot.py", "comun.py", "cogs/mudanza.py"}
+
+
+def test_lo_comun_es_solo_el_canal_y_el_error():
+    assert {n for n in vars(comun) if not n.startswith("_") and inspect.getmodule(getattr(comun, n)) is comun} \
+        == {"CanalEquivocado", "solo_en_el_canal", "manejar_error"}

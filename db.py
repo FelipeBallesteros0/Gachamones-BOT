@@ -2625,21 +2625,6 @@ def _especies_de(
 
 # --- Listados --------------------------------------------------------------
 
-def vivas_del_servidor(guild_id: str) -> list[sim.Criatura]:
-    """Las criaturas **activas** de un servidor, para la escena del jardín.
-
-    Sólo las activas: son las que salen con su dueño, y al jardín se sale con
-    él. En `/ranking` y `/cementerio` sí salen todas, porque eso es historial.
-    """
-    with conectar() as con:
-        filas = con.execute(
-            "SELECT * FROM criaturas WHERE guild_id = ? AND muerta_en IS NULL "
-            "AND activa = 1 ORDER BY nacida_en",
-            (guild_id,),
-        ).fetchall()
-    return [_a_criatura(f) for f in filas]
-
-
 def ranking(guild_id: str, limite: int = 10) -> list[sim.Criatura]:
     with conectar() as con:
         filas = con.execute(

@@ -1,22 +1,18 @@
 """El vocabulario visible usa los términos canónicos del producto."""
 import ast
 import re
-from dataclasses import replace
+from collections import Counter
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import aventura
-from cogs import competencias, mascota, social
+from cogs import mudanza
 import competir as comp
-import db
-import economia
 import objetos
 import pantalla
 import personalidad as per
 import simulacion as sim
-import tienda
-import vistas
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -94,35 +90,9 @@ def test_ficha_usa_barras_canonicas_sin_cambiar_el_marco():
     assert all(linea[0] in "╭├╰│" and linea[-1] in "╮┤╯│" for linea in marco)
 
 
-def test_recibos_deltas_y_requisitos_nombrar_comida_animo_y_aseo(
-    tmp_path, monkeypatch
-):
-    criatura = gachamon(hambre=40.0, limpieza=25.0)
-    monkeypatch.setattr(db, "RUTA", tmp_path / "textos.db")
-    db.inicializar()
-    nacida = db.crear("u1", "g1", "pulpo", "Prueba", (15, 15, 15, 15), T0)
-    db.guardar(replace(nacida, hambre=40.0, limpieza=25.0))
-    golosinas = objetos.CATALOGO["golosinas"]
-    with db.conectar() as con:
-        db.guardar_en_la_mochila_en(con, "u1", "g1", golosinas.clave)
-
-    assert "Comida +25 (ahora 65)." in tienda.texto_del_uso(
-        golosinas,
-        economia.usar_objeto("evento-textos-01", "u1", "g1", golosinas, T0),
-    )
+def test_el_percance_nombra_la_comida_y_el_animo():
     assert aventura.render_percance(aventura.PERCANCE) == (
         "⚠️ Percance: -5 comida y -5 ánimo."
-    )
-    problema = competencias._problema_para_competir(
-        replace(criatura, hambre=0), "Alan", timedelta(0)
-    )
-    assert problema and "hambriento" in problema and "de comida" in problema
-
-    resultado = economia.ResultadoCuidado(criatura=criatura, mensaje="")
-    assert vistas._efecto_recibo_cuidado(resultado, sim.LIMPIAR) == (
-        "🧼 Limpiar",
-        "aseo 100",
-        "+0 XP",
     )
 
 
@@ -133,29 +103,6 @@ def test_catalogo_visible_nombra_la_barra_comida():
     assert "+25 de comida" in objetos.CATALOGO["golosinas"].descripcion
 
 
-def test_ayuda_conserva_el_comando_mascota_y_el_limite_de_discord():
-    paginas = social.paginas_de_ayuda("Gachamones")
-    ayuda = "\n".join(paginas)
-
-    assert "**Cuidarlo**" in ayuda
-    assert "Cuidarlo da experiencia" in ayuda
-    assert "Y qué hacer con él" in ayuda
-    assert getattr(mascota.Mascota, "mascota").name == "mascota"
-    # Los números salen del catálogo, no escritos aquí: al pasar de 10 a 25
-    # especies este test habría fallado sin que la ayuda estuviera mal.
-    import especies as esp
-    assert (f"ves cuál de los {len(esp.DEL_HUEVO)} gachamones de partida"
-            in ayuda)
-    del_campo = len(esp.ESPECIES) - len(esp.DEL_HUEVO)
-    assert f"Los otros **{del_campo}** no salen del huevo" in ayuda
-    assert "El buen ánimo suma un poco; tener poca comida resta." in ayuda
-    assert (
-        "`/jardin` todos juntos · `/mascota` el tuyo · "
-        "`/mascota @alguien` el de otro"
-    ) in ayuda
-    assert all(len(pagina) <= 2000 for pagina in paginas)
-
-
 # «Coger» es de España y aquí se dice tomar. Va con frontera de palabra para no
 # pisar «recoger» ni «escoger», que sí son neutras.
 COGER = re.compile(r"\bcog[ei]\w*", re.IGNORECASE)
@@ -163,7 +110,6 @@ COGER = re.compile(r"\bcog[ei]\w*", re.IGNORECASE)
 
 def test_el_texto_visible_de_competir_usa_espanol_neutro():
     visible = "\n".join((
-        *social.paginas_de_ayuda("Gachamones"),
         *comp.REGLAS.values(),
         *comp.ARTICULOS.values(),
         (Path(__file__).resolve().parent.parent / "README.md").read_text(
@@ -173,58 +119,6 @@ def test_el_texto_visible_de_competir_usa_espanol_neutro():
 
     encontrado = COGER.search(visible)
     assert encontrado is None, encontrado.group(0)
-
-
-def test_la_ayuda_explica_las_tres_fases_del_asalto_al_totem():
-    """Quien lea la ayuda tiene que poder llamar al comando y saber qué mide."""
-    paginas = social.paginas_de_ayuda("Gachamones")
-    ayuda = "\n".join(paginas)
-
-    assert "`/totem @alguien`" in ayuda
-    assert "Asalto al Tótem" in ayuda
-    for fase, stat in zip(comp.FASES_TOTEM, comp.STATS[comp.TOTEM]):
-        assert f"**{fase}** ({stat}" in ayuda
-    assert "puntos de colocación" in ayuda
-    assert all(len(pagina) <= 2000 for pagina in paginas)
-
-
-def test_la_ayuda_explica_las_fases_del_laberinto():
-    """Quien lea la ayuda tiene que saber contra qué juega y cuándo cruza."""
-    paginas = social.paginas_de_ayuda("Gachamones")
-    ayuda = "\n".join(paginas)
-
-    assert "`/laberinto @alguien`" in ayuda
-    for fase in comp.FASES_LABERINTO:
-        assert f"**{fase}**" in ayuda, fase
-    assert "eco" in ayuda and "puertas" in ayuda
-    assert "participante del medio" in ayuda
-    assert "igualarlo no basta" in ayuda
-    assert f"Entran hasta {comp.MAX_CORREDORES}" in ayuda
-    assert all(len(pagina) <= 2000 for pagina in paginas)
-
-
-def test_la_ayuda_dice_que_las_estadisticas_de_nacimiento_son_cuatro():
-    ayuda = "\n".join(social.paginas_de_ayuda("Gachamones"))
-
-    assert "las cuatro" in ayuda
-    for stat in ("fuerza", "velocidad", "salud", "ingenio"):
-        assert stat in ayuda, stat
-
-
-def test_la_ayuda_mapea_cada_entrenamiento_sin_prometer_subida_inmediata():
-    ayuda = "\n".join(social.paginas_de_ayuda("Gachamones"))
-
-    for regla in (
-        "**Alimentar** → Salud +1 entrenamiento si no hay empacho.",
-        "**Jugar** → Velocidad +1 entrenamiento.",
-        "**Entrenar fuerza** → Fuerza +2 entrenamiento.",
-        "**Laberinto completado** → Ingenio +1 entrenamiento por participante.",
-    ):
-        assert regla in ayuda, regla
-    assert "alimentar +1, jugar +2, entrenar fuerza +3" in ayuda
-    assert "puntos de entrenamiento" in ayuda
-    assert "raíz cuadrada" in ayuda
-    assert "no siempre cambia el número visible" in ayuda
 
 
 # --- Los nombres de las especies -------------------------------------------
@@ -334,10 +228,53 @@ def test_ningun_texto_de_jugador_dice_asciicoins_ni_asciigems():
 
 
 def test_el_manual_publicado_habla_de_monedas_y_gemas():
-    manual = "\n".join(social.paginas_de_ayuda("Gachamon"))
+    manual = mudanza.pagina_del_manual()
     assert not NOMBRE_VIEJO.search(manual)
     assert "monedas" in manual and "gemas" in manual
 
 
 def test_la_ficha_nombra_las_monedas_en_femenino():
     assert objetos.MONEDA_TIENDA == "monedas"
+
+
+# --- Barridos de la fuente ---------------------------------------------------
+
+def test_ningun_texto_lleva_ya_el_femenino_fijo():
+    """Barrido del fuente. El constructor de `ResultadoAccion` cubre los avisos
+    de las acciones, pero hay texto escrito a mano y ahí no hay nada que lo
+    cubra: esto vigila que no reaparezca un adjetivo clavado en femenino
+    hablando de una criatura concreta."""
+    # Sólo frases sin sustantivo al lado. «una criatura hambrienta» no entra en
+    # la lista: ahí el femenino concuerda con «criatura» y es correcto.
+    sospechosas = ("encantada", "molida", "Como nueva", "mírala")
+    for ruta in RAIZ.glob("**/*.py"):
+        if "tests" in ruta.parts or "venv" in ruta.parts:
+            continue
+        for _, literal in _literales_de(ruta):
+            for palabra in sospechosas:
+                assert palabra not in literal, (ruta.name, palabra, literal)
+
+
+def test_ningun_modulo_define_dos_veces_la_misma_clase():
+    """Regresión: un cambio dejó `EncuentroView` definida DOS veces en el mismo
+    fichero. Python se queda con la última, así que la versión nueva quedó
+    muerta y el bot siguió enseñando la vieja — desplegado y con los 1542 tests
+    en verde, porque ninguno miraba el fichero como texto.
+
+    Se revisa el árbol de sintaxis y no el texto: así no se cuela una definición
+    dentro de un `if` ni se confunde con una mención en un comentario.
+    """
+    ficheros = [
+        f for f in RAIZ.rglob("*.py")
+        if "venv" not in f.parts and ".git" not in f.parts
+    ]
+    assert ficheros, "sin ficheros que revisar esto no prueba nada"
+
+    for fichero in ficheros:
+        arbol = ast.parse(fichero.read_text(), filename=str(fichero))
+        cuenta = Counter(
+            nodo.name for nodo in arbol.body
+            if isinstance(nodo, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        )
+        repetidos = [n for n, veces in cuenta.items() if veces > 1]
+        assert not repetidos, f"{fichero.name} define dos veces: {repetidos}"
