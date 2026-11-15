@@ -35,9 +35,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   escriba un código ajeno se queda con sus gachamones. La web ya avisa «No se lo
   pases a nadie»; que el bot nombre la cuenta, o pida confirmar, queda por
   decidir.
-- La web deja apuntada cada muerte que registra (tabla `muertes_por_anunciar`) y
-  el bucle del bot la anuncia en su siguiente vuelta, hasta quince minutos
-  después.
+- ~~La web deja apuntada cada muerte que registra (tabla `muertes_por_anunciar`) y el bucle del bot la anuncia en su siguiente vuelta, hasta quince minutos después.~~
+  **Resuelto en el rework 1: ya nadie muere.**
 - Si se repite un cuidado que hizo evolucionar (un reintento tras perderse la
   respuesta), la repetición no dice que evolucionó, aunque el estado ya muestra
   la etapa nueva.
@@ -53,9 +52,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - `users.id` de Rowino no es `AUTOINCREMENT`: si un día se borra a mano el
   usuario de id más alto, el siguiente registro heredaría su cuenta del juego y
   su vínculo. Hoy Rowino no borra usuarios.
-- `Mascota._avisar_hambrientas` lee la lista, espera envíos a Discord y guarda
-  la fila entera: con la web escribiendo a la vez, un cuidado hecho en esos
-  segundos se pisaría. Bastaría un `UPDATE` sólo de `avisada`.
+- ~~`Mascota._avisar_hambrientas` lee la lista, espera envíos a Discord y guarda la fila entera: con la web escribiendo a la vez, un cuidado hecho en esos segundos se pisaría. Bastaría un `UPDATE` sólo de `avisada`.~~
+  **Resuelto en el rework 1: ya nadie muere.**
 - Cada lectura del estado toma el turno de escritura por el `INSERT OR IGNORE`
   del monedero; bastaría una lectura con los saldos iniciales por defecto.
 - `globos.elegir` no lo usa nadie en el servidor: la regla vive otra vez en
@@ -188,9 +186,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 - En un reintento de «usar», la frase de la comida («ahora N») y el nombre del
   gachamon salen de cómo está ahora, no de la primera vez; para que fueran los
   de entonces habría que anotarlos con el evento.
-- Una muerte que descubra `usar_objeto` se guarda, pero no queda apuntada para
-  que el bot la anuncie (igual que en los cuidados): en la web la ruta ya pasa
-  antes por la comprobación que sí la apunta.
+- ~~Una muerte que descubra `usar_objeto` se guarda, pero no queda apuntada para que el bot la anuncie (igual que en los cuidados): en la web la ruta ya pasa antes por la comprobación que sí la apunta.~~
+  **Resuelto en el rework 1: ya nadie muere.**
 - El `except RuntimeError` de las rutas de la tienda y la mochila es más ancho
   que «evento ya usado»: cualquier `RuntimeError` de `economia` sale como el 409
   `evento`.
@@ -216,8 +213,10 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   lista y la vuelve a pedir (es seguro, pero cierra el campo de la placa).
 - Los cuidados (`POST /cuidar`) tienen el hueco que tenía la mochila: si el
   cambio de gachamon ya estaba registrado antes de la petición (otro activado
-  desde Discord, una muerte que leyó otra pestaña), el cuidado le cae al relevo.
-  La mochila lo cerró mandando el gachamon que enseña la pantalla.
+  desde Discord~~, una muerte que leyó otra pestaña~~), el cuidado le cae al
+  relevo. La mochila lo cerró mandando el gachamon que enseña la pantalla.
+  **Lo de la muerte, resuelto en el rework 1: ya nadie muere.** El cambio de
+  activo desde Discord sigue.
 - `web/mochila.py` importa sus ayudas de `web/tienda.py`, y `lugar.js` repite
   algunas de `articulos.js`.
 - Las clases de CSS que comparten la tienda y la mochila se llaman `…-tienda`.
@@ -255,9 +254,10 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   está dos veces en `nacer.py`: en el bautizo de la activa y en el de un
   gachamon concreto.
 - En Discord, bautizar a un recluta con el nombre de su especie contesta
-  «Nombre no válido. Ese es el nombre de su especie. Ponle uno propio.», y
+  «Nombre no válido. Ese es el nombre de su especie. Ponle uno propio.»~~, y
   elegir en el menú del plantel a una activa que ya había muerto sin registrar
-  registra su muerte y contesta «Ese gachamon no es tuyo o ya no está.».
+  registra su muerte y contesta «Ese gachamon no es tuyo o ya no está.»~~.
+  **Lo del plantel, resuelto en el rework 1: ya nadie muere.**
 
 ### La web
 
@@ -322,7 +322,9 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   pendientes se van sin anunciarse).
 - «Superviviente» son 100 aventuras, sin más condición.
 - Queda «el remiendo»: si una persona se quedó sin activa viva por un muerto de
-  antes, sale de la incubadora la primera que tenga nombre.
+  antes, sale sola de la incubadora la primera que tenga nombre, al entrar a la
+  web, al romper el huevo, al poner nombre o al cambiar de activo; en Discord,
+  al elegir otro en `/plantel`. Sin nombre no sale ninguna.
 - Pulsar el panel viejo de Discord de un gachamon que murió antes hace lo de
   siempre: actúa sobre el relevo si lo hay y apaga ese panel, o dice que no
   tienes gachamon vivo.
@@ -332,12 +334,33 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 
 ### Al publicar
 
-- El bot y la web tienen que reiniciarse a la vez. Si la web nueva arranca y
-  tira la tabla de las muertes por anunciar mientras el bot viejo sigue vivo, el
-  bucle del bot viejo falla hasta que se reinicie.
+- Los dos guiones de despliegue reinician primero el bot y después la web. Con
+  `actualizar-pi.sh` la web está parada mientras tanto, así que no hay ventana.
+  Con `deploy.sh` la web vieja sigue viva unos segundos sobre la base que el bot
+  nuevo ya migró y, si en ese rato descubre una muerte, esa petición da un error
+  500 sin guardar nada.
 - Mientras exista la intemperie (se va con el plan de la vivienda), su suelo de
   25 protege la comida mejor que estar bajo techo, donde llega a 0. No llega a
   ningún jugador: todo el rediseño se publica junto.
+
+### Si hubiera que volver atrás
+
+- El código de antes arranca sobre la base ya limpia (recrea la tabla y los
+  índices), pero los gachamones de Discord que lleven tiempo con la comida en 0
+  mueren en la primera lectura de cualquiera (basta el `/jardin` de otra
+  persona), sin aviso, sin anuncio y sin relevo.
+- Antes de publicar el rediseño, guardar aparte, fuera de la rotación de cinco
+  copias, la copia de la base de antes del cambio.
+- Si algún día se vuelve al código de antes, con los dos servicios parados y
+  antes de arrancarlo, correr:
+
+  ```sql
+  UPDATE criaturas SET hambre = MAX(hambre, 50), actualizada_en = <ahora en UTC, formato ISO> WHERE muerta_en IS NULL AND activa = 1
+  ```
+
+  Probado: nadie muere al volver y el juego de antes retoma solo.
+- Hoy hay muy poca gente jugando, así que el riesgo real es pequeño, pero la
+  receta queda escrita.
 
 ### Pendiente
 
@@ -346,6 +369,23 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
   las lea; `Criatura.avisada` sigue como campo, siempre en falso.
 - `.claude/skills/generated/` (lo genera GitNexus) todavía nombra el bucle de
   muertes: se corrige solo cuando se regeneren.
+
+### De producto, para decidir más adelante
+
+Son observaciones de la revisión final, no decisiones.
+
+- Descuidar ahora rinde: el esfuerzo de entrenar vale más con las barras
+  bajas, y sin muerte dejar la comida en 0 es gratis para todos.
+- «Veterano» (30 días de vida) ya no pide cuidar a nadie.
+- Los gachamones abandonados ya no salen nunca de `/jardin` ni de `/ranking`.
+- Algunas muertes no se contarán nunca: las pendientes de anunciar al llegar
+  el cambio y las que una cuenta web no había visto.
+- Discord se queda sin señal de hambre: su ficha enseña la barra en 0 y la
+  cara de siempre, sin un equivalente a «Desfallecido».
+- En el manual, la página «Tu casa» todavía dice que la intemperie «no puede
+  matarlo», y el bloque «Quién le ha tocado ser», que pasó a la página 4,
+  empieza con un «también» que se refería a la página 1. Las dos cosas se
+  arreglan cuando el plan de la vivienda reescriba el manual.
 
 ### Pruebas
 
@@ -389,10 +429,8 @@ escriba el plan 2 o el proyecto 2 parte de aquí.
 
 ## Para el proyecto 2 (notificaciones)
 
-- **Cerrar la excepción de la muerte por hambre pide dos cosas.** Cambiar
-  `identidad.sin_aviso_de_hambre` y, además, poner al día el reloj de quien
-  sale de ella: un gachamon que lleve días en 0 no puede morir en el siguiente
-  `avanzar` con una fecha de muerte en el pasado (diseño, 5.8, «Termina»).
+- ~~**Cerrar la excepción de la muerte por hambre pide dos cosas.** Cambiar `identidad.sin_aviso_de_hambre` y, además, poner al día el reloj de quien sale de ella: un gachamon que lleve días en 0 no puede morir en el siguiente `avanzar` con una fecha de muerte en el pasado (diseño, 5.8, «Termina»).~~
+  **Resuelto en el rework 1: ya nadie muere.**
 
 ## Detalles que se dejaron como están
 

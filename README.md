@@ -243,7 +243,7 @@ queda sin manual, así que ponle uno a cada uno.
 
 ## Reglas
 
-**El plantel.** Hasta **10 gachamones** por persona y servidor, con **uno
+**El plantel.** Hasta **25 gachamones** por persona y servidor, con **uno
 activo**: el que recibe los botones y los comandos. Los demás esperan en la
 **incubadora**, y ahí **no les pasa el tiempo** — ni hambre, ni ánimo, ni aseo.
 No es un adorno: los cuidados sólo llegan al activo, así que si la reserva
@@ -254,8 +254,10 @@ que no está activa. Al sacarla se le pone `actualizada_en` al día, o las horas
 dormidas se le caerían encima de golpe.
 
 `/huevo` da **sólo el de partida**: los demás hay que ganárselos en
-`/aventura`. Si una persona se queda sin activo vivo porque el suyo murió antes, sale
-solo el siguiente de la incubadora.
+`/aventura`. Si una persona se quedó sin activo vivo porque el suyo murió antes,
+el siguiente de la incubadora sale solo al entrar a la web, al romper el huevo,
+al poner nombre o al cambiar de activo; en Discord, al elegir otro en
+`/plantel`. Sólo sale uno que ya tenga nombre.
 
 **Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
 azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
@@ -481,10 +483,10 @@ ve quien los pulsa. Cada persona empieza con **50 monedas y 50 gemas**.
 En la tienda se compra todo, cada moneda en su desplegable: los consumibles con
 monedas y los cosméticos con gemas, sin conversión entre las dos. Los
 cosméticos van a tu **ropero** y se ponen y se quitan con 🎨 **Personalizar**. El
-monedero es **suyo, no de la criatura**, así que lo comprado sobrevive a la
-muerte de una mascota. Hay
-pociones de fuerza y de velocidad de 1d4 a 1d12 que duran cinco minutos, una que
-llena el hambre saltándose el empacho, y dos que borran un enfriamiento.
+monedero es **suyo, no de la criatura**: lo comprado es de la persona y sirve
+para cualquiera de sus gachamones. Hay pociones de fuerza y de velocidad de 1d4
+a 1d12 que duran cinco minutos, una que llena el hambre saltándose el empacho, y
+dos que borran un enfriamiento.
 
 Los cinco minutos no son un capricho: quien acepta un reto tiene 120 segundos
 para pulsar, y la estadística se lee **al resolver** la pelea, no al retar. Con
@@ -696,7 +698,8 @@ Para comprobar manualmente los mismos gates del hook sobre todo el repositorio:
 GitHub Actions ejecuta la suite completa con las dos versiones soportadas de
 Python, 3.12 y 3.14, en cada `push` y `pull_request`.
 
-Cubren la distribución de rarezas y del 2d6, la curva de decaimiento, las estadísticas, la resolución de competencias con
-dados fijos, la ida y vuelta contra SQLite, y que **ningún marco se descuadre**
-en las 60 combinaciones de especie, ánimo y etapa. El último es el que más veces
-ha salvado el proyecto: el ASCII se rompe con una facilidad asombrosa.
+Cubren la distribución de rarezas y del 2d6, la curva de decaimiento, las
+estadísticas, la resolución de competencias con dados fijos, la ida y vuelta
+contra SQLite, y que **ningún marco se descuadre** en las 60 combinaciones de
+especie, ánimo y etapa. El último es el que más veces ha salvado el proyecto: el
+ASCII se rompe con una facilidad asombrosa.

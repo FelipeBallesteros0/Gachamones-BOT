@@ -37,7 +37,7 @@
 
 1. **Un gachamon al que ya le tocaba morir cuando llega el cambio** (su `muere_en` guardado está en el pasado y el bot no lo había procesado): sigue vivo, con la comida en 0, y su fila queda sin `muere_en`. → Task 6.
 2. **Días en 0 y después come**: la barra sube desde 0 como siempre (+30), sin deuda acumulada ni fecha rara. → Task 1.
-3. **Un panel viejo de Discord de un gachamon que murió antes del cambio**: pulsar sus botones sigue enseñando la lápida y no rompe nada. → Task 3.
+3. **Un panel viejo de Discord de un gachamon que murió antes del cambio**: pulsar sus botones sigue enseñando la lápida y no rompe nada. → Task 3. **Corregido al ejecutar:** pulsar ese panel no enseña la lápida ni lo hacía antes; hace lo de siempre (actúa sobre el relevo si lo hay, o dice que no tienes gachamon vivo) y no rompe nada.
 4. **Una cuenta web con una muerte de antes del cambio que nunca vio**: el estado ya no trae `difunto`; entra a su relevo o al huevo sin pantalla rota, y nadie llama a `difunto/visto`. → Task 4.
 5. **Filas pendientes en `muertes_por_anunciar` al arrancar con el código nuevo**: la tabla se va sin anunciar nada y arrancar dos veces no falla. → Task 6.
 
