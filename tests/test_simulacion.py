@@ -382,6 +382,18 @@ def test_la_cadena_de_urgencia_esta_acotada():
     assert c.hambre >= sim.UMBRAL_BARRA_BIEN
 
 
+# --- A quién le serviría un cuidado («a todos») -----------------------------
+
+def test_a_quien_le_serviria_cada_cuidado():
+    assert sim.le_serviria(criatura(hambre=89.0), sim.ALIMENTAR)
+    assert not sim.le_serviria(criatura(hambre=90.0), sim.ALIMENTAR)
+    assert sim.le_serviria(criatura(limpieza=99.0), sim.LIMPIAR)
+    assert not sim.le_serviria(criatura(limpieza=100.0), sim.LIMPIAR)
+    assert sim.le_serviria(criatura(animo=100.0), sim.JUGAR)
+    assert sim.le_serviria(criatura(hambre=0.0), sim.ENTRENAR)
+    assert not sim.le_serviria(criatura(muerta_en=T0), sim.JUGAR)
+
+
 def test_limpiar_deja_el_aseo_a_tope():
     r = sim.aplicar_accion(criatura(limpieza=3.0), sim.LIMPIAR, T0)
     assert r.criatura.limpieza == 100.0

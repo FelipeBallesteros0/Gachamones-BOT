@@ -413,3 +413,98 @@ def test_acariciar_a_otro_por_su_id(cliente, monkeypatch):
     # Sin cuerpo, al activo, como siempre, y la ficha es la suya.
     del_activo = cliente.post(ACARICIAR, headers=ESCRIBIR).json()
     assert del_activo["ok"] is True and del_activo["gachamon"]["id"] == activo.id
+
+
+# --- «A todos»: un cuidado a cada uno que puede recibirlo --------------------
+
+TODOS = "/gachamon/api/cuidar/todos"
+
+
+def a_todos(cliente, accion, evento="evento-todos"):
+    return cliente.post(TODOS, json={"accion": accion, "evento_id": evento}, headers=ESCRIBIR)
+
+
+def test_a_todos_por_la_web_dice_a_cuantos(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    bea = db.crear(YO, G, "pollito", "Bea", STATS, reloj.ahora, activa=False)
+    cia = db.crear(YO, G, "pulpo", "Cía", STATS, reloj.ahora, activa=False)
+    reloj.pasar(hours=6)
+    respuesta = a_todos(cliente, "jugar")
+    cuerpo = respuesta.json()
+    assert respuesta.status_code == 200 and cuerpo["ok"] is True
+    assert cuerpo["a_cuantos"] == 3 and cuerpo["de_cuantos"] == 3
+    assert cuerpo["tocados"] == [db.criatura_activa(YO, G).id, bea.id, cia.id]
+    assert cuerpo["mensaje"] == "Jugaste con 3 de 3."
+    assert cuerpo["monedas"] == 3 and cuerpo["estado"]["saldos"]["monedas"] == 53
+    # Cada medalla dice de quién es: aquí, la de la alfa de los tres.
+    assert cuerpo["logros"] == [{**ALFA, "de": nombre} for nombre in ("Pelusa", "Bea", "Cía")]
+    repetida = a_todos(cliente, "jugar").json()
+    assert repetida["ok"] is True and repetida["a_cuantos"] == 3 and repetida["de_cuantos"] == 3
+    assert repetida["tocados"] == cuerpo["tocados"] and repetida["mensaje"] == "Jugaste con 3 de 3."
+    assert repetida["monedas"] == 3 and repetida["logros"] == []
+    assert repetida["estado"]["saldos"]["monedas"] == 53
+
+
+@pytest.mark.parametrize("accion, mensaje", [
+    ("alimentar", "Les diste de comer a 1 de 1."),
+    ("jugar", "Jugaste con 1 de 1."),
+    ("entrenar", "Entrenaste con 1 de 1."),
+    ("limpiar", "Bañaste a 1 de 1."),
+])
+def test_a_todos_dice_cada_cuidado_con_su_frase(cliente, monkeypatch, accion, mensaje):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    db.guardar(replace(db.criatura_activa(YO, G), hambre=50.0, limpieza=10.0))
+    cuerpo = a_todos(cliente, accion).json()
+    assert cuerpo["ok"] is True and cuerpo["mensaje"] == mensaje
+
+
+def test_a_todos_cuando_a_nadie_le_toca(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    respuesta = a_todos(cliente, "limpiar")
+    cuerpo = respuesta.json()
+    assert respuesta.status_code == 200 and cuerpo["ok"] is False
+    assert cuerpo["a_cuantos"] == 0 and cuerpo["de_cuantos"] == 1 and cuerpo["tocados"] == []
+    assert cuerpo["mensaje"] == "Ahora mismo no le toca a ninguno."
+    assert cuerpo["monedas"] == 0 and cuerpo["estado"]["saldos"]["monedas"] == 50
+
+
+def test_a_todos_sin_gachamones_es_un_409(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    respuesta = a_todos(cliente, "jugar")
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {
+        "clave": "sin_gachamon", "mensaje": "No tienes gachamones que cuidar.",
+    }
+
+
+def test_a_todos_con_una_accion_que_no_existe_es_un_422(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    respuesta = a_todos(cliente, "bailar")
+    assert respuesta.status_code == 422
+    assert respuesta.json()["detail"] == {"clave": "accion", "mensaje": "Esa acción no existe."}
+    assert economia.saldos(YO, G).asciicoins == 50
+
+
+def test_a_todos_con_el_evento_de_otra_accion_es_un_409(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    reloj.pasar(hours=6)
+    assert a_todos(cliente, "jugar", "evento-mezcla").status_code == 200
+    respuesta = a_todos(cliente, "entrenar", "evento-mezcla")
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {
+        "clave": "evento", "mensaje": "Ese cuidado ya se usó para otra acción.",
+    }
+    assert economia.saldos(YO, G).asciicoins == 51
+
+
+def test_a_todos_pide_la_cabecera(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    respuesta = cliente.post(TODOS, json={"accion": "jugar", "evento_id": "evento-todos"})
+    assert respuesta.status_code == 403

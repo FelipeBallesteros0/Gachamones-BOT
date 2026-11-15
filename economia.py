@@ -85,6 +85,18 @@ class ResultadoCuidado:
 
 
 @dataclass(frozen=True)
+class ResultadoATodos:
+    """Cómo salió un cuidado «a todos»: a quiénes les tocó y de cuántos."""
+
+    accion: str
+    tocados: tuple[int, ...] = ()       # sus ids, en el orden del plantel
+    de_cuantos: int = 0                 # los vivos que tenía
+    delta_asciicoins: int = 0           # lo de sus cuidados, evoluciones incluidas
+    cuidados: tuple[ResultadoCuidado, ...] = ()   # uno por tocado; vacío en un replay
+    replay: bool = False
+
+
+@dataclass(frozen=True)
 class SeleccionEntrenamientoConjunto:
     activo_id: int
     activo_nombre: str
@@ -703,6 +715,72 @@ def _cuidar_en(
         evolucion_usadas=evolucion_usadas,
         topada=topada,
     )
+
+
+def cuidar_a_todos(
+    evento_id: str, usuario_id: str, guild_id: str, accion: str, ahora: datetime,
+) -> ResultadoATodos:
+    """Le hace el mismo cuidado a cada gachamon vivo que puede recibirlo.
+
+    Todo bajo un solo ``BEGIN IMMEDIATE``: o les toca a todos los que tocaba,
+    o a ninguno. A cada vivo, en el orden del plantel, se le pone al día; se
+    salta, **sin escribirle nada**, al que no le serviría y al que le corre la
+    espera sin poder saltársela. A los demás, el cuidado de siempre
+    (`_cuidar_en`) con su propio evento, así que cada uno paga como cuidarlo de
+    a uno, dentro del mismo tope diario.
+
+    Si le tocó a alguien queda anotado y repetir el evento devuelve lo de la
+    primera vez sin cuidar ni pagar; si no le tocó a nadie no se anota, y
+    repetirlo vuelve a decidir.
+    """
+    if accion not in sim.ACCIONES_DE_CUIDADO:
+        raise ValueError(f"«a todos» sólo con un cuidado, no con {accion!r}")
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "a_todos", accion)
+        if hecha is not None:
+            return ResultadoATodos(
+                accion,
+                tocados=tuple(hecha["tocados"]),
+                de_cuantos=hecha["de_cuantos"],
+                delta_asciicoins=hecha["monedas"],
+                replay=True,
+            )
+
+        vivos = db.plantel_en(con, usuario_id, guild_id)
+        cuidados = []
+        for criatura in vivos:
+            criatura = db._avanzar_en(con, criatura, ahora)
+            if not sim.le_serviria(criatura, accion):
+                continue
+            espera = db.espera_en(con, criatura.id, accion, ahora)
+            if espera and not sim.puede_saltarse_espera(criatura, accion):
+                continue
+            cuidado = _cuidar_en(
+                con, f"{evento_id}:{criatura.id}", usuario_id, guild_id,
+                criatura, accion, ahora, accion,
+            )
+            # Tocado es quien recibió el cuidado de verdad. Los dos filtros de
+            # arriba ya descartan lo que `_cuidar_en` rechazaría.
+            if cuidado.ok and not cuidado.sin_efecto:
+                cuidados.append(cuidado)
+
+        tocados = tuple(cuidado.criatura.id for cuidado in cuidados)
+        monedas = sum(cuidado.delta_asciicoins for cuidado in cuidados)
+        if tocados:
+            _anotar(
+                con, evento_id, usuario_id, guild_id, "a_todos", accion,
+                {"tocados": list(tocados), "de_cuantos": len(vivos),
+                 "monedas": monedas},
+                ahora,
+            )
+        return ResultadoATodos(
+            accion,
+            tocados=tocados,
+            de_cuantos=len(vivos),
+            delta_asciicoins=monedas,
+            cuidados=tuple(cuidados),
+        )
 
 
 @dataclass(frozen=True)

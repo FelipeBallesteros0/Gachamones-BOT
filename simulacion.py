@@ -1038,6 +1038,20 @@ def puede_saltarse_espera(criatura: Criatura, accion: str) -> bool:
     return accion == ALIMENTAR and criatura.hambre < UMBRAL_BARRA_BIEN
 
 
+def le_serviria(criatura: Criatura, accion: str) -> bool:
+    """Si a esta criatura le haría bien este cuidado; lo que mira «a todos».
+
+    No le sirve a una muerta de antes, ni comer a la que se empacharía, ni un
+    cuidado que la dejaría igual (bañar a la que ya está limpia). Jugar y
+    entrenar le sirven siempre, porque entrenan.
+    """
+    if not criatura.viva:
+        return False
+    if accion == ALIMENTAR and criatura.hambre >= UMBRAL_EMPACHO:
+        return False
+    return _efecto_de(criatura, accion).criatura != criatura
+
+
 def aplicar_accion(
     criatura: Criatura, accion: str, ahora: datetime,
     rng: random.Random | None = None,

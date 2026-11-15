@@ -176,6 +176,63 @@ def cuidar(
     }
 
 
+# Lo que dice «a todos», con `{n}` a cuántos les tocó y `{total}` cuántos tenía.
+A_TODOS = {
+    sim.ALIMENTAR: "Les diste de comer a {n} de {total}.",
+    sim.JUGAR: "Jugaste con {n} de {total}.",
+    sim.ENTRENAR: "Entrenaste con {n} de {total}.",
+    sim.LIMPIAR: "Bañaste a {n} de {total}.",
+}
+
+
+@router.post("/cuidar/todos", dependencies=[Depends(con_cabecera)])
+def cuidar_a_todos(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    # Se valida como en `cuidar`. No hay activo que comprobar: le cae a todos.
+    datos = cuerpo if isinstance(cuerpo, dict) else {}
+    accion = datos.get("accion")
+    if not isinstance(accion, str) or accion not in sim.ACCIONES_DE_CUIDADO:
+        raise problema(422, "accion", "Esa acción no existe.")
+    evento = datos.get("evento_id")
+    if not isinstance(evento, str) or not EVENTO_VALIDO.fullmatch(evento):
+        raise problema(422, "evento", "Ese identificador de evento no vale.")
+    ahora = db.ahora_utc()
+    try:
+        hecho = economia.cuidar_a_todos(
+            evento, jugador.usuario_id, jugador.guild_id, accion, ahora
+        )
+    except RuntimeError:
+        log.warning("evento de «a todos» reutilizado: %s", evento, exc_info=True)
+        raise problema(
+            409, "evento", "Ese cuidado ya se usó para otra acción."
+        ) from None
+    if hecho.de_cuantos == 0:
+        raise problema(409, "sin_gachamon", "No tienes gachamones que cuidar.")
+    # Como en `cuidar`, las medallas de cada uno que recibió el cuidado. En un
+    # replay no hay cuidados: ya se pagaron la primera vez.
+    logros = [
+        {"nombre": logro.nombre, "gemas": logro.gemas, "de": cuidado.criatura.nombre}
+        for cuidado in hecho.cuidados
+        for logro in economia.pagar_logros(cuidado.criatura, ahora).nuevos
+    ]
+    a_cuantos = len(hecho.tocados)
+    return {
+        "ok": a_cuantos > 0,
+        "a_cuantos": a_cuantos,
+        "de_cuantos": hecho.de_cuantos,
+        "tocados": list(hecho.tocados),
+        "mensaje": (
+            A_TODOS[accion].format(n=a_cuantos, total=hecho.de_cuantos)
+            if a_cuantos else "Ahora mismo no le toca a ninguno."
+        ),
+        "monedas": hecho.delta_asciicoins,
+        "logros": logros,
+        "estado": estado.armar(jugador, ahora),
+    }
+
+
 @router.post("/acariciar", dependencies=[Depends(con_cabecera)])
 def acariciar(
     cuerpo: Any = Body(default=None),
