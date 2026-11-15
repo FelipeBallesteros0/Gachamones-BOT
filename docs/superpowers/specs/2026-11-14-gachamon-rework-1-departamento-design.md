@@ -105,7 +105,9 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   puede guardar si deja a alguien, o a ti, sin la suya **[propuesta]**.
 - **Se parte sin gachamon y sin huevo** **[Felipe]**. El departamento nace con
   tu cama puesta y **una segunda cama sencilla guardada**, y quien empieza tiene
-  **0 monedas y 0 gemas** **[Felipe]**.
+  **0 monedas y 0 gemas** **[Felipe]**. Eso vale sólo para quien empieza después
+  del día del cambio: **quien ya jugaba, también quien viene de Discord,
+  conserva sus monedas y sus gemas** **[Felipe, 2026-11-15]**.
 - **El primero se gana en la primera aventura** **[Felipe]**: es fija, vas tú
   solo con tu avatar, encuentras a un gachamon básico **sorteado entre los
   comunes** y se une siempre; hay diálogo, pero sin opciones. Se abre cuando ya

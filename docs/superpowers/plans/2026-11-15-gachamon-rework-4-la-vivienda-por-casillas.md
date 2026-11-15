@@ -12,7 +12,7 @@
 
 **Dónde encaja.** Es el plan 4 de **8** del proyecto 1 del rework: (1) nadie muere — hecho; (2) el tiempo para todos — hecho; (3) el bot en pausa — hecho; (4) la vivienda por casillas y el día del cambio; (5) partir sin gachamon; (6) el departamento en pantalla; (7) los muebles que se usan solos; (8) el pueblo sin Refugio ni Incubadora y los documentos. Todos se juntan en la rama `rework/1-departamento` y **se publican juntos al final**.
 
-**Lo que no entra, y dónde va.** Partir sin gachamon, sin huevo y con el monedero en 0, la primera aventura y que todo funcione sin ningún gachamon (tienda, mochila, ropero, estado): plan 5. **Mientras tanto el huevo sigue existiendo y el que nace de él no pide cama.** La pantalla del departamento (dibujar la pieza, mover, girar, la carta en pantalla, «Salir con él»): plan 6. El refrigerador, la consola, la ducha y las pesas: plan 7. Quitar del mapa el Refugio y la Incubadora y llamar «Tu departamento» a «Tu casa»: plan 8. El balcón y el huerto nuevo: proyecto 2.
+**Lo que no entra, y dónde va.** Partir sin gachamon, sin huevo y con el monedero en 0, la primera aventura y que todo funcione sin ningún gachamon (tienda, mochila, ropero, estado): plan 5. **Sólo parte con 0 monedas y 0 gemas quien empiece después del día del cambio; quien ya jugaba conserva las suyas** (Felipe, 2026-11-15): por eso el día del cambio de este plan le deja a cada persona que ya existía su monedero creado, con lo que tiene o con lo que hoy trae uno nuevo. **Mientras tanto el huevo sigue existiendo y el que nace de él no pide cama.** La pantalla del departamento (dibujar la pieza, mover, girar, la carta en pantalla, «Salir con él»): plan 6. El refrigerador, la consola, la ducha y las pesas: plan 7. Quitar del mapa el Refugio y la Incubadora y llamar «Tu departamento» a «Tu casa»: plan 8. El balcón y el huerto nuevo: proyecto 2.
 
 ## Global Constraints
 
@@ -627,7 +627,7 @@ def test_la_incubadora_dice_cuantos_caben_por_las_camas(cliente):
     5. **El departamento**: se crea con `dep.tamano_para(vivos + 1)` y `vivos + 1` camas sencillas puestas donde dice `dep.acomodar_camas`; a quien no tiene ningún gachamon vivo, además, otra cama sencilla guardada.
     6. **Los muebles**: cada fila de `mobiliario` pasa a `muebles` como guardado, con su misma clave, y la fila vieja se borra.
     7. **La carta**: `guardar_carta_en(..., CAMBIO_DE_LA_VIVIENDA, contenido, ahora)` con `{"ancho", "fondo", "camas", "vivos", "casas": [claves], "monedas_por_casas", "muebles": n, "cosecha": {objeto: cuántos}, "tickets": n, "monedas_por_tickets", "regalos": n, "nombres": [{"especie": clave de la especie, "nombre": …}]}`; `nombres` son sus gachamones vivos con `se_nombro_solo = 1` (como todo se publica junto, ese día son justo los reclutas que esperaban nombre).
-    Y al final, para todos: `actualizada_en = ahora` en cada gachamon vivo. Las monedas se suman al monedero (`_asegurar_monedero` antes) sin pasar por `operaciones_economia`. Las gemas no se tocan.
+    Y al final, para todos: `actualizada_en = ahora` en cada gachamon vivo. **A cada persona se le asegura su monedero** (`_asegurar_monedero`, con lo que hoy trae uno nuevo si todavía no tenía fila), le toque o no una devolución: así el plan 5 puede poner en 0 el de quien empiece después sin quitarle nada a quien ya jugaba. Las monedas devueltas se suman sin pasar por `operaciones_economia`. Las gemas no se tocan.
 
 - [ ] **Step 1: Escribir las pruebas que fallan**, en `tests/test_dia_del_cambio.py`. La base «de antes» se monta **con filas escritas a mano** en las tablas viejas (`casa_de_antes(usuario, clave) -> id`, `mueble_de_antes(usuario, clave, colocado)`, `plantado(usuario, casa_id, bancal, sembrado)`, `en_la_mochila(usuario, objeto, cuantos)`, `regalo(para, objeto, de_nombre, recogido=0)`), no con las reglas viejas, que se van en la Task 8. `T1 = T0 + timedelta(days=30)`; `MONEDAS_DE_ANTES` y `GEMAS_DE_ANTES` son las 50 y 50 con que nace hoy un monedero; `mochila(usuario, guild="g1")` devuelve lo que hay en su mochila como diccionario.
 
@@ -697,6 +697,12 @@ def test_quien_no_tenia_nada_que_devolver_conserva_su_monedero():
     nacer("Ana"); con_monedas(37)
     el_cambio()
     assert economia.saldos("u1", "g1") == economia.Saldos(37, GEMAS_DE_ANTES)
+
+def test_a_quien_ya_jugaba_el_cambio_le_deja_su_monedero_creado():
+    nacer("Ana")                                       # jugaba, y todavía no tenía fila de monedero
+    assert filas("monederos") == []
+    el_cambio()
+    assert [(f["usuario_id"], f["asciicoins"], f["asciigems"]) for f in filas("monederos")] == [("u1", MONEDAS_DE_ANTES, GEMAS_DE_ANTES)]
 
 def test_la_carta_cuenta_lo_que_le_toco_a_cada_quien():
     ana = nacer("Ana"); marcar_que_se_nombro_solo(ana)
