@@ -9,6 +9,7 @@ from itsdangerous import URLSafeSerializer
 
 import config
 import db
+import economia
 import especies as esp
 import nacer
 
@@ -95,3 +96,38 @@ def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
     hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
     return hecho.json()
+
+
+CABECERA = ESCRIBIR
+LUGAR = "/gachamon/api/lugar"
+
+
+def ir(cliente, lugar):
+    """Lleva a la cuenta de la cookie a ese lugar y devuelve la respuesta."""
+    return cliente.post(LUGAR, json={"lugar": lugar}, headers=ESCRIBIR)
+
+
+def en_casa(cliente):
+    return ir(cliente, "casa")
+
+
+def con_monedas_web(cliente, cuantas, uid: int = 1) -> None:
+    """Deja el monedero de esa cuenta web con esas monedas (y las gemas como estaban)."""
+    cuenta = db.cuenta_web(uid)
+    with db.conectar() as con:
+        economia._asegurar_monedero(con, cuenta.usuario_id, cuenta.guild_id)
+        con.execute(
+            "UPDATE monederos SET asciicoins = ? WHERE usuario_id = ? AND guild_id = ?",
+            (cuantas, cuenta.usuario_id, cuenta.guild_id),
+        )
+
+
+def con_carta(cliente, contenido: dict, uid: int = 1) -> None:
+    """Le escribe en la base la carta del cambio de la vivienda a esa cuenta web."""
+    cuenta = db.cuenta_web(uid)
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        db.guardar_carta_en(
+            con, cuenta.usuario_id, cuenta.guild_id, economia.CAMBIO_DE_LA_VIVIENDA,
+            contenido, db.ahora_utc(),
+        )

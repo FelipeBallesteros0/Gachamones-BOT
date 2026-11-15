@@ -146,6 +146,7 @@ def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(
     assert set(pueblo.OFRECE) <= set(pueblo.LUGARES)
     assert pueblo.ofrece("tienda") == ("tienda",)
     assert pueblo.ofrece("incubadora") == ("incubadora",)
+    assert pueblo.ofrece("casa") == ("departamento",)
     assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
     assert pueblo.ofrece("tienda") == ()

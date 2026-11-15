@@ -161,4 +161,7 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
             {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, del_lugar)
         ],
         "lugar": lugar,
+        "carta": db.carta_sin_ver(
+            jugador.usuario_id, jugador.guild_id, economia.CAMBIO_DE_LA_VIVIENDA
+        ) is not None,
     }

@@ -34,7 +34,9 @@ LUGARES: dict[str, Lugar] = {
 
 
 # Lo que se puede hacer en cada lugar, por nombre. Sólo cuenta si el lugar ya abrió.
-OFRECE: dict[str, tuple[str, ...]] = {"tienda": ("tienda",), "incubadora": ("incubadora",)}
+OFRECE: dict[str, tuple[str, ...]] = {
+    "casa": ("departamento",), "tienda": ("tienda",), "incubadora": ("incubadora",),
+}
 
 
 def ofrece(clave: str) -> tuple[str, ...]:

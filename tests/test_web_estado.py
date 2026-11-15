@@ -57,8 +57,9 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
         "titulo": None,
     }
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
+    assert estado["carta"] is False
     assert set(estado) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar",
+        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar", "carta",
     }
 
 
