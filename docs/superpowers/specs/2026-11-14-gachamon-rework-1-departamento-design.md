@@ -30,6 +30,12 @@ Eso cambia el juego entero, y es más de un proyecto. El orden acordado
    conversar) y, con eso, **apagar el bot**: al final se juega sólo en la
    página **[Felipe]**.
 
+El 2026-11-15 Felipe decidió además **pausar el juego en Discord desde el día
+del cambio de este proyecto** **[Felipe]**: el bot queda sólo para vincular
+(sección 7). Así que entre este proyecto y el 6 no hay competir, aventuras
+(salvo la primera), reclutar ni conversar en ningún sitio. Si conviene adelantar
+las aventuras y reclutar en la página, antes del balcón, está **por decidir**.
+
 Cada proyecto tendrá su propio diseño. La sección 12 guarda lo que Felipe ya
 dijo de los proyectos 2 a 6, para que no se pierda.
 
@@ -110,9 +116,10 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   el de su especie ni uno que ya tengas, y se le puede cambiar una vez desde su
   ficha **[propuesta]**. Los reclutas que hoy esperan nombre se lo ponen solos
   el día del cambio **[propuesta]**.
-- **Mientras exista el bot, el plantel no pasa de 25** **[Felipe]**: sus menús
-  no muestran más. Es la única excepción a «el límite son las casillas», y se
-  quita cuando el bot se apague (proyecto 6).
+- **El plantel ya no tiene un tope propio** **[propuesta]**: el de 25 existía
+  sólo porque los menús de Discord no muestran más, y el juego de Discord se
+  pausa el día del cambio (sección 7). Desde ese día el único límite son las
+  camas, es decir, las casillas **[Felipe]**.
 
 ## 4. El departamento
 
@@ -272,40 +279,54 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
 - A los gachamones que estaban en la incubadora el tiempo les empieza a correr
   ese día: no se les viene encima lo que durmieron.
 - El logro «Superviviente» pasa a ser sólo «100 aventuras».
-- Cada persona ve **una vez** una carta del alcalde que cuenta qué le tocó: en
-  la web al entrar, y en Discord como mensaje privado la primera vez que use un
-  comando después del cambio. Verla en un lado la da por vista en el otro
-  **[propuesta]**.
+- Cada persona ve **una vez** una carta del alcalde que cuenta qué le tocó, en
+  la página, la primera vez que entra después del cambio **[propuesta]**. La
+  carta le dice también cómo se llama ahora cada recluta suyo que estaba sin
+  nombre.
+- **Los regalos que esperaban en el buzón se entregan solos** a la mochila de
+  cada quien **[propuesta]**: el buzón era de Discord, y el juego de Discord se
+  pausa ese día.
 - El cambio corre una sola vez al arrancar, es seguro repetirlo y se hace con
   una copia de la base tomada antes.
 
-## 7. Discord, mientras no se apague
+## 7. Discord, en pausa
 
-Entre este proyecto y el 6 el bot sigue vivo. Lo acordado **[propuesta,
-aceptada]**:
+Lo acordado el 2026-11-14 era mantener el bot jugable entre este proyecto y el
+6, con las reglas nuevas. El 2026-11-15 Felipe lo cambió: **pausar el bot para
+facilitar la migración** **[Felipe]**. Hoy juegan dos personas en Discord, y
+mantener dos juegos con reglas distintas era buena parte del trabajo y el mayor
+riesgo del día del cambio.
 
-- **Deja de funcionar ahí todo lo de casas**: `/casa`, `/visitar`, comprar,
-  mejorar y vender casa, los muebles de la tienda, Amueblar, Mudar y el huerto.
-  Esos comandos contestan que tu departamento ahora está en la página, con el
-  enlace.
-- **Sigue igual**: cuidar al activo, competir, las aventuras, reclutar (con la
-  regla de la cama libre y el nombre al reclutar), conversar, los logros.
-- **`/huevo` deja de dar un huevo**: contesta que se empieza en la página, con
-  el enlace **[propuesta, aceptada]**. Quien llega nuevo empieza ahí.
-- **Elegir al activo sigue en Discord** (`/plantel`), sin hablar ya de la
-  incubadora **[propuesta]**.
-- Desaparecen el bucle de muertes, el aviso de hambre y la lápida de un
-  gachamon recién muerto. `/cementerio` sigue enseñando a los de antes.
-- **Regalar se pausa** hasta el intercambio del proyecto 5 **[Felipe]**: hoy
-  sólo se regala desde `/visitar`, que desaparece. `/buzon` sigue funcionando,
-  para que nadie pierda los regalos que tiene pendientes.
-- **Cocinar sigue disponible en Discord**, fuera del menú del huerto: lo
-  cosechado el día del cambio se puede seguir cocinando **[propuesta]**.
-- El manual publicado se corrige en su sitio.
+- **Desde el día del cambio el juego en Discord se apaga** **[Felipe]**:
+  cuidar, competir, las aventuras, reclutar, conversar, la tienda, la mochila,
+  las casas, el huerto, los logros, el jardín, el ranking y el cementerio.
+- **El bot sigue encendido sólo para `/vincular`** **[Felipe]**: es la única
+  forma de que quien jugaba en Discord lleve sus gachamones a la página, y casi
+  nadie la ha usado todavía.
+- **Todo lo demás contesta que el juego se mudó**, con el enlace y cómo vincular
+  **[propuesta]**: los botones y menús de los mensajes viejos, mencionar al bot,
+  y los comandos que la gente escribe de memoria (`/mascota` y `/huevo`). Los
+  demás comandos desaparecen.
+- **El manual del canal queda en una sola página** **[propuesta]**: el juego se
+  mudó, dónde está y cómo vincular.
+- **Nadie pierde nada**: gachamones, monedas, gemas, objetos y logros siguen en
+  la base y aparecen en la página al vincular. Lo que sólo se podía hacer en
+  Discord (competir, las aventuras salvo la primera, reclutar, conversar) no se
+  puede hacer en ningún sitio hasta el proyecto 6.
+- **La Tienda de la página deja de vender lo que sólo servía en Discord**
+  hasta que su uso exista en la página; lo que ya tengas se queda en tu mochila
+  **[propuesta]**.
+- **«Entrenar juntos» desaparece** con el juego de Discord: en la página lo
+  reemplaza «entrenar con todos» **[propuesta]**.
+- **En el código**, el juego de Discord (los comandos, las fichas, los menús,
+  el arte de texto) se retira de la rama del rediseño **[propuesta]**: sigue en
+  producción hasta el día del cambio y en el historial después. Las reglas que
+  el proyecto 6 llevará a la página (las aventuras, competir, conversar) se
+  quedan, con sus pruebas.
 - **La web es de un solo servidor de Discord, Robot House** (decisión de
-  Felipe en la parte A: un solo mundo). Si el bot está en otro servidor, ahí
-  valen las mismas reglas nuevas pero no hay página adonde ir: el aviso dice
-  que las casas ya no están disponibles, sin enlace **[propuesta]**.
+  Felipe en la parte A: un solo mundo). Si el bot está en otro servidor, ahí el
+  juego también se pausa y no hay página adonde ir: lo de esas personas queda
+  guardado **[propuesta]**.
 
 ## 8. El pueblo y las demás pantallas de la web
 
@@ -365,9 +386,10 @@ aceptada]**:
   gachamones tendrían hambre mientras la Incubadora dice que ahí no pasa el
   tiempo; Discord perdería las casas antes de que exista el departamento).
 - Esto no cabe en un plan. Corte sugerido **[propuesta]**: (1) nadie muere;
-  (2) el tiempo para todos; (3) la vivienda por casillas en el servidor, el
-  día del cambio y Discord; (4) el departamento en pantalla; (5) los muebles
-  que se usan solos; (6) el pueblo sin Refugio ni Incubadora y los documentos.
+  (2) el tiempo para todos; (3) el bot en pausa; (4) la vivienda por casillas
+  en el servidor y el día del cambio; (5) el departamento en pantalla; (6) los
+  muebles que se usan solos; (7) el pueblo sin Refugio ni Incubadora y los
+  documentos.
 
 ## 11. Lo que queda al constructor
 
@@ -400,4 +422,5 @@ como siempre); el orden y el tamaño de las tareas.
   lugar.
 - **El cementerio** queda como un lugar para explorar, con algún evento
   secreto opcional.
-- **El bot (6)** queda sin uso al terminar la migración.
+- **El bot (6)** queda sin uso al terminar la migración. Desde el día del
+  cambio de este proyecto ya sólo sirve para vincular (sección 7).
