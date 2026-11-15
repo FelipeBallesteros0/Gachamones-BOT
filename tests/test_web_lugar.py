@@ -218,7 +218,7 @@ def test_a_la_intemperie_los_demas_lugares_siguen_igual(cliente, monkeypatch):
     con_el_gachamon_a_la_intemperie(cliente, monkeypatch)
     estado = ir(cliente, "plaza").json()
     assert estado["hogar"] == "intemperie"
-    assert estado["lugar"]["aviso"] == "Esto se abre más adelante. Por ahora se juega en Discord."   # la cuenta vinculada
+    assert estado["lugar"]["aviso"] == "Esto se abre más adelante."   # la cuenta vinculada, igual que cualquiera
     assert any(g["tipo"] == "lugar" for g in estado["globos"])
 
 

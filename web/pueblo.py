@@ -71,7 +71,7 @@ def a_la_intemperie(clave: str, hogar_del_gachamon: str) -> bool:
     return clave == "refugio" and hogar_del_gachamon == casas.INTEMPERIE
 
 
-def aviso(clave: str, vinculada: bool, hogar: str, hogar_del_gachamon: str | None) -> str | None:
+def aviso(clave: str, hogar: str, hogar_del_gachamon: str | None) -> str | None:
     """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
 
     `hogar` es la situación de la persona (`Hogar.estado`), como en `sin_casa`;
@@ -81,8 +81,6 @@ def aviso(clave: str, vinculada: bool, hogar: str, hogar_del_gachamon: str | Non
     """
     abre = LUGARES[clave].abre
     if abre == DESPUES:
-        if vinculada:
-            return "Esto se abre más adelante. Por ahora se juega en Discord."
         return "Esto se abre más adelante."
     if abre == PRONTO:
         return "Aquí todavía no hay nada que hacer. Abre pronto."
@@ -92,7 +90,7 @@ def aviso(clave: str, vinculada: bool, hogar: str, hogar_del_gachamon: str | Non
         if hogar == casas.PROPIA:
             return (
                 "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-                "Puedes mudarlo a tu casa, por ahora desde Discord, o comprar una más grande en la tienda."
+                "Puedes comprar una casa más grande en la tienda."
             )
         return (
             "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "

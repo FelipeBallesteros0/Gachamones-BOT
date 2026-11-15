@@ -88,9 +88,7 @@ def _lugar(
         "clave": clave,
         "nombre": pueblo.LUGARES[clave].nombre,
         "abre": pueblo.LUGARES[clave].abre,
-        "aviso": pueblo.aviso(
-            clave, jugador.vinculada, hogar_de_la_persona, hogar_del_gachamon if hay_gachamon else None
-        ),
+        "aviso": pueblo.aviso(clave, hogar_de_la_persona, hogar_del_gachamon if hay_gachamon else None),
         "ofrece": list(pueblo.ofrece(clave)),
     }
 

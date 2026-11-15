@@ -51,33 +51,32 @@ A_LA_INTEMPERIE = (
 )
 A_LA_INTEMPERIE_CON_CASA = (
     "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-    "Puedes mudarlo a tu casa, por ahora desde Discord, o comprar una más grande en la tienda."
+    "Puedes comprar una casa más grande en la tienda."
 )
 
 
-@pytest.mark.parametrize("clave, vinculada, hogar, del_gachamon, frase", [
-    ("estadio", True, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante. Por ahora se juega en Discord."),
-    ("estadio", False, casas.PROPIA, casas.PROPIA, "Esto se abre más adelante."),
-    ("incubadora", True, casas.REFUGIO, casas.REFUGIO, None),
-    ("casa", False, casas.REFUGIO, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
-    ("casa", False, casas.INTEMPERIE, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
-    ("casa", True, casas.PROPIA, casas.PROPIA, None),
-    ("refugio", False, casas.REFUGIO, casas.REFUGIO, None),
-    ("refugio", False, casas.REFUGIO, casas.INTEMPERIE, A_LA_INTEMPERIE),
-    ("refugio", True, casas.PROPIA, casas.INTEMPERIE, A_LA_INTEMPERIE_CON_CASA),
-    ("casa", False, casas.REFUGIO, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
-    ("estadio", False, casas.REFUGIO, casas.INTEMPERIE, "Esto se abre más adelante."),
+@pytest.mark.parametrize("clave, hogar, del_gachamon, frase", [
+    ("estadio", casas.PROPIA, casas.PROPIA, "Esto se abre más adelante."),
+    ("incubadora", casas.REFUGIO, casas.REFUGIO, None),
+    ("casa", casas.REFUGIO, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
+    ("casa", casas.INTEMPERIE, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
+    ("casa", casas.PROPIA, casas.PROPIA, None),
+    ("refugio", casas.REFUGIO, casas.REFUGIO, None),
+    ("refugio", casas.REFUGIO, casas.INTEMPERIE, A_LA_INTEMPERIE),
+    ("refugio", casas.PROPIA, casas.INTEMPERIE, A_LA_INTEMPERIE_CON_CASA),
+    ("casa", casas.REFUGIO, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
+    ("estadio", casas.REFUGIO, casas.INTEMPERIE, "Esto se abre más adelante."),
     # Sin gachamon activo no hay a quién avisarle que vive a la intemperie.
-    ("refugio", False, casas.INTEMPERIE, None, None),
+    ("refugio", casas.INTEMPERIE, None, None),
 ])
-def test_cada_lugar_avisa_lo_suyo(clave, vinculada, hogar, del_gachamon, frase):
-    assert pueblo.aviso(clave, vinculada, hogar, del_gachamon) == frase
+def test_cada_lugar_avisa_lo_suyo(clave, hogar, del_gachamon, frase):
+    assert pueblo.aviso(clave, hogar, del_gachamon) == frase
 
 
 def test_un_lugar_que_abre_pronto_lo_avisa(monkeypatch):
     # Ya no queda ninguno así en el archivo, pero la regla sigue: se prueba con uno de mentira.
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
-    assert pueblo.aviso("tienda", True, casas.REFUGIO, casas.REFUGIO) == "Aquí todavía no hay nada que hacer. Abre pronto."
+    assert pueblo.aviso("tienda", casas.REFUGIO, casas.REFUGIO) == "Aquí todavía no hay nada que hacer. Abre pronto."
 
 
 def _roto(cambio):
@@ -150,3 +149,18 @@ def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(
     assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
     assert pueblo.ofrece("tienda") == ()
+
+
+def test_un_lugar_que_abre_despues_avisa_lo_mismo_a_todos():
+    assert pueblo.LUGARES["estadio"].abre == pueblo.DESPUES
+    for hogar in (casas.REFUGIO, casas.PROPIA, casas.INTEMPERIE):
+        assert pueblo.aviso("estadio", hogar, hogar) == "Esto se abre más adelante."
+
+
+def test_el_aviso_de_la_intemperie_no_manda_a_discord():
+    frase = pueblo.aviso("refugio", casas.PROPIA, casas.INTEMPERIE)
+    assert frase == (
+        "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
+        "Puedes comprar una casa más grande en la tienda."
+    )
+    assert "Discord" not in frase

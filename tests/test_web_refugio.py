@@ -11,7 +11,7 @@ ESTADO, LUGAR = "/gachamon/api/estado", "/gachamon/api/lugar"
 LA_DE_DISCORD = "222222222222222222"
 A_LA_INTEMPERIE_CON_CASA = (
     "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-    "Puedes mudarlo a tu casa, por ahora desde Discord, o comprar una más grande en la tienda."
+    "Puedes comprar una casa más grande en la tienda."
 )
 A_LA_INTEMPERIE_SIN_CASA = (
     "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. Las casas se compran en la tienda."

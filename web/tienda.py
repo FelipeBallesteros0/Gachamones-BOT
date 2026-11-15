@@ -37,9 +37,8 @@ router = APIRouter()
 
 COMPETIR, HUERTO, REFUGIO = "competir", "huerto", "refugio"
 
-_NOTA_DE_COMPETIR = "Sirve en las competencias, que por ahora se juegan en Discord."
-_NOTA_DEL_HUERTO = "Se siembra en el huerto, que por ahora está en Discord."
-_NOTA_MAS_ADELANTE = "Más adelante."
+_NOTA_DE_COMPETIR = "Sirve en las competencias, que todavía no están en la página."
+_NOTA_DEL_HUERTO = "Se siembra en el huerto, que todavía no está en la página."
 _NOTA_DEL_REFUGIO = "No lo necesitas: tu estancia en el refugio no tiene plazo."
 
 
@@ -55,7 +54,7 @@ def donde_sirve(objeto: obj.Objeto) -> str | None:
 
 
 def se_le_vende(objeto: obj.Objeto, jugador: Jugador) -> bool:
-    """Todo lo que está a la venta; a quien no tiene Discord, sólo lo que ya sirve en la web.
+    """Todo lo que está a la venta y ya sirve en la página; lo demás no se le vende a nadie.
 
     Lo del refugio, a quien tiene plazo en él: esa excepción se pregunta siempre
     con `identidad.sin_plazo_de_refugio`, nunca mirando la cuenta.
@@ -63,7 +62,7 @@ def se_le_vende(objeto: obj.Objeto, jugador: Jugador) -> bool:
     sirve = donde_sirve(objeto)
     if sirve == REFUGIO:
         return not identidad.sin_plazo_de_refugio(jugador.usuario_id)
-    return sirve is None or jugador.vinculada
+    return sirve is None
 
 
 def _nota(objeto: obj.Objeto, jugador: Jugador) -> str | None:
@@ -72,9 +71,7 @@ def _nota(objeto: obj.Objeto, jugador: Jugador) -> str | None:
         return None
     if sirve == REFUGIO:
         return _NOTA_DEL_REFUGIO if identidad.sin_plazo_de_refugio(jugador.usuario_id) else None
-    if jugador.vinculada:
-        return {COMPETIR: _NOTA_DE_COMPETIR, HUERTO: _NOTA_DEL_HUERTO}[sirve]
-    return _NOTA_MAS_ADELANTE
+    return {COMPETIR: _NOTA_DE_COMPETIR, HUERTO: _NOTA_DEL_HUERTO}[sirve]
 
 
 def en_llano(texto: str) -> str:

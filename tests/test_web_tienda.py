@@ -58,31 +58,53 @@ def test_el_catalogo_pide_sesion_y_cuenta(cliente, monkeypatch):
     assert cliente.get(TIENDA).status_code == 401
 
 
-def test_a_quien_no_tiene_discord_no_se_le_vende_lo_que_solo_sirve_alla(cliente, monkeypatch):
+NOTA_DE_COMPETIR = "Sirve en las competencias, que todavía no están en la página."
+NOTA_DEL_HUERTO = "Se siembra en el huerto, que todavía no está en la página."
+SIN_USO_AQUI = ("fuerza_1d4", "velocidad_1d12", "descanso_rapido", "semilla")
+
+
+def _con_sus_notas(objetos_):
+    for clave in SIN_USO_AQUI[:3]:
+        assert objetos_[clave]["se_vende"] is False and objetos_[clave]["nota"] == NOTA_DE_COMPETIR
+    assert objetos_["semilla"]["se_vende"] is False and objetos_["semilla"]["nota"] == NOTA_DEL_HUERTO
+
+
+def test_a_quien_no_tiene_discord_no_se_le_vende_lo_que_todavia_no_se_usa_en_la_pagina(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     ir(cliente, "tienda")
     objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
     assert len(objetos_) == 17
-    for clave in ("fuerza_1d4", "velocidad_1d12", "descanso_rapido", "semilla"):
-        assert objetos_[clave]["se_vende"] is False and objetos_[clave]["nota"] == "Más adelante."
+    _con_sus_notas(objetos_)
     assert objetos_["ticket_refugio"]["se_vende"] is False
     assert objetos_["ticket_refugio"]["nota"] == "No lo necesitas: tu estancia en el refugio no tiene plazo."
     for clave in ("pocion_comida", "silbato", "golosinas", "placa"):
         assert objetos_[clave]["se_vende"] is True and objetos_[clave]["nota"] is None
 
 
-def test_a_quien_tiene_discord_se_le_vende_todo_con_las_notas_donde_tocan(cliente, monkeypatch):
+def test_lo_que_no_se_usa_en_la_pagina_no_se_le_vende_ni_a_quien_tiene_discord(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_vinculo(cliente)
     ir(cliente, "tienda")
+    dar(monedas=5000, usuario=LA_DE_DISCORD)
     objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
-    assert len(objetos_) == 17 and all(o["se_vende"] for o in objetos_.values())
-    for clave in ("fuerza_1d4", "velocidad_1d12", "descanso_rapido"):
-        assert objetos_[clave]["nota"] == "Sirve en las competencias, que por ahora se juegan en Discord."
-    assert objetos_["semilla"]["nota"] == "Se siembra en el huerto, que por ahora está en Discord."
-    assert objetos_["ticket_refugio"]["nota"] is None
-    assert objetos_["pocion_comida"]["nota"] is None
+    assert len(objetos_) == 17
+    _con_sus_notas(objetos_)
+    assert objetos_["pocion_comida"]["se_vende"] is True and objetos_["pocion_comida"]["nota"] is None
+    for i, clave in enumerate(SIN_USO_AQUI):
+        respuesta = comprar(cliente, "objeto", clave, f"evento-sin-uso-{i}")
+        assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "mas_adelante"
+    assert economia.saldos(LA_DE_DISCORD, G).asciicoins == 5000 and db.inventario(LA_DE_DISCORD, G) == {}
+
+
+@pytest.mark.parametrize("vinculada", [False, True])
+def test_las_notas_ya_no_mandan_a_discord(cliente, monkeypatch, vinculada):
+    poner_reloj(monkeypatch)
+    (con_vinculo if vinculada else con_gachamon)(cliente)
+    ir(cliente, "tienda")
+    lista = cliente.get(TIENDA).json()["objetos"]
+    assert not [o["clave"] for o in lista if o["nota"] and "Discord" in o["nota"]]
+    assert all(o["nota"] != "Más adelante." for o in lista)
 
 
 # Hoy coinciden quien no tiene Discord y quien no tiene plazo en el refugio; el
@@ -95,7 +117,7 @@ def test_el_ticket_se_le_vende_a_quien_tiene_plazo_aunque_no_tenga_discord(clien
     monkeypatch.setattr(identidad, "sin_plazo_de_refugio", lambda usuario_id: False)
     objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
     assert objetos_["ticket_refugio"]["se_vende"] is True and objetos_["ticket_refugio"]["nota"] is None
-    assert objetos_["semilla"]["se_vende"] is False and objetos_["semilla"]["nota"] == "Más adelante."
+    assert objetos_["semilla"]["se_vende"] is False and objetos_["semilla"]["nota"] == NOTA_DEL_HUERTO
 
 
 def test_el_ticket_no_se_le_vende_a_quien_no_tiene_plazo_aunque_tenga_discord(cliente, monkeypatch):
@@ -106,7 +128,7 @@ def test_el_ticket_no_se_le_vende_a_quien_no_tiene_plazo_aunque_tenga_discord(cl
     objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
     assert objetos_["ticket_refugio"]["se_vende"] is False
     assert objetos_["ticket_refugio"]["nota"] == "No lo necesitas: tu estancia en el refugio no tiene plazo."
-    assert objetos_["semilla"]["se_vende"] is True
+    assert objetos_["semilla"]["se_vende"] is False
 
 
 def test_cada_objeto_trae_lo_suyo_en_el_orden_del_catalogo(cliente, monkeypatch):
