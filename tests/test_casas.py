@@ -260,18 +260,33 @@ def test_el_reparto_no_cuenta_a_los_muertos_del_plantel():
 
 # --- Los muebles -----------------------------------------------------------
 
-FELPUDO = cas.MUEBLES["felpudo"]
-CHIMENEA = cas.MUEBLES["chimenea"]
-CAMA = cas.MUEBLES["cama"]
-
-
 def con_casa(clave="grande", monedas=9000):
     con_monedas(monedas)
     economia.comprar_casa("u1", "g1", cas.CATALOGO[clave], T0)
 
 
-def comprar_m(mueble=CHIMENEA):
-    return economia.comprar_mueble("u1", "g1", mueble, T0)
+def colgar(*claves, usuario="u1"):
+    """Muebles puestos en su primera casa, como los dejaban las reglas de antes:
+    filas de `mobiliario` escritas a mano. Las casas siguen hasta el día del
+    cambio, y lo que hacen con sus muebles se sigue probando así."""
+    casa_id = id_de_la_casa(usuario)
+    with db.conectar() as con:
+        for clave in claves:
+            con.execute(
+                "INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado, casa_id) "
+                "VALUES (?, 'g1', ?, 1, ?)",
+                (usuario, clave, casa_id),
+            )
+
+
+def mobiliario(usuario="u1"):
+    with db.conectar() as con:
+        return sorted(
+            tuple(f) for f in con.execute(
+                "SELECT mueble, colocado, casa_id FROM mobiliario WHERE usuario_id = ?",
+                (usuario,),
+            )
+        )
 
 
 def mejores(cuantos):
@@ -311,153 +326,6 @@ def test_un_mueble_retirado_del_catalogo_no_sigue_sumando():
     """Si algún día se quita uno, quien lo tuviera puesto no puede quedarse con
     una comodidad que ya no se puede volver a conseguir."""
     assert cas.comodidad_de(PEQUENA, ["mueble_fantasma"]) == PEQUENA.comodidad
-
-
-def test_comprar_un_mueble_cobra_y_lo_coloca_si_cabe():
-    con_casa("pequena")
-    saldo = monedas()
-
-    resultado = comprar_m(CHIMENEA)
-
-    assert resultado.ok
-    assert monedas() == saldo - CHIMENEA.precio
-    assert db.mobiliario("u1", "g1") == {"chimenea": True}
-    assert resultado.comodidad == PEQUENA.comodidad + CHIMENEA.comodidad
-    assert resultado.puestos == 1
-
-
-def test_el_mueble_que_no_cabe_se_guarda_en_vez_de_perderse():
-    con_casa("pequena")
-    for mueble in mejores(PEQUENA.huecos):
-        comprar_m(mueble)
-
-    resultado = comprar_m(FELPUDO)
-
-    assert resultado.ok
-    assert db.mobiliario("u1", "g1")["felpudo"] is False
-    assert resultado.puestos == PEQUENA.huecos
-
-
-def test_comprar_el_mismo_mueble_dos_veces_no_cuesta_nada():
-    """Uno de cada, como el ropero: repetir la chimenea no significaría nada, y
-    llegar al techo comprando cuatro veces el mueble más caro dejaría el
-    catálogo sin sentido."""
-    con_casa()
-    comprar_m(CHIMENEA)
-    saldo = monedas()
-
-    repetida = comprar_m(CHIMENEA)
-
-    assert not repetida.ok
-    assert "Ya tienes" in repetida.problema
-    assert monedas() == saldo
-
-
-def test_en_el_refugio_no_se_puede_amueblar():
-    """Es común y no es tuyo. Y no cobra: comprar sin sitio sería una faena."""
-    con_monedas(9000)
-
-    resultado = comprar_m(CHIMENEA)
-
-    assert not resultado.ok
-    assert "refugio no se puede amueblar" in resultado.problema
-    assert monedas() == 9000
-    assert db.mobiliario("u1", "g1") == {}
-
-
-def test_a_la_intemperie_tampoco():
-    con_monedas(9000)
-    fuera = hogar().refugio_hasta + timedelta(days=1)
-
-    resultado = economia.comprar_mueble("u1", "g1", CHIMENEA, fuera)
-
-    assert not resultado.ok
-    assert "intemperie" in resultado.problema
-    assert monedas() == 9000
-
-
-def test_sin_monedas_no_se_compra_mueble():
-    con_casa("pequena", monedas=PEQUENA.precio + CHIMENEA.precio - 1)
-
-    resultado = comprar_m(CHIMENEA)
-
-    assert not resultado.ok
-    assert "faltan 1 moneda" in resultado.problema
-    assert db.mobiliario("u1", "g1") == {}
-
-
-def test_retirar_un_mueble_no_lo_pierde_y_baja_la_comodidad():
-    """La misma regla que el ropero: lo que quitas se guarda."""
-    con_casa("pequena")
-    comprar_m(CHIMENEA)
-    saldo = monedas()
-
-    retirado = economia.retirar_mueble("u1", "g1", CHIMENEA, T0)
-
-    assert retirado.ok
-    assert retirado.comodidad == PEQUENA.comodidad
-    assert db.mobiliario("u1", "g1") == {"chimenea": False}
-
-    vuelta = economia.colocar_mueble("u1", "g1", CHIMENEA, T0)
-
-    assert vuelta.ok
-    assert vuelta.comodidad == PEQUENA.comodidad + CHIMENEA.comodidad
-    assert monedas() == saldo          # volver a ponerlo es gratis
-
-
-def test_no_se_puede_colocar_mas_de_lo_que_caben():
-    con_casa("pequena")
-    for mueble in mejores(PEQUENA.huecos):
-        comprar_m(mueble)
-    comprar_m(FELPUDO)                 # se guarda: no cabía
-
-    resultado = economia.colocar_mueble("u1", "g1", FELPUDO, T0)
-
-    assert not resultado.ok
-    assert "No cabe" in resultado.problema and str(PEQUENA.huecos) in resultado.problema
-
-
-def test_al_mejorar_a_una_mayor_caben_los_que_estaban_guardados():
-    """Lo que hace que subir de casa valga para algo más que el número."""
-    con_casa("pequena")
-    for mueble in mejores(PEQUENA.huecos):
-        comprar_m(mueble)
-    comprar_m(FELPUDO)
-    assert not economia.colocar_mueble("u1", "g1", FELPUDO, T0).ok
-
-    economia.comprar_casa("u1", "g1", MEDIANA, T0, mejorar=id_de_la_casa())
-    resultado = economia.colocar_mueble("u1", "g1", FELPUDO, T0)
-
-    assert resultado.ok
-    assert resultado.puestos == PEQUENA.huecos + 1
-
-
-def test_no_se_coloca_ni_se_retira_lo_que_no_toca():
-    con_casa()
-    comprar_m(CHIMENEA)
-
-    assert "No tienes" in economia.colocar_mueble("u1", "g1", CAMA, T0).problema
-    assert "ya está puesto" in economia.colocar_mueble("u1", "g1", CHIMENEA, T0).problema
-    assert "no está puesto" in economia.retirar_mueble("u1", "g1", CAMA, T0).problema
-
-
-def test_un_mueble_que_no_es_del_catalogo_no_se_cuela():
-    con_casa()
-    falso = cas.Mueble("chimenea", "Chimenea de mentira", "🔥", 0, 99)
-
-    for operacion in (
-        economia.comprar_mueble, economia.colocar_mueble, economia.retirar_mueble
-    ):
-        with pytest.raises(ValueError):
-            operacion("u1", "g1", falso, T0)
-
-
-def test_el_mobiliario_es_de_cada_persona_y_servidor():
-    con_casa()
-    comprar_m(CHIMENEA)
-
-    assert db.mobiliario("u2", "g1") == {}
-    assert db.mobiliario("u1", "g2") == {}
 
 
 # --- Lo que el hogar le hace al gachamon -----------------------------------
@@ -653,7 +521,7 @@ def test_se_puede_cerrar_y_volver_a_abrir():
 
 def test_cerrar_la_casa_no_la_toca_por_dentro():
     con_casa("mediana")
-    comprar_m(CHIMENEA)
+    colgar("chimenea")
     db.abrir_o_cerrar_la_casa("u1", "g1", False, T0)
 
     suyo = hogar()
@@ -1619,32 +1487,17 @@ def test_al_vender_los_muebles_se_guardan_y_el_huerto_se_pierde():
     """Retirar un mueble nunca lo destruye, tampoco al vender la casa. Lo
     plantado sí: la tierra era de la casa."""
     con_huerto("grande")
-    for mueble in mejores(3):
-        comprar_m(mueble)
+    colgar(*(m.clave for m in mejores(3)))
     economia.plantar("u1", "g1", 1, T0)
     assert bancales()[0].plantado
 
     resultado = vender()
 
     assert resultado.guardados == 3
-    assert set(db.mobiliario("u1", "g1")) == {m.clave for m in mejores(3)}
-    assert not any(db.mobiliario("u1", "g1").values())    # ninguno colocado
+    # Ninguno se pierde, y ninguno sigue colgado ni apuntando a la casa vendida.
+    assert mobiliario() == sorted((m.clave, 0, None) for m in mejores(3))
     with db.conectar() as con:
         assert con.execute("SELECT COUNT(*) FROM huerto").fetchone()[0] == 0
-
-
-def test_los_muebles_guardados_se_vuelven_a_poner_en_la_casa_nueva():
-    """Es lo que hace que vender no sea tirar el dinero del mobiliario."""
-    con_huerto("grande")
-    for mueble in mejores(3):
-        comprar_m(mueble)
-    vender()
-    con_monedas(monedas() + PEQUENA.precio)
-    economia.comprar_casa("u1", "g1", PEQUENA, T0)
-
-    puesto = economia.colocar_mueble("u1", "g1", mejores(1)[0], T0)
-
-    assert puesto.ok and puesto.puestos == 1
 
 
 def test_vender_es_el_camino_para_bajar_de_casa():

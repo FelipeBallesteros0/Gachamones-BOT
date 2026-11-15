@@ -5,6 +5,7 @@ import pytest
 import casas
 import cosmeticos
 import db
+import departamento as dep
 import economia
 import especies as esp
 import huerto
@@ -188,7 +189,7 @@ def test_los_cosmeticos_marcan_lo_que_ya_es_tuyo_puesto_o_no(cliente, monkeypatc
     assert [c["clave"] for c in lista if c["tuyo"]] == ["corona"]
 
 
-def test_sin_casa_el_catalogo_de_casas_y_muebles_lo_dice(cliente, monkeypatch):
+def test_sin_casa_el_catalogo_de_casas_lo_dice(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     ir(cliente, "tienda")
@@ -200,9 +201,6 @@ def test_sin_casa_el_catalogo_de_casas_y_muebles_lo_dice(cliente, monkeypatch):
          "precio": c.precio, "aforo": c.aforo, "huecos": c.huecos, "bancales": huerto.bancales_de(c.clave)}
         for c in casas.CATALOGO.values()
     ]
-    assert datos["muebles"]["tienes_casa"] is False
-    assert [m["clave"] for m in datos["muebles"]["lista"]] == list(casas.MUEBLES)
-    assert not any(m["tuyo"] for m in datos["muebles"]["lista"])
 
 
 def test_con_casa_mueble_y_cosmetico_el_catalogo_trae_los_numeros_de_cada_una(cliente, monkeypatch):
@@ -212,7 +210,9 @@ def test_con_casa_mueble_y_cosmetico_el_catalogo_trae_los_numeros_de_cada_una(cl
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         casa_id = db.anadir_casa_en(con, usuario, guild, "pequena", reloj())
-        db.comprar_mueble_en(con, usuario, guild, "felpudo", True, casa_id)
+        # Un mueble colgado en la casa, como lo dejaban las reglas de antes.
+        con.execute("INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado, casa_id) "
+                    "VALUES (?, ?, 'felpudo', 1, ?)", (usuario, guild, casa_id))
         db.guardar_en_el_ropero_en(con, usuario, guild, "titulo_veloz")
     ir(cliente, "tienda")
     datos = cliente.get(TIENDA).json()
@@ -222,12 +222,24 @@ def test_con_casa_mueble_y_cosmetico_el_catalogo_trae_los_numeros_de_cada_una(cl
         "mejoras": [{"clave": "mediana", "nombre": "Casa mediana", "cuesta": 340},
                     {"clave": "grande", "nombre": "Casa grande", "cuesta": 1040}],
     }]
-    assert datos["muebles"]["tienes_casa"] is True
-    assert [m["clave"] for m in datos["muebles"]["lista"] if m["tuyo"]] == ["felpudo"]
-    felpudo = datos["muebles"]["lista"][0]
-    assert felpudo == {"clave": "felpudo", "nombre": "Felpudo", "precio": 30, "comodidad": 2,
-                       "icono": "iconos/muebles/felpudo.png", "tuyo": True}
     assert [c["clave"] for c in datos["cosmeticos"] if c["tuyo"]] == ["titulo_veloz"]
+
+
+def test_cada_mueble_trae_lo_suyo_y_cuantos_tienes_puestos_o_guardados(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    usuario, guild = mia()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        db._departamento_en(con, usuario, guild, reloj())     # tu cama puesta y otra guardada
+        db.anadir_mueble_en(con, usuario, guild, "felpudo", 1, 1)
+        db.anadir_mueble_en(con, usuario, guild, "felpudo")
+    ir(cliente, "tienda")
+    lista = cliente.get(TIENDA).json()["muebles"]["lista"]
+    assert [m["clave"] for m in lista] == list(dep.MUEBLES)
+    assert lista[0] == {"clave": "felpudo", "nombre": "Felpudo", "precio": 30, "comodidad": 2,
+                        "icono": "iconos/muebles/felpudo.png", "tienes": 2}
+    assert {m["clave"]: m["tienes"] for m in lista if m["tienes"]} == {"felpudo": 2, "cama_sencilla": 2}
 
 
 def test_los_inquilinos_y_los_bancales_plantados_se_cuentan(cliente, monkeypatch):
@@ -261,7 +273,7 @@ def test_con_las_tres_casas_ya_no_puedes_otra(cliente, monkeypatch):
     assert all(c["mejoras"] == [] for c in datos["tuyas"])
 
 
-def test_mirar_el_catalogo_no_crea_la_fila_del_hogar(cliente, monkeypatch):
+def test_mirar_el_catalogo_no_crea_la_fila_del_hogar_ni_el_departamento(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
     usuario, guild = mia()
@@ -271,7 +283,8 @@ def test_mirar_el_catalogo_no_crea_la_fila_del_hogar(cliente, monkeypatch):
         filas = con.execute(
             "SELECT COUNT(*) FROM hogar WHERE usuario_id = ? AND guild_id = ?", (usuario, guild)
         ).fetchone()[0]
-    assert filas == 0
+        departamentos = con.execute("SELECT COUNT(*) FROM departamentos").fetchone()[0]
+    assert filas == 0 and departamentos == 0
 
 
 def test_donde_sirve_cada_objeto():
@@ -386,7 +399,8 @@ def test_una_pieza_que_la_tienda_no_vende_es_422_peticion(cliente, monkeypatch, 
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
     assert economia.saldos(YO, G) == economia.Saldos(500, 500)
-    assert db.inventario(YO, G) == {} and db.ropero(YO, G) == frozenset() and db.mobiliario(YO, G) == {}
+    assert db.inventario(YO, G) == {} and db.ropero(YO, G) == frozenset()
+    assert db.departamento_leido(YO, G) == dep.DE_PARTIDA
 
 
 def test_las_frases_de_lo_que_no_se_compra(cliente, monkeypatch):
@@ -426,7 +440,7 @@ def test_fuera_de_la_tienda_no_se_compra_nada(cliente, monkeypatch):
         assert respuesta.json()["detail"] == {
             "clave": "no_estas_ahi", "mensaje": "Para eso tienes que estar en la tienda."}
     assert economia.saldos(YO, G).asciicoins == 5000 and db.inventario(YO, G) == {}
-    assert len(db.hogar_leido(YO, G, reloj()).casas) == 1 and db.mobiliario(YO, G) == {}
+    assert len(db.hogar_leido(YO, G, reloj()).casas) == 1 and db.departamento_leido(YO, G) == dep.DE_PARTIDA
 
 
 def test_sin_la_cabecera_no_pasa(cliente, monkeypatch):
@@ -573,66 +587,41 @@ def test_un_cosmetico_que_ya_es_tuyo(cliente, monkeypatch):
 
 # --- El mueble -------------------------------------------------------------------
 
-def test_un_mueble_sin_casa_no_se_compra(cliente, monkeypatch):
-    en_la_tienda_con(cliente, monkeypatch, monedas=500)
-    respuesta = comprar(cliente, "mueble", "felpudo", "evento-mueble-0").json()
-    assert {k: respuesta[k] for k in ("ok", "clave", "mensaje")} == {
-        "ok": False, "clave": "sin_casa", "mensaje": "Los muebles van en una casa, y todavía no tienes."}
-    assert economia.saldos(YO, G).asciicoins == 500 and db.mobiliario(YO, G) == {}
+def test_la_tienda_vende_muebles_de_a_varios(cliente, monkeypatch):
+    en_la_tienda_con(cliente, monkeypatch, monedas=200)
+    for evento in ("evento-mueble-1", "evento-mueble-2"):
+        r = comprar(cliente, "mueble", "felpudo", evento).json()
+        assert (r["ok"], r["mensaje"]) == (True, "Compraste Felpudo. Quedó en tus guardados.")
+    felpudo = next(m for m in r["tienda"]["muebles"]["lista"] if m["clave"] == "felpudo")
+    assert felpudo["tienes"] == 2 and "tuyo" not in felpudo and "tienes_casa" not in r["tienda"]["muebles"]
+    assert r["estado"]["saldos"]["monedas"] == 140
 
 
-def test_un_mueble_a_la_intemperie_dice_lo_mismo(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    con_vinculo(cliente)
-    db.hogar_de(LA_DE_DISCORD, G, reloj())   # empieza la estancia en el refugio…
-    reloj.pasar(days=casas.DIAS_DE_REFUGIO, seconds=1)   # …y se acaba
-    ir(cliente, "tienda")
-    dar(monedas=500, usuario=LA_DE_DISCORD)
-    respuesta = comprar(cliente, "mueble", "felpudo", "evento-intemperie").json()
-    assert respuesta["estado"]["hogar"] == "intemperie"
-    assert {k: respuesta[k] for k in ("ok", "clave", "mensaje")} == {
-        "ok": False, "clave": "intemperie", "mensaje": "Los muebles van en una casa, y todavía no tienes."}
-    assert economia.saldos(LA_DE_DISCORD, G).asciicoins == 500
+def test_la_cama_sencilla_esta_a_la_venta_por_85(cliente, monkeypatch):
+    en_la_tienda_con(cliente, monkeypatch)
+    lista = cliente.get(TIENDA).json()["muebles"]["lista"]
+    assert next(m for m in lista if m["clave"] == "cama_sencilla")["precio"] == 85
 
 
-def test_un_mueble_con_casa_queda_puesto(cliente, monkeypatch):
-    reloj = en_la_tienda_con(cliente, monkeypatch, monedas=500)
-    casa_id = una_casa(reloj)
-    primera = comprar(cliente, "mueble", "felpudo", "evento-mueble-1").json()
-    segunda = comprar(cliente, "mueble", "felpudo", "evento-mueble-1").json()
-    for respuesta in (primera, segunda):
-        assert respuesta["ok"] is True and respuesta["clave"] is None
-        assert respuesta["mensaje"] == "Compraste Felpudo. Ya está puesto en tu casa."
-        assert respuesta["estado"]["saldos"]["monedas"] == 470
-        assert respuesta["tienda"]["casas"]["tuyas"][0]["muebles"] == 1
-        assert next(m for m in respuesta["tienda"]["muebles"]["lista"] if m["clave"] == "felpudo")["tuyo"] is True
-    assert db.mobiliario(YO, G) == {"felpudo": True}
-    assert db.hogar_leido(YO, G, reloj()).casa_por_id(casa_id).puestos == ("felpudo",)
+def test_un_mueble_no_pide_tener_casa(cliente, monkeypatch):
+    reloj = en_la_tienda_con(cliente, monkeypatch, monedas=30)
+    assert db.hogar_leido(YO, G, reloj()).casas == ()
+    for _ in range(2):   # el reintento con el mismo evento no cobra ni entrega otro
+        r = comprar(cliente, "mueble", "felpudo", "evento-sin-casa").json()
+        assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Compraste Felpudo. Quedó en tus guardados.")
+        assert r["estado"]["saldos"]["monedas"] == 0
+    guardados = db.departamento_leido(YO, G).guardadas
+    assert [p.clave for p in guardados] == ["cama_sencilla", "felpudo"]
 
 
-def test_un_mueble_que_no_cabe_queda_guardado(cliente, monkeypatch):
-    reloj = en_la_tienda_con(cliente, monkeypatch, monedas=500)
-    casa_id = una_casa(reloj)
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        for clave in ("felpudo", "maceta", "cuadro"):
-            db.comprar_mueble_en(con, YO, G, clave, True, casa_id)
-    respuesta = comprar(cliente, "mueble", "lampara", "evento-mueble-2").json()
-    assert respuesta["ok"] is True
-    assert respuesta["mensaje"] == "Compraste Lámpara. No cabía en tu casa: quedó guardado."
-    assert respuesta["estado"]["saldos"]["monedas"] == 420
-    assert db.mobiliario(YO, G)["lampara"] is False
-
-
-def test_un_mueble_que_ya_tienes_o_que_no_alcanzas(cliente, monkeypatch):
-    reloj = en_la_tienda_con(cliente, monkeypatch, monedas=100)
-    una_casa(reloj)
-    assert comprar(cliente, "mueble", "felpudo", "evento-mueble-3").json()["ok"] is True
-    otra = comprar(cliente, "mueble", "felpudo", "evento-mueble-4").json()
-    assert (otra["ok"], otra["clave"], otra["mensaje"]) == (False, "ya_lo_tienes", "Ya lo tienes.")
-    cara = comprar(cliente, "mueble", "alfombra", "evento-mueble-5").json()
-    assert (cara["ok"], cara["clave"], cara["mensaje"]) == (False, "faltan_monedas", "Te faltan 50 monedas.")
-    assert economia.saldos(YO, G).asciicoins == 70
+def test_sin_monedas_el_mueble_dice_cuantas_faltan(cliente, monkeypatch):
+    en_la_tienda_con(cliente, monkeypatch, monedas=10)
+    r = comprar(cliente, "mueble", "felpudo", "evento-sin-monedas")
+    assert r.status_code == 200
+    assert {k: r.json()[k] for k in ("ok", "clave", "mensaje")} == {
+        "ok": False, "clave": "faltan_monedas", "mensaje": "Te faltan 20 monedas."}
+    assert economia.saldos(YO, G).asciicoins == 10
+    assert [p.clave for p in db.departamento_leido(YO, G).piezas] == ["cama_sencilla", "cama_sencilla"]
 
 
 # --- Las casas -------------------------------------------------------------------

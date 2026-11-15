@@ -265,10 +265,6 @@ def comodidad_de(casa: Casa, puestos: Collection[str]) -> int:
     return min(casa.techo, casa.comodidad + suma)
 
 
-def caben_mas(casa: Casa, puestos: Collection[str]) -> bool:
-    return len(puestos) < casa.huecos
-
-
 # --- Lo que el hogar le hace al gachamon ------------------------------------
 #
 # A cada gachamon vivo, sea o no el activo: el ritmo es el de la casa donde vive.

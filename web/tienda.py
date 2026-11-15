@@ -1,16 +1,18 @@
 """La Tienda del pueblo: lo que se vende, a quién, y lo que cada cuenta ya tiene.
 
 Mirar el catálogo sólo lee (el hogar se mira con `db.hogar_leido`, nunca con
-`db.hogar_de`). Comprar es otro adaptador fino: valida la petición, comprueba
-que se está en la tienda y que eso se le vende a la cuenta, y llama a la regla
-de `economia`, que cobra y entrega bajo `BEGIN IMMEDIATE` con el evento del
-cliente; aquí sólo se traduce lo que pasó a una frase de la web. Las frases de
-`economia` (`problema`) son de Discord y no salen por aquí. El servidor decide
-qué se vende y a quién; el cliente pinta lo que le llega.
+`db.hogar_de`, y el departamento con `db.departamento_leido`). Comprar es otro
+adaptador fino: valida la petición, comprueba que se está en la tienda y que
+eso se le vende a la cuenta, y llama a la regla de `economia`, que cobra y
+entrega bajo `BEGIN IMMEDIATE` con el evento del cliente; aquí sólo se traduce
+lo que pasó a una frase de la web. Las frases de `economia` (`problema`) son
+de Discord y no salen por aquí. El servidor decide qué se vende y a quién; el
+cliente pinta lo que le llega.
 """
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -19,6 +21,7 @@ from fastapi import APIRouter, Body, Depends
 import casas as cas
 import cosmeticos as cos
 import db
+import departamento as dep
 import economia
 import huerto as hue
 import identidad
@@ -136,17 +139,18 @@ def _casas(jugador: Jugador, hogar: cas.Hogar) -> dict:
     }
 
 
-def _muebles(jugador: Jugador, hogar: cas.Hogar) -> dict:
-    suyos = db.mobiliario(jugador.usuario_id, jugador.guild_id)
+def _muebles(jugador: Jugador) -> dict:
+    """Cada mueble del catálogo y cuántos tienes, puestos o guardados: se compran de a varios."""
+    depto = db.departamento_leido(jugador.usuario_id, jugador.guild_id)
+    tienes = Counter(p.clave for p in depto.piezas)
     return {
-        "tienes_casa": bool(hogar.casas),
         "lista": [
             {
                 "clave": m.clave, "nombre": m.nombre, "precio": m.precio,
                 "comodidad": m.comodidad, "icono": f"iconos/muebles/{m.clave}.png",
-                "tuyo": m.clave in suyos,
+                "tienes": tienes[m.clave],
             }
-            for m in cas.MUEBLES.values()
+            for m in dep.MUEBLES.values()
         ],
     }
 
@@ -160,7 +164,7 @@ def catalogo(jugador: Jugador, ahora: datetime) -> dict:
         "objetos": _objetos(jugador),
         "cosmeticos": _cosmeticos(jugador),
         "casas": _casas(jugador, hogar),
-        "muebles": _muebles(jugador, hogar),
+        "muebles": _muebles(jugador),
     }
 
 
@@ -192,15 +196,10 @@ COMPRAR, MEJORAR, VENDER = "comprar", "mejorar", "vender"
 _SIN_GACHAMON = "Para comprar hace falta un gachamon."
 _YA_LO_TIENES = "Ya lo tienes."
 _NO_ES_TUYA = "Esa casa no es tuya."
-_MUEBLES_SIN_CASA = "Los muebles van en una casa, y todavía no tienes."
 
 # Lo que no depende de cuánto falta. Un motivo que no está aquí es un fallo
 # nuestro y no se disfraza: sale como error.
 _NO_DEL_COSMETICO = {"ya_lo_tienes": _YA_LO_TIENES}
-_NO_DEL_MUEBLE = {
-    "sin_casa": _MUEBLES_SIN_CASA, "intemperie": _MUEBLES_SIN_CASA,
-    "no_es_tuya": _NO_ES_TUYA, "ya_lo_tienes": _YA_LO_TIENES,
-}
 _NO_DE_LA_CASA = {
     "no_es_tuya": _NO_ES_TUYA,
     "no_se_empeora": "Esa casa ya es de ese tamaño o más grande.",
@@ -262,7 +261,7 @@ def _pieza(que: str, clave: Any, jugador: Jugador):
         if not se_le_vende(objeto, jugador):
             raise problema(409, "mas_adelante", "Eso todavía no se vende aquí.")
         return objeto
-    pieza = (cos.CATALOGO if que == COSMETICO else cas.MUEBLES).get(clave)
+    pieza = (cos.CATALOGO if que == COSMETICO else dep.MUEBLES).get(clave)
     if pieza is None:
         raise no_se_entiende()
     return pieza
@@ -293,14 +292,11 @@ def _del_cosmetico(cosmetico: cos.Cosmetico, hecho: economia.ResultadoCosmetico)
     return dicho_no(hecho.motivo, _NO_DEL_COSMETICO[hecho.motivo])
 
 
-def _del_mueble(mueble: cas.Mueble, hecho: economia.ResultadoMueble) -> dict:
+def _del_mueble(mueble: dep.Mueble, hecho: economia.ResultadoDepartamento) -> dict:
+    # Comprar un mueble sólo dice que no cuando no alcanza: se tienen de a varios.
     if hecho.ok:
-        if hecho.colocado:
-            return dicho_si(f"Compraste {mueble.nombre}. Ya está puesto en tu casa.")
-        return dicho_si(f"Compraste {mueble.nombre}. No cabía en tu casa: quedó guardado.")
-    if hecho.motivo == "faltan_monedas":
-        return dicho_no(hecho.motivo, _faltan_monedas(mueble.precio - hecho.saldo))
-    return dicho_no(hecho.motivo, _NO_DEL_MUEBLE[hecho.motivo])
+        return dicho_si(f"Compraste {mueble.nombre}. Quedó en tus guardados.")
+    return dicho_no(hecho.motivo, _faltan_monedas(hecho.coste - hecho.saldo))
 
 
 def _de_la_casa(casa: cas.Casa, hecho: economia.ResultadoMudanza) -> dict:
@@ -350,7 +346,6 @@ def comprar_en_la_tienda(
                 pieza, economia.comprar_cosmetico(usuario, guild, pieza, evento_id=evento)
             )
         else:
-            # Sin `casa_id`: va a la primera casa, como en Discord.
             dicho = _del_mueble(
                 pieza, economia.comprar_mueble(usuario, guild, pieza, ahora, evento_id=evento)
             )

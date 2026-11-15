@@ -1177,6 +1177,12 @@
    "familia": "iconos"
   },
   {
+   "ruta": "iconos/muebles/cama_sencilla.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
    "ruta": "iconos/casas/pequena.png",
    "ancho": 48,
    "alto": 48,

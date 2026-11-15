@@ -1,11 +1,12 @@
 """Los rechazos de compra dicen por qué, con una clave, además de su frase."""
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
 import casas as cas
 import cosmeticos as cos
 import db
+import departamento as dep
 import economia
 import objetos as obj
 
@@ -15,8 +16,6 @@ PEQUENA = cas.CATALOGO["pequena"]
 MEDIANA = cas.CATALOGO["mediana"]
 GRANDE = cas.CATALOGO["grande"]
 SOMBRERO = next(c for c in cos.CATALOGO.values() if c.tipo == cos.SOMBRERO)
-FELPUDO = cas.MUEBLES["felpudo"]
-CHIMENEA = cas.MUEBLES["chimenea"]
 
 
 @pytest.fixture
@@ -118,78 +117,6 @@ def test_vender_la_casa_de_otro_dice_no_es_tuya(base):
     rechazo(economia.vender_casa(U, G, 9999, T0), "no_es_tuya")
 
 
-# --- Muebles ---------------------------------------------------------------
-
-def test_amueblar_desde_el_refugio_dice_sin_casa(base):
-    dar(monedas=500)
-    db.hogar_de(U, G, T0)
-    for operacion in (
-        economia.comprar_mueble, economia.colocar_mueble,
-        economia.retirar_mueble,
-    ):
-        rechazo(operacion(U, G, FELPUDO, T0), "sin_casa")
-
-
-def test_amueblar_a_la_intemperie_dice_intemperie(base):
-    dar(monedas=500)
-    db.hogar_de(U, G, T0)
-    despues = T0 + timedelta(days=cas.DIAS_DE_REFUGIO + 5)
-    for operacion in (
-        economia.comprar_mueble, economia.colocar_mueble,
-        economia.retirar_mueble,
-    ):
-        rechazo(operacion(U, G, FELPUDO, despues), "intemperie")
-
-
-def test_amueblar_una_casa_ajena_dice_no_es_tuya(base):
-    con_casa()
-    for operacion in (
-        economia.comprar_mueble, economia.colocar_mueble,
-        economia.retirar_mueble,
-    ):
-        rechazo(operacion(U, G, FELPUDO, T0, casa_id=9999), "no_es_tuya")
-
-
-def test_el_mueble_que_ya_tienes_dice_ya_lo_tienes(base):
-    con_casa()
-    assert economia.comprar_mueble(U, G, FELPUDO, T0).ok
-    rechazo(economia.comprar_mueble(U, G, FELPUDO, T0), "ya_lo_tienes")
-
-
-def test_un_mueble_sin_monedas_dice_faltan_monedas(base):
-    con_casa(monedas=PEQUENA.precio)
-    rechazo(economia.comprar_mueble(U, G, CHIMENEA, T0), "faltan_monedas")
-
-
-# --- colocado --------------------------------------------------------------
-
-def test_el_mueble_comprado_con_sitio_queda_colocado(base):
-    con_casa()
-    resultado = economia.comprar_mueble(U, G, FELPUDO, T0)
-    assert resultado.ok and resultado.colocado is True
-
-
-def test_el_mueble_comprado_con_la_casa_llena_queda_guardado(base):
-    suya = con_casa()
-    llenos = [m for m in cas.MUEBLES.values() if m != CHIMENEA]
-    for mueble in llenos:
-        if not cas.caben_mas(PEQUENA, db.hogar_de(U, G, T0).casas[0].puestos):
-            break
-        assert economia.comprar_mueble(U, G, mueble, T0, casa_id=suya).ok
-    dar(monedas=5000)
-    resultado = economia.comprar_mueble(U, G, CHIMENEA, T0, casa_id=suya)
-    assert resultado.ok is True and resultado.colocado is False
-
-
-def test_colocar_bien_es_colocado_y_retirar_bien_no(base):
-    con_casa()
-    economia.comprar_mueble(U, G, FELPUDO, T0)
-    retirado = economia.retirar_mueble(U, G, FELPUDO, T0)
-    assert retirado.ok and retirado.colocado is False
-    puesto = economia.colocar_mueble(U, G, FELPUDO, T0)
-    assert puesto.ok and puesto.colocado is True
-
-
 # --- Lo que sale bien no lleva motivo ---------------------------------------
 
 def test_todo_lo_que_sale_bien_lleva_motivo_none(base):
@@ -201,11 +128,13 @@ def test_todo_lo_que_sale_bien_lleva_motivo_none(base):
     resultados.append(economia.comprar_casa(
         U, G, MEDIANA, T0, mejorar=id_de_la_casa()
     ))
+    resultados.append(economia.vender_casa(U, G, id_de_la_casa(), T0))
+    comprado = economia.comprar_mueble(U, G, dep.MUEBLES["felpudo"], T0)
     resultados += [
-        economia.comprar_mueble(U, G, FELPUDO, T0),
-        economia.retirar_mueble(U, G, FELPUDO, T0),
-        economia.colocar_mueble(U, G, FELPUDO, T0),
-        economia.vender_casa(U, G, id_de_la_casa(), T0),
+        comprado,
+        economia.poner_mueble(U, G, comprado.mueble_id, 2, 2, 0, T0),
+        economia.guardar_mueble(U, G, comprado.mueble_id, T0),
+        economia.ampliar_departamento(U, G, dep.ANCHO, T0),
     ]
     assert all(r.ok for r in resultados)
     assert all(r.motivo is None for r in resultados)

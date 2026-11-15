@@ -10,6 +10,7 @@ import pytest
 import casas
 import cosmeticos as cos
 import db
+import departamento as dep
 import economia
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
@@ -18,7 +19,7 @@ OTRA = "u2"
 STATS = (15, 15, 15, 15)
 CORONA = cos.CATALOGO["corona"]
 CHISTERA = cos.CATALOGO["chistera"]
-FELPUDO = casas.MUEBLES["felpudo"]
+FELPUDO = dep.MUEBLES["felpudo"]
 
 
 @pytest.fixture
@@ -143,7 +144,12 @@ def test_repetir_una_venta_con_el_mismo_evento_no_cobra_otra_vez(base):
     pequena = casas.CATALOGO["pequena"]
     casa_id = economia.comprar_casa(U, G, pequena, T0).casa_id
     nace()
-    economia.comprar_mueble(U, G, FELPUDO, T0, casa_id=casa_id)
+    with db.conectar() as con:    # un mueble colgado en ella, como lo dejaban las reglas de antes
+        con.execute(
+            "INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado, casa_id) "
+            "VALUES (?, ?, 'felpudo', 1, ?)",
+            (U, G, casa_id),
+        )
     antes = economia.saldos(U, G).asciicoins
     primera = economia.vender_casa(U, G, casa_id, T0, evento_id="evento-venta-1")
     segunda = economia.vender_casa(U, G, casa_id, T0, evento_id="evento-venta-1")
@@ -191,50 +197,6 @@ def test_el_replay_del_cosmetico_trae_al_activo_de_ahora(base):
     assert economia.saldos(U, G).asciigems == 500 - CORONA.precio
 
 
-# --- El mueble -------------------------------------------------------------
-
-def test_repetir_la_compra_de_un_mueble_con_el_mismo_evento_no_cobra_otra_vez(base):
-    dar_monedas(U, 5000)
-    casa_id = economia.comprar_casa(U, G, casas.CATALOGO["pequena"], T0).casa_id
-    antes = economia.saldos(U, G).asciicoins
-    primera = economia.comprar_mueble(
-        U, G, FELPUDO, T0, casa_id=casa_id, evento_id="evento-felpudo-1"
-    )
-    # Retirarlo después no cambia lo que pasó al comprarlo.
-    assert economia.retirar_mueble(U, G, FELPUDO, T0, casa_id=casa_id).ok
-    segunda = economia.comprar_mueble(
-        U, G, FELPUDO, T0, casa_id=casa_id, evento_id="evento-felpudo-1"
-    )
-    assert primera.ok and not primera.replay and primera.colocado is True
-    assert segunda.ok and segunda.replay and segunda.motivo is None
-    assert segunda.colocado is primera.colocado is True
-    assert segunda.mueble == FELPUDO
-    assert segunda.casa == casas.CATALOGO["pequena"] and segunda.puestos == 0
-    assert economia.saldos(U, G).asciicoins == antes - FELPUDO.precio == segunda.saldo
-
-
-def test_el_replay_del_mueble_en_una_casa_ya_vendida_no_nombra_casa(base):
-    dar_monedas(U, 5000)
-    casa_id = economia.comprar_casa(U, G, casas.CATALOGO["pequena"], T0).casa_id
-    economia.comprar_mueble(U, G, FELPUDO, T0, evento_id="evento-felpudo-1")
-    assert economia.vender_casa(U, G, casa_id, T0).ok
-    antes = economia.saldos(U, G).asciicoins
-    segunda = economia.comprar_mueble(U, G, FELPUDO, T0, evento_id="evento-felpudo-1")
-    assert segunda.ok and segunda.replay and segunda.colocado is True
-    assert (segunda.casa, segunda.comodidad, segunda.puestos) == (None, 0, 0)
-    assert economia.saldos(U, G).asciicoins == antes == segunda.saldo
-
-
-def test_el_mismo_mueble_en_otra_casa_es_otra_peticion(base):
-    dar_monedas(U, 5000)
-    casa_id = economia.comprar_casa(U, G, casas.CATALOGO["pequena"], T0).casa_id
-    economia.comprar_mueble(U, G, FELPUDO, T0, evento_id="evento-felpudo-1")
-    with pytest.raises(RuntimeError):
-        economia.comprar_mueble(
-            U, G, FELPUDO, T0, casa_id=casa_id, evento_id="evento-felpudo-1"
-        )
-
-
 # --- De quién es el evento --------------------------------------------------
 
 def test_el_mismo_evento_de_otra_persona_no_es_un_replay(base):
@@ -257,6 +219,7 @@ def test_sin_evento_no_se_anota_nada(base):
     casa_id = economia.comprar_casa(U, G, casas.CATALOGO["pequena"], T0).casa_id
     economia.comprar_casa(U, G, casas.CATALOGO["mediana"], T0, mejorar=casa_id)
     economia.comprar_mueble(U, G, FELPUDO, T0)
+    economia.ampliar_departamento(U, G, dep.ANCHO, T0)
     economia.comprar_cosmetico(U, G, CORONA)
     economia.vender_casa(U, G, casa_id, T0)
     assert anotadas() == 0
@@ -267,8 +230,9 @@ def test_un_rechazo_no_se_anota(base):
     dar_gemas(U, 0)
     economia.comprar_casa(U, G, casas.CATALOGO["pequena"], T0, evento_id="evento-1a")
     economia.vender_casa(U, G, 1, T0, evento_id="evento-1b")
-    economia.comprar_mueble(U, G, FELPUDO, T0, evento_id="evento-1c")
+    assert economia.comprar_mueble(U, G, FELPUDO, T0, evento_id="evento-1c").motivo == "faltan_monedas"
     economia.comprar_cosmetico(U, G, CORONA, evento_id="evento-1d")
+    assert economia.ampliar_departamento(U, G, dep.ANCHO, T0, evento_id="evento-1e").motivo == "faltan_monedas"
     assert anotadas() == 0
 
 

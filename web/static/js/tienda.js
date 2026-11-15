@@ -29,7 +29,6 @@ import { el } from './dom.js';
 
 const CARGANDO = 'Cargando la tienda…';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
-const MUEBLES_SIN_CASA = 'Los muebles van en una casa, y todavía no tienes.';
 
 const SECCIONES = [
   { clave: 'objetos', nombre: 'Objetos' },
@@ -170,22 +169,17 @@ export function tienda(contenedor, estado, seguir) {
     return fila({ id, icono: c.icono, nombre: c.nombre, lineas: tipo ? [linea(tipo, 'articulo-detalle')] : [], accion });
   }
 
-  // Sin casa, los muebles se ven pero no se compran.
-  function filaDeMueble(m, hayCasa) {
+  // Los muebles se tienen de a varios: siempre se puede comprar otro, y el que
+  // ya tienes dice cuántos, puestos o guardados.
+  function filaDeMueble(m) {
     const id = `mueble:${m.clave}`;
-    let accion;
-    if (m.tuyo) accion = yaLoTienes();
-    else if (!hayCasa) accion = precioQuieto(MONEDAS, m.precio);
-    else {
-      accion = botonDePrecio(MONEDAS, m.precio, `Comprar ${m.nombre}`, {
-        id, ruta: 'tienda/comprar', cuerpo: { que: 'mueble', clave: m.clave },
-        pregunta: preguntaDeCompra(m.precio, MONEDAS.palabra), confirmar: 'Comprar',
-      });
-    }
-    return fila({
-      id, icono: m.icono, nombre: m.nombre, lineas: [linea(`Comodidad +${m.comodidad}`, 'articulo-detalle')],
-      accion, apagada: !hayCasa && !m.tuyo,
+    const lineas = [linea(`Comodidad +${m.comodidad}`, 'articulo-detalle')];
+    if (m.tienes > 0) lineas.push(linea(`Tienes ${m.tienes}`, 'articulo-tienes'));
+    const accion = botonDePrecio(MONEDAS, m.precio, `Comprar ${m.nombre}`, {
+      id, ruta: 'tienda/comprar', cuerpo: { que: 'mueble', clave: m.clave },
+      pregunta: preguntaDeCompra(m.precio, MONEDAS.palabra), confirmar: 'Comprar',
     });
+    return fila({ id, icono: m.icono, nombre: m.nombre, lineas, accion });
   }
 
   // Lo que se puede hacer con una casa tuya, una cosa por línea: cada mejora
@@ -246,13 +240,6 @@ export function tienda(contenedor, estado, seguir) {
     ];
   }
 
-  function muebles({ tienes_casa: hayCasa, lista: todos }) {
-    return [
-      hayCasa ? null : el('p', { class: 'aviso-de-seccion' }, MUEBLES_SIN_CASA),
-      lista(todos.map((m) => filaDeMueble(m, hayCasa))),
-    ];
-  }
-
   // Pinta el catálogo entero, las cuatro secciones: las que no se ven también,
   // para que cambiar de pestaña no pierda nada. Cierra la pregunta abierta. El
   // foco que estaba en una fila vuelve a esa misma fila.
@@ -267,7 +254,7 @@ export function tienda(contenedor, estado, seguir) {
     secciones.get('objetos').nodo.replaceChildren(lista(objetos.map(filaDeObjeto)));
     secciones.get('cosmeticos').nodo.replaceChildren(lista(nuevo.cosmeticos.map(filaDeCosmetico)));
     secciones.get('casas').nodo.replaceChildren(...casas(nuevo.casas).filter(Boolean));
-    secciones.get('muebles').nodo.replaceChildren(...muebles(nuevo.muebles).filter(Boolean));
+    secciones.get('muebles').nodo.replaceChildren(lista(nuevo.muebles.lista.map(filaDeMueble)));
     if (conFoco) volverALaFila(conFoco.dataset.fila);
   }
 

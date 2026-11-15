@@ -1157,7 +1157,7 @@ def plantel_al_dia(
     usuario_id: str, guild_id: str, ahora: datetime
 ) -> list[sim.Criatura]:
     """Los vivos, la activa primero, cada uno avanzado hasta `ahora` con el
-    ritmo de su hogar. Sólo lee: no les guarda el paso del tiempo."""
+    ritmo de su departamento. Sólo lee: no les guarda el paso del tiempo."""
     with conectar() as con:
         return [
             _avanzar_en(con, criatura, ahora)
@@ -2327,12 +2327,12 @@ def abrir_o_cerrar_la_casa(
 
 
 def avanzar(criatura: sim.Criatura, ahora: datetime) -> sim.Criatura:
-    """`sim.avanzar` con el ritmo que le toca por su hogar.
+    """`sim.avanzar` con el ritmo que le toca por su departamento.
 
-    Existe para que **no haya catorce sitios** teniendo que acordarse de mirar la
-    casa antes de hacer pasar el tiempo. Quien llame a `sim.avanzar` a secas se
-    queda con el ritmo de siempre, que es el de quien tiene techo: el fallo por
-    olvido es el comportamiento anterior y nunca uno peor.
+    Existe para que **no haya catorce sitios** teniendo que acordarse de mirar
+    el departamento antes de hacer pasar el tiempo. Quien llame a `sim.avanzar`
+    a secas se queda con el ritmo de siempre, que es el de quien tiene techo: el
+    fallo por olvido es el comportamiento anterior y nunca uno peor.
     """
     with conectar() as con:
         return _avanzar_en(con, criatura, ahora)
@@ -2624,54 +2624,6 @@ def asentar_el_plantel_en(
     for criatura in asentados:
         _guardar(con, criatura)
     return asentados
-
-
-# --- El mobiliario ---------------------------------------------------------
-
-def mobiliario(usuario_id: str, guild_id: str) -> dict[str, bool]:
-    """Los muebles que tienes y si están puestos. Los guardados salen a `False`."""
-    with conectar() as con:
-        return _mobiliario(con, usuario_id, guild_id)
-
-
-def _mobiliario(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str
-) -> dict[str, bool]:
-    filas = con.execute(
-        "SELECT mueble, colocado FROM mobiliario "
-        "WHERE usuario_id = ? AND guild_id = ?",
-        (usuario_id, guild_id),
-    ).fetchall()
-    return {f["mueble"]: bool(f["colocado"]) for f in filas}
-
-
-def comprar_mueble_en(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str,
-    clave: str, colocado: bool, casa_id: int | None = None,
-) -> None:
-    con.execute(
-        "INSERT INTO mobiliario (usuario_id, guild_id, mueble, colocado, casa_id) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (usuario_id, guild_id, clave, int(colocado),
-         casa_id if colocado else None),
-    )
-
-
-def colocar_mueble_en(
-    con: sqlite3.Connection, usuario_id: str, guild_id: str,
-    clave: str, dentro: bool, casa_id: int | None = None,
-) -> None:
-    """Cuelga o descuelga un mueble, y en cuál de tus casas.
-
-    Al retirarlo se borra también la casa: un mueble guardado no está en
-    ninguna parte, y dejarle la casa vieja haría que reaparecer allí al volver a
-    colocarlo pareciera magia.
-    """
-    con.execute(
-        "UPDATE mobiliario SET colocado = ?, casa_id = ? "
-        "WHERE usuario_id = ? AND guild_id = ? AND mueble = ?",
-        (int(dentro), casa_id if dentro else None, usuario_id, guild_id, clave),
-    )
 
 
 def especies_de(usuario_id: str, guild_id: str) -> tuple[str, ...]:

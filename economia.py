@@ -15,6 +15,7 @@ import casas as cas
 import competir as comp
 import cosmeticos as cos
 import db
+import departamento as dep
 import huerto as hue
 import identidad
 import logros as lgr
@@ -1536,250 +1537,192 @@ def cambiar_de_activo(
 
 
 @dataclass(frozen=True)
-class ResultadoMueble:
-    """Cómo salió comprar, colocar o retirar un mueble."""
+class ResultadoDepartamento:
+    """Cómo salió comprar, poner o guardar un mueble, o ampliar el departamento.
+
+    `departamento` es como queda; en un replay, el de ahora, igual que `saldo`.
+    `saldo` y `coste` son monedas, y sólo los llenan comprar y ampliar.
+    """
 
     ok: bool = False
-    mueble: cas.Mueble | None = None
-    casa: cas.Casa | None = None
-    comodidad: int = 0          # la de la casa después
-    puestos: int = 0            # cuántos huecos van ocupados
-    saldo: int = 0
-    problema: str | None = None
-    motivo: str | None = None   # por qué no, como clave
-    colocado: bool = False      # si **ese** mueble quedó puesto tras la operación
-    replay: bool = False        # la compra ya estaba hecha con ese evento
+    departamento: dep.Departamento | None = None
+    motivo: str | None = None       # por qué no, como clave
+    saldo: int = 0                  # las monedas que quedan
+    coste: int = 0                  # lo que cuesta el mueble o ese lado
+    mueble_id: int | None = None
+    replay: bool = False            # ya estaba hecha con ese evento
 
 
-def _estado_de_la_casa(
-    con, usuario_id: str, guild_id: str, ahora: datetime,
-    casa_id: int | None = None,
-) -> tuple[cas.CasaPropia | None, dict[str, bool], str | None, str | None]:
-    """La casa que se va a amueblar, lo que hay dentro, y por qué no se puede.
-
-    Devuelve `(casa, mobiliario, estorbo, motivo)`: `estorbo` es la frase para
-    Discord y `motivo` la misma razón como clave (`sin_casa`, `intemperie`,
-    `no_es_tuya`); los dos son `None` cuando se puede.
-
-    El refugio no se decora —es común y no es tuyo— y a la intemperie no hay
-    dónde poner nada. Las dos cosas se comprueban aquí, en un solo sitio, porque
-    las tres operaciones necesitan lo mismo.
-
-    Sin `casa_id` se coge la primera, que es la que compró antes: con una sola
-    casa —el caso de casi todo el mundo— no hay nada que elegir y no tiene
-    sentido obligar a decirlo.
-    """
-    hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
-    if not hogar.casas:
-        if hogar.estado(ahora) == cas.REFUGIO:
-            return None, {}, (
-                "El refugio no se puede amueblar: es de todos. Cómprate una casa."
-            ), "sin_casa"
-        return None, {}, (
-            "Estás a la intemperie. Cómprate una casa para amueblarla."
-        ), "intemperie"
-    propia = hogar.casa_por_id(casa_id) if casa_id else hogar.casas[0]
-    if propia is None:
-        return None, {}, "Esa casa no es tuya.", "no_es_tuya"
-    return propia, db._mobiliario(con, usuario_id, guild_id), None, None
-
-
-def _recibo_mueble(
-    con, usuario_id: str, guild_id: str, propia, mobiliario, mueble=None,
-    ok=False, problema=None, motivo=None, colocado=False,
-) -> ResultadoMueble:
-    """El recibo, contando **lo que hay en esa casa** y no en todas.
-
-    `mobiliario` es de la persona —uno de cada— y sirve para saber qué tienes;
-    los huecos y la comodidad son de la casa, y salen de sus `puestos`.
-    """
-    # Se relee la casa en vez de fiarse de la que llegó: colocar y retirar ya
-    # han escrito, y el recibo con la foto de antes anunciaría la comodidad
-    # vieja justo en el mensaje que dice que acaba de cambiar.
-    if propia is not None:
-        fresca = next(
-            (c for c in db._casas_de(con, usuario_id, guild_id)
-             if c.id == propia.id),
-            propia,
-        )
-    else:
-        fresca = None
-    return ResultadoMueble(
-        ok=ok, mueble=mueble, casa=fresca.casa if fresca else None,
-        comodidad=fresca.comodidad if fresca else 0,
-        puestos=len(fresca.puestos) if fresca else 0,
-        saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
-        problema=problema, motivo=motivo, colocado=colocado,
-    )
+def _cobrar_monedas_en(con, usuario_id: str, guild_id: str, cuanto: int) -> bool:
+    """Cobra si alcanza. La condición va **dentro** del UPDATE: dos clics a la
+    vez no pueden dejar el saldo en negativo."""
+    _asegurar_monedero(con, usuario_id, guild_id)
+    return con.execute(
+        "UPDATE monederos SET asciicoins = asciicoins - ? "
+        "WHERE usuario_id = ? AND guild_id = ? AND asciicoins >= ?",
+        (cuanto, usuario_id, guild_id, cuanto),
+    ).rowcount > 0
 
 
 def comprar_mueble(
-    usuario_id: str, guild_id: str, mueble: cas.Mueble,
-    ahora: datetime | None = None, casa_id: int | None = None,
-    evento_id: str | None = None,
-) -> ResultadoMueble:
-    """Cobra el mueble y lo coloca si queda hueco; si no, se guarda.
+    usuario_id: str, guild_id: str, mueble: dep.Mueble,
+    ahora: datetime | None = None, evento_id: str | None = None,
+) -> ResultadoDepartamento:
+    """Cobra el mueble y lo deja **guardado**: dónde ponerlo se decide después.
 
-    Uno de cada, como el ropero, y por lo mismo: repetir la chimenea no
-    significaría nada y llegar al techo comprando cuatro veces el mueble más caro
-    dejaría el catálogo sin sentido. Comprar el que ya tienes no cobra.
+    Se puede comprar el mismo las veces que se quiera; cada uno es una pieza
+    con su id. Como las casas, no lleva fila en `operaciones_economia`.
 
-    Con `evento_id` (la web), repetir la petición contesta lo que pasó la
-    primera vez —si quedó puesto o guardado— en vez de «ya lo tienes».
+    Con `evento_id` (la web), repetir la petición devuelve el mismo mueble sin
+    cobrar ni entregar otro.
     """
-    if cas.MUEBLES.get(mueble.clave) != mueble:
+    if dep.MUEBLES.get(mueble.clave) != mueble:
         raise ValueError("el mueble no coincide con el catálogo actual")
 
-    solicitud = f"{mueble.clave}:{'' if casa_id is None else casa_id}"
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        hecha = _ya_hecha(
-            con, evento_id, usuario_id, guild_id, "mueble", solicitud
-        )
+        hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "mueble", mueble.clave)
         if hecha is not None:
-            # La casa de entonces, como esté ahora; `None` si ya se vendió.
-            donde = next(
-                (c for c in db._casas_de(con, usuario_id, guild_id)
-                 if c.id == hecha["casa_id"]),
-                None,
-            )
-            return replace(
-                _recibo_mueble(
-                    con, usuario_id, guild_id, donde, {}, mueble, ok=True,
-                    colocado=hecha["colocado"],
-                ),
-                replay=True,
+            return ResultadoDepartamento(
+                ok=True, replay=True, coste=mueble.precio, mueble_id=hecha["mueble_id"],
+                departamento=db._departamento_en(con, usuario_id, guild_id, ahora),
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
             )
 
-        casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
-            con, usuario_id, guild_id, ahora, casa_id
-        )
-        _asegurar_monedero(con, usuario_id, guild_id)
-        if estorbo:
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=estorbo, motivo=motivo_estorbo,
-            )
-        assert casa is not None
-        if mueble.clave in mobiliario:
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=f"Ya tienes **{mueble.nombre}**.",
-                motivo="ya_lo_tienes",
+        depto = db._departamento_en(con, usuario_id, guild_id, ahora)
+        if not _cobrar_monedas_en(con, usuario_id, guild_id, mueble.precio):
+            return ResultadoDepartamento(
+                departamento=depto, motivo="faltan_monedas", coste=mueble.precio,
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
             )
 
-        pagado = con.execute(
-            "UPDATE monederos SET asciicoins = asciicoins - ? "
-            "WHERE usuario_id = ? AND guild_id = ? AND asciicoins >= ?",
-            (mueble.precio, usuario_id, guild_id, mueble.precio),
-        ).rowcount > 0
-        if not pagado:
-            faltan = mueble.precio - _saldos_en(
-                con, usuario_id, guild_id
-            ).asciicoins
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=f"Te faltan {faltan} {obj.nombre_de_monedas(faltan)}.",
-                motivo="faltan_monedas",
-            )
-
-        # Se cuelga solo si cabe **en esta casa**; si no, va al armario.
-        dentro = cas.caben_mas(casa.casa, casa.puestos)
-        db.comprar_mueble_en(
-            con, usuario_id, guild_id, mueble.clave, dentro,
-            casa.id if dentro else None,
-        )
-        mobiliario[mueble.clave] = dentro
+        mueble_id = db.anadir_mueble_en(con, usuario_id, guild_id, mueble.clave)
         _anotar(
-            con, evento_id, usuario_id, guild_id, "mueble", solicitud,
-            {"colocado": dentro, "casa_id": casa.id}, ahora,
+            con, evento_id, usuario_id, guild_id, "mueble", mueble.clave,
+            {"mueble_id": mueble_id}, ahora,
+        )
+        return ResultadoDepartamento(
+            ok=True, coste=mueble.precio, mueble_id=mueble_id,
+            departamento=db._departamento_leido(con, usuario_id, guild_id),
+            saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
         )
 
-        return _recibo_mueble(
-            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True,
-            colocado=dentro,
-        )
 
+def poner_mueble(
+    usuario_id: str, guild_id: str, mueble_id: int, x: int, y: int, giro: int,
+    ahora: datetime | None = None,
+) -> ResultadoDepartamento:
+    """Pone un mueble tuyo en (x, y) con ese giro. Mover y girar son esto mismo.
 
-def colocar_mueble(
-    usuario_id: str, guild_id: str, mueble: cas.Mueble,
-    ahora: datetime | None = None, casa_id: int | None = None,
-) -> ResultadoMueble:
-    """Lo mete en la casa. Falla si no queda hueco, y lo dice con el número."""
-    if cas.MUEBLES.get(mueble.clave) != mueble:
-        raise ValueError("el mueble no coincide con el catálogo actual")
+    Si no se puede, dice por qué con el motivo de `dep.problema_al_poner`.
+    Ponerlo donde ya está no cambia nada. `x`, `y` y `giro` tienen que ser
+    enteros, y `giro` de 0 a 3: otra cosa es un fallo de quien llama.
+    """
+    if not all(type(v) is int for v in (x, y, giro)) or not 0 <= giro <= 3:
+        raise ValueError("el sitio o el giro no existen")
 
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
-            con, usuario_id, guild_id, ahora, casa_id
-        )
-        if estorbo:
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=estorbo, motivo=motivo_estorbo,
-            )
-        assert casa is not None
-        if mueble.clave not in mobiliario:
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=f"No tienes **{mueble.nombre}**.",
-            )
-        if mobiliario[mueble.clave]:
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=f"**{mueble.nombre}** ya está puesto.",
-            )
-        if not cas.caben_mas(casa.casa, casa.puestos):
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=(
-                    f"No cabe: {casa.casa.nombre} tiene {casa.casa.huecos} huecos y "
-                    "están todos ocupados. Retira algo primero."
-                ),
-            )
+        depto = db._departamento_en(con, usuario_id, guild_id, ahora)
+        motivo = dep.problema_al_poner(depto, mueble_id, x, y, giro)
+        if motivo is not None:
+            return ResultadoDepartamento(departamento=depto, motivo=motivo, mueble_id=mueble_id)
 
-        db.colocar_mueble_en(
-            con, usuario_id, guild_id, mueble.clave, True, casa.id
-        )
-        mobiliario[mueble.clave] = True
-        return _recibo_mueble(
-            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True,
-            colocado=True,
-        )
+        pieza = depto.pieza(mueble_id)
+        if (pieza.x, pieza.y, pieza.giro) != (x, y, giro):
+            # Lo puesto fija el ritmo: el tiempo que ya pasó corre con el de antes.
+            db.asentar_el_plantel_en(con, usuario_id, guild_id, ahora)
+            db.poner_mueble_en(con, mueble_id, x, y, giro)
+            depto = db._departamento_leido(con, usuario_id, guild_id)
+        return ResultadoDepartamento(ok=True, departamento=depto, mueble_id=mueble_id)
 
 
-def retirar_mueble(
-    usuario_id: str, guild_id: str, mueble: cas.Mueble,
-    ahora: datetime | None = None, casa_id: int | None = None,
-) -> ResultadoMueble:
-    """Lo saca de la casa. Se guarda: nunca se pierde, como el ropero."""
-    if cas.MUEBLES.get(mueble.clave) != mueble:
-        raise ValueError("el mueble no coincide con el catálogo actual")
+def guardar_mueble(
+    usuario_id: str, guild_id: str, mueble_id: int, ahora: datetime | None = None,
+) -> ResultadoDepartamento:
+    """Guarda un mueble tuyo. Guardar nunca lo destruye, y guardar lo ya
+    guardado sale bien sin cambiar nada.
+
+    La cama que hace falta —la tuya y una por cada gachamon vivo— no se guarda.
+    """
+    ahora = ahora or db.ahora_utc()
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        depto = db._departamento_en(con, usuario_id, guild_id, ahora)
+        # `dep.puede_guardarse` deja pasar una pieza que no existe: hay que
+        # mirar antes que sea de esta persona.
+        pieza = depto.pieza(mueble_id)
+        if pieza is None:
+            return ResultadoDepartamento(
+                departamento=depto, motivo=dep.NO_ES_TUYO, mueble_id=mueble_id,
+            )
+        if not pieza.puesta:
+            return ResultadoDepartamento(ok=True, departamento=depto, mueble_id=mueble_id)
+
+        vivos = len(db.plantel_en(con, usuario_id, guild_id))
+        if not dep.puede_guardarse(depto, mueble_id, vivos):
+            return ResultadoDepartamento(
+                departamento=depto, motivo="hace_falta", mueble_id=mueble_id,
+            )
+
+        db.asentar_el_plantel_en(con, usuario_id, guild_id, ahora)
+        db.guardar_mueble_en(con, mueble_id)
+        return ResultadoDepartamento(
+            ok=True, mueble_id=mueble_id,
+            departamento=db._departamento_leido(con, usuario_id, guild_id),
+        )
+
+
+def ampliar_departamento(
+    usuario_id: str, guild_id: str, eje: str,
+    ahora: datetime | None = None, evento_id: str | None = None,
+) -> ResultadoDepartamento:
+    """Le suma una columna (`dep.ANCHO`) o una fila (`dep.FONDO`), a 15 monedas
+    por casilla nueva. Lo puesto no se mueve.
+
+    Con `evento_id` (la web), repetir la petición no cobra ni amplía otra vez:
+    devuelve lo que costó la primera, con el departamento y el saldo de ahora.
+    """
+    if eje not in (dep.ANCHO, dep.FONDO):
+        raise ValueError(f"un departamento no tiene el lado «{eje}»")
 
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        casa, mobiliario, estorbo, motivo_estorbo = _estado_de_la_casa(
-            con, usuario_id, guild_id, ahora, casa_id
-        )
-        if estorbo:
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=estorbo, motivo=motivo_estorbo,
-            )
-        if not mobiliario.get(mueble.clave):
-            return _recibo_mueble(
-                con, usuario_id, guild_id, casa, mobiliario, mueble,
-                problema=f"**{mueble.nombre}** no está puesto.",
+        hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "ampliar", eje)
+        if hecha is not None:
+            return ResultadoDepartamento(
+                ok=True, replay=True, coste=hecha["coste"],
+                departamento=db._departamento_en(con, usuario_id, guild_id, ahora),
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
             )
 
-        db.colocar_mueble_en(con, usuario_id, guild_id, mueble.clave, False)
-        mobiliario[mueble.clave] = False
-        return _recibo_mueble(
-            con, usuario_id, guild_id, casa, mobiliario, mueble, ok=True
+        depto = db._departamento_en(con, usuario_id, guild_id, ahora)
+        coste = dep.coste_de_ampliar(depto, eje)
+        if coste is None:
+            return ResultadoDepartamento(
+                departamento=depto, motivo="ya_es_el_maximo",
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+            )
+        if not _cobrar_monedas_en(con, usuario_id, guild_id, coste):
+            return ResultadoDepartamento(
+                departamento=depto, motivo="faltan_monedas", coste=coste,
+                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
+            )
+
+        # Más casillas suben el tope de la comodidad: es parte del ritmo.
+        db.asentar_el_plantel_en(con, usuario_id, guild_id, ahora)
+        db.ampliar_en(con, usuario_id, guild_id, eje)
+        ampliado = db._departamento_leido(con, usuario_id, guild_id)
+        _anotar(
+            con, evento_id, usuario_id, guild_id, "ampliar", eje,
+            {"ancho": ampliado.ancho, "fondo": ampliado.fondo, "coste": coste}, ahora,
+        )
+        return ResultadoDepartamento(
+            ok=True, departamento=ampliado, coste=coste,
+            saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
         )
 
 
