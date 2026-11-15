@@ -1,9 +1,7 @@
-"""Nacer: romper el huevo, unirse un recluta y bautizar. Lo comparten el bot y
-la web.
+"""Nacer: romper el huevo, unirse un recluta y bautizar.
 
 Aquí está lo que decide qué nace, con qué nombre llega un recluta y cuándo se
-puede bautizar; quien llama (el botón del bot, la ruta de la web) sólo traduce
-el resultado.
+puede bautizar; quien llama (la ruta de la web) sólo traduce el resultado.
 """
 from __future__ import annotations
 

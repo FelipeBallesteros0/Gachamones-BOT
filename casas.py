@@ -1,6 +1,6 @@
 """El hogar: dónde vive el plantel de cada persona.
 
-Módulo puro, como `jardin.py`: catálogo y dibujo, sin base de datos ni Discord.
+Módulo puro: catálogo y reglas, sin base de datos ni Discord.
 
 Nadie se queda en la calle de entrada. Se empieza en el **refugio**, que es común
 a todo el mundo y no se decora, y desde ahí se compra casa. El refugio caduca:
@@ -122,8 +122,7 @@ class Hogar:
 
     casas: tuple[CasaPropia, ...] = ()
     refugio_hasta: datetime = datetime.min.replace(tzinfo=timezone.utc)
-    # Si otros pueden verlo con `/visitar`. Nace abierto, como todo lo demás del
-    # bot: `/mascota @alguien` y `/jardin` ya enseñan lo de cualquiera.
+    # Si otros pueden visitarlo. Nace abierto.
     publica: bool = True
 
     def estado(self, ahora: datetime) -> str:

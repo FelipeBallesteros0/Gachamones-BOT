@@ -40,19 +40,16 @@ logger = logging.getLogger(__name__)
 RUTA: Path = config.RUTA_BD
 
 # Cuántos gachamones puede tener una persona por servidor. Uno es el activo, el
-# que sale contigo, y a todos les pasa el tiempo. El primero sale de `/huevo`;
-# los demás sólo reclutándolos.
+# que sale contigo, y a todos les pasa el tiempo. El primero sale del huevo; los
+# demás sólo reclutándolos.
 #
 # Subió de 3 a 10 y de 10 a 25 para que coleccionar sea un objetivo largo. Lo
-# que de verdad cambia con este número es `/aventura`: con el plantel lleno los
+# que de verdad cambia con este número es la aventura: con el plantel lleno los
 # salvajes se convierten en objetos, así que el tope decide cuánto dura la fase
 # de reclutar. Medido, se recluta en el 5,5 % de las aventuras y hay 37 minutos
 # entre una y otra: llenar dos huecos son unas 22 horas de juego.
 #
-# **25 es el techo, y no lo pone el gusto sino Discord**: `equipo.MenuPlantel`
-# pone una opción por gachamon y un desplegable admite 25 exactas. Con este
-# número entra justo y sin un hueco de margen, así que subirlo obliga antes a
-# paginar ese menú. Hay un test que lo vigila.
+# El 25 lo fijó el desplegable del plantel en Discord, que admitía 25 opciones.
 MAXIMO_PLANTEL = 25
 
 # El esquema va en dos trozos porque el orden importa: primero las tablas,
@@ -526,9 +523,7 @@ MIGRACIONES = (
 # Lo mismo, para tablas que no son `criaturas`. Van aparte porque `MIGRACIONES`
 # mira sólo el `PRAGMA` de aquélla, que es donde habían caído todas hasta ahora.
 MIGRACIONES_DE_TABLAS = (
-    # Las casas nacieron todas visibles y así se quedan las que ya existían: es
-    # lo mismo que hace `/mascota @alguien`, que enseña el gachamon de quien sea
-    # sin preguntar.
+    # Las casas nacieron todas visibles y así se quedan las que ya existían.
     ("hogar", "publica",
      "ALTER TABLE hogar ADD COLUMN publica INTEGER NOT NULL DEFAULT 1"),
     # Antes sólo se sembraban semillas, así que no había nada que guardar. El
@@ -799,10 +794,8 @@ def _ascender_un_relevo_donde_falte(con: sqlite3.Connection) -> None:
 
     Hay quien se quedó así: el activo se le murió cuando todavía se moría y
     sólo le quedaban reclutas que no podían salir. Por la web lo arreglaba el
-    remiendo de `activa_al_dia`, pero en Discord nadie lo corre: `/mascota` le
-    decía que no tenía ningún gachamon vivo mientras al que le quedaba le
-    pasaba el tiempo sin que pudiera salir con él. Elige al mismo que
-    `ascender_un_relevo`, y el remiendo se queda por si acaso.
+    remiendo de `activa_al_dia`, pero en Discord nadie lo corría. Elige al mismo
+    que `ascender_un_relevo`, y el remiendo se queda por si acaso.
 
     Tiene que ir **después** del paso del reloj, que sólo mira a los que no
     son el activo: si fuera antes, al ascendido no se le movería el reloj y se
@@ -1187,7 +1180,6 @@ def _activar_en(con: sqlite3.Connection, criatura_id: int) -> None:
     con.execute("UPDATE criaturas SET activa = 1 WHERE id = ?", (criatura_id,))
 
 
-
 def obtener(criatura_id: int) -> sim.Criatura | None:
     with conectar() as con:
         fila = con.execute(
@@ -1236,7 +1228,7 @@ def crear(
     - **El tope de tres** se comprueba aquí dentro con `BEGIN IMMEDIATE`, porque
       no cabe en un índice. Levanta `ValueError`.
     - **Una sola activa** lo sigue imponiendo el índice único, que hace saltar
-      `sqlite3.IntegrityError`: es la defensa contra dos `/huevo` a la vez.
+      `sqlite3.IntegrityError`: es la defensa contra romper dos huevos a la vez.
 
     `cuenta_vigente` sólo cuenta para una identidad web: comprueba, en esta
     misma transacción, que `cuentas_web` sigue teniéndola. Si no, levanta
@@ -1371,7 +1363,6 @@ def _guardar(con: sqlite3.Connection, criatura: sim.Criatura) -> None:
     valores["id"] = criatura.id
     asignaciones = ", ".join(f"{c} = :{c}" for c in valores if c != "id")
     con.execute(f"UPDATE criaturas SET {asignaciones} WHERE id = :id", valores)
-
 
 
 # --- El manual publicado en su canal ---------------------------------------
@@ -1524,7 +1515,6 @@ def poner_cooldown_persona(
         )
 
 
-
 # --- Inventario ------------------------------------------------------------
 
 def inventario(usuario_id: str, guild_id: str) -> dict[str, int]:
@@ -1611,8 +1601,8 @@ class Regalo:
 def limpiar_nota(propuesta: str) -> str:
     """Deja la nota en una línea y del largo que cabe.
 
-    Va aquí y no en el cog porque el recorte tiene que valer igual venga de donde
-    venga: una nota con saltos de línea rompería el listado del buzón, que pinta
+    Va aquí y no en quien llama porque el recorte tiene que valer igual venga de
+    donde venga: una nota con saltos de línea rompería el listado del buzón, que pinta
     un regalo por renglón.
     """
     return " ".join(propuesta.split())[:LARGO_MAXIMO_NOTA]
@@ -1941,9 +1931,6 @@ def anotar_accion_en(
     )
 
 
-# --- El estilo público de la ficha ----------------------------------------
-
-
 # --- El ropero -------------------------------------------------------------
 #
 # Lo que tienes, no lo que llevas puesto. Lo puesto sigue en las cuatro columnas
@@ -2116,8 +2103,8 @@ def _hogar_leido(
     Quien no tiene fila todavía no ha empezado su estancia, y aquí se le trata
     como si acabara de entrar al refugio. Es lo correcto y además evita dos
     cosas feas: coger el cerrojo de escritura cada vez que alguien mira una
-    ficha, y estrenarle el refugio a otra persona sólo por haber mirado su
-    gachamon con `/mascota @alguien`.
+    ficha, y estrenarle el refugio a otra persona sólo por haber mirado lo
+    suyo.
     """
     fila = con.execute(
         "SELECT refugio_hasta, publica FROM hogar "
@@ -2291,7 +2278,7 @@ def gastar_en(
 
 
 def hogar_leido(usuario_id: str, guild_id: str, ahora: datetime) -> cas.Hogar:
-    """El hogar de alguien sin tocarle nada. Es lo que mira `/visitar`."""
+    """El hogar de alguien sin tocarle nada. Es lo que mira la web."""
     with conectar() as con:
         return _hogar_leido(con, usuario_id, guild_id, ahora)
 

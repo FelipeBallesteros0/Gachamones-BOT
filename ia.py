@@ -114,7 +114,7 @@ async def _sesion_compartida() -> aiohttp.ClientSession:
 
 
 async def cerrar() -> None:
-    """La llama el cog al descargarse, para no dejar la sesión abierta."""
+    """Cierra la sesión HTTP compartida, si está abierta."""
     global _sesion
     if _sesion is not None and not _sesion.closed:
         await _sesion.close()
@@ -169,9 +169,8 @@ _MARCAS = re.compile(r"[*_`#>]+")
 _LINEAS_VACIAS = re.compile(r"\n{2,}")
 
 # Una línea que es sólo un paréntesis: el modelo comentando su propio trabajo.
-# El caso que lo motivó salió publicado en un /jardin: terminaba la escena y
-# añadía «(Palabras: 40).» aparte, haciéndole caso al límite del prompt como si
-# fuera un formulario. Se exige que ocupe la línea entera para no tocar los
+# El caso que lo motivó terminaba la escena y añadía «(Palabras: 40).» aparte,
+# haciéndole caso al límite del prompt como si fuera un formulario. Se exige que ocupe la línea entera para no tocar los
 # paréntesis que sí son narración, como «Rimuru rebota (plop) y se queda».
 _NOTA_AL_FINAL = re.compile(r"\n\s*\([^()\n]*\)\s*\.?\s*$")
 
@@ -515,8 +514,8 @@ async def generar(
 ) -> tuple[str, bool]:
     """Una generación suelta, sin historial ni criatura concreta.
 
-    La usan el jardín y la narración de la aventura. Como `responder`, nunca
-    lanza y siempre devuelve texto.
+    Es la de la narración de la aventura, en pausa hasta tener su pantalla en
+    la página. Como `responder`, nunca lanza y siempre devuelve texto.
     """
     if not config.IA_ACTIVA and transporte is None:
         return respaldo, False

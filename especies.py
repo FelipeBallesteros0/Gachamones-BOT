@@ -45,7 +45,7 @@ COMUN = "común"
 POCO_COMUN = "poco común"
 RARA = "rara"
 
-# Lo que pesa cada rareza al cruzarte con un salvaje en `/aventura`.
+# Lo que pesa cada rareza al cruzarte con un salvaje en una aventura.
 #
 # Es el MISMO reparto que usa el huevo (12/6/4), a propósito: así «raro»
 # significa lo mismo en los dos sitios y no hay un segundo juego de números que
@@ -651,7 +651,7 @@ _registrar(Especie(
 # --------------------------------------------------------------------------
 
 # Las que puede dar el huevo de partida: las diez de siempre. Las demás sólo se
-# consiguen reclutándolas en `/aventura`, para que el comienzo sea conocido y el
+# consiguen reclutándolas en una aventura, para que el comienzo sea conocido y el
 # catálogo grande sea lo que se descubre jugando.
 DEL_HUEVO: tuple[str, ...] = tuple(
     clave for clave, especie in ESPECIES.items() if especie.peso > 0

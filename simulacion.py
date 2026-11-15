@@ -111,10 +111,10 @@ LIMPIAR = "limpiar"
 ACTUALIZAR = "actualizar"
 COMPETIR = "competir"
 AVENTURA = "aventura"
-# Hablarle bien. No es un cuidado con botón: se conversa mencionando al bot, y
-# lo que trae aquí es el enfriamiento, que es lo que impide que veinte mensajes
-# por hora entrenen el ingenio veinte veces más rápido de lo que entrena fuerza
-# un botón cada dos horas.
+# Hablarle bien. No es un cuidado con botón: conversar está en pausa, esperando
+# su pantalla en la página, y lo que trae aquí es el enfriamiento, que es lo que
+# impide que veinte mensajes por hora entrenen el ingenio veinte veces más rápido
+# de lo que entrena fuerza un botón cada dos horas.
 CONVERSAR = "conversar"
 # Acariciarlo. Tampoco es un cuidado: no cuesta nada, no da experiencia y no
 # cuenta para ningún tope; sólo sube el ánimo, y el freno es su enfriamiento.
@@ -1098,7 +1098,6 @@ def aplicar_caricia(criatura: Criatura) -> ResultadoAccion:
         criatura, animo=_limitar(criatura.animo + EFECTO_CARICIA["animo"])
     )
     return ResultadoAccion(nueva, "Se ha quedado muy content{o/a} con la caricia.")
-
 
 
 def _efecto_de(criatura: Criatura, accion: str) -> ResultadoAccion:

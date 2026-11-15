@@ -733,26 +733,6 @@ CÓMO ESTÁS AHORA MISMO
     return esp.concordar(texto, criatura.genero)
 
 
-def _ficha(criatura: sim.Criatura, ahora: datetime) -> str:
-    """Quién es una criatura, en corto, para meterla en un prompt compartido.
-
-    Se concorda aquí, criatura a criatura, porque en un prompt compartido
-    pueden convivir géneros distintos.
-    """
-    definicion = criatura.def_especie
-    voz = VOCES[criatura.especie]
-    ficha = (
-        f"- {criatura.nombre} ({definicion.nombre} {{macho/hembra}}, "
-        f"{esp.NOMBRES_ETAPA[criatura.etapa]}, "
-        f"{CARACTERES[criatura.caracter].nombre(criatura.genero)}): "
-        f"{voz.tono} {voz.tic} "
-        f"Al tocarl{{o/a}}: {voz.contacto} "
-        f"Ahora mismo: {describir_estado(criatura, ahora)}"
-    )
-    return esp.concordar(ficha, criatura.genero)
-
-
-
 def frase_de_respaldo(criatura: sim.Criatura, semilla: int = 0) -> str:
     """Qué dice cuando la IA no está disponible.
 

@@ -7,13 +7,11 @@ en el momento de enseñarlo. Antes se guardaban los 1155 ya compuestos, que eran
 eso se clonaba entero en cada despliegue.
 
 Lo que hizo viable el cambio fue medirlo en la Raspberry: apilar tres capas de
-256×256 cuesta **1,7 s en Python puro y 72 ms con Pillow**. Con lo primero el
-bot se congelaba en cada pulsación; con lo segundo cabe de sobra en una
-interacción de Discord. Por eso Pillow es dependencia de producción y no un
-capricho.
+256×256 cuesta **1,7 s en Python puro y 72 ms con Pillow**. Por eso Pillow es
+dependencia de producción y no un capricho.
 
-Encima hay una caché en memoria: la ficha se reedita a cada botón casi siempre
-con la misma combinación, así que a partir de la segunda vez no se compone nada.
+Encima hay una caché en memoria: la página pide casi siempre las mismas
+combinaciones, así que a partir de la segunda vez no se compone nada.
 
 El nombre del archivo es `{animo}_{sombrero}.png`, con las mismas claves que ya
 usan `especies` y `cosmeticos`. No hay tabla de equivalencias que mantener: si
@@ -81,7 +79,7 @@ MARGEN = 2
 
 # Cuántos retratos ya armados se recuerdan. Pesan unos 21 KB de media, así que
 # ciento veintiocho son unos tres megas: nada al lado de lo que ahorran, porque
-# pulsar un botón vuelve a pintar la misma combinación una y otra vez.
+# la página pide la misma combinación una y otra vez.
 RECORDADOS = 128
 
 

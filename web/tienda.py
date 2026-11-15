@@ -7,9 +7,6 @@ de `economia`, que cobra y entrega bajo `BEGIN IMMEDIATE` con el evento del
 cliente; aquí sólo se traduce lo que pasó a una frase de la web. Las frases de
 `economia` (`problema`) son de Discord y no salen por aquí. El servidor decide
 qué se vende y a quién; el cliente pinta lo que le llega.
-
-Ojo: este módulo es `web.tienda`, no el `tienda` de la raíz, que importa
-`discord`. Dentro de `web/` se importa siempre como `from web import tienda`.
 """
 from __future__ import annotations
 

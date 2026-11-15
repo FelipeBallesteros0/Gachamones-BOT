@@ -689,8 +689,9 @@ def _torneo(
     """Dos semifinales sorteadas y una final entre los que pasan.
 
     Se trabaja con **dorsales** y no con competidores porque `orden` tiene que
-    indexar `competidores` en el orden en que se invitó: es el que usa el cog para
-    darle la experiencia a la criatura correcta, y el sorteo lo desordena.
+    indexar `competidores` en el orden en que se invitó: es el que usa quien
+    reparte la experiencia para dársela a la criatura correcta, y el sorteo lo
+    desordena.
     """
     dorsales = list(range(len(competidores)))
     rng.shuffle(dorsales)
@@ -1192,8 +1193,8 @@ DIBUJANTES = {
 def fotogramas_de(encuentro: Encuentro) -> list[list[str]]:
     """Los fotogramas de cada combate, en orden y con el título de su ronda.
 
-    Una lista por combate: el cog manda un mensaje por cada una y la va editando
-    para animarla. Un torneo son tres tandas; todo lo demás, una.
+    Una lista por combate, cada una para animarla aparte. Un torneo son tres
+    tandas; todo lo demás, una.
     """
     dibujar = DIBUJANTES[encuentro.tipo]
     return [
@@ -1347,8 +1348,7 @@ def _fila_del_cuadro(
     acortar el nombre. Nada que medir: el hueco del nombre es la constante
     `ANCHO_NOMBRE_CUADRO`.
 
-    Quien pasa va del color de su especie y quien cae, en gris — el mismo con el
-    que `/cementerio` pinta a las que ya no están, y por lo mismo: para ver de un
+    Quien pasa va del color de su especie y quien cae, en gris: para ver de un
     golpe quién sigue en pie sin tener que seguir las líneas.
     """
     nombre = f"{competidor.nombre[:ANCHO_NOMBRE_CUADRO]:<{ANCHO_NOMBRE_CUADRO}}"

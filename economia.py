@@ -96,7 +96,6 @@ class ResultadoATodos:
     replay: bool = False
 
 
-
 @dataclass(frozen=True)
 class ReciboCompetencia:
     usuario_id: str
@@ -408,7 +407,6 @@ def _ganado_hoy(con, usuario_id: str, guild_id: str, fecha: str) -> int:
         "AND resultado = 'acreditada' AND tipo <> 'aventura'",
         (usuario_id, guild_id, fecha),
     ).fetchone()[0]
-
 
 
 def _resolver_recompensa(
@@ -813,7 +811,6 @@ def aprender_hablando(
             ingenio_ganado=resultado.criatura.ingenio - criatura.ingenio,
             animo_ganado=round(resultado.criatura.animo - criatura.animo),
         )
-
 
 
 # Qué cuenta cada victoria. Vive aquí y no en `competir.py` ni en `logros.py`
@@ -2171,10 +2168,9 @@ def comprar(
 
 # --- Usar lo que llevas en la mochila ----------------------------------------
 #
-# Era cosa del menú de Discord, en tres transacciones: gastaba la unidad, avanzaba
-# al gachamon y aplicaba el efecto, y un reintento gastaba otra. Ahora es una sola
-# operación con evento, y la usan las dos caras. Las frases no van aquí: cada cara
-# cuenta el resultado a su manera.
+# Una sola operación con evento: gastar la unidad, avanzar al gachamon y aplicar
+# el efecto van juntos, y un reintento no gasta otra. Las frases no van aquí: las
+# pone la web.
 
 @dataclass(frozen=True)
 class ResultadoUso:
@@ -2216,7 +2212,7 @@ def usar_objeto(
 
     `criatura_id` es el gachamon a quien se le da (la web manda el que enseñaba
     su pantalla): si el activo ya es otro, o no hay, no se le da a nadie y no se
-    gasta. Sin él, se le da al activo, como en Discord.
+    gasta. Sin él, se le da al activo.
     """
     return _usar(
         evento_id, usuario_id, guild_id, objeto, ahora or db.ahora_utc(),
@@ -2259,7 +2255,7 @@ def _usar(
 
         # Va detrás del replay, que contesta lo de la primera vez aunque el
         # activo ya sea otro, y delante de todo lo demás: si el cambio de
-        # gachamon ya estaba registrado (otro activado desde Discord, por
+        # gachamon ya estaba registrado (otro activado desde otra pestaña, por
         # ejemplo), sólo se nota aquí.
         if criatura_id is not None:
             activa = db.criatura_activa_en(con, usuario_id, guild_id)

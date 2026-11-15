@@ -147,9 +147,8 @@ def buscar(clave: str | None) -> Cosmetico | None:
 def color_del_tinte(clave: str | None, por_defecto: str) -> str:
     """El color con el que se pinta al gachamon.
 
-    Va aquí y no repetido en cada vista porque al gachamon lo dibujan tres
-    sitios —la ficha, `/jardin` y `/ranking`—, y un tinte que sólo se viera en
-    uno se leería como un fallo.
+    Va aquí y no repetido en cada sitio que dibuja al gachamon: un tinte que
+    sólo se viera en uno se leería como un fallo.
     """
     cosmetico = buscar(clave)
     return cosmetico.valor if cosmetico and cosmetico.tipo == TINTE else por_defecto

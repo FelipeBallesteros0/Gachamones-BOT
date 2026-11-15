@@ -105,8 +105,7 @@ POROTOS_POR_COSECHA = (2, 4)
 
 # Cuántos bancales da cada casa, por su clave. El refugio no tiene huerto: no es
 # tuyo. Se guarda por clave y no por `casas.Casa` a propósito: así este módulo no
-# importa `casas`, y `objetos` —que sí importa éste— no acaba arrastrando la pila
-# entera de dibujo por la cadena `casas → jardin → pantalla`.
+# importa `casas`.
 # Los saltos son grandes —y no 1/2/3— desde que se puede tener más de una casa.
 # Con el huerto por casa, apilar pequeñas era la forma óptima de conseguir
 # bancales: dos costaban 400 y daban los mismos 2 que la mediana de 500, así que

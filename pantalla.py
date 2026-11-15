@@ -1,4 +1,7 @@
-"""Dibuja la pantalla de la mascota como texto de Discord.
+"""Dibuja en texto la pantalla de la mascota, como la enseñaba Discord.
+
+Hoy sólo usan sus marcos las aventuras y las competencias, en pausa hasta tener
+su pantalla en la página.
 
 Módulo puro: recibe una `Criatura` y devuelve una cadena lista para enviar.
 
@@ -28,7 +31,7 @@ import simulacion as sim
 
 # Va siempre FUERA del bloque ```ansi: dentro, Discord sustituye el emoji por
 # una imagen de ancho variable y descuadra el marco. Por eso el género no sale
-# en `/jardin`, `/ranking` ni `/cementerio`, que se dibujan enteros dentro.
+# en lo que se dibuja entero dentro del bloque.
 EMOJI_GENERO = {esp.MACHO: "♂️", esp.HEMBRA: "♀️"}
 
 # Por lo mismo, la poción activa y los que se quedan en casa se anuncian en el

@@ -836,8 +836,8 @@ def resolver_opcion(
 class Viaje:
     """El estado del árbol entre pulsación y pulsación.
 
-    Es inmutable y no guarda nada de Discord, así que el cog puede sostenerlo en
-    la vista y los tests recorrer el árbol entero con dados fijos.
+    Es inmutable y no guarda nada de Discord, así que los tests pueden recorrer
+    el árbol entero con dados fijos.
     """
 
     bioma: Bioma
