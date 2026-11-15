@@ -562,13 +562,21 @@ Son observaciones, no decisiones.
   decidió el dueño para facilitar la migración: en Discord jugaban dos personas,
   y mantener dos juegos con reglas distintas era buena parte del trabajo que
   venía y el mayor riesgo del día del cambio.
-- Todo lo demás contesta, en privado, que el juego se mudó a la página, con el
-  enlace y cómo vincular: los botones, menús y formularios de los mensajes
-  viejos, mencionar al bot en su canal, y `/mascota` y `/huevo`, que se quedan
-  como avisos porque son los que la gente escribe de memoria. Los otros quince
+- Todo lo demás contesta que el juego se mudó a la página, con el enlace y cómo
+  vincular. Los botones, menús y formularios de los mensajes viejos, y
+  `/mascota` y `/huevo` —que se quedan como avisos porque son los que la gente
+  escribe de memoria—, contestan **en privado**. A quien **menciona** al bot en
+  su canal se le contesta **en el canal, a la vista de todos, cada vez y sin
+  espera**: una respuesta a un mensaje no puede ser privada. Los otros quince
   comandos desaparecen de Discord.
+- Un comando que ya no existe —uno de esos quince, si en un servidor falló la
+  sincronización y siguen registrados— también contesta el aviso, en privado, y
+  deja una línea en el registro.
 - En un servidor que no es el de la página, el aviso dice que el juego está en
   pausa en ese servidor y que lo de cada quien sigue guardado.
+- «Escríbeme en …», lo que contesta un comando escrito fuera de su canal, nombra
+  sólo los canales del juego de ese servidor: los de otro serían enlaces a
+  ninguna parte. Si no ve ninguno, los nombra todos.
 - El manual del canal queda en una sola página: el juego se mudó, dónde está y
   cómo vincular, nombrando el canal del juego de ese servidor (que es donde se
   acepta `/vincular`). En un canal de información de un servidor sin página, la
@@ -598,6 +606,16 @@ Son observaciones, no decisiones.
   las otras siete**. Si le falta permiso o el canal no está, deja un aviso en el
   registro y sigue; lo reintenta al reconectar. Un segundo arranque no toca el
   canal.
+- Qué mirar en el registro tras arrancar: una línea de comandos sincronizados
+  por cada servidor y una de «Manual al día» por cada canal de información. Si
+  la sincronización de un servidor falla, allí siguen registrados los comandos
+  viejos, que contestan el aviso hasta que un arranque sincronice bien. Si falta
+  permiso o el bot no ve el canal, ese canal conserva el manual viejo hasta que
+  se arregle y el bot reconecte.
+- El bot sólo borra las páginas que tiene apuntadas en los canales de
+  información configurados: si el manual estuvo en un canal que ya no está en
+  esa lista, esas páginas se borran a mano.
+- Si se corta a medias de los borrados, el reintento sigue donde quedó.
 - Los botones de todos los mensajes viejos siguen en Discord; al pulsarlos
   contestan el aviso.
 - La unidad `tamagotchi.service` y los guiones de despliegue no cambian: el bot
@@ -609,7 +627,13 @@ Son observaciones, no decisiones.
 
 - Al arrancar, el bot de antes vuelve a registrar sus comandos y a publicar su
   manual: la primera página la edita en su sitio y las otras siete las publica
-  de nuevo, al final del canal, porque sus mensajes ya no existen.
+  de nuevo, debajo de lo que haya en el canal, porque sus mensajes ya no
+  existen. Si alguien escribió entre medias, esas siete quedan después de lo
+  suyo; se arregla borrando las ocho a mano y reiniciando.
+- Los botones de las fichas viejas vuelven a funcionar.
+- Los avisos que se contestaron a las menciones se quedan en el canal: hay que
+  borrarlos a mano.
+- Quien vinculó sigue vinculado. Este plan no necesita restaurar la base.
 
 ### Pendiente
 
@@ -623,6 +647,10 @@ Son observaciones, no decisiones.
 - **Reglas que cambia o cierra el plan de la vivienda:** las casas, mudar,
   amueblar, el huerto y cocinar (ya sin menú que las alcance), y el buzón, cuyos
   regalos pendientes ese plan entrega solos el día del cambio.
+  - A la intemperie con casa propia, el aviso manda a comprar una casa más
+    grande, pero **mejorar** una casa no mete dentro al que está fuera (sólo
+    comprar otra lo recoge) y mudar no tiene pantalla en la página. Ese plan no
+    debe heredar la trampa.
 - `pantalla.py` sigue en el repo porque `aventura.py` y `competir.py` arman con
   él sus textos; las fichas de texto que también dibujaba ya no las usa nadie.
 - Los campos `pantalla_msg_id` y `canal_id` de cada gachamon, y el parámetro
@@ -635,11 +663,29 @@ Son observaciones, no decisiones.
 - Los mensajes de reclutas ya publicados en Discord siguen diciendo que no
   tienen nombre, y sus botones ahora contestan el aviso: que la carta del
   alcalde le cuente a cada quien cómo se llama su recluta pesa más que antes.
+- **Por decidir (de producto, lo decide el dueño):**
+  - La mochila de la página deja gastar pociones de fuerza y de velocidad y
+    sopaipillas, que hoy no sirven en ningún sitio.
+  - Quien ya tiene plantel propio en la página no puede vincular, y su plantel
+    de Discord queda guardado sin dónde jugarlo.
+  - El aviso le explica cómo vincular también a quien ya vinculó.
+  - La descripción de las golosinas anuncia la aventura.
+  - Frases y textos en código en pausa que nombran comandos que ya no existen.
 
 ### Pruebas
 
 - Con los adaptadores de Discord se fueron sus pruebas; las reglas a las que
   sólo se llegaba por un menú se probaron de nuevo llamándolas directamente.
+- La prueba que vigila que no se fue ninguna tabla ni columna
+  (`tests/test_mudanza.py::test_no_se_fue_ninguna_tabla_ni_columna`) hay que
+  cambiarla a propósito si el plan de la vivienda quita la tabla del buzón.
+- Sigue sin haber prueba de que cuidar, viajar y competir se revierten enteras
+  cuando falla el libro. Es de antes; conviene cerrarla en el plan de la
+  vivienda, que toca dinero.
+- Al borrar, medir la cobertura **por ramas y en las dos puntas del plan
+  entero**, no por líneas ni sólo en la tarea que más borra. Así se escaparon el
+  modo sin dibujo de las fichas y la subida de nivel que hace crecer algo,
+  repuestas las dos.
 
 ## Para el plan 6 (tu casa)
 

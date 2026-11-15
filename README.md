@@ -21,7 +21,7 @@ nacer, sobre la base de la especie.
    con slash commands, así que *Message Content* puede quedar apagado.
 4. Pestaña **OAuth2 → URL Generator**:
    - Scopes: `bot`, `applications.commands`
-   - Permisos: *Send Messages*, *Embed Links*, *Read Message History*
+   - Permisos: *Send Messages*, *Read Message History*
    - Abre la URL que genera e invita el bot a tu servidor.
 
    No necesita *Gestionar mensajes*: edita y borra sólo sus propios mensajes
@@ -211,15 +211,17 @@ El bot ya no tiene el juego: tiene tres comandos, y sólo `/vincular` hace algo.
 | `/huevo` | Lo mismo: se quedó porque es lo que la gente escribe de memoria. |
 
 Además, quien menciona al bot en su canal, y quien pulsa un botón, un menú o un
-formulario de un mensaje viejo, recibe ese mismo aviso. En un servidor que no es
-el de la página el aviso dice que el juego está en pausa y que lo de cada quien
-sigue guardado.
+formulario de un mensaje viejo, recibe ese mismo aviso; también quien usa un
+comando que ya no existe. En un servidor que no es el de la página el aviso dice
+que el juego está en pausa y que lo de cada quien sigue guardado.
 
 El bot también mantiene una sola página de manual en el canal que le indiques
-con `CANAL_INFO_ID`: dice que el juego se mudó, dónde está y cómo vincular. Se
-edita en el sitio y nunca se republica, así que un arranque sin cambios no toca
-el canal; las otras páginas del manual de antes las borra. Un servidor sin ese
-canal se queda sin ella.
+con `CANAL_INFO_ID`: dice que el juego se mudó, dónde está, cómo vincular y en
+qué canal del juego de ese servidor se escribe `/vincular`. En un servidor que
+no es el de la página, la página es el aviso de la pausa. Se edita en el sitio y
+nunca se republica, así que un arranque sin cambios no toca el canal; las otras
+páginas del manual de antes las borra. Un servidor sin ese canal se queda sin
+ella.
 
 ## Reglas
 
@@ -259,14 +261,16 @@ sigue siendo tuya.
 des de comer. Una criatura típica tarda unas 73 h en vaciarla; la salud alarga
 ese margen (una Magora sana llega a ~86 h, un Pyro frágil baja a ~62 h). El
 ánimo y el aseo tampoco matan: el aseo bajo amarga el ánimo, y el ánimo bajo
-penaliza en las competencias. Los que murieron antes siguen guardados.
+penaliza en las competencias, que están [en pausa](#en-pausa). Los que murieron
+antes siguen guardados.
 
 **Crecer y evolucionar.** Cada nivel es una etapa, y **el dibujo cambia**:
 cría → niño → adolescente → adulto → adulto grande. La experiencia sale tanto
 de competir (+10 al ganar, +4 al perder) como de cuidar (+1 alimentar,
 +2 jugar, +3 entrenar) y de volver de una aventura (+4), para que quien
 no quiera pelear también vea crecer a su criatura. Competir sigue siendo lo más
-rentable por acción.
+rentable por acción. Hoy en la página sólo se gana cuidando: competir y las
+aventuras están [en pausa](#en-pausa).
 
 La curva está calibrada sobre unos 27 XP diarios, que es lo que saca alguien
 que atiende a su criatura un par de veces al día: **el primer salto cae en un
@@ -284,13 +288,15 @@ todo, cada moneda en lo suyo: los consumibles con monedas y los cosméticos con
 gemas, sin conversión entre las dos. Los cosméticos van a tu **ropero**. El
 monedero es **suyo, no de la criatura**: lo comprado es de la persona y sirve
 para cualquiera de sus gachamones. Hay pociones de fuerza y de velocidad de 1d4
-a 1d12 que duran cinco minutos, una que llena el hambre saltándose el empacho, y
+a 1d12 que duran cinco minutos y sirven para competir, que está
+[en pausa](#en-pausa); una que llena el hambre saltándose el empacho, y
 dos que borran un enfriamiento. Lo que todavía no se puede usar en la página (lo
 que sirve para competir, la semilla) no se vende a nadie.
 
 **Economía.** Un cuidado válido da +1 moneda (hasta 12 al día UTC), cada
 competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta
-tres competencias premiadas al día UTC), y evolucionar da +10 una vez al día
+tres competencias premiadas al día UTC; competir está [en pausa](#en-pausa)), y
+evolucionar da +10 una vez al día
 UTC. Los topes pertenecen a la persona y al servidor: cambiar de activo,
 reclutar o evolucionar no los reinicia. Agotar un tope no
 detiene el juego, la experiencia ni la evolución; sólo deja el premio en cero.

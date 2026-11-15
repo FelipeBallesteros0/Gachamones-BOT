@@ -63,9 +63,9 @@ Instala el hook local cuando prepares el entorno:
 
 ## Invariantes del dominio
 
-- El bot publica en su canal una sola página, `cogs/mudanza.pagina_del_manual()`: el juego se mudó y cómo vincular.
+- El bot publica en cada canal de información una sola página, `cogs/mudanza.pagina_del_manual()`: el juego se mudó, cómo vincular y en qué canal del juego de ese servidor se escribe `/vincular`. En un servidor que no es el de la página, la página es el aviso de la pausa.
 - Esa página se edita en el sitio y nunca se republica: un arranque sin cambios no toca el canal.
-- El juego de Discord está en pausa: el bot sólo atiende `/vincular` y contesta a todo lo demás que el juego se mudó a la página. Ninguna regla del juego se ejecuta desde Discord.
+- El juego de Discord está en pausa: el bot sólo atiende `/vincular` y contesta a todo lo demás —también a un comando que ya no existe— que el juego se mudó a la página. Ninguna regla del juego se ejecuta desde Discord.
 - Ningún mensaje que el bot publique puede pasar de los 2000 caracteres de Discord.
 - El avatar es de la persona, no de un gachamon: sobrevive a todo su plantel.
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
