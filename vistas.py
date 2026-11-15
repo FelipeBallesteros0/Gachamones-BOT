@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 from dataclasses import replace
 from typing import cast
 
@@ -605,7 +606,7 @@ class NombreModal(discord.ui.Modal, title="Ponle nombre"):
                 return
 
             criatura = db.avanzar(criatura, ahora)
-            criatura = replace(criatura, nombre=nombre)
+            criatura = replace(criatura, nombre=nombre, se_nombro_solo=False)
             db.guardar(criatura)
 
         # La revelación pierde el botón: ya está bautizada.
@@ -657,11 +658,73 @@ class NombrarView(discord.ui.View):
         await interaccion.response.send_modal(NombreModal(criatura.nombre))
 
 
+class BotonNombrarRecluta(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"tama:nombrar_recluta:(?P<criatura_id>[0-9]+)",
+):
+    """«Ponerle otro nombre» bajo el mensaje de un recluta que se acaba de unir.
+
+    Llega con un nombre que se puso él solo, y su dueño se lo puede cambiar una
+    vez. El botón lleva el id de **ese** recluta en el `custom_id`, así que le
+    cambia el nombre a él y no a otro que también se lo puso solo. Es un
+    elemento dinámico: sigue vivo tras un reinicio porque `bot.py` registra la
+    clase con `add_dynamic_items`, sin una vista por mensaje.
+
+    La plantilla exige el id: el `custom_id` viejo, `tama:nombrar_recluta` a
+    secas, sigue yendo a `NombrarReclutaView`.
+    """
+
+    def __init__(self, criatura_id: int) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Ponerle otro nombre", emoji="✏️",
+                style=discord.ButtonStyle.success,
+                custom_id=f"tama:nombrar_recluta:{criatura_id}",
+            )
+        )
+        self.criatura_id = criatura_id
+
+    @classmethod
+    async def from_custom_id(
+        cls, interaccion: discord.Interaction, item: discord.ui.Item,
+        casa: re.Match[str], /,
+    ) -> BotonNombrarRecluta:
+        return cls(int(casa["criatura_id"]))
+
+    async def callback(self, interaccion: discord.Interaction) -> None:
+        criatura = db.por_id(self.criatura_id)
+        if criatura is not None and (
+            criatura.usuario_id != str(interaccion.user.id)
+            or criatura.guild_id != str(interaccion.guild_id)
+        ):
+            await interaccion.response.send_message(
+                f"Ese gachamon es de <@{criatura.usuario_id}>.", ephemeral=True
+            )
+            return
+        if criatura is None or not criatura.viva or not criatura.se_nombro_solo:
+            await interaccion.response.send_message(
+                "Ese gachamon ya tiene nombre.", ephemeral=True
+            )
+            return
+        await interaccion.response.send_modal(
+            NombreModal(criatura.nombre, criatura.id)
+        )
+
+
+def vista_del_recluta(criatura_id: int) -> discord.ui.View:
+    """La que lleva el mensaje de un recluta que se acaba de unir: sin
+    caducidad, con el botón de ese recluta."""
+    vista = discord.ui.View(timeout=None)
+    vista.add_item(BotonNombrarRecluta(criatura_id))
+    return vista
+
+
 def el_que_se_nombro_solo(usuario_id: str, guild_id: str) -> sim.Criatura | None:
     """De sus vivos que se pusieron el nombre solos, el más antiguo.
 
-    Por id y no por el orden del plantel, que pone primero al activo: un
-    recluta que ya salió contigo sigue pudiendo cambiar de nombre.
+    Es a quien le cambia el nombre `NombrarReclutaView`, la de los botones ya
+    publicados. Por id y no por el orden del plantel, que pone primero al
+    activo: un recluta que ya salió contigo sigue pudiendo cambiar de nombre.
     """
     return min(
         (c for c in db.plantel(usuario_id, guild_id) if c.se_nombro_solo),
@@ -671,13 +734,12 @@ def el_que_se_nombro_solo(usuario_id: str, guild_id: str) -> sim.Criatura | None
 
 
 class NombrarReclutaView(discord.ui.View):
-    """Botón para cambiarle el nombre al gachamon que se acaba de unir.
+    """El botón de los mensajes de reclutas publicados antes de que cada uno
+    llevara el id de su recluta (`BotonNombrarRecluta`).
 
-    Llega con uno que se puso él solo, y su dueño se lo puede cambiar una vez.
-    Persistente como el del huevo: hay botones ya publicados que tienen que
-    seguir respondiendo tras un reinicio. Por eso busca al que se puso el
-    nombre solo en vez de llevar su identificador dentro: un `custom_id` con el
-    id de la criatura no puede ser persistente.
+    Ya no se pone en ningún mensaje nuevo: sigue registrada sólo para que esos
+    botones respondan. Como no sabe de qué recluta es su mensaje, le cambia el
+    nombre al más antiguo que se lo puso solo (`el_que_se_nombro_solo`).
     """
 
     def __init__(self):

@@ -528,7 +528,12 @@ def test_al_unirse_dice_como_se_llama_y_no_habla_de_la_incubadora(
         "Si prefieres otro nombre, pónselo ahora."
     ) in editado["content"]
     assert "incubadora" not in editado["content"]
-    assert isinstance(editado["view"], cog_av.vistas.NombrarReclutaView)
+    # El botón lleva el id de ESTE recluta: le cambia el nombre a él y no a
+    # otro que también se lo puso solo.
+    assert editado["view"].timeout is None
+    assert [b.custom_id for b in editado["view"].children] == [
+        f"tama:nombrar_recluta:{recluta.id}"
+    ]
 
 
 def contexto_salvaje(salvaje, dicho="hola"):

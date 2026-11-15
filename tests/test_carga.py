@@ -218,6 +218,41 @@ def test_el_boton_de_nombrar_tambien_es_persistente():
     assert vista.children[0].custom_id == "tama:nombrar"
 
 
+def test_el_bot_registra_el_boton_de_cada_recluta_y_la_vista_vieja(
+    bd_temporal, monkeypatch
+):
+    """Sin `add_dynamic_items`, el botón bajo un recluta dejaría de responder
+    tras un reinicio; sin la vista vieja, los botones ya publicados."""
+    from unittest.mock import AsyncMock
+
+    import config
+    import vistas
+
+    monkeypatch.setattr(config, "GUILDS", [])
+
+    async def arrancar():
+        cliente = modulo_bot.Tamagotchi()
+        # Los cogs ya los carga `_cargar_todo`; aquí sólo importa lo que se
+        # registra para los botones, y sin red.
+        monkeypatch.setattr(cliente, "load_extension", AsyncMock())
+        monkeypatch.setattr(cliente.tree, "sync", AsyncMock(return_value=[]))
+        registrados = []
+        original = cliente.add_dynamic_items
+
+        def registrar(*items):
+            registrados.extend(items)
+            original(*items)
+
+        monkeypatch.setattr(cliente, "add_dynamic_items", registrar)
+        await cliente.setup_hook()
+        return registrados, [type(v) for v in cliente.persistent_views]
+
+    registrados, persistentes = asyncio.run(arrancar())
+
+    assert registrados == [vistas.BotonNombrarRecluta]
+    assert vistas.NombrarReclutaView in persistentes
+
+
 def test_los_custom_id_no_chocan_entre_vistas():
     todos = [h.custom_id for h in PantallaView().children]
     todos += [h.custom_id for h in PantallaAnteriorView().children]

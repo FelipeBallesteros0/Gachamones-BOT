@@ -1216,12 +1216,116 @@ def test_el_recluta_sin_nombre_se_lista_sin_reventar_el_desplegable():
 
 # --- El recluta que se puso nombre él solo ----------------------------------
 
-def test_el_boton_del_recluta_abre_el_formulario_con_su_nombre(bd_temporal):
-    db.crear("u1", "g1", "pulpo", "Activa", STATS, T0)
-    recluta = nacer.unir_recluta(
-        "u1", "g1", especie="michi", stats=STATS, genero=esp.HEMBRA,
-        caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(4),
+def recluta_de(usuario="u1", semilla=4):
+    return nacer.unir_recluta(
+        usuario, "g1", especie="michi", stats=STATS, genero=esp.HEMBRA,
+        caracter=esp.CARACTER_POR_DEFECTO, ahora=T0, rng=random.Random(semilla),
     )
+
+
+def pulsar_el_boton_de(custom_id, interaccion):
+    """Lo que hace discord.py al pulsarlo: casar el `custom_id` con la
+    plantilla, construir el botón desde él y llamar a su `callback`."""
+    casa = vistas.BotonNombrarRecluta.__discord_ui_compiled_template__.fullmatch(custom_id)
+    assert casa is not None, custom_id
+    boton = asyncio.run(vistas.BotonNombrarRecluta.from_custom_id(interaccion, Mock(), casa))
+    asyncio.run(boton.callback(interaccion))
+
+
+def test_el_boton_de_cada_recluta_abre_el_formulario_de_ese_recluta(bd_temporal):
+    """El fallo de antes: bajo el mensaje de B, el formulario salía con el
+    nombre de A, el más antiguo, y lo que se escribía renombraba a A."""
+    db.crear("u1", "g1", "pulpo", "Activa", STATS, T0)
+    a, b = recluta_de(semilla=4), recluta_de(semilla=5)
+    assert a.se_nombro_solo and b.se_nombro_solo and a.nombre != b.nombre
+
+    abiertos = {}
+    for recluta in (b, a):
+        interaccion, respuesta, _ = interaccion_de()
+        respuesta.send_modal = AsyncMock()
+        pulsar_el_boton_de(f"tama:nombrar_recluta:{recluta.id}", interaccion)
+        abiertos[recluta.id] = respuesta.send_modal.await_args.args[0]
+
+    for recluta in (a, b):
+        modal = abiertos[recluta.id]
+        assert isinstance(modal, vistas.NombreModal)
+        assert (modal.criatura_id, modal.nombre.default) == (recluta.id, recluta.nombre)
+
+    interaccion, respuesta, _ = interaccion_de()
+    interaccion.user = SimpleNamespace(id="u1", mention="<@u1>")
+    asyncio.run(vistas.NombreModal.on_submit(
+        cast(Any, SimpleNamespace(nombre="Rayo", criatura_id=abiertos[b.id].criatura_id)),
+        cast(Any, interaccion),
+    ))
+
+    assert db.por_id(b.id).nombre == "Rayo" and not db.por_id(b.id).se_nombro_solo
+    assert db.por_id(a.id) == a
+    respuesta.edit_message.assert_awaited_once_with(view=None)
+
+
+@pytest.mark.parametrize("cual", ["renombrado", "muerto", "no_existe"])
+def test_el_boton_de_un_recluta_que_ya_no_puede_cambiar_de_nombre_lo_dice(
+    bd_temporal, cual
+):
+    db.crear("u1", "g1", "pulpo", "Activa", STATS, T0)
+    recluta = recluta_de()
+    criatura_id = recluta.id
+    if cual == "renombrado":
+        nacer.bautizar_a("u1", "g1", recluta.id, "Rayo", T0)
+    elif cual == "muerto":
+        db.guardar(replace(recluta, muerta_en=T0, causa_muerte="hambre"))
+    else:
+        criatura_id = 9999
+    antes = db.por_id(recluta.id)
+    interaccion, respuesta, _ = interaccion_de()
+    respuesta.send_modal = AsyncMock()
+
+    pulsar_el_boton_de(f"tama:nombrar_recluta:{criatura_id}", interaccion)
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Ese gachamon ya tiene nombre.", ephemeral=True
+    )
+    respuesta.send_modal.assert_not_awaited()
+    assert db.por_id(recluta.id) == antes
+
+
+def test_el_boton_del_recluta_de_otro_no_abre_nada(bd_temporal):
+    db.crear("u2", "g1", "pulpo", "Ajena", STATS, T0)
+    ajeno = recluta_de(usuario="u2")
+    interaccion, respuesta, _ = interaccion_de()      # pulsa u1
+    respuesta.send_modal = AsyncMock()
+
+    pulsar_el_boton_de(f"tama:nombrar_recluta:{ajeno.id}", interaccion)
+
+    respuesta.send_message.assert_awaited_once_with(
+        "Ese gachamon es de <@u2>.", ephemeral=True
+    )
+    respuesta.send_modal.assert_not_awaited()
+    assert db.por_id(ajeno.id) == ajeno
+
+
+def test_el_mensaje_del_recluta_lleva_un_boton_con_su_id():
+    vista = vistas.vista_del_recluta(42)
+    assert vista.timeout is None
+    assert [
+        (type(b), b.item.label, str(b.item.emoji), b.item.style, b.custom_id)
+        for b in vista.children
+    ] == [(
+        vistas.BotonNombrarRecluta, "Ponerle otro nombre", "✏️",
+        discord.ButtonStyle.success, "tama:nombrar_recluta:42",
+    )]
+    plantilla = vistas.BotonNombrarRecluta.__discord_ui_compiled_template__
+    # Los botones ya publicados siguen yendo a la vista vieja, no a éste.
+    assert plantilla.fullmatch("tama:nombrar_recluta") is None
+    assert plantilla.fullmatch("tama:nombrar_recluta:") is None
+    assert plantilla.fullmatch("tama:nombrar_recluta:42")
+
+
+def test_el_boton_ya_publicado_abre_el_formulario_del_mas_antiguo(bd_temporal):
+    """Los mensajes de antes de que el botón llevara el id siguen con la vista
+    vieja, que busca al más antiguo que se nombró solo."""
+    db.crear("u1", "g1", "pulpo", "Activa", STATS, T0)
+    recluta = recluta_de()
     vista = vistas.NombrarReclutaView()
     boton = vista.children[0]
     assert (boton.label, boton.custom_id) == ("Ponerle otro nombre", "tama:nombrar_recluta")

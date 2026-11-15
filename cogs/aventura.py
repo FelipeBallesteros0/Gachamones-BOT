@@ -499,7 +499,7 @@ class EncuentroView(discord.ui.View):
             interaccion,
             f"{reaccion}\n\n🧬 **¡Se une a tu equipo!** Dice que se llama "
             f"**{nuevo.nombre}**. Si prefieres otro nombre, pónselo ahora.",
-            vistas.NombrarReclutaView(),
+            vistas.vista_del_recluta(nuevo.id),
         )
         # Domador y Flautista son tuyos, y también «Uno entre veinticinco» si el
         # que se acaba de unir era raro. Los del gachamon que iba se revisan

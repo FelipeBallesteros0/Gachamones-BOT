@@ -18,6 +18,7 @@ import config
 import db
 import economia
 from vistas import (
+    BotonNombrarRecluta,
     NombrarReclutaView,
     NombrarView,
     PantallaAnteriorView,
@@ -61,7 +62,10 @@ class Tamagotchi(commands.Bot):
         self.add_view(PantallaView())
         self.add_view(PantallaAnteriorView())
         self.add_view(NombrarView())
+        # La vista vieja, sólo para los botones de reclutas ya publicados; los
+        # nuevos llevan su id y se reconocen por la plantilla del dinámico.
         self.add_view(NombrarReclutaView())
+        self.add_dynamic_items(BotonNombrarRecluta)
 
         self.tree.on_error = comun.manejar_error
 

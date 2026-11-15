@@ -757,7 +757,9 @@ def _una_sola_vez(con: sqlite3.Connection, clave: str, ahora: datetime) -> bool:
     ).rowcount == 1
 
 
-def _nombrar_a_los_que_lo_esperaban(con: sqlite3.Connection) -> None:
+def _nombrar_a_los_que_lo_esperaban(
+    con: sqlite3.Connection, rng: random.Random
+) -> None:
     """Le pone nombre a cada fila que no lo tiene, y lo marca como suyo.
 
     Un recluta llega ya con un nombre que se pone él solo; los que se unieron
@@ -767,11 +769,12 @@ def _nombrar_a_los_que_lo_esperaban(con: sqlite3.Connection) -> None:
     vivos de cada dueño: así cuentan también los que se acaban de poner.
 
     Va sin marca de una sola vez: cuando no queda ninguna fila sin nombre no
-    encuentra nada que hacer, y repetirlo no cambia nada.
+    encuentra nada que hacer, y repetirlo no cambia nada. El azar lo pone
+    quien llama, para que una prueba pueda fijarlo.
     """
-    rng = random.Random()
     for fila in con.execute(
-        "SELECT id, usuario_id, guild_id, especie FROM criaturas WHERE nombre = ''"
+        "SELECT id, usuario_id, guild_id, especie FROM criaturas "
+        "WHERE nombre = '' ORDER BY id"
     ).fetchall():
         evitar = [
             otra["nombre"] for otra in con.execute(
@@ -852,7 +855,7 @@ def _migrar(con: sqlite3.Connection, ahora: datetime) -> None:
             (per.tirar_caracter(rng), criatura_id),
         )
 
-    _nombrar_a_los_que_lo_esperaban(con)
+    _nombrar_a_los_que_lo_esperaban(con, rng)
 
     # La espera de aventura dejó de ser del gachamon y pasó a ser de quien juega.
     # Las que estén corriendo se mudan en vez de tirarse: si no, todo el que

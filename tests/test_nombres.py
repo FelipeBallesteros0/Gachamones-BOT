@@ -151,6 +151,25 @@ class Bandeja:
         )
 
 
+def test_el_modal_del_huevo_deja_el_nombre_como_tuyo(tmp_path, monkeypatch):
+    """El formulario sin `criatura_id` (el del botón del huevo) renombra al
+    activo; si ése se había puesto el nombre solo, ya no lo tiene."""
+    ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
+    monkeypatch.setattr(db, "ahora_utc", lambda: ahora)
+    db.inicializar()
+    activa = db.crear(
+        "u1", "g1", "pulpo", "Miga", (15, 15, 15, 15), ahora, se_nombro_solo=True
+    )
+    monkeypatch.setattr(vistas, "publicar_pantalla", AsyncMock())
+    modal = SimpleNamespace(nombre="Rayo", criatura_id=None)
+
+    asyncio.run(vistas.NombreModal.on_submit(modal, Bandeja().interaccion()))
+
+    guardada = db.por_id(activa.id)
+    assert guardada.nombre == "Rayo" and guardada.se_nombro_solo is False
+
+
 def test_bautizar_al_recluta_no_le_toca_el_nombre_al_activo(tmp_path, monkeypatch):
     """De aquí saldría el fallo: el modal buscaba «la activa», y el recluta
     no lo es."""
@@ -253,11 +272,13 @@ def test_el_modal_del_recluta_no_acepta_el_nombre_de_su_especie(
     )]
 
 
-def test_el_boton_del_recluta_busca_al_mas_antiguo_que_se_nombro_solo(
+def test_el_boton_ya_publicado_busca_al_mas_antiguo_que_se_nombro_solo(
     tmp_path, monkeypatch
 ):
-    """El que tiene el nombre que le puso su dueño no cuenta; de los que se
-    lo pusieron solos, el más antiguo, aunque el otro sea el activo."""
+    """Es lo que hace la vista vieja, la de los botones publicados antes de
+    que cada uno llevara el id de su recluta. El que tiene el nombre que le
+    puso su dueño no cuenta; de los que se lo pusieron solos, el más antiguo,
+    aunque el otro sea el activo."""
     ahora = datetime(2026, 1, 1, tzinfo=timezone.utc)
     monkeypatch.setattr(db, "RUTA", tmp_path / "prueba.db")
     db.inicializar()

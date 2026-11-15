@@ -1,4 +1,5 @@
 """Persistencia: ida y vuelta, el plantel con su incubadora y la base sin relojes de muerte."""
+import random
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -1075,6 +1076,31 @@ def test_al_arrancar_el_nombre_no_es_el_de_otro_vivo_ni_el_de_su_especie(monkeyp
     db.inicializar()
 
     assert {db.por_id(uno.id).nombre, db.por_id(otro.id).nombre} == {"Miga", "Trufa"}
+
+
+def test_el_paso_de_los_nombres_con_un_azar_fijo_evita_lo_que_tiene_que_evitar(
+    monkeypatch,
+):
+    """Con la semilla 2 y esta lista, lo bien hecho da «Miga» y «Trufa», y
+    cualquier regresión da otra cosa siempre, no a veces: sin evitar al otro
+    vivo salen «Nube» y «Nube»; sin evitar la especie, «Purreon» y «Miga»; sin
+    contar el que se acaba de poner, «Miga» dos veces; y si evitara también el
+    de la muerta, el primero sería «Trufa»."""
+    monkeypatch.setattr(nombres, "NOMBRES", ("Nube", "Purreon", "Miga", "Trufa"))
+    db.guardar(muerta_de_antes(nacer(nombre="Miga")))
+    nacer(nombre="Nube")
+    uno = db.crear(U, G, "michi", "Uno", STATS, T0, activa=False)
+    otro = db.crear(U, G, "michi", "Otro", STATS, T0, activa=False)
+
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(
+            "UPDATE criaturas SET nombre = '' WHERE id IN (?, ?)", (uno.id, otro.id)
+        )
+        db._nombrar_a_los_que_lo_esperaban(con, random.Random(2))
+
+    assert [db.por_id(uno.id).nombre, db.por_id(otro.id).nombre] == ["Miga", "Trufa"]
+    assert db.por_id(uno.id).se_nombro_solo and db.por_id(otro.id).se_nombro_solo
 
 
 def test_el_unico_vivo_sin_nombre_recibe_nombre_y_pasa_a_ser_el_activo():
