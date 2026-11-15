@@ -561,27 +561,6 @@ def test_el_hogar_le_marca_el_ritmo_tambien_a_la_que_no_es_la_activa():
     assert otra.limpieza < bajo_techo.limpieza
 
 
-def test_avanzar_mira_el_hogar_de_quien_sea_la_criatura():
-    """De punta a punta: nadie pasa el ritmo a mano, sale de la base."""
-    from dataclasses import replace
-
-    nacer()
-    bicho = db.criatura_activa("u1", "g1")
-    fin = db.hogar_de("u1", "g1", T0).refugio_hasta
-
-    dentro = db.avanzar(bicho, T0 + timedelta(hours=1))
-    # El mismo, con el reloj puesto justo cuando se le acaba el refugio: una
-    # hora dentro contra una hora fuera, que es lo comparable. Medido sobre
-    # varios días, el ánimo toca fondo en cero y la media miente.
-    fuera = db.avanzar(
-        replace(bicho, actualizada_en=fin), fin + timedelta(hours=1)
-    )
-
-    assert (100.0 - fuera.animo) == pytest.approx(
-        (100.0 - dentro.animo) * cas.PENALIZACION_INTEMPERIE
-    )
-
-
 def test_mirar_la_ficha_de_otro_no_le_estrena_el_refugio():
     """`avanzar` es de sólo lectura: coger el cerrojo de escritura en cada ficha
     sería caro, y estrenarle la estancia a otro por mirarle el gachamon, injusto."""

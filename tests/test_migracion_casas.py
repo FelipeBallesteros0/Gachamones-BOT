@@ -376,27 +376,3 @@ def test_vender_una_casa_no_arranca_lo_plantado_en_las_otras():
     assert {(f["casa_id"], f["bancal"]) for f in quedan} == {
         (segunda, 1), (segunda, 2)
     }
-
-
-def test_al_avanzar_el_tiempo_manda_la_casa_del_gachamon():
-    """La tubería entera, no sólo `ritmo_de`: **la misma criatura** pierde menos
-    ánimo en un día viviendo en la casa grande que en el refugio.
-
-    Se compara consigo misma y no con otra para que lo único distinto entre
-    las dos medidas sea la casa.
-    """
-    casa = con_casa("grande")
-    bicho = db.crear("u1", "g1", "pulpo", "Kuro", STATS, T0)
-    assert bicho.casa_id == casa, "nace dentro, que es lo que hace `crear`"
-
-    un_dia = T0 + timedelta(days=1)
-    en_casa = db.avanzar(bicho, un_dia).animo
-
-    economia.mudar_gachamon("u1", "g1", bicho.id, None, T0)
-    with db.conectar() as con:
-        al_refugio = db.criatura_en(con, bicho.id)
-    en_refugio = db.avanzar(al_refugio, un_dia).animo
-
-    assert en_casa > en_refugio, (
-        "la comodidad de su casa tiene que frenarle el ánimo"
-    )

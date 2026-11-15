@@ -25,6 +25,7 @@ import avatar as av
 import casas as cas
 import config
 import cosmeticos as cos
+import departamento as dep
 import especies as esp
 import huerto as hue
 import identidad
@@ -399,6 +400,27 @@ CREATE TABLE IF NOT EXISTS mobiliario (
     PRIMARY KEY (usuario_id, guild_id, mueble)
 );
 
+-- El departamento de cada persona: una cuadrícula de `ancho × fondo` casillas
+-- (`departamento.py`). Uno por persona y servidor, y lo impone la clave
+-- primaria; los `CHECK` son los lados que admite, de 3 a 8. Nace la primera vez
+-- que se mira, como `dep.DE_PARTIDA`.
+CREATE TABLE IF NOT EXISTS departamentos (
+    usuario_id TEXT NOT NULL, guild_id TEXT NOT NULL,
+    ancho INTEGER NOT NULL DEFAULT 3 CHECK (ancho BETWEEN 3 AND 8),
+    fondo INTEGER NOT NULL DEFAULT 3 CHECK (fondo BETWEEN 3 AND 8),
+    creado_en TEXT NOT NULL,
+    PRIMARY KEY (usuario_id, guild_id));
+
+-- Sus muebles, uno por fila. A diferencia de `mobiliario` se pueden tener
+-- varios iguales, y por eso cada uno tiene su `id`: es lo que se pone o se
+-- guarda. Dónde está lo dicen `x` e `y`, y el esquema no admite media posición.
+CREATE TABLE IF NOT EXISTS muebles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id TEXT NOT NULL, guild_id TEXT NOT NULL, mueble TEXT NOT NULL,
+    x INTEGER, y INTEGER,                         -- las dos vacías: guardado
+    giro INTEGER NOT NULL DEFAULT 0 CHECK (giro BETWEEN 0 AND 3),
+    CHECK ((x IS NULL) = (y IS NULL)));
+
 -- El avatar de quien juega en la web: nombre, género, piel, pelo y ropa. Es de
 -- la persona (identidad + servidor), no de un gachamon.
 CREATE TABLE IF NOT EXISTS avatares (
@@ -442,6 +464,9 @@ CREATE INDEX IF NOT EXISTS idx_uso_ia
 
 CREATE INDEX IF NOT EXISTS idx_cupo
     ON operaciones_economia(usuario_id, guild_id, fecha_utc, tipo);
+
+CREATE INDEX IF NOT EXISTS idx_muebles
+    ON muebles(usuario_id, guild_id);
 """
 
 DDL_MONEDEROS = """
@@ -2321,13 +2346,10 @@ def _avanzar_en(
     Hace falta la pareja porque abrir una segunda conexión dentro de un
     `BEGIN IMMEDIATE` ajeno se quedaría esperando a sí misma.
     """
-    hogar = _hogar_leido(con, criatura.usuario_id, criatura.guild_id, ahora)
-    # El ritmo sale de **su** casa y no de las de su dueño: con varias, dos
-    # gachamones de la misma persona pueden vivir en sitios distintos, y quien
-    # no cabe en ninguna está en el refugio aunque el dueño tenga tres.
-    return sim.avanzar(
-        criatura, ahora, cas.ritmo_de(hogar, ahora, criatura.casa_id)
-    )
+    # El ritmo sale del departamento de su dueño, el mismo para todos sus
+    # gachamones. Se lee sin escribir: hacer pasar el tiempo no lo estrena.
+    depto = _departamento_leido(con, criatura.usuario_id, criatura.guild_id)
+    return sim.avanzar(criatura, ahora, dep.ritmo_de(depto))
 
 
 def vender_la_casa_en(
@@ -2463,6 +2485,145 @@ def mudar_criatura_en(
     con.execute(
         "UPDATE criaturas SET casa_id = ? WHERE id = ?", (casa_id, criatura_id)
     )
+
+
+# --- El departamento -------------------------------------------------------
+#
+# Nace la primera vez que se mira, como el hogar. Mirarlo sin escribir da el de
+# partida, que es justo el que nacería.
+
+# La columna de cada eje. Va escrita aquí y no sale del argumento: es un nombre
+# de columna dentro del SQL.
+_LADOS = {dep.ANCHO: "ancho", dep.FONDO: "fondo"}
+
+
+def departamento_de(
+    usuario_id: str, guild_id: str, ahora: datetime
+) -> dep.Departamento:
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        return _departamento_en(con, usuario_id, guild_id, ahora)
+
+
+def _departamento_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
+) -> dep.Departamento:
+    """El departamento, **creándolo** como `dep.DE_PARTIDA` si es la primera
+    vez que se mira: la fila y sus dos camas, una puesta y otra guardada.
+
+    El `INSERT OR IGNORE` es lo que decide si nace: si dos peticiones llegan a
+    la vez, sólo la que consigue la fila pone las camas.
+    """
+    nace = con.execute(
+        "INSERT OR IGNORE INTO departamentos "
+        "(usuario_id, guild_id, ancho, fondo, creado_en) VALUES (?, ?, ?, ?, ?)",
+        (usuario_id, guild_id, dep.DE_PARTIDA.ancho, dep.DE_PARTIDA.fondo,
+         ahora.isoformat()),
+    ).rowcount
+    if nace:
+        for pieza in dep.DE_PARTIDA.piezas:
+            anadir_mueble_en(
+                con, usuario_id, guild_id, pieza.clave, pieza.x, pieza.y,
+                pieza.giro,
+            )
+    return _departamento_leido(con, usuario_id, guild_id)
+
+
+def departamento_leido(usuario_id: str, guild_id: str) -> dep.Departamento:
+    """El departamento de alguien sin tocarle nada."""
+    with conectar() as con:
+        return _departamento_leido(con, usuario_id, guild_id)
+
+
+def _departamento_leido(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str
+) -> dep.Departamento:
+    """El departamento **sin escribir nada**, con las piezas por orden de id.
+
+    Sin fila todavía, el de partida. Así hacer pasar el tiempo o mirar una
+    ficha no coge el cerrojo de escritura ni le estrena el departamento a nadie.
+    """
+    fila = con.execute(
+        "SELECT ancho, fondo FROM departamentos "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    ).fetchone()
+    if fila is None:
+        return dep.DE_PARTIDA
+    piezas = tuple(
+        dep.Pieza(f["id"], f["mueble"], f["x"], f["y"], f["giro"])
+        for f in con.execute(
+            "SELECT id, mueble, x, y, giro FROM muebles "
+            "WHERE usuario_id = ? AND guild_id = ? ORDER BY id",
+            (usuario_id, guild_id),
+        )
+    )
+    return dep.Departamento(fila["ancho"], fila["fondo"], piezas)
+
+
+def anadir_mueble_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, clave: str,
+    x: int | None = None, y: int | None = None, giro: int = 0,
+) -> int:
+    """Le da un mueble más, guardado si no se dice dónde, y devuelve su id."""
+    cursor = con.execute(
+        "INSERT INTO muebles (usuario_id, guild_id, mueble, x, y, giro) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (usuario_id, guild_id, clave, x, y, giro),
+    )
+    return int(cursor.lastrowid or 0)
+
+
+def poner_mueble_en(
+    con: sqlite3.Connection, mueble_id: int, x: int, y: int, giro: int
+) -> None:
+    """Lo pone en (x, y) con ese giro. Si cabe ahí lo decide quien llama."""
+    con.execute(
+        "UPDATE muebles SET x = ?, y = ?, giro = ? WHERE id = ?",
+        (x, y, giro, mueble_id),
+    )
+
+
+def guardar_mueble_en(con: sqlite3.Connection, mueble_id: int) -> None:
+    """Lo guarda: sin sitio y sin giro, como llega uno recién comprado."""
+    con.execute(
+        "UPDATE muebles SET x = NULL, y = NULL, giro = 0 WHERE id = ?",
+        (mueble_id,),
+    )
+
+
+def ampliar_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, eje: str
+) -> None:
+    """Le suma una columna (`dep.ANCHO`) o una fila (`dep.FONDO`).
+
+    Lo puesto no se mueve: la casilla nueva queda al final de ese eje. Pasar de
+    8 lo impide el `CHECK` del esquema; cuándo se puede lo decide quien llama.
+    """
+    lado = _LADOS[eje]
+    con.execute(
+        f"UPDATE departamentos SET {lado} = {lado} + 1 "
+        "WHERE usuario_id = ? AND guild_id = ?",
+        (usuario_id, guild_id),
+    )
+
+
+def asentar_el_plantel_en(
+    con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
+) -> list[sim.Criatura]:
+    """Pone al día **y guarda** hasta `ahora` a cada gachamon vivo de esa persona.
+
+    Va antes de cambiar lo que fija su ritmo —poner o guardar un mueble,
+    ampliar—, en la misma transacción: `sim.avanzar` aplica el ritmo a todo el
+    tiempo sin guardar, y sin esto el ritmo nuevo valdría también hacia atrás.
+    """
+    asentados = [
+        _avanzar_en(con, criatura, ahora)
+        for criatura in plantel_en(con, usuario_id, guild_id)
+    ]
+    for criatura in asentados:
+        _guardar(con, criatura)
+    return asentados
 
 
 # --- El mobiliario ---------------------------------------------------------
