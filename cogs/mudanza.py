@@ -12,6 +12,7 @@ No ejecuta ninguna regla del juego: sólo escribe en la base al canjear un códi
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 import discord
 from discord import app_commands
@@ -48,9 +49,17 @@ def aviso_para(guild_id: int | None) -> str:
     return AVISO if guild_id == config.GUILD_WEB else AVISO_SIN_PAGINA
 
 
-def pagina_del_manual() -> str:
+def pagina_del_manual(canales_del_juego: Sequence[int] = ()) -> str:
     """Lo único que queda en el canal de info: adónde se fue el juego y cómo
-    llevarse los gachamones."""
+    llevarse los gachamones.
+
+    `/vincular` sólo se acepta en los canales del juego, que no tienen por qué
+    ser el de info: por eso la página los nombra en vez de mandar a escribirlo
+    «aquí».
+    """
+    donde = ""
+    if canales_del_juego:
+        donde = " en " + " o ".join(f"<#{canal}>" for canal in canales_del_juego)
     return f"""\
 ## 🏠 Gachamon se mudó a la página
 Desde ahora se juega en **{config.URL_DE_LA_PAGINA}**.
@@ -58,12 +67,29 @@ Desde ahora se juega en **{config.URL_DE_LA_PAGINA}**.
 **Cómo llevar tus gachamones**
 1. Entra a la página con tu cuenta de Rowino.
 2. Elige **«Ya jugaba en Discord»** y pide tu código.
-3. Escribe aquí `/vincular` y pega el código.
+3. Escribe `/vincular`{donde} y pega el código.
 
 -# Tus gachamones, monedas, gemas, objetos y medallas siguen guardados: los \
 verás en la página en cuanto vincules.
 -# Competir, las aventuras, reclutar y conversar están en pausa. Volverán en \
 la página."""
+
+
+def _pagina_para(canal) -> str:
+    """La página que le toca a ese canal de info, según su servidor.
+
+    En el de la página, la de la mudanza con los canales del juego de ese mismo
+    servidor —los de otro no se ven desde aquí—, en el orden de `config.CANALES`.
+    En los demás no hay página adonde ir ni `/vincular` que sirva: sólo que el
+    juego está en pausa.
+    """
+    servidor = canal.guild
+    if servidor.id != config.GUILD_WEB:
+        return AVISO_SIN_PAGINA
+    return pagina_del_manual(tuple(
+        canal_id for canal_id in config.CANALES
+        if servidor.get_channel(canal_id) is not None
+    ))
 
 
 async def _mensaje_publicado(canal, canal_id: str, indice: int):
@@ -141,7 +167,7 @@ class Mudanza(commands.Cog):
                 )
                 continue
             try:
-                await publicar_la_pagina(canal, pagina_del_manual())
+                await publicar_la_pagina(canal, _pagina_para(canal))
             except discord.Forbidden:
                 log.warning(
                     "Sin permiso para mantener el manual en #%s. Le hace falta "
@@ -187,7 +213,13 @@ class Mudanza(commands.Cog):
         """Quien menciona al bot en su canal recibe el aviso de la mudanza."""
         if not self._va_conmigo(mensaje):
             return
-        await mensaje.reply(aviso_para(mensaje.guild.id), mention_author=False)
+        try:
+            await mensaje.reply(aviso_para(mensaje.guild.id), mention_author=False)
+        except discord.HTTPException:
+            # Sin permiso para escribir en ese canal, por ejemplo. Como con los
+            # botones: no hay a quién avisar y no puede tumbar nada.
+            log.warning("No se pudo contestar la mención con el aviso de la "
+                        "mudanza", exc_info=True)
 
     def _va_conmigo(self, mensaje: discord.Message) -> bool:
         if mensaje.author.bot or mensaje.guild is None:

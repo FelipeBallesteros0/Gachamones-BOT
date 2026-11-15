@@ -67,10 +67,11 @@ GUILDS = _lista_enteros("GUILD_ID")
 # de GUILDS; sin ninguno, 0.
 GUILD_WEB = _entero("GUILD_WEB") or (GUILDS[0] if GUILDS else 0)
 
-# Canales donde el bot mantiene el manual, separados por comas. Ahí publica las
-# páginas de `paginas_de_ayuda()` y las **edita en el sitio** en cada arranque,
-# así que no pueden quedarse desfasadas: el texto sale de las mismas constantes
-# que el juego.
+# Canales donde el bot mantiene el manual, separados por comas. Con el juego de
+# Discord en pausa, el manual es una sola página (`cogs/mudanza.py`): que el
+# juego se mudó a la página y en qué canal se escribe `/vincular`, o, en un
+# servidor que no es el de la página, que ahí el juego está en pausa. La
+# **edita en el sitio** en cada arranque y borra las páginas del manual de antes.
 #
 # Es opcional, y sin él no se publica nada: en local no hay canal, y un servidor
 # sin canal de info sigue funcionando igual. Admite varios porque cada servidor

@@ -95,25 +95,39 @@ class MensajeFalso:
         self.canal = canal
         self.id = id_
         self.content = contenido
+        self.fallo = None   # lo que levanta `delete()`, si algo
 
     async def edit(self, content):
         self.canal.editados.append((self.id, content))
         self.content = content
 
     async def delete(self):
+        if self.fallo is not None:
+            raise self.fallo
         self.canal.borrados.append(self.id)
         del self.canal.mensajes[self.id]
 
 
 class CanalFalso:
-    """Un canal de Discord de mentira, que apunta todo lo que le hacen."""
+    """Un canal de Discord de mentira, que apunta todo lo que le hacen.
+
+    Vive en un servidor (`guild`), que por defecto es el de la página y sólo
+    conoce los canales de `canales_del_servidor`.
+    """
 
     # Compartido entre canales, como los ids de Discord.
     _siguiente = 1000
 
-    def __init__(self, id_=CANAL_DE_INFO, fallo=None):
+    def __init__(self, id_=CANAL_DE_INFO, fallo=None, guild_id=None,
+                 canales_del_servidor=()):
         self.id = id_
         self.name = "gachamon-info"
+        self.guild = SimpleNamespace(
+            id=config.GUILD_WEB if guild_id is None else guild_id,
+            get_channel=lambda cid: (
+                SimpleNamespace(id=cid) if cid in canales_del_servidor else None
+            ),
+        )
         self.fallo = fallo
         self.mensajes: dict[int, MensajeFalso] = {}
         self.consultados: list[int] = []
@@ -152,6 +166,13 @@ def con_el_manual_de_ocho_paginas(canal):
     return ids
 
 
+def cog_con_info(monkeypatch, *canales):
+    """El cog con esos canales de información configurados y a la vista."""
+    monkeypatch.setattr(config, "CANALES_INFO", tuple(c.id for c in canales))
+    visibles = {c.id: c for c in canales}
+    return mudanza.Mudanza(SimpleNamespace(user=YO, get_channel=visibles.get))
+
+
 # --- Lo que queda del bot ---------------------------------------------------
 
 def test_el_bot_solo_carga_la_mudanza():
@@ -163,7 +184,7 @@ def test_quedan_tres_comandos(cog):
 
 
 def test_el_aviso_dice_donde_y_como():
-    for texto in (mudanza.AVISO, mudanza.pagina_del_manual()):
+    for texto in (mudanza.AVISO, mudanza.pagina_del_manual((CANAL_DE_JUEGO,))):
         assert config.URL_DE_LA_PAGINA in texto and "`/vincular`" in texto
         assert "«Ya jugaba en Discord»" in texto and len(texto) < 2000
     assert config.URL_DE_LA_PAGINA not in mudanza.AVISO_SIN_PAGINA
@@ -278,7 +299,35 @@ def test_fuera_de_su_canal_o_sin_mencion_o_un_bot_no_contesta(cog, monkeypatch, 
     mensaje.reply.assert_not_awaited()
 
 
+def test_si_no_puede_contestar_una_mencion_no_revienta(cog, monkeypatch, caplog):
+    """Sin permiso para escribir en ese canal, por ejemplo: queda en el
+    registro y ya, como con los botones."""
+    monkeypatch.setattr(config, "CANALES", (CANAL_DE_JUEGO,))
+    mensaje = mensaje_falso()
+    mensaje.reply.side_effect = discord.HTTPException(_RespuestaFalsa(), "sin permiso")
+
+    with caplog.at_level("WARNING"):
+        correr(cog.on_message(mensaje))   # no lanza
+
+    assert any(r.name == "cogs.mudanza" for r in caplog.records)
+
+
 # --- El manual, en una sola página ------------------------------------------
+
+def test_la_pagina_nombra_el_canal_del_juego():
+    """`/vincular` sólo se acepta en los canales del juego, así que la página
+    dice cuáles son en vez de mandar a escribirlo «aquí»."""
+    uno = mudanza.pagina_del_manual((111,))
+    dos = mudanza.pagina_del_manual((111, 222))
+    ninguno = mudanza.pagina_del_manual(())
+
+    assert "3. Escribe `/vincular` en <#111> y pega el código." in uno
+    assert "3. Escribe `/vincular` en <#111> o <#222> y pega el código." in dos
+    assert "3. Escribe `/vincular` y pega el código." in ninguno
+    for pagina in (uno, dos, ninguno):
+        assert "Escribe aquí" not in pagina
+        assert config.URL_DE_LA_PAGINA in pagina
+        assert "«Ya jugaba en Discord»" in pagina and len(pagina) < 2000
 
 def test_el_manual_queda_en_una_sola_pagina():
     canal = CanalFalso()
@@ -333,17 +382,66 @@ def test_un_canal_sin_manual_publica_la_pagina():
 def test_al_arrancar_deja_la_pagina_y_al_reconectar_no_la_repasa(monkeypatch):
     """`on_ready` se dispara también al reconectar; el texto sólo cambia al
     desplegar, que reinicia, así que basta con repasar el canal una vez."""
-    canal = CanalFalso()
+    monkeypatch.setattr(config, "CANALES", (CANAL_DE_JUEGO,))
+    canal = CanalFalso(canales_del_servidor=(CANAL_DE_JUEGO,))
     con_el_manual_de_ocho_paginas(canal)
-    monkeypatch.setattr(config, "CANALES_INFO", (canal.id,))
-    cog = mudanza.Mudanza(SimpleNamespace(user=YO, get_channel={canal.id: canal}.get))
+    cog = cog_con_info(monkeypatch, canal)
 
     correr(cog.on_ready())
-    assert [m.content for m in canal.mensajes.values()] == [mudanza.pagina_del_manual()]
+    assert [m.content for m in canal.mensajes.values()] == [
+        mudanza.pagina_del_manual((CANAL_DE_JUEGO,))
+    ]
 
     canal.consultados.clear()
     correr(cog.on_ready())
     assert canal.consultados == []
+
+
+def test_el_manual_nombra_solo_los_canales_del_juego_de_ese_servidor(monkeypatch):
+    """Un canal del juego de otro servidor no se ve desde éste: nombrarlo
+    dejaría un enlace que no lleva a ninguna parte."""
+    monkeypatch.setattr(config, "CANALES", [111, 999])
+    canal = CanalFalso(canales_del_servidor=(111,))
+    cog = cog_con_info(monkeypatch, canal)
+
+    correr(cog.on_ready())
+
+    (pagina,) = canal.publicados
+    assert pagina == mudanza.pagina_del_manual((111,))
+    assert "<#111>" in pagina and "<#999>" not in pagina
+
+
+def test_los_canales_del_juego_van_en_el_orden_de_la_configuracion(monkeypatch):
+    monkeypatch.setattr(config, "CANALES", [222, 999, 111])
+    canal = CanalFalso(canales_del_servidor=(111, 222))
+    cog = cog_con_info(monkeypatch, canal)
+
+    correr(cog.on_ready())
+
+    assert canal.publicados == [mudanza.pagina_del_manual((222, 111))]
+
+
+def test_en_un_servidor_sin_pagina_el_manual_dice_que_esta_en_pausa(monkeypatch):
+    """La página es de un solo servidor: en los demás, el manual no puede
+    mandar a nadie a ella ni a `/vincular`, que allí no canjea nada."""
+    monkeypatch.setattr(config, "CANALES", (CANAL_DE_JUEGO, CANAL_DE_JUEGO + 1))
+    del_pueblo = CanalFalso(CANAL_DE_INFO, canales_del_servidor=(CANAL_DE_JUEGO,))
+    de_otro = CanalFalso(
+        CANAL_DE_INFO + 1, guild_id=config.GUILD_WEB + 1,
+        canales_del_servidor=(CANAL_DE_JUEGO + 1,),
+    )
+    con_el_manual_de_ocho_paginas(del_pueblo)
+    viejas = con_el_manual_de_ocho_paginas(de_otro)
+    cog = cog_con_info(monkeypatch, del_pueblo, de_otro)
+
+    correr(cog.on_ready())
+
+    assert [m.content for m in de_otro.mensajes.values()] == [mudanza.AVISO_SIN_PAGINA]
+    assert sorted(de_otro.borrados) == viejas[1:]
+    assert db.publicaciones_de(str(de_otro.id)) == {0: str(viejas[0])}
+    assert [m.content for m in del_pueblo.mensajes.values()] == [
+        mudanza.pagina_del_manual((CANAL_DE_JUEGO,))
+    ]
 
 
 @pytest.mark.parametrize("fallo", [
@@ -352,8 +450,7 @@ def test_al_arrancar_deja_la_pagina_y_al_reconectar_no_la_repasa(monkeypatch):
 ])
 def test_un_fallo_de_discord_con_el_manual_avisa_y_se_reintenta(fallo, monkeypatch, caplog):
     canal = CanalFalso(fallo=fallo)
-    monkeypatch.setattr(config, "CANALES_INFO", (canal.id,))
-    cog = mudanza.Mudanza(SimpleNamespace(user=YO, get_channel={canal.id: canal}.get))
+    cog = cog_con_info(monkeypatch, canal)
 
     with caplog.at_level("WARNING"):
         correr(cog.on_ready())   # no lanza
@@ -364,3 +461,25 @@ def test_un_fallo_de_discord_con_el_manual_avisa_y_se_reintenta(fallo, monkeypat
     canal.fallo = None
     correr(cog.on_ready())       # al reconectar
     assert canal.publicados == [mudanza.pagina_del_manual()]
+
+
+def test_un_borrado_que_falla_se_reintenta_al_reconectar(monkeypatch, caplog):
+    """Las páginas viejas se olvidan de una en una según se borran, así que el
+    reintento sigue donde se quedó y no vuelve a tocar las que ya no están."""
+    canal = CanalFalso()
+    ids = con_el_manual_de_ocho_paginas(canal)
+    canal.mensajes[ids[3]].fallo = discord.HTTPException(_RespuestaFalsa(), "la nube")
+    cog = cog_con_info(monkeypatch, canal)
+
+    with caplog.at_level("WARNING"):
+        correr(cog.on_ready())   # no lanza
+
+    assert any(r.name == "cogs.mudanza" for r in caplog.records)
+    assert set(db.publicaciones_de(str(canal.id))) == {0, 3, 4, 5, 6, 7}
+
+    canal.mensajes[ids[3]].fallo = None
+    canal.borrados.clear()
+    correr(cog.on_ready())       # al reconectar: el canal no quedó «al día»
+
+    assert sorted(canal.borrados) == ids[3:]
+    assert db.publicaciones_de(str(canal.id)) == {0: str(ids[0])}
