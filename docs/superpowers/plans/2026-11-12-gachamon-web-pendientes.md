@@ -553,6 +553,94 @@ Son observaciones, no decisiones.
   (`nacer.nombre_de_recluta`) y en el paso de arranque que nombra a los que
   estaban sin nombre.
 
+## Salió al ejecutar el rework 3 (el bot en pausa)
+
+### Lo decidido
+
+- El juego de Discord queda en pausa: el bot sólo atiende `/vincular`, que es
+  la forma de que quien jugaba en Discord lleve sus gachamones a la página. Lo
+  decidió el dueño para facilitar la migración: en Discord jugaban dos personas,
+  y mantener dos juegos con reglas distintas era buena parte del trabajo que
+  venía y el mayor riesgo del día del cambio.
+- Todo lo demás contesta, en privado, que el juego se mudó a la página, con el
+  enlace y cómo vincular: los botones, menús y formularios de los mensajes
+  viejos, mencionar al bot en su canal, y `/mascota` y `/huevo`, que se quedan
+  como avisos porque son los que la gente escribe de memoria. Los otros quince
+  comandos desaparecen de Discord.
+- En un servidor que no es el de la página, el aviso dice que el juego está en
+  pausa en ese servidor y que lo de cada quien sigue guardado.
+- El manual del canal queda en una sola página: el juego se mudó, dónde está y
+  cómo vincular, nombrando el canal del juego de ese servidor (que es donde se
+  acepta `/vincular`). En un canal de información de un servidor sin página, la
+  página única es el aviso de la pausa.
+- El código del juego de Discord salió de la rama: los comandos, las fichas de
+  texto, los menús de la tienda, del taller, de las casas y del huerto, el
+  cambio de plantel por menú, y el jardín. Sigue en producción hasta el día de
+  publicar, y en el historial después.
+- Se fueron también «Entrenar juntos» (en la página lo reemplaza «entrenar con
+  todos»), el seguimiento de los mensajes del bot (la ficha publicada de cada
+  gachamon y el estilo de ficha) y el jardín (`/jardin`), que era un dibujo de
+  texto en un mensaje.
+- No se perdió ningún dato: no se borró ninguna tabla ni columna. Las que
+  quedaron sin uso (el estilo de ficha, el mensaje de la ficha y su canal, la
+  conversación, el uso de la IA, el buzón) siguen ahí.
+- La página ya no manda a Discord: lo que todavía no se puede usar en ella (lo
+  de competir, la semilla) no se le vende a nadie, tenga o no Discord
+  vinculado, y los avisos de los lugares que abren más adelante dicen sólo eso.
+- Ninguna regla del juego se ejecuta ya desde Discord: el bot sólo escribe al
+  canjear un código de vinculación y al mantener su página del manual.
+
+### Al publicar
+
+- El bot nuevo, al arrancar, sincroniza sus comandos: en Discord desaparecen
+  quince y quedan tres (`/vincular`, `/mascota`, `/huevo`).
+- En cada canal de información edita la primera página del manual y **borra
+  las otras siete**. Si le falta permiso o el canal no está, deja un aviso en el
+  registro y sigue; lo reintenta al reconectar. Un segundo arranque no toca el
+  canal.
+- Los botones de todos los mensajes viejos siguen en Discord; al pulsarlos
+  contestan el aviso.
+- La unidad `tamagotchi.service` y los guiones de despliegue no cambian: el bot
+  sigue siendo el mismo servicio, y sigue haciendo falta su token y su canal.
+- La variable nueva `URL_GACHAMON` es opcional: sin ella, el aviso apunta a la
+  dirección pública de la página.
+
+### Si hubiera que volver atrás
+
+- Al arrancar, el bot de antes vuelve a registrar sus comandos y a publicar su
+  manual: la primera página la edita en su sitio y las otras siete las publica
+  de nuevo, al final del canal, porque sus mensajes ya no existen.
+
+### Pendiente
+
+- **Reglas que se quedaron sin pantalla**, esperando la suya en la página:
+  las aventuras y reclutar (`aventura.py`, `economia.ejecutar_viaje`,
+  `otorgar_hallazgo`), competir (`competir.py`, `economia.ejecutar_competencia`),
+  conversar (`ia.py`, `economia.aprender_hablando`, la conversación y el uso de
+  la IA en `db.py`), el ranking y el cementerio (`db.ranking`, `db.cementerio`).
+  Hasta entonces no se puede hacer nada de eso en ningún sitio. Si conviene
+  adelantar las aventuras y reclutar en la página está por decidir.
+- **Reglas que cambia o cierra el plan de la vivienda:** las casas, mudar,
+  amueblar, el huerto y cocinar (ya sin menú que las alcance), y el buzón, cuyos
+  regalos pendientes ese plan entrega solos el día del cambio.
+- `pantalla.py` sigue en el repo porque `aventura.py` y `competir.py` arman con
+  él sus textos; las fichas de texto que también dibujaba ya no las usa nadie.
+- Los campos `pantalla_msg_id` y `canal_id` de cada gachamon, y el parámetro
+  `canal_id` al nacer y al reclutar, quedaron sin uso: quitarlos toca la
+  función que escribe cada fila, y se dejó para más adelante.
+- El tope de 25 gachamones existía por los menús de Discord; se va con el plan
+  de la vivienda, que lo cambia por las camas.
+- Las claves de la IA siguen en la configuración, sin uso mientras conversar
+  esté en pausa.
+- Los mensajes de reclutas ya publicados en Discord siguen diciendo que no
+  tienen nombre, y sus botones ahora contestan el aviso: que la carta del
+  alcalde le cuente a cada quien cómo se llama su recluta pesa más que antes.
+
+### Pruebas
+
+- Con los adaptadores de Discord se fueron sus pruebas; las reglas a las que
+  sólo se llegaba por un menú se probaron de nuevo llamándolas directamente.
+
 ## Para el plan 6 (tu casa)
 
 > El rediseño del 2026-11-14 cambió el rumbo: lo que sigue se replantea en docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md.

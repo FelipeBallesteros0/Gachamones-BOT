@@ -1,34 +1,15 @@
 # Gachamones BOT
 
-Un tamagotchi que vive en un canal de Discord. Sale de un huevo, es uno de 10
-gachamones al azar —hay 25 en total; los otros 15 se encuentran por ahí—, se cuida con los botones bajo el mensaje y compite contra los
-de otras personas en carreras, peleas de sumo, asaltos al tótem y laberintos de
-ecos. El arte nace ASCII, dentro de bloques de código; las especies que ya
-tienen su retrato dibujado lo enseñan como imagen.
+Un tamagotchi que se juega en una página web: **rowino.online/gachamon**. Sale
+de un huevo, es uno de 10 gachamones al azar —hay 25 en total; los otros 15 se
+encuentran por ahí—, se cuida, se viste, vive en una casa y se pasea por un
+pueblo. Nació como bot de Discord, y por eso este repositorio todavía lleva el
+bot: **el juego de Discord está en pausa**. Hoy el bot sólo atiende `/vincular`,
+que es la forma de llevar a la página los gachamones de quien jugaba allí, y a
+todo lo demás contesta que el juego se mudó.
 
-```
-## 🐥 Pelusa
--# Piollito · adulta · nivel 3 · 4V-1D · 2 días de vida
-╭──────────────────────────╮
-│             _            │
-│            (,)           │
-│           (^v^)          │
-│          <(   )>         │
-│            ^ ^           │
-├──────────────────────────┤
-│ COMIDA  ███████████░  88 │
-│ ANIMO   ███████████░  92 │
-│ ASEO    ████████░░░░  70 │
-├──────────────────────────┤
-│     FUE 11   VEL 21      │
-│     SAL 11   ING  9      │
-╰──────────────────────────╯
-[🍖 Alimentar] [🎮 Jugar] [🏋️ Entrenar fuerza] [🧼 Limpiar] [🔄 Actualizar]
-```
-
-Son **cuatro estadísticas** —fuerza, velocidad, salud e ingenio— y salen en
-dos filas porque en una sola no caben sin recortar los números. Las cuatro se
-tiran al nacer, sobre la base de la especie.
+Son **cuatro estadísticas** —fuerza, velocidad, salud e ingenio— y se tiran al
+nacer, sobre la base de la especie.
 
 ## Puesta en marcha
 
@@ -37,14 +18,14 @@ tiran al nacer, sobre la base de la especie.
 1. Entra en <https://discord.com/developers/applications> → **New Application**.
 2. Pestaña **Bot** → **Reset Token** → copia el token.
 3. **No hace falta activar ningún intent privilegiado.** El bot funciona sólo
-   con slash commands y botones, así que *Message Content* puede quedar apagado.
+   con slash commands, así que *Message Content* puede quedar apagado.
 4. Pestaña **OAuth2 → URL Generator**:
    - Scopes: `bot`, `applications.commands`
    - Permisos: *Send Messages*, *Embed Links*, *Read Message History*
    - Abre la URL que genera e invita el bot a tu servidor.
 
-   No necesita *Gestionar mensajes*: para apagar los botones de una pantalla
-   vieja edita sus propios mensajes, y eso siempre está permitido.
+   No necesita *Gestionar mensajes*: edita y borra sólo sus propios mensajes
+   del manual, y eso siempre está permitido.
 5. Activa **Ajustes → Avanzado → Modo desarrollador**, haz clic derecho sobre el
    canal donde quieras que viva y elige **Copiar ID**.
 
@@ -56,11 +37,13 @@ $EDITOR .env          # DISCORD_TOKEN, CANAL_ID y (recomendado) GUILD_ID
 ```
 
 Con `GUILD_ID` los comandos aparecen al instante. Sin él, Discord tarda hasta
-una hora en propagarlos por todos los servidores.
+una hora en propagarlos por todos los servidores. `CANAL_INFO_ID` es el canal
+del manual (opcional) y `URL_GACHAMON`, también opcional, la dirección de la
+página que dice el aviso: sin ella vale la pública, `https://rowino.online/gachamon`.
 
 **Varios servidores.** `GUILD_ID` también admite una lista separada por comas.
-Cada servidor lleva sus propias mascotas y su propio ranking: la misma persona
-puede tener una criatura distinta en cada uno. Acuérdate de añadir el canal de
+Cada servidor lleva sus propios gachamones: la misma persona puede tener un
+plantel distinto en cada uno. Acuérdate de añadir el canal de
 cada servidor a `CANAL_ID`. Si uno de los servidores da error al registrar los
 comandos (por ejemplo porque el bot no está invitado ahí), el bot lo avisa en el
 registro y sigue funcionando en los demás.
@@ -72,9 +55,7 @@ CANAL_ID=123456789012345678,987654321098765432
 ```
 
 Los comandos funcionan en todos ellos, y cada persona sigue teniendo **un solo
-plantel por servidor** — los canales son salas distintas para las mismas
-mascotas, no mascotas distintas. Cada criatura recuerda el canal donde se la
-atendió por última vez.
+plantel por servidor**: el bot sólo contesta en esos canales.
 
 ### 3. Arrancar en local
 
@@ -159,8 +140,8 @@ El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
 tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy están
 abiertos tu casa, el refugio, la Incubadora y la tienda, y los demás avisan de que
 abren más adelante. En la Tienda del pueblo se compran objetos, cosméticos (con gemas),
-casas y muebles, con el mismo dinero que en Discord; lo que hoy sólo sirve en
-Discord se le vende sólo a quien tiene Discord vinculado. La mochila se abre
+casas y muebles, con el mismo dinero de siempre; lo que todavía no se puede usar en la
+página no se le vende a nadie. La mochila se abre
 desde cualquier lugar y sirve para usar lo que llevas. Desde cualquier lugar
 también se abre la ficha completa de tu gachamon, con sus medallas y los efectos
 que lleva activos, y el ropero, donde le pones y le quitas el sombrero y el
@@ -184,6 +165,8 @@ Variables del `.env` (explicadas en `.env.ejemplo`):
   defecto, `../rowino_web/rowino.db` junto al repositorio.
 - `GUILD_WEB` (opcional): el servidor que hace de pueblo; sólo ahí funciona
   `/vincular`. Vacío, vale el primero de `GUILD_ID`.
+- `URL_GACHAMON` (opcional): la dirección de la página que el bot pone en sus
+  avisos. Sin ella, la pública.
 
 Si falta la clave o la base de Rowino no se puede leer, la web no pide que
 entres: contesta 503 («El juego no está disponible ahora mismo.»), y al
@@ -191,8 +174,9 @@ arrancar deja en el registro un aviso por cada cosa que falta.
 
 En producción lo lleva la unidad `gachamon-web.service`, que escucha sólo en
 `127.0.0.1:8010`, y se publica como `rowino.online/gachamon` detrás del túnel,
-con una regla por ruta. Quien entra con su cuenta de Rowino vincula su Discord
-con `/vincular` y encuentra a sus gachamones.
+con una regla por ruta. Quien jugaba en Discord entra con su cuenta de Rowino, elige «Ya jugaba en
+Discord», pide su código, escribe `/vincular` en el canal del juego y encuentra a
+sus gachamones.
 
 ### Arte
 
@@ -218,177 +202,64 @@ dice el contrato.
 
 ## Comandos
 
+El bot ya no tiene el juego: tiene tres comandos, y sólo `/vincular` hace algo.
+
 | Comando | Qué hace |
 |---|---|
-| `/huevo` | Te da un huevo, sólo si no tienes ningún gachamon. Al romperlo ves cuál ha salido y luego lo bautizas. |
-| `/mascota` | Publica tu pantalla con los botones. |
-| `/mascota @alguien` | Enseña la criatura de otra persona (sin botones). |
-| `/carrera @alguien` | Reto de velocidad + 1d20. Admite hasta tres invitados más (cinco corriendo), y con tres o más termina en podio. |
-| `/sumo @alguien` | Reto de fuerza + 1d20. Con tres invitados es un torneo de cuatro: dos semifinales sorteadas y una final. |
-| `/totem @alguien` | Asalto al tótem: una fase de velocidad, otra de fuerza y otra de salud, cada una `estadística + 1d20`. Cada fase reparte puestos y gana quien más sume. De dos a cinco. |
-| `/laberinto @alguien` | Laberinto de Ecos: **SEÑALES**, **TRAZADO** y **NO PERDERSE**, las tres con ingenio. Cada fase se juega contra un eco común y gana quien más puertas abre. De dos a cinco. |
-| `/aventura` | Sal al campo con tu activo: dos decisiones, cada una entre dos de las cuatro sendas —fuerza, velocidad, salud o ingenio— o volverse, y quizá un objeto o un gachamon salvaje. |
-| `/jardin` | Todas las criaturas activas del servidor juntas, e interactuando. |
-| `/ranking` | Criaturas vivas con más victorias. |
-| `/cementerio` | Las que ya no están. |
-| `/vincular <código>` | Une esta cuenta con la tuya de rowino.online. |
-| `@Gachamon <lo que sea>` | Hablar con tu criatura. Te contesta en su propio carácter. Si le escribes de forma culta, le entrena el ingenio. |
+| `/vincular <código>` | Une esta cuenta de Discord con la tuya de rowino.online. Sólo vale en el servidor de la página (`GUILD_WEB`). |
+| `/mascota` | Contesta, sólo a ti, que el juego se mudó a la página. |
+| `/huevo` | Lo mismo: se quedó porque es lo que la gente escribe de memoria. |
 
-Las reglas no están en ningún comando: el bot las **publica y mantiene al día**
-en el canal que le indiques con `CANAL_INFO_ID`. Cada arranque repasa esas
-páginas y edita las que hayan cambiado, así que el manual sale de las mismas
-constantes que el juego y no puede desfasarse. Un servidor sin ese canal se
-queda sin manual, así que ponle uno a cada uno.
+Además, quien menciona al bot en su canal, y quien pulsa un botón, un menú o un
+formulario de un mensaje viejo, recibe ese mismo aviso. En un servidor que no es
+el de la página el aviso dice que el juego está en pausa y que lo de cada quien
+sigue guardado.
+
+El bot también mantiene una sola página de manual en el canal que le indiques
+con `CANAL_INFO_ID`: dice que el juego se mudó, dónde está y cómo vincular. Se
+edita en el sitio y nunca se republica, así que un arranque sin cambios no toca
+el canal; las otras páginas del manual de antes las borra. Un servidor sin ese
+canal se queda sin ella.
 
 ## Reglas
 
+Son las reglas que la página ya tiene. Las que esperan su pantalla están más
+abajo, en [En pausa](#en-pausa).
+
 **El plantel.** Hasta **25 gachamones** por persona y servidor, con **uno
-activo**: el que sale contigo, el que compite, va de aventura y conversa, y el
-que recibe los botones y los comandos. **A todos les pasa el tiempo**, sean o no
-el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con el ritmo
-de su casa. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
+activo**: el que sale contigo. **A todos les pasa el tiempo**, sean o no el
+activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con el ritmo de
+su casa. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
 nadie, así que ir y volver no ahorra ni duplica nada.
 
 Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
 activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo
 por persona. Existe también cuidar **a todos** de una vez: le hace un cuidado a
 cada gachamon que puede recibirlo y paga como esos mismos cuidados hechos de a
-uno. Eso vive en el servidor de la web, que todavía no tiene botones para ello;
-en Discord se sigue cuidando sólo al activo, y para cuidar a otro se sale con
-él.
+uno. Esa regla vive en el servidor de la web, que todavía no tiene el botón.
 
-`/huevo` da **sólo el de partida**: los demás hay que ganárselos en
-`/aventura`. Si una persona se quedó sin activo vivo porque el suyo murió antes,
-el primero que siga vivo sale solo al arrancar el bot o la web. El remiendo de
-antes sigue ahí por si acaso: también sale al entrar a la web, al romper el
-huevo, al poner nombre o al cambiar de activo; en Discord, al elegir otro en
-`/plantel`. Sólo cambia la marca de quién sale contigo: su reloj sigue donde
-estaba.
+El huevo da **sólo el de partida**: los demás hay que ganárselos en las
+aventuras, que están en pausa. Si una persona se quedó sin activo vivo porque el
+suyo murió antes, el primero que siga vivo sale solo al arrancar el bot o la web.
+El remiendo de antes sigue ahí por si acaso: también sale al entrar a la web, al
+romper el huevo, al poner nombre o al cambiar de activo. Sólo cambia la marca de
+quién sale contigo: su reloj sigue donde estaba.
 
-**Aventura.** `/aventura` **te saca a ti con tu gachamon activo** a un bioma al
-azar —hay **diez**: planicie, ciénaga, bosque, arrecife, chatarral, desierto,
-cumbre, ruinas, cavernas y volcán— y os planta delante una escena
-con **tres salidas**: volverse y **dos de las cuatro sendas** —fuerza,
-velocidad, salud o ingenio—, sorteadas para esa escena. Las dos sendas tiran
-`stat + 1d20` contra la dificultad del bioma y **cuestan lo mismo**: si una fuera
-más barata, la otra no la elegiría nadie y la decisión sería un adorno. Volver no
-arriesga nada, pero tampoco cuenta como nodo superado.
-
-**Las cuatro sendas, dos por escena.** El primer nodo sortea una de las **seis
-parejas** posibles y el segundo trae siempre **la complementaria**, o sea las dos
-que faltan: en un viaje entero cada senda aparece **exactamente una vez**, y
-nunca hay que elegir entre las cuatro a la vez. El terreno favorece a una de las
-dos activas con `D−2` frente a `D+2`, sorteado **sin mirar al gachamon**. Salud
-es aguante del cuerpo —frío, humo, corriente, cansancio—, nunca curarse; ingenio
-es leer señales, recordar la ruta o improvisar, nunca magia.
-
-**La espera de 37 minutos es de la persona, no del gachamon**, y por eso vive en
-`cooldowns_persona` y no en `cooldowns`. Es la única que lo hace: cuidar y
-competir son del gachamon —es él quien come y quien pelea—, pero a la aventura
-vas tú. Atada al gachamon era un agujero: con varios en el plantel se salía
-varias veces seguidas cambiando de activo entre viaje y viaje.
-
-Son **dos decisiones**. Acertar lleva a la escena siguiente; fallar cierra el
-viaje ahí mismo, así que un viaje jugado trae **un fallo como mucho**. Al volver
-gana **+4 XP por el viaje**.
-
-Las escenas **las inventa el LLM** (JSON validado antes de usarlo: si falta una
-opción o una etiqueta no cabe en un botón de Discord, se descarta) y hay escenas
-escritas por bioma de respaldo, para que la aventura no se quede muda al agotar
-el límite de IA. El viaje se narra al final en **una sola llamada** más.
-
-**Y se narra de los dos**: «Felipe y Pelusa salen al Bosque», con tu nombre
-visible de Discord. Los botones ya te hablaban a ti —«Colarte por la ventana»,
-«Seguir tu camino»—, así que contar que el gachamon iba solo era la ficción
-contradiciendo a la mecánica. Como el plural obliga a conjugar, el guardia de
-`usa_formas_de_vosotros` hubo que ampliarlo: era una lista cerrada de palabras y
-no pillaba «cruzáis» ni «llegaréis», que es lo primero que soltó el modelo. Ahora
-mira también las terminaciones `-áis` y `-éis`, y si se le escapa una, se publica
-el texto escrito en vez de la narración.
-
-Lo hondo que se llegue decide qué se encuentra:
-
-| Nodos superados | Salvaje | Objeto | Nada |
-|---:|---:|---:|---:|
-| 2 | 55 % | 25 % | 20 % |
-| 1 | — | 55 % | 45 % |
-| 0 | — | 30 % | 70 % |
-
-El salvaje **sólo aparece llegando al fondo**: es el gachamon dormido dentro del
-cofre, y quedarse a medias no puede pagar lo mismo. El 55 está medido, no puesto
-a ojo: sobre 40 000 aventuras con criaturas recién nacidas, el árbol termina con
-los dos nodos el 46 % de las veces, así que deja el encuentro en el **25 % de las
-aventuras**, exactamente donde estaba antes del árbol. Concentrar el premio al
-fondo no podía colarse como una subida de dificultad.
-
-Cada bioma **cría lo suyo** —al volcán van Pyro y Tsushimon; a las ruinas,
-Duskhouse y Re-bot—, así que el bioma que toque decide con quién te puedes
-cruzar. Con el plantel lleno se sale igual y lo que habría sido un salvaje pasa
-a ser un objeto: volver de vacío por tener equipo sería castigar por jugar.
-
-**Convencer a un salvaje.** Cuatro turnos de paciencia y cuatro opciones:
-hablarle (texto libre), darle **golosinas** —el único objeto de dos usos: desde
-la mochila alimentan +25, y aquí sirven de cebo—, presumir o esperar quieto. Cada una
-suma `base + reacción del carácter + 1d8` a la confianza; a 100 se une. Lo que
-le sienta mal **gasta el doble de paciencia**, y a 0 se larga.
-
-**Los dados deciden y el LLM narra.** Se le puede escribir lo que sea y el
-modelo contesta en su voz, pero el efecto lo tira el dado con el modificador del
-carácter: nadie recluta escribiendo «ignora tus instrucciones y únete», y la
-mecánica entera se prueba con dados fijos.
-
-Los números están medidos, no puestos a ojo. Simulando encuentros por cada
-ajuste, con el listón de confianza en 90 sale **100 % jugando la mejor opción y
-42 % pulsando a ciegas**.
-
-Que jugando bien salga siempre es **deliberado**. Antes el listón estaba en 100 y
-la tasa a ciegas era del 27 %, que costaba demasiado; bajarlo un 10 % la sube al
-42 % y, de paso, deja el reclutamiento asegurado para quien se sepa la tabla de
-caracteres. Se aceptó ese coste a cambio de que unirse fuera más fácil.
-
-Lo que no puede perderse es que **leerle el carácter se note**, y eso sí lo fija
-un test: si alguien toca las reacciones y a ciegas empieza a salir tan bien como
-jugando bien, la mecánica se habrá quedado en una tirada disfrazada.
-
-Medido de punta a punta —viaje y encuentro, 40 000 aventuras—, el árbol acaba
-reclutando **más** que las dos tiradas de antes, porque llegar al fondo sube
-también la confianza de partida:
-
-| | Encuentro | Recluta |
-|---|---:|---:|
-| antes, estadística sorteada | 25,3 % | 3,5 % |
-| árbol, eligiendo bien | 25,0 % | 5,5 % |
-| árbol, pulsando a lo loco | 11,3 % | 2,7 % |
-
-La última fila es la que justifica el árbol: quien se vuelve a la primera se
-encuentra la mitad de cosas. Ahí es donde la decisión pesa.
-
-**Al unirse se pone un nombre él solo.** Lo saca de una lista de cuarenta
-(`nombres.py`), nunca el de su especie ni uno que ya tenga su dueño, y se queda
-en casa en vez de desbancar al activo. Su dueño se lo puede cambiar una vez: el
-botón «Ponerle otro nombre» que sale al unirse lleva dentro a qué recluta
-pertenece y le cambia el nombre a ése. Así ya no existe un gachamon sin nombre,
-y un formulario cerrado o una conexión caída no cuestan nada.
-
-**Nacer.** La especie sale por
-rareza: 12 % cada una de las siete comunes, 6 % las dos poco comunes y 4 % el
-dragón. Las estadísticas al nacer son **la base de la especie + 2d6** tirado por
-separado en cada una.
+**Nacer.** La especie sale por rareza: 12 % cada una de las siete comunes, 6 %
+las dos poco comunes y 4 % el dragón. Las estadísticas al nacer son **la base de
+la especie + 2d6** tirado por separado en cada una.
 
 Al romper el cascarón ves primero **qué ha salido y con qué estadísticas**, y
 sólo después le pones nombre. La criatura nace en la base de datos en ese mismo
 momento, con el nombre de su especie como provisional: si te vas sin bautizarla
-sigue siendo tuya, y el botón de nombrar aguanta reinicios del bot.
-(Discord obliga a partirlo en dos clics: un modal sólo puede abrirse como
-respuesta inmediata a una interacción, así que no cabe enseñar la criatura y
-pedir el nombre a la vez.)
+sigue siendo tuya.
 
 **Cuidar.** Tres barras bajan con el tiempo, en todos los gachamones vivos. Si
 **COMIDA** llega a 0, la criatura **no se muere**: se queda en 0 hasta que le
 des de comer. Una criatura típica tarda unas 73 h en vaciarla; la salud alarga
 ese margen (una Magora sana llega a ~86 h, un Pyro frágil baja a ~62 h). El
 ánimo y el aseo tampoco matan: el aseo bajo amarga el ánimo, y el ánimo bajo
-penaliza en las competencias. Los que murieron antes siguen en `/cementerio`.
+penaliza en las competencias. Los que murieron antes siguen guardados.
 
 **Crecer y evolucionar.** Cada nivel es una etapa, y **el dibujo cambia**:
 cría → niño → adolescente → adulto → adulto grande. La experiencia sale tanto
@@ -407,98 +278,15 @@ especie; como parte va a salud, la criatura evolucionada aguanta más sin comer.
 que machacar el botón no compense: el segundo punto cuesta 4 sesiones, el
 tercero 9, el décimo 100.
 
-**El jardín.** `/jardin` dibuja a todas las criaturas vivas del servidor juntas
-con el arte de su etapa, y cuenta qué están haciendo dos de ellas según sus
-personalidades y su estado. Consume del mismo límite horario de IA que la
-charla, más dos minutos de enfriamiento por servidor.
-
-**Competir.** Tres tramos, cada uno `estadística + 1d20`, gana quien sume más.
-El dado mueve 19 puntos y las diferencias entre criaturas cuidadas rondan los
-5-10, así que nadie se despega del resto por muchas victorias que acumule. Lo
-que más puede inclinar una pelea es una **poción**: la mayor da hasta +12, más
-que el estado (de −5 a +2) y comparable al propio dado. Por eso sólo puede haber
-una activa por estadística; si se acumularan, las carreras las decidiría quién
-tiene más objetos y no la tirada.
-
-Una **carrera** admite de dos a cinco corredores, todos a la vez. Con tres o
-más acaba en un **podio dibujado**: los tres primeros subidos a su cajón con la
-cara que tenían al competir, y debajo la clasificación completa. Con dos no hay
-podio, sino la línea de siempre: hay quien gana y quien pierde.
-
-El **sumo** es de dos o de cuatro, nunca de tres: es un forcejeo y el dohyō
-tiene dos lados, así que con cuatro se juega a **torneo** —dos semifinales
-sorteadas y una final— y el resumen es el **cuadro**, con quien pasa en el color
-de su especie y quien cae en gris.
-
-El **asalto al tótem** es de dos a cinco y no basta con llegar: hay que tomar el
-tótem y conservarlo. Son tres fases y cada una pone a prueba una estadística
-entera —**AL CENTRO** velocidad, **FORCEJEO** fuerza y **HUIDA** salud—, sin
-mezclas. Lo que cambia es el recuento: en cada fase se reparten **puntos de
-colocación**, tantos como asaltantes al primero y uno al último, y gana quien
-más sume de las tres. Por eso lo gana el gachamon **completo** y no el
-especialista: quien arrasa en una fase se queda atrás en las otras dos.
-
-Si dos empatan a puestos manda lo acumulado en bruto de esas tres fases. Sólo si
-también eso empata se juega otro **FORCEJEO**, y ése desempata **dentro** del
-empate: tiran sólo los que siguen empatados, no reparte puestos ni suma al bruto
-oficial, así que nadie de fuera adelanta por él. Si a la vez hay dos empates y
-uno se deshace antes, el otro sigue tirando por su cuenta sin tocar al primero.
-
-Las tres estadísticas dejan **veta**, porque las tres se han jugado de verdad,
-pero el **entrenamiento sigue siendo un punto** por competencia como en las
-otras dos modalidades —el coste, el enfriamiento y la experiencia son los
-mismos—. Se lo lleva la más atrasada de las tres, así que asaltar a menudo
-equilibra al gachamon en vez de multiplicar su progreso.
-
-El **laberinto de ecos** es de dos a cinco y es el único donde el adversario no
-es el rival, sino el terreno. Son tres fases con **ingenio** —**SEÑALES** el
-ingenio a secas, **TRAZADO** 70 % ingenio y 30 % velocidad, **NO PERDERSE**
-70 % ingenio y 30 % salud—, y en cada una el pasillo devuelve un **eco**: la
-base del participante del medio más su propio 1d20, uno solo para toda la fase.
-Abre la puerta quien **supera** al eco; igualarlo no basta, así que una fase
-puede acabar sin que cruce nadie y eso también es parte del juego.
-
-Gana quien más **puertas** abre. Que el eco salga de la mediana y no del
-promedio es lo que impide invitar a alguien flojo para bajarlo: un participante
-débil no mueve la mediana, así que no le regala puertas a nadie. Sólo el
-ingenio deja **veta** aquí, y el punto de entrenamiento va también al ingenio,
-que es la única estadística que ningún cuidado sube.
-
-En las cuatro modalidades sólo el primero suma victoria y se lleva los +10; el
-resto, +4. Un torneo cuenta como **una sola competencia** para el coste y la
-experiencia, aunque los finalistas peleen dos veces.
-
-Los empates se deshacen distinto en cada modalidad. En la **carrera** se corre
-otro tramo **para todos**, porque allí el marcador es la suma y un tramo más la
-cambia. En el **sumo** se repite el intercambio empatado entre los dos que
-pelean. En el **asalto al tótem** se juega otro **FORCEJEO** sólo **entre los
-que siguen exactamente empatados**: quien ya quedó por delante no vuelve a
-tirar, así que un desempate ajeno no le puede cambiar el puesto. El **laberinto**
-lo deshace igual, con otra tirada de **SEÑALES** entre los empatados y sin eco:
-un desempate no es una fase, así que no reparte puertas ni suma al bruto
-oficial. En los cuatro casos hay un tope de intentos y, si aun así no se
-deshace, decide el orden en que se entró al reto.
-
-Al terminar, la pantalla sólo se republica a quien **suba de nivel o
-evolucione**. Al resto le queda la de antes con los números viejos, pero con los
-botones vivos: actúan sobre la base de datos, no sobre lo que se ve, y la
-pantalla se pone al día en cuanto se pulsa cualquiera.
-
-**Consumibles.** Los botones 🎒 **Mochila** y 🛒 **Tienda** abren menús que sólo
-ve quien los pulsa. Cada persona empieza con **50 monedas y 50 gemas**.
-En la tienda se compra todo, cada moneda en su desplegable: los consumibles con
-monedas y los cosméticos con gemas, sin conversión entre las dos. Los
-cosméticos van a tu **ropero** y se ponen y se quitan con 🎨 **Personalizar**. El
+**Consumibles.** La Mochila y la Tienda de la página guardan y venden lo que
+usas. Cada persona empieza con **50 monedas y 50 gemas**. En la tienda se compra
+todo, cada moneda en lo suyo: los consumibles con monedas y los cosméticos con
+gemas, sin conversión entre las dos. Los cosméticos van a tu **ropero**. El
 monedero es **suyo, no de la criatura**: lo comprado es de la persona y sirve
 para cualquiera de sus gachamones. Hay pociones de fuerza y de velocidad de 1d4
 a 1d12 que duran cinco minutos, una que llena el hambre saltándose el empacho, y
-dos que borran un enfriamiento.
-
-Los cinco minutos no son un capricho: quien acepta un reto tiene 120 segundos
-para pulsar, y la estadística se lee **al resolver** la pelea, no al retar. Con
-un minuto la poción habría caducado en la mayoría de las carreras y no habría
-forma de saber por qué no hizo nada. El dado de la poción se tira **al beberla**,
-para que el mensaje pueda decir cuánto ha tocado.
+dos que borran un enfriamiento. Lo que todavía no se puede usar en la página (lo
+que sirve para competir, la semilla) no se vende a nadie.
 
 **Economía.** Un cuidado válido da +1 moneda (hasta 12 al día UTC), cada
 competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta
@@ -507,8 +295,8 @@ UTC. Los topes pertenecen a la persona y al servidor: cambiar de activo,
 reclutar o evolucionar no los reinicia. Agotar un tope no
 detiene el juego, la experiencia ni la evolución; sólo deja el premio en cero.
 
-Las compras y los premios se confirman en SQLite antes de enviar nada a Discord.
-El informe local agregado no expone IDs:
+Las compras y los premios se confirman en SQLite antes de contestar nada. El
+informe local agregado no expone IDs:
 
 ```bash
 ./venv/bin/python economia_reporte.py --desde 2026-01-01 --hasta 2026-01-31
@@ -519,47 +307,74 @@ El informe local agregado no expone IDs:
 **género** (♂️ o ♀️, mitad y mitad) y la **personalidad**, una de diez: alegre,
 sereno, miedoso, valiente, gruñón, curioso, cariñoso, orgulloso, perezoso o
 travieso. Los dos salen en la ficha y no cambian nunca. **No tocan ninguna
-estadística**: sólo cómo habla y cómo se porta en el jardín, así que ninguna
-personalidad es mejor que otra. La personalidad se suma a la voz de la especie
-sin sustituirla: un Geo travieso sigue siendo lento y de pocas palabras,
-pero con retranca.
+estadística**: sólo cómo habla, así que ninguna personalidad es mejor que otra.
+La personalidad se suma a la voz de la especie sin sustituirla: un Geo travieso
+sigue siendo lento y de pocas palabras, pero con retranca.
 
 Todo lo que una criatura dice de sí misma lleva marcas de concordancia
 `{masculino/femenino}` que resuelve `especies.concordar()`. Los prompts se montan
 con las marcas puestas y se resuelven de una vez al final, así ningún texto nuevo
 se puede olvidar de concordar; un test comprueba que no sobrevive ninguna marca.
 
-**Hablar.** Menciona al bot y tu criatura contesta con su propio carácter: el
-Piollito mete «pío» en todas las frases, Geo responde con una palabra, y si
-intentas acariciar a Pyro te quema los dedos. El tono cambia según cómo la
-tengas — una criatura hambrienta contesta de mal humor — y se acuerda de los
-últimos ocho intercambios. Hasta 20 mensajes por hora y por persona. Hablar no
-gasta comida ni da experiencia: queda fuera del equilibrio del juego.
+## En pausa
+
+Estas reglas siguen en el código y en sus pruebas, pero hoy no se pueden jugar
+en ningún sitio: esperan su pantalla en la página. Volverán.
+
+- **Aventuras.** Se sale con el activo a uno de diez biomas, y se plantan dos
+  escenas con tres salidas: volverse o una de dos de las cuatro sendas (fuerza,
+  velocidad, salud o ingenio), cada una `estadística + 1d20` contra la dificultad
+  del bioma. Acertar lleva a la escena siguiente; fallar cierra el viaje. Lo
+  hondo que se llegue decide qué se encuentra (un gachamon salvaje, un objeto o
+  nada) y volver da +4 XP. La espera de 37 minutos es de la persona, no del
+  gachamon. Las escenas las inventa el modelo de lenguaje, con escenas escritas
+  por bioma de respaldo.
+- **Reclutar.** Al salvaje hay que convencerlo en cuatro turnos de paciencia:
+  hablarle, darle golosinas, presumir o esperar quieto. Cada opción suma a la
+  confianza según el carácter de ambos más 1d8; a 100 se une, y a paciencia 0 se
+  larga. Los dados deciden y el modelo sólo narra. Al unirse se pone un nombre él
+  solo (`nombres.py`) y su dueño se lo puede cambiar una vez.
+- **Competir.** Tres tramos, cada uno `estadística + 1d20`; gana quien sume más.
+  Hay cuatro modalidades: la carrera (de dos a cinco), el sumo (de dos o de
+  cuatro, con torneo), el asalto al tótem (de dos a cinco) y el laberinto de
+  ecos (de dos a cinco, sólo con ingenio). Sólo el primero suma victoria y se
+  lleva los +10 de XP; el resto, +4. Una poción activa puede inclinar la pelea:
+  dura cinco minutos y su dado se tira al beberla, por eso sólo puede haber una
+  activa por estadística. Cada modalidad deshace los empates a su manera, con un
+  tope de intentos.
+- **Conversar.** El gachamon contesta con su propio carácter y se acuerda de los
+  últimos ocho intercambios, con un máximo de 20 mensajes por hora y por
+  persona. Hablar no gasta comida ni da experiencia, y si se escribe con cuidado
+  entrena el ingenio.
+- **El ranking y el cementerio** (las criaturas vivas con más victorias, y las
+  que ya no están) también esperan su pantalla.
+
+Los detalles de cada una están en `aventura.py`, `competir.py`, `ia.py` y
+`personalidad.py`. Mientras tanto no cuentan nada de lo que no pasa: la página
+sólo promete lo que ya puede hacer.
 
 ## Cómo está montado
 
 La lógica del juego vive en módulos **puros** que no importan `discord` y se
-testean sin conexión. Los cogs son capas finas encima.
+testean sin conexión. `web/` es un adaptador fino encima, y el bot, que ya sólo
+vincula, es otro (`cogs/mudanza.py`).
 
 | Fichero | Qué hace |
 |---|---|
 | `especies.py` | Las 25 especies, su arte ASCII por etapa, estadísticas y rarezas. |
-| `jardin.py` | El reparto de varias criaturas en una sola escena. |
 | `personalidad.py` | La voz de cada especie, los diez caracteres y cómo se le explica todo al modelo. |
-| `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. |
+| `ia.py` | Cliente de IA (NVIDIA y DeepSeek). Async, con transporte inyectable. Hoy sin uso: conversar está en pausa. |
 | `simulacion.py` | Decaimiento, acciones de cuidado, estadísticas y niveles. |
-| `competir.py` | Resolución y narración de carreras, sumo, asaltos al tótem y laberintos de ecos. |
+| `competir.py` | Resolución y narración de carreras, sumo, asaltos al tótem y laberintos de ecos (en pausa). |
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
-| `pantalla.py` | Dibuja la pantalla como texto de Discord. |
+| `pantalla.py` | Los marcos de texto que usan `aventura.py` y `competir.py`. |
 | `db.py` | SQLite. |
 | `economia.py` | Monederos, topes UTC y operaciones económicas atómicas. |
 | `economia_reporte.py` | Informe local agregado y reconciliación histórica. |
-| `vistas.py` | Los botones y el ciclo publicar-nueva/congelar-la-vieja. |
-| `equipo.py` | El menú para cambiar de gachamon activo. |
-| `aventura.py` | Biomas, el árbol de decisiones, hallazgos y las reacciones de un salvaje. |
-| `tienda.py` | Los menús de mochila y tienda, y el uso de un objeto. |
+| `aventura.py` | Biomas, el árbol de decisiones, hallazgos y las reacciones de un salvaje (en pausa). |
 | `retrato.py` | Qué criaturas tienen retrato en imagen y cuál les toca. |
-| `cogs/` | Los slash commands. |
+| `cogs/mudanza.py` | El bot: `/vincular`, los avisos y la página del manual. |
+| `web/` | El servicio de la página. |
 | `fuentes/` | Las capas de los retratos: cuerpos, caras y sombreros. |
 
 **Cómo se guarda el arte.** Cinco etapas por veinticinco especies, con tres
@@ -581,8 +396,7 @@ y forma, tres caras y un cosmético por sombrero, todos sobre el mismo lienzo de
 256×256, así que componer es apilar. El retrato **se arma en el momento de
 enseñarlo**: se apilan las tres capas, se recorta a la caja que comparten las
 veintiuna combinaciones de esa forma —para que cambiar de humor o de sombrero no
-mueva al bicho dentro del embed— y se amplía al doble, porque Discord no agranda
-la imagen de un embed más allá de su tamaño real.
+mueva al bicho— y se amplía al doble.
 
 Cada capa se busca **de lo concreto a lo general**: por forma, por especie y
 global. Lo de por forma hace falta cuando los cinco cuerpos de una especie son
@@ -596,14 +410,13 @@ cuando la cuenta empezó a doler: eran 27 MB camino de los 180 según se
 redibujaban las especies, y se clonaban enteros en cada despliegue. Componer al
 vuelo se pudo gracias a **Pillow**, y esa es la única razón de que sea
 dependencia: medido en la Raspberry, apilar tres capas de 256×256 cuesta **1,7 s
-en Python puro y 72 ms con Pillow**. Lo primero congelaba el bot en cada
-pulsación. Encima hay una caché en memoria de los últimos 128 retratos armados,
-porque pulsar un botón vuelve a pintar la misma combinación una y otra vez.
+en Python puro y 72 ms con Pillow**. Encima hay una caché en memoria de los
+últimos 128 retratos armados, porque la misma combinación se pide una y otra vez.
 
 **El catálogo.** Veinticinco especies repartidas en diez biomas, pero **del
 huevo sólo salen diez**: las de siempre. Las quince nuevas hay que
-encontrárselas en `/aventura`, para que el comienzo sea conocido y el catálogo
-grande sea lo que se descubre jugando.
+encontrárselas en las aventuras (hoy en pausa), para que el comienzo sea conocido
+y el catálogo grande sea lo que se descubre jugando.
 
 **El peso es la probabilidad en el huevo, y sólo eso.** Las quince que no salen
 de él llevan peso 0 en vez de arrastrar un número que no significa nada, y las
@@ -634,54 +447,38 @@ Y ninguna se llama distinto de mayor. El campo que guardaba ese segundo nombre
 se quitó en vez de dejarlo repitiendo el primero: un campo que siempre vale lo
 mismo que otro es ruido.
 
-Dos decisiones más que explican el resto del diseño:
+El decaimiento es **perezoso**. No hay ningún bucle tocando cada mascota cada
+minuto: se guarda cuándo se actualizó y el valor se calcula al leer. Como el
+hambre baja de forma estrictamente lineal, basta con saber cuándo se
+actualizó para saber cuánta lleva perdida. Por eso la suciedad castiga al
+ánimo y no al hambre: si acelerase el hambre, dos barras cayendo a la vez se
+acoplarían y la comida dejaría de ser predecible.
 
-- **El decaimiento es perezoso.** No hay ningún bucle tocando cada mascota cada
-  minuto: se guarda cuándo se actualizó y el valor se calcula al leer. Como el
-  hambre baja de forma estrictamente lineal, basta con saber cuándo se
-  actualizó para saber cuánta lleva perdida. Por eso la suciedad castiga al
-  ánimo y no al hambre: si acelerase el hambre, dos barras cayendo a la vez se
-  acoplarían y la comida dejaría de ser predecible.
-- **Los botones son persistentes.** `timeout=None` y `custom_id` fijos,
-  registrados con `bot.add_view()` al arrancar. Siguen respondiendo tras un
-  reinicio sin necesidad de recordar en qué mensajes estaban.
-- **La charla va por menciones, no por chat libre.** Discord entrega el
-  contenido de los mensajes que mencionan al bot aunque el intent privilegiado
-  *Message Content* esté apagado. Así el bot no lee todo lo que se escribe en el
-  canal y no hay que pedir permisos extra en el portal.
+### La IA (en pausa)
+
+`ia.py` y `personalidad.py` siguen en el repositorio para cuando conversar y las
+escenas de las aventuras vuelvan a la página. Lo que ya está decidido:
+
 - **La criatura nunca se queda muda.** Cada especie tiene frases escritas a
   mano que se usan si la API falla. Esas frases no entran en la memoria: si
   entraran, el modelo aprendería a repetirlas como si fueran suyas.
 - **Los fallos de la API se tratan distinto según si tienen arreglo.** Un error
   permanente (un 400 de modelo degradado, un 404) no se reintenta: se pasa al
-  siguiente modelo de `MODELO_IA` al instante. La distinción no es teórica —
-  NVIDIA marcó `deepseek-v4-flash` como DEGRADED a las pocas horas de ponerlo
-  en producción, y reintentar ese 400 con espera convertía un fallo inmediato en
-  65 segundos de «escribiendo…»: el bot parecía muerto.
+  siguiente modelo de `MODELO_IA` al instante.
 - **Se prueban todos los modelos por turnos, no uno hasta agotarlo.** Tres rondas
   recorriendo la lista entera, con 30 s de tope por intento y 90 s para todo el
-  proceso, que es lo que como mucho dura el «escribiendo…» antes de la frase de
-  respaldo. La versión anterior gastaba los tres reintentos en el primer modelo y
-  se quedaba sin presupuesto para los demás: cuando el preferido se colgaba, no
-  llegaba a probar ninguno.
+  proceso.
 - **Un modelo que falla se aparta, pero nunca se le echa.** Cinco minutos, o
   treinta si el fallo fue permanente; mientras tanto va al final de la lista en
-  vez de desaparecer, así que si fallan todos se siguen intentando todos. No hay
-  «modelo preferido» que recuperar: el orden de `MODELO_IA` manda salvo que
-  alguno esté castigado. Medido, ninguno de los tres es fiablemente mejor —
-  el endpoint compartido falla a rachas, no por modelo.
+  vez de desaparecer, así que si fallan todos se siguen intentando todos.
 - **Cada modelo lleva su proveedor delante** (`deepseek:deepseek-v4-pro`), y
-  cada proveedor su URL, su clave y sus campos propios. Antes había una sola URL
-  y una sola clave globales, así que la cadena de recambio sólo podía saltar
-  entre modelos del mismo sitio: o todo gratis o todo de pago. Sin prefijo se
-  asume NVIDIA, y los modelos de un proveedor sin clave se saltan solos, para
-  que dejar DeepSeek escrito antes de pagar no cueste un intento contra un 401.
+  cada proveedor su URL, su clave y sus campos propios. Sin prefijo se asume
+  NVIDIA, y los modelos de un proveedor sin clave se saltan solos.
 - **Hay que apagar el razonamiento, y cada proveedor lo apaga a su manera.**
-  NVIDIA con `chat_template_kwargs`, DeepSeek con un `thinking` de primer nivel.
-  No es un ajuste fino: en DeepSeek viene encendido en `high` por defecto, se
-  cobra como salida, y v4-pro se comería los 1200 tokens de `MAX_TOKENS`
-  razonando sin llegar a contestar. Ese fallo exacto ya lo sabe describir
-  `pedir()` por lo que costó descubrirlo con el razonador de NVIDIA.
+  NVIDIA con `chat_template_kwargs`, DeepSeek con un `thinking` de primer nivel:
+  en DeepSeek viene encendido en `high` por defecto, se cobra como salida, y
+  v4-pro se comería los 1200 tokens de `MAX_TOKENS` razonando sin llegar a
+  contestar.
 
 ## Tests
 

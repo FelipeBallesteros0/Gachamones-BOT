@@ -2,8 +2,9 @@
 
 ## Propósito y alcance
 
-Este repositorio contiene Gachamones, un tamagotchi multiserver para Discord.
-El producto combina cuidado, colección, competición y economía con arte ASCII.
+Este repositorio contiene Gachamones, un tamagotchi que se juega en una página web.
+Nació como bot de Discord; hoy su bot sólo sirve para vincular la cuenta de quien jugaba allí.
+El producto combina cuidado, colección, competición y economía.
 Esta política se aplica a cualquier agente que analice, modifique o revise el repositorio.
 `AGENTS.md` es la fuente canónica de instrucciones para agentes de código.
 Consulta el código y el README para detalles de producto; no los dupliques aquí.
@@ -62,15 +63,15 @@ Instala el hook local cuando prepares el entorno:
 
 ## Invariantes del dominio
 
-- El manual del juego lo publica el bot en su canal desde `paginas_de_ayuda()`, y no hay comando que lo enseñe.
-- El manual se edita en el sitio y nunca se republica: un arranque sin cambios no toca el canal.
+- El bot publica en su canal una sola página, `cogs/mudanza.pagina_del_manual()`: el juego se mudó y cómo vincular.
+- Esa página se edita en el sitio y nunca se republica: un arranque sin cambios no toca el canal.
+- El juego de Discord está en pausa: el bot sólo atiende `/vincular` y contesta a todo lo demás que el juego se mudó a la página. Ninguna regla del juego se ejecuta desde Discord.
 - Ningún mensaje que el bot publique puede pasar de los 2000 caracteres de Discord.
 - El avatar es de la persona, no de un gachamon: sobrevive a todo su plantel.
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
 - El tamaño máximo del plantel de una persona por servidor lo fija `db.MAXIMO_PLANTEL`.
 - Si el plantel no está vacío, hay exactamente una criatura activa.
 - A todos los gachamones vivos les pasa el tiempo, sean o no el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo.
-- En `Entrenar juntos` los dos se ponen al día y reciben lo mismo: barras, XP, VETAS/evolución, cooldown `ENTRENAR` y marcador de criatura; el compañero no se vuelve activo.
 - El activo es el que sale contigo: el que compite, va de aventura y conversa. Cambiar de activo no duerme ni despierta a nadie, ni le borra el tiempo a ninguno.
 - Cada cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo por persona.
 - «A todos» le hace un cuidado a cada gachamon que puede recibirlo —le serviría y no está esperando— y paga como esos mismos cuidados hechos de a uno.
@@ -160,16 +161,16 @@ Instala el hook local cuando prepares el entorno:
 - Quien juega sólo en la web no tiene plazo en el refugio: su estancia no vence y nunca queda a la intemperie, tenga o haya tenido casa. Esa excepción se pregunta siempre con `identidad.sin_plazo_de_refugio`, nunca mirando el id.
 - Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
-- En la web se compra estando en la Tienda; lo que hoy sólo sirve en Discord se le vende sólo a quien tiene Discord vinculado.
-- Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar, un ticket que no alargaría la estancia— se rechaza sin gastarlo, en Discord y en la web.
+- En la web se compra estando en la Tienda; lo que todavía no se puede usar en la página no se le vende a nadie.
+- Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar, un ticket que no alargaría la estancia— se rechaza sin gastarlo.
 - Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): sólo cambia quién sale contigo, y elegir a la que ya es la activa no cambia nada.
 - Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo y vivo que todavía lo espere o que se lo haya puesto él solo, nunca con el nombre de su especie.
 - En la web se cambia de activo estando en la Incubadora; vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
 
-## Arte ASCII
+## Arte de texto
 
-El arte ASCII es comportamiento del producto, no decoración prescindible.
-`/casa` es la excepción y lo es a propósito: **lista y no dibuja**, porque con el plantel lleno el cuadro se pasaba del tope de un mensaje de Discord.
+El arte ASCII de las especies es comportamiento del producto, no decoración prescindible.
+Las fichas de texto eran de Discord y se fueron con su juego. De `pantalla.py` sólo queda en uso lo que importan `aventura.py` y `competir.py` para armar sus marcos (`ANCHO`, `fila`, `pintar`, `recibo` y `ETIQUETAS_STAT`), a la espera de su pantalla en la página; no se amplía.
 Conserva anchos, espacios, alineación, marcos y sustituciones de caras.
 No normalices espacios ni reformatees dibujos automáticamente.
 Ejecuta siempre los tests de arte y pantalla cuando cambies texto o renderizado.
