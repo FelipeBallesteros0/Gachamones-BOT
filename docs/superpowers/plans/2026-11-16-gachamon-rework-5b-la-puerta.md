@@ -32,12 +32,12 @@
   4. La casilla de la puerta **sólo la pisas tú**: los gachamones no.
   5. La puerta **también sirve para salir** al pueblo, además del botón «Pueblo».
   6. Sin camino, tu avatar **no va** (decisión del mismo día sobre el plan 5): vale también desde y hacia la puerta.
-- **Lo que este plan decide en nombre de Felipe** (propuestas; se le enseñan con el plan):
+- **Lo que este plan decidió en nombre de Felipe** (se le enseñó con el plan y lo aprobó el 2026-11-16; lo de salir desde el menú lo eligió expresamente: «Desde su menú»):
   1. **Se sale desde el menú de la puerta.** Tocar la puerta la elige, como a cualquier mueble, y su menú trae `✋ Mover` y `🚪 Salir`. «Salir» te lleva caminando hasta ella y, al llegar, al pueblo. No hay otra forma de pisar su casilla, así que no hay salidas por accidente.
   2. **Dónde nace**: en la pared izquierda, en el tramo de más adelante; si la casilla de enfrente está tapada por lo que el alcalde dejó puesto, en el primer tramo que la tenga libre.
   3. **No suma comodidad**, no se vende en la Tienda y no aparece en «Guardados».
   4. Si al tocar «Salir» no hay camino hasta la puerta, no se sale y se dice por qué.
-- **Frases nuevas** (se le enseñan a Felipe con el plan; van tal cual):
+- **Frases nuevas** (Felipe las aprobó el 2026-11-16; van tal cual):
   - El nombre del mueble: `Puerta`.
   - En su menú: `🚪 Salir`; en la lista: `Salir`.
   - Si se pide guardarla: `La puerta no se guarda.`

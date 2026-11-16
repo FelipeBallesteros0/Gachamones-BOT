@@ -251,9 +251,9 @@ al igual que en Habbo».
 - **Por la puerta también se sale al pueblo** **[Felipe, 2026-11-16]**, además
   del botón «Pueblo». Se sale desde su menú: tocar la puerta la elige, como a
   cualquier mueble, y ahí están «Mover» y «Salir»; «Salir» te lleva caminando
-  hasta ella y, al llegar, al pueblo **[propuesta]**. Si no hay camino hasta la
-  puerta, no se sale y se dice **[propuesta]**.
-- **Nace con el departamento** **[propuesta]**: en la pared izquierda, en el
+  hasta ella y, al llegar, al pueblo **[Felipe, 2026-11-16]**. Si no hay camino
+  hasta la puerta, no se sale y se dice **[propuesta, aceptada]**.
+- **Nace con el departamento** **[propuesta, aceptada]**: en la pared izquierda, en el
   tramo de más adelante; el día del cambio, el alcalde la deja en el primer
   tramo cuya casilla de enfrente esté libre de lo que él mismo puso. No se vende
   en la Tienda, no aparece en «Guardados» y no suma comodidad.
