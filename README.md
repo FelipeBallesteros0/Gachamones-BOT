@@ -2,7 +2,7 @@
 
 Un tamagotchi que se juega en una página web: **rowino.online/gachamon**. Sale
 de un huevo, es uno de 10 gachamones al azar —hay 25 en total; los otros 15 se
-encuentran por ahí—, se cuida, se viste, vive en una casa y se pasea por un
+encuentran por ahí—, se cuida, se viste, vive en un departamento y se pasea por un
 pueblo. Nació como bot de Discord, y por eso este repositorio todavía lleva el
 bot: **el juego de Discord está en pausa**. Hoy el bot sólo atiende `/vincular`,
 que es la forma de llevar a la página los gachamones de quien jugaba allí, y a
@@ -138,15 +138,16 @@ Rowino.
 
 El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
 tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy están
-abiertos tu casa, el refugio, la Incubadora y la tienda, y los demás avisan de que
-abren más adelante. En la Tienda del pueblo se compran objetos, cosméticos (con gemas),
-casas y muebles, con el mismo dinero de siempre; lo que todavía no se puede usar en la
+abiertos tu casa, la Incubadora y la tienda, y los demás avisan de que
+abren más adelante (el Refugio sigue en el mapa, cerrado: ya nadie vive en él). En la
+Tienda del pueblo se compran objetos, cosméticos (con gemas) y muebles, con el mismo
+dinero de siempre; lo que todavía no se puede usar en la
 página no se le vende a nadie. La mochila se abre
 desde cualquier lugar y sirve para usar lo que llevas. Desde cualquier lugar
 también se abre la ficha completa de tu gachamon, con sus medallas y los efectos
 que lleva activos, y el ropero, donde le pones y le quitas el sombrero y el
 título. La Incubadora enseña tu plantel: ahí sacas a otro gachamon para que sea
-el activo. Y al mirar el Refugio se ve quién vive en él.
+el activo, y dice cuántos caben según las camas.
 
 En local:
 
@@ -185,7 +186,7 @@ archivos de `web/static/arte/`, y quien dibuja no necesita tocar código: el
 contrato, con el nombre y el tamaño exacto de cada pieza, está en
 `docs/arte/contrato.md`. Hoy todo ese arte es de relleno (lleva «RELLENO»
 escrito) y se reemplaza guardando el archivo nuevo con el mismo nombre y el
-mismo tamaño. Los íconos (de objetos, cosméticos, muebles y casas) salen de los
+mismo tamaño. Los íconos (de objetos, cosméticos y muebles) salen de los
 catálogos del juego y miden 48 × 48: un objeto nuevo añade el suyo.
 
 Para regenerar los rellenos que falten:
@@ -228,10 +229,9 @@ ella.
 Son las reglas que la página ya tiene. Las que esperan su pantalla están más
 abajo, en [En pausa](#en-pausa).
 
-**El plantel.** Hasta **25 gachamones** por persona y servidor, con **uno
-activo**: el que sale contigo. **A todos les pasa el tiempo**, sean o no el
-activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con el ritmo de
-su casa. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
+**El plantel.** Sin tope fijo: lo limitan las camas de tu departamento (más abajo). Hay **uno activo**: el que sale contigo. **A todos les pasa el
+tiempo**, sean o no el activo: la comida, el ánimo y el aseo les bajan al mismo
+ritmo, con el ritmo de tu departamento. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
 nadie, así que ir y volver no ahorra ni duplica nada.
 
 Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
@@ -246,6 +246,23 @@ suyo murió antes, el primero que siga vivo sale solo al arrancar el bot o la we
 El remiendo de antes sigue ahí por si acaso: también sale al entrar a la web, al
 romper el huevo, al poner nombre o al cambiar de activo. Sólo cambia la marca de
 quién sale contigo: su reloj sigue donde estaba.
+
+**El departamento.** Cada persona tiene **uno solo** por servidor, hecho de
+casillas: parte en 3 × 3 y se amplía por una fila o una columna, a 15 monedas por
+casilla, hasta 8 × 8. Los muebles ocupan casillas y giran en cuatro posiciones;
+puede haber varios iguales, y cada uno está puesto o guardado (guardar nunca lo
+destruye). Lo que compras en la Tienda llega a guardados, y ampliar se compra
+estando en tu departamento. Las **camas** son el límite de gachamones: hacen
+falta tantas camas puestas como gachamones vivos más una, la tuya; reclutar pide
+una cama libre y una cama que hace falta no se guarda. La **comodidad** es una
+puntuación (no un porcentaje): parte de 80, cada tipo de mueble puesto suma una
+vez y el tope crece con las casillas. Frena el ánimo de todos los que viven ahí y
+no toca el hambre. Las casas, el refugio, la intemperie y el huerto se fueron:
+el día del cambio se convirtió una sola vez lo que cada persona tenía (le
+devolvimos lo que habían costado sus casas y sus tickets, y se cosechó lo
+plantado), y una carta del alcalde se lo cuenta una vez. El huerto está cerrado
+hasta que vuelva con el balcón, y la pantalla del departamento todavía no existe:
+las reglas y sus rutas están en el servidor.
 
 **Nacer.** La especie sale por rareza: 12 % cada una de las siete comunes, 6 %
 las dos poco comunes y 4 % el dragón. Las estadísticas al nacer son **la base de
@@ -291,7 +308,7 @@ para cualquiera de sus gachamones. Hay pociones de fuerza y de velocidad de 1d4
 a 1d12 que duran cinco minutos y sirven para competir, que está
 [en pausa](#en-pausa); una que llena el hambre saltándose el empacho, y
 dos que borran un enfriamiento. Lo que todavía no se puede usar en la página (lo
-que sirve para competir, la semilla) no se vende a nadie.
+que sirve para competir) no se vende a nadie, y la semilla ya no se vende.
 
 **Economía.** Un cuidado válido da +1 moneda (hasta 12 al día UTC), cada
 competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta

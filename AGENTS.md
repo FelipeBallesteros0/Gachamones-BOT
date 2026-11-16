@@ -69,7 +69,7 @@ Instala el hook local cuando prepares el entorno:
 - Ningún mensaje que el bot publique puede pasar de los 2000 caracteres de Discord.
 - El avatar es de la persona, no de un gachamon: sobrevive a todo su plantel.
 - Todo estado de una persona está aislado por la pareja persona + servidor (`guild`).
-- El tamaño máximo del plantel de una persona por servidor lo fija `db.MAXIMO_PLANTEL`.
+- El plantel no tiene tope fijo: lo limitan las camas puestas de su departamento.
 - Si el plantel no está vacío, hay exactamente una criatura activa.
 - A todos los gachamones vivos les pasa el tiempo, sean o no el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo.
 - El activo es el que sale contigo: el que compite, va de aventura y conversa. Cambiar de activo no duerme ni despierta a nadie, ni le borra el tiempo a ninguno.
@@ -98,31 +98,18 @@ Instala el hook local cuando prepares el entorno:
 - Un hallazgo deja igualmente su fila en el ledger, y no por el tope: es lo que impide pagar dos veces el mismo viaje.
 - Las gemas no tienen tope diario.
 - Las gemas se gastan sólo en cosméticos, que no tocan ninguna estadística.
-- Todo lo que se compra se compra en la tienda, cada moneda en lo suyo.
-- Nadie empieza en la calle: sin casa propia se vive en el refugio.
-- Una persona tiene como mucho `casas.MAXIMO_CASAS` casas por servidor.
-- Cada gachamon vive en una casa concreta de su dueño, o en el refugio si no cabe en ninguna.
-- El aforo frena que entre uno más, nunca desaloja a quien ya estaba dentro.
-- El refugio no tiene aforo: es adonde va quien no cabe, así que no puede llenarse.
-- El ritmo y la comodidad de un gachamon salen de **su** casa, no de la mejor de su dueño.
-- De cada casa sólo se sube de tamaño; para bajar hay que venderla primero.
-- Mejorar una casa conserva su identidad: sus inquilinos, sus muebles y sus bancales se quedan.
-- El reloj del refugio es de la persona y sólo se renueva al vender la última casa.
-- Vender una casa es una devolución y no una ganancia: no pasa por el tope diario.
-- Vender no destruye muebles: se descuelgan y se guardan.
-- La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`.
-- Todo mueble suma comodidad: ninguno ocupa un hueco a cambio de nada.
-- Se tiene un mueble de cada, y tenerlo no es lo mismo que tenerlo puesto.
-- Retirar un mueble nunca lo destruye: se guarda.
-- El refugio no se amuebla, y a la intemperie no hay dónde poner nada.
-- El hogar afecta a todos los que viven en él.
-- La intemperie acelera el decaimiento, pero nunca puede matar.
-- La comodidad frena el ánimo y no toca el hambre.
-- Visitar una casa sólo mira: nunca le empieza a nadie su estancia en el refugio.
+- Cada persona tiene un solo departamento por servidor: parte en 3 × 3 y se amplía por filas o columnas hasta 8 × 8.
+- El servidor manda sobre qué mueble hay en qué casilla; el catálogo y sus formas viven en `departamento.py`, que es puro.
+- Tener un mueble no es tenerlo puesto; guardar nunca destruye, y se puede tener más de uno de cada.
+- Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Mientras exista el huevo, el gachamon que nace de él no la pide.
+- La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.
+- El ritmo y la comodidad salen del departamento de la persona: frenan el ánimo de todos sus gachamones vivos y no tocan el hambre.
+- Antes de cambiar lo que fija el ritmo (poner o guardar un mueble, ampliar) se pone al día y se guarda a todos los vivos, en la misma transacción (`db.asentar_el_plantel_en`).
+- Ampliar se compra estando en el departamento; lo demás, en la Tienda. Lo que se compra llega a guardados.
+- El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, y deja a cada persona una carta que la página enseña una vez.
+- Las casas, el refugio, la intemperie y el huerto por casa ya no existen; sus tablas siguen en el esquema, sin uso.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.
-- El huerto es de cada casa: sus bancales se numeran dentro de ella y el refugio no tiene.
-- Vender una casa manda a sus inquilinos al refugio, guarda sus muebles y pierde lo plantado en ella; a las demás no las toca.
 - El color de la cosecha lo hereda lo sembrado; sólo la semilla y el arcoíris lo sortean.
 - El arcoíris no es un color: no se sortea, no tiene afinidad y no está en `COLORES`.
 - De una cosecha sale como mucho un arcoíris, y sustituye a uno del lote en vez de sumarse.
@@ -158,11 +145,10 @@ Instala el hook local cuando prepares el entorno:
 - Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
 - El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
 - El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de `web/static/arte/` descritos en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza.
-- Quien juega sólo en la web no tiene plazo en el refugio: su estancia no vence y nunca queda a la intemperie, tenga o haya tenido casa. Esa excepción se pregunta siempre con `identidad.sin_plazo_de_refugio`, nunca mirando el id.
 - Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
-- En la web se compra estando en la Tienda; lo que todavía no se puede usar en la página no se le vende a nadie.
-- Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar, un ticket que no alargaría la estancia— se rechaza sin gastarlo.
+- En la web se compra estando en la Tienda, salvo ampliar, que se hace en el departamento; lo que todavía no se puede usar en la página no se le vende a nadie.
+- Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar— se rechaza sin gastarlo.
 - Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): sólo cambia quién sale contigo, y elegir a la que ya es la activa no cambia nada.
 - Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo y vivo que todavía lo espere o que se lo haya puesto él solo, nunca con el nombre de su especie.
 - En la web se cambia de activo estando en la Incubadora; vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.

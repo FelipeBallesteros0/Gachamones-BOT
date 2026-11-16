@@ -687,6 +687,134 @@ Son observaciones, no decisiones.
   modo sin dibujo de las fichas y la subida de nivel que hace crecer algo,
   repuestas las dos.
 
+## Salió al ejecutar el rework 4 (la vivienda por casillas)
+
+### Lo decidido
+
+- Cada persona tiene un solo departamento por servidor: parte en 3 × 3 y se
+  amplía por una fila o una columna, a 15 monedas por casilla, hasta 8 × 8.
+  Ampliar se compra estando en tu departamento; lo demás, en la Tienda.
+- Los muebles ocupan casillas, giran en cuatro posiciones, puede haber varios
+  iguales, y están puestos o guardados; guardar nunca destruye. Lo que se
+  compra llega a guardados. El felpudo y la alfombra se pisan y admiten un
+  mueble encima; los cuadros, las cortinas y el ventanal van en una de las dos
+  paredes del fondo. El catálogo y sus formas viven en `departamento.py`, que
+  es puro, y el servidor manda sobre qué mueble hay en qué casilla.
+- Hacen falta tantas camas puestas como gachamones vivos más una, la tuya:
+  reclutar pide una cama libre y la cama que hace falta no se guarda. Ya no hay
+  tope de 25: el límite son las camas, es decir, las casillas. Hay una cama
+  nueva, la sencilla, a 85 monedas.
+- La comodidad parte de 80, cada tipo de mueble puesto suma una vez y el tope
+  depende de las casillas (100 en 3 × 3, 150 en 8 × 8). Frena el ánimo de todos
+  los que viven ahí, como antes, y no toca el hambre.
+- El ritmo del tiempo sale del departamento. Antes de cambiar lo que lo fija
+  (poner o guardar un mueble, ampliar) se pone al día y se guarda a todos los
+  gachamones vivos de esa persona, en la misma transacción.
+- Se fueron las casas compradas, el refugio y su plazo, la intemperie, mudar, el
+  huerto por casa (plantar, regar, cosechar), el ticket del refugio y abrir o
+  cerrar la casa a las visitas. La semilla ya no se vende ni sale de botín; las
+  que alguien tenga se quedan. Cocinar y el buzón siguen en el código, en pausa.
+- No se borró ninguna tabla ni columna: `casas_propias`, `mobiliario`,
+  `huerto`, `hogar`, `buzon` y `criaturas.casa_id` siguen en el esquema, sin
+  uso, y la migración vieja de las casas sigue corriendo para que una base
+  antigua pueda llegar hasta el día del cambio.
+- El plan se partió en dos: «partir sin gachamon» (sin huevo, el monedero en 0,
+  la primera aventura, y que todo funcione sin ningún gachamon) es el plan que
+  sigue. Aclaración del dueño: sólo parte con 0 monedas y 0 gemas quien empiece
+  después del día del cambio; quien ya jugaba, también quien viene de Discord,
+  conserva las suyas.
+
+### El día del cambio
+
+- Corre una sola vez, al arrancar (lo hace quien arranque primero, el bot o la
+  web), con su marca en `cambios_hechos` y todo dentro de una sola transacción:
+  o se hace entero o no se hace nada.
+- A cada persona que ya existía: se le entregan los regalos que esperaban en el
+  buzón; se le cosecha lo plantado como si estuviera maduro; cada ticket del
+  refugio le vuelve en 40 monedas (también el que acaba de llegar del buzón);
+  cada casa le vuelve al precio de catálogo de la casa que es ese día (una
+  mejorada vuelve como lo que es ahora); se le crea su departamento del primer
+  tamaño de la serie en que quepan sus camas, con una cama puesta por cada
+  gachamon vivo más la suya; a quien no tiene ninguno vivo, su cama puesta y
+  otra guardada; sus muebles de antes pasan a guardados; y se le deja su
+  monedero creado, con lo que tenía.
+- El reloj de todos los gachamones vivos parte de ese momento: a ninguno se le
+  cobra el tiempo desde la última vez que se guardó.
+- Las devoluciones no pasan por el tope diario ni por el libro de operaciones.
+- Las filas ya convertidas (las casas, los muebles de antes, lo plantado) se
+  borran, para que nada valga dos veces.
+- A cada persona le queda escrita una carta del alcalde, que la página enseña
+  una vez (`GET /carta`, `POST /carta/vista`, y el campo `carta` del estado).
+  Quien empieza después del cambio no tiene carta.
+
+### Al publicar
+
+- **Antes de publicar**: tomar la copia de la base y guardarla aparte, fuera de
+  la rotación. Y ensayar el cambio sobre una copia de la base de producción
+  (con permiso expreso del dueño): si alguna tabla muy vieja guardara los
+  identificadores con otro tipo, una misma persona saldría dos veces y el
+  cambio entero se desharía.
+- Qué mirar en el registro tras arrancar: una línea del día del cambio con tres
+  cifras (a cuántas personas tocó, cuántas camas regaló, cuántas monedas
+  devolvió). Sale una sola vez, la escriba el bot o la web.
+- Si al arrancar ya hubiera departamentos sin la marca del cambio (no debería:
+  sólo pasa en una base de desarrollo de esta rama, si alguien borra la marca
+  para repetirlo, o con una base restaurada a medias), el cambio no hace nada y
+  el arranque se detiene. Es a propósito: ahí lo seguro es no tocar nada y que
+  se note, con la copia intacta.
+
+### Si hubiera que volver atrás
+
+- **La única vuelta limpia es restaurar la copia de antes.** El cambio borra las
+  casas, los muebles de antes y lo plantado, y paga las devoluciones: arrancar
+  el código de antes sobre la base ya cambiada dejaría a la gente sin casas y
+  con las monedas.
+- La segunda trampa de toda marca: si se restaura la base a medias, o se borra
+  la marca a mano sobre una base ya convertida, el cambio se detiene sin hacer
+  nada (ver arriba) en vez de repetirse.
+- Lo que la gente haya hecho después del cambio (comprar muebles, ampliar,
+  colocar) se pierde al restaurar.
+- Siguen valiendo las recetas de vuelta atrás de los planes anteriores (la de la
+  comida, la de la marca del tiempo para todos).
+
+### Pendiente
+
+- **Partir sin gachamon** (el plan siguiente): el huevo sigue existiendo y el
+  que nace de él no pide cama; el monedero de quien empieza sigue naciendo con
+  lo de hoy; comprar en la Tienda, usar la mochila y abrir el ropero siguen
+  pidiendo un gachamon. Quien sólo tenía un regalo en el buzón y nunca jugó
+  recibió también su monedero el día del cambio: cuenta como alguien que ya
+  estaba.
+- **El departamento en pantalla**: no hay pantalla todavía; las rutas están
+  (`/departamento`, poner, guardar, ampliar) y la carta también. Cambiar de
+  activo se sigue haciendo en el lugar «Incubadora», que dice cuántos caben por
+  las camas.
+- **El pueblo**: el lugar «Refugio» sigue en el mapa, cerrado y con su aviso, y
+  «Tu casa» todavía no se llama «Tu departamento».
+- **Las aventuras y reclutar** siguen sin pantalla. Cuando vuelvan, el «hay
+  sitio para un recluta» tiene que salir de las camas (`db.hay_cama_libre`).
+- **El huerto** está cerrado hasta el balcón. Los textos de la semilla y de los
+  porotos todavía hablan de sembrar («Se planta en el huerto de tu casa», «Se
+  usa en el huerto.», «Y se puede sembrar»): son frases de jugador y las decide
+  el dueño.
+- Las tablas viejas sin uso, `criaturas.casa_id`, `sim.Criatura.casa_id` y el
+  suelo de hambre de `sim.Ritmo` siguen ahí.
+- En la carta, el nombre de la especie de un recluta sale en minúsculas («Tu
+  octopul ahora se llama…»): si se prefiere con mayúscula es una palabra.
+- «Dónde estás» se resuelve en un solo sitio (`web/pueblo.donde_esta`): el
+  lugar guardado o, si falta o ya no existe, tu casa. Lo usan el estado y los
+  tres «para eso tienes que estar ahí» (la Tienda, sacar de la Incubadora y el
+  departamento). Ver el plantel de la Incubadora no pide estar en ella; sacar a
+  uno, sí.
+
+### Pruebas
+
+- Con las reglas de antes se fueron sus pruebas; las de cocinar y las del buzón
+  se mudaron a archivos propios.
+- Al borrar se midió la cobertura por ramas en las dos puntas; la medición tuvo
+  que contar por separado las dos salidas de una rama escrita en una sola línea
+  (`a or b`), que una medición más gruesa no ve.
+
 ## Para el plan 6 (tu casa)
 
 > El rediseño del 2026-11-14 cambió el rumbo: lo que sigue se replantea en docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md.
