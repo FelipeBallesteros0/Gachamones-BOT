@@ -24,6 +24,8 @@ NO_ES_TUYO = "no_es_tuyo"
 NO_CABE = "no_cabe"
 OCUPADO = "ocupado"
 
+PUERTA = "puerta"
+
 ANCHO = "ancho"
 FONDO = "fondo"
 
@@ -52,6 +54,7 @@ class Mueble:
     fondo: int = 1
     capa: str = BULTO
     cama: bool = False
+    puerta: bool = False   # la entrada: va en la pared, no se guarda ni se vende
 
 
 MUEBLES: dict[str, Mueble] = {
@@ -72,6 +75,7 @@ MUEBLES: dict[str, Mueble] = {
         Mueble("ventanal", "Ventanal", "🏞️", 280, 7, ancho=2, capa=PARED),
         Mueble("biblioteca", "Biblioteca", "📚", 280, 7, ancho=2),
         Mueble("cama_sencilla", "Cama sencilla", "🛏️", 85, 2, ancho=2, cama=True),
+        Mueble(PUERTA, "Puerta", "🚪", 0, 0, capa=PARED, puerta=True),
     )
 }
 
@@ -135,6 +139,7 @@ DE_PARTIDA = Departamento(
     piezas=(
         Pieza(0, "cama_sencilla", 0, 0),
         Pieza(0, "cama_sencilla"),
+        Pieza(0, PUERTA, -1, 2),
     ),
 )
 
@@ -181,6 +186,36 @@ def problema_al_poner(depto: Departamento, pieza_id: int, x: int, y: int, giro: 
         if casillas & huella(del_otro, otra.x, otra.y, otra.giro):
             return OCUPADO
     return None
+
+
+def frente_a(x: int, y: int) -> tuple[int, int]:
+    """La casilla de dentro que queda frente a un tramo de pared."""
+    return (0, y) if x == -1 else (x, 0)
+
+
+def tramo_para_la_puerta(depto: Departamento) -> tuple[int, int]:
+    """Dónde pone el alcalde la puerta de un departamento.
+
+    El primer tramo sin nada colgado cuya casilla de enfrente no la tapa un
+    mueble de los que no se pisan, buscando por la pared izquierda de adelante
+    hacia atrás y después por la derecha, igual. Si ninguno la tiene libre, el
+    primero sin nada colgado en ese mismo orden.
+    """
+    tramos = [(-1, y) for y in range(depto.fondo - 1, -1, -1)]
+    tramos += [(x, -1) for x in range(depto.ancho - 1, -1, -1)]
+    colgado: set[tuple[int, int]] = set()
+    tapado: set[tuple[int, int]] = set()
+    for p in depto.puestas:
+        mueble = MUEBLES.get(p.clave)
+        if mueble is None:
+            continue
+        casillas = huella(mueble, p.x, p.y, p.giro)
+        if mueble.capa == PARED:
+            colgado |= casillas
+        elif mueble.capa == BULTO:
+            tapado |= casillas
+    sin_nada = [t for t in tramos if t not in colgado]
+    return next((t for t in sin_nada if frente_a(*t) not in tapado), sin_nada[0])
 
 
 def cama_libre(depto: Departamento, vivos: int) -> bool:

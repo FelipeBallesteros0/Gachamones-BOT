@@ -56,7 +56,9 @@ def piezas() -> tuple[Pieza, ...]:
     lista += [Pieza(f"efectos/{e}.png", *EFECTO, "efectos") for e in EFECTOS]
     for grupo, catalogo in (("objetos", objetos.CATALOGO), ("cosmeticos", cosmeticos.CATALOGO),
                             ("muebles", departamento.MUEBLES)):
-        lista += [Pieza(f"iconos/{grupo}/{clave}.png", *ICONO, "iconos") for clave in catalogo]
+        # La puerta no se vende ni se guarda: no lleva ícono.
+        lista += [Pieza(f"iconos/{grupo}/{clave}.png", *ICONO, "iconos") for clave in catalogo
+                  if not getattr(catalogo[clave], "puerta", False)]
     lista += _piezas_de_la_pieza()
     return tuple(lista)
 

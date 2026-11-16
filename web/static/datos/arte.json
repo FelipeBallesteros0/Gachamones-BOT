@@ -1517,6 +1517,18 @@
    "ancho": 768,
    "alto": 896,
    "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/puerta-se.png",
+   "ancho": 256,
+   "alto": 640,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/puerta-so.png",
+   "ancho": 256,
+   "alto": 640,
+   "familia": "pieza"
   }
  ]
 }

@@ -25,6 +25,7 @@ FORMAS = [
     ("ventanal", 2, 1, dep.PARED),
     ("biblioteca", 2, 1, dep.BULTO),
     ("cama_sencilla", 2, 1, dep.BULTO),
+    ("puerta", 1, 1, dep.PARED),
 ]
 
 
@@ -51,8 +52,8 @@ LOS_CATORCE = [
 ]
 
 
-def test_el_catalogo_son_los_catorce_de_siempre_y_la_cama_sencilla():
-    assert set(dep.MUEBLES) == {fila[0] for fila in LOS_CATORCE} | {"cama_sencilla"}
+def test_el_catalogo_son_los_catorce_de_siempre_la_cama_sencilla_y_la_puerta():
+    assert set(dep.MUEBLES) == {fila[0] for fila in LOS_CATORCE} | {"cama_sencilla", "puerta"}
     for clave, nombre, emoji, precio, comodidad in LOS_CATORCE:
         nuevo = dep.MUEBLES[clave]
         assert (nuevo.nombre, nuevo.emoji, nuevo.precio, nuevo.comodidad) == (nombre, emoji, precio, comodidad), clave
@@ -198,5 +199,39 @@ def test_en_8x8_no_caben_33_camas():
 def test_el_departamento_de_partida_trae_tu_cama_puesta_y_otra_guardada():
     d = dep.DE_PARTIDA
     assert (d.ancho, d.fondo) == (3, 3)
-    assert [(p.clave, p.puesta) for p in d.piezas] == [("cama_sencilla", True), ("cama_sencilla", False)]
+    assert [(p.clave, p.puesta) for p in d.piezas] == [
+        ("cama_sencilla", True), ("cama_sencilla", False), ("puerta", True)]   # y su puerta, puesta
     assert d.camas_puestas == 1 and d.comodidad == 82
+
+
+# --- La puerta ------------------------------------------------------------------
+
+def test_la_puerta_es_un_mueble_de_pared_de_un_tramo_que_no_suma():
+    puerta = dep.MUEBLES[dep.PUERTA]
+    assert (puerta.nombre, puerta.capa, puerta.ancho, puerta.comodidad, puerta.puerta) == ("Puerta", dep.PARED, 1, 0, True)
+    assert [m.clave for m in dep.MUEBLES.values() if m.puerta] == ["puerta"]
+
+def test_el_departamento_de_partida_trae_su_puerta_con_la_entrada_libre():
+    puertas = [p for p in dep.DE_PARTIDA.puestas if p.clave == dep.PUERTA]
+    assert [(p.x, p.y) for p in puertas] == [(-1, 2)]
+    assert dep.frente_a(-1, 2) == (0, 2) and dep.frente_a(1, -1) == (1, 0)
+    assert dep.DE_PARTIDA.comodidad == 82                       # como antes: la puerta no suma
+
+def test_la_puerta_choca_con_lo_colgado_y_se_mueve_a_un_tramo_libre():
+    d = depto(P(1, "puerta", -1, 2), P(2, "cuadro", -1, 0), P(3, "cortinas"))
+    assert dep.problema_al_poner(d, 1, -1, 0, 0) == dep.OCUPADO  # ahí está el cuadro
+    assert dep.problema_al_poner(d, 1, 2, -1, 0) is None         # a la pared derecha
+    assert dep.problema_al_poner(d, 3, -1, 1, 0) == dep.OCUPADO  # las cortinas pisarían la puerta
+    assert dep.problema_al_poner(d, 1, 1, 1, 0) == dep.NO_CABE   # la puerta no va en el suelo
+
+def test_el_alcalde_busca_un_tramo_con_la_entrada_libre():
+    assert dep.tramo_para_la_puerta(depto()) == (-1, 2)
+    tapada = depto(P(1, "maceta", 0, 2))
+    assert dep.tramo_para_la_puerta(tapada) == (-1, 1)
+    con_cuadro = depto(P(1, "maceta", 0, 2), P(2, "cuadro", -1, 1))
+    assert dep.tramo_para_la_puerta(con_cuadro) == (-1, 0)
+    columna = depto(P(1, "maceta", 0, 0), P(2, "maceta", 0, 1), P(3, "maceta", 0, 2))
+    assert dep.tramo_para_la_puerta(columna) == (2, -1)          # la pared derecha, de adelante hacia atrás
+    todo = depto(*(P(n, "maceta", n % 3, n // 3) for n in range(9)))
+    assert dep.tramo_para_la_puerta(todo) == (-1, 2)             # ninguna libre: el primero sin nada colgado
+    assert dep.tramo_para_la_puerta(depto(P(1, "felpudo", 0, 2))) == (-1, 2)   # lo que se pisa no tapa

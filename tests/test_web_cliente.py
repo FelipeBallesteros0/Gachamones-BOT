@@ -192,7 +192,7 @@ def test_las_pantallas_de_la_tienda_no_escriben_precios_ni_claves_del_catalogo()
     import departamento as dep
     import objetos as obj
 
-    objetos, cosmeticos, muebles = obj.a_la_venta(), cos.CATALOGO.values(), dep.MUEBLES.values()
+    objetos, cosmeticos, muebles = obj.a_la_venta(), cos.CATALOGO.values(), [m for m in dep.MUEBLES.values() if not m.puerta]   # la puerta no se vende
     claves = {p.clave for p in (*objetos, *cosmeticos, *muebles)}
     precios = {p.precio for p in (*objetos, *cosmeticos, *muebles)}
     # `articulos.js` lleva lo que la tienda comparte con la mochila.

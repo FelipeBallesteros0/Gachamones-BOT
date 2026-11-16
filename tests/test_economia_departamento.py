@@ -84,7 +84,7 @@ def test_repetir_la_compra_con_el_mismo_evento_no_cobra_ni_entrega_otra_vez():
     a = economia.comprar_mueble("u1", "g1", FELPUDO, T0, evento_id="e1")
     b = economia.comprar_mueble("u1", "g1", FELPUDO, T0, evento_id="e1")
     assert (b.ok, b.replay, b.mueble_id, b.saldo) == (True, True, a.mueble_id, 70)
-    assert len(db.departamento_leido("u1", "g1").piezas) == 3
+    assert len(db.departamento_leido("u1", "g1").piezas) == 4      # dos camas, la puerta y un solo felpudo
 
 
 def test_el_replay_de_la_compra_devuelve_lo_cobrado_aunque_el_catalogo_cambie(monkeypatch):
@@ -310,3 +310,19 @@ def test_lo_que_no_cambia_nada_no_asienta():
     economia.guardar_mueble("u1", "g1", guardada, luego)                       # ya estaba guardado
     economia.ampliar_departamento("u1", "g1", dep.ANCHO, luego, evento_id="e1")   # no alcanza
     assert db.por_id(c.id).actualizada_en == T0
+
+
+def test_la_puerta_no_se_guarda_ni_se_compra():
+    nacer("Ana"); depto_ = db.departamento_de("u1", "g1", T0)
+    puerta = next(p for p in depto_.puestas if p.clave == dep.PUERTA)
+    hecho = economia.guardar_mueble("u1", "g1", puerta.id, T0)
+    assert (hecho.ok, hecho.motivo) == (False, "no_se_guarda")
+    assert db.departamento_leido("u1", "g1").pieza(puerta.id).puesta
+    with pytest.raises(ValueError):
+        economia.comprar_mueble("u1", "g1", dep.MUEBLES[dep.PUERTA], T0, "evento-puerta-1")
+
+
+def test_la_puerta_se_mueve_como_cualquier_cosa_de_pared():
+    nacer("Ana"); puerta = next(p for p in db.departamento_de("u1", "g1", T0).puestas if p.clave == dep.PUERTA)
+    hecho = economia.poner_mueble("u1", "g1", puerta.id, 1, -1, 0, T0)
+    assert hecho.ok and (hecho.departamento.pieza(puerta.id).x, hecho.departamento.pieza(puerta.id).y) == (1, -1)

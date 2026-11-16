@@ -29,6 +29,7 @@ _NO_DEL_DEPARTAMENTO = {
     dep.NO_ES_TUYO: "Ese mueble no es tuyo.",
     dep.NO_CABE: "Ahí no cabe.",
     dep.OCUPADO: "Ahí ya hay algo.",
+    "no_se_guarda": "La puerta no se guarda.",
     "hace_falta": "Esa cama hace falta: sin ella alguien se queda sin dónde dormir.",
     "ya_es_el_maximo": "Por ese lado tu departamento ya no puede crecer.",
 }
@@ -62,7 +63,7 @@ def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
         puestos.append({
             "id": pieza.id, "clave": mueble.clave, "nombre": mueble.nombre,
             "icono": _icono(mueble.clave), "x": pieza.x, "y": pieza.y, "giro": pieza.giro,
-            "capa": mueble.capa, "cama": mueble.cama,
+            "capa": mueble.capa, "cama": mueble.cama, "puerta": mueble.puerta,
             "ancho": mueble.ancho, "fondo": mueble.fondo,
             "casillas": [list(c) for c in sorted(dep.huella(mueble, pieza.x, pieza.y, pieza.giro))],
         })

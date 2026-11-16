@@ -198,7 +198,7 @@ def test_cada_mueble_trae_lo_suyo_y_cuantos_tienes_puestos_o_guardados(cliente, 
         db.anadir_mueble_en(con, usuario, guild, "felpudo")
     ir(cliente, "tienda")
     lista = cliente.get(TIENDA).json()["muebles"]["lista"]
-    assert [m["clave"] for m in lista] == list(dep.MUEBLES)
+    assert [m["clave"] for m in lista] == [c for c, m in dep.MUEBLES.items() if not m.puerta]   # la puerta no se vende
     assert lista[0] == {"clave": "felpudo", "nombre": "Felpudo", "precio": 30, "comodidad": 2,
                         "icono": "iconos/muebles/felpudo.png", "tienes": 2}
     assert {m["clave"]: m["tienes"] for m in lista if m["tienes"]} == {"felpudo": 2, "cama_sencilla": 2}
@@ -535,4 +535,11 @@ def test_sin_monedas_el_mueble_dice_cuantas_faltan(cliente, monkeypatch):
     assert {k: r.json()[k] for k in ("ok", "clave", "mensaje")} == {
         "ok": False, "clave": "faltan_monedas", "mensaje": "Te faltan 20 monedas."}
     assert economia.saldos(YO, G).asciicoins == 10
-    assert [p.clave for p in db.departamento_leido(YO, G).piezas] == ["cama_sencilla", "cama_sencilla"]
+    assert [p.clave for p in db.departamento_leido(YO, G).piezas] == ["cama_sencilla", "cama_sencilla", "puerta"]
+
+
+def test_la_tienda_no_vende_la_puerta(cliente):
+    con_gachamon(cliente); ir(cliente, "tienda")
+    assert "puerta" not in [m["clave"] for m in cliente.get(TIENDA).json()["muebles"]["lista"]]
+    r = cliente.post(f"{API}/tienda/comprar", json={"que": "mueble", "clave": "puerta", "evento_id": "evento-puerta-web"}, headers=CABECERA)
+    assert r.status_code == 422 and r.json()["detail"]["clave"] == "peticion"

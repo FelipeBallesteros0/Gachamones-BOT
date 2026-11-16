@@ -47,7 +47,7 @@ def con_muebles_puestos(usuario, *claves):
 def test_el_departamento_nace_al_mirarlo_con_tu_cama_puesta_y_otra_guardada():
     d = db.departamento_de("u1", "g1", T0)
     assert (d.ancho, d.fondo) == (3, 3)
-    assert [(p.clave, p.x, p.y, p.giro) for p in d.piezas] == [("cama_sencilla", 0, 0, 0), ("cama_sencilla", None, None, 0)]
+    assert [(p.clave, p.x, p.y, p.giro) for p in d.piezas] == [("cama_sencilla", 0, 0, 0), ("cama_sencilla", None, None, 0), ("puerta", -1, 2, 0)]
     assert all(p.id > 0 for p in d.piezas)
     assert db.departamento_de("u1", "g1", T0) == d                  # no nace dos veces
 
@@ -96,7 +96,7 @@ def test_el_departamento_es_de_cada_persona_y_de_cada_servidor():
         con.execute("BEGIN IMMEDIATE")
         db._departamento_en(con, "u1", "g1", T0)
         db.anadir_mueble_en(con, "u1", "g1", "maceta")
-    assert len(db.departamento_leido("u1", "g1").piezas) == 3
+    assert len(db.departamento_leido("u1", "g1").piezas) == 4   # dos camas, la puerta y la maceta
     assert db.departamento_leido("u1", "g2") == dep.DE_PARTIDA == db.departamento_leido("u2", "g1")
 
 

@@ -23,7 +23,8 @@ def test_tu_departamento_de_partida(cliente):
     d = cliente.get(f"{API}/departamento").json()
     assert (d["ancho"], d["fondo"], d["casillas"], d["comodidad"], d["tope"]) == (3, 3, 9, 82, 100)
     assert (d["camas"], d["gachamones"], d["cabe_otro"], d["ampliar"]) == (1, 1, False, {"ancho": 45, "fondo": 45})
-    assert [(p["clave"], p["x"], p["y"], p["casillas"]) for p in d["puestos"]] == [("cama_sencilla", 0, 0, [[0, 0], [1, 0]])]
+    assert [(p["clave"], p["x"], p["y"], p["casillas"]) for p in d["puestos"]] == [
+        ("cama_sencilla", 0, 0, [[0, 0], [1, 0]]), ("puerta", -1, 2, [[-1, 2]])]
     assert [(g["clave"], g["cama"], g["ancho"], g["fondo"]) for g in d["guardados"]] == [("cama_sencilla", True, 2, 1)]
     assert d["saldos"] == {"monedas": 50, "gemas": 50}
     cama = d["puestos"][0]
@@ -119,7 +120,7 @@ def test_una_pieza_que_ya_no_esta_en_el_catalogo_no_se_lista(cliente):
     d = cliente.get(f"{API}/departamento").json()
     ids = [p["id"] for p in d["puestos"] + d["guardados"]]
     assert puesta not in ids and guardada not in ids
-    assert [p["clave"] for p in d["puestos"] + d["guardados"]] == ["cama_sencilla", "cama_sencilla"]
+    assert [p["clave"] for p in d["puestos"] + d["guardados"]] == ["cama_sencilla", "puerta", "cama_sencilla"]
 
 
 def test_guardar_sin_un_id_valido_es_un_422_y_sin_cabecera_un_403(cliente):
@@ -164,7 +165,7 @@ def test_cada_quien_ve_y_toca_solo_lo_suyo(cliente):
         assert (r["ok"], r["mensaje"]) == (False, "Ese mueble no es tuyo.")
     entrar(cliente, 1)
     d1 = cliente.get(f"{API}/departamento").json()
-    assert [(p["id"], p["x"], p["y"]) for p in d1["puestos"]] == [(suya, 0, 0)]
+    assert [(p["id"], p["x"], p["y"]) for p in d1["puestos"]] == [(suya, 0, 0), (d1["puestos"][1]["id"], -1, 2)]   # tu cama y tu puerta
 
 
 def con_otro(cliente):
@@ -213,3 +214,20 @@ def test_salir_pide_estar_en_el_departamento_y_un_id_de_verdad(cliente):
         assert salir(cliente, malo).status_code == 422
     ajeno = salir(cliente, 999999).json()
     assert (ajeno["ok"], ajeno["clave"], ajeno["mensaje"]) == (False, "no_esta", "Ese gachamon ya no está.")
+
+
+def test_el_departamento_dice_cual_es_la_puerta(cliente):
+    con_gachamon(cliente); en_casa(cliente)
+    d = cliente.get(f"{API}/departamento").json()
+    assert [(p["clave"], p["x"], p["y"], p["puerta"]) for p in d["puestos"]] == [
+        ("cama_sencilla", 0, 0, False), ("puerta", -1, 2, True)]
+    assert (d["comodidad"], d["camas"]) == (82, 1)
+    assert all(not g.get("puerta") for g in d["guardados"])
+
+
+def test_la_puerta_no_se_guarda_desde_la_pagina(cliente):
+    con_gachamon(cliente); en_casa(cliente)
+    puerta = next(p for p in cliente.get(f"{API}/departamento").json()["puestos"] if p["puerta"])
+    r = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": puerta["id"]}, headers=CABECERA).json()
+    assert (r["ok"], r["clave"], r["mensaje"]) == (False, "no_se_guarda", "La puerta no se guarda.")
+    assert any(p["puerta"] for p in r["departamento"]["puestos"])

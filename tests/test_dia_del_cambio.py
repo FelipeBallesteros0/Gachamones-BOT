@@ -160,7 +160,7 @@ def test_a_quien_no_le_queda_ninguno_le_toca_lo_de_quien_empieza():
     con_monedas(5)                          # una persona con monedero y sin gachamones
     el_cambio()
     d = db.departamento_leido("u1", "g1")
-    assert [(p.clave, p.puesta) for p in d.piezas] == [("cama_sencilla", True), ("cama_sencilla", False)]
+    assert [(p.clave, p.puesta) for p in d.piezas] == [("cama_sencilla", True), ("cama_sencilla", False), ("puerta", True)]
 
 
 def murio_antes():
@@ -372,7 +372,7 @@ def test_el_cambio_corre_una_sola_vez():
 def test_dos_arranques_a_la_vez_hacen_un_solo_cambio():      # dos hilos, como tests/test_db.py
     casa_de_antes("u1", "pequena"); con_monedas(0); borrar_la_marca(CAMBIO)
     hechos = en_dos_hilos(lambda: economia.el_dia_del_cambio(T1, random.Random(1)))
-    assert economia.saldos("u1", "g1").asciicoins == 200 and len(db.departamento_leido("u1", "g1").piezas) == 2
+    assert economia.saldos("u1", "g1").asciicoins == 200 and len(db.departamento_leido("u1", "g1").piezas) == 3   # dos camas y su puerta
     assert sorted(h.personas for h in hechos) == [0, 1]
 
 
@@ -394,7 +394,7 @@ def test_si_alguien_ya_tuviera_departamento_no_se_le_suman_camas_y_no_queda_nada
     with pytest.raises(RuntimeError):
         el_cambio()
     assert economia.saldos("u1", "g1").asciicoins == 0 and len(filas("casas_propias")) == 1
-    assert len(db.departamento_leido("u1", "g1").piezas) == 2 and CAMBIO not in marcas()
+    assert len(db.departamento_leido("u1", "g1").piezas) == 3 and CAMBIO not in marcas()   # dos camas y la puerta
 
 
 def test_si_ya_habia_departamentos_sin_la_marca_no_se_hace_nada_y_se_dice():
@@ -431,3 +431,16 @@ def test_el_arranque_apunta_las_tres_cifras_del_cambio_y_ningun_id(caplog):
     assert [r.args for r in lineas] == [(1, 2, 200)]
     assert "u1" not in lineas[0].getMessage()
     assert lineas[0].levelno >= logging.WARNING        # la web no configura el registro: un info se perdería
+
+
+def test_el_dia_del_cambio_deja_a_cada_quien_su_puerta_con_la_entrada_libre():
+    import departamento as dep
+    for n in range(3):
+        nacer(f"G{n}", activa=(n == 0))
+    el_cambio()
+    d = db.departamento_leido("u1", "g1")
+    puertas = [p for p in d.piezas if p.clave == dep.PUERTA]
+    assert len(puertas) == 1 and puertas[0].puesta
+    tapadas = {c for p in d.puestas if dep.MUEBLES[p.clave].capa == dep.BULTO
+               for c in dep.huella(dep.MUEBLES[p.clave], p.x, p.y, p.giro)}
+    assert dep.frente_a(puertas[0].x, puertas[0].y) not in tapadas

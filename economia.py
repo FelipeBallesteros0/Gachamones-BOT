@@ -515,7 +515,8 @@ def _cerrar_las_casas(
 def _departamento_del_alcalde(
     con, usuario_id: str, guild_id: str, vivos: int, ahora: datetime
 ) -> tuple[int, int, int, int]:
-    """Le crea el departamento con una cama puesta por gachamon vivo más la suya.
+    """Le crea el departamento con una cama puesta por gachamon vivo más la suya
+    y su puerta, en un tramo con la entrada libre (`dep.tramo_para_la_puerta`).
 
     Del primer tamaño donde caben (`dep.tamano_para`) y con las camas donde
     dice `dep.acomodar_camas`. A quien no le queda ningún vivo, además, otra
@@ -542,6 +543,11 @@ def _departamento_del_alcalde(
     guardadas = camas - len(sitios) + (0 if vivos else 1)
     for _ in range(guardadas):
         db.anadir_mueble_en(con, usuario_id, guild_id, _CAMA_SENCILLA)
+    # La puerta, calculada con las camas ya puestas: la entrada tiene que quedar libre.
+    con_camas = dep.Departamento(ancho, fondo, tuple(
+        dep.Pieza(n, _CAMA_SENCILLA, x, y, giro) for n, (x, y, giro) in enumerate(sitios)))
+    puerta_x, puerta_y = dep.tramo_para_la_puerta(con_camas)
+    db.anadir_mueble_en(con, usuario_id, guild_id, dep.PUERTA, puerta_x, puerta_y)
     return ancho, fondo, len(sitios), len(sitios) + guardadas
 
 
@@ -1588,6 +1594,8 @@ def comprar_mueble(
     """
     if dep.MUEBLES.get(mueble.clave) != mueble:
         raise ValueError("el mueble no coincide con el catálogo actual")
+    if mueble.puerta:
+        raise ValueError("la puerta no se compra")
 
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
@@ -1658,7 +1666,8 @@ def guardar_mueble(
     """Guarda un mueble tuyo. Guardar nunca lo destruye, y guardar lo ya
     guardado sale bien sin cambiar nada.
 
-    La cama que hace falta —la tuya y una por cada gachamon vivo— no se guarda.
+    La cama que hace falta —la tuya y una por cada gachamon vivo— no se guarda,
+    ni la puerta (`motivo="no_se_guarda"`).
     """
     ahora = ahora or db.ahora_utc()
     with db.conectar() as con:
@@ -1670,6 +1679,10 @@ def guardar_mueble(
         if pieza is None:
             return ResultadoDepartamento(
                 departamento=depto, motivo=dep.NO_ES_TUYO, mueble_id=mueble_id,
+            )
+        if pieza.clave in dep.MUEBLES and dep.MUEBLES[pieza.clave].puerta:
+            return ResultadoDepartamento(
+                departamento=depto, motivo="no_se_guarda", mueble_id=mueble_id,
             )
         if not pieza.puesta:
             return ResultadoDepartamento(ok=True, departamento=depto, mueble_id=mueble_id)
