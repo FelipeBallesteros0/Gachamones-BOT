@@ -505,7 +505,8 @@ def test_la_pieza_no_es_pixel_art_pero_el_avatar_si():
 def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
     import departamento
 
-    for nombre in ("departamento.js", "flotantes.js", "plantel.js", "pieza.js", "casillas.js", "proyeccion.js"):
+    for nombre in ("departamento.js", "flotantes.js", "lista.js", "plantel.js", "pieza.js", "casillas.js",
+                   "proyeccion.js"):
         codigo = _sin_comentarios(_guion(nombre))
         for clave in departamento.MUEBLES:
             assert f"'{clave}'" not in codigo and f'"{clave}"' not in codigo, (nombre, clave)
@@ -554,3 +555,11 @@ def test_el_departamento_camina_solo_mientras_algo_se_mueve_y_respeta_el_movimie
     codigo = _guion("departamento.js")
     for trozo in ("requestAnimationFrame", "cancelAnimationFrame", "prefers-reduced-motion", "visibilitychange", "aria-hidden"):
         assert trozo in codigo, trozo
+
+
+def test_lo_que_no_se_puede_usar_no_se_apaga_con_disabled():
+    # La pantalla, la lista que la hace sin el dibujo y la ficha del elegido:
+    # lo que no se puede usar sigue enfocable, con `aria-disabled`.
+    for nombre in ("departamento.js", "lista.js", "plantel.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        assert "aria-disabled" in codigo and not re.search(r"\bdisabled\s*[:=]", codigo), nombre

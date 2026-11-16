@@ -54,7 +54,9 @@ export function panelDelPlantel(acciones) {
   salir.addEventListener('click', () => acciones.salir(salir));
   // «Acariciar» está siempre; «Salir con …», sólo en la de otro.
   const accionesDelElegido = el('div', { class: 'acciones-elegido' }, acariciar);
+  // La ficha se llama como el que enseña; sin ninguno, como lo que dice.
   const ficha = el('section', { class: 'ficha-elegido', 'aria-labelledby': 'departamento-elegido' });
+  const vacia = el('p', { class: 'ficha-elegido-vacia', id: 'departamento-sin-gachamon' }, NINGUNO);
 
   // --- a todos -----------------------------------------------------------------------
 
@@ -115,7 +117,8 @@ export function panelDelPlantel(acciones) {
     visto = quien;
     const conFoco = ficha.contains(document.activeElement) ? document.activeElement : null;
     if (!quien) {
-      ficha.replaceChildren(el('p', { class: 'ficha-elegido-vacia' }, NINGUNO));
+      ficha.replaceChildren(vacia);
+      ficha.setAttribute('aria-labelledby', 'departamento-sin-gachamon');
       aTodos.replaceChildren();
       aTodos.hidden = true;
       return;
@@ -130,6 +133,7 @@ export function panelDelPlantel(acciones) {
     if (!quien.activo && !accionesDelElegido.contains(salir)) accionesDelElegido.append(salir);
     if (quien.activo && accionesDelElegido.contains(salir)) salir.remove();
     if (!ficha.contains(cabeza)) {
+      ficha.setAttribute('aria-labelledby', 'departamento-elegido');
       ficha.replaceChildren(lineaDeCabeza, detalle,
         el('div', { class: 'medidores' }, medidores.map((m) => m.nodo)),
         el('div', { class: 'cuidados-elegido', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),

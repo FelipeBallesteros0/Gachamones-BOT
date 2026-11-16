@@ -32,6 +32,14 @@
 // globo, los corazones, la ganancia, la evolución y las medallas) lo arma
 // `flotantes.js`.
 //
+// Debajo de todo, y siempre a la vista, la lista (`lista.js`): lo mismo que se
+// hace en el dibujo, con botones, para quien no usa el dibujo. Elegir ahí a un
+// gachamon es tocarlo sin su menú; «Mover», «Poner», «Girar» y «Guardar» hacen
+// lo mismo que el menú y la bandeja, y lo que sale bien sin decirse con texto
+// (poner, mover, girar, guardar) se le vuelve a decir a quien no ve el dibujo:
+// cómo quedó la pieza. El foco no se pierde: vuelve a ese mismo mueble, en la
+// lista donde haya quedado.
+//
 // El servidor manda: la pieza se pinta como llega, y lo que se calcula aquí
 // (por dónde se camina, qué se tocó, qué cabe dónde) sirve sólo para dibujar y
 // para no proponer lo imposible. Poner, guardar, salir y acariciar se mandan
@@ -40,10 +48,11 @@
 // ampliar, los cuidados, salir y lo que no se puede dicen la frase del
 // servidor; sin respuesta, se dice y la pieza se vuelve a leer. Mientras una
 // petición va, lo que la mandó espera y no sale otra. El lienzo sólo se mira
-// (`aria-hidden`); los menús, la bandeja, la ficha y lo de ampliar son botones
-// de verdad. Todo texto entra por `el` o por `textContent`. Lo que corre (el
-// cuadro de animación, los relojes, la relectura y los oyentes) se detiene al
-// salir, y una respuesta que llega tarde no pinta.
+// (`aria-hidden`); los menús, la bandeja, la ficha, lo de ampliar y la lista
+// son botones de verdad, y lo que no se puede usar lleva `aria-disabled`. Todo
+// texto entra por `el` o por `textContent`. Lo que corre (el cuadro de
+// animación, los relojes, la relectura y los oyentes) se detiene al salir, y
+// una respuesta que llega tarde no pinta.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
@@ -57,6 +66,7 @@ import {
 import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
 import { loQueFlota } from './flotantes.js';
+import { cuantoOcupa, listaDelDepartamento } from './lista.js';
 import { ofreceElDepartamento, siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
@@ -96,13 +106,6 @@ const ROTULO_DE_GUARDADOS = 'Guardados · toca uno y después una casilla';
 const NADA_GUARDADO = 'No queda nada guardado.';
 const ROTULO_DE_AMPLIAR = 'Ampliar el departamento';
 const YA_NO_CRECE = 'Tu departamento ya no puede crecer más.';
-
-// Cuánto ocupa un mueble, como se dice bajo su nombre en la bandeja.
-function cuantoOcupa(mueble) {
-  if (mueble.capa === PARED) return 'en la pared';
-  const casillas = mueble.ancho * mueble.fondo;
-  return casillas === 1 ? '1 casilla' : `${casillas} casillas`;
-}
 
 // Los guardados, uno por tipo de mueble en el orden en que llegan: el primero
 // de cada tipo (el que se pone) y cuántos hay.
@@ -232,9 +235,19 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
   const derecha = el('div', { class: 'lado-departamento' },
     delPlantel, deLaPieza, el('div', { class: 'salidas-lugar' }, aLaMochila, alPueblo));
   const panelAmpliar = el('div', { class: 'ampliar', hidden: true });
+  // La lista, como la ficha: se ve cuando llega la pieza.
+  const lista = listaDelDepartamento({
+    ver: verDesdeLaLista,
+    sitios: dondeVa,
+    noCabe: () => decir(NO_CABE, true),
+    poner: ponerDesdeLaLista,
+    girar,
+    guardar,
+  });
+  lista.nodo.hidden = true;
 
   const cuerpo = el('div', { class: 'cuerpo cuerpo-departamento' },
-    espera, pieza, aviso.nodo, derecha, panelAmpliar);
+    espera, pieza, aviso.nodo, derecha, panelAmpliar, lista.nodo);
   contenedor.append(cabecera, cuerpo);
 
   function parar() {
@@ -468,10 +481,12 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
       || depto.plantel[0] || null;
   }
 
+  // Su ficha a la derecha y, en la lista, quién la tiene a la vista.
   function pintarElPanel() {
     const g = elVisto();
     visto = g ? g.id : null;
     panel.pintar(g);
+    if (depto) lista.pintar(depto, visto);
   }
 
   // La ficha de uno, recién llegada con lo que contestó una acción: sus barras,
@@ -828,8 +843,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
   function hacerElMenu(puesto) {
     const botones = [botonDelMenu('✋', 'Mover', moverLoElegido)];
     // Lo de pared no se gira.
-    if (puesto.capa !== PARED) botones.push(botonDelMenu('🔄', 'Girar', girarLoElegido));
-    botones.push(botonDelMenu('📦', 'Guardar', guardarLoElegido));
+    if (puesto.capa !== PARED) botones.push(botonDelMenu('🔄', 'Girar', (boton) => girar(puesto.id, boton)));
+    botones.push(botonDelMenu('📦', 'Guardar', (boton) => guardar(puesto.id, boton)));
     menu.replaceChildren(el('p', { class: 'menu-nombre' }, puesto.nombre), el('div', { class: 'menu-botones' }, botones));
     menu.setAttribute('aria-label', puesto.nombre);
     menuDe = `mueble ${puesto.id}`;
@@ -907,10 +922,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     tomar(manoAlDia({ mueble: puesto, tipo: null }));
   }
 
-  // El giro siguiente con el que cabe en su mismo sitio; si no cabe de ninguna
-  // otra forma, no se manda nada.
-  function girarLoElegido(boton) {
-    const puesto = elPuesto(elegido);
+  // Girar un mueble puesto (desde su menú o desde la lista): el giro siguiente
+  // con el que cabe en su mismo sitio; si no cabe de ninguna otra forma, no se
+  // manda nada.
+  function girar(id, boton) {
+    const puesto = elPuesto(id);
     if (enCamino || !puesto) return;
     const giro = giroParaPoner(depto, puesto, puesto.x, puesto.y, (puesto.giro + 1) % GIROS);
     if (giro === null || giro === puesto.giro) {
@@ -920,10 +936,40 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     poner(puesto, { x: puesto.x, y: puesto.y, giro }, boton);
   }
 
-  function guardarLoElegido(boton) {
-    const puesto = elPuesto(elegido);
+  // Guardarlo (desde su menú o desde la lista): tras guardar no queda ningún mueble elegido.
+  function guardar(id, boton) {
+    const puesto = elPuesto(id);
     if (enCamino || !puesto) return;
     enviar(boton, () => pedir('POST', 'departamento/guardar', { mueble_id: puesto.id }), () => { elegido = null; });
+  }
+
+  // --- lo que pide la lista --------------------------------------------------------------
+
+  // Elegir a un gachamon desde la lista es lo mismo que tocarlo, sin su menú:
+  // su ficha queda a la derecha y en la pieza no queda nada elegido.
+  function verDesdeLaLista(id) {
+    if (enCamino || !depto || !depto.plantel.some((g) => g.id === id)) return;
+    elegido = null;
+    elegidoG = null;
+    visto = id;
+    pintarElPanel();
+    verLoElegido();
+  }
+
+  // Dónde cabe ese mueble, puesto o guardado (`{x, y, giro}`): lo mismo que se
+  // marca al llevarlo en la mano (lo que se mueve, sin el sitio donde ya está).
+  function dondeVa(id) {
+    const puesto = elPuesto(id);
+    if (puesto) return manoAlDia({ mueble: puesto, tipo: null }).sitios;
+    const guardado = depto && depto.guardados.find((g) => g.id === id);
+    return guardado ? dondeCabe(depto, guardado, 0) : [];
+  }
+
+  // Ponerlo en ese sitio, con su giro: lo mismo que tocar ahí con él en la mano.
+  function ponerDesdeLaLista(id, sitio, boton) {
+    const mueble = elPuesto(id) || (depto && depto.guardados.find((g) => g.id === id));
+    if (enCamino || !mueble) return;
+    poner(mueble, sitio, boton);
   }
 
   // --- los guardados ---------------------------------------------------------------------
@@ -953,7 +999,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
       const botones = tipos.map(({ primero, cuantos }) => {
         const icono = lienzoDePieza(primero.icono, LADO_DEL_ICONO, LADO_DEL_ICONO);
         icono.classList.add('bandeja-icono');
-        const boton = el('button', { type: 'button', class: 'bandeja-tipo', 'aria-pressed': 'false' },
+        const boton = el('button', {
+          type: 'button', class: 'bandeja-tipo', 'aria-pressed': 'false', 'aria-disabled': enCamino ? 'true' : null,
+        },
           icono,
           el('span', { class: 'bandeja-nombre' }, `${primero.nombre} × ${cuantos}`),
           el('span', { class: 'bandeja-ocupa' }, cuantoOcupa(primero)));
@@ -1024,7 +1072,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
       opciones = el('div', { class: 'ampliar-lados', role: 'group', 'aria-labelledby': 'departamento-ampliar' },
         lados.map(({ eje, que, casillas, coste }) => {
           // Se ve con el símbolo y se lee con la palabra, como los saldos.
-          const boton = el('button', { type: 'button', class: 'boton boton-lado', 'data-eje': eje },
+          const boton = el('button', {
+            type: 'button', class: 'boton boton-lado', 'data-eje': eje, 'aria-disabled': enCamino ? 'true' : null,
+          },
             el('span', {}, `+ ${que} (${casillas} casillas) · `,
               el('span', { 'aria-hidden': 'true' }, `${coste} ${MONEDAS.simbolo}`),
               el('span', { class: 'solo-lector' }, MONEDAS.cuantas(coste))));
@@ -1063,7 +1113,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
   const queMandan = () => cuerpo.querySelectorAll('.menu-de-la-pieza button, .bandeja-tipo, .boton-lado');
 
   // Los de la ficha y «A todos» los pone su panel (`panel.ocupar`), que sabe
-  // además cuáles esperan a que se acabe su espera.
+  // además cuáles esperan a que se acabe su espera; los de la lista, la lista.
+  // Lo que aparece mientras tanto nace sin poderse usar.
   function esperar(origen) {
     enCamino = true;
     origenEnEspera = origen;
@@ -1071,6 +1122,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     origen.classList.add(origen === escenario ? 'en-camino' : 'esperando');
     for (const boton of queMandan()) if (boton !== origen) boton.setAttribute('aria-disabled', 'true');
     panel.ocupar(origen);
+    lista.ocupar(origen);
   }
 
   function dejarDeEsperar() {
@@ -1080,6 +1132,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     origenEnEspera = null;
     for (const boton of queMandan()) boton.removeAttribute('aria-disabled');
     panel.ocupar(null);
+    lista.ocupar(null);
     ponerMenu();
   }
 
@@ -1091,6 +1144,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     acciones += 1;
     esperar(origen);
     decir('');
+    lista.anunciar('');
     let respuesta;
     try {
       respuesta = await hacer();
@@ -1113,19 +1167,25 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
 
   // Lo que cambia la pieza: se pinta la que contesta el servidor. `siSaleBien()`
   // deja elegido lo que toque. Un «no» se dice con su frase y la pieza queda
-  // como dice el servidor.
+  // como dice el servidor. Lo que sale bien sin frase (poner, mover, girar,
+  // guardar) se ve en el dibujo; a quien no lo ve, la lista le vuelve a decir
+  // cómo quedó la pieza.
   function enviar(origen, hacer, siSaleBien) {
     return mandar(origen, hacer, (respuesta) => {
       if (respuesta.ok && siSaleBien) siSaleBien();
       aplicarDepto(respuesta.departamento);
       decir(respuesta.mensaje, !respuesta.ok);
+      if (respuesta.ok && !respuesta.mensaje) lista.anunciar(lineaDeEstado(depto));
     });
   }
 
-  // Lo que se pone (o se mueve, o se gira) queda elegido.
+  // Lo que se pone (o se mueve, o se gira) queda elegido, y ningún gachamon.
   function poner(mueble, { x, y, giro }, origen) {
     enviar(origen, () => pedir('POST', 'departamento/poner', { mueble_id: mueble.id, x, y, giro }),
-      () => { elegido = mueble.id; });
+      () => {
+        elegido = mueble.id;
+        elegidoG = null;
+      });
   }
 
   // --- lo que se le hace a tus gachamones ------------------------------------------------
@@ -1277,6 +1337,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     listo = true;
     deLaPieza.hidden = false;
     delPlantel.hidden = false;
+    lista.nodo.hidden = false;
     // Las cuentas de las esperas bajan solas; tus gachamones pasean y el que
     // sale contigo habla de vez en cuando.
     cadaSegundo = setInterval(() => { if (sigueAqui()) panel.contar(); }, 1000);

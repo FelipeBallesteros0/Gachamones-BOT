@@ -2238,6 +2238,99 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .boton-lado { font-variant-numeric: tabular-nums; }
 
+/* La lista, bajo la pieza y sus paneles, siempre a la vista: lo mismo que el
+   dibujo, con botones. Tus gachamones en fila (el que tiene su ficha a la
+   vista, marcado); cada mueble, en su tarjeta, con su nombre y su sitio a la
+   izquierda y sus botones a la derecha (debajo, si no caben); y «¿Dónde?»,
+   cuando se abre, ocupa la tarjeta de lado a lado (y lo que lo abrió se ve
+   marcado). */
+.lista-departamento {
+  display: grid;
+  gap: 18px;
+  padding-top: 8px;
+  border-top: 1px solid var(--linea);
+}
+
+.lista-gachamones,
+.lista-puestos,
+.lista-guardados { display: grid; gap: 8px; align-content: start; }
+
+.lista-departamento h2:focus { outline: none; }
+
+.lista-gachamones-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.lista-gachamones-botones .boton { min-height: 44px; }
+
+.lista-gachamones-botones .boton[aria-pressed="true"],
+.lista-botones .boton[aria-expanded="true"] {
+  background: var(--elegido);
+  color: var(--elegido-texto);
+  box-shadow: inset 0 0 0 2px var(--elegido-borde);
+}
+
+.lista-muebles { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.lista-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 10px 10px 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--tarjeta);
+}
+
+.mueble-texto { flex: 1 1 12rem; min-width: 0; }
+
+.mueble-nombre { margin: 0; font-weight: 700; }
+
+.mueble-ocupa { margin: 0; color: var(--texto-suave); font-size: 0.8125rem; }
+
+.lista-botones { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.lista-botones .boton,
+.lista-fila .donde .boton { min-height: 44px; }
+
+/* «¿Dónde?» lleva la clase del título de la cabecera: aquí no se recorta. */
+.lista-fila > .donde {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  overflow: visible;
+  padding-top: 10px;
+  border-top: 1px dashed var(--borde);
+  font-weight: inherit;
+  white-space: normal;
+}
+
+.donde-sitio {
+  flex: 1 1 12rem;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-chico);
+  background: var(--tarjeta);
+  color: var(--texto);
+  font: inherit;
+}
+
+.lista-vacia {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--borde);
+  border-radius: var(--radio);
+  color: var(--texto-suave);
+  font-weight: 600;
+  text-align: center;
+}
+
+.lista-departamento .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
+
 /* En un computador, la pieza a la izquierda, grande, con su línea debajo; a la
    derecha, lo demás. */
 @media (min-width: 900px) {
@@ -2259,6 +2352,17 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .cuerpo-departamento > .ampliar { grid-column: 2; grid-row: 1; }
 
   .cuerpo-departamento > .aviso { grid-column: 2; grid-row: 2; }
+
+  /* La lista, debajo de todo y de lado a lado: tus gachamones arriba, y los
+     muebles puestos y los guardados uno junto al otro. */
+  .cuerpo-departamento > .lista-departamento {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    gap: 18px 28px;
+  }
+
+  .lista-departamento > .lista-gachamones { grid-column: 1 / -1; }
 
   .cuidados-elegido { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 

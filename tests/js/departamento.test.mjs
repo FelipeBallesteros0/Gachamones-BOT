@@ -160,6 +160,17 @@ class Elemento extends Nodo {
 
   hasChildNodes() { return this.hijos.length > 0; }
 
+  // Un desplegable vale lo que su opción elegida (la primera, si no se eligió
+  // otra), como en un navegador.
+  get value() {
+    if (this.etiqueta !== 'select') return this.valor ?? '';
+    const opciones = this.querySelectorAll('option');
+    const elegida = opciones.find((o) => o.getAttribute('value') === this.valor) || opciones[0];
+    return elegida ? elegida.getAttribute('value') : '';
+  }
+
+  set value(valor) { this.valor = String(valor); }
+
   focus() { document.activeElement = this; }
 
   scrollIntoView() {}
@@ -507,6 +518,26 @@ const lienzoDe = (pantalla) => uno(pantalla, '.pieza-lienzo');
 
 async function tocar(nodo) {
   for (const oyente of [...(nodo.oyentes.click || [])]) oyente({ type: 'click' });
+  await asentar();
+}
+
+// La fila de ese mueble en la lista (en «Muebles puestos» o en «Guardados»).
+const fila = (raiz, id) => uno(raiz, `li[data-fila=${id}]`);
+
+// Deja elegida en el desplegable la opción con ese texto, como quien la
+// elige: cambia su valor y avisa del cambio.
+function elegir(select, textoDeLaOpcion) {
+  const opcion = todos(select, 'option').find((o) => o.textContent === textoDeLaOpcion);
+  assert.ok(opcion, `no hay opción «${textoDeLaOpcion}»`);
+  select.value = opcion.getAttribute('value');
+  for (const oyente of [...(select.oyentes.change || [])]) oyente({ type: 'change' });
+}
+
+// Una tecla pulsada en ese nodo, que sube por los que lo contienen como en un navegador.
+async function teclear(nodo, tecla) {
+  for (let n = nodo; n; n = n.padre) {
+    for (const oyente of [...((n.oyentes && n.oyentes.keydown) || [])]) oyente({ type: 'keydown', key: tecla, preventDefault() {} });
+  }
   await asentar();
 }
 
@@ -1227,4 +1258,234 @@ test('al cambiarle la cara se sigue pintando su retrato de antes hasta que llega
   await soltar();
   assert.equal(dondeSePinto(pantalla, RULO.retrato), null);
   assert.deepEqual(dondeSePinto(pantalla, CONTENTO.retrato), dondeEsta(CON_DOS, 1));
+});
+
+// --- sin el dibujo: la lista -----------------------------------------------------------
+
+test('cada mueble puesto está en la lista con su sitio y sus botones', async () => {
+  const { pantalla } = await abrir(CON_MACETA);
+  const filas = todos(pantalla, '.lista-puestos li');
+  assert.deepEqual(filas.map((f) => texto(f, '.mueble-nombre')), ['Cama sencilla, en fila 1, columna 1', 'Maceta, en fila 3, columna 3']);
+  for (const f of filas) assert.deepEqual(rotulos(f), ['Mover', 'Girar', 'Guardar']);
+  assert.deepEqual(rotulos(uno(pantalla, '.lista-guardados li')), ['Poner']);
+});
+
+test('mover desde la lista: se elige el sitio en un desplegable', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_MACETA);
+  servidor.responde('POST departamento/poner', BIEN(CON_MACETA));
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
+  const sitios = todos(pantalla, '.donde option').map((o) => o.textContent);
+  assert.ok(sitios.includes('fila 1, columna 3'));
+  assert.ok(!sitios.includes('fila 1, columna 1') && !sitios.includes('fila 3, columna 3'));   // la cama, y donde ya está
+  elegir(uno(pantalla, '.donde select'), 'fila 2, columna 3');
+  await tocar(boton(pantalla, 'Ponerlo ahí'));
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: MACETA_ID, x: 2, y: 1, giro: 0 }]);
+});
+
+test('poner desde la lista uno que sólo cabe girado', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/poner', BIEN(DEPTO));
+  await tocar(boton(fila(pantalla, GUARDADA_ID), 'Poner'));
+  elegir(uno(pantalla, '.donde select'), 'fila 1, columna 3');
+  await tocar(boton(pantalla, 'Ponerlo ahí'));
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: GUARDADA_ID, x: 2, y: 0, giro: 1 }]);
+});
+
+test('lo de pared se ofrece en sus tramos y no se gira', async () => {
+  const { pantalla } = await abrir(CON_UN_CUADRO_GUARDADO);
+  await tocar(boton(fila(pantalla, CUADRO_ID), 'Poner'));
+  const sitios = todos(pantalla, '.donde option').map((o) => o.textContent);
+  assert.deepEqual(sitios, ['pared derecha, tramo 1', 'pared derecha, tramo 2', 'pared derecha, tramo 3',
+                            'pared izquierda, tramo 1', 'pared izquierda, tramo 2', 'pared izquierda, tramo 3']);
+});
+
+test('tras guardar, el foco sigue en ese mueble y se vuelve a decir cómo quedó la pieza', async () => {
+  const { pantalla, servidor, documento } = await abrir(CON_MACETA);
+  servidor.responde('POST departamento/guardar', BIEN(SIN_MACETA));
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Guardar'));
+  assert.equal(fila(pantalla, MACETA_ID).closest('.lista-guardados') !== null, true);
+  assert.equal(fila(pantalla, MACETA_ID).contains(documento.activeElement), true);
+  assert.equal(texto(pantalla, '.solo-lector[role=status]'), '3 × 3 · 2 de 9 casillas · camas 1 · gachamones 1 · comodidad 82 de 100');
+});
+
+test('los gachamones se eligen también desde la lista, y se les acaricia desde su ficha', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  const botones = todos(pantalla, '.lista-gachamones button');
+  assert.deepEqual(botones.map((b) => [b.textContent.trim(), b.getAttribute('aria-pressed')]), [['Pelusa', 'true'], ['Rulo', 'false']]);
+  await tocar(botones[1]);
+  assert.match(texto(pantalla, '.ficha-elegido'), /Rulo/);
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: ESTADO });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Acariciar'));
+  assert.deepEqual(pedidos.at(-1), ['POST acariciar', { gachamon_id: RULO.id }]);
+});
+
+// --- lo que el encargo dice de la lista y no prueba lo de arriba -----------------------
+
+// La maceta, de (2, 2) a (2, 1).
+const MACETA_MOVIDA = {
+  ...DEPTO,
+  puestos: [...DEPTO.puestos, { id: MACETA_ID, ...MACETA, nombre: 'Maceta', x: 2, y: 1, giro: 0, casillas: [[2, 1]] }],
+};
+
+test('mover desde la lista: el foco vuelve a ese mueble, el ¿Dónde? se cierra y se vuelve a decir cómo quedó', async () => {
+  const { pantalla, servidor, documento } = await abrir(CON_MACETA);
+  servidor.responde('POST departamento/poner', BIEN(MACETA_MOVIDA));
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
+  assert.equal(documento.activeElement, uno(pantalla, '.donde select'));                 // a elegir el sitio
+  const deQue = uno(pantalla, `[id=${uno(pantalla, '.donde select').getAttribute('aria-describedby')}]`);
+  assert.equal(texto(deQue), 'Maceta, en fila 3, columna 3');                            // y se dice de qué mueble
+  elegir(uno(pantalla, '.donde select'), 'fila 2, columna 3');
+  await tocar(boton(pantalla, 'Ponerlo ahí'));
+  assert.equal(texto(fila(pantalla, MACETA_ID), '.mueble-nombre'), 'Maceta, en fila 2, columna 3');
+  assert.equal(uno(pantalla, '.donde select'), null);
+  assert.equal(documento.activeElement, boton(fila(pantalla, MACETA_ID), 'Mover'));
+  assert.equal(texto(pantalla, '.solo-lector[role=status]'), '3 × 3 · 3 de 9 casillas · camas 1 · gachamones 1 · comodidad 82 de 100');
+  assert.equal(texto(pantalla, '[role=status].aviso'), '');                             // bien no sale texto
+});
+
+test('girar desde la lista manda el giro siguiente que cabe; lo colgado dice su pared y no se gira', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/poner', BIEN(DEPTO));
+  await tocar(boton(fila(pantalla, CAMA_ID), 'Girar'));
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: CAMA_ID, x: 0, y: 0, giro: 1 }]);
+  const colgado = await abrir(CON_UN_CUADRO_COLGADO);
+  const cuadro = fila(colgado.pantalla, CUADRO_ID);
+  assert.equal(texto(cuadro, '.mueble-nombre'), 'Cuadro, en la pared derecha, tramo 3');
+  assert.deepEqual(rotulos(cuadro), ['Mover', 'Guardar']);
+});
+
+test('desde la lista, lo que no cabe en ningún sitio lo dice y no pregunta dónde', async () => {
+  const { pantalla, pedidos } = await abrir(SIN_SITIO_PARA_LA_CAMA);
+  await tocar(boton(fila(pantalla, GUARDADA_ID), 'Poner'));
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí no cabe.');
+  assert.equal(uno(pantalla, '.donde select'), null);
+  assert.equal(pedidos.length, 1);
+});
+
+test('Escape cierra el ¿Dónde? y el foco vuelve a lo que lo abrió', async () => {
+  const { pantalla, documento } = await abrir(CON_MACETA);
+  const mover = boton(fila(pantalla, MACETA_ID), 'Mover');
+  await tocar(mover);
+  assert.equal(mover.getAttribute('aria-expanded'), 'true');
+  await teclear(uno(pantalla, '.donde select'), 'Escape');
+  assert.equal(uno(pantalla, '.donde select'), null);
+  assert.equal(mover.getAttribute('aria-expanded'), 'false');
+  assert.equal(documento.activeElement, mover);
+});
+
+test('si el servidor no lo deja poner ahí, lo dice y el ¿Dónde? sigue abierto', async () => {
+  const { pantalla, servidor, documento } = await abrir(CON_MACETA);
+  servidor.responde('POST departamento/poner', { ok: false, clave: 'ocupado', mensaje: 'Ahí ya hay algo.', departamento: CON_MACETA, estado: ESTADO });
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
+  const ahi = boton(pantalla, 'Ponerlo ahí');
+  ahi.focus();
+  await tocar(ahi);
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí ya hay algo.');
+  assert.notEqual(uno(pantalla, '.donde select'), null);
+  assert.equal(documento.activeElement, ahi);
+  assert.equal(texto(pantalla, '.solo-lector[role=status]'), '');                       // no salió bien: no se anuncia
+});
+
+test('volver a leer la pieza no le quita el foco a la lista ni dice nada', async () => {
+  const { pantalla, documento } = await abrir(CON_MACETA);
+  const girar = boton(fila(pantalla, MACETA_ID), 'Girar');
+  girar.focus();
+  // Ni se le quita ni se le vuelve a dar (un lector de pantalla lo volvería a leer cada 30 segundos).
+  let enfocado = 0;
+  girar.focus = () => { enfocado += 1; documento.activeElement = girar; };
+  await documento.dispara('visibilitychange');
+  assert.equal(documento.activeElement, girar);
+  assert.equal(enfocado, 0);
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
+  const select = uno(pantalla, '.donde select');
+  elegir(select, 'fila 2, columna 3');
+  await documento.dispara('visibilitychange');
+  assert.equal(uno(pantalla, '.donde select'), select);
+  assert.equal(documento.activeElement, select);
+  assert.equal(todos(select, 'option').find((o) => o.getAttribute('value') === select.value).textContent, 'fila 2, columna 3');
+  assert.equal(texto(pantalla, '.solo-lector[role=status]'), '');
+});
+
+test('mientras una petición va, la lista espera: lo que la mandó, ocupado, y lo demás no se puede usar', async () => {
+  const CON_MACETA_Y_DOS = { ...CON_MACETA, gachamones: 2, plantel: CON_DOS.plantel };
+  const { pantalla, pedidos, servidor } = await abrir(CON_MACETA_Y_DOS);
+  const soltar = servidor.retiene('POST departamento/guardar');
+  const guardar = boton(fila(pantalla, MACETA_ID), 'Guardar');
+  await tocar(guardar);
+  assert.equal(guardar.getAttribute('aria-busy'), 'true');
+  for (const b of [boton(fila(pantalla, CAMA_ID), 'Mover'), boton(fila(pantalla, GUARDADA_ID), 'Poner'), ...todos(pantalla, '.lista-gachamones button')]) {
+    assert.equal(b.getAttribute('aria-disabled'), 'true');
+  }
+  await tocar(boton(fila(pantalla, CAMA_ID), 'Mover'));
+  await tocar(todos(pantalla, '.lista-gachamones button')[1]);
+  assert.equal(uno(pantalla, '.donde select'), null);                                   // no se abre
+  assert.match(texto(pantalla, '.ficha-elegido'), /Pelusa/);                            // ni cambia la ficha
+  await soltar(BIEN({ ...CON_DOS }));
+  assert.equal(boton(fila(pantalla, CAMA_ID), 'Mover').getAttribute('aria-disabled'), null);
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/guardar').length, 1);
+});
+
+test('elegir a un gachamon desde la lista no abre su menú, y tocarlo en la pieza lo marca en la lista', async () => {
+  const { pantalla } = await abrir(CON_DOS);
+  await tocar(todos(pantalla, '.lista-gachamones button')[1]);
+  assert.equal(menu(pantalla), null);
+  assert.deepEqual(todos(pantalla, '.lista-gachamones button').map((b) => b.getAttribute('aria-pressed')), ['false', 'true']);
+  await tocarA(pantalla, CON_DOS, 0);                                                    // Pelusa, en la pieza
+  assert.deepEqual(todos(pantalla, '.lista-gachamones button').map((b) => b.getAttribute('aria-pressed')), ['true', 'false']);
+});
+
+test('lo que sale bien desde el dibujo también se le dice a quien no lo ve; lo que ya tiene su frase, no', async () => {
+  const { pantalla, servidor } = await abrir(CON_MACETA);
+  servidor.responde('POST departamento/guardar', BIEN(SIN_MACETA));
+  await tocarCasilla(pantalla, 2, 2);
+  await tocar(boton(menu(pantalla), 'Guardar'));
+  assert.equal(texto(pantalla, '.solo-lector[role=status]'), '3 × 3 · 2 de 9 casillas · camas 1 · gachamones 1 · comodidad 82 de 100');
+  await tocar(boton(pantalla, 'Ampliar'));
+  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.',
+    departamento: { ...SIN_MACETA, ancho: 4, casillas: 12 }, estado: ESTADO });
+  await tocar(boton(pantalla, '+ columna'));
+  assert.equal(texto(pantalla, '.solo-lector[role=status]'), '');                       // ésa ya se dice con su frase
+});
+
+test('lo que se pone desde la lista queda elegido, y el gachamon que lo estaba deja de estarlo', async () => {
+  const HABLA = { ...ESTADO, globos: [{ tipo: 'suelta', texto: '¡Qué día tan bonito!' }] };
+  const PUESTA = { ...CON_DOS, puestos: [...CON_DOS.puestos, { id: GUARDADA_ID, ...CAMA, x: 2, y: 0, giro: 1, casillas: [[2, 0], [2, 1]] }], guardados: [] };
+  const { pantalla, servidor } = await abrir(CON_DOS, HABLA);
+  servidor.responde('POST departamento/poner', { ...BIEN(PUESTA), estado: HABLA });
+  await tocarA(pantalla, CON_DOS, 0);                                                    // Pelusa, con su menú encima
+  await tocar(boton(fila(pantalla, GUARDADA_ID), 'Poner'));
+  await tocar(boton(pantalla, 'Ponerlo ahí'));
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Cama sencilla');
+  await correrReloj(2500);
+  assert.equal(texto(pantalla, '.globo'), '¡Qué día tan bonito!');                       // sin su menú encima, habla
+});
+
+// --- lo que no se puede usar, también lo que aparece después; la ficha, siempre con nombre --
+
+test('lo que aparece mientras una petición va (la bandeja, lo de ampliar) nace sin poderse usar', async () => {
+  const { pantalla, servidor } = await abrir(CON_DOS);
+  const soltar = servidor.retiene('POST cuidar');
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Bañar'));                         // un cuidado en camino
+  await tocar(boton(pantalla, 'Guardados'));                                             // la bandeja aparece ahora
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-disabled'), 'true');
+  await tocar(boton(pantalla, 'Ampliar'));                                               // y lo de ampliar, también
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), 'true');
+  assert.equal(boton(pantalla, '+ fila').getAttribute('aria-disabled'), 'true');
+  await soltar({ ok: true, mensaje: 'Pelusa quedó reluciente.', espera: 600, monedas: 0, evoluciono: false, logros: [], gachamon: PELUSA, estado: ESTADO });
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), null);
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-disabled'), null);
+});
+
+test('sin ningún gachamon, la ficha sigue nombrada por algo que está en la página', async () => {
+  const SIN_NADIE = { ...DEPTO, gachamones: 0, plantel: [] };
+  const { pantalla, servidor, documento } = await abrir(SIN_NADIE, { ...ESTADO, gachamon: null, globos: [] });
+  const ficha = uno(pantalla, '.ficha-elegido');
+  const suNombre = () => uno(pantalla, `[id=${ficha.getAttribute('aria-labelledby')}]`);
+  assert.equal(texto(suNombre()), 'Todavía no vive ningún gachamon contigo.');
+  servidor.responde('GET departamento', DEPTO);                                          // llega uno
+  await documento.dispara('visibilitychange');
+  assert.equal(texto(suNombre()), 'Pelusa');
+  servidor.responde('GET departamento', SIN_NADIE);                                      // y se va
+  await documento.dispara('visibilitychange');
+  assert.equal(texto(suNombre()), 'Todavía no vive ningún gachamon contigo.');
 });
