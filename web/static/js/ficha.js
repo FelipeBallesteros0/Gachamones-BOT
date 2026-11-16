@@ -1,17 +1,21 @@
-// La ficha completa del gachamon activo: quién es (retrato, nombre y título,
+// La ficha completa de un gachamon tuyo: quién es (retrato, nombre y título,
 // especie, etapa y nivel, género, carácter y sombrero), su experiencia, sus
 // cuatro estadísticas con el efecto que tengan encima y las medallas, las suyas
-// y las tuyas. De aquí se abre el ropero.
+// y las tuyas. De la del que sale contigo se abre el ropero.
 //
-// `ficha(contenedor, estado, seguir)` pinta la pantalla y pide la ficha
-// (`GET ficha`). Las reglas son del servidor: cada número, qué medallas hay,
-// cuáles tienes y cuánto llevas; aquí se pinta lo que dice. Mirar no cambia
-// nada, así que no se manda nada. Sin sesión o sin gachamon (un 409) se vuelve
-// a decidir la pantalla con `seguir`, como en la mochila; y también si la ficha
-// que llega es de otro gachamon que el del estado (cambió en otra pestaña o en
-// Discord): el ropero viste al que enseña la pantalla. Una respuesta que llega
-// cuando ya se dejó la pantalla no pinta. La cabecera y la espera son las de
-// `articulos.js`. Todo texto entra por `el` o por `textContent`.
+// `ficha(contenedor, estado, seguir, elegido)` pinta la pantalla y pide la
+// ficha: con `elegido` (el id de uno de tus gachamones, el que se tocó en tu
+// departamento), la de ése (`GET ficha?gachamon_id=…`); sin él, la del que sale
+// contigo (`GET ficha`). Las reglas son del servidor: cada número, qué medallas
+// hay, cuáles tienes y cuánto llevas, y si es el que sale contigo; aquí se
+// pinta lo que dice. Mirar no cambia nada, así que no se manda nada. Sin sesión
+// o sin gachamon (un 409) se vuelve a decidir la pantalla con `seguir`, como en
+// la mochila; y también si la ficha que llega es de otro gachamon que el que se
+// pidió (el del estado cambió en otra pestaña o en Discord): el ropero viste al
+// que enseña la pantalla, y sólo se ofrece si ése es el que sale contigo. Una
+// respuesta que llega cuando ya se dejó la pantalla no pinta. La cabecera y la
+// espera son las de `articulos.js`. Todo texto entra por `el` o por
+// `textContent`.
 
 import { lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
 import { GEMAS, cabeceraConSaldos, linea, listaQueSePide } from './articulos.js';
@@ -37,10 +41,13 @@ function textoDelEfecto({ bonus, segundos }) {
   return `+${bonus} · ${Math.max(1, Math.ceil((Number(segundos) || 0) / 60))} min`;
 }
 
-export function ficha(contenedor, estado, seguir) {
+export function ficha(contenedor, estado, seguir, elegido) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   let vivo = true;
+  // De quién es la ficha que se enseña: el pedido o, sin pedido, el que sale contigo.
+  const gachamonId = elegido === undefined ? (estado.gachamon && estado.gachamon.id) : elegido;
+  const ruta = elegido === undefined ? 'ficha' : `ficha?gachamon_id=${encodeURIComponent(elegido)}`;
 
   // Deja la ficha y que se decida otra pantalla: con lo que se le pase, o
   // preguntando todo otra vez.
@@ -101,13 +108,15 @@ export function ficha(contenedor, estado, seguir) {
   }
 
   // Con sombrero, «Ropero» va justo tras «Lleva …»; sin él, tras la experiencia.
-  function quienEs(g, detalle) {
+  // El ropero viste al que sale contigo: en la ficha de otro no se ofrece.
+  function quienEs(g, detalle, conRopero) {
     const genero = Object.hasOwn(GENEROS, g.genero) ? GENEROS[g.genero] : null;
     const comoEs = el('p', { class: 'ficha-genero' },
       genero ? [el('span', { 'aria-hidden': 'true' }, `${genero.simbolo} `), `${genero.nombre} · `] : null,
       conMayuscula(detalle.caracter));
     const vestido = detalle.sombrero
-      ? el('div', { class: 'ficha-vestido' }, linea(`Lleva ${detalle.sombrero}`, 'ficha-sombrero'), botonAlRopero())
+      ? el('div', { class: 'ficha-vestido' }, linea(`Lleva ${detalle.sombrero}`, 'ficha-sombrero'),
+        conRopero ? botonAlRopero() : null)
       : null;
     return el('section', { class: 'ficha-quien', 'aria-labelledby': 'ficha-nombre' },
       retratoDe(g),
@@ -118,7 +127,7 @@ export function ficha(contenedor, estado, seguir) {
         comoEs,
         vestido),
       experiencia(detalle.experiencia),
-      vestido ? null : el('div', { class: 'ficha-al-ropero' }, botonAlRopero()));
+      vestido || !conRopero ? null : el('div', { class: 'ficha-al-ropero' }, botonAlRopero()));
   }
 
   // --- las estadísticas --------------------------------------------------------------
@@ -168,7 +177,7 @@ export function ficha(contenedor, estado, seguir) {
   // --- lo que llega -----------------------------------------------------------------------
 
   const laFicha = listaQueSePide({
-    ruta: 'ficha',
+    ruta,
     espera,
     lista: contenido,
     cargando: CARGANDO,
@@ -176,14 +185,15 @@ export function ficha(contenedor, estado, seguir) {
     sigueAqui,
     irse: () => irse(),
     alLlegar(leida, trasReintentar) {
-      if (!estado.gachamon || leida.gachamon.id !== estado.gachamon.id) {
+      if (!estado.gachamon || leida.gachamon.id !== gachamonId) {
         irse();
         return;
       }
       ponerSaldos(leida.saldos);
       const g = leida.gachamon;
+      const conRopero = leida.es_el_activo === true;
       contenido.replaceChildren(
-        el('div', { class: 'ficha-columna' }, quienEs(g, leida.detalle), estadisticas(leida.detalle.estadisticas)),
+        el('div', { class: 'ficha-columna' }, quienEs(g, leida.detalle, conRopero), estadisticas(leida.detalle.estadisticas)),
         medallas(g, leida.medallas),
       );
       if (trasReintentar) titulo.focus({ preventScroll: true });

@@ -1,9 +1,10 @@
 // Cómo se pinta la pieza del departamento en su lienzo, de atrás hacia
 // adelante: las dos paredes del fondo, tramo a tramo; el suelo, casilla a
 // casilla; lo colgado en la pared; y, en el orden de `ordenDePintado`, lo que
-// se pisa, los muebles, los gachamones y tu avatar. Encima de todo, y
-// translúcidas, las marcas: dónde se puede poner lo que llevas en la mano y la
-// huella de lo elegido. No sabe de red ni de reloj: pinta la escena que le dan.
+// se pisa, los muebles, los gachamones (el que sale contigo, con su marca
+// encima) y tu avatar. Encima de todo, y translúcidas, las marcas: dónde se
+// puede poner lo que llevas en la mano y la huella de lo elegido. No sabe de
+// red ni de reloj: pinta la escena que le dan.
 //
 // La pieza no es pixel art: sus dibujos se pintan con suavizado. El avatar y
 // los retratos sí lo son, y se pintan sin él. Un dibujo que no se pudo cargar
@@ -23,6 +24,7 @@ const DIBUJO_DEL_SUELO = 'pieza/suelo.png';
 const PARED_IZQUIERDA = 'pieza/pared-izquierda.png';
 const PARED_DERECHA = 'pieza/pared-derecha.png';
 const SOMBRA = 'efectos/sombra.png';
+const MARCA = 'efectos/marca.png';
 
 // Una casilla del suelo y un tramo de pared tienen la forma de lo más chico
 // que se pone ahí.
@@ -33,6 +35,9 @@ const UN_TRAMO = { capa: PARED, ancho: 1, fondo: 1 };
 const ALTO_DEL_AVATAR = 0.7;
 // La sombra de un gachamon, a lo ancho de su caja; de alto, la mitad.
 const ANCHO_DE_LA_SOMBRA = 0.6;
+// La marca del que sale contigo, a lo ancho de su caja, y lo que la separa de su cabeza.
+const LADO_DE_LA_MARCA = 0.28;
+const SOBRE_LA_CABEZA = 0.06;
 
 const LIBRE = 'rgba(70, 200, 110, 0.35)';
 const BORDE_DEL_LIBRE = 'rgba(25, 135, 60, 0.95)';
@@ -42,7 +47,7 @@ const BORDE_DEL_ELEGIDO = '#2f6fed';
 // Todo el arte que pide pintar esa pieza (sin el avatar ni los retratos).
 export function rutasDeLaPieza(depto) {
   const muebles = depto.puestos.map((p) => rutaDelMueble(p.clave, p.capa, p.x, p.y, p.giro));
-  return [...new Set([DIBUJO_DEL_SUELO, PARED_IZQUIERDA, PARED_DERECHA, SOMBRA, ...muebles])];
+  return [...new Set([DIBUJO_DEL_SUELO, PARED_IZQUIERDA, PARED_DERECHA, SOMBRA, MARCA, ...muebles])];
 }
 
 // Un dibujo en su caja: el de `cargadas` si ya llegó (o su recuadro, si no se
@@ -58,28 +63,38 @@ function dondeEsta(puesto) {
   return { i: r.i0, j: r.j0, a: r.i1 - r.i0, f: r.j1 - r.j0 };
 }
 
-// El retrato de un gachamon en su caja, de pie sobre su sombra. Es un dibujo
-// de cuadros: sin suavizar, y sin deformarlo.
+// El retrato de un gachamon en su caja, de pie sobre su sombra, levantado lo
+// que diga `g.sube` (un salto: la sombra se queda en el suelo). Es un dibujo
+// de cuadros: sin suavizar, y sin deformarlo. Encima del que sale contigo, su
+// marca.
 function pintarGachamon(ctx, m, cargadas, g) {
   const caja = cajaDelGachamon(m, g.i, g.j);
   const pies = caja.y + caja.alto;
   const [centro] = proyectar(m, g.i + 0.5, g.j + 0.5);
   const sombra = caja.ancho * ANCHO_DE_LA_SOMBRA;
   pintar(ctx, cargadas, SOMBRA, { x: centro - sombra / 2, y: pies - sombra / 4, ancho: sombra, alto: sombra / 2 });
+  const sube = g.sube || 0;
+  let cabeza = caja.y - sube;
   const cargada = cargadas.get(g.retrato);
-  if (!cargada) return;
-  if (!cargada.imagen) {
-    faltante(ctx, caja.x, caja.y, caja.ancho, caja.alto, g.retrato);
-    return;
+  if (cargada && !cargada.imagen) {
+    faltante(ctx, caja.x, caja.y - sube, caja.ancho, caja.alto, g.retrato);
+  } else if (cargada) {
+    const { imagen } = cargada;
+    const escala = Math.min(caja.ancho / imagen.naturalWidth, caja.alto / imagen.naturalHeight);
+    const ancho = imagen.naturalWidth * escala;
+    const alto = imagen.naturalHeight * escala;
+    cabeza = pies - sube - alto;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(imagen, centro - ancho / 2, pies - sube - alto, ancho, alto);
+    ctx.restore();
   }
-  const { imagen } = cargada;
-  const escala = Math.min(caja.ancho / imagen.naturalWidth, caja.alto / imagen.naturalHeight);
-  const ancho = imagen.naturalWidth * escala;
-  const alto = imagen.naturalHeight * escala;
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(imagen, centro - ancho / 2, pies - alto, ancho, alto);
-  ctx.restore();
+  if (g.activo) {
+    const lado = caja.ancho * LADO_DE_LA_MARCA;
+    pintar(ctx, cargadas, MARCA, {
+      x: centro - lado / 2, y: cabeza - lado - caja.ancho * SOBRE_LA_CABEZA, ancho: lado, alto: lado,
+    });
+  }
 }
 
 // Una casilla `(i, j)` del suelo, o un tramo de pared (`(-1, j)`, la
@@ -108,7 +123,7 @@ function marcar(ctx, m, [i, j], relleno, borde) {
 // `escena`: `{depto, cargadas, gachamones, tu, libres, elegido}`. `depto` es lo
 // que contesta `GET departamento`; `cargadas`, el arte que ya llegó, por ruta
 // (`{ruta, imagen}`, con las capas del avatar y los retratos); `gachamones`,
-// `[{id, i, j, retrato, activo}]`; `tu`, `{i, j, pose, espejo, avatar}` o
+// `[{id, i, j, retrato, activo, sube}]`; `tu`, `{i, j, pose, espejo, avatar}` o
 // `null`; `libres` y `elegido`, listas de casillas o tramos `[i, j]` (o
 // `null`). Las posiciones pueden tener decimales: alguien a medio paso.
 export function dibujarPieza(ctx, m, escena) {

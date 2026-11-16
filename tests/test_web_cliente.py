@@ -476,12 +476,14 @@ def test_las_frases_de_la_incubadora_y_del_recluta_son_las_del_plan():
 
 
 def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():
-    # Los corazones los pone el lugar; el aviso de una medalla nueva, con su
-    # estrella, vive en `cuidados.js`.
-    lugar = _sin_comentarios(_guion("lugar.js"))
-    cuidados = _sin_comentarios(_guion("cuidados.js"))
-    assert "efectos/corazon.png" in lugar and "efectos/estrella.png" in cuidados
-    assert "\u2764" not in lugar and "\u2764" not in cuidados
+    # Los corazones los pone cada pantalla (el lugar y tu departamento); el
+    # aviso de una medalla nueva, con su estrella, vive en `cuidados.js`.
+    lugar, depto, plantel, cuidados = (
+        _sin_comentarios(_guion(n)) for n in ("lugar.js", "departamento.js", "plantel.js", "cuidados.js"))
+    assert "efectos/corazon.png" in lugar and "efectos/corazon.png" in depto
+    assert "efectos/estrella.png" in cuidados
+    for codigo in (lugar, depto, plantel, cuidados):
+        assert "\u2764" not in codigo
     assert "efectos/estrella.png" in _sin_comentarios(_guion("ficha.js"))
 
 
@@ -501,11 +503,24 @@ def test_la_pieza_no_es_pixel_art_pero_el_avatar_si():
 def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
     import departamento
 
-    for nombre in ("departamento.js", "pieza.js", "casillas.js", "proyeccion.js"):
+    for nombre in ("departamento.js", "plantel.js", "pieza.js", "casillas.js", "proyeccion.js"):
         codigo = _sin_comentarios(_guion(nombre))
         for clave in departamento.MUEBLES:
             assert f"'{clave}'" not in codigo and f'"{clave}"' not in codigo, (nombre, clave)
         assert not re.search(r"\b(15|85)\b", codigo), nombre      # lo que cuesta una casilla y una cama
+
+
+def test_lo_comun_de_los_cuidados_vive_en_un_solo_sitio():
+    cuidados, lugar, depto = (_guion(n) for n in ("cuidados.js", "lugar.js", "departamento.js"))
+    assert "export const CUIDADOS" in cuidados and "nombre: 'Bañar'" in cuidados
+    assert "from './cuidados.js'" in lugar and "from './cuidados.js'" in depto
+    assert "nombre: 'Bañar'" not in lugar and "nombre: 'Bañar'" not in depto
+
+
+def test_la_ficha_de_uno_que_no_sale_contigo_no_ofrece_el_ropero():
+    ficha = _guion("ficha.js")
+    assert "gachamon_id" in ficha and "es_el_activo" in ficha
+    assert "gachamonId" in _guion("principal.js")
 
 
 def test_el_departamento_camina_solo_mientras_algo_se_mueve_y_respeta_el_movimiento_reducido():

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { noSePisan, sitiosDeEntrada } from '../../web/static/js/casillas.js';
 import { casillaEn, medir, proyectar } from '../../web/static/js/proyeccion.js';
 
 // Lo justo de un navegador para pintar el departamento sin pantalla, tocar sus
@@ -53,6 +54,7 @@ class Elemento extends Nodo {
     this.oyentes = {};
     this.hijos = [];
     this.style = { setProperty() {} };
+    this.dataset = {};
     this.isConnected = true;
   }
 
@@ -134,6 +136,8 @@ class Elemento extends Nodo {
   contains(nodo) {
     return this.hijos.some((h) => h === nodo || (h instanceof Elemento && h.contains(nodo)));
   }
+
+  hasChildNodes() { return this.hijos.length > 0; }
 
   focus() { document.activeElement = this; }
 
@@ -397,10 +401,25 @@ const SIN_SITIO_PARA_LA_CAMA = {
 // Lo que contestan poner, guardar y ampliar cuando sale bien.
 const BIEN = (depto) => ({ ok: true, clave: null, mensaje: null, departamento: depto, estado: ESTADO });
 
+const RULO = {
+  id: 8, nombre: 'Rulo', espera_nombre: false, se_nombro_solo: false, especie: 'slime', nombre_especie: 'Gelatín',
+  emoji: '🟢', etapa: 'bebe', nombre_etapa: 'cría', nivel: 2, genero: 'macho',
+  barras: { comida: 50, animo: 70, aseo: 30 }, cara: 'feliz', desfallecido: false,
+  retrato: '/gachamon/retrato/slime/bebe/feliz/sin.png', esperas: {}, titulo: null,
+};
+
+// El 3 × 3 de siempre con dos gachamones: Pelusa, que sale contigo, y Rulo.
+const CON_DOS = { ...DEPTO, gachamones: 2, plantel: [{ ...PELUSA, activo: true }, { ...RULO, activo: false }] };
+
+// El mismo, cuando ya sales con Rulo.
+const CON_RULO_ACTIVO = { ...CON_DOS, plantel: [{ ...PELUSA, activo: false }, { ...RULO, activo: true }] };
+
 // Monta la pantalla con lo que contesta `GET departamento` y espera a que se
 // asiente. `antes(servidor)` prepara el servidor antes de montarla. `hecho` es
 // lo que devuelve la pantalla (lo que `principal.js` manda a la avería si falla).
-async function abrir(depto, estado = ESTADO, { movimientoReducido = false, antes = () => {} } = {}) {
+// `azar` es el de la pantalla (cuándo y hacia dónde caminan solos, qué dice el
+// globo): fijo, para que cada prueba dé siempre lo mismo.
+async function abrir(depto, estado = ESTADO, { movimientoReducido = false, antes = () => {}, azar = () => 0.5 } = {}) {
   const documento = nuevoDocumento();
   reducido = movimientoReducido;
   // Lo que dejó pendiente otra prueba no corre en ésta.
@@ -410,7 +429,7 @@ async function abrir(depto, estado = ESTADO, { movimientoReducido = false, antes
   antes(servidor);
   const pantalla = new Elemento('main');
   const seguido = [];
-  const hecho = departamento(pantalla, estado, (...argumentos) => { seguido.push(argumentos); });
+  const hecho = departamento(pantalla, estado, (...argumentos) => { seguido.push(argumentos); }, { azar });
   if (hecho && typeof hecho.catch === 'function') hecho.catch(() => {});
   await asentar();
   return { pantalla, pedidos: servidor.pedidos, servidor, seguido, documento, hecho };
@@ -492,6 +511,38 @@ function dondeEstasTu(pantalla) {
   const [, [, x, y, ancho, alto]] = cuerpo;
   const { m, ancho: a, fondo: f } = medidaDe(pantalla);
   return casillaEn(m, x + ancho / 2, y + alto * (80 / 84), a, f);
+}
+
+// El sitio de entrada del gachamon `n` de su plantel: tú vas en el primero.
+function dondeEsta(depto, n) {
+  return sitiosDeEntrada(depto.ancho, depto.fondo, noSePisan(depto), depto.plantel.length + 1)[n + 1];
+}
+
+// Toca la casilla donde entró el gachamon `n` de su plantel.
+async function tocarA(pantalla, depto, n) {
+  await tocarCasilla(pantalla, ...dondeEsta(depto, n));
+}
+
+// Lo que se pintó en el lienzo de la pieza la última vez: desde el último borrado.
+function ultimoCuadro(pantalla) {
+  const trazos = lienzoDe(pantalla).trazos || [];
+  const desde = trazos.map(([nombre]) => nombre).lastIndexOf('clearRect');
+  return trazos.slice(desde + 1);
+}
+
+// Las veces que se pintó ese dibujo (por un trozo de su dirección) la última vez.
+const pintados = (pantalla, trozo) => ultimoCuadro(pantalla)
+  .filter(([nombre, [imagen]]) => nombre === 'drawImage' && String(imagen && imagen.src).includes(trozo));
+
+// La casilla donde la pantalla pintó la última vez ese retrato: la que queda
+// bajo sus pies, que están un cuarto de alto de casilla bajo el centro de la
+// casilla. `null` si no lo pintó.
+function dondeSePinto(pantalla, retrato) {
+  const pintado = pintados(pantalla, retrato).at(-1);
+  if (!pintado) return null;
+  const [, [, x, y, ancho, alto]] = pintado;
+  const { m, ancho: a, fondo: f } = medidaDe(pantalla);
+  return casillaEn(m, x + ancho / 2, y + alto - m.th / 4, a, f);
 }
 
 // --- las pruebas ---------------------------------------------------------------------
@@ -852,4 +903,242 @@ test('la indicación de dónde tocar se queda mientras lleves algo en la mano, y
   await tocarCasilla(pantalla, 0, 0);                                    // ahí está la cama: se suelta
   assert.equal(texto(pantalla, '[role=status].aviso'), '');
   assert.equal(pedidos.length, 1);
+});
+
+// --- los gachamones --------------------------------------------------------------------
+
+test('la ficha de la derecha es la del que sale contigo, y se cambia tocando a otro', async () => {
+  const { pantalla } = await abrir(CON_DOS);                             // Pelusa (sale contigo) y Rulo
+  assert.match(texto(pantalla, '.ficha-elegido'), /Pelusa.*Sale contigo/s);
+  assert.equal(boton(pantalla, 'Salir con'), null);
+  assert.equal(menu(pantalla), null);
+  await tocarA(pantalla, CON_DOS, 1);
+  assert.match(texto(pantalla, '.ficha-elegido'), /Rulo/);
+  assert.doesNotMatch(texto(pantalla, '.ficha-elegido'), /Sale contigo/);
+  assert.notEqual(boton(pantalla, 'Salir con Rulo'), null);
+  assert.deepEqual(rotulos(menu(pantalla)), ['Mover', 'Acariciar']);
+});
+
+test('cuidar al elegido manda su id y un evento, y cambia sus barras', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  servidor.responde('POST cuidar', { ok: true, mensaje: 'Rulo quedó reluciente.', espera: 600, monedas: 1, evoluciono: false, logros: [],
+    gachamon: { ...RULO, barras: { ...RULO.barras, aseo: 100 }, esperas: { ...RULO.esperas, limpiar: 600 } }, estado: ESTADO });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Bañar'));
+  const [ruta, cuerpo] = pedidos.at(-1);
+  assert.equal(ruta, 'POST cuidar');
+  assert.deepEqual([cuerpo.accion, cuerpo.gachamon_id], ['limpiar', RULO.id]); assert.match(cuerpo.evento_id, /^[\w-]{8,64}$/);
+  assert.equal(boton(uno(pantalla, '.ficha-elegido'), 'Bañar').getAttribute('aria-disabled'), 'true');
+  assert.match(texto(pantalla, '[role=status].aviso'), /Rulo quedó reluciente\./);
+});
+
+test('acariciar al elegido manda su id', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: ESTADO });
+  await tocarA(pantalla, CON_DOS, 1);
+  await tocar(boton(menu(pantalla), 'Acariciar'));
+  assert.deepEqual(pedidos.at(-1), ['POST acariciar', { gachamon_id: RULO.id }]);
+});
+
+test('mover a un gachamon no habla con el servidor', async () => {
+  const { pantalla, pedidos } = await abrir(CON_DOS, ESTADO, { movimientoReducido: true });   // no camina: aparece
+  await tocarA(pantalla, CON_DOS, 1);
+  await tocar(boton(menu(pantalla), 'Mover'));
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Toca la casilla donde lo quieres.');
+  await tocarCasilla(pantalla, 0, 2);
+  assert.equal(pedidos.length, 1);
+  await tocarA(pantalla, CON_DOS, 0);                                    // se elige a Pelusa…
+  assert.match(texto(pantalla, '.ficha-elegido'), /Pelusa/);
+  await tocarCasilla(pantalla, 0, 2);                                    // …y Rulo está donde se le dejó: tocarlo lo elige
+  assert.match(texto(pantalla, '.ficha-elegido'), /Rulo/);
+});
+
+test('a todos manda su evento, dice lo que contesta el juego y vuelve a leer', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  servidor.responde('POST cuidar/todos', { ok: true, a_cuantos: 2, de_cuantos: 2, tocados: [PELUSA.id, RULO.id], mensaje: 'Jugaste con 2 de 2.', monedas: 2, logros: [], estado: ESTADO });
+  await tocar(boton(pantalla, 'Jugar con todos'));
+  const [ruta, cuerpo] = pedidos.at(-2);
+  assert.equal(ruta, 'POST cuidar/todos'); assert.equal(cuerpo.accion, 'jugar'); assert.match(cuerpo.evento_id, /^[\w-]{8,64}$/);
+  assert.equal(pedidos.at(-1)[0], 'GET departamento');
+  assert.match(texto(pantalla, '[role=status].aviso'), /Jugaste con 2 de 2\./);
+});
+
+test('salir con otro lo manda y lo deja como el que sale contigo', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  servidor.responde('POST departamento/salir', { ok: true, clave: null, mensaje: 'Ahora sales con Rulo.', departamento: CON_RULO_ACTIVO, estado: { ...ESTADO, gachamon: RULO } });
+  await tocar(boton(pantalla, 'Salir con Rulo'));
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/salir', { gachamon_id: RULO.id }]);
+  assert.match(texto(pantalla, '.ficha-elegido'), /Rulo.*Sale contigo/s);
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahora sales con Rulo.');
+});
+
+test('ver ficha abre la de ese gachamon', async () => {
+  const { pantalla, seguido } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  await tocar(boton(pantalla, 'Ver ficha'));
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'ficha', gachamonId: RULO.id });
+});
+
+test('poner un mueble donde está parado uno lo corre a un lado', async () => {
+  const { pantalla, servidor, documento } = await abrir(CON_DOS);
+  const [i, j] = dondeEsta(CON_DOS, 1);                                  // donde está Rulo
+  const conMaceta = { ...CON_DOS, puestos: [...CON_DOS.puestos, { id: MACETA_ID, ...MACETA, nombre: 'Maceta', x: i, y: j, giro: 0, casillas: [[i, j]] }] };
+  servidor.responde('GET departamento', conMaceta);
+  await documento.dispara('visibilitychange');
+  await tocarCasilla(pantalla, i, j);
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Maceta');         // ahí ya no está Rulo: está la maceta
+});
+
+test('sin ningún gachamon la pieza se ve igual y lo dice', async () => {
+  const { pantalla } = await abrir({ ...DEPTO, gachamones: 0, plantel: [] }, { ...ESTADO, gachamon: null, globos: [] });
+  assert.equal(texto(pantalla, '.ficha-elegido'), 'Todavía no vive ningún gachamon contigo.');
+  assert.equal(boton(pantalla, 'Alimentar a todos'), null);
+  assert.notEqual(boton(pantalla, 'Ampliar'), null);
+});
+
+// --- lo que el encargo dice de los gachamones y no prueba lo de arriba -----------------
+
+test('cada gachamon está en la pieza donde entró, y sólo el que sale contigo lleva su marca', async () => {
+  const { pantalla } = await abrir(CON_DOS);
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), dondeEsta(CON_DOS, 0));
+  assert.deepEqual(dondeSePinto(pantalla, RULO.retrato), dondeEsta(CON_DOS, 1));
+  const marcas = pintados(pantalla, 'efectos/marca.png');
+  assert.equal(marcas.length, 1);
+  const [, [, x, , ancho]] = marcas[0];
+  const [, [, xPelusa, , anchoPelusa]] = pintados(pantalla, PELUSA.retrato).at(-1);
+  assert.ok(Math.abs((x + ancho / 2) - (xPelusa + anchoPelusa / 2)) < 1e-6);   // encima de Pelusa
+});
+
+test('al salir con otro, la marca pasa a él', async () => {
+  const { pantalla, servidor } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  servidor.responde('POST departamento/salir', { ok: true, clave: null, mensaje: 'Ahora sales con Rulo.', departamento: CON_RULO_ACTIVO, estado: { ...ESTADO, gachamon: RULO } });
+  await tocar(boton(pantalla, 'Salir con Rulo'));
+  const marcas = pintados(pantalla, 'efectos/marca.png');
+  assert.equal(marcas.length, 1);
+  const [, [, x, , ancho]] = marcas[0];
+  const [, [, xRulo, , anchoRulo]] = pintados(pantalla, RULO.retrato).at(-1);
+  assert.ok(Math.abs((x + ancho / 2) - (xRulo + anchoRulo / 2)) < 1e-6);   // encima de Rulo
+});
+
+test('caminan solos de vez en cuando, con el azar que se les da', async () => {
+  const { pantalla } = await abrir(CON_DOS, ESTADO, { azar: () => 0 });  // el primero, cada 4 s, al primer sitio libre
+  await correrReloj(3999);
+  assert.equal(cuadrosPendientes(), 0);
+  await correrReloj(1);
+  assert.equal(cuadrosPendientes(), 1);
+  await correrCuadros(1000);
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [1, 1]);      // de (1, 2), sin pisarte a ti en (2, 2)
+  assert.deepEqual(dondeSePinto(pantalla, RULO.retrato), dondeEsta(CON_DOS, 1));
+  assert.equal(cuadrosPendientes(), 0);
+});
+
+test('con menos movimiento, o con algo en la mano, se quedan quietos', async () => {
+  const quietos = await abrir(CON_DOS, ESTADO, { movimientoReducido: true, azar: () => 0 });
+  await correrReloj(20_000);
+  assert.equal(cuadrosPendientes(), 0);
+  assert.deepEqual(dondeSePinto(quietos.pantalla, PELUSA.retrato), dondeEsta(CON_DOS, 0));
+  const { pantalla } = await abrir(CON_DOS, ESTADO, { azar: () => 0 });
+  await tocar(boton(pantalla, 'Guardados'));
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));        // la cama, en la mano
+  await correrReloj(20_000);
+  assert.equal(cuadrosPendientes(), 0);
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), dondeEsta(CON_DOS, 0));
+});
+
+test('el globo sale sobre el que sale contigo y se anuncia', async () => {
+  const { pantalla } = await abrir(CON_DOS, { ...ESTADO, globos: [{ tipo: 'suelta', texto: '¡Qué día tan bonito!' }] });
+  assert.equal(texto(pantalla, '.globo'), '');
+  await correrReloj(2500);
+  assert.equal(texto(pantalla, '.globo'), '¡Qué día tan bonito!');
+  assert.equal(uno(pantalla, '.globo').getAttribute('aria-live'), 'polite');
+});
+
+test('la ficha del elegido dice cómo está y cuánto le falta a cada cuidado, también al lector', async () => {
+  const conEspera = { ...CON_DOS, plantel: [CON_DOS.plantel[0], { ...CON_DOS.plantel[1], esperas: { jugar: 600 } }] };
+  const { pantalla } = await abrir(conEspera);
+  await tocarA(pantalla, conEspera, 1);
+  const ficha = uno(pantalla, '.ficha-elegido');
+  assert.match(texto(ficha), /Gelatín cría · nivel 2/);
+  assert.deepEqual(todos(ficha, '.medidor-cifra').map((c) => c.textContent), ['50', '70', '30']);
+  const jugar = boton(ficha, 'Jugar');
+  assert.equal(jugar.getAttribute('aria-disabled'), 'true');
+  assert.equal(jugar.getAttribute('aria-label'), 'Jugar, disponible en 10 min');
+  assert.equal(boton(ficha, 'Alimentar').getAttribute('aria-disabled'), 'false');
+  assert.notEqual(boton(ficha, 'Acariciar'), null);
+});
+
+test('acariciar antes de tiempo dice cuándo; si se pudo, le salen corazones', async () => {
+  const { pantalla, servidor } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  servidor.responde('POST acariciar', { ok: false, espera: 120, gachamon: RULO, estado: ESTADO });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Acariciar'));
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Podrás acariciarlo en 2 min.');
+  assert.equal(todos(pantalla, '.corazon').length, 0);
+  servidor.responde('POST acariciar', { ok: true, espera: 0, gachamon: RULO, estado: ESTADO });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Acariciar'));
+  assert.ok(todos(pantalla, '.pieza-escenario .corazon').length > 0);
+});
+
+test('cuidar a uno que no sale contigo celebra su evolución, y no la de otro', async () => {
+  const ADULTA = { ...PELUSA, etapa: 'adulto', nombre_etapa: 'adulta' };
+  const { pantalla, servidor } = await abrir(CON_DOS, { ...ESTADO, gachamon: ADULTA });
+  await tocarA(pantalla, CON_DOS, 1);
+  servidor.responde('POST cuidar', { ok: true, mensaje: 'Juegan un rato.', espera: 600, monedas: 1, evoluciono: false, logros: [],
+    gachamon: RULO, estado: { ...ESTADO, gachamon: ADULTA } });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Jugar'));
+  assert.equal(texto(pantalla, '.celebracion'), '');                    // la etapa de Pelusa no es la de Rulo
+  const NINO = { ...RULO, etapa: 'nino', nombre_etapa: 'niño' };
+  servidor.responde('POST cuidar', { ok: true, mensaje: 'Come con ganas.', espera: 600, monedas: 1, evoluciono: true, logros: [],
+    gachamon: NINO, estado: { ...ESTADO, gachamon: ADULTA } });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Alimentar'));
+  assert.equal(texto(pantalla, '.celebracion'), '✨ ¡Rulo ha evolucionado! Ahora es niño.');
+});
+
+test('mientras un cuidado va, no sale otro', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  const soltar = servidor.retiene('POST cuidar');
+  const banar = boton(uno(pantalla, '.ficha-elegido'), 'Bañar');
+  await tocar(banar); await tocar(banar);
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Jugar'));
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST cuidar').length, 1);
+  assert.equal(banar.getAttribute('aria-busy'), 'true');
+  assert.equal(boton(uno(pantalla, '.ficha-elegido'), 'Jugar').getAttribute('aria-disabled'), 'true');
+  await soltar({ ok: true, mensaje: 'Pelusa quedó reluciente.', espera: 600, monedas: 0, evoluciono: false, logros: [], gachamon: PELUSA, estado: ESTADO });
+  assert.equal(boton(uno(pantalla, '.ficha-elegido'), 'Jugar').getAttribute('aria-disabled'), 'false');
+});
+
+test('con un mueble en la mano, tocar a un gachamon es tocar su casilla', async () => {
+  const conMacetaGuardada = { ...CON_DOS, guardados: [LA_MACETA] };
+  const { pantalla, pedidos, servidor } = await abrir(conMacetaGuardada);
+  servidor.responde('POST departamento/poner', BIEN(conMacetaGuardada));
+  await tocar(boton(pantalla, 'Guardados'));
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Maceta'));
+  await tocarA(pantalla, conMacetaGuardada, 1);                          // donde está Rulo
+  const [i, j] = dondeEsta(conMacetaGuardada, 1);
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: MACETA_ID, x: i, y: j, giro: 0 }]);
+});
+
+test('mover a un gachamon a donde no se pisa lo suelta, y se queda donde estaba', async () => {
+  const { pantalla } = await abrir(CON_DOS, ESTADO, { movimientoReducido: true });
+  await tocarA(pantalla, CON_DOS, 1);
+  await tocar(boton(menu(pantalla), 'Mover'));
+  await tocarCasilla(pantalla, 0, 0);                                    // la cama
+  assert.equal(texto(pantalla, '[role=status].aviso'), '');
+  assert.equal(menu(pantalla), null);
+  assert.deepEqual(dondeSePinto(pantalla, RULO.retrato), dondeEsta(CON_DOS, 1));
+});
+
+test('si no queda ninguna casilla que se pise no se pinta a nadie, y la ficha sigue', async () => {
+  const LLENO = {
+    ...CON_DOS,
+    puestos: [...CON_DOS.puestos,
+      ...[[2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]].map(([x, y], n) => ({ ...LA_MACETA, id: 40 + n, x, y, giro: 0, casillas: [[x, y]] }))],
+  };
+  const { pantalla } = await abrir(LLENO);
+  assert.equal(dondeSePinto(pantalla, PELUSA.retrato), null);
+  assert.equal(dondeSePinto(pantalla, RULO.retrato), null);
+  assert.equal(dondeEstasTu(pantalla), null);
+  assert.match(texto(pantalla, '.ficha-elegido'), /Pelusa.*Sale contigo/s);
 });

@@ -29,7 +29,7 @@ const PANTALLAS = {
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),
-  ficha: (destino, seguir, { estado }) => ficha(destino, estado, seguir),
+  ficha: (destino, seguir, { estado, gachamonId }) => ficha(destino, estado, seguir, gachamonId),
   ropero: (destino, seguir, { estado }) => ropero(destino, estado, seguir),
   incubadora: (destino, seguir, { estado }) => incubadora(destino, estado, seguir),
   noCarga: entrada.noCarga,
@@ -91,11 +91,12 @@ let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
 // `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'`, `'ficha'`, `'ropero'`,
-// `'incubadora'` o nada) es lo que se quiere ver si todo está en orden, y
-// `opciones.llegando`, que se acaba de llegar caminando. Valen sólo para esta
-// llamada: `seguir()` a secas vuelve al lugar.
+// `'incubadora'` o nada) es lo que se quiere ver si todo está en orden;
+// `opciones.llegando`, que se acaba de llegar caminando; y
+// `opciones.gachamonId`, de qué gachamon tuyo es la ficha (sin él, la del que
+// sale contigo). Valen sólo para esta llamada: `seguir()` a secas vuelve al lugar.
 async function seguir(estadoNuevo, opciones) {
-  const { vista, llegando } = opciones || {};
+  const { vista, llegando, gachamonId } = opciones || {};
   const esta = ++vuelta;
   let datos;
   const traeEstado = estadoNuevo && typeof estadoNuevo === 'object' && 'gachamon' in estadoNuevo;
@@ -117,7 +118,7 @@ async function seguir(estadoNuevo, opciones) {
   if (esta !== vuelta) return;
   conocido = { sesion: datos.sesion, cuenta: datos.cuenta };
   if (recargarSiEsDeOtraVersion()) return;
-  pintar(siguiente(datos.sesion, datos.cuenta, datos.estado, vista), { ...datos, llegando: llegando === true });
+  pintar(siguiente(datos.sesion, datos.cuenta, datos.estado, vista), { ...datos, llegando: llegando === true, gachamonId });
 }
 
 // Al volver con «atrás» desde Rowino, la página puede salir de la caché del

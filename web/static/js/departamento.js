@@ -1,53 +1,90 @@
 // Tu casa: la pieza de tu departamento, en vista isométrica por casillas, con
-// sus muebles, y tu avatar, que camina por ella.
+// sus muebles, tu avatar y tus gachamones, que caminan por ella.
 //
-// `departamento(contenedor, estado, seguir)` pide la pieza al servidor
-// (`GET departamento`) al entrar, cada 30 segundos y al volver a la pestaña, y
-// la pinta en su lienzo; debajo, una línea dice cómo está. Tocar una casilla
-// que se pisa lleva a tu avatar hasta ella, de casilla en casilla; con menos
-// movimiento, aparece ahí. Dónde estás parado es sólo del dibujo: no se guarda
-// ni se manda. Si lo que llega pide otra pantalla (ya no estás en tu casa, ya
-// no hay sesión) se lo pasa a `seguir`.
+// `departamento(contenedor, estado, seguir, { azar })` pide la pieza al
+// servidor (`GET departamento`) al entrar, cada 30 segundos y al volver a la
+// pestaña, y la pinta en su lienzo; debajo, una línea dice cómo está. Al
+// entrar, tú y tus gachamones os repartís por los sitios de entrada (tú, el
+// primero; ellos, en el orden en que llegan). Tocar una casilla que se pisa
+// lleva a tu avatar hasta ella, de casilla en casilla; con menos movimiento,
+// aparece ahí. Tus gachamones dan un paso solos de vez en cuando (cuándo y
+// hacia dónde lo dice `azar`, que se inyecta; si no, `Math.random`), salvo
+// con menos movimiento o mientras llevas algo en la mano. Dónde está parado
+// cada uno es sólo del dibujo: no se guarda ni se manda. Si lo que llega pide
+// otra pantalla (ya no estás en tu casa, ya no hay sesión) se lo pasa a
+// `seguir`; sin ningún gachamon, tu casa se sigue viendo.
 //
-// Los muebles se tocan, sin modos: tocar uno lo elige (su huella se marca) y
-// encima sale su menú, con «Mover», «Girar» y «Guardar». Lo que llevas en la
-// mano (el que mueves, o el que sacas de la bandeja de «Guardados», bajo la
-// pieza) marca dónde cabe, y el toque siguiente dice dónde va: en un sitio
-// marcado se pone; en cualquier otro, se suelta. «Ampliar» cambia lo de la
-// derecha por lo que cuesta crecer por cada lado.
+// Los muebles y los gachamones se tocan, sin modos: tocar uno lo elige (se
+// marca dónde está) y encima sale su menú: el de un mueble, con «Mover»,
+// «Girar» y «Guardar»; el de un gachamon, con «Mover» y «Acariciar». Lo que
+// llevas en la mano (el mueble que mueves, el que sacas de la bandeja de
+// «Guardados», bajo la pieza, o el gachamon que mueves) marca dónde va, y el
+// toque siguiente dice dónde: en un sitio marcado se pone (el gachamon camina
+// hasta ahí, y eso no se manda); en cualquier otro, se suelta. «Ampliar»
+// cambia lo de la derecha por lo que cuesta crecer por cada lado.
+//
+// A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
+// entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
+// ficha» y «Salir con …», y «A todos». Cuidarlo y acariciarlo se mandan con su
+// id, y se avisa como en el lugar (`cuidados.js`); «A todos» vuelve a leer la
+// pieza, y «Salir con …» la trae. El que sale contigo lleva su marca, y su
+// globo sale sobre él, como en el lugar.
 //
 // El servidor manda: la pieza se pinta como llega, y lo que se calcula aquí
 // (por dónde se camina, qué se tocó, qué cabe dónde) sirve sólo para dibujar y
-// para no proponer lo imposible. Poner y guardar se mandan una vez; ampliar,
-// que cuesta monedas, lleva un evento por toque (el mismo en sus reintentos).
-// Lo que sale bien no se dice: se ve; ampliar y lo que no se puede dicen la
-// frase del servidor; sin respuesta, se dice y la pieza se vuelve a leer.
-// Mientras una petición va, lo que la mandó espera y no sale otra. El lienzo
-// sólo se mira (`aria-hidden`); el menú, la bandeja y lo de ampliar son botones
+// para no proponer lo imposible. Poner, guardar, salir y acariciar se mandan
+// una vez; ampliar y cada cuidado, que mueven monedas, llevan un evento por
+// toque (el mismo en sus reintentos). Lo que sale bien no se dice: se ve;
+// ampliar, los cuidados, salir y lo que no se puede dicen la frase del
+// servidor; sin respuesta, se dice y la pieza se vuelve a leer. Mientras una
+// petición va, lo que la mandó espera y no sale otra. El lienzo sólo se mira
+// (`aria-hidden`); los menús, la bandeja, la ficha y lo de ampliar son botones
 // de verdad. Todo texto entra por `el` o por `textContent`. Lo que corre (el
-// cuadro de animación, la relectura y los oyentes) se detiene al salir, y una
-// respuesta que llega tarde no pinta.
+// cuadro de animación, los relojes, la relectura y los oyentes) se detiene al
+// salir, y una respuesta que llega tarde no pinta.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
 import {
-  MONEDAS, cabeceraConSaldos, hayQueDecidirDeNuevo, listaQueSePide, mensajeDe, pideOtraPantalla, zonaDeAviso,
+  MONEDAS, cabeceraConSaldos, hayQueDecidirDeNuevo, listaQueSePide, mensajeDe, zonaDeAviso,
 } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import {
-  camino, dondeCabe, giroParaPoner, libreMasCercana, lineaDeEstado, noSePisan, sitiosDeEntrada,
+  camino, dondeCabe, giroParaPoner, libreMasCercana, lineaDeEstado, noSePisan, pasoSuelto, sitiosDeEntrada,
 } from './casillas.js';
+import { avisoDeLaEvolucion, avisoDeMedalla, trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
+import { ofreceElDepartamento, siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
+import { panelDelPlantel } from './plantel.js';
 import {
-  cajaDelMueble, casillaEn, medir, queSeToco, tramoEn,
+  cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, tramoEn,
 } from './proyeccion.js';
+import { elegirGlobo } from './tiempo.js';
 
 const VISTA = 'departamento';
 const PEDIR_CADA_MS = 30_000;
 const DENSIDAD_MAXIMA = 3;
-// Lo que anda tu avatar, en casillas por segundo.
+// Lo que anda tu avatar, y lo que anda un gachamon, en casillas por segundo.
 const CASILLAS_POR_SEGUNDO = 3;
+const PASOS_DEL_GACHAMON = 2;
+// Cada cuánto da un paso solo alguno de tus gachamones: entre 4 y 9 segundos.
+const UN_PASEO_CADA_MS = [4_000, 9_000];
+// El salto de un gachamon al que se cuida: lo que dura y lo que sube, en anchos de casilla.
+const UN_SALTO_DURA_S = 0.45;
+const ALTURA_DEL_SALTO = 0.22;
+// El globo, los corazones, la ganancia, la evolución y las medallas duran lo
+// que en el lugar.
+const PRIMER_GLOBO_MS = 2500;
+const GLOBO_CADA_MS = [20_000, 40_000];
+const GLOBO_DURA_MS = 7000;
+const CORAZONES = 6;
+const CORAZON_DURA_MS = 1600;
+const GANANCIA_DURA_MS = 2400;
+const CELEBRACION_DURA_MS = 4500;
+const MEDALLA_DURA_MS = 6000;
+// Lo que el globo deja hasta la cabeza del que habla.
+const SOBRE_LA_CABEZA = 12;
 // Las cuatro posiciones de un mueble.
 const GIROS = 4;
 // Lo de pared va en las paredes; lo demás, en el suelo.
@@ -88,7 +125,36 @@ function porTipo(guardados) {
   return [...tipos.values()];
 }
 
-export function departamento(contenedor, estado, seguir) {
+// Mientras se está aquí hay sesión y la cuenta ya no es nueva, así que la
+// pantalla la decide sólo el estado, con la regla de siempre; pero sin ningún
+// gachamon tu casa se sigue viendo mientras estés en ella: el huevo es cosa de
+// la entrada, y a esta pantalla se llega con uno.
+function pideOtraPantalla(estado) {
+  const toca = siguiente(true, { estado: 'en juego' }, estado, VISTA);
+  if (toca === 'huevo') return !ofreceElDepartamento(estado.lugar);
+  return toca !== VISTA;
+}
+
+// El retrato de un gachamon no es una pieza del contrato: es la dirección que
+// trae su ficha. Nunca falla: `{ruta, imagen}`, con `imagen` en `null` si no
+// cargó (se pinta su recuadro).
+function cargarRetrato(direccion) {
+  return new Promise((listo) => {
+    const imagen = new Image();
+    imagen.onload = () => listo({ ruta: direccion, imagen });
+    imagen.onerror = () => listo({ ruta: direccion, imagen: null });
+    imagen.src = direccion;
+  });
+}
+
+// Alguien que camina por la pieza en esa casilla, a tantas casillas por
+// segundo: dónde está (con decimales a medio paso), las casillas que le quedan
+// por pisar y si mira a la izquierda. `null` si no hay casilla.
+function caminanteEn(sitio, porSegundo) {
+  return sitio ? { i: sitio[0], j: sitio[1], ruta: [], espejo: false, porSegundo } : null;
+}
+
+export function departamento(contenedor, estado, seguir, { azar = Math.random } = {}) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -100,15 +166,40 @@ export function departamento(contenedor, estado, seguir) {
   let observador = null;
   let cuadroPedido = null;
   let cadaTanto = null;
+  let cadaSegundo = null;
+  // Lo que se hace al rato (el globo, los paseos, lo que se borra solo), para pararlo todo de una vez.
+  const temporizadores = new Set();
+
+  function luego(ms, hacer) {
+    const marca = setTimeout(() => {
+      temporizadores.delete(marca);
+      if (sigueAqui()) hacer();
+    }, ms);
+    temporizadores.add(marca);
+    return marca;
+  }
+
+  function cancelar(marca) {
+    clearTimeout(marca);
+    temporizadores.delete(marca);
+  }
 
   // --- la cabecera, la pieza, lo que se dice y lo de la derecha --------------------------
 
   const { cabecera, titulo, ponerSaldos } = cabeceraConSaldos('📍', estado.lugar.nombre);
+  // «+1 moneda»: asoma un momento bajo el saldo, como en el lugar.
+  const ganancia = el('span', { class: 'ganancia', role: 'status' });
+  const saldoDeMonedas = cabecera.querySelector('.saldo');
+  if (saldoDeMonedas) saldoDeMonedas.append(ganancia);
 
   const lienzo = el('canvas', { class: 'pieza-lienzo', 'aria-hidden': 'true' });
-  // El menú del mueble elegido va encima del lienzo, junto al mueble.
+  // El menú de lo elegido va encima del lienzo, junto a él; el globo, sobre el
+  // que sale contigo; la evolución arriba y las medallas abajo, como en el lugar.
   const menu = el('div', { class: 'menu-de-la-pieza', role: 'group', hidden: true });
-  const escenario = el('div', { class: 'pieza-escenario' }, lienzo, menu);
+  const globo = el('p', { class: 'globo', 'aria-live': 'polite' });
+  const celebracion = el('div', { class: 'celebracion', role: 'status' });
+  const medallas = el('div', { class: 'medallas', role: 'status' });
+  const escenario = el('div', { class: 'pieza-escenario' }, lienzo, menu, globo, celebracion, medallas);
   const linea = el('p', { class: 'pieza-linea' });
   const bandeja = el('div', { class: 'bandeja', id: 'departamento-bandeja', hidden: true });
   // Mientras no llega, en su lugar se lee la espera (o por qué no llegó).
@@ -128,10 +219,22 @@ export function departamento(contenedor, estado, seguir) {
   const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar');
   const aLaMochila = conIcono('boton boton-mochila', '🎒', 'Mochila');
   const alPueblo = conIcono('boton boton-pueblo', '🗺️', 'Pueblo');
-  // Guardados y Ampliar son de la pieza: se ven cuando llega.
+  // Guardados y Ampliar son de la pieza: se ven cuando llega, como la ficha
+  // del elegido y «A todos», que van arriba.
   const deLaPieza = el('div', { class: 'acciones-departamento', hidden: true }, aLosGuardados, alAmpliar);
+  const panel = panelDelPlantel({
+    cuidar,
+    acariciar: (boton) => {
+      const g = elVisto();
+      if (g) acariciar(g.id, boton);
+    },
+    salir: salirCon,
+    verFicha: verLaFicha,
+    aTodos: cuidarATodos,
+  });
+  const delPlantel = el('div', { class: 'plantel-departamento', hidden: true }, panel.ficha, panel.aTodos);
   const derecha = el('div', { class: 'lado-departamento' },
-    deLaPieza, el('div', { class: 'salidas-lugar' }, aLaMochila, alPueblo));
+    delPlantel, deLaPieza, el('div', { class: 'salidas-lugar' }, aLaMochila, alPueblo));
   const panelAmpliar = el('div', { class: 'ampliar', hidden: true });
 
   const cuerpo = el('div', { class: 'cuerpo cuerpo-departamento' },
@@ -143,7 +246,10 @@ export function departamento(contenedor, estado, seguir) {
     if (cuadroPedido !== null) cancelAnimationFrame(cuadroPedido);
     cuadroPedido = null;
     clearInterval(cadaTanto);
+    clearInterval(cadaSegundo);
     clearTimeout(volverAIndicar);
+    for (const marca of temporizadores) clearTimeout(marca);
+    temporizadores.clear();
     aviso.parar();
     oyentes.abort();
     if (observador) observador.disconnect();
@@ -175,38 +281,50 @@ export function departamento(contenedor, estado, seguir) {
   }, { signal });
 
   // Cada estado que llega se pregunta lo mismo que al entrar: si ya no toca
-  // esta pantalla, se va.
+  // esta pantalla, se va. Un globo no dice lo que ya no pasa: si lo que pedía
+  // ya no está, se calla.
   function aplicarEstado(nuevo) {
-    if (pideOtraPantalla(nuevo, VISTA)) {
+    if (pideOtraPantalla(nuevo)) {
       irse(nuevo);
       return false;
     }
     actual = nuevo;
     ponerSaldos(nuevo.saldos);
+    const globos = Array.isArray(nuevo.globos) ? nuevo.globos : [];
+    if (globo.classList.contains('visible') && !globos.some((g) => g.texto === globo.textContent)) callarGlobo();
     return true;
   }
 
   // --- lo que hay en la pieza ------------------------------------------------------------
 
   let depto = null;
-  // El arte que ya llegó, por ruta: el de la pieza, las capas del avatar.
+  // El arte que ya llegó, por ruta: el de la pieza, las capas del avatar y los
+  // retratos (por su dirección).
   const cargadas = new Map();
+  const retratosPedidos = new Set();
   // Ya llegó lo justo para pintar la primera vez.
   let listo = false;
 
-  // Tu avatar: la casilla donde está (con decimales a medio paso), las que le
-  // quedan por pisar, hacia dónde mira y cuánto lleva andando (para el paso).
+  // Tu avatar (un caminante, o `null` si no queda casilla que se pise) y
+  // cuánto lleva andando (para el paso). Tus gachamones en la pieza, por id:
+  // el que no tiene casilla no está. Los que están saltando, por id: cuánto
+  // llevan del salto, en segundos.
   let tu = null;
-  let ruta = [];
-  let espejo = false;
   let andado = 0;
+  let enPieza = new Map();
+  const saltos = new Map();
 
-  // El mueble puesto que está elegido (su id), o `null`.
+  // Lo elegido en la pieza: un mueble puesto (su id) o un gachamon (su id), o
+  // ninguno; nunca los dos. Su menú sale sobre él.
   let elegido = null;
+  let elegidoG = null;
+  // El gachamon cuya ficha se ve a la derecha (su id); `null` es el que sale contigo.
+  let visto = null;
   // Lo que llevas en la mano, o `null`: `{mueble, sitios, tipo}`. `sitios`
   // son los de `dondeCabe`, `{x, y, giro}`; `tipo` es la clave de lo que salió
   // de la bandeja (se pone el primero guardado de ese tipo), o `null` si es un
-  // mueble puesto que mueves.
+  // mueble puesto que mueves. Un gachamon que mueves es `{gachamon, sitios,
+  // mueble: null, tipo: null}`, con las casillas que se pisan como `sitios`.
   let enLaMano = null;
   let bandejaAbierta = false;
   let ampliando = false;
@@ -235,32 +353,80 @@ export function departamento(contenedor, estado, seguir) {
     });
   }
 
-  // Tu avatar, en la pieza que llegó: si quedó sobre un mueble (o fuera),
-  // aparece en la casilla libre más cercana, sin caminar. Si iba caminando, el
-  // paso que está dando se termina si esa casilla se sigue pisando (si no,
-  // aparece) y el resto del camino se rehace; si ya no se llega, se queda ahí.
-  function reubicarte() {
-    const ocupado = noSePisan(depto);
+  // Los retratos que todavía no se pidieron; se vuelve a pintar cuando llegan.
+  function traerRetratos() {
+    const nuevos = depto.plantel.map((g) => g.retrato).filter((r) => !retratosPedidos.has(r));
+    for (const r of nuevos) retratosPedidos.add(r);
+    return Promise.all(nuevos.map(cargarRetrato)).then((llegados) => {
+      for (const llegado of llegados) cargadas.set(llegado.ruta, llegado);
+      if (listo && sigueAqui()) dibujar();
+    });
+  }
+
+  // Quien camina, en la pieza que llegó (`ocupado`, lo que no se pisa): si
+  // quedó sobre un mueble (o fuera), aparece en la casilla libre más cercana,
+  // sin caminar. Si iba caminando, el paso que está dando se termina si esa
+  // casilla se sigue pisando (si no, aparece) y el resto del camino se rehace;
+  // si ya no se llega, se queda ahí. `null` si no queda casilla que se pise.
+  function reubicar(quien, ocupado) {
     const sePisa = ([i, j]) => i >= 0 && j >= 0 && i < depto.ancho && j < depto.fondo && !ocupado.has(`${i},${j}`);
-    if (ruta.length > 0) {
-      const [paso, ...resto] = ruta;
+    if (quien.ruta.length > 0) {
+      const [paso, ...resto] = quien.ruta;
       if (sePisa(paso)) {
         if (!resto.every(sePisa)) {
-          const destino = ruta.at(-1);
-          ruta = [paso, ...(sePisa(destino) ? camino(depto.ancho, depto.fondo, ocupado, paso, destino) : [])];
+          const destino = quien.ruta.at(-1);
+          quien.ruta = [paso, ...(sePisa(destino) ? camino(depto.ancho, depto.fondo, ocupado, paso, destino) : [])];
         }
-        return;
+        return quien;
       }
-      ruta = [];
+      quien.ruta = [];
     }
-    const aqui = [Math.round(tu.i), Math.round(tu.j)];
+    const aqui = [Math.round(quien.i), Math.round(quien.j)];
     const donde = sePisa(aqui) ? aqui : libreMasCercana(depto.ancho, depto.fondo, ocupado, aqui);
-    tu = donde && { i: donde[0], j: donde[1] };
+    if (!donde) return null;
+    [quien.i, quien.j] = donde;
+    return quien;
+  }
+
+  // Tú y tus gachamones, en la pieza que llegó: el que ya estaba se reubica;
+  // el que todavía no estaba (al entrar, uno que llega, o el que no tenía
+  // casilla) entra por su sitio de entrada: tú el primero, ellos en el orden
+  // de `plantel`. El que ya no vive contigo se va.
+  function repartir() {
+    const ocupado = noSePisan(depto);
+    const entrada = sitiosDeEntrada(depto.ancho, depto.fondo, ocupado, depto.plantel.length + 1);
+    tu = tu ? reubicar(tu, ocupado) : caminanteEn(entrada[0], CASILLAS_POR_SEGUNDO);
+    const antes = enPieza;
+    enPieza = new Map();
+    depto.plantel.forEach((g, n) => {
+      const ya = antes.get(g.id);
+      const quien = ya ? reubicar(ya, ocupado) : caminanteEn(entrada[n + 1], PASOS_DEL_GACHAMON);
+      if (quien) enPieza.set(g.id, quien);
+    });
+    for (const id of saltos.keys()) if (!enPieza.has(id)) saltos.delete(id);
+  }
+
+  // Las casillas donde un gachamon puede ir: las que se pisan, menos donde ya
+  // está (o adonde ya va).
+  function manoDelGachamon(id) {
+    const quien = enPieza.get(id);
+    if (!quien) return null;
+    const ocupado = noSePisan(depto);
+    const [aquiI, aquiJ] = quien.ruta.length > 0 ? quien.ruta.at(-1) : [quien.i, quien.j];
+    const sitios = [];
+    for (let y = 0; y < depto.fondo; y += 1) {
+      for (let x = 0; x < depto.ancho; x += 1) {
+        if (!ocupado.has(`${x},${y}`) && (x !== aquiI || y !== aquiJ)) sitios.push({ x, y });
+      }
+    }
+    return { gachamon: id, mueble: null, tipo: null, sitios };
   }
 
   // Lo que llevas en la mano, al día con la pieza que hay; `null` si ya no está.
   // Lo que mueves no cuenta el sitio donde ya está.
-  function manoAlDia({ mueble, tipo }) {
+  function manoAlDia(mano) {
+    if (mano.gachamon !== undefined) return manoDelGachamon(mano.gachamon);
+    const { mueble, tipo } = mano;
     if (tipo !== null) {
       const guardado = depto.guardados.find((g) => g.clave === tipo);
       return guardado ? { mueble: guardado, tipo, sitios: dondeCabe(depto, guardado, 0) } : null;
@@ -271,30 +437,74 @@ export function departamento(contenedor, estado, seguir) {
     return { mueble: puesto, tipo: null, sitios };
   }
 
-  // Pone la pieza que llegó: su línea, los saldos, tu avatar (en la entrada si
-  // todavía no estabas), lo elegido y lo que llevas en la mano si siguen ahí,
-  // la bandeja y lo de ampliar. Devuelve cuándo llega su arte.
+  // Pone la pieza que llegó: su línea, los saldos, tú y tus gachamones (en la
+  // entrada si todavía no estabais), lo elegido y lo que llevas en la mano si
+  // siguen ahí, la ficha de la derecha, la bandeja y lo de ampliar. Devuelve
+  // cuándo llega su arte.
   function aplicarDepto(nuevo) {
     depto = nuevo;
     linea.textContent = lineaDeEstado(nuevo);
     ponerSaldos(nuevo.saldos);
     actual = { ...actual, saldos: nuevo.saldos };
-    if (tu) {
-      reubicarte();
-    } else {
-      const [entrada] = sitiosDeEntrada(nuevo.ancho, nuevo.fondo, noSePisan(nuevo), 1);
-      if (entrada) tu = { i: entrada[0], j: entrada[1] };
-    }
+    repartir();
     if (!elPuesto(elegido)) elegido = null;
+    if (!enPieza.has(elegidoG)) elegidoG = null;
     if (enLaMano) {
       enLaMano = manoAlDia(enLaMano);
       if (!enLaMano) decir('');
     }
+    panel.leidas(nuevo.plantel);
+    pintarElPanel();
     if (listo && medirLienzo()) dibujar();
     ponerMenu();
+    colocarElGlobo();
     ponerBandeja();
     ponerAmpliar();
-    return traerArte(rutasDeLaPieza(nuevo));
+    return Promise.all([traerArte(rutasDeLaPieza(nuevo)), traerRetratos()]);
+  }
+
+  // --- tus gachamones ----------------------------------------------------------------------
+
+  // El gachamon cuya ficha se ve: el último que tocaste, si sigue contigo; si
+  // no, el que sale contigo. `null` si no vive ninguno.
+  function elVisto() {
+    if (!depto) return null;
+    return depto.plantel.find((g) => g.id === visto) || depto.plantel.find((g) => g.activo)
+      || depto.plantel[0] || null;
+  }
+
+  function pintarElPanel() {
+    const g = elVisto();
+    visto = g ? g.id : null;
+    panel.pintar(g);
+  }
+
+  // La ficha de uno, recién llegada con lo que contestó una acción: sus barras,
+  // sus esperas y su retrato. Si sale contigo o no lo dice la pieza.
+  function alDia(g) {
+    if (!g || !depto || !depto.plantel.some((p) => p.id === g.id)) return;
+    depto = { ...depto, plantel: depto.plantel.map((p) => (p.id === g.id ? { ...g, activo: p.activo } : p)) };
+    panel.leidas([g]);
+    pintarElPanel();
+    traerRetratos();
+    dibujar();
+  }
+
+  const elQueSale = () => (depto ? depto.plantel.find((g) => g.activo) || null : null);
+
+  // Tus gachamones como los pinta y los toca la pieza: los que tienen casilla.
+  function losDeLaPieza() {
+    if (!depto) return [];
+    return depto.plantel.filter((g) => enPieza.has(g.id)).map((g) => {
+      const quien = enPieza.get(g.id);
+      return { id: g.id, i: quien.i, j: quien.j, retrato: g.retrato, activo: g.activo, sube: subeDe(g.id) };
+    });
+  }
+
+  // Lo que sube ahora el que salta, en píxeles de pantalla.
+  function subeDe(id) {
+    if (!saltos.has(id) || !m) return 0;
+    return Math.sin((Math.PI * saltos.get(id)) / UN_SALTO_DURA_S) * ALTURA_DEL_SALTO * m.tw;
   }
 
   // --- el lienzo -------------------------------------------------------------------------
@@ -319,8 +529,8 @@ export function departamento(contenedor, estado, seguir) {
     return true;
   }
 
-  // Encima de todo, las marcas: dónde cabe lo que llevas en la mano y la
-  // huella de lo elegido.
+  // Encima de todo, las marcas: dónde va lo que llevas en la mano y dónde
+  // está lo elegido (la huella del mueble, o la casilla del gachamon).
   function dibujar() {
     if (!listo || !m) return;
     const ctx = lienzo.getContext('2d');
@@ -328,13 +538,19 @@ export function departamento(contenedor, estado, seguir) {
     ctx.clearRect(0, 0, lienzo.width, lienzo.height);
     ctx.setTransform(escala[0], 0, 0, escala[1], 0, 0);
     const puesto = elPuesto(elegido);
+    const quien = enPieza.get(elegidoG);
+    let marcado = null;
+    if (puesto) marcado = puesto.casillas;
+    else if (quien) marcado = [[Math.round(quien.i), Math.round(quien.j)]];
     dibujarPieza(ctx, m, {
       depto,
       cargadas,
-      gachamones: [],
-      tu: tu && { i: tu.i, j: tu.j, pose: poseAlCaminar(andado, ruta.length > 0), espejo, avatar: actual.avatar },
+      gachamones: losDeLaPieza(),
+      tu: tu && {
+        i: tu.i, j: tu.j, pose: poseAlCaminar(andado, tu.ruta.length > 0), espejo: tu.espejo, avatar: actual.avatar,
+      },
       libres: enLaMano ? enLaMano.sitios.map((s) => [s.x, s.y]) : [],
-      elegido: puesto ? puesto.casillas : null,
+      elegido: marcado,
     });
   }
 
@@ -345,6 +561,9 @@ export function departamento(contenedor, estado, seguir) {
     if (vivo && cuadroPedido === null) cuadroPedido = requestAnimationFrame(cuadro);
   }
 
+  const seMueve = () => (tu && tu.ruta.length > 0) || saltos.size > 0
+    || [...enPieza.values()].some((quien) => quien.ruta.length > 0);
+
   let antes = null;
 
   function cuadro(ahora) {
@@ -353,9 +572,18 @@ export function departamento(contenedor, estado, seguir) {
     // Una pestaña que estuvo dormida recibe todo el tiempo de una vez: llega sin pasarse.
     const dt = antes === null ? 0 : (ahora - antes) / 1000;
     antes = ahora;
-    avanzar(dt);
+    andado += dt;
+    if (tu) avanzar(tu, dt);
+    for (const quien of enPieza.values()) avanzar(quien, dt);
+    for (const [id, t] of saltos) {
+      if (t + dt >= UN_SALTO_DURA_S) saltos.delete(id);
+      else saltos.set(id, t + dt);
+    }
     dibujar();
-    if (ruta.length > 0) {
+    // Lo que flota sobre un gachamon lo sigue.
+    if (elegidoG !== null) ponerMenu();
+    colocarElGlobo();
+    if (seMueve()) {
       pedirCuadro();
     } else {
       antes = null;
@@ -363,52 +591,94 @@ export function departamento(contenedor, estado, seguir) {
     }
   }
 
-  // Lo que anda en `dt` segundos, casilla tras casilla, sin pasarse de la última.
-  function avanzar(dt) {
-    andado += dt;
-    let queda = CASILLAS_POR_SEGUNDO * dt;
-    while (ruta.length > 0 && queda > 0) {
-      const [hastaI, hastaJ] = ruta[0];
-      const di = hastaI - tu.i;
-      const dj = hastaJ - tu.j;
+  // Lo que anda quien camina en `dt` segundos, casilla tras casilla, sin pasarse de la última.
+  function avanzar(quien, dt) {
+    let queda = quien.porSegundo * dt;
+    while (quien.ruta.length > 0 && queda > 0) {
+      const [hastaI, hastaJ] = quien.ruta[0];
+      const di = hastaI - quien.i;
+      const dj = hastaJ - quien.j;
       // Ir hacia `j` o volver por `i` es ir hacia la izquierda de la pantalla.
-      if (di !== dj) espejo = di < dj;
+      if (di !== dj) quien.espejo = di < dj;
       const falta = Math.abs(di) + Math.abs(dj);
       if (falta <= queda) {
-        tu = { i: hastaI, j: hastaJ };
-        ruta.shift();
+        quien.i = hastaI;
+        quien.j = hastaJ;
+        quien.ruta.shift();
         queda -= falta;
       } else {
         const enI = Math.min(queda, Math.abs(di));
-        tu = { i: tu.i + Math.sign(di) * enI, j: tu.j + Math.sign(dj) * (queda - enI) };
+        quien.i += Math.sign(di) * enI;
+        quien.j += Math.sign(dj) * (queda - enI);
         queda = 0;
       }
     }
   }
 
-  // Hasta esa casilla, por el camino más corto. A medio paso, se termina el
-  // paso y desde ahí se va al nuevo destino. Sin camino (lo cierran los
-  // muebles) o con menos movimiento, aparece ahí.
-  function caminarHasta([i, j]) {
+  // Quien camina, hasta esa casilla, por el camino más corto. A medio paso, se
+  // termina el paso y desde ahí se va al nuevo destino. Sin camino (lo cierran
+  // los muebles) o con menos movimiento, aparece ahí.
+  function caminarHasta(quien, [i, j]) {
     const ocupado = noSePisan(depto);
-    if (!tu || ocupado.has(`${i},${j}`)) return;
-    const desde = ruta.length > 0 ? ruta[0] : [tu.i, tu.j];
-    if (ruta.length === 0 && desde[0] === i && desde[1] === j) return;
+    if (!quien || ocupado.has(`${i},${j}`)) return;
+    const desde = quien.ruta.length > 0 ? quien.ruta[0] : [quien.i, quien.j];
+    if (quien.ruta.length === 0 && desde[0] === i && desde[1] === j) return;
     const pasos = camino(depto.ancho, depto.fondo, ocupado, desde, [i, j]);
     const yaVaAhi = desde[0] === i && desde[1] === j;
     if (quieto() || (pasos.length === 0 && !yaVaAhi)) {
-      ruta = [];
-      tu = { i, j };
+      quien.ruta = [];
+      quien.i = i;
+      quien.j = j;
       dibujar();
       return;
     }
-    ruta = ruta.length > 0 ? [ruta[0], ...pasos] : pasos;
+    quien.ruta = quien.ruta.length > 0 ? [quien.ruta[0], ...pasos] : pasos;
+    pedirCuadro();
+  }
+
+  // Lo que no pisa un gachamon que da un paso solo: los muebles, y donde
+  // estáis (o adonde vais) tú y los demás.
+  function noSePisanConGente(salvo) {
+    const ocupado = noSePisan(depto);
+    const pisar = (quien) => {
+      for (const [i, j] of [[Math.round(quien.i), Math.round(quien.j)], ...quien.ruta.slice(-1)]) ocupado.add(`${i},${j}`);
+    };
+    if (tu) pisar(tu);
+    for (const [id, quien] of enPieza) if (id !== salvo) pisar(quien);
+    return ocupado;
+  }
+
+  // Cada tanto, uno de tus gachamones que está quieto da un paso hacia una
+  // casilla de al lado que esté libre; el que tiene su menú abierto se queda.
+  // Con menos movimiento, o mientras llevas algo en la mano, nadie se mueve.
+  function programarUnPaseo() {
+    luego(UN_PASEO_CADA_MS[0] + azar() * (UN_PASEO_CADA_MS[1] - UN_PASEO_CADA_MS[0]), darUnPaseo);
+  }
+
+  function darUnPaseo() {
+    programarUnPaseo();
+    if (!listo || quieto() || enLaMano || document.hidden) return;
+    const quietos = depto.plantel.map((g) => g.id)
+      .filter((id) => id !== elegidoG && enPieza.has(id) && enPieza.get(id).ruta.length === 0);
+    if (!quietos.length) return;
+    const id = quietos[Math.min(quietos.length - 1, Math.floor(azar() * quietos.length))];
+    const quien = enPieza.get(id);
+    const [i, j] = pasoSuelto(depto.ancho, depto.fondo, noSePisanConGente(id), [quien.i, quien.j], azar);
+    if (i === quien.i && j === quien.j) return;
+    quien.ruta = [[i, j]];
+    pedirCuadro();
+  }
+
+  // Un saltito del que recibió lo que le hiciste; con menos movimiento, no.
+  function saltar(id) {
+    if (quieto() || !enPieza.has(id)) return;
+    saltos.set(id, 0);
     pedirCuadro();
   }
 
   // --- elegir, y lo que llevas en la mano ------------------------------------------------
 
-  const indicacionDe = (mano) => (mano.mueble.capa === PARED ? TOCA_LA_PARED : TOCA_LA_CASILLA);
+  const indicacionDe = (mano) => (mano.mueble && mano.mueble.capa === PARED ? TOCA_LA_PARED : TOCA_LA_CASILLA);
 
   // Lo que se dice en la zona de aviso. Un aviso se borra solo al rato; pero
   // mientras llevas algo en la mano lo dicho no se borra solo (se le quita a la
@@ -435,9 +705,25 @@ export function departamento(contenedor, estado, seguir) {
     marcarLoQueLlevas();
   }
 
+  // Elegir un mueble (o nada) deja de elegir al gachamon que lo estaba.
   function elegir(id) {
-    if (elegido === id) return;
+    if (elegido === id && elegidoG === null) return;
     elegido = id;
+    elegidoG = null;
+    verLoElegido();
+  }
+
+  // Elegir a un gachamon lo deja también en la ficha de la derecha; dejar de
+  // elegirlo (`null`) no cambia la ficha. Su menú tapa el globo, que se calla.
+  function elegirGachamon(id) {
+    elegido = null;
+    elegidoG = id;
+    if (id !== null) {
+      visto = id;
+      pintarElPanel();
+      const sale = elQueSale();
+      if (sale && sale.id === id && globo.classList.contains('visible')) callarGlobo();
+    }
     verLoElegido();
   }
 
@@ -453,21 +739,26 @@ export function departamento(contenedor, estado, seguir) {
     verLoElegido();
   }
 
-  // Lo sueltas sin ponerlo: lo que movías deja de estar elegido.
+  // Lo sueltas sin ponerlo: lo que movías (un mueble o un gachamon) deja de
+  // estar elegido.
   function soltar() {
     if (!enLaMano) return;
-    if (enLaMano.tipo === null) elegido = null;
+    if (enLaMano.tipo === null) {
+      elegido = null;
+      elegidoG = null;
+    }
     enLaMano = null;
     decir('');
     verLoElegido();
   }
 
   // Con algo en la mano, el toque es sólo un sitio (una casilla o un tramo de
-  // pared, sin mirar lo que haya dibujado encima): si está marcado, ahí se
-  // pone, con el giro con el que cabe; si no, se suelta.
+  // pared, sin mirar lo que haya dibujado encima, tampoco a un gachamon): si
+  // está marcado, ahí se pone, con el giro con el que cabe, o ahí camina el
+  // gachamon (que sigue elegido); si no, se suelta.
   function ponerLoQueLlevasEn(x, y) {
     const { mueble, sitios } = enLaMano;
-    const sitio = mueble.capa === PARED
+    const sitio = mueble && mueble.capa === PARED
       ? tramoEn(m, x, y, depto.ancho, depto.fondo)
       : casillaEn(m, x, y, depto.ancho, depto.fondo);
     const destino = sitio && sitios.find((s) => s.x === sitio[0] && s.y === sitio[1]);
@@ -475,15 +766,23 @@ export function departamento(contenedor, estado, seguir) {
       soltar();
       return;
     }
+    if (enLaMano.gachamon !== undefined) {
+      const quien = enPieza.get(enLaMano.gachamon);
+      enLaMano = null;
+      decir('');
+      caminarHasta(quien, [destino.x, destino.y]);
+      verLoElegido();
+      return;
+    }
     enLaMano = null;
     poner(mueble, destino, escenario);
     verLoElegido();
   }
 
-  // Tocar un mueble lo elige, y tocarlo otra vez deja de elegirlo; lo que se
-  // pisa (una alfombra, el felpudo) además se camina. Tocar el suelo es
-  // caminar, y lo elegido deja de estarlo; tocar fuera o una pared vacía,
-  // también.
+  // Tocar un mueble o un gachamon lo elige, y tocarlo otra vez deja de
+  // elegirlo; lo que se pisa (una alfombra, el felpudo) además se camina.
+  // Tocar el suelo es caminar, y lo elegido deja de estarlo; tocar fuera o una
+  // pared vacía, también.
   lienzo.addEventListener('click', (evento) => {
     if (!listo || !m || !sigueAqui()) return;
     const caja = lienzo.getBoundingClientRect();
@@ -493,25 +792,30 @@ export function departamento(contenedor, estado, seguir) {
       ponerLoQueLlevasEn(x, y);
       return;
     }
-    const tocado = queSeToco(m, depto, [], x, y);
-    const casilla = tocado && tocado.tipo === 'casilla' ? [tocado.i, tocado.j] : null;
+    const tocado = queSeToco(m, depto, losDeLaPieza(), x, y);
     // Mientras una petición va, lo elegido se queda como está: sólo se camina.
+    if (tocado && tocado.tipo === 'gachamon') {
+      if (!enCamino) elegirGachamon(tocado.id === elegidoG ? null : tocado.id);
+      return;
+    }
+    const casilla = tocado && tocado.tipo === 'casilla' ? [tocado.i, tocado.j] : null;
     if (!enCamino) {
       let id = null;
       if (tocado && tocado.tipo === 'mueble') id = tocado.id;
       else if (casilla && tocado.mueble !== undefined) id = tocado.mueble;
       elegir(id === elegido ? null : id);
     }
-    if (casilla) caminarHasta(casilla);
+    if (casilla) caminarHasta(tu, casilla);
   }, { signal });
 
-  // --- el menú del mueble elegido --------------------------------------------------------
+  // --- el menú de lo elegido -------------------------------------------------------------
 
-  // El mueble para el que está hecho el menú (su id), o `null`.
+  // Para qué está hecho el menú («mueble 21», «gachamon 8»), o `null`.
   let menuDe = null;
 
   function botonDelMenu(icono, texto, alTocar) {
-    const boton = conIcono('boton boton-chico', icono, texto);
+    const boton = icono ? conIcono('boton boton-chico', icono, texto)
+      : el('button', { type: 'button', class: 'boton boton-chico' }, texto);
     boton.addEventListener('click', () => alTocar(boton), { signal });
     return boton;
   }
@@ -523,14 +827,24 @@ export function departamento(contenedor, estado, seguir) {
     botones.push(botonDelMenu('📦', 'Guardar', guardarLoElegido));
     menu.replaceChildren(el('p', { class: 'menu-nombre' }, puesto.nombre), el('div', { class: 'menu-botones' }, botones));
     menu.setAttribute('aria-label', puesto.nombre);
-    menuDe = puesto.id;
+    menuDe = `mueble ${puesto.id}`;
   }
 
-  // Sobre el mueble, centrado, y nunca fuera de la pieza. Si arriba no cabe
-  // entero, se queda pegado arriba aunque tape algo del mueble; si así taparía
-  // más de la mitad, va debajo.
-  function colocarElMenu(puesto) {
-    const caja = cajaDelMueble(m, puesto, puesto.x, puesto.y, puesto.giro);
+  // El de un gachamon: moverlo (sólo en el dibujo) y acariciarlo.
+  function hacerElMenuDelGachamon(g) {
+    const botones = [
+      botonDelMenu('✋', 'Mover', moverAlGachamon),
+      botonDelMenu(null, 'Acariciar', (boton) => acariciar(g.id, boton)),
+    ];
+    menu.replaceChildren(el('p', { class: 'menu-nombre' }, g.nombre), el('div', { class: 'menu-botones' }, botones));
+    menu.setAttribute('aria-label', g.nombre);
+    menuDe = `gachamon ${g.id}`;
+  }
+
+  // Sobre lo elegido (`caja`, donde se pinta), centrado, y nunca fuera de la
+  // pieza. Si arriba no cabe entero, se queda pegado arriba aunque tape algo;
+  // si así taparía más de la mitad, va debajo.
+  function colocarElMenu(caja) {
     const lado = lienzo.getBoundingClientRect();
     const ancho = menu.offsetWidth || 0;
     const alto = menu.offsetHeight || 0;
@@ -551,21 +865,36 @@ export function departamento(contenedor, estado, seguir) {
   // (ni va en camino lo que pusiste tocando la pieza). El foco que estaba en un
   // menú que se cierra espera en el título.
   function ponerMenu() {
-    const puesto = enLaMano || origenEnEspera === escenario ? null : elPuesto(elegido);
-    if (!puesto || !listo || !m) {
+    const cerrado = enLaMano || origenEnEspera === escenario || !listo || !m;
+    const puesto = cerrado ? null : elPuesto(elegido);
+    const quien = cerrado ? null : enPieza.get(elegidoG);
+    const g = quien ? depto.plantel.find((p) => p.id === elegidoG) : null;
+    if (!puesto && !g) {
       if (menu.contains(document.activeElement)) titulo.focus({ preventScroll: true });
       menu.hidden = true;
       menuDe = null;
       return;
     }
-    if (menuDe !== puesto.id) hacerElMenu(puesto);
+    if (puesto) {
+      if (menuDe !== `mueble ${puesto.id}`) hacerElMenu(puesto);
+      menu.hidden = false;
+      colocarElMenu(cajaDelMueble(m, puesto, puesto.x, puesto.y, puesto.giro));
+      return;
+    }
+    if (menuDe !== `gachamon ${g.id}`) hacerElMenuDelGachamon(g);
     menu.hidden = false;
-    colocarElMenu(puesto);
+    colocarElMenu(cajaDelGachamon(m, quien.i, quien.j));
   }
 
   menu.addEventListener('keydown', (evento) => {
     if (evento.key === 'Escape') elegir(null);
   }, { signal });
+
+  // Mover a un gachamon: lo tomas en la mano y se marcan las casillas que se pisan.
+  function moverAlGachamon() {
+    if (enCamino || !enPieza.has(elegidoG)) return;
+    tomar(manoDelGachamon(elegidoG));
+  }
 
   function moverLoElegido() {
     const puesto = elPuesto(elegido);
@@ -649,6 +978,7 @@ export function departamento(contenedor, estado, seguir) {
       return;
     }
     elegido = null;
+    elegidoG = null;
     tomar(mano);
   }
 
@@ -727,12 +1057,15 @@ export function departamento(contenedor, estado, seguir) {
   // Los botones que mandan algo o te lo ponen en la mano.
   const queMandan = () => cuerpo.querySelectorAll('.menu-de-la-pieza button, .bandeja-tipo, .boton-lado');
 
+  // Los de la ficha y «A todos» los pone su panel (`panel.ocupar`), que sabe
+  // además cuáles esperan a que se acabe su espera.
   function esperar(origen) {
     enCamino = true;
     origenEnEspera = origen;
     origen.setAttribute('aria-busy', 'true');
     origen.classList.add(origen === escenario ? 'en-camino' : 'esperando');
     for (const boton of queMandan()) if (boton !== origen) boton.setAttribute('aria-disabled', 'true');
+    panel.ocupar(origen);
   }
 
   function dejarDeEsperar() {
@@ -741,14 +1074,14 @@ export function departamento(contenedor, estado, seguir) {
     origenEnEspera.classList.remove('en-camino', 'esperando');
     origenEnEspera = null;
     for (const boton of queMandan()) boton.removeAttribute('aria-disabled');
+    panel.ocupar(null);
     ponerMenu();
   }
 
-  // Manda lo que hace `hacer()` y pinta la pieza que contesta el servidor.
-  // `siSaleBien()` deja elegido lo que toque. Un «no» se dice con su frase y
-  // la pieza queda como dice el servidor; sin respuesta, pudo haber llegado
+  // Manda lo que hace `hacer()` y, con lo que contesta el servidor, pone el
+  // estado y hace `alContestar(respuesta)`. Sin respuesta, pudo haber llegado
   // igual: se dice y la pieza se vuelve a leer.
-  async function enviar(origen, hacer, siSaleBien) {
+  async function mandar(origen, hacer, alContestar) {
     if (enCamino) return;
     acciones += 1;
     esperar(origen);
@@ -770,15 +1103,210 @@ export function departamento(contenedor, estado, seguir) {
     if (!sigueAqui()) return;
     dejarDeEsperar();
     if (respuesta.estado && !aplicarEstado(respuesta.estado)) return;
-    if (respuesta.ok && siSaleBien) siSaleBien();
-    aplicarDepto(respuesta.departamento);
-    decir(respuesta.mensaje, !respuesta.ok);
+    alContestar(respuesta);
+  }
+
+  // Lo que cambia la pieza: se pinta la que contesta el servidor. `siSaleBien()`
+  // deja elegido lo que toque. Un «no» se dice con su frase y la pieza queda
+  // como dice el servidor.
+  function enviar(origen, hacer, siSaleBien) {
+    return mandar(origen, hacer, (respuesta) => {
+      if (respuesta.ok && siSaleBien) siSaleBien();
+      aplicarDepto(respuesta.departamento);
+      decir(respuesta.mensaje, !respuesta.ok);
+    });
   }
 
   // Lo que se pone (o se mueve, o se gira) queda elegido.
   function poner(mueble, { x, y, giro }, origen) {
     enviar(origen, () => pedir('POST', 'departamento/poner', { mueble_id: mueble.id, x, y, giro }),
       () => { elegido = mueble.id; });
+  }
+
+  // --- lo que se le hace a tus gachamones ------------------------------------------------
+
+  // Un cuidado al que se ve en la ficha. Mueve monedas: cada toque lleva su
+  // evento, y sus reintentos el mismo, para que no cuente dos veces. Con lo
+  // que contesta cambian sus barras y sus esperas, y se avisa como en el lugar.
+  function cuidar(accion, boton) {
+    const g = elVisto();
+    if (enCamino || !g || panel.falta(accion) > 0) return;
+    const evento = nuevoEvento();
+    const gachamonId = g.id;
+    const etapaAntes = g.etapa;
+    mandar(boton, () => conReintentos(
+      () => pedir('POST', 'cuidar', { accion, evento_id: evento, gachamon_id: gachamonId }),
+      sigueAqui,
+    ), (respuesta) => {
+      alDia(respuesta.gachamon);
+      // La evolución se mira en quien recibió el cuidado, que no siempre es el que sale contigo.
+      const recibido = { ...respuesta, estado: { gachamon: respuesta.gachamon || null } };
+      trasCuidar(recibido, etapaAntes, {
+        saltar: () => saltar(gachamonId),
+        ganar,
+        celebrar: () => { if (respuesta.gachamon) celebrar(respuesta.gachamon); },
+        medalla,
+        avisar: (frase) => decir(frase),
+      });
+    });
+  }
+
+  // La caricia no lleva evento que la haga repetible, así que no se reintenta
+  // sola (como en el lugar): si se corta, se dice y se vuelve a leer la pieza.
+  // Corazones si se pudo; si todavía no, cuándo se podrá.
+  function acariciar(id, boton) {
+    const g = depto && depto.plantel.find((p) => p.id === id);
+    if (enCamino || !g) return;
+    mandar(boton, () => pedir('POST', 'acariciar', { gachamon_id: id }), (respuesta) => {
+      alDia(respuesta.gachamon);
+      trasAcariciar(respuesta, respuesta.gachamon || g, {
+        corazones: () => corazonesSobre(id),
+        saltar: () => saltar(id),
+        // En la pieza no titubea: basta con decir cuándo.
+        titubear: () => {},
+        avisar: (frase) => decir(frase),
+      });
+    });
+  }
+
+  // «A todos»: un cuidado a cada uno que puede recibirlo. Mueve monedas, como
+  // cada cuidado: un evento por toque. Se dice la frase del juego y se vuelve
+  // a leer la pieza, que trae cómo quedaron.
+  function cuidarATodos(accion, boton) {
+    if (enCamino || !depto || !depto.plantel.length) return;
+    const evento = nuevoEvento();
+    mandar(boton, () => conReintentos(
+      () => pedir('POST', 'cuidar/todos', { accion, evento_id: evento }),
+      sigueAqui,
+    ), (respuesta) => {
+      trasCuidar({ ...respuesta, estado: null }, null, {
+        saltar: () => { for (const id of respuesta.tocados || []) saltar(id); },
+        ganar,
+        celebrar: () => {},
+        medalla,
+        avisar: (frase) => decir(frase),
+      });
+      releer({ trasUnaAccion: true });
+    });
+  }
+
+  // Salir con el que se ve: el servidor contesta con su frase y la pieza.
+  function salirCon(boton) {
+    const g = elVisto();
+    if (enCamino || !g) return;
+    enviar(boton, () => pedir('POST', 'departamento/salir', { gachamon_id: g.id }), null);
+  }
+
+  // Su ficha completa; al volver, se vuelve aquí.
+  function verLaFicha() {
+    const g = elVisto();
+    if (!g) return;
+    parar();
+    seguir(actual, { vista: 'ficha', gachamonId: g.id });
+  }
+
+  // --- lo que se ve cuando se le hace algo -------------------------------------------------
+
+  // Vuelve a lanzar una animación de CSS aunque ya estuviera puesta.
+  function animar(nodo, clase) {
+    nodo.classList.remove(clase);
+    void nodo.offsetWidth;
+    nodo.classList.add(clase);
+  }
+
+  let gananciaHasta = null;
+
+  function ganar(monedas) {
+    cancelar(gananciaHasta);
+    ganancia.textContent = `+${MONEDAS.cuantas(monedas)}`;
+    animar(ganancia, 'visible');
+    gananciaHasta = luego(GANANCIA_DURA_MS, () => {
+      ganancia.classList.remove('visible');
+      ganancia.textContent = '';
+    });
+  }
+
+  let celebracionHasta = null;
+
+  function celebrar(g) {
+    callarGlobo();
+    cancelar(celebracionHasta);
+    celebracion.replaceChildren(avisoDeLaEvolucion(g));
+    celebracionHasta = luego(CELEBRACION_DURA_MS, () => celebracion.replaceChildren());
+  }
+
+  // Una medalla nueva: su aviso se queda un rato y se va solo.
+  function medalla(texto) {
+    const nodo = avisoDeMedalla(texto);
+    medallas.append(nodo);
+    luego(MEDALLA_DURA_MS, () => nodo.remove());
+  }
+
+  // Los corazones salen de la cabeza del que se acarició y suben.
+  function corazonesSobre(id) {
+    const quien = enPieza.get(id);
+    if (!quien || !m) return;
+    const caja = cajaDelGachamon(m, quien.i, quien.j);
+    for (let n = 0; n < CORAZONES; n += 1) {
+      const corazon = lienzoDePieza('efectos/corazon.png', 32, 32);
+      const lado = Math.round(20 + azar() * 8);
+      corazon.classList.add('corazon');
+      corazon.style.width = `${lado}px`;
+      corazon.style.height = `${lado}px`;
+      corazon.style.left = `${caja.x + caja.ancho * (0.2 + azar() * 0.6) - lado / 2}px`;
+      corazon.style.top = `${caja.y + caja.alto * 0.2}px`;
+      corazon.style.animationDelay = `${n * 90}ms`;
+      escenario.append(corazon);
+      luego(CORAZON_DURA_MS + n * 90, () => corazon.remove());
+    }
+  }
+
+  // --- el globo ------------------------------------------------------------------------------
+
+  let anterior = null;
+  let globoHasta = null;
+
+  // Cada 20 a 40 segundos el que sale contigo dice algo de `estado.globos`,
+  // si está en la pieza, no se está celebrando nada y no tiene su menú encima.
+  function hablar() {
+    luego(GLOBO_CADA_MS[0] + azar() * (GLOBO_CADA_MS[1] - GLOBO_CADA_MS[0]), hablar);
+    const sale = elQueSale();
+    if (document.hidden || celebracion.hasChildNodes() || !sale || !enPieza.has(sale.id) || elegidoG === sale.id) return;
+    const dicho = elegirGlobo(actual.globos, anterior, azar);
+    if (!dicho) return;
+    anterior = dicho.texto;
+    cancelar(globoHasta);
+    globo.textContent = dicho.texto;
+    globo.classList.add('visible');
+    colocarElGlobo();
+    globoHasta = luego(GLOBO_DURA_MS, callarGlobo);
+  }
+
+  // El texto se va un poco después que el globo, para que no se vea vacío
+  // mientras se desvanece; y vacío, el lector de pantalla no lo vuelve a leer.
+  function callarGlobo() {
+    cancelar(globoHasta);
+    globo.classList.remove('visible');
+    globoHasta = luego(250, () => { globo.textContent = ''; });
+  }
+
+  // Sobre la cabeza del que sale contigo, y nunca fuera de la pieza. Si ya no
+  // está en la pieza, se calla.
+  function colocarElGlobo() {
+    if (!globo.classList.contains('visible')) return;
+    const sale = elQueSale();
+    const quien = sale && enPieza.get(sale.id);
+    if (!quien || !m) {
+      callarGlobo();
+      return;
+    }
+    const caja = cajaDelGachamon(m, quien.i, quien.j);
+    const lado = lienzo.getBoundingClientRect();
+    const ancho = globo.offsetWidth || 0;
+    const alto = globo.offsetHeight || 0;
+    globo.style.left = `${Math.min(Math.max(caja.x + caja.ancho / 2, ancho / 2 + MARGEN_DEL_MENU),
+      lado.width - ancho / 2 - MARGEN_DEL_MENU)}px`;
+    globo.style.top = `${Math.max(caja.y - subeDe(sale.id), alto + SOBRE_LA_CABEZA)}px`;
   }
 
   // --- mantenerse al día -----------------------------------------------------------------
@@ -823,6 +1351,12 @@ export function departamento(contenedor, estado, seguir) {
     if (!sigueAqui()) return;
     listo = true;
     deLaPieza.hidden = false;
+    delPlantel.hidden = false;
+    // Las cuentas de las esperas bajan solas; tus gachamones pasean y el que
+    // sale contigo habla de vez en cuando.
+    cadaSegundo = setInterval(() => { if (sigueAqui()) panel.contar(); }, 1000);
+    programarUnPaseo();
+    luego(PRIMER_GLOBO_MS, hablar);
 
     // Girar el teléfono o cambiar el tamaño de la ventana vuelve a medir la pieza.
     const reencuadrar = () => {
