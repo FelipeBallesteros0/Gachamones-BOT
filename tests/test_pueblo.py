@@ -110,3 +110,9 @@ def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(
     assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
     assert pueblo.ofrece("tienda") == ()
+
+
+def test_quien_no_tiene_lugar_guardado_o_ya_no_existe_esta_en_su_casa():
+    assert pueblo.donde_esta("tienda") == "tienda"
+    for clave in (None, "", "no_existe", 7):
+        assert pueblo.donde_esta(clave) == pueblo.de_partida() == "casa"

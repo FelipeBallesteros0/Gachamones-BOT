@@ -1,6 +1,7 @@
 import pytest
 
 import db
+from web import pueblo
 from ayudas_web import CABECERA, con_gachamon, con_monedas_web, en_casa, entrar, ir
 
 API = "/gachamon/api"
@@ -35,6 +36,22 @@ def test_fuera_de_tu_departamento_no_se_toca(cliente):
         r = metodo(f"{API}/{ruta}", **({"json": cuerpo, "headers": CABECERA} if cuerpo else {}))
         assert r.status_code == 409 and "Para eso tienes que estar en tu departamento." in r.text
         assert r.json()["detail"]["clave"] == "no_estas_ahi"
+
+
+def test_sin_haberte_movido_estas_en_tu_departamento(cliente):
+    con_gachamon(cliente); con_monedas_web(cliente, 100)  # sin `ir`: nunca se movió
+    assert cliente.get(f"{API}/estado").json()["lugar"]["ofrece"] == ["departamento"]
+    assert cliente.get(f"{API}/departamento").status_code == 200
+    r = cliente.post(f"{API}/departamento/ampliar", json={"eje": "ancho", "evento_id": "evento-sin-moverse"},
+                     headers=CABECERA).json()
+    assert (r["ok"], r["estado"]["saldos"]["monedas"]) == (True, 55)
+
+
+def test_un_lugar_guardado_que_ya_no_existe_te_deja_en_tu_departamento(cliente, monkeypatch):
+    con_gachamon(cliente); ir(cliente, "plaza")
+    monkeypatch.setattr(pueblo, "LUGARES", {c: l for c, l in pueblo.LUGARES.items() if c != "plaza"})
+    assert cliente.get(f"{API}/estado").json()["lugar"]["clave"] == "casa"
+    assert cliente.get(f"{API}/departamento").status_code == 200
 
 
 def test_poner_guardar_y_sus_noes(cliente):

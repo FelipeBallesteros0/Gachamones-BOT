@@ -110,11 +110,10 @@ def catalogo(jugador: Jugador) -> dict:
 def en_la_tienda(jugador: Jugador) -> None:
     """Para entrar a la tienda hay que estar en ella: lo dice el lugar guardado de la cuenta.
 
-    Un lugar guardado que ya no existe se resuelve como en el estado (se vuelve
-    a tu casa, que no ofrece la tienda); por eso basta con mirar el lugar si existe.
+    El lugar que falta o que ya no existe se resuelve como en el estado: tu casa.
     """
-    clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
-    if not pueblo.existe(clave) or "tienda" not in pueblo.ofrece(clave):
+    clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
+    if "tienda" not in pueblo.ofrece(clave):
         raise problema(409, "no_estas_ahi", "Para eso tienes que estar en la tienda.")
 
 

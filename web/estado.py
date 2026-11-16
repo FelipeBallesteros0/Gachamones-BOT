@@ -77,9 +77,7 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
 
 
 def _lugar(jugador: Jugador) -> dict:
-    clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
-    if not pueblo.existe(clave):
-        clave = pueblo.de_partida()
+    clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
     return {
         "clave": clave,
         "nombre": pueblo.LUGARES[clave].nombre,

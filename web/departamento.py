@@ -36,11 +36,10 @@ _NO_DEL_DEPARTAMENTO = {
 def en_el_departamento(jugador: Jugador) -> None:
     """Para tocar el departamento hay que estar en él: lo dice el lugar guardado de la cuenta.
 
-    Un lugar guardado que ya no existe se resuelve como en el estado (se vuelve
-    al hogar, que no ofrece nada); por eso basta con mirar el lugar si existe.
+    El lugar que falta o que ya no existe se resuelve como en el estado: tu casa.
     """
-    clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
-    if not pueblo.existe(clave) or "departamento" not in pueblo.ofrece(clave):
+    clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
+    if "departamento" not in pueblo.ofrece(clave):
         raise problema(409, "no_estas_ahi", "Para eso tienes que estar en tu departamento.")
 
 

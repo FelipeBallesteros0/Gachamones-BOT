@@ -54,6 +54,11 @@ def de_partida() -> str:
     return "casa"
 
 
+def donde_esta(clave: object) -> str:
+    """El lugar donde está quien lo tiene guardado, o su casa si no tiene o ya no existe."""
+    return clave if existe(clave) else de_partida()
+
+
 def aviso(clave: str) -> str | None:
     """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
 

@@ -63,9 +63,8 @@ export const linea = (texto, clase) => el('p', { class: clase }, texto);
 // Una fila: el ícono, el nombre, lo que se dice de ella y, a la derecha, lo
 // que se puede hacer. `icono` es la ruta de una pieza del arte, que se pinta
 // en su lienzo, o un nodo ya hecho (un retrato), que se usa tal cual.
-// `apagada`, lo que no se puede comprar; `debajo`, lo que va a lo ancho bajo
-// todo lo demás.
-export function filaDeArticulo({ id, icono, nombre, lineas, accion, apagada = false, debajo = null }) {
+// `apagada`, lo que no se puede comprar.
+export function filaDeArticulo({ id, icono, nombre, lineas, accion, apagada = false }) {
   let dibujo = icono;
   if (!(icono instanceof Node)) {
     dibujo = lienzoDePieza(icono, LADO_DEL_ICONO, LADO_DEL_ICONO);
@@ -74,8 +73,7 @@ export function filaDeArticulo({ id, icono, nombre, lineas, accion, apagada = fa
   return el('li', { class: apagada ? 'articulo apagado' : 'articulo', 'data-fila': id },
     dibujo,
     el('div', { class: 'articulo-texto' }, el('p', { class: 'articulo-nombre' }, nombre), lineas),
-    accion,
-    debajo);
+    accion);
 }
 
 // La pregunta del primer toque, que va en lugar del botón: arriba lo que se
