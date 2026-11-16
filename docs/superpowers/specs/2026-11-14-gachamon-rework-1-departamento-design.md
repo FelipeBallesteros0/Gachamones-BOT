@@ -33,8 +33,10 @@ Eso cambia el juego entero, y es más de un proyecto. El orden acordado
 El 2026-11-15 Felipe decidió además **pausar el juego en Discord desde el día
 del cambio de este proyecto** **[Felipe]**: el bot queda sólo para vincular
 (sección 7). Así que entre este proyecto y el 6 no hay competir, aventuras
-(salvo la primera), reclutar ni conversar en ningún sitio. Si conviene adelantar
-las aventuras y reclutar en la página, antes del balcón, está **por decidir**.
+(salvo la primera), reclutar ni conversar en ningún sitio. Por eso el
+2026-11-16 Felipe decidió **adelantar las aventuras y reclutar**: van a la
+página justo después de este proyecto, antes del balcón **[Felipe]**. Competir
+y conversar siguen en el proyecto 6.
 
 Cada proyecto tendrá su propio diseño. La sección 12 guarda lo que Felipe ya
 dijo de los proyectos 2 a 6, para que no se pierda.
@@ -145,10 +147,17 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   suelo **[propuesta, aceptada]**.
 - **Se puede tener más de uno de cada mueble** **[propuesta, aceptada]** (hoy
   sólo uno).
-- **Giran en 4 posiciones** **[Felipe]**. Cada mueble tiene **dos imágenes**,
-  una de frente y una de espaldas, y cada una se usa también espejada: dos
-  posiciones miran de frente y dos de espaldas. Vale igual para los de 1 × 1.
-  Un mueble alargado cambia las casillas que ocupa al girar.
+- **Giran en 4 posiciones** **[Felipe]**. Cada mueble tiene **cuatro
+  imágenes**, una por posición, mirando al NE, al NO, al SE y al SO; **nada se
+  espeja**, porque un objeto como una planta no tiene por qué ser simétrico
+  **[Felipe, 2026-11-16]** (antes este documento decía dos imágenes, cada una
+  usada también espejada). Vale igual para los de 1 × 1. Un mueble alargado
+  cambia las casillas que ocupa al girar. Lo que va en la pared lleva dos
+  imágenes, una por pared **[propuesta]**.
+- **El arte de la pieza no es pixel art**, y la casilla mide **1024 × 512
+  píxeles**: así lo acordó Felipe con el dibujante **[Felipe, 2026-11-16]**.
+  Los originales van en el repo, en `fuentes/`, y la página sirve copias
+  reducidas que saca una herramienta del repo **[Felipe, 2026-11-16]**.
 - **Tener un mueble no es tenerlo puesto**: los que no están puestos están
   «guardados». Guardar nunca destruye.
 - **Lo que se puede pisar (el felpudo, la alfombra) es una capa del suelo**
@@ -389,12 +398,13 @@ riesgo del día del cambio.
   tiempo; Discord perdería las casas antes de que exista el departamento).
 - Esto no cabe en un plan. Corte sugerido **[propuesta]**: (1) nadie muere;
   (2) el tiempo para todos; (3) el bot en pausa; (4) la vivienda por casillas
-  en el servidor y el día del cambio; (5) partir sin gachamon (sin huevo, el
-  monedero en 0, la primera aventura, y que todo funcione sin ninguno); (6) el
-  departamento en pantalla; (7) los muebles que se usan solos; (8) el pueblo
-  sin Refugio ni Incubadora y los documentos. El (5) se separó del (4) al
-  escribir su plan: entre los dos, el huevo sigue existiendo y el que nace de
-  él no pide cama.
+  en el servidor y el día del cambio; (5) el departamento en pantalla; (6)
+  partir sin gachamon (sin huevo, el monedero en 0 para quien empieza, la
+  primera aventura, y que todo funcione sin ninguno); (7) los muebles que se
+  usan solos; (8) el pueblo sin Refugio ni Incubadora y los documentos. Partir
+  sin gachamon se separó del (4) al escribir su plan, y el 2026-11-16 Felipe
+  puso la pantalla antes **[Felipe]**: hasta el (6), el huevo sigue existiendo
+  y el que nace de él no pide cama.
 
 ## 11. Lo que queda al constructor
 
