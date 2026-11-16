@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (196)
+## Los dibujos de ahora (253)
 
 ### Pueblo (`pueblo/`)
 
@@ -122,10 +122,84 @@ exacto de su archivo: dibuja el tuyo y guárdalo encima. Por ejemplo:
 El relleno de un ícono es un cuadro de color liso (un color por grupo) con las
 primeras letras del nombre, porque a este tamaño no cabe la palabra «RELLENO».
 
-## Lo que llega después
+## La pieza de tu departamento
 
-Todavía **no tienen archivos ni medidas** y no hay que dibujarlas: las escenas
-del interior de cada casa.
+Es lo único de este contrato que **no es pixel art**: se dibuja con suavizado,
+a lo grande, y la página lo sirve reducido a la mitad. Todo se dibuja en vista
+isométrica, y la medida de partida es **la casilla: un rombo de 1024 × 512** que
+llena su lienzo. Los tamaños de abajo son los **originales** (los que tú
+dibujas); la página sirve cada uno a la mitad.
+
+Dejas tus originales en **`fuentes/pieza/`**, con **el mismo nombre y la misma
+subcarpeta** que tiene el relleno en `web/static/arte/pieza/` (por ejemplo,
+`fuentes/pieza/muebles/cama-se.png`). Después se corre
+`./venv/bin/python -m herramientas.pieza`: comprueba que cada original mide
+exactamente lo que dice esta lista (si no, lo dice y no escribe nada) y
+guarda la copia reducida en `web/static/arte/pieza/`.
+
+| Archivo | Cuántos | Tamaño original | Qué es |
+|---|---|---|---|
+| `pieza/suelo.png` | 1 | 1024 × 512 | Una casilla de suelo: un rombo que llena el lienzo. Se repite en cada casilla de la pieza. |
+| `pieza/pared-izquierda.png`, `pieza/pared-derecha.png` | 2 | 512 × 1280 | Un tramo de pared: media casilla de ancho, con su pendiente (256 de subida) y 1024 de alto. La izquierda sube hacia la derecha; la derecha, hacia la izquierda. |
+| `pieza/muebles/<clave>-<orientación>.png` | 4 por cada mueble de suelo | `(a + f) × 512` de ancho y `(a + f) × 256` de alto, más 1024 de alto si el mueble es de bulto | Un mueble de suelo, con cuatro imágenes: una por cada orientación. |
+| `pieza/muebles/<clave>-se.png` y `-so.png` | 2 por cada mueble de pared | `tramos × 512` de ancho y `tramos × 256 + 1024` de alto | Un mueble de pared. |
+
+En la fila de los muebles, `a` y `f` son el **ancho** y el **fondo** del mueble
+en casillas, y `tramos` es el ancho de uno de pared. Los de suelo son **de
+bulto** (sobresalen del suelo: una lámpara, una cama) o **planos** (se pisan:
+el felpudo y la alfombra, que miden sólo `(a + f) × 256` de alto). Por ejemplo:
+
+| Mueble | Archivo | Tamaño original |
+|---|---|---|
+| Maceta, de 1 × 1 | `pieza/muebles/maceta-se.png` | 1024 × 1536 |
+| Felpudo, plano de 1 × 1 | `pieza/muebles/felpudo-no.png` | 1024 × 512 |
+| Cama sencilla, de 2 × 1 | `pieza/muebles/cama_sencilla-so.png` | 1536 × 1792 |
+| Fuente, de 2 × 2 | `pieza/muebles/fuente-ne.png` | 2048 × 2048 |
+| Alfombra, plana de 2 × 2 | `pieza/muebles/alfombra-se.png` | 2048 × 1024 |
+| Cuadro, de pared (1 tramo) | `pieza/muebles/cuadro-se.png` | 512 × 1280 |
+| Cortinas, de pared (2 tramos) | `pieza/muebles/cortinas-so.png` | 1024 × 1536 |
+
+`<clave>` es el nombre del mueble en el juego, el mismo del ícono
+(`iconos/muebles/<clave>.png`): `felpudo`, `maceta`, `cuadro`, `estanteria`,
+`lampara`, `alfombra`, `cortinas`, `cojines`, `fuente`, `chimenea`,
+`calefactor`, `cama`, `ventanal`, `biblioteca` y `cama_sencilla`.
+
+### Las cuatro orientaciones
+
+`<orientación>` dice **hacia dónde mira el frente del mueble** en el dibujo:
+
+| Orientación | El frente mira |
+|---|---|
+| `se` | abajo a la derecha |
+| `so` | abajo a la izquierda |
+| `no` | arriba a la izquierda |
+| `ne` | arriba a la derecha |
+
+Cada mueble de suelo tiene **las cuatro, dibujadas una por una: nada se espeja**.
+Un mueble de 2 × 1, girado un cuarto de vuelta, ocupa 1 × 2, pero **su lienzo
+mide lo mismo**: las cuatro orientaciones de un mismo mueble tienen el mismo
+tamaño de archivo, y en `so` y `ne` lo que dibujas es la caja con su huella girada.
+
+Lo de pared lleva **sólo dos**: `se` es el que cuelga en la **pared izquierda**
+(mira abajo a la derecha) y `so` el que cuelga en la **pared derecha** (mira
+abajo a la izquierda). No hay `no` ni `ne` de lo que va en la pared.
+
+### Cómo se coloca cada dibujo
+
+- **Un mueble de suelo** cubre **a lo ancho exactamente su huella**: de la esquina
+  izquierda a la esquina derecha del rombo que ocupa. Su **borde de abajo
+  coincide con la esquina de delante** de ese rombo. Si no se pisa, sobresale
+  hacia arriba (1024 en el original). Lo que no es el mueble queda transparente.
+- **Un tramo de pared**, o un mueble de pared, cubre **a lo ancho sus tramos** y
+  **a lo alto toda la pared**: su borde de abajo sigue la línea de la pared, y
+  por eso un mueble de pared de 2 tramos tiene el doble de ancho y la pendiente
+  de los dos tramos.
+- Si falta un archivo, la página muestra el recuadro de esa pieza, nunca el
+  dibujo de otra.
+
+El relleno de la pieza es una caja de color liso sobre la huella, con las
+primeras letras de la clave y, en su cara hacia la que mira, una marca amarilla
+(y una flecha en la tapa) para que girar se note.
 
 ## Los gachamones
 

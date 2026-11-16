@@ -1175,6 +1175,348 @@
    "ancho": 48,
    "alto": 48,
    "familia": "iconos"
+  },
+  {
+   "ruta": "pieza/suelo.png",
+   "ancho": 512,
+   "alto": 256,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/pared-izquierda.png",
+   "ancho": 256,
+   "alto": 640,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/pared-derecha.png",
+   "ancho": 256,
+   "alto": 640,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/felpudo-se.png",
+   "ancho": 512,
+   "alto": 256,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/felpudo-so.png",
+   "ancho": 512,
+   "alto": 256,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/felpudo-no.png",
+   "ancho": 512,
+   "alto": 256,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/felpudo-ne.png",
+   "ancho": 512,
+   "alto": 256,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/maceta-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/maceta-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/maceta-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/maceta-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cuadro-se.png",
+   "ancho": 256,
+   "alto": 640,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cuadro-so.png",
+   "ancho": 256,
+   "alto": 640,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/estanteria-se.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/estanteria-so.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/estanteria-no.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/estanteria-ne.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/lampara-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/lampara-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/lampara-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/lampara-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/alfombra-se.png",
+   "ancho": 1024,
+   "alto": 512,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/alfombra-so.png",
+   "ancho": 1024,
+   "alto": 512,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/alfombra-no.png",
+   "ancho": 1024,
+   "alto": 512,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/alfombra-ne.png",
+   "ancho": 1024,
+   "alto": 512,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cortinas-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cortinas-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cojines-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cojines-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cojines-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cojines-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/fuente-se.png",
+   "ancho": 1024,
+   "alto": 1024,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/fuente-so.png",
+   "ancho": 1024,
+   "alto": 1024,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/fuente-no.png",
+   "ancho": 1024,
+   "alto": 1024,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/fuente-ne.png",
+   "ancho": 1024,
+   "alto": 1024,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/chimenea-se.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/chimenea-so.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/chimenea-no.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/chimenea-ne.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/calefactor-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/calefactor-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/calefactor-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/calefactor-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama-se.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama-so.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama-no.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama-ne.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/ventanal-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/ventanal-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/biblioteca-se.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/biblioteca-so.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/biblioteca-no.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/biblioteca-ne.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama_sencilla-se.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama_sencilla-so.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama_sencilla-no.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/cama_sencilla-ne.png",
+   "ancho": 768,
+   "alto": 896,
+   "familia": "pieza"
   }
  ]
 }

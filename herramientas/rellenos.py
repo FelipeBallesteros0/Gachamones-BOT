@@ -20,6 +20,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 import avatar
+import departamento
 from retrato import _sin_tildes
 from web import arte, pueblo
 
@@ -294,12 +295,148 @@ def _icono(grupo: str, clave: str, lado: int) -> Image.Image:
     return imagen
 
 
+# --- la pieza del departamento ------------------------------------------------
+# Relleno al tamaño servido. La casilla es un rombo que llena su lienzo; un tramo de
+# pared, un paralelogramo; un mueble, una caja en perspectiva isométrica sobre su
+# huella: su dibujo cubre a lo ancho el rombo que ocupa, su borde de abajo es la
+# esquina de delante, y si no se pisa sobresale hacia arriba la altura del contrato.
+
+_BLANCO = (255, 255, 255, 255)
+_MARCA = (255, 214, 64, 255)
+_TINTA = (20, 20, 24, 255)
+# Hacia dónde mira el frente del mueble en el dibujo (x, y en pantalla).
+_MIRA = {"se": (2, 1), "so": (-2, 1), "no": (-2, -1), "ne": (2, -1)}
+
+
+def _rotular(pincel: ImageDraw.ImageDraw, centro: tuple, renglones: list[str], tamano: int) -> None:
+    """Las letras de la clave, centradas, una línea por renglón."""
+    x, y = centro
+    alto = tamano + 6
+    y0 = y - alto * (len(renglones) - 1) / 2
+    for i, texto in enumerate(renglones):
+        pincel.text((x, y0 + i * alto), texto, fill=_BLANCO, font=_letra(tamano), anchor="mm",
+                    stroke_width=3, stroke_fill=_TINTA)
+
+
+def _renglones_de(clave: str) -> list[str]:
+    palabras = clave.split("_")
+    texto = [palabras[0][:3].upper()]
+    if len(palabras) > 1:
+        texto.append(palabras[-1][:3].upper())
+    return texto
+
+
+def _casilla(ancho: int, alto: int) -> Image.Image:
+    imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
+    pincel = ImageDraw.Draw(imagen)
+    rombo = [(0, alto // 2), (ancho // 2, 0), (ancho - 1, alto // 2), (ancho // 2, alto - 1)]
+    pincel.polygon(rombo, fill=(150, 130, 96, 255), outline=_BLANCO, width=4)
+    _rotular(pincel, (ancho // 2, alto // 2), ["SUELO", "RELLENO"], 44)
+    return imagen
+
+
+def _tramo_de_pared(ancho: int, alto: int, lado: str, color: tuple, renglones: list[str],
+                    mira: str | None = None) -> Image.Image:
+    """Un paralelogramo de `ancho` y de `alto` total: su pendiente es la de la pared que sube por la
+    izquierda (`se`, la pared izquierda) o por la derecha (`so`, la pared derecha)."""
+    imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
+    pincel = ImageDraw.Draw(imagen)
+    pendiente = ancho // 2
+    if lado == "izquierda":
+        puntos = [(0, pendiente), (ancho - 1, 0), (ancho - 1, alto - pendiente - 1), (0, alto - 1)]
+    else:
+        puntos = [(0, 0), (ancho - 1, pendiente), (ancho - 1, alto - 1), (0, alto - pendiente - 1)]
+    pincel.polygon(puntos, fill=color, outline=_BLANCO, width=4)
+    centro = (sum(x for x, _ in puntos) / 4, sum(y for _, y in puntos) / 4)
+    _rotular(pincel, centro, renglones, 44 if ancho <= 256 else 60)
+    if mira:
+        _flecha(pincel, (centro[0], centro[1] + 90), mira, 0, 60)
+    return imagen
+
+
+def _flecha(pincel: ImageDraw.ImageDraw, centro: tuple, orientacion: str, inicio: float, largo: float) -> None:
+    """Una flecha amarilla que sale de `centro` hacia donde mira el frente."""
+    dx, dy = _MIRA[orientacion]
+    norma = math.hypot(dx, dy)
+    ux, uy = dx / norma, dy / norma
+    cx, cy = centro
+    punta = (cx + ux * largo, cy + uy * largo)
+    base = (cx + ux * (largo - 40), cy + uy * (largo - 40))
+    pincel.line((cx + ux * inicio, cy + uy * inicio, *base), fill=_MARCA, width=14)
+    nx, ny = -uy, ux
+    pincel.polygon([punta, (base[0] + nx * 30, base[1] + ny * 30), (base[0] - nx * 30, base[1] - ny * 30)],
+                   fill=_MARCA, outline=_TINTA)
+
+
+def _en_cara(esquinas: list[tuple], u: float, v: float) -> tuple:
+    """Un punto dentro de un paralelogramo [a, b, c, d]: `u` de a a b, `v` de a a d."""
+    (ax, ay), (bx, by), _, (dx, dy) = esquinas
+    return (ax + (bx - ax) * u + (dx - ax) * v, ay + (by - ay) * u + (dy - ay) * v)
+
+
+def _mueble_de_suelo(mueble: departamento.Mueble, indice: int, orientacion: str,
+                     ancho: int, alto: int) -> Image.Image:
+    imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
+    pincel = ImageDraw.Draw(imagen)
+    a, f = mueble.ancho, mueble.fondo
+    if orientacion in ("so", "ne"):
+        a, f = f, a  # girado un cuarto de vuelta: la huella cambia de lado, el lienzo no
+    unidad = arte.CASILLA[0] // 2
+    alza = arte.ALTURA if mueble.capa == departamento.BULTO else 0
+    fondo_y = (a + f) * unidad // 2
+    # Las cuatro esquinas de la huella al nivel del suelo y al de la tapa.
+    arriba = [(f * unidad, 0), ((a + f) * unidad - 1, a * unidad // 2), (a * unidad, fondo_y - 1),
+              (0, f * unidad // 2)]
+    abajo = [(x, y + alza) for x, y in arriba]
+    cima, izq, der, base = arriba[0], arriba[3], arriba[1], arriba[2]
+    color = _color_de_lugar(indice, 0.9, 0.5)
+    if alza:
+        pincel.polygon([izq, base, abajo[2], abajo[3]], fill=_oscurecer(color, 0.7), outline=_BLANCO, width=3)
+        pincel.polygon([base, der, abajo[1], abajo[2]], fill=_oscurecer(color, 0.5), outline=_BLANCO, width=3)
+    pincel.polygon(arriba, fill=color, outline=_BLANCO, width=4)
+    letras = _renglones_de(mueble.clave)
+    centro = (sum(x for x, _ in arriba) / 4, sum(y for _, y in arriba) / 4)
+    if alza:
+        cara_izq = [izq, base, abajo[2], abajo[3]]
+        cara_der = [base, der, abajo[1], abajo[2]]
+        frente = {"se": cara_der, "so": cara_izq}.get(orientacion)
+        otra = cara_izq if frente is not cara_izq else cara_der
+        _rotular(pincel, _en_cara(otra, 0.5, 0.5), letras, 84)
+        if frente:  # el frente se nota: una tapa clara con una manija, sobre la cara que mira
+            marco = [_en_cara(frente, u, v) for u, v in ((0.12, 0.2), (0.88, 0.2), (0.88, 0.8), (0.12, 0.8))]
+            pincel.polygon(marco, fill=_MARCA, outline=_TINTA)
+        _flecha(pincel, centro, orientacion, 0, 100 * min(a, f))
+    else:
+        _rotular(pincel, centro, letras, 56)
+        _flecha(pincel, centro, orientacion, 70, 125 * min(a, f))
+    return imagen
+
+
+def _pieza_del_departamento(partes: list[str], ancho: int, alto: int) -> Image.Image:
+    nombre = partes[-1]
+    if nombre == "suelo":
+        return _casilla(ancho, alto)
+    if nombre.startswith("pared-"):
+        lado = nombre.removeprefix("pared-")
+        return _tramo_de_pared(ancho, alto, lado, (120, 138, 170, 255),
+                               ["PARED", lado[:3].upper(), "RELLENO"])
+    clave, orientacion = nombre.rsplit("-", 1)
+    mueble = departamento.MUEBLES[clave]
+    indice = list(departamento.MUEBLES).index(clave)
+    if mueble.capa == departamento.PARED:
+        return _tramo_de_pared(ancho, alto, "izquierda" if orientacion == "se" else "derecha",
+                               _color_de_lugar(indice, 0.9, 0.5), _renglones_de(clave), orientacion)
+    return _mueble_de_suelo(mueble, indice, orientacion, ancho, alto)
+
+
 # --- la generación -----------------------------------------------------------
 
 def _dibujar(pieza: arte.Pieza) -> Image.Image:
     partes = pieza.ruta.removesuffix(".png").split("/")
     if pieza.familia == "pueblo":
         return _fondo(pieza.ancho, pieza.alto)
+    if pieza.familia == "pieza":
+        return _pieza_del_departamento(partes, pieza.ancho, pieza.alto)
     if pieza.familia == "iconos":
         return _icono(partes[1], partes[2], pieza.ancho)
     if pieza.familia == "efectos":

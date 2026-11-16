@@ -25,6 +25,12 @@ EFECTO = (32, 32)
 EFECTOS = ("corazon", "estrella", "marca", "sombra")
 ICONO = (48, 48)
 
+# La pieza del departamento. Todo lo que sirve la página es la mitad del original.
+CASILLA = (512, 256)  # el rombo de una casilla de suelo, servido
+ALTURA = 512          # lo que sobresale un mueble o lo que mide la pared, servido
+REDUCCION = 2
+ORIENTACIONES = ("se", "so", "no", "ne")  # por giro 0, 1, 2 y 3: cada giro es un cuarto de vuelta
+
 
 @dataclass(frozen=True)
 class Pieza:
@@ -51,7 +57,34 @@ def piezas() -> tuple[Pieza, ...]:
     for grupo, catalogo in (("objetos", objetos.CATALOGO), ("cosmeticos", cosmeticos.CATALOGO),
                             ("muebles", departamento.MUEBLES)):
         lista += [Pieza(f"iconos/{grupo}/{clave}.png", *ICONO, "iconos") for clave in catalogo]
+    lista += _piezas_de_la_pieza()
     return tuple(lista)
+
+
+def tamano_de_mueble(mueble: departamento.Mueble) -> tuple[int, int]:
+    """Lo que mide, servido, el dibujo de un mueble (el mismo en todas sus orientaciones)."""
+    if mueble.capa == departamento.PARED:
+        return mueble.ancho * CASILLA[0] // 2, mueble.ancho * CASILLA[1] // 2 + ALTURA
+    lados = mueble.ancho + mueble.fondo
+    extra = ALTURA if mueble.capa == departamento.BULTO else 0
+    return lados * CASILLA[0] // 2, lados * CASILLA[1] // 2 + extra
+
+
+def _piezas_de_la_pieza() -> list[Pieza]:
+    lista = [Pieza("pieza/suelo.png", *CASILLA, "pieza")]
+    lista += [Pieza(f"pieza/pared-{lado}.png", CASILLA[0] // 2, CASILLA[1] // 2 + ALTURA, "pieza")
+              for lado in ("izquierda", "derecha")]
+    for mueble in departamento.MUEBLES.values():
+        orientaciones = ORIENTACIONES[:2] if mueble.capa == departamento.PARED else ORIENTACIONES
+        lista += [Pieza(f"pieza/muebles/{mueble.clave}-{o}.png", *tamano_de_mueble(mueble), "pieza")
+                  for o in orientaciones]
+    return lista
+
+
+def originales_de_la_pieza() -> tuple[Pieza, ...]:
+    """Las mismas piezas de la pieza, a tamaño de original (el doble), tal como van bajo `fuentes/`."""
+    return tuple(Pieza(p.ruta, p.ancho * REDUCCION, p.alto * REDUCCION, "pieza")
+                 for p in piezas() if p.familia == "pieza")
 
 
 def como_json() -> dict:
