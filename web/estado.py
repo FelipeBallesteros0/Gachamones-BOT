@@ -11,13 +11,11 @@ import math
 from dataclasses import asdict
 from datetime import datetime
 
-import casas
 import cosmeticos as cos
 import db
 import economia
 import especies as esp
 import globos
-import identidad
 import nacer
 import retrato
 import simulacion as sim
@@ -78,57 +76,16 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
     }
 
 
-def _lugar(
-    jugador: Jugador, hogar_del_gachamon: str, hogar_de_la_persona: str, hay_gachamon: bool
-) -> dict:
+def _lugar(jugador: Jugador) -> dict:
     clave = db.lugar_de_cuenta(jugador.persona.rowino_uid)
     if not pueblo.existe(clave):
-        clave = pueblo.de_partida(hogar_del_gachamon)
+        clave = pueblo.de_partida()
     return {
         "clave": clave,
         "nombre": pueblo.LUGARES[clave].nombre,
         "abre": pueblo.LUGARES[clave].abre,
-        "aviso": pueblo.aviso(clave, hogar_de_la_persona, hogar_del_gachamon if hay_gachamon else None),
+        "aviso": pueblo.aviso(clave),
         "ofrece": list(pueblo.ofrece(clave)),
-    }
-
-
-def _estancia(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> str | None:
-    """Cuánto le queda a la estancia en el refugio, en una frase; `None` si ya venció.
-
-    Sin fila de hogar, `hogar` le supone una semana entera desde ahora, y contar
-    siete días cada día no dice nada: su semana empieza cuando la estrena.
-    """
-    if identidad.sin_plazo_de_refugio(jugador.usuario_id):
-        return "Tu estancia aquí no tiene plazo."
-    if not db.estancia_empezada(jugador.usuario_id, jugador.guild_id):
-        return "Tu semana en el refugio todavía no ha empezado."
-    resta = hogar.refugio_hasta - ahora
-    if resta.days >= 1:
-        return f"Tu estancia en el refugio dura {resta.days} {'día' if resta.days == 1 else 'días'} más."
-    if resta.total_seconds() <= 0:
-        return None
-    if resta.total_seconds() < 3600:
-        return "Tu estancia en el refugio se acaba en menos de una hora."
-    horas = math.ceil(resta.total_seconds() / 3600)
-    return f"Tu estancia en el refugio se acaba en {horas} {'hora' if horas == 1 else 'horas'}."
-
-
-def _refugio(jugador: Jugador, hogar: casas.Hogar, ahora: datetime) -> dict:
-    # A la intemperie no se vive en el refugio: la estancia se acabó.
-    viven = [] if hogar.estado_de(None, ahora) == casas.INTEMPERIE else (
-        casas.reparto(db.plantel_al_dia(jugador.usuario_id, jugador.guild_id, ahora), hogar).get(None, [])
-    )
-    return {
-        "viven": [
-            {
-                "id": c.id, "nombre": c.nombre,
-                "nombre_especie": c.def_especie.nombre,
-                "retrato": retrato_de(c),
-            }
-            for c in viven
-        ],
-        "estancia": _estancia(jugador, hogar, ahora),
     }
 
 
@@ -136,18 +93,7 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
     activa = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
     avatar = db.avatar_de(jugador.usuario_id, jugador.guild_id)
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
-    hogar = db.hogar_leido(jugador.usuario_id, jugador.guild_id, ahora)
-    estado_hogar = hogar.estado_de(None if activa is None else activa.casa_id, ahora)
-    # Se parte de donde vive el gachamon; «Tu casa» mira si la persona tiene una.
-    hogar_de_la_persona = hogar.estado(ahora)
-    lugar = _lugar(jugador, estado_hogar, hogar_de_la_persona, activa is not None)
-    if lugar["clave"] == "refugio":
-        lugar["refugio"] = _refugio(jugador, hogar, ahora)
-    # Sin casa propia, «Tu casa» avisa que no la hay, y a la intemperie el
-    # Refugio avisa que ya no vive en él: el gachamon no habla de ese lugar.
-    aqui = lugar["clave"]
-    sin_frases = pueblo.sin_casa(aqui, hogar_de_la_persona) or pueblo.a_la_intemperie(aqui, estado_hogar)
-    del_lugar = None if sin_frases else aqui
+    lugar = _lugar(jugador)
     return {
         "ahora": ahora.isoformat(),
         "persona": {
@@ -155,10 +101,9 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         },
         "avatar": None if avatar is None else asdict(avatar),
         "saldos": {"monedas": saldos.asciicoins, "gemas": saldos.asciigems},
-        "hogar": estado_hogar,
         "gachamon": None if activa is None else ficha(activa, ahora),
         "globos": [] if activa is None else [
-            {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, del_lugar)
+            {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, lugar["clave"])
         ],
         "lugar": lugar,
         "carta": db.carta_sin_ver(

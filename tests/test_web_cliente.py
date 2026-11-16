@@ -198,9 +198,27 @@ def test_las_pantallas_de_la_tienda_no_escriben_precios_ni_claves_del_catalogo()
         assert not numeros & precios, (nombre, numeros & precios)
 
 
+def test_la_tienda_ya_no_vende_casas_ni_pregunta_por_ellas():
+    tienda = _sin_comentarios(_guion("tienda.js"))
+    assert "tienda/casa" not in tienda and "'Casas'" not in tienda and "boton-vender" not in tienda
+    compras = _sin_comentarios(_guion("compras.js"))
+    for funcion in ("preguntaDeVenta", "preguntaDeMejora", "loQueTraeLaCasa", "quienesViven"):
+        assert funcion not in compras and funcion not in tienda, funcion
+
+
+def test_el_lugar_ya_no_dice_donde_vive_el_gachamon_ni_quien_vive_en_el_refugio():
+    lugar = _sin_comentarios(_guion("lugar.js"))
+    for resto in ("hogar", "dondeVive", "refugio", "viven-aqui", "'Viven aquí'"):
+        assert resto not in lugar, resto
+    assert "dondeVive" not in _guion("tiempo.js")
+    estilo = (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
+    for resto in ("data-hogar", "viven-aqui", "boton-vender", "casa-acciones", "subfila"):
+        assert resto not in estilo, resto
+
+
 def test_una_compra_sin_respuesta_no_dice_que_no_se_compro_ni_deja_comprar_con_lo_de_antes():
     tienda = _sin_comentarios(_guion("tienda.js"))
-    # Pudo haber llegado igual (sólo se perdió la respuesta), y vale para vender o mejorar.
+    # Pudo haber llegado igual: sólo se perdió la respuesta.
     assert "No hubo respuesta. Revisa tu conexión." in tienda
     assert "No se pudo comprar" not in tienda
     # El catálogo sólo se pinta con lo que llega: de la respuesta o de una lectura.
@@ -384,7 +402,7 @@ def test_tras_releer_el_ropero_no_enfoca_nada_si_ya_se_fue():
         assert "sigueAqui()" in releida, releida
 
 
-# --- la incubadora y el refugio --------------------------------------------------
+# --- la incubadora ----------------------------------------------------------------
 
 def test_la_incubadora_esta_y_se_usa():
     assert "incubadora.js" in {g.name for g in GUIONES}
@@ -438,7 +456,7 @@ def test_la_incubadora_vuelve_a_decidir_si_llega_otro_gachamon():
         assert "sigueAqui()" in releida, releida
 
 
-def test_las_frases_de_la_incubadora_del_refugio_y_del_recluta_son_las_del_plan():
+def test_las_frases_de_la_incubadora_y_del_recluta_son_las_del_plan():
     incubadora = _guion("incubadora.js")
     for frase in ("'Incubadora'", "'Sin nombre'", "'Activo'", "'Sacar'", "'Ponerle nombre'",
                   "'¿Cómo se va a llamar?'", "'Ponerle este nombre'", " · nivel ${",
@@ -446,8 +464,7 @@ def test_las_frases_de_la_incubadora_del_refugio_y_del_recluta_son_las_del_plan(
                   "`Caben ${", "} gachamones.`"):
         assert frase in incubadora, frase
     lugar = _guion("lugar.js")
-    for frase in ("'Tu plantel'", "'Viven aquí'", "'Ninguno de tus gachamones vive aquí.'", "vista: 'incubadora'",
-                  "ofreceLaIncubadora("):
+    for frase in ("'Tu plantel'", "vista: 'incubadora'", "ofreceLaIncubadora("):
         assert frase in lugar, frase
     assert "} espera en la incubadora y todavía no tiene nombre.`" in _guion("entrada.js")
 

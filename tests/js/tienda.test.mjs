@@ -96,7 +96,6 @@ function catalogo(felpudos) {
     saldos: { monedas: 200, gemas: 0 },
     objetos: [],
     cosmeticos: [],
-    casas: { maximo: 3, puedes_otra: true, tuyas: [], a_la_venta: [] },
     muebles: { lista: [mueble('felpudo', 'Felpudo', 30, felpudos), mueble('maceta', 'Maceta', 50, 0)] },
   };
 }
@@ -122,6 +121,15 @@ async function tiendaPintada() {
 
 const filasDeMuebles = (contenedor) => contenedor.querySelectorAll('section')
   .find((s) => s.atributos.id === 'tienda-muebles').querySelectorAll('li');
+
+test('la tienda tiene tres secciones, sin casas: objetos, cosméticos y muebles', { timeout: 2000 }, async () => {
+  servidor(() => catalogo(0));
+  const contenedor = await tiendaPintada();
+  const secciones = contenedor.querySelectorAll('section').map((s) => s.atributos.id);
+  assert.deepEqual(secciones, ['tienda-objetos', 'tienda-cosmeticos', 'tienda-muebles']);
+  const pestanas = contenedor.querySelectorAll('.pestana').map((b) => textos(b).join(''));
+  assert.deepEqual(pestanas, ['Objetos', 'Cosméticos', 'Muebles']);
+});
 
 test('cada mueble se puede comprar, también el que ya tienes, y dice cuántos tienes', { timeout: 2000 }, async () => {
   servidor(() => catalogo(2));

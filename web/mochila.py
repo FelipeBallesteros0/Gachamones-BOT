@@ -18,13 +18,14 @@ from fastapi import APIRouter, Body, Depends
 import db
 import economia
 import huerto as hue
-import identidad
 import objetos as obj
 import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual, la_misma_activa
 from web.sesion import con_cabecera, es_un_id, problema
-from web.tienda import datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, no_se_entiende
+from web.tienda import (
+    datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, fuera_de_la_pagina, no_se_entiende,
+)
 
 router = APIRouter()
 
@@ -33,39 +34,33 @@ AL_MOMENTO, CON_NOMBRE = "al_momento", "con_nombre"
 _SIN_GACHAMON = "Para usar eso hace falta un gachamon."
 _YA_NO_ES_EL_MISMO = "Tu gachamon ya no es el mismo. Mira otra vez."
 _NOTA_DEL_HUERTO = "Se usa en el huerto."
-_NOTA_SIN_PLAZO = "No lo necesitas: tu estancia en el refugio no tiene plazo."
 _NO_SE_USA = "Eso no se usa desde la mochila."
 _YA_SE_LLAMA_ASI = "Ya se llama así."
 _NO_QUEDA = "Ya no te queda ninguno."
 
 # Lo que dice el juego cuando no hace falta nada más para contarlo.
-_NO_DEL_USO = {
-    "no_tienes": _NO_QUEDA, "no_se_usa": _NO_SE_USA,
-    "sin_plazo": _NOTA_SIN_PLAZO, "mismo_nombre": _YA_SE_LLAMA_ASI,
-}
+_NO_DEL_USO = {"no_tienes": _NO_QUEDA, "no_se_usa": _NO_SE_USA, "mismo_nombre": _YA_SE_LLAMA_ASI}
 
 
-def _uso(objeto: obj.Objeto, jugador: Jugador) -> tuple[str | None, str | None]:
+def _uso(objeto: obj.Objeto) -> tuple[str | None, str | None]:
     """Cómo se usa desde la mochila y, si no se usa, por qué."""
     if objeto.renombra:
         return CON_NOMBRE, None
     if objeto.clave == hue.SEMILLA or (objeto.color and not objeto.es_sopaipilla):
         return None, _NOTA_DEL_HUERTO
-    if objeto.dias_de_refugio and identidad.sin_plazo_de_refugio(jugador.usuario_id):
-        return None, _NOTA_SIN_PLAZO
     if objeto.se_aplica_al_momento:
         return AL_MOMENTO, None
     return None, _NO_SE_USA
 
 
 def lo_que_llevas(jugador: Jugador) -> dict:
-    """Lo que la persona lleva y sigue en el catálogo, en el orden del catálogo."""
+    """Lo que la persona lleva y la página trata, en el orden del catálogo."""
     mochila = db.inventario(jugador.usuario_id, jugador.guild_id)
     lista = []
     for o in obj.CATALOGO.values():
-        if mochila.get(o.clave, 0) <= 0:
+        if mochila.get(o.clave, 0) <= 0 or fuera_de_la_pagina(o):
             continue
-        uso, nota = _uso(o, jugador)
+        uso, nota = _uso(o)
         lista.append({
             "clave": o.clave, "nombre": o.nombre, "descripcion": en_llano(o.descripcion),
             "icono": f"iconos/objetos/{o.clave}.png", "cantidad": mochila[o.clave],
@@ -116,8 +111,6 @@ def frase(objeto: obj.Objeto, hecho: economia.ResultadoUso, propuesto: str = "")
             f"{nombre} se come una {comida}: {hecho.gusto}. +{hecho.bonus} de fuerza y de "
             f"velocidad durante {minutos} minutos."
         )
-    if hecho.efecto == "refugio":
-        return dicho_si(f"Tienes otra estancia en el refugio, hasta el {hecho.refugio_hasta:%d/%m}.")
     if hecho.efecto == "comida":
         criatura = hecho.criatura
         if criatura is None:
@@ -137,8 +130,6 @@ def _no_hace_falta(hecho: economia.ResultadoUso) -> str:
         return f"{_quien(hecho)} no tiene hambre: su comida ya está a 100. No se gastó nada."
     if hecho.efecto == "reinicia":
         return f"{_quien(hecho)} ya puede {hecho.accion}: no hace falta. No se gastó nada."
-    if hecho.efecto == "refugio":
-        return "El ticket no alargaría tu estancia en el refugio. No se gastó nada."
     raise RuntimeError(f"no_hace_falta sin frase: {hecho.efecto!r}")
 
 
@@ -165,7 +156,7 @@ def usar_de_la_mochila(
     ahora = db.ahora_utc()
     la_misma_activa(jugador, ahora, _SIN_GACHAMON)
     objeto = obj.CATALOGO.get(clave)
-    if objeto is None:
+    if objeto is None or fuera_de_la_pagina(objeto):
         raise no_se_entiende()
     usuario, guild = jugador.usuario_id, jugador.guild_id
     try:

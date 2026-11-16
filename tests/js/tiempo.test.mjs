@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  formatoEspera, elegirGlobo, dondeVive, cuantasMonedas, cuantasGemas, avisoDelCuidado,
+import * as tiempo from '../../web/static/js/tiempo.js';
+
+const {
+  formatoEspera, elegirGlobo, cuantasMonedas, cuantasGemas, avisoDelCuidado,
   avisosDeMedallas, seCelebraLaEvolucion,
-} from '../../web/static/js/tiempo.js';
+} = tiempo;
 
 test('la espera se lee como la diría una persona', () => {
   assert.equal(formatoEspera(0), '');
@@ -72,11 +74,8 @@ test('si no está llegando, del lugar no dice nada', () => {
   assert.equal(elegirGlobo([delLugar], null, primero), null);
 });
 
-test('dónde vive se dice en minúscula y con su preposición', () => {
-  assert.equal(dondeVive('propia'), 'vive en tu casa');
-  assert.equal(dondeVive('refugio'), 'vive en el refugio');
-  assert.equal(dondeVive('intemperie'), 'vive a la intemperie');
-  assert.equal(dondeVive('otra cosa'), '');
+test('ya no se dice dónde vive el gachamon: todos viven en tu departamento', () => {
+  assert.equal(Object.hasOwn(tiempo, 'dondeVive'), false);
 });
 
 test('un cuidado que sale bien dice su frase', () => {

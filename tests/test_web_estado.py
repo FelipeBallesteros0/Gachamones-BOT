@@ -35,7 +35,7 @@ def test_recien_llegado_no_tiene_ni_avatar_ni_gachamon(cliente, monkeypatch):
     assert estado["saldos"] == {"monedas": 50, "gemas": 50}
     assert estado["persona"] == {"usuario": "felipe", "vinculada": False}
     assert estado["ahora"] == T0.isoformat()
-    assert estado["hogar"] == "refugio"
+    assert "hogar" not in estado and estado["lugar"]["clave"] == "casa"
 
 
 def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
@@ -59,7 +59,7 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
     assert estado["carta"] is False
     assert set(estado) == {
-        "ahora", "persona", "avatar", "saldos", "hogar", "gachamon", "globos", "lugar", "carta",
+        "ahora", "persona", "avatar", "saldos", "gachamon", "globos", "lugar", "carta",
     }
 
 
@@ -205,7 +205,7 @@ def test_el_lugar_dice_lo_que_ofrece_y_el_gachamon_su_titulo(cliente, monkeypatc
     alta(cliente)
     nace(genero="hembra")
     estado = cliente.get(ESTADO).json()
-    assert estado["lugar"]["ofrece"] == [] and estado["gachamon"]["titulo"] is None
+    assert estado["lugar"]["ofrece"] == ["departamento"] and estado["gachamon"]["titulo"] is None
     cliente.post("/gachamon/api/lugar", json={"lugar": "tienda"}, headers=ESCRIBIR)
     assert cliente.get(ESTADO).json()["lugar"]["ofrece"] == ["tienda"]
 

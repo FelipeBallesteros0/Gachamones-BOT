@@ -142,9 +142,15 @@ def test_ningun_modulo_de_globos_importa_lo_prohibido():
 
 
 def test_hay_frases_para_los_nueve_lugares_y_solo_para_ellos():
+    # El refugio sigue en el mapa, pero cerró: su clave está y no dice nada.
     assert set(globos.DEL_LUGAR) == set(pueblo.LUGARES)
-    assert all(len(frases) >= 2 for frases in globos.DEL_LUGAR.values())
+    assert all(len(frases) >= 2 for clave, frases in globos.DEL_LUGAR.items() if clave != "refugio")
     assert set(globos.PROPIAS_DEL_LUGAR["pollito"]) == set(pueblo.LUGARES)
+    assert globos.PROPIAS_DEL_LUGAR["pollito"]["refugio"] == ()
+
+
+def test_en_el_refugio_cerrado_el_gachamon_no_dice_frases_de_refugio():
+    assert "refugio" in globos.DEL_LUGAR and not globos.DEL_LUGAR["refugio"]
 
 
 def test_al_estar_en_un_lugar_dice_algo_de_ese_lugar():

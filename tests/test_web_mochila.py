@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 import pytest
 
 import db
@@ -48,21 +46,25 @@ def test_lo_que_no_se_usa_desde_la_mochila_lo_dice(cliente, monkeypatch):
     con_gachamon(cliente)
     sin_uso = objetos.Objeto(clave="adorno", nombre="Adorno", emoji="x", descripcion="**Algo** bonito.", precio=1)
     monkeypatch.setitem(objetos.CATALOGO, "adorno", sin_uso)
-    dar(YO, "adorno"); dar(YO, "ticket_refugio"); dar(YO, "poroto_rojo")
+    dar(YO, "adorno"); dar(YO, "poroto_rojo")
     por_clave = {o["clave"]: o for o in cliente.get(MOCHILA).json()["objetos"]}
     assert por_clave["adorno"]["uso"] is None and por_clave["adorno"]["descripcion"] == "Algo bonito."
     assert por_clave["adorno"]["nota"] == "Eso no se usa desde la mochila."
-    assert por_clave["ticket_refugio"]["uso"] is None
-    assert por_clave["ticket_refugio"]["nota"] == "No lo necesitas: tu estancia en el refugio no tiene plazo."
     assert por_clave["poroto_rojo"]["uso"] is None and por_clave["poroto_rojo"]["nota"] == "Se usa en el huerto."
 
 
-def test_el_ticket_con_plazo_se_usa_al_momento(cliente, monkeypatch):
+@pytest.mark.parametrize("vinculada", [False, True])
+def test_el_ticket_del_refugio_ya_no_se_lista_ni_se_usa(cliente, monkeypatch, vinculada):
+    # El refugio cerró: la mochila ya no trata su ticket, tampoco el de quien tenía plazo en él.
     poner_reloj(monkeypatch)
-    con_vinculo(cliente)
-    dar(LA_DE_DISCORD, "ticket_refugio")
-    ticket = cliente.get(MOCHILA).json()["objetos"][0]
-    assert ticket["uso"] == "al_momento" and ticket["nota"] is None
+    (con_vinculo if vinculada else con_gachamon)(cliente)
+    usuario = LA_DE_DISCORD if vinculada else YO
+    dar(usuario, "ticket_refugio"); dar(usuario, "placa")
+    assert [o["clave"] for o in cliente.get(MOCHILA).json()["objetos"]] == ["placa"]
+    r = usar(cliente, "ticket_refugio")
+    assert r.status_code == 422
+    assert r.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert db.inventario(usuario, G) == {"ticket_refugio": 1, "placa": 1}
 
 
 def test_usar_dos_veces_con_el_mismo_evento_gasta_una(cliente, monkeypatch):
@@ -142,20 +144,6 @@ def test_el_silbato_sin_espera_de_entrenar_no_se_gasta(cliente, monkeypatch):
     assert db.inventario(YO, G) == {"silbato": 1}
 
 
-def test_el_ticket_que_no_alargaria_la_estancia_no_se_gasta(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
-    con_vinculo(cliente)
-    dar(LA_DE_DISCORD, "ticket_refugio")
-    ahora = db.ahora_utc()
-    db.hogar_de(LA_DE_DISCORD, G, ahora)      # empieza ahora: ya llega a ahora + 7 días
-    assert db.hogar_leido(LA_DE_DISCORD, G, ahora).refugio_hasta == ahora + timedelta(days=7)
-    r = usar(cliente, "ticket_refugio")
-    assert r.status_code == 200
-    assert (r.json()["ok"], r.json()["clave"], r.json()["mensaje"]) == (
-        False, "no_hace_falta", "El ticket no alargaría tu estancia en el refugio. No se gastó nada.")
-    assert db.inventario(LA_DE_DISCORD, G) == {"ticket_refugio": 1}
-
-
 def test_la_semilla_no_se_usa_desde_la_mochila(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
@@ -163,29 +151,6 @@ def test_la_semilla_no_se_usa_desde_la_mochila(cliente, monkeypatch):
     r = usar(cliente, "semilla").json()
     assert (r["ok"], r["clave"], r["mensaje"]) == (False, "no_se_usa", "Eso no se usa desde la mochila.")
     assert db.inventario(YO, G) == {"semilla": 1}
-
-
-def test_el_ticket_sin_plazo_no_hace_falta(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
-    con_gachamon(cliente)
-    dar(YO, "ticket_refugio")
-    r = usar(cliente, "ticket_refugio").json()
-    assert (r["clave"], r["mensaje"]) == (
-        "sin_plazo", "No lo necesitas: tu estancia en el refugio no tiene plazo.")
-    assert db.inventario(YO, G) == {"ticket_refugio": 1}
-
-
-def test_el_ticket_con_plazo_da_otra_estancia(cliente, monkeypatch):
-    reloj = poner_reloj(monkeypatch)
-    con_vinculo(cliente)
-    dar(LA_DE_DISCORD, "ticket_refugio")
-    # Con la estancia entera no la alargaría (`no_hace_falta`): empezó ayer.
-    db.hogar_de(LA_DE_DISCORD, G, db.ahora_utc())
-    reloj.pasar(days=1)
-    r = usar(cliente, "ticket_refugio").json()
-    assert r["ok"] is True
-    assert r["mensaje"].startswith("Tienes otra estancia en el refugio, hasta el ")
-    assert len(r["mensaje"].rsplit(" ", 1)[1].rstrip(".")) == 5
 
 
 def test_las_frases_de_cada_efecto(cliente, monkeypatch):
@@ -196,14 +161,16 @@ def test_las_frases_de_cada_efecto(cliente, monkeypatch):
     pelusa = db.criatura_activa(LA_DE_DISCORD, G)
     for accion in (sim.ENTRENAR, sim.COMPETIR):
         db.poner_cooldown(pelusa.id, accion, db.ahora_utc())
-    ok = []
     for objeto in objetos.CATALOGO.values():
-        if not objeto.se_aplica_al_momento or objeto.dias_de_refugio:
-            continue
         dar(LA_DE_DISCORD, objeto.clave)
-        r = usar(cliente, objeto.clave, evento=f"evento-{objeto.clave}-x".replace("_", "-")).json()
+    # Cada uno de los que la mochila dice que se usan al momento.
+    al_momento = [o["clave"] for o in cliente.get(MOCHILA).json()["objetos"] if o["uso"] == "al_momento"]
+    assert al_momento
+    ok = []
+    for clave in al_momento:
+        r = usar(cliente, clave, evento=f"evento-{clave}-x".replace("_", "-")).json()
         if r["ok"]:
-            ok.append((objeto, r["mensaje"]))
+            ok.append((clave, r["mensaje"]))
             assert "**" not in r["mensaje"] and "{" not in r["mensaje"] and "None" not in r["mensaje"]
     mensajes = [m for _, m in ok]
     assert any(m.endswith(" otra vez.") for m in mensajes)
@@ -331,6 +298,16 @@ def test_un_replay_sin_gachamon_activo_es_un_409_y_no_un_500(monkeypatch):
     with pytest.raises(Exception) as error:
         mochila.frase(objetos.CATALOGO["pocion_comida"], hecho)
     assert error.value.status_code == 409 and error.value.detail["clave"] == "sin_gachamon"
+
+
+@pytest.mark.parametrize("motivo", [None, "no_hace_falta"], ids=["usado", "no_hace_falta"])
+def test_un_efecto_sin_frase_es_un_fallo_nuestro_y_no_se_disfraza(motivo):
+    # Como el del ticket del refugio, que ya no tiene frase porque la página no lo usa.
+    import web.mochila as mochila
+    from economia import ResultadoUso
+    hecho = ResultadoUso(ok=motivo is None, motivo=motivo, objeto="pocion_comida", efecto="desconocido")
+    with pytest.raises(RuntimeError, match="sin frase: 'desconocido'"):
+        mochila.frase(objetos.CATALOGO["pocion_comida"], hecho)
 
 
 def test_sin_la_cabecera_no_pasa(cliente, monkeypatch):

@@ -1,14 +1,12 @@
 """Los datos del pueblo: qué lugares hay, de dónde se parte y qué avisa cada pantalla.
 
-Sólo biblioteca estándar y `casas`: lo importan pruebas de módulos puros.
+Sólo biblioteca estándar: lo importan pruebas de módulos puros.
 El archivo se lee una vez al importar; no se valida aquí (lo vigila la prueba).
 """
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
-
-import casas
 
 RUTA = Path(__file__).parent / "static" / "datos" / "pueblo.json"
 DATOS: dict = json.loads(RUTA.read_text(encoding="utf-8"))
@@ -51,53 +49,23 @@ def existe(clave: object) -> bool:
     return isinstance(clave, str) and clave in LUGARES
 
 
-def de_partida(hogar: str) -> str:
-    return "casa" if hogar == casas.PROPIA else "refugio"
+def de_partida() -> str:
+    """Dónde está quien no tiene un lugar guardado: en su casa, la de su departamento."""
+    return "casa"
 
 
-def sin_casa(clave: str, hogar: str) -> bool:
-    """Está en «Tu casa» sin tener una propia.
-
-    `hogar` es la situación de la persona (`Hogar.estado`), no la de su
-    gachamon: quien tiene casa la tiene aunque su gachamon viva en el refugio.
-    """
-    return clave == "casa" and hogar != casas.PROPIA
-
-
-def a_la_intemperie(clave: str, hogar_del_gachamon: str) -> bool:
-    """Está en el Refugio, pero su gachamon ya no vive en él: se le acabó la estancia.
-
-    `hogar_del_gachamon` es la situación del gachamon activo (`Hogar.estado_de`),
-    no la de la persona.
-    """
-    return clave == "refugio" and hogar_del_gachamon == casas.INTEMPERIE
-
-
-def aviso(clave: str, hogar: str, hogar_del_gachamon: str | None) -> str | None:
+def aviso(clave: str) -> str | None:
     """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
 
-    `hogar` es la situación de la persona (`Hogar.estado`), como en `sin_casa`;
-    `hogar_del_gachamon`, la de su gachamon activo, como en `a_la_intemperie`,
-    o `None` si no lo tiene: sin gachamon no hay a quién avisarle que vive a la
-    intemperie.
+    El Refugio sigue en el mapa, pero cerró: lo dice a quien llega.
     """
     abre = LUGARES[clave].abre
     if abre == DESPUES:
         return "Esto se abre más adelante."
     if abre == PRONTO:
         return "Aquí todavía no hay nada que hacer. Abre pronto."
-    if sin_casa(clave, hogar):
-        return "Todavía no tienes casa. Se compran en la tienda."
-    if hogar_del_gachamon is not None and a_la_intemperie(clave, hogar_del_gachamon):
-        if hogar == casas.PROPIA:
-            return (
-                "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-                "Puedes comprar una casa más grande en la tienda."
-            )
-        return (
-            "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-            "Las casas se compran en la tienda."
-        )
+    if clave == "refugio":
+        return "El refugio cerró. Ahora cada quien vive en su departamento."
     return None
 
 

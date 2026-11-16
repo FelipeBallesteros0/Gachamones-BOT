@@ -4,7 +4,6 @@ from dataclasses import replace
 
 import pytest
 
-import casas
 from web import pueblo
 
 NUEVE = ("casa", "refugio", "incubadora", "tienda", "plaza", "barrio", "estadio", "cementerio", "aventura")
@@ -40,43 +39,27 @@ def test_existe_consulta_lugares_en_el_momento(monkeypatch):
     assert pueblo.existe("casa") is False
 
 
-def test_se_parte_del_hogar():
-    assert pueblo.de_partida(casas.PROPIA) == "casa"
-    assert pueblo.de_partida(casas.REFUGIO) == "refugio"
-    assert pueblo.de_partida(casas.INTEMPERIE) == "refugio"
+def test_el_aviso_de_un_lugar_ya_no_mira_el_hogar():
+    assert pueblo.aviso("plaza") == "Esto se abre más adelante."
+    assert pueblo.aviso("tienda") is None and pueblo.aviso("casa") is None and pueblo.de_partida() == "casa"
 
 
-A_LA_INTEMPERIE = (
-    "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. Las casas se compran en la tienda."
-)
-A_LA_INTEMPERIE_CON_CASA = (
-    "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-    "Puedes comprar una casa más grande en la tienda."
-)
-
-
-@pytest.mark.parametrize("clave, hogar, del_gachamon, frase", [
-    ("estadio", casas.PROPIA, casas.PROPIA, "Esto se abre más adelante."),
-    ("incubadora", casas.REFUGIO, casas.REFUGIO, None),
-    ("casa", casas.REFUGIO, casas.REFUGIO, "Todavía no tienes casa. Se compran en la tienda."),
-    ("casa", casas.INTEMPERIE, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
-    ("casa", casas.PROPIA, casas.PROPIA, None),
-    ("refugio", casas.REFUGIO, casas.REFUGIO, None),
-    ("refugio", casas.REFUGIO, casas.INTEMPERIE, A_LA_INTEMPERIE),
-    ("refugio", casas.PROPIA, casas.INTEMPERIE, A_LA_INTEMPERIE_CON_CASA),
-    ("casa", casas.REFUGIO, casas.INTEMPERIE, "Todavía no tienes casa. Se compran en la tienda."),
-    ("estadio", casas.REFUGIO, casas.INTEMPERIE, "Esto se abre más adelante."),
-    # Sin gachamon activo no hay a quién avisarle que vive a la intemperie.
-    ("refugio", casas.INTEMPERIE, None, None),
+@pytest.mark.parametrize("clave, frase", [
+    ("casa", None),
+    ("refugio", "El refugio cerró. Ahora cada quien vive en su departamento."),
+    ("incubadora", None),
+    ("tienda", None),
+    ("estadio", "Esto se abre más adelante."),
+    ("aventura", "Esto se abre más adelante."),
 ])
-def test_cada_lugar_avisa_lo_suyo(clave, hogar, del_gachamon, frase):
-    assert pueblo.aviso(clave, hogar, del_gachamon) == frase
+def test_cada_lugar_avisa_lo_suyo(clave, frase):
+    assert pueblo.aviso(clave) == frase
 
 
 def test_un_lugar_que_abre_pronto_lo_avisa(monkeypatch):
     # Ya no queda ninguno así en el archivo, pero la regla sigue: se prueba con uno de mentira.
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
-    assert pueblo.aviso("tienda", casas.REFUGIO, casas.REFUGIO) == "Aquí todavía no hay nada que hacer. Abre pronto."
+    assert pueblo.aviso("tienda") == "Aquí todavía no hay nada que hacer. Abre pronto."
 
 
 def _roto(cambio):
@@ -119,29 +102,6 @@ def test_un_lugar_sin_su_hacia_es_un_problema(valor):
     assert pueblo.problemas(datos)
 
 
-@pytest.mark.parametrize("clave,hogar,vale", [
-    ("casa", "refugio", True),
-    ("casa", "intemperie", True),
-    ("casa", "propia", False),
-    ("refugio", "refugio", False),
-    ("plaza", "intemperie", False),
-    ("tienda", "refugio", False),
-])
-def test_sin_casa_es_estar_en_tu_casa_sin_tener_una(clave, hogar, vale):
-    assert pueblo.sin_casa(clave, hogar) is vale
-
-
-@pytest.mark.parametrize("clave,del_gachamon,vale", [
-    ("refugio", "intemperie", True),
-    ("refugio", "refugio", False),
-    ("refugio", "propia", False),
-    ("casa", "intemperie", False),
-    ("plaza", "intemperie", False),
-])
-def test_a_la_intemperie_es_estar_en_el_refugio_sin_vivir_ya_en_el(clave, del_gachamon, vale):
-    assert pueblo.a_la_intemperie(clave, del_gachamon) is vale
-
-
 def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(monkeypatch):
     assert set(pueblo.OFRECE) <= set(pueblo.LUGARES)
     assert pueblo.ofrece("tienda") == ("tienda",)
@@ -150,18 +110,3 @@ def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(
     assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
     assert pueblo.ofrece("tienda") == ()
-
-
-def test_un_lugar_que_abre_despues_avisa_lo_mismo_a_todos():
-    assert pueblo.LUGARES["estadio"].abre == pueblo.DESPUES
-    for hogar in (casas.REFUGIO, casas.PROPIA, casas.INTEMPERIE):
-        assert pueblo.aviso("estadio", hogar, hogar) == "Esto se abre más adelante."
-
-
-def test_el_aviso_de_la_intemperie_no_manda_a_discord():
-    frase = pueblo.aviso("refugio", casas.PROPIA, casas.INTEMPERIE)
-    assert frase == (
-        "Se acabó tu estancia en el refugio y tu gachamon vive a la intemperie. "
-        "Puedes comprar una casa más grande en la tienda."
-    )
-    assert "Discord" not in frase

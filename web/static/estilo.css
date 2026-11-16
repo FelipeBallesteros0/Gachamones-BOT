@@ -29,7 +29,6 @@
 
   --pared: #f3e2c0;
   --piso: #b98a5a;
-  --cielo: #cfe8f7;
   --pasto: #86c46f;
 
   --alerta-fondo: #fff4d6;
@@ -701,24 +700,6 @@ a { color: var(--principal-hundido); font-weight: 600; }
 
 .escena-lugar[data-etapa="adulto_grande"] { --alto: 68%; }
 
-.escena-lugar[data-hogar="refugio"] { --pared: #ddd6c9; --piso: #8d8478; }
-
-.escena-lugar[data-hogar="intemperie"] { --pared: var(--cielo); --piso: var(--pasto); }
-
-.escena-lugar[data-hogar="intemperie"]::after { display: none; }
-
-/* A la intemperie no hay ventana: hay sol. */
-.escena-lugar[data-hogar="intemperie"] .ventana {
-  width: 52px;
-  height: 52px;
-  border: 0;
-  border-radius: 50%;
-  background: #ffd75e;
-  box-shadow: 0 0 0 10px rgba(255, 215, 94, 0.3);
-}
-
-.escena-lugar[data-hogar="intemperie"] .ventana::before { display: none; }
-
 /* El dibujo del lugar cubre la escena entera, encima de la pared, el piso y la
    ventana (que no tienen `z-index`). Va primero en la escena, así que lo que
    viene después con su mismo `z-index` (el avatar) se pinta encima. */
@@ -1216,67 +1197,6 @@ a { color: var(--principal-hundido); font-weight: 600; }
 .boton-comprar > span,
 .boton-plantel > span { font-size: 1.25rem; line-height: 1; }
 
-/* En el Refugio, bajo su franja: quién de los tuyos vive ahí, de dos en dos o
-   más si caben, y cuánto le queda a tu estancia. */
-.viven-aqui {
-  display: grid;
-  gap: 10px;
-  padding: 12px 14px 14px;
-  border: 1px solid var(--linea);
-  border-radius: var(--radio);
-  background: var(--tarjeta);
-}
-
-.viven-aqui-titulo {
-  margin: 0;
-  color: var(--texto-suave);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.viven-aqui-lista {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.viven-aqui-uno {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-weight: 700;
-}
-
-/* El retrato chico sobre su pared y su piso, como en la ficha. */
-.viven-aqui-retrato {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radio-chico);
-  background: linear-gradient(to bottom, var(--pared) 0, var(--pared) 68%, var(--piso) 68%, var(--piso) 100%);
-  object-fit: contain;
-  object-position: 50% 100%;
-  image-rendering: pixelated;
-}
-
-.viven-aqui-nombre { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
-
-.viven-aqui-ninguno { color: var(--texto-suave); font-weight: 600; }
-
-.viven-aqui-estancia {
-  padding-top: 10px;
-  border-top: 1px solid var(--linea);
-  color: var(--texto-suave);
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
 /* --- el pueblo --- */
 
 /* En la cabecera, «Pueblo» es el título de la pantalla con la letra de la barra. */
@@ -1545,17 +1465,6 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-transform: uppercase;
 }
 
-/* Por qué no se puede comprar nada de esta sección. */
-.aviso-de-seccion {
-  padding: 10px 14px;
-  border: 1px solid var(--alerta-borde);
-  border-radius: var(--radio);
-  background: var(--alerta-fondo);
-  color: var(--alerta-texto);
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
 .articulos {
   display: grid;
   gap: 8px;
@@ -1610,8 +1519,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .articulo > .accion { grid-column: 3; }
 
-.articulo > .accion.abierta,
-.subfila > .accion.abierta { grid-column: 1 / -1; display: block; }
+.articulo > .accion.abierta { grid-column: 1 / -1; display: block; }
 
 /* Lo que no se puede comprar se ve apagado, sin botón. */
 .articulo.apagado {
@@ -1659,27 +1567,12 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   box-shadow: 0 1px 0 var(--principal-hundido);
 }
 
-/* Vender no es comprar: un botón claro, con letra roja. */
-.boton-vender {
-  min-height: 40px;
-  padding: 8px 18px;
-  border: 1px solid var(--borde);
-  border-radius: 999px;
-  background: var(--tarjeta);
-  color: var(--error-texto);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
 @media (hover: hover) {
   .boton-precio:not([aria-disabled="true"]):hover,
   .boton-usar:not([aria-disabled="true"]):hover,
   .boton-poner:not([aria-disabled="true"]):hover,
   .boton-sacar:not([aria-disabled="true"]):hover,
   .boton-nombrar:not([aria-disabled="true"]):hover { background: var(--principal-hundido); }
-  .boton-vender:not([aria-disabled="true"]):hover { border-color: var(--error-texto); }
 }
 
 /* Mientras va una compra (o un uso), ningún otro botón compra (ni usa). */
@@ -1688,8 +1581,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .boton-poner[aria-disabled="true"],
 .boton-quitar[aria-disabled="true"],
 .boton-sacar[aria-disabled="true"],
-.boton-nombrar[aria-disabled="true"],
-.boton-vender[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
+.boton-nombrar[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
 
 /* El precio de lo que no se vende: se lee, no se toca. */
 .precio-quieto {
@@ -1759,28 +1651,6 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .pregunta-campo .texto { min-height: 48px; }
 
 .en-camino { cursor: progress; }
-
-/* Una casa tuya: lo que se le puede hacer, una cosa por línea. */
-.casa-acciones {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--linea);
-}
-
-.subfila {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.subfila-texto { font-size: 0.9375rem; font-weight: 600; }
-
-.subfila > .accion { grid-column: 2; }
-
-.subfila > .accion:only-child { grid-column: 1 / -1; }
 
 /* Lo que contesta la tienda: abajo de lo que se ve, aunque la lista siga. */
 .aviso-tienda {

@@ -1,6 +1,5 @@
-// La Tienda del pueblo: lo que se vende en cuatro secciones —objetos,
-// cosméticos, casas y muebles— y comprar en dos toques: el primero pregunta y
-// el segundo compra.
+// La Tienda del pueblo: lo que se vende en tres secciones —objetos, cosméticos
+// y muebles— y comprar en dos toques: el primero pregunta y el segundo compra.
 //
 // `tienda(contenedor, estado, seguir)` pinta la pantalla y pide el catálogo
 // (`GET tienda`). Las reglas son del servidor: qué se vende, a quién, a
@@ -22,9 +21,7 @@ import {
   GEMAS, MONEDAS, cabeceraConSaldos, cajaDePregunta, filaDeArticulo as fila, hayQueDecidirDeNuevo,
   linea, listaQueSePide, mensajeDe, pideOtraPantalla, zonaDeAviso,
 } from './articulos.js';
-import {
-  loQueTraeLaCasa, preguntaDeCompra, preguntaDeMejora, preguntaDeVenta, quienesViven,
-} from './compras.js';
+import { preguntaDeCompra } from './compras.js';
 import { el } from './dom.js';
 
 const CARGANDO = 'Cargando la tienda…';
@@ -33,7 +30,6 @@ const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 const SECCIONES = [
   { clave: 'objetos', nombre: 'Objetos' },
   { clave: 'cosmeticos', nombre: 'Cosméticos' },
-  { clave: 'casas', nombre: 'Casas' },
   { clave: 'muebles', nombre: 'Muebles' },
 ];
 
@@ -182,65 +178,7 @@ export function tienda(contenedor, estado, seguir) {
     return fila({ id, icono: m.icono, nombre: m.nombre, lineas, accion });
   }
 
-  // Lo que se puede hacer con una casa tuya, una cosa por línea: cada mejora
-  // con su precio, y venderla.
-  function subfila(id, texto, accion) {
-    return el('div', { class: 'subfila', 'data-fila': id }, texto ? el('p', { class: 'subfila-texto' }, texto) : null, accion);
-  }
-
-  // Los botones de una casa tuya dicen de qué casa hablan: «Mejorar tu casa
-  // pequeña a casa mediana por 340 monedas», «Vender tu casa pequeña» (con lo
-  // que se ve, «Vender», dentro).
-  function filaDeTuCasa(casa) {
-    const id = `tuya:${casa.id}`;
-    const tuCasa = `tu ${casa.nombre.toLowerCase()}`;
-    const mejoras = casa.mejoras.map((mejora) => {
-      const nueva = mejora.nombre.toLowerCase();
-      return subfila(`${id}:${mejora.clave}`, `Mejorar a ${nueva}`, botonDePrecio(MONEDAS, mejora.cuesta,
-        `Mejorar ${tuCasa} a ${nueva}`, {
-          id: `${id}:${mejora.clave}`, ruta: 'tienda/casa',
-          cuerpo: { accion: 'mejorar', casa: mejora.clave, casa_id: casa.id },
-          pregunta: preguntaDeMejora(casa, mejora), confirmar: 'Mejorar',
-        }));
-    });
-    const vender = subfila(`${id}:vender`, null, botonQuePregunta(
-      ['Vender', el('span', { class: 'solo-lector' }, ` ${tuCasa}`)], 'boton-vender', {
-        id: `${id}:vender`, ruta: 'tienda/casa', cuerpo: { accion: 'vender', casa_id: casa.id },
-        pregunta: preguntaDeVenta(casa), confirmar: 'Vender',
-      },
-    ));
-    return fila({
-      id, icono: casa.icono, nombre: casa.nombre, lineas: [linea(quienesViven(casa), 'articulo-detalle')],
-      accion: null, debajo: el('div', { class: 'casa-acciones' }, mejoras, vender),
-    });
-  }
-
-  function filaDeCasaALaVenta(casa, sePuede) {
-    const id = `casa:${casa.clave}`;
-    const accion = sePuede
-      ? botonDePrecio(MONEDAS, casa.precio, `Comprar ${casa.nombre}`, {
-        id, ruta: 'tienda/casa', cuerpo: { accion: 'comprar', casa: casa.clave },
-        pregunta: preguntaDeCompra(casa.precio, MONEDAS.palabra), confirmar: 'Comprar',
-      })
-      : precioQuieto(MONEDAS, casa.precio);
-    return fila({
-      id, icono: casa.icono, nombre: casa.nombre, lineas: [linea(loQueTraeLaCasa(casa), 'articulo-detalle')],
-      accion, apagada: !sePuede,
-    });
-  }
-
-  function casas({ maximo, puedes_otra: sePuede, tuyas, a_la_venta: aLaVenta }) {
-    const subtitulo = (texto) => (tuyas.length ? el('h2', { class: 'tienda-subtitulo' }, texto) : null);
-    return [
-      subtitulo('Tus casas'),
-      tuyas.length ? lista(tuyas.map(filaDeTuCasa)) : null,
-      subtitulo('A la venta'),
-      sePuede ? null : el('p', { class: 'aviso-de-seccion' }, `Ya tienes ${maximo} casas, que es el máximo.`),
-      lista(aLaVenta.map((casa) => filaDeCasaALaVenta(casa, sePuede))),
-    ];
-  }
-
-  // Pinta el catálogo entero, las cuatro secciones: las que no se ven también,
+  // Pinta el catálogo entero, las tres secciones: las que no se ven también,
   // para que cambiar de pestaña no pierda nada. Cierra la pregunta abierta. El
   // foco que estaba en una fila vuelve a esa misma fila.
   function ponerCatalogo(nuevo) {
@@ -253,7 +191,6 @@ export function tienda(contenedor, estado, seguir) {
     const objetos = [...nuevo.objetos.filter((o) => o.se_vende), ...nuevo.objetos.filter((o) => !o.se_vende)];
     secciones.get('objetos').nodo.replaceChildren(lista(objetos.map(filaDeObjeto)));
     secciones.get('cosmeticos').nodo.replaceChildren(lista(nuevo.cosmeticos.map(filaDeCosmetico)));
-    secciones.get('casas').nodo.replaceChildren(...casas(nuevo.casas).filter(Boolean));
     secciones.get('muebles').nodo.replaceChildren(lista(nuevo.muebles.lista.map(filaDeMueble)));
     if (conFoco) volverALaFila(conFoco.dataset.fila);
   }
@@ -294,18 +231,10 @@ export function tienda(contenedor, estado, seguir) {
     texto.focus({ preventScroll: true });
   }
 
-  // El foco va al botón de esa fila; si ya no está (la mejora hecha), al de la
-  // fila que la contenía (su casa), y si tampoco, a la pestaña de la sección.
+  // El foco va al botón de esa fila; si ya no está, a la pestaña de la sección.
   function enfocarLaFila(id) {
-    const filas = [...estante.querySelectorAll('[data-fila]')];
-    let buscada = id;
-    let destino = null;
-    while (buscada && !destino) {
-      const nodo = filas.find((n) => n.dataset.fila === buscada);
-      destino = nodo ? nodo.querySelector('button') : null;
-      // «tuya:3:mediana» está dentro de «tuya:3».
-      buscada = buscada.includes(':') ? buscada.slice(0, buscada.lastIndexOf(':')) : '';
-    }
+    const nodo = [...estante.querySelectorAll('[data-fila]')].find((n) => n.dataset.fila === id);
+    const destino = nodo ? nodo.querySelector('button') : null;
     (destino || secciones.get(seccionVista).pestana).focus({ preventScroll: true });
   }
 
@@ -326,7 +255,7 @@ export function tienda(contenedor, estado, seguir) {
     si.classList.add('esperando');
     si.setAttribute('aria-busy', 'true');
     no.setAttribute('aria-disabled', 'true');
-    for (const boton of estante.querySelectorAll('.boton-precio, .boton-vender')) {
+    for (const boton of estante.querySelectorAll('.boton-precio')) {
       boton.setAttribute('aria-disabled', 'true');
     }
     avisar('');

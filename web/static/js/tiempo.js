@@ -1,6 +1,6 @@
 // Lo que la pantalla principal dice con palabras: cuánto falta, qué globo toca,
-// dónde vive el gachamon, cuántas monedas y qué contestó un cuidado (su frase,
-// si evolucionó y sus medallas). Puro: no toca la página.
+// cuántas monedas y qué contestó un cuidado (su frase, si evolucionó y sus
+// medallas). Puro: no toca la página.
 
 // Segundos que faltan, como lo diría una persona y como lo dice el bot
 // (`pantalla.formato_espera`): por debajo del minuto en segundos; desde ahí,
@@ -31,18 +31,6 @@ export function elegirGlobo(globos, anterior, azar, llegando = false) {
   const otras = candidatas.filter((g) => g.texto !== anterior);
   const entre = otras.length ? otras : candidatas;
   return entre[Math.min(entre.length - 1, Math.floor(azar() * entre.length))];
-}
-
-const DONDE_VIVE = {
-  propia: 'vive en tu casa',
-  refugio: 'vive en el refugio',
-  intemperie: 'vive a la intemperie',
-};
-
-// Para la línea de la ficha, tras el nivel. `hogar` es `estado.hogar` del
-// servidor (`casas.PROPIA`, `REFUGIO` o `INTEMPERIE`); otro, nada.
-export function dondeVive(hogar) {
-  return Object.hasOwn(DONDE_VIVE, hogar) ? DONDE_VIVE[hogar] : '';
 }
 
 // Lo que se dice bajo la ficha tras un cuidado: la frase del juego, salga bien
