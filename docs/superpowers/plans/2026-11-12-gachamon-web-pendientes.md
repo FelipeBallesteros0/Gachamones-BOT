@@ -723,6 +723,11 @@ Son observaciones, no decisiones.
   sigue. Aclaración del dueño: sólo parte con 0 monedas y 0 gemas quien empiece
   después del día del cambio; quien ya jugaba, también quien viene de Discord,
   conserva las suyas.
+- «Dónde estás» se resuelve en un solo sitio (`web/pueblo.donde_esta`): el
+  lugar guardado o, si falta o ya no existe, tu casa. Lo usan el estado y los
+  tres «para eso tienes que estar ahí» (la Tienda, sacar de la Incubadora y el
+  departamento). Ver el plantel de la Incubadora no pide estar en ella; sacar a
+  uno, sí.
 
 ### El día del cambio
 
@@ -754,14 +759,36 @@ Son observaciones, no decisiones.
   (con permiso expreso del dueño): si alguna tabla muy vieja guardara los
   identificadores con otro tipo, una misma persona saldría dos veces y el
   cambio entero se desharía.
+- **Parar los dos servicios antes de sacar la copia.** El guion de
+  actualización saca su copia al principio, con el bot de antes todavía en
+  marcha, y copiar una base en uso no garantiza una copia sana. Para este
+  despliegue: parar el bot y la web, copiar, guardar la copia fuera de la
+  rotación, y recién entonces actualizar.
+- Qué mirar al ensayarlo sobre una copia: las monedas devueltas son la suma de
+  los precios de catálogo de las casas más 40 por ticket (los de las mochilas y
+  los del buzón sin recoger); las tablas de casas, muebles de antes y huerto
+  quedan vacías; hay tantos departamentos y cartas como personas; nadie tiene
+  menos monedas ni gemas que antes.
 - Qué mirar en el registro tras arrancar: una línea del día del cambio con tres
   cifras (a cuántas personas tocó, cuántas camas regaló, cuántas monedas
-  devolvió). Sale una sola vez, la escriba el bot o la web.
+  devolvió). Sale una sola vez, y queda en el registro la escriba el bot o la
+  web: va como aviso, para que salga también en la web. La otra prueba de que
+  el cambio corrió es la marca `la_vivienda_por_casillas` en `cambios_hechos` y
+  que haya tantas cartas como personas.
+- En ese mismo arranque corren antes, y en otra transacción, los cambios de los
+  planes anteriores (nadie muere, el tiempo para todos, los nombres de los
+  reclutas): si el día del cambio se detuviera, ésos ya quedaron hechos, y la
+  vuelta atrás sigue siendo la copia.
 - Si al arrancar ya hubiera departamentos sin la marca del cambio (no debería:
   sólo pasa en una base de desarrollo de esta rama, si alguien borra la marca
   para repetirlo, o con una base restaurada a medias), el cambio no hace nada y
   el arranque se detiene. Es a propósito: ahí lo seguro es no tocar nada y que
-  se note, con la copia intacta.
+  se note, con la copia intacta. No se convirtió nada y no hay marca que
+  borrar; el mensaje del error lo dice. Los servicios lo reintentan solos cada
+  pocos segundos: es inofensivo, pero llena el registro.
+- Quien jugaba sólo en Discord ve su carta cuando vincula, no antes. Quien ya
+  había abierto la página sin vincular ve dos: la de su identidad web y, al
+  vincular, la suya.
 
 ### Si hubiera que volver atrás
 
@@ -769,6 +796,10 @@ Son observaciones, no decisiones.
   casas, los muebles de antes y lo plantado, y paga las devoluciones: arrancar
   el código de antes sobre la base ya cambiada dejaría a la gente sin casas y
   con las monedas.
+- La vuelta atrás es **la copia y el código de antes, las dos cosas juntas**.
+  Si el guion de actualización falla *después* del reinicio (la base ya está
+  convertida), no hay que volver al commit anterior a mano sin restaurar la
+  copia.
 - La segunda trampa de toda marca: si se restaura la base a medias, o se borra
   la marca a mano sobre una base ya convertida, el cambio se detiene sin hacer
   nada (ver arriba) en vez de repetirse.
@@ -785,12 +816,21 @@ Son observaciones, no decisiones.
   pidiendo un gachamon. Quien sólo tenía un regalo en el buzón y nunca jugó
   recibió también su monedero el día del cambio: cuenta como alguien que ya
   estaba.
+  - Cuando el huevo se vaya, quitar el «nunca menos que los que ya tiene» de lo
+    que caben en la Incubadora.
+  - Vincular después de haber amueblado deja atrás el departamento de la
+    identidad web. Hoy apenas pesa; cuando se empiece amueblando, pesará.
 - **El departamento en pantalla**: no hay pantalla todavía; las rutas están
   (`/departamento`, poner, guardar, ampliar) y la carta también. Cambiar de
   activo se sigue haciendo en el lugar «Incubadora», que dice cuántos caben por
   las camas.
+  - La Tienda ya vende muebles y camas que no se pueden poner hasta que exista
+    la pantalla. Ese plan no se cierra sin ella: publicarlo antes iría contra
+    «lo que todavía no se puede usar en la página no se le vende a nadie».
 - **El pueblo**: el lugar «Refugio» sigue en el mapa, cerrado y con su aviso, y
   «Tu casa» todavía no se llama «Tu departamento».
+  - La Incubadora dice «Caben 1 gachamones.» cuando cabe uno (antes siempre
+    eran 25); se va con esa pantalla.
 - **Las aventuras y reclutar** siguen sin pantalla. Cuando vuelvan, el «hay
   sitio para un recluta» tiene que salir de las camas (`db.hay_cama_libre`).
 - **El huerto** está cerrado hasta el balcón. Los textos de la semilla y de los
@@ -801,11 +841,15 @@ Son observaciones, no decisiones.
   suelo de hambre de `sim.Ritmo` siguen ahí.
 - En la carta, el nombre de la especie de un recluta sale en minúsculas («Tu
   octopul ahora se llama…»): si se prefiere con mayúscula es una palabra.
-- «Dónde estás» se resuelve en un solo sitio (`web/pueblo.donde_esta`): el
-  lugar guardado o, si falta o ya no existe, tu casa. Lo usan el estado y los
-  tres «para eso tienes que estar ahí» (la Tienda, sacar de la Incubadora y el
-  departamento). Ver el plantel de la Incubadora no pide estar en ella; sacar a
-  uno, sí.
+- **Por decidir (de producto, lo decide el dueño):**
+  - Una casa **mejorada** costó más de lo que vuelve: se devuelve el precio de
+    catálogo de la casa de hoy, y mejorar cobraba el precio nuevo menos el 80 %
+    de la vieja; hasta 140 monedas de diferencia por casa.
+  - La comodidad de todos queda en 82 hasta que cada quien ponga sus muebles, y
+    el tope ahora depende de las casillas.
+  - El reloj de todos parte del día del cambio, que es más generoso que «con la
+    comida en 0».
+  - La carta dice «por tus tickets» también cuando era uno.
 
 ### Pruebas
 
@@ -814,6 +858,13 @@ Son observaciones, no decisiones.
 - Al borrar se midió la cobertura por ramas en las dos puntas; la medición tuvo
   que contar por separado las dos salidas de una rama escrita en una sola línea
   (`a or b`), que una medición más gruesa no ve.
+- La medición por ramas no ve **datos** (una entrada de una tabla de
+  migraciones, una clave de un diccionario): para eso hace falta mutar. Así se
+  encontró la migración de «lo sembrado», que se había quedado sin prueba.
+- Tres huecos anteriores a este plan, para cuando toque: nada nota que la
+  mochila deje de comprobar que el gachamon es el mismo, ni que nacer deje de
+  poner al día al activo, y la migración de la columna `activa` no tiene prueba
+  sobre una base sin ella.
 
 ## Para el plan 6 (tu casa)
 

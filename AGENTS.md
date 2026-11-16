@@ -105,7 +105,7 @@ Instala el hook local cuando prepares el entorno:
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.
 - El ritmo y la comodidad salen del departamento de la persona: frenan el ánimo de todos sus gachamones vivos y no tocan el hambre.
 - Antes de cambiar lo que fija el ritmo (poner o guardar un mueble, ampliar) se pone al día y se guarda a todos los vivos, en la misma transacción (`db.asentar_el_plantel_en`).
-- Ampliar se compra estando en el departamento; lo demás, en la Tienda. Lo que se compra llega a guardados.
+- Ampliar se compra estando en el departamento; lo demás, en la Tienda. El mueble que se compra llega a guardados.
 - El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, y deja a cada persona una carta que la página enseña una vez.
 - Las casas, el refugio, la intemperie y el huerto por casa ya no existen; sus tablas siguen en el esquema, sin uso.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.

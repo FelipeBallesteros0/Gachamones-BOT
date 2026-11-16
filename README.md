@@ -2,11 +2,11 @@
 
 Un tamagotchi que se juega en una página web: **rowino.online/gachamon**. Sale
 de un huevo, es uno de 10 gachamones al azar —hay 25 en total; los otros 15 se
-encuentran por ahí—, se cuida, se viste, vive en un departamento y se pasea por un
-pueblo. Nació como bot de Discord, y por eso este repositorio todavía lleva el
-bot: **el juego de Discord está en pausa**. Hoy el bot sólo atiende `/vincular`,
-que es la forma de llevar a la página los gachamones de quien jugaba allí, y a
-todo lo demás contesta que el juego se mudó.
+encuentran por ahí—, se cuida, se viste, vive en un departamento y se pasea por
+un pueblo. Nació como bot de Discord, y por eso este repositorio todavía lleva
+el bot: **el juego de Discord está en pausa**. Hoy el bot sólo atiende
+`/vincular`, que es la forma de llevar a la página los gachamones de quien
+jugaba allí, y a todo lo demás contesta que el juego se mudó.
 
 Son **cuatro estadísticas** —fuerza, velocidad, salud e ingenio— y se tiran al
 nacer, sobre la base de la especie.
@@ -137,17 +137,17 @@ estado del juego en memoria y sabe quién eres sólo por la cookie de sesión de
 Rowino.
 
 El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
-tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy están
-abiertos tu casa, la Incubadora y la tienda, y los demás avisan de que
-abren más adelante (el Refugio sigue en el mapa, cerrado: ya nadie vive en él). En la
-Tienda del pueblo se compran objetos, cosméticos (con gemas) y muebles, con el mismo
-dinero de siempre; lo que todavía no se puede usar en la
-página no se le vende a nadie. La mochila se abre
-desde cualquier lugar y sirve para usar lo que llevas. Desde cualquier lugar
-también se abre la ficha completa de tu gachamon, con sus medallas y los efectos
-que lleva activos, y el ropero, donde le pones y le quitas el sombrero y el
-título. La Incubadora enseña tu plantel: ahí sacas a otro gachamon para que sea
-el activo, y dice cuántos caben según las camas.
+tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy
+están abiertos tu casa, la Incubadora y la tienda, y los demás avisan de que
+abren más adelante (el Refugio sigue en el mapa, cerrado: ya nadie vive en él).
+En la Tienda del pueblo se compran objetos, cosméticos (con gemas) y muebles,
+con el mismo dinero de siempre; lo que todavía no se puede usar en la página no
+se le vende a nadie. La mochila se abre desde cualquier lugar y sirve para usar
+lo que llevas. Desde cualquier lugar también se abre la ficha completa de tu
+gachamon, con sus medallas y los efectos que lleva activos, y el ropero, donde
+le pones y le quitas el sombrero y el título. La Incubadora enseña tu plantel:
+ahí sacas a otro gachamon para que sea el activo, y dice cuántos caben según las
+camas.
 
 En local:
 
@@ -229,10 +229,11 @@ ella.
 Son las reglas que la página ya tiene. Las que esperan su pantalla están más
 abajo, en [En pausa](#en-pausa).
 
-**El plantel.** Sin tope fijo: lo limitan las camas de tu departamento (más abajo). Hay **uno activo**: el que sale contigo. **A todos les pasa el
-tiempo**, sean o no el activo: la comida, el ánimo y el aseo les bajan al mismo
-ritmo, con el ritmo de tu departamento. Cambiar de activo sólo cambia quién sale contigo: no toca el reloj de
-nadie, así que ir y volver no ahorra ni duplica nada.
+**El plantel.** Sin tope fijo: lo limitan las camas de tu departamento (más
+abajo). Hay **uno activo**: el que sale contigo. **A todos les pasa el tiempo**,
+sean o no el activo: la comida, el ánimo y el aseo les bajan al mismo ritmo, con
+el ritmo de tu departamento. Cambiar de activo sólo cambia quién sale contigo:
+no toca el reloj de nadie, así que ir y volver no ahorra ni duplica nada.
 
 Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
 activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo
@@ -248,21 +249,21 @@ romper el huevo, al poner nombre o al cambiar de activo. Sólo cambia la marca d
 quién sale contigo: su reloj sigue donde estaba.
 
 **El departamento.** Cada persona tiene **uno solo** por servidor, hecho de
-casillas: parte en 3 × 3 y se amplía por una fila o una columna, a 15 monedas por
-casilla, hasta 8 × 8. Los muebles ocupan casillas y giran en cuatro posiciones;
-puede haber varios iguales, y cada uno está puesto o guardado (guardar nunca lo
-destruye). Lo que compras en la Tienda llega a guardados, y ampliar se compra
-estando en tu departamento. Las **camas** son el límite de gachamones: hacen
-falta tantas camas puestas como gachamones vivos más una, la tuya; reclutar pide
-una cama libre y una cama que hace falta no se guarda. La **comodidad** es una
-puntuación (no un porcentaje): parte de 80, cada tipo de mueble puesto suma una
-vez y el tope crece con las casillas. Frena el ánimo de todos los que viven ahí y
-no toca el hambre. Las casas, el refugio, la intemperie y el huerto se fueron:
-el día del cambio se convirtió una sola vez lo que cada persona tenía (le
-devolvimos lo que habían costado sus casas y sus tickets, y se cosechó lo
-plantado), y una carta del alcalde se lo cuenta una vez. El huerto está cerrado
-hasta que vuelva con el balcón, y la pantalla del departamento todavía no existe:
-las reglas y sus rutas están en el servidor.
+casillas: parte en 3 × 3 y se amplía por una fila o una columna, a 15 monedas
+por casilla, hasta 8 × 8. Los muebles ocupan casillas y giran en cuatro
+posiciones; puede haber varios iguales, y cada uno está puesto o guardado
+(guardar nunca lo destruye). Los muebles que compras en la Tienda llegan a
+guardados, y ampliar se compra estando en tu departamento. Las **camas** son el
+límite de gachamones: hacen falta tantas camas puestas como gachamones vivos más
+una, la tuya; reclutar pide una cama libre y una cama que hace falta no se
+guarda. La **comodidad** es una puntuación (no un porcentaje): parte de 80, cada
+tipo de mueble puesto suma una vez y el tope crece con las casillas. Frena el
+ánimo de todos los que viven ahí y no toca el hambre. Las casas, el refugio, la
+intemperie y el huerto se fueron: el día del cambio se convierte una sola vez lo
+que cada persona tenía (se le devuelve lo que costaron sus casas y sus tickets,
+y se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El
+huerto está cerrado hasta que vuelva con el balcón, y la pantalla del
+departamento todavía no existe: las reglas y sus rutas están en el servidor.
 
 **Nacer.** La especie sale por rareza: 12 % cada una de las siete comunes, 6 %
 las dos poco comunes y 4 % el dragón. Las estadísticas al nacer son **la base de
@@ -390,6 +391,7 @@ vincula, es otro (`cogs/mudanza.py`).
 | `simulacion.py` | Decaimiento, acciones de cuidado, estadísticas y niveles. |
 | `competir.py` | Resolución y narración de carreras, sumo, asaltos al tótem y laberintos de ecos (en pausa). |
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
+| `departamento.py` | El departamento por casillas: los muebles, dónde cabe cada uno, las camas y la comodidad. |
 | `pantalla.py` | Los marcos de texto que usan `aventura.py` y `competir.py`. |
 | `db.py` | SQLite. |
 | `economia.py` | Monederos, topes UTC y operaciones económicas atómicas. |

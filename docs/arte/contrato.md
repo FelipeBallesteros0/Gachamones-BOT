@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (199)
+## Los dibujos de ahora (196)
 
 ### Pueblo (`pueblo/`)
 
@@ -110,15 +110,14 @@ su ícono con el mismo nombre.
 
 | Archivo | Cuántos | Qué es |
 |---|---|---|
-| `iconos/objetos/<clave>.png` | 33 | Cada objeto: pociones, golosinas, porotos, sopaipillas, placa, silbato, ticket de refugio, semilla. También los que no se venden, porque se ven en la mochila. |
+| `iconos/objetos/<clave>.png` | 32 | Cada objeto: pociones, golosinas, porotos, sopaipillas, placa, silbato, semilla. También los que no se venden, porque se ven en la mochila. |
 | `iconos/cosmeticos/<clave>.png` | 12 | Cada cosmético del gachamon: sombreros y títulos. |
-| `iconos/muebles/<clave>.png` | 14 | Cada mueble de las casas. |
-| `iconos/casas/<clave>.png` | 3 | Cada casa que se compra: `pequena`, `mediana`, `grande`. |
+| `iconos/muebles/<clave>.png` | 15 | Cada mueble del departamento, la cama sencilla incluida. |
 
 Cada ícono ya tiene su relleno en `web/static/arte/iconos/`, con el nombre
 exacto de su archivo: dibuja el tuyo y guárdalo encima. Por ejemplo:
 `iconos/objetos/fuerza_1d4.png`, `iconos/cosmeticos/corona.png`,
-`iconos/muebles/lampara.png`, `iconos/casas/mediana.png`.
+`iconos/muebles/lampara.png`.
 
 El relleno de un ícono es un cuadro de color liso (un color por grupo) con las
 primeras letras del nombre, porque a este tamaño no cabe la palabra «RELLENO».
