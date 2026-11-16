@@ -901,14 +901,16 @@ test('sin respuesta lo dice y vuelve a leer', async () => {
 });
 
 test('una lectura que salió antes que una acción no pisa lo que la acción dejó', async () => {
-  const { pantalla, servidor, documento } = await abrir(CON_MACETA);
+  const { pantalla, pedidos, servidor, documento } = await abrir(CON_MACETA);
   const soltar = servidor.retiene('GET departamento');
   await documento.dispara('visibilitychange');                           // sale una lectura, y se queda en camino
   servidor.responde('POST departamento/guardar', BIEN(SIN_MACETA));
   await tocarCasilla(pantalla, 2, 2);
   await tocar(boton(menu(pantalla), 'Guardar'));
+  servidor.responde('GET departamento', SIN_MACETA);                     // el servidor ya tiene lo que dejó la acción
   await soltar(CON_MACETA);                                              // llega tarde, con la maceta todavía puesta
   assert.equal(texto(pantalla, '.pieza-linea').startsWith('3 × 3 · 2 de 9'), true);
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'GET departamento').length, 3);   // la que se tiró se vuelve a pedir
 });
 
 test('mientras una petición va, no sale otra', async () => {
@@ -1576,4 +1578,46 @@ test('la ficha del elegido dice «Desfallecido» o «Desfallecida» mientras lo 
   servidor.responde('GET departamento', CON_DOS);                          // ya comieron
   await documento.dispara('visibilitychange');
   assert.equal(uno(ficha, '.insignia').hidden, true);
+});
+
+test('una lectura que se tira por una acción más nueva se vuelve a pedir al acabar esa acción', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
+  servidor.responde('POST cuidar/todos', { ok: true, a_cuantos: 2, de_cuantos: 2, tocados: [PELUSA.id, RULO.id], mensaje: 'Jugaste con 2 de 2.', monedas: 2, logros: [], estado: ESTADO });
+  const soltarLaLectura = servidor.retiene('GET departamento');
+  await tocar(boton(pantalla, 'Jugar con todos'));                       // su relectura sale y se queda en camino
+  const soltarElCuidado = servidor.retiene('POST cuidar');
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Alimentar'));      // otro cuidado, a Pelusa, antes de que llegue
+  const jugo = (g) => ({ ...g, barras: { ...g.barras, animo: 100 }, esperas: { jugar: 1800 } });
+  const JUGARON = { ...CON_DOS, plantel: [{ ...jugo(PELUSA), activo: true }, { ...jugo(RULO), activo: false }] };
+  await soltarLaLectura(JUGARON);                                        // llega, pero hubo una acción más nueva: se tira
+  servidor.responde('GET departamento', JUGARON);
+  await soltarElCuidado({ ok: true, mensaje: 'Pelusa comió con ganas.', espera: 600, monedas: 1, evoluciono: false, logros: [],
+    gachamon: { ...jugo(PELUSA), esperas: { jugar: 1800, alimentar: 600 } }, estado: ESTADO });
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'GET departamento').length, 3);   // al entrar, la que se tiró y otra
+  await tocar(boton(uno(pantalla, '.lista-gachamones'), 'Rulo'));
+  const ficha = uno(pantalla, '.ficha-elegido');
+  assert.deepEqual(todos(ficha, '.medidor-cifra').map((c) => c.textContent), ['50', '100', '30']);   // Rulo, al día
+  assert.equal(boton(ficha, 'Jugar').getAttribute('aria-disabled'), 'true');
+});
+
+test('lo que devuelve la pantalla no acaba mientras se está en ella, y acaba bien al irse', async () => {
+  const { pantalla, hecho } = await abrir(DEPTO);
+  assert.equal(await comoAcaba(hecho), 'sigue');
+  await tocar(boton(pantalla, 'Mochila'));
+  assert.equal(await comoAcaba(hecho), 'bien');
+});
+
+test('lo que reviente al pintar lo que trae una relectura llega a la avería, como en la primera carga', async () => {
+  const { servidor, documento, hecho } = await abrir(DEPTO);
+  servidor.responde('GET departamento', { ...DEPTO, puestos: null });   // una pieza que no se puede pintar
+  await documento.dispara('visibilitychange');
+  assert.equal(await comoAcaba(hecho), 'avería');
+});
+
+test('lo que reviente al pintar lo que contesta una acción llega a la avería, como en la primera carga', async () => {
+  const { pantalla, servidor, hecho } = await abrir(CON_MACETA);
+  servidor.responde('POST departamento/guardar', BIEN({ ...SIN_MACETA, puestos: null }));
+  await tocarCasilla(pantalla, 2, 2);
+  await tocar(boton(menu(pantalla), 'Guardar'));
+  assert.equal(await comoAcaba(hecho), 'avería');
 });

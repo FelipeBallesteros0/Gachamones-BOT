@@ -57,7 +57,10 @@
 // son botones de verdad, y lo que no se puede usar lleva `aria-disabled`. Todo
 // texto entra por `el` o por `textContent`. Lo que corre (el cuadro de
 // animación, los relojes, la relectura y los oyentes) se detiene al salir, y
-// una respuesta que llega tarde no pinta.
+// una respuesta que llega tarde no pinta; una lectura que se tiró por una
+// acción más nueva se vuelve a pedir al acabarla. Lo que devuelve la pantalla
+// no acaba mientras se está en ella: lo que reviente al prepararla o al pintar
+// lo que llega lo hace fallar, y `principal.js` lo lleva a la avería.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
@@ -159,6 +162,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   const quieto = () => menosMovimiento.matches;
 
   let vivo = true;
+  // Lo que devuelve la pantalla no acaba mientras se está en ella: acaba bien
+  // al dejarla, y falla si algo revienta al preparar la pieza o al pintar lo
+  // que llega después (`reventar`); `principal.js` lo lleva a la avería.
+  let terminar;
+  const mientrasSeVe = new Promise((bien, mal) => { terminar = { bien, mal }; });
   const oyentes = new AbortController();
   const { signal } = oyentes;
   let observador = null;
@@ -270,6 +278,24 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     aviso.parar();
     oyentes.abort();
     if (observador) observador.disconnect();
+    terminar.bien();
+  }
+
+  // Algo reventó al pintar: la pantalla no se queda a medias; falla lo que
+  // devuelve (y llega a la avería) y se para todo.
+  function reventar(error) {
+    terminar.mal(error);
+    parar();
+  }
+
+  // Lo que llega se pinta con `pintar()`; si al pintarlo algo revienta, no se
+  // lo traga nadie: llega a la avería, como en la primera carga.
+  function pintarLoQueLlega(pintar) {
+    try {
+      pintar();
+    } catch (error) {
+      reventar(error);
+    }
   }
 
   // Deja la pantalla y que se decida otra: con el estado que llegó, o
@@ -359,7 +385,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   function traerArte(rutas) {
     return Promise.all(rutas.map(cargar)).then((llegadas) => {
       for (const llegada of llegadas) cargadas.set(llegada.ruta, llegada);
-      if (listo && sigueAqui()) dibujar();
+      if (listo && sigueAqui()) pintarLoQueLlega(dibujar);
     });
   }
 
@@ -375,7 +401,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     for (const r of nuevos) retratosPedidos.add(r);
     return Promise.all(nuevos.map(cargarRetrato)).then((llegados) => {
       for (const llegado of llegados) cargadas.set(llegado.ruta, llegado);
-      if (listo && sigueAqui()) dibujar();
+      if (listo && sigueAqui()) pintarLoQueLlega(dibujar);
     });
   }
 
@@ -1163,8 +1189,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   }
 
   // Manda lo que hace `hacer()` y, con lo que contesta el servidor, pone el
-  // estado y hace `alContestar(respuesta)`. Sin respuesta, pudo haber llegado
-  // igual: se dice y la pieza se vuelve a leer.
+  // estado y hace `alContestar(respuesta)`; lo que reviente al pintarlo llega
+  // a la avería. Sin respuesta, pudo haber llegado igual: se dice y la pieza
+  // se vuelve a leer. Al acabar, si se tiró una lectura mientras iba, se pide
+  // otra.
   async function mandar(origen, hacer, alContestar) {
     if (enCamino) return;
     acciones += 1;
@@ -1182,13 +1210,17 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
         return;
       }
       decir(error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error), true);
+      quedaPorLeer = false;
       releer({ trasUnaAccion: true });
       return;
     }
     if (!sigueAqui()) return;
     dejarDeEsperar();
-    if (respuesta.estado && !aplicarEstado(respuesta.estado)) return;
-    alContestar(respuesta);
+    pintarLoQueLlega(() => {
+      if (respuesta.estado && !aplicarEstado(respuesta.estado)) return;
+      alContestar(respuesta);
+    });
+    leerLoQueQuedo();
   }
 
   // Lo que cambia la pieza: se pinta la que contesta el servidor. `siSaleBien()`
@@ -1325,27 +1357,54 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Las lecturas que salieron: sólo se pinta la última.
   let lecturas = 0;
   let leyendo = false;
+  // Una lectura que se tiró porque hubo una acción más nueva se vuelve a
+  // pedir: al acabar esa acción o, si ya acabó, enseguida. Lo que trae una
+  // acción no siempre es todo (un cuidado trae sólo al que lo recibió).
+  let quedaPorLeer = false;
+
+  function leerAlAcabar() {
+    quedaPorLeer = true;
+    if (!enCamino) leerLoQueQuedo();
+  }
+
+  function leerLoQueQuedo() {
+    if (!quedaPorLeer) return;
+    quedaPorLeer = false;
+    releer();
+  }
 
   // Cada relectura trae el estado, como en el lugar, y la pieza: si el estado
   // ya pide otra pantalla, se va con él; si no, se pinta la pieza. Una
   // relectura que falla no borra la pieza ni dice nada: la próxima vuelta lo
   // intenta otra vez. Sin sesión, o si ya no estás en tu casa, se va.
   // Mientras una acción va no se lee: lo que traiga es más nuevo. La de tras
-  // una acción sin respuesta sale aunque haya otra en camino.
+  // una acción sin respuesta sale aunque haya otra en camino. La espera de la
+  // red va aparte de lo que se pinta: lo que reviente al pintar no lo calla el
+  // fallo de la red, llega a la avería.
   async function releer({ trasUnaAccion = false } = {}) {
     if (!sigueAqui() || !depto || enCamino) return;
     if (!trasUnaAccion && (leyendo || document.hidden)) return;
     leyendo = true;
     const esta = ++lecturas;
     const hechas = acciones;
+    let leido;
     try {
-      const [estadoNuevo, nuevo] = await Promise.all([pedir('GET', 'estado'), pedir('GET', 'departamento')]);
-      if (sigueAqui() && esta === lecturas && hechas === acciones && aplicarEstado(estadoNuevo)) aplicarDepto(nuevo);
+      leido = await Promise.all([pedir('GET', 'estado'), pedir('GET', 'departamento')]);
     } catch (error) {
       if (sigueAqui() && hayQueDecidirDeNuevo(error)) irse();
+      return;
     } finally {
       if (esta === lecturas) leyendo = false;
     }
+    if (!sigueAqui() || esta !== lecturas) return;
+    if (hechas !== acciones) {
+      leerAlAcabar();
+      return;
+    }
+    const [estadoNuevo, nuevo] = leido;
+    pintarLoQueLlega(() => {
+      if (aplicarEstado(estadoNuevo)) aplicarDepto(nuevo);
+    });
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -1388,12 +1447,6 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     reencuadrar();
   }
 
-  // Lo que devuelve la pantalla acaba cuando la pieza queda preparada, la
-  // primera vez o tras «Volver a intentarlo»: si algo revienta al prepararla,
-  // falla, y `principal.js` lo lleva a la avería.
-  let terminar;
-  const preparada = new Promise((bien, mal) => { terminar = { bien, mal }; });
-
   // La pieza común de la tienda y la mochila: mientras no llega se lee la
   // espera; si no llega, su mensaje y «Volver a intentarlo». Sin sesión o si ya
   // no estás en tu casa, se va.
@@ -1405,11 +1458,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     titulo,
     sigueAqui,
     irse,
-    alLlegar: (leido) => { prepararLaPieza(leido).then(terminar.bien, terminar.mal); },
+    // Si algo revienta al prepararla, la primera vez o tras «Volver a
+    // intentarlo», llega a la avería.
+    alLlegar: (leido) => { prepararLaPieza(leido).catch(reventar); },
   });
 
-  if (!aplicarEstado(estado)) return undefined;
+  if (!aplicarEstado(estado)) return mientrasSeVe;
   cadaTanto = setInterval(releer, PEDIR_CADA_MS);
-  laPieza.cargar().catch(terminar.mal);
-  return preparada;
+  laPieza.cargar().catch(reventar);
+  return mientrasSeVe;
 }
