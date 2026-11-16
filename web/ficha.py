@@ -11,6 +11,7 @@ Ojo: este módulo es `web.ficha`; no importa `discord` ni nada que lo importe.
 from __future__ import annotations
 
 import math
+import re
 
 from fastapi import APIRouter, Depends
 
@@ -22,7 +23,8 @@ import personalidad as per
 import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual
-from web.sesion import problema
+from web.salir import NO_ESTA
+from web.sesion import es_un_id, problema
 
 router = APIRouter()
 
@@ -58,12 +60,28 @@ def _medallas(catalogo, hechos: dict[str, int], conseguidas: dict) -> list[dict]
     return lista
 
 
+def _el_pedido(jugador: Jugador, pedido: str | None, ahora) -> sim.Criatura:
+    """El gachamon de la ficha: el que sale contigo, o el que pide `gachamon_id` si es tuyo y está vivo."""
+    if pedido is None:
+        criatura = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
+        if criatura is None:
+            raise problema(409, "sin_gachamon", "No tienes un gachamon.")
+        return criatura
+    # Un entero a secas: ni un texto, ni un decimal, ni un signo.
+    if not re.fullmatch(r"[0-9]+", pedido) or not es_un_id(int(pedido)):
+        raise problema(422, "peticion", "La petición no se entiende.")
+    # El remiendo de la activa, como en el caso sin pedido; el plantel ya trae a cada uno al día.
+    db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
+    for criatura in db.plantel_al_dia(jugador.usuario_id, jugador.guild_id, ahora):
+        if criatura.id == int(pedido):
+            return criatura
+    raise problema(409, "no_esta", NO_ESTA)
+
+
 @router.get("/ficha")
-def ver_la_ficha(jugador: Jugador = Depends(jugador_actual)) -> dict:
+def ver_la_ficha(gachamon_id: str | None = None, jugador: Jugador = Depends(jugador_actual)) -> dict:
     ahora = db.ahora_utc()
-    criatura = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
-    if criatura is None:
-        raise problema(409, "sin_gachamon", "No tienes un gachamon.")
+    criatura = _el_pedido(jugador, gachamon_id, ahora)
     sombrero = cos.buscar(criatura.sombrero)
     hechos = lgr.hechos_de(criatura, db.marcador(criatura.id), ahora)
     hechos_persona = lgr.hechos_de_la_persona(
@@ -73,6 +91,7 @@ def ver_la_ficha(jugador: Jugador = Depends(jugador_actual)) -> dict:
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
     return {
         "gachamon": estado.ficha(criatura, ahora),
+        "es_el_activo": criatura.activa,
         "detalle": {
             "caracter": per.nombre_caracter(criatura),
             "sombrero": None if sombrero is None else sombrero.nombre,

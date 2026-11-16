@@ -1,10 +1,13 @@
 import pytest
 
 import db
+import identidad
 from web import pueblo
-from ayudas_web import CABECERA, con_gachamon, con_monedas_web, en_casa, entrar, ir
+from ayudas_web import PUEBLO, CABECERA, con_gachamon, con_monedas_web, en_casa, entrar, ir
 
 API = "/gachamon/api"
+YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
+STATS = (10, 10, 10, 10)
 
 
 def ancho_y_fondo(uid, ancho, fondo):
@@ -162,3 +165,51 @@ def test_cada_quien_ve_y_toca_solo_lo_suyo(cliente):
     entrar(cliente, 1)
     d1 = cliente.get(f"{API}/departamento").json()
     assert [(p["id"], p["x"], p["y"]) for p in d1["puestos"]] == [(suya, 0, 0)]
+
+
+def con_otro(cliente):
+    """La cuenta con su huevo bautizado (Pelusa) y un segundo gachamon, Rulo, que no sale."""
+    con_gachamon(cliente)
+    return db.crear(YO, G, "pollito", "Rulo", STATS, db.ahora_utc(), activa=False)
+
+
+def salir(cliente, gachamon_id):
+    return cliente.post(f"{API}/departamento/salir", json={"gachamon_id": gachamon_id}, headers=CABECERA)
+
+
+def test_el_departamento_trae_a_todos_con_sus_barras(cliente):
+    otro = con_otro(cliente); en_casa(cliente)                 # Pelusa sale contigo; Rulo, no
+    d = cliente.get(f"{API}/departamento").json()
+    assert d["gachamones"] == 2
+    assert [(g["nombre"], g["activo"]) for g in d["plantel"]] == [("Pelusa", True), ("Rulo", False)]
+    assert d["plantel"][1]["id"] == otro.id
+    for g in d["plantel"]:
+        assert set(g["barras"]) == {"comida", "animo", "aseo"}
+        assert set(g["esperas"]) >= {"alimentar", "jugar", "entrenar", "limpiar", "acariciar"}
+        assert g["retrato"] and g["nombre_especie"] and g["nombre_etapa"]
+
+
+def test_cada_mueble_puesto_dice_su_forma(cliente):
+    con_gachamon(cliente); en_casa(cliente)
+    cama = cliente.get(f"{API}/departamento").json()["puestos"][0]
+    assert (cama["ancho"], cama["fondo"], cama["capa"]) == (2, 1, "bulto")
+
+
+def test_salir_con_otro_desde_el_departamento(cliente):
+    otro = con_otro(cliente); en_casa(cliente)
+    r = salir(cliente, otro.id).json()
+    assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Ahora sales con Rulo.")
+    assert r["estado"]["gachamon"]["nombre"] == "Rulo"
+    assert [(g["nombre"], g["activo"]) for g in r["departamento"]["plantel"]] == [("Rulo", True), ("Pelusa", False)]
+    otra_vez = salir(cliente, otro.id).json()                  # con el que ya sale: un sí, como en la Incubadora
+    assert (otra_vez["ok"], otra_vez["mensaje"]) == (True, "Rulo ya es tu gachamon activo.")
+
+
+def test_salir_pide_estar_en_el_departamento_y_un_id_de_verdad(cliente):
+    con_gachamon(cliente); ir(cliente, "tienda")
+    assert salir(cliente, 1).status_code == 409
+    en_casa(cliente)
+    for malo in ("1", 1.5, True, None):
+        assert salir(cliente, malo).status_code == 422
+    ajeno = salir(cliente, 999999).json()
+    assert (ajeno["ok"], ajeno["clave"], ajeno["mensaje"]) == (False, "no_esta", "Ese gachamon ya no está.")

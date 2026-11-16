@@ -19,6 +19,7 @@ import departamento as dep
 import economia
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
+from web.salir import dicho_de_salir
 from web.sesion import con_cabecera, es_un_id, problema
 from web.tienda import datos_y_evento, dicho_no, evento_usado, no_se_entiende, _faltan_monedas
 
@@ -50,7 +51,9 @@ def _icono(clave: str) -> str:
 def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
     """El departamento como lo pinta la pantalla. Una pieza que ya no está en el catálogo no se lista."""
     usuario, guild = jugador.usuario_id, jugador.guild_id
+    ahora = db.ahora_utc()
     saldos = economia.saldos(usuario, guild)
+    vivos = db.plantel_al_dia(usuario, guild, ahora)
     puestos, guardados = [], []
     for pieza in depto.puestas:
         mueble = dep.MUEBLES.get(pieza.clave)
@@ -60,6 +63,7 @@ def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
             "id": pieza.id, "clave": mueble.clave, "nombre": mueble.nombre,
             "icono": _icono(mueble.clave), "x": pieza.x, "y": pieza.y, "giro": pieza.giro,
             "capa": mueble.capa, "cama": mueble.cama,
+            "ancho": mueble.ancho, "fondo": mueble.fondo,
             "casillas": [list(c) for c in sorted(dep.huella(mueble, pieza.x, pieza.y, pieza.giro))],
         })
     for pieza in depto.guardadas:
@@ -74,7 +78,8 @@ def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
     return {
         "ancho": depto.ancho, "fondo": depto.fondo, "casillas": depto.casillas,
         "comodidad": depto.comodidad, "tope": dep.tope_de_comodidad(depto.casillas),
-        "camas": depto.camas_puestas, "gachamones": len(db.plantel(usuario, guild)),
+        "camas": depto.camas_puestas, "gachamones": len(vivos),
+        "plantel": [{**estado.ficha(c, ahora), "activo": c.activa} for c in vivos],
         "cabe_otro": db.hay_cama_libre(usuario, guild),
         "ampliar": {
             dep.ANCHO: dep.coste_de_ampliar(depto, dep.ANCHO),
@@ -153,6 +158,21 @@ def guardar_un_mueble(
     ahora = db.ahora_utc()
     hecho = economia.guardar_mueble(jugador.usuario_id, jugador.guild_id, mueble_id, ahora)
     return _respuesta(jugador, ahora, _del_cambio(hecho, None), hecho.departamento)
+
+
+@router.post("/departamento/salir", dependencies=[Depends(con_cabecera)])
+def salir_con_otro(
+    cuerpo: Any = Body(default=None),
+    jugador: Jugador = Depends(jugador_actual),
+) -> dict:
+    gachamon_id = _cuerpo(cuerpo).get("gachamon_id")
+    if not es_un_id(gachamon_id):
+        raise no_se_entiende()
+    en_el_departamento(jugador)
+    ahora = db.ahora_utc()
+    hecho = economia.cambiar_de_activo(jugador.usuario_id, jugador.guild_id, gachamon_id, ahora)
+    depto = db.departamento_leido(jugador.usuario_id, jugador.guild_id)
+    return _respuesta(jugador, ahora, dicho_de_salir(hecho), depto)
 
 
 @router.post("/departamento/ampliar", dependencies=[Depends(con_cabecera)])

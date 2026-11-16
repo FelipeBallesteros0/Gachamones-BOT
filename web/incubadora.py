@@ -24,12 +24,10 @@ import especies as esp
 import simulacion as sim
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
+from web.salir import dicho_de_salir
 from web.sesion import con_cabecera, es_un_id, problema
 
 router = APIRouter()
-
-_NO_ESTA = "Ese gachamon ya no está."
-
 
 def en_la_incubadora(jugador: Jugador) -> None:
     """Para sacar a otro hay que estar en la incubadora: lo dice el lugar guardado de la cuenta.
@@ -79,21 +77,6 @@ def ver_la_incubadora(jugador: Jugador = Depends(jugador_actual)) -> dict:
     return el_plantel(jugador, db.ahora_utc())
 
 
-def _dicho(hecho: economia.ResultadoCambio) -> dict:
-    if hecho.ok:
-        return {"ok": True, "clave": None, "mensaje": f"Ahora sales con {hecho.criatura.nombre}."}
-    if hecho.motivo == "ya_es_el_activo":
-        # Lo que ya está como se pidió es un sí: un toque doble no enseña un error.
-        return {
-            "ok": True, "clave": None,
-            "mensaje": f"{hecho.criatura.nombre} ya es tu gachamon activo.",
-        }
-    if hecho.motivo == "no_esta":
-        return {"ok": False, "clave": "no_esta", "mensaje": _NO_ESTA}
-    # Un motivo que no conocemos es un fallo nuestro y no se disfraza.
-    raise RuntimeError(f"sacar sin frase: {hecho.motivo!r}")
-
-
 @router.post("/incubadora/sacar", dependencies=[Depends(con_cabecera)])
 def sacar(
     cuerpo: Any = Body(default=None),
@@ -109,7 +92,7 @@ def sacar(
     ahora = db.ahora_utc()
     hecho = economia.cambiar_de_activo(jugador.usuario_id, jugador.guild_id, gachamon_id, ahora)
     return {
-        **_dicho(hecho),
+        **dicho_de_salir(hecho),
         "incubadora": el_plantel(jugador, ahora),
         "estado": estado.armar(jugador, ahora),
     }
