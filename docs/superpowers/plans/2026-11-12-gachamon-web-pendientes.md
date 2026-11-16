@@ -904,10 +904,7 @@ Son observaciones, no decisiones.
   - Al ver el plan terminado: **ampliar pregunta antes de cobrar**, como la
     Tienda («¿Ampliar por 45 monedas?», con «Ampliar» y «No», y el coste que
     manda el servidor). Salga como salga, tras «Ampliar» la pregunta se cierra;
-    «No», Escape y «Volver» también la cierran, y sólo hay una abierta. Si
-    llega una pieza que mide o cuesta otra cosa, se cierra sola, para no cobrar
-    algo distinto de lo que se ve; mientras mida y cueste lo mismo, una
-    relectura no la toca ni le vuelve a dar el foco.
+    «No», Escape y «Volver» también la cierran, y sólo hay una abierta.
   - **Sin camino no se va**: si los muebles cierran el paso hasta la casilla
     tocada, tu avatar se queda donde está, sin decir nada; al mover a un
     gachamon sólo se marcan las casillas a las que tiene camino, y tocar una
@@ -929,6 +926,13 @@ Son observaciones, no decisiones.
     cabe en ningún sitio no entra en la mano («Ahí no cabe.») y todo queda como
     estaba. «Toca la casilla donde lo quieres.» se queda mientras haya algo en
     la mano.
+  - La pregunta de ampliar sale debajo del botón de su lado, que sigue a la
+    vista con lo que se compra y lo que cuesta (en un 3 × 3 los dos lados
+    cuestan lo mismo) y dice si está abierta; tocarlo otra vez la cierra, así
+    que un doble clic sobre un lado abre y cierra y no confirma. Si llega una
+    pieza que mide o cuesta otra cosa, la pregunta se cierra sola, para no
+    cobrar algo distinto de lo que se ve; mientras mida y cueste lo mismo, una
+    relectura no la toca ni le vuelve a dar el foco.
   - Los rótulos («Guardados · toca uno y después una casilla», «Ampliar el
     departamento», «A todos») se ven en mayúsculas por estilo, como los demás
     subtítulos. «A todos» enseña una línea por medalla ganada; si varios ganan
