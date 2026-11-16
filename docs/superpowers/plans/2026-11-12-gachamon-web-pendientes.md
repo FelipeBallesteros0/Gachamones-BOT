@@ -743,7 +743,8 @@ Son observaciones, no decisiones.
   refugio le vuelve en 40 monedas (también el que acaba de llegar del buzón);
   cada casa le vuelve al precio de catálogo de la casa que es ese día (una
   mejorada vuelve como lo que es ahora), y a la mediana y a la grande se les
-  suman 140 monedas más (ver «Lo decidido» de abajo); se le crea su departamento del primer
+  suman 140 monedas más (lo decidió el dueño: ver «Lo decidido» del rework 5, más
+  abajo en este documento); se le crea su departamento del primer
   tamaño de la serie en que quepan sus camas, con una cama puesta por cada
   gachamon vivo más la suya; a quien no tiene ninguno vivo, su cama puesta y
   otra guardada; sus muebles de antes pasan a guardados; y se le deja su
@@ -830,13 +831,12 @@ Son observaciones, no decisiones.
     que caben en la Incubadora.
   - Vincular después de haber amueblado deja atrás el departamento de la
     identidad web. Hoy apenas pesa; cuando se empiece amueblando, pesará.
-- **El departamento en pantalla** (hecho en el rework 5, abajo): no había pantalla; las rutas están
-  (`/departamento`, poner, guardar, ampliar) y la carta también. Cambiar de
-  activo se sigue haciendo en el lugar «Incubadora», que dice cuántos caben por
-  las camas.
-  - La Tienda ya vende muebles y camas que no se pueden poner hasta que exista
-    la pantalla. Ese plan no se cierra sin ella: publicarlo antes iría contra
-    «lo que todavía no se puede usar en la página no se le vende a nadie».
+- ~~**El departamento en pantalla**: no hay pantalla todavía; las rutas están
+  (`/departamento`, poner, guardar, ampliar) y la carta también.~~ Hecho en el
+  rework 5 (ver «Salió al ejecutar el rework 5», más abajo): la pantalla existe
+  y la Tienda ya no vende lo que no se podía poner. Cambiar de activo se hace
+  ahora también desde el departamento; la Incubadora sigue sirviendo para lo
+  mismo hasta el plan del pueblo, y dice cuántos caben por las camas.
 - **El pueblo**: el lugar «Refugio» sigue en el mapa, cerrado y con su aviso, y
   «Tu casa» todavía no se llama «Tu departamento».
   - La Incubadora dice «Caben 1 gachamones.» cuando cabe uno (antes siempre
@@ -949,6 +949,8 @@ Son observaciones, no decisiones.
     pueden pasar a otro formato sin tocar los originales. Los 57 rellenos de hoy
     pesan menos de 1 MB en total; avisar al dueño si el arte del repo se acerca
     a lo que aguanta la tarjeta de la Pi.
+- Si la primera carga de la pantalla falla, dice lo que ya dicen la Tienda y la
+  mochila (el mensaje de siempre y «Volver a intentarlo»).
 - **Caminar** (el avatar y los gachamones) sólo se ha visto en el arnés, con el
   reloj de cuadros sustituido: falta mirarlo en un navegador de verdad.
 - En la pieza, el gachamon no se da vuelta ni titubea al caminar. Cuando la

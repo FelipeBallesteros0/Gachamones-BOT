@@ -278,8 +278,8 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
   un mueble o fuera de la pieza aparece en la casilla libre más cercana; si no
   queda ninguna casilla que se pueda pisar, no se dibuja a nadie y se les sigue
   eligiendo desde la lista **[propuesta]**.
-- Del que eliges queda abajo su ficha completa, y el globo de lo que dice sale
-  sólo sobre el que sale contigo **[propuesta]**.
+- Del que eliges queda abajo su ficha completa **[Felipe, 2026-11-16]**, y el
+  globo de lo que dice sale sólo sobre el que sale contigo **[propuesta]**.
 - Vale en el teléfono y en el computador, con el corte de 900 px de hoy.
 - **Todo lo que se hace tocando el dibujo se puede hacer también sin él**
   (teclado y lector de pantalla): una lista de lo puesto y de lo guardado con
@@ -390,7 +390,7 @@ riesgo del día del cambio.
 - **Lo que la mochila ya no deja usar**: las pociones de fuerza y de velocidad
   y las sopaipillas, que sólo sirven en las competencias, no se usan ni se
   gastan desde ella y dicen lo mismo que la Tienda; la poción de descanso
-  rápido, que sólo sirve para volver a competir, queda igual **[propuesta,
+  rápido, que sólo sirve para volver a competir, también **[propuesta,
   aceptada]**. La semilla, su nota en la mochila y los porotos dicen que el
   huerto vuelve más adelante **[Felipe, 2026-11-16]**.
 - El cuidado de aseo se llama **«Bañar»** en todas partes **[Felipe,

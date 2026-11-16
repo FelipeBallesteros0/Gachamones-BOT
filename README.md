@@ -145,23 +145,23 @@ con el mismo dinero de siempre; lo que todavía no se puede usar en la página n
 se le vende a nadie. La mochila se abre desde cualquier lugar y sirve para usar
 lo que llevas, menos lo que sólo sirve para competir (las pociones de fuerza, de
 velocidad y de descanso rápido y las sopaipillas), que dice lo mismo que la
-Tienda y no se gasta.
+Tienda y no se gasta. Desde cualquier lugar también se abre la ficha completa
+de tu gachamon, con sus medallas y los efectos que lleva activos, y el ropero,
+donde le pones y le quitas el sombrero y el título. La Incubadora enseña tu
+plantel: ahí sacas a otro gachamon para que sea el activo, y dice cuántos caben
+según las camas.
 
 **Tu casa** es la pieza de tu departamento, en vista isométrica y por casillas,
 con tus muebles y todos tus gachamones. Tocas un mueble y salen sus opciones
-(Mover, Girar, Guardar); tocas el suelo y tu avatar camina hasta ahí; en
-«Guardados» están los muebles que tienes sin poner, y «Ampliar» suma una fila o
+(Mover, Girar si se puede —lo que cuelga de la pared no gira— y Guardar);
+tocas el suelo y tu avatar camina hasta ahí; en «Guardados» están los muebles que tienes sin poner, y «Ampliar» suma una fila o
 una columna hasta 8 × 8. Tocas a un gachamon y abajo queda su ficha, con sus
 cuidados y «Salir con él»; «A todos» le hace un cuidado a cada uno de una vez.
 Bajo la pieza se ve el tamaño, las casillas ocupadas, las camas, los gachamones
 y la comodidad. Todo lo que se hace sobre el dibujo se puede hacer también desde
 una lista con botones, pensada para el teclado y el lector de pantalla. El
 ropero y la mochila siguen siendo del gachamon que sale contigo. Dónde está
-parado cada uno no se guarda: sólo los muebles. Desde cualquier lugar también se abre la ficha completa de tu
-gachamon, con sus medallas y los efectos que lleva activos, y el ropero, donde
-le pones y le quitas el sombrero y el título. La Incubadora enseña tu plantel:
-ahí sacas a otro gachamon para que sea el activo, y dice cuántos caben según las
-camas.
+parado cada uno no se guarda: sólo los muebles.
 
 En local:
 
