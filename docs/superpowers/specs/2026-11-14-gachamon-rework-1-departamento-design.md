@@ -71,6 +71,10 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
 - Que decorar tenga «modos» o pasos de más. Felipe probó un boceto con un modo
   «Decorar» y lo encontró complicado: se toca el mueble y ahí salen sus
   opciones **[Felipe]**.
+  **[Felipe, 2026-11-16]** Después decidió añadir un modo construcción para
+  mover muebles, puertas y ventanas: así, fuera de él, un toque sobre un mueble
+  hace su acción y no hay choques como el de la puerta, que al tocarla se podía
+  mover o salir. Ese modo tendrá su propio plan.
 - Que haya un tope de camas o de gachamones que no salga de las casillas: «la
   limitación va por las casillas solamente» **[Felipe]**.
 - Que alguien pierda gachamones, muebles o monedas con el cambio.

@@ -1017,6 +1017,73 @@ Son observaciones, no decisiones.
   paredes y en 3 × 3 y 8 × 8; salir de la pantalla con un POST en curso; varias
   de la lista.
 
+## Salió al ejecutar el rework 5b (la puerta)
+
+### Lo decidido
+
+- **Lo que decidió el dueño:**
+  - La puerta se pidió al probar la pantalla: va en la pared, como las ventanas
+    y los cuadros; se puede mover; no se guarda. Es una casilla más, fuera del
+    departamento, y es donde apareces al entrar, como en Habbo.
+  - La casilla de dentro que queda frente a la puerta se puede tapar con un
+    mueble: entonces apareces en la puerta y no pasas hasta moverlo.
+  - La casilla de la puerta sólo la pisas tú: los gachamones no.
+  - La puerta también sirve para salir al pueblo, además del botón «Pueblo», y
+    se sale desde su menú («Mover» y «Salir»).
+  - Las frases: `Puerta`, `🚪 Salir` y `Salir`, `La puerta no se guarda.`,
+    `No hay camino hasta la puerta.`
+  - Nace en la pared izquierda, en el tramo de más adelante (el día del cambio,
+    en el primer tramo con la entrada libre de lo que dejó el alcalde); no suma
+    comodidad, no se vende y no aparece en «Guardados»; si no hay camino al
+    salir, no se sale y se dice.
+  - Un «Ampliar» que llega como segundo clic de un doble clic no cobra.
+- **Lo que se decidió al construir** (se puede cambiar):
+  - La puerta es un mueble más del catálogo, de pared y de un tramo, con su
+    marca propia; el cliente la reconoce por esa marca que manda el servidor,
+    nunca por su clave.
+  - Quien está en la casilla de la puerta se pinta en su umbral (un poco por
+    detrás de la línea de la pared), para que se le vea de pie en el vano.
+  - Si estabas en la puerta y la mueves, sigues en ella en su sitio nuevo; si
+    estabas dentro, no te mueves.
+  - La puerta no lleva ícono: no se vende ni se guarda, y ninguna pantalla lo
+    pide.
+  - El arreglo de «Ampliar» ignora el clic de confirmar que llega como segundo
+    (o tercero…) de una ráfaga en el mismo sitio; un clic normal y el teclado
+    confirman como siempre. Sólo en la pregunta de ampliar.
+  - Tocar otra cosa mientras caminas a la puerta cancela la salida: tocar la
+    pieza, tomar algo en la mano o mandar cualquier petición. Elegir a un
+    gachamon desde la lista no (tocarlo en el dibujo, sí): diferencia pequeña,
+    anotada.
+
+### Lo que sigue (decidido por el dueño, sin plan ni construir)
+
+- **Un modo construcción** para mover muebles, puertas y ventanas, de forma que
+  fuera de él un toque sobre un mueble haga su acción (hoy sólo la puerta tiene
+  una: salir). Decidido por el dueño el 2026-11-16; tendrá su propio plan y
+  cambia la regla del diseño que decía que decorar no tiene modos.
+
+### Pendiente
+
+- **Con la entrada tapada por un mueble alto, la puerta no se puede tocar en el
+  dibujo**, y tu avatar, que está en su umbral, queda tapado por ese mueble. Es
+  consecuencia de dos cosas aprobadas: que la entrada se puede tapar, y que en el
+  dibujo los muebles se tocan antes que la pared (su silueta de toque es tan alta
+  como la pared). Se deshace tocando el mueble que estorba y moviéndolo; mientras
+  tanto se sale con el botón «Pueblo» o con «Salir» desde la lista. Queda por
+  resolver, con el modo construcción.
+- Un departamento hecho antes de este plan no tiene puerta. En producción no hay
+  ninguno: todos nacen el día del cambio o después, ya con ella. La pantalla
+  funciona también sin puerta (se entra como antes y no hay «Salir»).
+- El dibujo de la puerta es de relleno (un marco con un hueco oscuro y la palabra
+  PUERTA).
+- Los gachamones no usan la puerta. Visitar el departamento de otra persona y
+  entrar por su puerta es del proyecto de la gente en vivo.
+- La Tienda usa la misma pieza de pregunta que «Ampliar» y tiene el mismo riesgo
+  teórico del doble clic que cae en confirmar; allí no se tocó.
+- Buscar el tramo para la puerta da un error claro si todas las paredes tuvieran
+  algo colgado; con las reglas de hoy no puede pasar el día del cambio (sólo hay
+  camas).
+
 ## Para el plan 6 (tu casa)
 
 > El rediseño del 2026-11-14 cambió el rumbo: lo que sigue se replantea en docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md.

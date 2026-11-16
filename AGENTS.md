@@ -101,6 +101,8 @@ Instala el hook local cuando prepares el entorno:
 - Cada persona tiene un solo departamento por servidor: parte en 3 × 3 y se amplía por filas o columnas hasta 8 × 8.
 - El servidor manda sobre qué mueble hay en qué casilla; el catálogo y sus formas viven en `departamento.py`, que es puro.
 - Dónde está parado cada gachamon y tu avatar no se guarda ni se manda al servidor: sólo se guardan los muebles.
+- Cada departamento tiene exactamente una puerta, siempre puesta: nace con él (`dep.DE_PARTIDA` y el día del cambio), no se vende (`dep.a_la_venta()`) ni se guarda (`economia.guardar_mueble` la rechaza), y se mueve como lo de pared.
+- La casilla de la puerta queda fuera de la pieza y sólo la pisa tu avatar; el cliente reconoce la puerta por la marca `puerta` que manda el servidor, nunca por su clave.
 - Tener un mueble no es tenerlo puesto; guardar nunca destruye, y se puede tener más de uno de cada.
 - Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Mientras exista el huevo, el gachamon que nace de él no la pide.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.

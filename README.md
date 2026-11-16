@@ -161,7 +161,9 @@ Bajo la pieza se ve el tamaño, las casillas ocupadas, las camas, los gachamones
 y la comodidad. Todo lo que se hace sobre el dibujo se puede hacer también desde
 una lista con botones, pensada para el teclado y el lector de pantalla. El
 ropero y la mochila siguen siendo del gachamon que sale contigo. Dónde está
-parado cada uno no se guarda: sólo los muebles.
+parado cada uno no se guarda: sólo los muebles. Al entrar apareces en la puerta
+de tu departamento, que se puede mover de pared como lo que cuelga de ellas, y
+por ella también se sale al pueblo, desde su menú.
 
 En local:
 
