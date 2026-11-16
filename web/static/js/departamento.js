@@ -28,7 +28,9 @@
 // ficha» y «Salir con …», y «A todos». Cuidarlo y acariciarlo se mandan con su
 // id, y se avisa como en el lugar (`cuidados.js`); «A todos» vuelve a leer la
 // pieza, y «Salir con …» la trae. El que sale contigo lleva su marca, y su
-// globo sale sobre él, como en el lugar.
+// globo sale sobre él, como en el lugar. Lo que flota sobre la pieza (el
+// globo, los corazones, la ganancia, la evolución y las medallas) lo arma
+// `flotantes.js`.
 //
 // El servidor manda: la pieza se pinta como llega, y lo que se calcula aquí
 // (por dónde se camina, qué se tocó, qué cabe dónde) sirve sólo para dibujar y
@@ -52,15 +54,15 @@ import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import {
   camino, dondeCabe, giroParaPoner, libreMasCercana, lineaDeEstado, noSePisan, pasoSuelto, sitiosDeEntrada,
 } from './casillas.js';
-import { avisoDeLaEvolucion, avisoDeMedalla, trasAcariciar, trasCuidar } from './cuidados.js';
+import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
+import { loQueFlota } from './flotantes.js';
 import { ofreceElDepartamento, siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
 import {
   cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, tramoEn,
 } from './proyeccion.js';
-import { elegirGlobo } from './tiempo.js';
 
 const VISTA = 'departamento';
 const PEDIR_CADA_MS = 30_000;
@@ -73,18 +75,6 @@ const UN_PASEO_CADA_MS = [4_000, 9_000];
 // El salto de un gachamon al que se cuida: lo que dura y lo que sube, en anchos de casilla.
 const UN_SALTO_DURA_S = 0.45;
 const ALTURA_DEL_SALTO = 0.22;
-// El globo, los corazones, la ganancia, la evolución y las medallas duran lo
-// que en el lugar.
-const PRIMER_GLOBO_MS = 2500;
-const GLOBO_CADA_MS = [20_000, 40_000];
-const GLOBO_DURA_MS = 7000;
-const CORAZONES = 6;
-const CORAZON_DURA_MS = 1600;
-const GANANCIA_DURA_MS = 2400;
-const CELEBRACION_DURA_MS = 4500;
-const MEDALLA_DURA_MS = 6000;
-// Lo que el globo deja hasta la cabeza del que habla.
-const SOBRE_LA_CABEZA = 12;
 // Las cuatro posiciones de un mueble.
 const GIROS = 4;
 // Lo de pared va en las paredes; lo demás, en el suelo.
@@ -187,19 +177,25 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
   // --- la cabecera, la pieza, lo que se dice y lo de la derecha --------------------------
 
   const { cabecera, titulo, ponerSaldos } = cabeceraConSaldos('📍', estado.lugar.nombre);
-  // «+1 moneda»: asoma un momento bajo el saldo, como en el lugar.
-  const ganancia = el('span', { class: 'ganancia', role: 'status' });
-  const saldoDeMonedas = cabecera.querySelector('.saldo');
-  if (saldoDeMonedas) saldoDeMonedas.append(ganancia);
 
   const lienzo = el('canvas', { class: 'pieza-lienzo', 'aria-hidden': 'true' });
-  // El menú de lo elegido va encima del lienzo, junto a él; el globo, sobre el
-  // que sale contigo; la evolución arriba y las medallas abajo, como en el lugar.
+  // El menú de lo elegido va encima del lienzo, junto a él; encima, lo que
+  // flota: el globo, sobre el que sale contigo, y la evolución y las medallas.
+  // La ganancia asoma bajo el saldo.
   const menu = el('div', { class: 'menu-de-la-pieza', role: 'group', hidden: true });
-  const globo = el('p', { class: 'globo', 'aria-live': 'polite' });
-  const celebracion = el('div', { class: 'celebracion', role: 'status' });
-  const medallas = el('div', { class: 'medallas', role: 'status' });
-  const escenario = el('div', { class: 'pieza-escenario' }, lienzo, menu, globo, celebracion, medallas);
+  const escenario = el('div', { class: 'pieza-escenario' }, lienzo, menu);
+  const flota = loQueFlota({
+    escenario,
+    luego,
+    cancelar,
+    azar,
+    puedeHablar,
+    dondeHabla,
+    globos: () => actual.globos,
+  });
+  escenario.append(flota.globo, flota.celebracion, flota.medallas);
+  const saldoDeMonedas = cabecera.querySelector('.saldo');
+  if (saldoDeMonedas) saldoDeMonedas.append(flota.ganancia);
   const linea = el('p', { class: 'pieza-linea' });
   const bandeja = el('div', { class: 'bandeja', id: 'departamento-bandeja', hidden: true });
   // Mientras no llega, en su lugar se lee la espera (o por qué no llegó).
@@ -290,8 +286,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     }
     actual = nuevo;
     ponerSaldos(nuevo.saldos);
-    const globos = Array.isArray(nuevo.globos) ? nuevo.globos : [];
-    if (globo.classList.contains('visible') && !globos.some((g) => g.texto === globo.textContent)) callarGlobo();
+    flota.callarSiYaNoPasa(Array.isArray(nuevo.globos) ? nuevo.globos : []);
     return true;
   }
 
@@ -457,7 +452,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     pintarElPanel();
     if (listo && medirLienzo()) dibujar();
     ponerMenu();
-    colocarElGlobo();
+    flota.colocarElGlobo();
     ponerBandeja();
     ponerAmpliar();
     return Promise.all([traerArte(rutasDeLaPieza(nuevo)), traerRetratos()]);
@@ -592,7 +587,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     dibujar();
     // Lo que flota sobre un gachamon lo sigue.
     if (elegidoG !== null) ponerMenu();
-    colocarElGlobo();
+    flota.colocarElGlobo();
     if (seMueve()) {
       pedirCuadro();
     } else {
@@ -732,7 +727,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
       visto = id;
       pintarElPanel();
       const sale = elQueSale();
-      if (sale && sale.id === id && globo.classList.contains('visible')) callarGlobo();
+      if (sale && sale.id === id && flota.hablando()) flota.callarGlobo();
     }
     verLoElegido();
   }
@@ -1153,9 +1148,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
       const recibido = { ...respuesta, estado: { gachamon: respuesta.gachamon || null } };
       trasCuidar(recibido, etapaAntes, {
         saltar: () => saltar(gachamonId),
-        ganar,
-        celebrar: () => { if (respuesta.gachamon) celebrar(respuesta.gachamon); },
-        medalla,
+        ganar: flota.ganar,
+        celebrar: () => { if (respuesta.gachamon) flota.celebrar(respuesta.gachamon); },
+        medalla: flota.medalla,
         avisar: (frase) => decir(frase),
       });
     });
@@ -1191,9 +1186,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     ), (respuesta) => {
       trasCuidar({ ...respuesta, estado: null }, null, {
         saltar: () => { for (const id of respuesta.tocados || []) saltar(id); },
-        ganar,
+        ganar: flota.ganar,
         celebrar: () => {},
-        medalla,
+        medalla: flota.medalla,
         avisar: (frase) => decir(frase),
       });
       releer({ trasUnaAccion: true });
@@ -1215,108 +1210,28 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     seguir(actual, { vista: 'ficha', gachamonId: g.id });
   }
 
-  // --- lo que se ve cuando se le hace algo -------------------------------------------------
-
-  // Vuelve a lanzar una animación de CSS aunque ya estuviera puesta.
-  function animar(nodo, clase) {
-    nodo.classList.remove(clase);
-    void nodo.offsetWidth;
-    nodo.classList.add(clase);
-  }
-
-  let gananciaHasta = null;
-
-  function ganar(monedas) {
-    cancelar(gananciaHasta);
-    ganancia.textContent = `+${MONEDAS.cuantas(monedas)}`;
-    animar(ganancia, 'visible');
-    gananciaHasta = luego(GANANCIA_DURA_MS, () => {
-      ganancia.classList.remove('visible');
-      ganancia.textContent = '';
-    });
-  }
-
-  let celebracionHasta = null;
-
-  function celebrar(g) {
-    callarGlobo();
-    cancelar(celebracionHasta);
-    celebracion.replaceChildren(avisoDeLaEvolucion(g));
-    celebracionHasta = luego(CELEBRACION_DURA_MS, () => celebracion.replaceChildren());
-  }
-
-  // Una medalla nueva: su aviso se queda un rato y se va solo.
-  function medalla(texto) {
-    const nodo = avisoDeMedalla(texto);
-    medallas.append(nodo);
-    luego(MEDALLA_DURA_MS, () => nodo.remove());
-  }
+  // --- lo que flota sobre la pieza --------------------------------------------------------
 
   // Los corazones salen de la cabeza del que se acarició y suben.
   function corazonesSobre(id) {
     const quien = enPieza.get(id);
     if (!quien || !m) return;
-    const caja = cajaDelGachamon(m, quien.i, quien.j);
-    for (let n = 0; n < CORAZONES; n += 1) {
-      const corazon = lienzoDePieza('efectos/corazon.png', 32, 32);
-      const lado = Math.round(20 + azar() * 8);
-      corazon.classList.add('corazon');
-      corazon.style.width = `${lado}px`;
-      corazon.style.height = `${lado}px`;
-      corazon.style.left = `${caja.x + caja.ancho * (0.2 + azar() * 0.6) - lado / 2}px`;
-      corazon.style.top = `${caja.y + caja.alto * 0.2}px`;
-      corazon.style.animationDelay = `${n * 90}ms`;
-      escenario.append(corazon);
-      luego(CORAZON_DURA_MS + n * 90, () => corazon.remove());
-    }
+    flota.corazones(cajaDelGachamon(m, quien.i, quien.j));
   }
 
-  // --- el globo ------------------------------------------------------------------------------
-
-  let anterior = null;
-  let globoHasta = null;
-
-  // Cada 20 a 40 segundos el que sale contigo dice algo de `estado.globos`,
-  // si está en la pieza, no se está celebrando nada y no tiene su menú encima.
-  function hablar() {
-    luego(GLOBO_CADA_MS[0] + azar() * (GLOBO_CADA_MS[1] - GLOBO_CADA_MS[0]), hablar);
+  // El que sale contigo habla si está en la pieza y no tiene su menú encima.
+  function puedeHablar() {
     const sale = elQueSale();
-    if (document.hidden || celebracion.hasChildNodes() || !sale || !enPieza.has(sale.id) || elegidoG === sale.id) return;
-    const dicho = elegirGlobo(actual.globos, anterior, azar);
-    if (!dicho) return;
-    anterior = dicho.texto;
-    cancelar(globoHasta);
-    globo.textContent = dicho.texto;
-    globo.classList.add('visible');
-    colocarElGlobo();
-    globoHasta = luego(GLOBO_DURA_MS, callarGlobo);
+    return Boolean(sale) && enPieza.has(sale.id) && elegidoG !== sale.id;
   }
 
-  // El texto se va un poco después que el globo, para que no se vea vacío
-  // mientras se desvanece; y vacío, el lector de pantalla no lo vuelve a leer.
-  function callarGlobo() {
-    cancelar(globoHasta);
-    globo.classList.remove('visible');
-    globoHasta = luego(250, () => { globo.textContent = ''; });
-  }
-
-  // Sobre la cabeza del que sale contigo, y nunca fuera de la pieza. Si ya no
-  // está en la pieza, se calla.
-  function colocarElGlobo() {
-    if (!globo.classList.contains('visible')) return;
+  // Dónde está la cabeza del que sale contigo (su caja en la pieza), lo que
+  // sube si salta y lo que mide la pieza en pantalla; `null` si no está en ella.
+  function dondeHabla() {
     const sale = elQueSale();
     const quien = sale && enPieza.get(sale.id);
-    if (!quien || !m) {
-      callarGlobo();
-      return;
-    }
-    const caja = cajaDelGachamon(m, quien.i, quien.j);
-    const lado = lienzo.getBoundingClientRect();
-    const ancho = globo.offsetWidth || 0;
-    const alto = globo.offsetHeight || 0;
-    globo.style.left = `${Math.min(Math.max(caja.x + caja.ancho / 2, ancho / 2 + MARGEN_DEL_MENU),
-      lado.width - ancho / 2 - MARGEN_DEL_MENU)}px`;
-    globo.style.top = `${Math.max(caja.y - subeDe(sale.id), alto + SOBRE_LA_CABEZA)}px`;
+    if (!quien || !m) return null;
+    return { caja: cajaDelGachamon(m, quien.i, quien.j), sube: subeDe(sale.id), lado: lienzo.getBoundingClientRect() };
   }
 
   // --- mantenerse al día -----------------------------------------------------------------
@@ -1366,7 +1281,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     // sale contigo habla de vez en cuando.
     cadaSegundo = setInterval(() => { if (sigueAqui()) panel.contar(); }, 1000);
     programarUnPaseo();
-    luego(PRIMER_GLOBO_MS, hablar);
+    flota.empezarAHablar();
 
     // Girar el teléfono o cambiar el tamaño de la ventana vuelve a medir la pieza.
     const reencuadrar = () => {

@@ -476,13 +476,15 @@ def test_las_frases_de_la_incubadora_y_del_recluta_son_las_del_plan():
 
 
 def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():
-    # Los corazones los pone cada pantalla (el lugar y tu departamento); el
-    # aviso de una medalla nueva, con su estrella, vive en `cuidados.js`.
-    lugar, depto, plantel, cuidados = (
-        _sin_comentarios(_guion(n)) for n in ("lugar.js", "departamento.js", "plantel.js", "cuidados.js"))
-    assert "efectos/corazon.png" in lugar and "efectos/corazon.png" in depto
+    # Los corazones los pone cada pantalla (el lugar, y en tu departamento lo
+    # que flota sobre la pieza); el aviso de una medalla nueva, con su
+    # estrella, vive en `cuidados.js`.
+    lugar, depto, flotantes, plantel, cuidados = (
+        _sin_comentarios(_guion(n))
+        for n in ("lugar.js", "departamento.js", "flotantes.js", "plantel.js", "cuidados.js"))
+    assert "efectos/corazon.png" in lugar and "efectos/corazon.png" in flotantes
     assert "efectos/estrella.png" in cuidados
-    for codigo in (lugar, depto, plantel, cuidados):
+    for codigo in (lugar, depto, flotantes, plantel, cuidados):
         assert "\u2764" not in codigo
     assert "efectos/estrella.png" in _sin_comentarios(_guion("ficha.js"))
 
@@ -503,7 +505,7 @@ def test_la_pieza_no_es_pixel_art_pero_el_avatar_si():
 def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
     import departamento
 
-    for nombre in ("departamento.js", "plantel.js", "pieza.js", "casillas.js", "proyeccion.js"):
+    for nombre in ("departamento.js", "flotantes.js", "plantel.js", "pieza.js", "casillas.js", "proyeccion.js"):
         codigo = _sin_comentarios(_guion(nombre))
         for clave in departamento.MUEBLES:
             assert f"'{clave}'" not in codigo and f'"{clave}"' not in codigo, (nombre, clave)
