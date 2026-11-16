@@ -12,7 +12,9 @@
 
 import { faltante, pintarPieza } from './arte.js';
 import { dibujarAvatar } from './avatar.js';
-import { cajaDelGachamon, cajaDelMueble, ordenDePintado, proyectar, rutaDelMueble } from './proyeccion.js';
+import {
+  cajaDelGachamon, cajaDelMueble, ordenDePintado, proyectar, recuadroDe, rutaDelMueble,
+} from './proyeccion.js';
 
 const SUELO = 'suelo';
 const PARED = 'pared';
@@ -32,7 +34,8 @@ const ALTO_DEL_AVATAR = 0.7;
 // La sombra de un gachamon, a lo ancho de su caja; de alto, la mitad.
 const ANCHO_DE_LA_SOMBRA = 0.6;
 
-const LIBRE = 'rgba(120, 220, 140, 0.4)';
+const LIBRE = 'rgba(70, 200, 110, 0.35)';
+const BORDE_DEL_LIBRE = 'rgba(25, 135, 60, 0.95)';
 const ELEGIDO = 'rgba(47, 111, 237, 0.3)';
 const BORDE_DEL_ELEGIDO = '#2f6fed';
 
@@ -51,11 +54,8 @@ function pintar(ctx, cargadas, ruta, caja) {
 
 // El rectángulo de casillas que cubre un mueble puesto, como lo pide `ordenDePintado`.
 function dondeEsta(puesto) {
-  const is = puesto.casillas.map(([i]) => i);
-  const js = puesto.casillas.map(([, j]) => j);
-  const i = Math.min(...is);
-  const j = Math.min(...js);
-  return { i, j, a: Math.max(...is) + 1 - i, f: Math.max(...js) + 1 - j };
+  const r = recuadroDe(puesto.casillas);
+  return { i: r.i0, j: r.j0, a: r.i1 - r.i0, f: r.j1 - r.j0 };
 }
 
 // El retrato de un gachamon en su caja, de pie sobre su sombra. Es un dibujo
@@ -146,7 +146,7 @@ export function dibujarPieza(ctx, m, escena) {
   }
   for (const cosa of ordenDePintado(cosas)) cosa.pintar();
 
-  for (const sitio of escena.libres || []) marcar(ctx, m, sitio, LIBRE, null);
+  for (const sitio of escena.libres || []) marcar(ctx, m, sitio, LIBRE, BORDE_DEL_LIBRE);
   for (const casilla of escena.elegido || []) marcar(ctx, m, casilla, ELEGIDO, BORDE_DEL_ELEGIDO);
   ctx.restore();
 }

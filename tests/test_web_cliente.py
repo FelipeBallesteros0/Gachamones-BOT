@@ -247,7 +247,7 @@ def _argumentos(codigo: str, desde: int) -> str:
 def test_el_evento_se_crea_una_vez_fuera_de_lo_que_se_reintenta():
     # Lo que impide cobrar, gastar o cuidar dos veces: los reintentos de un toque
     # llevan el mismo evento, creado antes y guardado en una constante.
-    for nombre in ("tienda.js", "mochila.js", "lugar.js"):
+    for nombre in ("tienda.js", "mochila.js", "lugar.js", "departamento.js"):
         codigo = _sin_comentarios(_guion(nombre))
         llamadas = list(re.finditer(r"\bconReintentos\(", codigo))
         assert llamadas, nombre

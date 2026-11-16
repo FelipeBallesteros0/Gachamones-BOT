@@ -54,7 +54,7 @@ export function tramoEn(m, x, y, ancho, fondo) {
 }
 
 // El rectángulo de casillas que cubre una huella: [i0, i1) × [j0, j1).
-function recuadroDe(casillas) {
+export function recuadroDe(casillas) {
   let i0 = Infinity, j0 = Infinity, i1 = -Infinity, j1 = -Infinity;
   for (const [i, j] of casillas) {
     i0 = Math.min(i0, i);
