@@ -189,6 +189,8 @@ def cama_libre(depto: Departamento, vivos: int) -> bool:
 
 
 def puede_guardarse(depto: Departamento, pieza_id: int, vivos: int) -> bool:
+    """Si guardarla no deja a nadie sin cama, sin mirar si la pieza es tuya:
+    eso lo comprueba antes quien llama, con `depto.pieza(id)`."""
     pieza = depto.pieza(pieza_id)
     es_cama_puesta = (
         pieza is not None and pieza.puesta and pieza.clave in MUEBLES and MUEBLES[pieza.clave].cama
@@ -208,10 +210,15 @@ def ritmo_de(depto: Departamento) -> sim.Ritmo:
 
 
 def coste_de_ampliar(depto: Departamento, eje: str) -> int | None:
-    """15 por casilla que suma; `None` si ese lado ya mide lo máximo."""
+    """15 por casilla que suma; `None` si ese lado ya mide lo máximo.
+
+    Un lado que no es `ANCHO` ni `FONDO` es un fallo de quien llama.
+    """
     if eje == ANCHO:
         return None if depto.ancho >= LADO_MAXIMO else PRECIO_POR_CASILLA * depto.fondo
-    return None if depto.fondo >= LADO_MAXIMO else PRECIO_POR_CASILLA * depto.ancho
+    if eje == FONDO:
+        return None if depto.fondo >= LADO_MAXIMO else PRECIO_POR_CASILLA * depto.ancho
+    raise ValueError(f"un departamento no tiene el lado «{eje}»")
 
 
 def tamano_para(camas: int) -> tuple[int, int]:

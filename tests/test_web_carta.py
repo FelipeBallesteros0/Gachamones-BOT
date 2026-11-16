@@ -50,6 +50,18 @@ def test_un_recluta_de_una_especie_que_ya_no_existe_no_lleva_linea():
     ]
 
 
+def test_varios_reclutas_llevan_una_linea_cada_uno_en_su_orden():
+    nombres = [{"especie": "pulpo", "nombre": "Brisa"}, {"especie": "ya_no_existe", "nombre": "Nube"},
+               {"especie": "pollito", "nombre": "Copo"}, {"especie": "michi", "nombre": "Ámbar"}]
+    lineas = carta.lineas_de({**TODO, "nombres": nombres})
+    assert [l for l in lineas if "ahora se llama" in l] == [
+        "Tu octopul ahora se llama Brisa. Se puso el nombre solo, y se lo puedes cambiar una vez.",
+        "Tu piollito ahora se llama Copo. Se puso el nombre solo, y se lo puedes cambiar una vez.",
+        "Tu purreon ahora se llama Ámbar. Se puso el nombre solo, y se lo puedes cambiar una vez.",
+    ]
+    assert lineas[-1].startswith("Y dos cosas más:")
+
+
 def test_la_carta_se_ve_una_vez(cliente):
     con_gachamon(cliente)
     assert cliente.get(f"{API}/carta").json() == {"carta": None} and cliente.get(f"{API}/estado").json()["carta"] is False

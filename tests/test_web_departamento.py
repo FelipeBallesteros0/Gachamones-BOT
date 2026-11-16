@@ -95,6 +95,30 @@ def test_lo_que_la_pantalla_nunca_pide_es_un_422(cliente, cuerpo):
     assert cliente.post(f"{API}/departamento/poner", json=cuerpo, headers=CABECERA).status_code == 422
 
 
+@pytest.mark.parametrize("ruta", ["poner", "guardar", "ampliar"])
+@pytest.mark.parametrize("cuerpo", [b"null", b"[1, 2]", b"5", b"{roto"], ids=["null", "lista", "numero", "json_roto"])
+def test_un_cuerpo_que_no_es_un_objeto_es_un_422_y_no_toca_nada(cliente, ruta, cuerpo):
+    con_gachamon(cliente); en_casa(cliente); con_monedas_web(cliente, 100)
+    antes = cliente.get(f"{API}/departamento").json()
+    r = cliente.post(f"{API}/departamento/{ruta}", content=cuerpo, headers={**CABECERA, "Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["detail"]["mensaje"].strip()
+    assert cliente.get(f"{API}/departamento").json() == antes
+
+
+def test_una_pieza_que_ya_no_esta_en_el_catalogo_no_se_lista(cliente):
+    con_gachamon(cliente); en_casa(cliente)
+    cuenta = db.cuenta_web(1)
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        db._departamento_en(con, cuenta.usuario_id, cuenta.guild_id, db.ahora_utc())
+        puesta = db.anadir_mueble_en(con, cuenta.usuario_id, cuenta.guild_id, "ya_no_existe", 2, 2, 0)
+        guardada = db.anadir_mueble_en(con, cuenta.usuario_id, cuenta.guild_id, "ya_no_existe")
+    d = cliente.get(f"{API}/departamento").json()
+    ids = [p["id"] for p in d["puestos"] + d["guardados"]]
+    assert puesta not in ids and guardada not in ids
+    assert [p["clave"] for p in d["puestos"] + d["guardados"]] == ["cama_sencilla", "cama_sencilla"]
+
+
 def test_guardar_sin_un_id_valido_es_un_422_y_sin_cabecera_un_403(cliente):
     con_gachamon(cliente); en_casa(cliente)
     assert cliente.post(f"{API}/departamento/guardar", json={"mueble_id": "1"}, headers=CABECERA).status_code == 422

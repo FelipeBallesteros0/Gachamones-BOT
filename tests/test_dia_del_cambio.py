@@ -6,6 +6,7 @@ con las reglas de las casas, el refugio y el huerto, que se van.
 import logging
 import random
 import sqlite3
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
@@ -128,9 +129,19 @@ def rompe(cuando):
 
 
 def en_dos_hilos(funcion):
-    """La corre dos veces a la vez; si alguna revienta, revienta aquí."""
+    """La corre dos veces a la vez; si alguna revienta, revienta aquí.
+
+    La barrera suelta a los dos hilos juntos, para que las dos llamadas se
+    solapen de verdad y no termine una antes de que empiece la otra.
+    """
+    barrera = threading.Barrier(2)
+
+    def a_la_vez():
+        barrera.wait(timeout=10)
+        return funcion()
+
     with ThreadPoolExecutor(max_workers=2) as hilos:
-        futuros = [hilos.submit(funcion) for _ in range(2)]
+        futuros = [hilos.submit(a_la_vez) for _ in range(2)]
         return [f.result() for f in futuros]
 
 
@@ -372,10 +383,23 @@ def test_si_alguien_ya_tuviera_departamento_no_se_le_suman_camas_y_no_queda_nada
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         db._departamento_en(con, "u1", "g1", T0)
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(RuntimeError):
         el_cambio()
     assert economia.saldos("u1", "g1").asciicoins == 0 and len(filas("casas_propias")) == 1
     assert len(db.departamento_leido("u1", "g1").piezas) == 2 and CAMBIO not in marcas()
+
+
+def test_si_ya_habia_departamentos_sin_la_marca_no_se_hace_nada_y_se_dice():
+    casa_de_antes("u1", "pequena"); con_monedas(0)
+    db.departamento_de("u2", "g1", T0)                 # de otra persona, que no tiene nada más
+    with pytest.raises(RuntimeError, match="no se hizo nada") as error:
+        el_cambio()
+    assert str(error.value) == (
+        "El día del cambio encontró departamentos ya creados y sin su marca: no se hizo nada. "
+        "La base no está como se esperaba; restaura la copia de antes o averigua de dónde "
+        "salieron antes de arrancar.")
+    assert len(filas("casas_propias")) == 1 and economia.saldos("u1", "g1").asciicoins == 0
+    assert CAMBIO not in marcas() and db.carta_sin_ver("u1", "g1", CAMBIO) is None
 
 
 def test_en_una_base_nueva_no_hay_a_quien_cambiar():
@@ -398,3 +422,4 @@ def test_el_arranque_apunta_las_tres_cifras_del_cambio_y_ningun_id(caplog):
     lineas = [r for r in caplog.records if r.name == "economia"]
     assert [r.args for r in lineas] == [(1, 2, 200)]
     assert "u1" not in lineas[0].getMessage()
+    assert lineas[0].levelno >= logging.WARNING        # la web no configura el registro: un info se perdería

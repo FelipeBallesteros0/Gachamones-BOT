@@ -121,10 +121,19 @@ def test_el_ritmo_ya_no_mira_casas_ni_refugio():
 
 def test_asentar_guarda_a_todos_los_vivos_a_esa_hora():
     ana, bea = nacer("Ana"), nacer("Bea", activa=False)
+    cy = nacer("Cy", activa=False)
+    with db.conectar() as con:
+        con.execute("UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?", (T0.isoformat(), cy.id))
+    muerta = db.por_id(cy.id)
+    de_otra = db.crear("u2", "g1", "pulpo", "Dana", STATS, T0)
+    con_muebles_puestos("u1", "chimenea", "biblioteca")              # su ritmo no es el de serie
     tarde = T0 + timedelta(hours=5)
+    assert dep.ritmo_de(db.departamento_leido("u1", "g1")) != sim.Ritmo()
+    esperados = {c.id: db.avanzar(c, tarde) for c in (ana, bea)}
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         asentados = db.asentar_el_plantel_en(con, "u1", "g1", tarde)
     assert {c.id for c in asentados} == {ana.id, bea.id}
     for c in (ana, bea):
-        assert db.por_id(c.id).actualizada_en == tarde and db.por_id(c.id).hambre < c.hambre
+        assert db.por_id(c.id) == esperados[c.id] and db.por_id(c.id).actualizada_en == tarde
+    assert db.por_id(cy.id) == muerta and db.por_id(de_otra.id) == de_otra

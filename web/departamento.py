@@ -20,7 +20,7 @@ import economia
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
 from web.sesion import con_cabecera, es_un_id, problema
-from web.tienda import datos_y_evento, dicho_no, dicho_si, evento_usado, no_se_entiende, _faltan_monedas
+from web.tienda import datos_y_evento, dicho_no, evento_usado, no_se_entiende, _faltan_monedas
 
 router = APIRouter()
 

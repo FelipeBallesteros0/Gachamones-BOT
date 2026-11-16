@@ -221,8 +221,11 @@ def _del_cosmetico(cosmetico: cos.Cosmetico, hecho: economia.ResultadoCosmetico)
 
 def _del_mueble(mueble: dep.Mueble, hecho: economia.ResultadoDepartamento) -> dict:
     # Comprar un mueble sólo dice que no cuando no alcanza: se tienen de a varios.
+    # Otro motivo sería un fallo nuestro y sale como error, como en el cosmético.
     if hecho.ok:
         return dicho_si(f"Compraste {mueble.nombre}. Quedó en tus guardados.")
+    if hecho.motivo != "faltan_monedas":
+        raise KeyError(hecho.motivo)
     return dicho_no(hecho.motivo, _faltan_monedas(hecho.coste - hecho.saldo))
 
 

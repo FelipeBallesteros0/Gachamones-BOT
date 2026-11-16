@@ -105,9 +105,26 @@ def test_la_pared_tiene_sus_tramos():
     assert dep.problema_al_poner(d, 1, 1, 1, 0) == dep.NO_CABE      # lo de pared no va en el suelo
     assert dep.problema_al_poner(d, 2, -1, -1, 0) == dep.NO_CABE    # la esquina no es de nadie
 
+def test_dos_tramos_no_se_salen_por_el_fondo_ni_por_la_esquina():
+    d = depto(P(1, "cortinas"))
+    assert dep.problema_al_poner(d, 1, -1, d.fondo - 2, 0) is None  # los dos últimos tramos de la columna
+    assert dep.problema_al_poner(d, 1, -1, d.fondo - 1, 0) == dep.NO_CABE
+    assert dep.problema_al_poner(d, 1, -1, -1, 0) == dep.NO_CABE
+
+@pytest.mark.parametrize("giro", [1, 2, 3])
+def test_lo_de_pared_en_la_columna_ocupa_lo_mismo_con_cualquier_giro(giro):
+    ventanal = dep.MUEBLES["ventanal"]
+    assert dep.huella(ventanal, -1, 0, giro) == dep.huella(ventanal, -1, 0, 0) == {(-1, 0), (-1, 1)}
+    d = depto(P(1, "ventanal"), P(2, "cuadro", -1, 1))
+    assert dep.problema_al_poner(d, 1, -1, 0, giro) == dep.OCUPADO   # el cuadro está en su segundo tramo
+
 def test_lo_que_no_es_tuyo_o_ya_no_existe_no_se_pone():
     assert dep.problema_al_poner(depto(), 9, 0, 0, 0) == dep.NO_ES_TUYO
     assert dep.problema_al_poner(depto(P(1, "ya_no_existe")), 1, 0, 0, 0) == dep.NO_ES_TUYO
+
+def test_una_pieza_puesta_que_ya_no_esta_en_el_catalogo_no_estorba():
+    d = depto(P(1, "ya_no_existe", 0, 0), P(2, "maceta"))
+    assert dep.problema_al_poner(d, 2, 0, 0, 0) is None
 
 def test_las_camas_puestas_son_las_que_cuentan():
     d = depto(P(1, "cama_sencilla", 0, 0), P(2, "cama", 0, 1), P(3, "cama_sencilla"))
@@ -120,6 +137,11 @@ def test_no_se_guarda_la_cama_que_deja_a_alguien_sin_la_suya():
     assert not dep.puede_guardarse(d, 1, vivos=2)
     assert dep.puede_guardarse(d, 4, vivos=2)                       # una maceta, siempre
     assert not dep.puede_guardarse(depto(P(1, "cama_sencilla", 0, 0)), 1, vivos=0)   # la tuya no
+
+def test_puede_guardarse_no_mira_de_quien_es_ni_lo_ya_guardado():
+    d = depto(P(1, "cama_sencilla", 0, 0), P(2, "cama_sencilla"))
+    assert dep.puede_guardarse(d, 9, vivos=0)                       # no existe: lo mira antes quien llama
+    assert dep.puede_guardarse(d, 2, vivos=0)                       # una cama guardada no deja a nadie sin la suya
 
 def test_la_comodidad_parte_de_80_y_cada_tipo_suma_una_vez():
     assert depto().comodidad == 80
@@ -141,6 +163,12 @@ def test_ampliar_cuesta_15_por_casilla_y_para_en_8():
     assert dep.coste_de_ampliar(depto(), dep.ANCHO) == 45 == dep.coste_de_ampliar(depto(), dep.FONDO)
     assert dep.coste_de_ampliar(dep.Departamento(4, 3), dep.FONDO) == 60
     assert dep.coste_de_ampliar(dep.Departamento(8, 3), dep.ANCHO) is None
+    assert dep.coste_de_ampliar(dep.Departamento(3, 8), dep.FONDO) is None
+
+@pytest.mark.parametrize("eje", ["alto", "", None, "ANCHO"])
+def test_ampliar_por_un_lado_que_no_existe_es_un_error(eje):
+    with pytest.raises(ValueError):
+        dep.coste_de_ampliar(depto(), eje)
 
 def test_de_3x3_a_8x8_son_825_monedas():
     d, total = dep.Departamento(), 0
@@ -152,7 +180,7 @@ def test_de_3x3_a_8x8_son_825_monedas():
 def test_el_alcalde_da_el_primer_tamano_de_la_serie_en_que_caben():
     assert [dep.tamano_para(c) for c in (1, 2, 3, 4, 6, 26, 40)] == [(3, 3), (3, 3), (4, 3), (4, 4), (5, 4), (8, 8), (8, 8)]
 
-@pytest.mark.parametrize("camas", range(1, 30))
+@pytest.mark.parametrize("camas", range(0, 33))   # hasta las 32 que caben en 8 × 8
 def test_las_camas_del_alcalde_caben_todas_y_no_se_pisan(camas):
     ancho, fondo = dep.tamano_para(camas)
     d = dep.Departamento(ancho, fondo, tuple(P(i, "cama_sencilla") for i in range(camas)))
@@ -162,6 +190,10 @@ def test_las_camas_del_alcalde_caben_todas_y_no_se_pisan(camas):
         assert dep.problema_al_poner(d, i, x, y, giro) is None
         d = dep.Departamento(ancho, fondo, tuple(replace(p, x=x, y=y, giro=giro) if p.id == i else p for p in d.piezas))
     assert d.camas_puestas == camas
+
+def test_en_8x8_no_caben_33_camas():
+    with pytest.raises(ValueError):
+        dep.acomodar_camas(8, 8, 33)
 
 def test_el_departamento_de_partida_trae_tu_cama_puesta_y_otra_guardada():
     d = dep.DE_PARTIDA

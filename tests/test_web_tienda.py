@@ -522,6 +522,12 @@ def test_un_mueble_no_pide_tener_casa(cliente, monkeypatch):
     assert [p.clave for p in guardados] == ["cama_sencilla", "felpudo"]
 
 
+def test_un_motivo_del_mueble_que_no_conocemos_no_se_disfraza():
+    hecho = economia.ResultadoDepartamento(motivo="otro_motivo", coste=30, saldo=10)
+    with pytest.raises(KeyError):
+        tienda._del_mueble(dep.MUEBLES["felpudo"], hecho)
+
+
 def test_sin_monedas_el_mueble_dice_cuantas_faltan(cliente, monkeypatch):
     en_la_tienda_con(cliente, monkeypatch, monedas=10)
     r = comprar(cliente, "mueble", "felpudo", "evento-sin-monedas")

@@ -1,5 +1,6 @@
 """Las reglas del departamento: comprar un mueble, ponerlo, guardarlo y ampliar."""
 import sqlite3
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -84,6 +85,26 @@ def test_repetir_la_compra_con_el_mismo_evento_no_cobra_ni_entrega_otra_vez():
     b = economia.comprar_mueble("u1", "g1", FELPUDO, T0, evento_id="e1")
     assert (b.ok, b.replay, b.mueble_id, b.saldo) == (True, True, a.mueble_id, 70)
     assert len(db.departamento_leido("u1", "g1").piezas) == 3
+
+
+def test_el_replay_de_la_compra_devuelve_lo_cobrado_aunque_el_catalogo_cambie(monkeypatch):
+    con_monedas(100)
+    a = economia.comprar_mueble("u1", "g1", FELPUDO, T0, evento_id="e1")
+    with db.conectar() as con:
+        assert db.accion_hecha_en(con, "e1", "u1", "g1", "mueble") == ("felpudo", {"mueble_id": a.mueble_id, "coste": 30})
+    mas_caro = replace(FELPUDO, precio=45)
+    monkeypatch.setitem(dep.MUEBLES, "felpudo", mas_caro)
+    b = economia.comprar_mueble("u1", "g1", mas_caro, T0, evento_id="e1")
+    assert (b.ok, b.replay, b.mueble_id, b.coste, b.saldo) == (True, True, a.mueble_id, 30, 70)
+
+
+def test_un_evento_anotado_sin_lo_cobrado_sigue_valiendo():
+    con_monedas(100)
+    viejo = guardado("u1", "felpudo")
+    with db.conectar() as con:      # como se anotaba antes: sólo el mueble
+        db.anotar_accion_en(con, "e1", "u1", "g1", "mueble", "felpudo", {"mueble_id": viejo}, T0)
+    b = economia.comprar_mueble("u1", "g1", FELPUDO, T0, evento_id="e1")
+    assert (b.ok, b.replay, b.mueble_id, b.coste, b.saldo) == (True, True, viejo, 30, 100)
 
 
 def test_el_mismo_evento_para_otro_mueble_es_un_error():
@@ -195,6 +216,14 @@ def test_ampliar_sin_monedas_o_ya_en_8_no_cambia_nada():
     assert economia.saldos("u1", "g1").asciicoins == 9999 - 5 * 45
 
 
+def test_el_mismo_evento_para_ampliar_por_el_otro_lado_es_un_error():
+    con_monedas(200)
+    economia.ampliar_departamento("u1", "g1", dep.ANCHO, T0, evento_id="e1")
+    with pytest.raises(RuntimeError):
+        economia.ampliar_departamento("u1", "g1", dep.FONDO, T0, evento_id="e1")
+    assert economia.saldos("u1", "g1").asciicoins == 155 and db.departamento_leido("u1", "g1").fondo == 3
+
+
 def test_ampliar_por_un_lado_que_no_existe_es_un_error():
     con_monedas(200)
     with pytest.raises(ValueError):
@@ -219,6 +248,32 @@ def test_poner_un_mueble_no_cambia_el_animo_del_tiempo_ya_pasado():
     tarde = T0 + timedelta(hours=10)
     esperado = sim.avanzar(c, tarde, dep.ritmo_de(db.departamento_leido("u1", "g1")))   # con la comodidad de antes
     economia.poner_mueble("u1", "g1", chimenea, 1, 1, 0, tarde)
+    ahora_es = db.por_id(c.id)
+    assert ahora_es.actualizada_en == tarde and ahora_es.animo == pytest.approx(esperado.animo)
+
+
+def test_guardar_un_mueble_no_cambia_el_animo_del_tiempo_ya_pasado():
+    c = nacer("Ana")
+    chimenea = puesto("u1", "chimenea", 0, 1)
+    antes = db.departamento_leido("u1", "g1")
+    tarde = T0 + timedelta(hours=10)
+    esperado = sim.avanzar(c, tarde, dep.ritmo_de(antes))                 # con la comodidad de antes, la alta
+    assert economia.guardar_mueble("u1", "g1", chimenea, tarde).ok
+    assert db.departamento_leido("u1", "g1").comodidad < antes.comodidad
+    ahora_es = db.por_id(c.id)
+    assert ahora_es.actualizada_en == tarde and ahora_es.animo == pytest.approx(esperado.animo)
+
+
+def test_ampliar_no_cambia_el_animo_del_tiempo_ya_pasado():
+    c = nacer("Ana"); con_monedas(100)
+    for clave, x, y in (("chimenea", 0, 1), ("biblioteca", 0, 2), ("calefactor", 2, 0), ("ventanal", 0, -1)):
+        puesto("u1", clave, x, y)
+    antes = db.departamento_leido("u1", "g1")
+    assert antes.comodidad == dep.tope_de_comodidad(9) == 100                # 80 + 2 + 6 + 7 + 7 + 7 = 109, topada
+    tarde = T0 + timedelta(hours=10)
+    esperado = sim.avanzar(c, tarde, dep.ritmo_de(antes))                 # con el tope de antes
+    assert economia.ampliar_departamento("u1", "g1", dep.ANCHO, tarde, evento_id="e1").ok
+    assert db.departamento_leido("u1", "g1").comodidad == 102
     ahora_es = db.por_id(c.id)
     assert ahora_es.actualizada_en == tarde and ahora_es.animo == pytest.approx(esperado.animo)
 

@@ -328,6 +328,10 @@ def el_dia_del_cambio(
     muebles y le escribe la carta del alcalde (`_mudar_a`). Y a todos los
     gachamones vivos el reloj les parte de `ahora`: a nadie se le cobra el
     tiempo que pasó desde la última vez que se guardó.
+
+    Si ya hay departamentos y la marca no estaba, la base no es la que se
+    espera: no hace nada, marca incluida, y lo dice con un `RuntimeError` para
+    quien publica, que detiene el arranque.
     """
     rng = rng or random.Random()
     personas = camas = monedas = 0
@@ -335,6 +339,13 @@ def el_dia_del_cambio(
         con.execute("BEGIN IMMEDIATE")
         if not db._una_sola_vez(con, CAMBIO_DE_LA_VIVIENDA, ahora):
             return ResumenDelCambio()
+        if con.execute("SELECT 1 FROM departamentos LIMIT 1").fetchone():
+            raise RuntimeError(
+                "El día del cambio encontró departamentos ya creados y sin su "
+                "marca: no se hizo nada. La base no está como se esperaba; "
+                "restaura la copia de antes o averigua de dónde salieron antes "
+                "de arrancar."
+            )
         for usuario_id, guild_id in _quienes_ya_estaban(con):
             regaladas, devueltas = _mudar_a(con, usuario_id, guild_id, ahora, rng)
             personas += 1
@@ -556,7 +567,8 @@ def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
     db.inicializar(ahora)
     cambio = el_dia_del_cambio(ahora)
     if cambio.personas:
-        logger.info(
+        # Aviso y no info: la web no configura el registro, y ahí un info se pierde.
+        logger.warning(
             "El día del cambio: %d personas, %d camas regaladas, %d monedas devueltas",
             cambio.personas, cambio.camas, cambio.monedas,
         )
@@ -1565,8 +1577,8 @@ def comprar_mueble(
     Se puede comprar el mismo las veces que se quiera; cada uno es una pieza
     con su id. No lleva fila en `operaciones_economia`.
 
-    Con `evento_id` (la web), repetir la petición devuelve el mismo mueble sin
-    cobrar ni entregar otro.
+    Con `evento_id` (la web), repetir la petición devuelve el mismo mueble y lo
+    que costó la primera vez, sin cobrar ni entregar otro.
     """
     if dep.MUEBLES.get(mueble.clave) != mueble:
         raise ValueError("el mueble no coincide con el catálogo actual")
@@ -1576,8 +1588,11 @@ def comprar_mueble(
         con.execute("BEGIN IMMEDIATE")
         hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "mueble", mueble.clave)
         if hecha is not None:
+            # Un evento anotado antes de guardar lo cobrado lleva sólo el
+            # mueble: ése vuelve con el precio de ahora.
             return ResultadoDepartamento(
-                ok=True, replay=True, coste=mueble.precio, mueble_id=hecha["mueble_id"],
+                ok=True, replay=True, coste=hecha.get("coste", mueble.precio),
+                mueble_id=hecha["mueble_id"],
                 departamento=db._departamento_en(con, usuario_id, guild_id, ahora),
                 saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
             )
@@ -1592,7 +1607,7 @@ def comprar_mueble(
         mueble_id = db.anadir_mueble_en(con, usuario_id, guild_id, mueble.clave)
         _anotar(
             con, evento_id, usuario_id, guild_id, "mueble", mueble.clave,
-            {"mueble_id": mueble_id}, ahora,
+            {"mueble_id": mueble_id, "coste": mueble.precio}, ahora,
         )
         return ResultadoDepartamento(
             ok=True, coste=mueble.precio, mueble_id=mueble_id,
