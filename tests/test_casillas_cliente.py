@@ -1,4 +1,5 @@
-"""Contrasta lo que el cliente cree que cabe (casillas.js) con lo que dice el servidor.
+"""Contrasta lo que el cliente cree que cabe (casillas.js) con lo que dice el servidor,
+y la casilla de dentro que queda frente a la puerta.
 
 Lo que recibe el cliente sale de `web.departamento.vista`, la que arma `GET
 /departamento`: si cambia el nombre de un campo, esta prueba lo nota.
@@ -21,15 +22,16 @@ MODULO = RAIZ / "web" / "static" / "js" / "casillas.js"
 CANDIDATA = 100
 
 PROGRAMA = f"""
-import {{ huellaDe, problemaAlPoner }} from {json.dumps(MODULO.as_uri())};
+import {{ huellaDe, laPuerta, problemaAlPoner }} from {json.dumps(MODULO.as_uri())};
 let texto = '';
 for await (const trozo of process.stdin) texto += trozo;
-const {{ depto, casos }} = JSON.parse(texto);
+const {{ depto, casos, conPuerta }} = JSON.parse(texto);
 const respuestas = casos.map(({{ pieza, x, y, giro }}) => ({{
   huella: huellaDe(pieza, x, y, giro),
   problema: problemaAlPoner(depto, pieza, x, y, giro),
 }}));
-process.stdout.write(JSON.stringify(respuestas));
+const enfrente = conPuerta.map((d) => laPuerta(d).dentro);
+process.stdout.write(JSON.stringify({{ respuestas, enfrente }}));
 """
 
 
@@ -70,11 +72,20 @@ def test_el_cliente_y_el_servidor_dicen_lo_mismo(base_temporal):
                         "huella": [list(c) for c in sorted(dep.huella(mueble, x, y, giro))],
                         "problema": dep.problema_al_poner(depto, CANDIDATA, x, y, giro),
                     })
-    entrada = json.dumps({"depto": web_departamento.vista(JUGADOR, base), "casos": casos})
+    # La puerta, en cada tramo de las dos paredes (sin lo que la base tiene colgado): la
+    # casilla de dentro que le da el cliente tiene que ser la que dice el servidor.
+    del_suelo = tuple(p for p in base.piezas if dep.MUEBLES[p.clave].capa != dep.PARED)
+    tramos = [(x, -1) for x in range(base.ancho)] + [(-1, y) for y in range(base.fondo)]
+    con_puerta = [web_departamento.vista(JUGADOR, dep.Departamento(
+        base.ancho, base.fondo, (*del_suelo, dep.Pieza(CANDIDATA, dep.PUERTA, x, y)))) for x, y in tramos]
+    entrada = json.dumps({"depto": web_departamento.vista(JUGADOR, base), "casos": casos, "conPuerta": con_puerta})
     hecho = subprocess.run([node, "--input-type=module", "-e", PROGRAMA], input=entrada,
                            capture_output=True, text=True, cwd=RAIZ)
     assert hecho.returncode == 0, hecho.stderr
-    respuestas = json.loads(hecho.stdout)
+    dicho = json.loads(hecho.stdout)
+    respuestas = dicho["respuestas"]
+    assert [tuple(c) for c in dicho["enfrente"]] == [dep.frente_a(x, y) for x, y in tramos]
+    assert len(dicho["enfrente"]) == base.ancho + base.fondo
     assert len(respuestas) == len(casos) == len(dep.MUEBLES) * (base.ancho + 2) * (base.fondo + 2) * 4
     for caso, dijo, debia in zip(casos, respuestas, esperado):
         assert dijo == debia, (caso["pieza"]["clave"], caso["x"], caso["y"], caso["giro"], dijo, debia)

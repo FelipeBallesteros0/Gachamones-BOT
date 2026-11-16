@@ -139,3 +139,32 @@ test('sin puerta, su casilla no existe y nadie pasea hasta ella', () => {
   }
   assert.ok(c.sitiosDeEntrada(3, 3, new Set(), 9).every(([i, j]) => i >= 0 && j >= 0));
 });
+
+test('la puerta en la pared derecha, en su último tramo: se entra y se sale sólo por la casilla de enfrente', () => {
+  const puerta = c.laPuerta(depto([{ id: 9, ...PUERTA, x: 2, y: -1, giro: 0, casillas: [[2, -1]] }]));
+  assert.deepEqual(puerta, { id: 9, celda: [2, -1], dentro: [2, 0] });
+  assert.deepEqual(c.camino(3, 3, new Set(), [2, -1], [2, 2], puerta), [[2, 0], [2, 1], [2, 2]]);
+  assert.deepEqual(c.camino(3, 3, new Set(), [1, 0], [2, -1], puerta), [[2, 0], [2, -1]]);   // no se cuela desde (1, 0)
+  assert.deepEqual(c.camino(3, 3, new Set(), [2, -1], [0, 0], puerta)[0], [2, 0]);
+  const tapada = new Set(['2,0']);
+  assert.deepEqual(c.camino(3, 3, tapada, [2, -1], [0, 0], puerta), []);
+  assert.deepEqual(c.camino(3, 3, tapada, [0, 0], [2, -1], puerta), []);
+});
+
+test('la puerta en el primer tramo de cada pared: las dos dan a la esquina de atrás, y sólo por ella se pasa', () => {
+  const izquierda = c.laPuerta(depto([{ id: 9, ...PUERTA, x: -1, y: 0, giro: 0, casillas: [[-1, 0]] }]));
+  const derecha = c.laPuerta(depto([{ id: 9, ...PUERTA, x: 0, y: -1, giro: 0, casillas: [[0, -1]] }]));
+  assert.deepEqual(izquierda, { id: 9, celda: [-1, 0], dentro: [0, 0] });
+  assert.deepEqual(derecha, { id: 9, celda: [0, -1], dentro: [0, 0] });
+  for (const puerta of [izquierda, derecha]) {
+    assert.deepEqual(c.camino(3, 3, new Set(), puerta.celda, [2, 2], puerta)[0], [0, 0]);
+    assert.deepEqual(c.camino(3, 3, new Set(), [0, 1], puerta.celda, puerta), [[0, 0], puerta.celda]);
+    assert.deepEqual(c.camino(3, 3, new Set(), [1, 0], puerta.celda, puerta), [[0, 0], puerta.celda]);
+    const tapada = new Set(['0,0']);
+    assert.deepEqual(c.camino(3, 3, tapada, puerta.celda, [2, 2], puerta), []);
+    assert.deepEqual(c.camino(3, 3, tapada, [2, 2], puerta.celda, puerta), []);
+  }
+  // La casilla de la otra pared que comparte esa esquina no es la puerta: no se llega.
+  assert.deepEqual(c.camino(3, 3, new Set(), [0, 0], [0, -1], izquierda), []);
+  assert.deepEqual(c.camino(3, 3, new Set(), [0, 0], [-1, 0], derecha), []);
+});
