@@ -462,12 +462,15 @@ const CON_DOS = { ...DEPTO, gachamones: 2, plantel: [{ ...PELUSA, activo: true }
 // El mismo, cuando ya sales con Rulo.
 const CON_RULO_ACTIVO = { ...CON_DOS, plantel: [{ ...PELUSA, activo: false }, { ...RULO, activo: true }] };
 
-// Monta la pantalla con lo que contesta `GET departamento` y espera a que se
-// asiente. `antes(servidor)` prepara el servidor antes de montarla. `hecho` es
-// lo que devuelve la pantalla (lo que `principal.js` manda a la avería si falla).
-// `azar` es el de la pantalla (cuándo y hacia dónde caminan solos, qué dice el
-// globo): fijo, para que cada prueba dé siempre lo mismo.
-async function abrir(depto, estado = ESTADO, { movimientoReducido = false, antes = () => {}, azar = () => 0.5 } = {}) {
+// Monta la pantalla con lo que contesta `GET departamento` (y `GET estado`, el
+// mismo estado con que se monta) y espera a que se asiente. `antes(servidor)`
+// prepara el servidor antes de montarla. `hecho` es lo que devuelve la pantalla
+// (lo que `principal.js` manda a la avería si falla). `azar` es el de la
+// pantalla (cuándo y hacia dónde caminan solos, qué dice el globo): fijo, para
+// que cada prueba dé siempre lo mismo. `llegando`, que se llegó caminando.
+async function abrir(depto, estado = ESTADO, {
+  movimientoReducido = false, antes = () => {}, azar = () => 0.5, llegando = false,
+} = {}) {
   const documento = nuevoDocumento();
   reducido = movimientoReducido;
   // Lo que dejó pendiente otra prueba no corre en ésta.
@@ -475,10 +478,11 @@ async function abrir(depto, estado = ESTADO, { movimientoReducido = false, antes
   imagenesRetenidas.clear();
   const servidor = crearServidor();
   servidor.responde('GET departamento', depto);
+  servidor.responde('GET estado', estado);
   antes(servidor);
   const pantalla = new Elemento('main');
   const seguido = [];
-  const hecho = departamento(pantalla, estado, (...argumentos) => { seguido.push(argumentos); }, { azar });
+  const hecho = departamento(pantalla, estado, (...argumentos) => { seguido.push(argumentos); }, { azar, llegando });
   if (hecho && typeof hecho.catch === 'function') hecho.catch(() => {});
   await asentar();
   return { pantalla, pedidos: servidor.pedidos, servidor, seguido, documento, hecho };
@@ -642,7 +646,7 @@ test('al volver a la pestaña se vuelve a leer', async () => {
   const { pantalla, pedidos, servidor, documento } = await abrir(DEPTO);
   servidor.responde('GET departamento', CON_MACETA);
   await documento.dispara('visibilitychange');
-  assert.equal(pedidos.length, 2);
+  assert.deepEqual(pedidos.map(([ruta]) => ruta), ['GET departamento', 'GET estado', 'GET departamento']);   // y con la pieza, el estado
   assert.equal(texto(pantalla, '.pieza-linea').startsWith('3 × 3 · 3 de 9'), true);
 });
 
@@ -698,7 +702,7 @@ test('una relectura que falla no borra la pieza ni dice nada', async () => {
   const { pantalla, pedidos, servidor, documento, seguido } = await abrir(DEPTO);
   servidor.falla('GET departamento');
   await documento.dispara('visibilitychange');
-  assert.equal(pedidos.length, 2);
+  assert.deepEqual(pedidos.map(([ruta]) => ruta), ['GET departamento', 'GET estado', 'GET departamento']);
   assert.equal(uno(pantalla, '.pieza').hidden, false);
   assert.equal(texto(pantalla, '.pieza-linea'), '3 × 3 · 2 de 9 casillas · camas 1 · gachamones 1 · comodidad 82 de 100');
   assert.equal(texto(pantalla, '[role=status].aviso'), '');
@@ -1051,9 +1055,9 @@ test('a todos manda su evento, dice lo que contesta el juego y vuelve a leer', a
   const { pantalla, pedidos, servidor } = await abrir(CON_DOS);
   servidor.responde('POST cuidar/todos', { ok: true, a_cuantos: 2, de_cuantos: 2, tocados: [PELUSA.id, RULO.id], mensaje: 'Jugaste con 2 de 2.', monedas: 2, logros: [], estado: ESTADO });
   await tocar(boton(pantalla, 'Jugar con todos'));
-  const [ruta, cuerpo] = pedidos.at(-2);
+  const [ruta, cuerpo] = pedidos.at(-3);
   assert.equal(ruta, 'POST cuidar/todos'); assert.equal(cuerpo.accion, 'jugar'); assert.match(cuerpo.evento_id, /^[\w-]{8,64}$/);
-  assert.equal(pedidos.at(-1)[0], 'GET departamento');
+  assert.deepEqual(pedidos.slice(-2).map(([r]) => r), ['GET estado', 'GET departamento']);   // vuelve a leer el estado y la pieza
   assert.match(texto(pantalla, '[role=status].aviso'), /Jugaste con 2 de 2\./);
 });
 
@@ -1513,4 +1517,48 @@ test('sin ningún gachamon, la ficha sigue nombrada por algo que está en la pá
   servidor.responde('GET departamento', SIN_NADIE);                                      // y se va
   await documento.dispara('visibilitychange');
   assert.equal(texto(suNombre()), 'Todavía no vive ningún gachamon contigo.');
+});
+
+// --- la tanda de arreglos de la revisión final ---------------------------------------------
+
+const DE_CASA = { tipo: 'lugar', texto: 'Qué calentito se está aquí.' };
+const SUELTA = { tipo: 'suelta', texto: '¡Qué día tan bonito!' };
+
+test('al llegar caminando, el que sale contigo dice enseguida algo del lugar, como en el lugar', async () => {
+  const { pantalla } = await abrir(CON_DOS, { ...ESTADO, globos: [DE_CASA, SUELTA] }, { llegando: true });
+  assert.equal(texto(pantalla, '.globo'), '');
+  await correrReloj(600);
+  assert.equal(texto(pantalla, '.globo'), 'Qué calentito se está aquí.');
+});
+
+test('sin llegar caminando, habla al rato y no dice lo del lugar', async () => {
+  const { pantalla } = await abrir(CON_DOS, { ...ESTADO, globos: [DE_CASA, SUELTA] });
+  await correrReloj(600);
+  assert.equal(texto(pantalla, '.globo'), '');
+  await correrReloj(1900);
+  assert.equal(texto(pantalla, '.globo'), '¡Qué día tan bonito!');
+});
+
+test('cada relectura trae también el estado: lo que dice el que sale contigo se renueva, y los saldos', async () => {
+  const HAMBRE = { tipo: 'necesidad', texto: 'Tengo hambre.' };
+  const { pantalla, pedidos, servidor, documento } = await abrir(CON_DOS, { ...ESTADO, globos: [SUELTA] });
+  await correrReloj(2500);
+  assert.equal(texto(pantalla, '.globo'), '¡Qué día tan bonito!');
+  servidor.responde('GET estado', { ...ESTADO, saldos: { monedas: 7, gemas: 2 }, globos: [HAMBRE] });
+  servidor.responde('GET departamento', { ...CON_DOS, saldos: { monedas: 7, gemas: 2 } });
+  await documento.dispara('visibilitychange');
+  assert.deepEqual(pedidos.slice(1).map(([ruta]) => ruta).sort(), ['GET departamento', 'GET estado']);
+  assert.equal(uno(pantalla, '.globo').classList.contains('visible'), false);   // lo que decía ya no pasa: se calla
+  assert.match(texto(pantalla, '.saldo'), /7 monedas/);
+  await correrReloj(31_000);                                             // la vuelta siguiente de la charla
+  assert.equal(texto(pantalla, '.globo'), 'Tengo hambre.');
+});
+
+test('si el estado que trae una relectura pide otra pantalla, la del departamento se va con él', async () => {
+  const { servidor, documento, seguido } = await abrir(DEPTO);
+  const enLaTienda = { ...ESTADO, lugar: { clave: 'tienda', nombre: 'Tienda', abre: null, aviso: null, ofrece: ['tienda'] } };
+  servidor.responde('GET estado', enLaTienda);
+  await documento.dispara('visibilitychange');
+  assert.equal(seguido.length, 1);
+  assert.equal(seguido[0][0], enLaTienda);
 });

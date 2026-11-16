@@ -521,6 +521,16 @@ def test_el_departamento_esta_montado_y_tiene_su_ancho_en_el_computador():
     assert '#juego[data-pantalla="departamento"]' in (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
 
 
+def test_al_departamento_se_le_dice_si_se_llega_caminando_como_al_lugar():
+    # Al llegar caminando, el gachamon dice algo del lugar: también en tu casa.
+    principal = _guion("principal.js")
+    assert re.search(r"^\s*lugar:\s*\(destino, seguir, \{ estado, llegando \}\)", principal, re.M)
+    assert re.search(
+        r"^\s*departamento:\s*\(destino, seguir, \{ estado, llegando \}\)\s*=>\s*"
+        r"departamento\(destino, estado, seguir, \{ llegando \}\),", principal, re.M,
+    )
+
+
 def test_la_pieza_no_es_pixel_art_pero_el_avatar_si():
     pieza = _guion("pieza.js")
     assert "imageSmoothingEnabled = true" in pieza and "imageSmoothingEnabled = false" in pieza

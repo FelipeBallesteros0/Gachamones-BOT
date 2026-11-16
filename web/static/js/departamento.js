@@ -1,9 +1,11 @@
 // Tu casa: la pieza de tu departamento, en vista isométrica por casillas, con
 // sus muebles, tu avatar y tus gachamones, que caminan por ella.
 //
-// `departamento(contenedor, estado, seguir, { azar })` pide la pieza al
-// servidor (`GET departamento`) al entrar, cada 30 segundos y al volver a la
-// pestaña, y la pinta en su lienzo; debajo, una línea dice cómo está. Al
+// `departamento(contenedor, estado, seguir, { azar, llegando })` pide la pieza
+// al servidor (`GET departamento`) al entrar, y la pinta en su lienzo; debajo,
+// una línea dice cómo está. Cada 30 segundos y al volver a la pestaña la
+// vuelve a pedir, y con ella el estado (`GET estado`), como el lugar: con él
+// se renuevan los saldos y lo que dice el que sale contigo. Al
 // entrar, tú y tus gachamones os repartís por los sitios de entrada (tú, el
 // primero; ellos, en el orden en que llegan). Tocar una casilla que se pisa
 // lleva a tu avatar hasta ella, de casilla en casilla; con menos movimiento,
@@ -28,7 +30,9 @@
 // ficha» y «Salir con …», y «A todos». Cuidarlo y acariciarlo se mandan con su
 // id, y se avisa como en el lugar (`cuidados.js`); «A todos» vuelve a leer la
 // pieza, y «Salir con …» la trae. El que sale contigo lleva su marca, y su
-// globo sale sobre él, como en el lugar. Lo que flota sobre la pieza (el
+// globo sale sobre él, como en el lugar; con `llegando` (se acaba de llegar
+// caminando), el primero sale enseguida y habla del lugar, salvo que
+// necesite algo. Lo que flota sobre la pieza (el
 // globo, los corazones, la ganancia, la evolución y las medallas) lo arma
 // `flotantes.js`.
 //
@@ -148,7 +152,7 @@ function caminanteEn(sitio, porSegundo) {
   return sitio ? { i: sitio[0], j: sitio[1], ruta: [], espejo: false, porSegundo } : null;
 }
 
-export function departamento(contenedor, estado, seguir, { azar = Math.random } = {}) {
+export function departamento(contenedor, estado, seguir, { azar = Math.random, llegando = false } = {}) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1322,8 +1326,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
   let lecturas = 0;
   let leyendo = false;
 
-  // Una relectura que falla no borra la pieza ni dice nada: la próxima vuelta
-  // lo intenta otra vez. Sin sesión, o si ya no estás en tu casa, se va.
+  // Cada relectura trae el estado, como en el lugar, y la pieza: si el estado
+  // ya pide otra pantalla, se va con él; si no, se pinta la pieza. Una
+  // relectura que falla no borra la pieza ni dice nada: la próxima vuelta lo
+  // intenta otra vez. Sin sesión, o si ya no estás en tu casa, se va.
   // Mientras una acción va no se lee: lo que traiga es más nuevo. La de tras
   // una acción sin respuesta sale aunque haya otra en camino.
   async function releer({ trasUnaAccion = false } = {}) {
@@ -1333,8 +1339,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     const esta = ++lecturas;
     const hechas = acciones;
     try {
-      const nuevo = await pedir('GET', 'departamento');
-      if (sigueAqui() && esta === lecturas && hechas === acciones) aplicarDepto(nuevo);
+      const [estadoNuevo, nuevo] = await Promise.all([pedir('GET', 'estado'), pedir('GET', 'departamento')]);
+      if (sigueAqui() && esta === lecturas && hechas === acciones && aplicarEstado(estadoNuevo)) aplicarDepto(nuevo);
     } catch (error) {
       if (sigueAqui() && hayQueDecidirDeNuevo(error)) irse();
     } finally {
@@ -1364,7 +1370,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     // sale contigo habla de vez en cuando.
     cadaSegundo = setInterval(() => { if (sigueAqui()) panel.contar(); }, 1000);
     programarUnPaseo();
-    flota.empezarAHablar();
+    flota.empezarAHablar(llegando);
 
     // Girar el teléfono o cambiar el tamaño de la ventana vuelve a medir la pieza.
     const reencuadrar = () => {

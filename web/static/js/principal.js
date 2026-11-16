@@ -27,7 +27,7 @@ const PANTALLAS = {
   bautizo: entrada.bautizo,
   carta: (destino, seguir, { estado }) => carta(destino, estado, seguir),
   lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),
-  departamento: (destino, seguir, { estado }) => departamento(destino, estado, seguir),
+  departamento: (destino, seguir, { estado, llegando }) => departamento(destino, estado, seguir, { llegando }),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),

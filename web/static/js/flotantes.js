@@ -22,6 +22,8 @@ import { elegirGlobo } from './tiempo.js';
 // El globo, los corazones, la ganancia, la evolución y las medallas duran lo
 // que en el lugar.
 const PRIMER_GLOBO_MS = 2500;
+// Al llegar caminando, dice algo del lugar casi en cuanto entras.
+const PRIMER_GLOBO_AL_LLEGAR_MS = 600;
 const GLOBO_CADA_MS = [20_000, 40_000];
 const GLOBO_DURA_MS = 7000;
 const CORAZONES = 6;
@@ -104,11 +106,12 @@ export function loQueFlota({ escenario, luego, cancelar, azar, puedeHablar, dond
   let globoHasta = null;
 
   // Cada 20 a 40 segundos el que sale contigo dice algo de `globos()`, si
-  // puede hablar y no se está celebrando nada.
-  function hablar() {
+  // puede hablar y no se está celebrando nada. `alLlegar` vale sólo para el
+  // primero tras llegar caminando: puede decir algo del lugar.
+  function hablar(alLlegar = false) {
     luego(GLOBO_CADA_MS[0] + azar() * (GLOBO_CADA_MS[1] - GLOBO_CADA_MS[0]), hablar);
     if (document.hidden || celebracion.hasChildNodes() || !puedeHablar()) return;
-    const dicho = elegirGlobo(globos(), anterior, azar);
+    const dicho = elegirGlobo(globos(), anterior, azar, alLlegar);
     if (!dicho) return;
     anterior = dicho.texto;
     cancelar(globoHasta);
@@ -118,9 +121,11 @@ export function loQueFlota({ escenario, luego, cancelar, azar, puedeHablar, dond
     globoHasta = luego(GLOBO_DURA_MS, callarGlobo);
   }
 
-  // Empieza a hablar al rato de entrar.
-  function empezarAHablar() {
-    luego(PRIMER_GLOBO_MS, hablar);
+  // Empieza a hablar al rato de entrar; si se acaba de llegar caminando,
+  // enseguida y del lugar (salvo que necesite algo), como en el lugar.
+  function empezarAHablar(llegando = false) {
+    if (llegando) luego(PRIMER_GLOBO_AL_LLEGAR_MS, () => hablar(true));
+    else luego(PRIMER_GLOBO_MS, hablar);
   }
 
   // El texto se va un poco después que el globo, para que no se vea vacío
