@@ -90,7 +90,7 @@ POROTOS_POR_SOPAIPILLA = 3
 
 # Cuántos porotos da una cosecha, extremos incluidos. Con uno solo, y siendo el
 # color al azar entre cinco, una sopaipilla pedía del orden de quince cosechas:
-# demasiado poco para ocho horas de espera por bancal.
+# demasiado poco para lo que tardaba en crecer un bancal.
 POROTOS_POR_COSECHA = (2, 4)
 
 

@@ -417,9 +417,8 @@ def _cosechar_lo_plantado(
 ) -> dict[str, int]:
     """Cosecha cada bancal plantado como si estuviera maduro y lo deja en barbecho.
 
-    Es la cuenta de `cosechar`: el color lo hereda lo sembrado o se sortea,
-    salen de 2 a 4 porotos y un arcoíris sustituye a uno. Dice qué salió y
-    cuánto de cada cosa.
+    El color lo hereda lo sembrado o se sortea, salen de 2 a 4 porotos y un
+    arcoíris sustituye a uno. Dice qué salió y cuánto de cada cosa.
     """
     cosecha: dict[str, int] = {}
     for bancal in con.execute(
@@ -1564,7 +1563,7 @@ def comprar_mueble(
     """Cobra el mueble y lo deja **guardado**: dónde ponerlo se decide después.
 
     Se puede comprar el mismo las veces que se quiera; cada uno es una pieza
-    con su id. Como las casas, no lleva fila en `operaciones_economia`.
+    con su id. No lleva fila en `operaciones_economia`.
 
     Con `evento_id` (la web), repetir la petición devuelve el mismo mueble sin
     cobrar ni entregar otro.

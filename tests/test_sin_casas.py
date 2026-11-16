@@ -150,10 +150,12 @@ def test_todo_lo_que_hace_pasar_el_tiempo_mira_el_departamento():
     (Viene de las pruebas de las casas, que miraban lo mismo con el hogar.)
     """
     permitidos = {"simulacion.py", "db.py"}
-    sueltos = [
-        archivo.name for archivo in archivos_de_produccion()
-        if archivo.name not in permitidos and "sim.avanzar(" in archivo.read_text()
-    ]
+    sueltos = []
+    for archivo in RAIZ.glob("**/*.py"):
+        if "tests" in archivo.parts or "venv" in archivo.parts:
+            continue
+        if archivo.name not in permitidos and "sim.avanzar(" in archivo.read_text():
+            sueltos.append(archivo.name)
     assert not sueltos, (
         f"llaman a sim.avanzar sin mirar el departamento: {sueltos}. Usa db.avanzar "
         "o db._avanzar_en si ya hay una transacción abierta."

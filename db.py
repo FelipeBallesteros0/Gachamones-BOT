@@ -673,6 +673,9 @@ def _migrar_operaciones(con: sqlite3.Connection) -> None:
 def _migrar_casas(con: sqlite3.Connection) -> None:
     """Pasa de «una casa por persona» a varias, una sola vez.
 
+    Las casas ya no tienen reglas (las convierte el día del cambio); esta
+    migración se queda para que una base vieja pueda llegar hasta ese día.
+
     Es la segunda migración del proyecto que mueve datos —tras la de
     `operaciones_economia`—, así que va sola en su transacción y con su test
     sobre filas de verdad. Dos tablas hay que recrearlas porque SQLite no deja
@@ -680,13 +683,13 @@ def _migrar_casas(con: sqlite3.Connection) -> None:
 
     * `hogar` pierde `casa`, que se lleva `casas_propias`.
     * `huerto` gana `casa_id` en la clave, para que los bancales se numeren
-      dentro de cada casa y vender una no renumere los de las demás.
+      dentro de cada casa y vender una no renumerara los de las demás.
 
     **Nadie pierde su sitio.** Cada casa que hubiera pasa a ser una fila de
     `casas_propias`, y todo lo de esa persona —sus gachamones vivos, sus
     bancales y sus muebles colgados— queda apuntado a ella, aunque sean más
-    gachamones de los que ahora caben: el aforo frena las mudanzas nuevas, no
-    desaloja a quien ya estaba.
+    gachamones de los que cabían: el aforo frenaba las mudanzas nuevas, no
+    desalojaba a quien ya estaba.
 
     Que ya haya corrido se detecta mirando si `hogar` conserva la columna
     `casa`, que es la señal que no se puede falsear.

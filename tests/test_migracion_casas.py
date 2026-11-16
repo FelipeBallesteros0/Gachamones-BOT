@@ -18,8 +18,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 import db
+import economia
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+T1 = T0 + timedelta(days=30)
 STATS = (15, 15, 15, 15)
 
 DDL_HOGAR_VIEJO = """
@@ -44,6 +46,12 @@ CREATE TABLE huerto (
     PRIMARY KEY (usuario_id, guild_id, bancal)
 )
 """
+
+
+# El huerto de antes de que se pudiera sembrar otra cosa que semillas.
+DDL_HUERTO_SIN_SEMBRADO = DDL_HUERTO_VIEJO.replace(
+    "    sembrado TEXT NOT NULL DEFAULT 'semilla',\n", ""
+)
 
 
 @pytest.fixture(autouse=True)
@@ -204,3 +212,45 @@ def test_una_base_nueva_no_necesita_migracion():
         db._migrar_casas(con)
 
     assert not casas_de()
+
+
+def columnas(tabla):
+    with db.conectar() as con:
+        return db._columnas(con, tabla)
+
+
+def filas(tabla):
+    with db.conectar() as con:
+        return [dict(f) for f in con.execute(f"SELECT * FROM {tabla}")]
+
+
+def test_una_base_de_antes_de_que_el_huerto_supiera_lo_sembrado_llega_al_cambio():
+    """La migración `huerto.sembrado` se queda porque `_migrar_casas` y la
+    cosecha del día del cambio leen esa columna: sin ella, una base de antes de
+    las casas múltiples no arranca (`no such column: sembrado`)."""
+    db.crear("u1", "g1", "pulpo", "Ana", STATS, T0)
+    with db.conectar() as con:
+        volver_al_esquema_viejo(con)
+        con.execute("DROP TABLE huerto")
+        con.execute(DDL_HUERTO_SIN_SEMBRADO)
+        con.execute(
+            "INSERT INTO hogar (usuario_id, guild_id, casa, refugio_hasta) "
+            "VALUES ('u1', 'g1', 'pequena', ?)",
+            ((T0 + timedelta(days=7)).isoformat(),),
+        )
+        con.execute(
+            "INSERT INTO huerto (usuario_id, guild_id, bancal, plantado_en) "
+            "VALUES ('u1', 'g1', 1, ?)",
+            ((T1 - timedelta(minutes=1)).isoformat(),),
+        )
+        con.commit()
+    assert "sembrado" not in columnas("huerto"), "la base de partida tiene que ser la vieja"
+
+    economia.poner_al_dia(T1)
+
+    assert "sembrado" in columnas("huerto")
+    assert filas("huerto") == []                       # se cosechó solo
+    porotos = sum(
+        n for objeto, n in db.inventario("u1", "g1").items() if objeto.startswith("poroto_")
+    )
+    assert 2 <= porotos <= 4                           # contando el arcoíris, que sustituye a uno
