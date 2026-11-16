@@ -52,6 +52,9 @@ const CASILLAS_POR_SEGUNDO = 3;
 const GIROS = 4;
 // Lo de pared va en las paredes; lo demás, en el suelo.
 const PARED = 'pared';
+// Lo que dura otro aviso mientras llevas algo en la mano, antes de que vuelva
+// la indicación de dónde tocar: lo mismo que dura cualquier aviso.
+const UN_AVISO_DURA_MS = 6_000;
 // El ícono de cada mueble de la bandeja, en píxeles de pantalla.
 const LADO_DEL_ICONO = 40;
 // Lo que el menú deja hasta el mueble y hasta el borde de la pieza, en píxeles.
@@ -115,6 +118,8 @@ export function departamento(contenedor, estado, seguir) {
   const aviso = zonaDeAviso();
   aviso.nodo.classList.add('aviso');
   const { avisar } = aviso;
+  // Cuándo vuelve la indicación de dónde tocar tras otro aviso (ver `decir`).
+  let volverAIndicar = null;
 
   const conIcono = (clase, icono, texto, atributos = {}) => el('button', { type: 'button', class: clase, ...atributos },
     el('span', { 'aria-hidden': 'true' }, icono), texto);
@@ -138,6 +143,7 @@ export function departamento(contenedor, estado, seguir) {
     if (cuadroPedido !== null) cancelAnimationFrame(cuadroPedido);
     cuadroPedido = null;
     clearInterval(cadaTanto);
+    clearTimeout(volverAIndicar);
     aviso.parar();
     oyentes.abort();
     if (observador) observador.disconnect();
@@ -282,7 +288,7 @@ export function departamento(contenedor, estado, seguir) {
     if (!elPuesto(elegido)) elegido = null;
     if (enLaMano) {
       enLaMano = manoAlDia(enLaMano);
-      if (!enLaMano) avisar('');
+      if (!enLaMano) decir('');
     }
     if (listo && medirLienzo()) dibujar();
     ponerMenu();
@@ -402,6 +408,25 @@ export function departamento(contenedor, estado, seguir) {
 
   // --- elegir, y lo que llevas en la mano ------------------------------------------------
 
+  const indicacionDe = (mano) => (mano.mueble.capa === PARED ? TOCA_LA_PARED : TOCA_LA_CASILLA);
+
+  // Lo que se dice en la zona de aviso. Un aviso se borra solo al rato; pero
+  // mientras llevas algo en la mano lo dicho no se borra solo (se le quita a la
+  // zona su borrado, `aviso.parar`): la indicación de dónde tocar se queda hasta
+  // que lo pongas o lo sueltes, y otro aviso la sustituye un rato y después
+  // vuelve ella.
+  function decir(texto, esError = false) {
+    clearTimeout(volverAIndicar);
+    avisar(texto, esError);
+    if (!enLaMano) return;
+    aviso.parar();
+    if (texto !== indicacionDe(enLaMano)) volverAIndicar = setTimeout(indicar, UN_AVISO_DURA_MS);
+  }
+
+  function indicar() {
+    if (sigueAqui() && enLaMano) decir(indicacionDe(enLaMano));
+  }
+
   // Lo que se ve de lo elegido y de lo que llevas en la mano: las marcas, el
   // menú y, en la bandeja, cuál llevas.
   function verLoElegido() {
@@ -420,11 +445,11 @@ export function departamento(contenedor, estado, seguir) {
   // y no lo tomas.
   function tomar(mano) {
     if (!mano || !mano.sitios.length) {
-      avisar(NO_CABE, true);
+      decir(NO_CABE, true);
       return;
     }
     enLaMano = mano;
-    avisar(mano.mueble.capa === PARED ? TOCA_LA_PARED : TOCA_LA_CASILLA);
+    decir(indicacionDe(mano));
     verLoElegido();
   }
 
@@ -433,7 +458,7 @@ export function departamento(contenedor, estado, seguir) {
     if (!enLaMano) return;
     if (enLaMano.tipo === null) elegido = null;
     enLaMano = null;
-    avisar('');
+    decir('');
     verLoElegido();
   }
 
@@ -555,7 +580,7 @@ export function departamento(contenedor, estado, seguir) {
     if (enCamino || !puesto) return;
     const giro = giroParaPoner(depto, puesto, puesto.x, puesto.y, (puesto.giro + 1) % GIROS);
     if (giro === null || giro === puesto.giro) {
-      avisar(NO_CABE, true);
+      decir(NO_CABE, true);
       return;
     }
     poner(puesto, { x: puesto.x, y: puesto.y, giro }, boton);
@@ -610,16 +635,21 @@ export function departamento(contenedor, estado, seguir) {
   }
 
   // Elegir uno de la bandeja lo pone en la mano, empezando por el giro 0;
-  // elegir el que ya llevas lo suelta.
+  // elegir el que ya llevas lo suelta. Si no cabe en ningún sitio no se toma:
+  // se dice, y lo elegido y lo que llevabas en la mano quedan como estaban.
   function tomarDeLaBandeja(tipo) {
     if (enCamino) return;
     if (enLaMano && enLaMano.tipo === tipo) {
       soltar();
       return;
     }
+    const mano = manoAlDia({ mueble: null, tipo });
+    if (!mano || !mano.sitios.length) {
+      decir(NO_CABE, true);
+      return;
+    }
     elegido = null;
-    enLaMano = null;
-    tomar(manoAlDia({ mueble: null, tipo }));
+    tomar(mano);
   }
 
   // Abrir o cerrar la bandeja; al abrirla se trae a la vista (en un computador
@@ -722,7 +752,7 @@ export function departamento(contenedor, estado, seguir) {
     if (enCamino) return;
     acciones += 1;
     esperar(origen);
-    avisar('');
+    decir('');
     let respuesta;
     try {
       respuesta = await hacer();
@@ -733,7 +763,7 @@ export function departamento(contenedor, estado, seguir) {
         irse();
         return;
       }
-      avisar(error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error), true);
+      decir(error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error), true);
       releer({ trasUnaAccion: true });
       return;
     }
@@ -742,7 +772,7 @@ export function departamento(contenedor, estado, seguir) {
     if (respuesta.estado && !aplicarEstado(respuesta.estado)) return;
     if (respuesta.ok && siSaleBien) siSaleBien();
     aplicarDepto(respuesta.departamento);
-    avisar(respuesta.mensaje, !respuesta.ok);
+    decir(respuesta.mensaje, !respuesta.ok);
   }
 
   // Lo que se pone (o se mueve, o se gira) queda elegido.

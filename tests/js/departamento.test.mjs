@@ -174,20 +174,44 @@ globalThis.Image = class {
   }
 };
 
-// Lo que corre con el tiempo se apunta y no corre solo: los relojes no corren
-// nunca, y los cuadros de animación, sólo cuando una prueba los hace correr.
+// Lo que corre con el tiempo se apunta y no corre solo: lo de `setTimeout` y
+// los cuadros de animación, sólo cuando una prueba los hace correr; lo de
+// `setInterval`, nunca.
 const RELOJ = 'reloj';
+const INTERVALO = 'intervalo';
 const ANIMACION = 'animación';
 let marcas = 0;
+let horaDelReloj = 0;
 const pendientes = new Map();
-const apuntar = (tipo) => (hacer) => { marcas += 1; pendientes.set(marcas, { tipo, hacer }); return marcas; };
+const apuntar = (tipo) => (hacer, ms = 0) => {
+  marcas += 1;
+  pendientes.set(marcas, { tipo, hacer, cuando: horaDelReloj + ms });
+  return marcas;
+};
 const olvidar = (marca) => { pendientes.delete(marca); };
 globalThis.setTimeout = apuntar(RELOJ);
 globalThis.clearTimeout = olvidar;
-globalThis.setInterval = apuntar(RELOJ);
+globalThis.setInterval = apuntar(INTERVALO);
 globalThis.clearInterval = olvidar;
 globalThis.requestAnimationFrame = apuntar(ANIMACION);
 globalThis.cancelAnimationFrame = olvidar;
+
+// Hace pasar `ms` milisegundos del reloj: corre, en orden, lo que se apuntó con
+// `setTimeout` y vence en ese rato (también lo que se apunte mientras tanto).
+async function correrReloj(ms) {
+  const hasta = horaDelReloj + ms;
+  for (;;) {
+    const vencidas = [...pendientes].filter(([, { tipo, cuando }]) => tipo === RELOJ && cuando <= hasta)
+      .sort(([a, pa], [b, pb]) => pa.cuando - pb.cuando || a - b);
+    if (!vencidas.length) break;
+    const [marca, { hacer, cuando }] = vencidas[0];
+    pendientes.delete(marca);
+    horaDelReloj = cuando;
+    hacer();
+    await asentar();
+  }
+  horaDelReloj = hasta;
+}
 
 const cuadrosPendientes = () => [...pendientes.values()].filter(({ tipo }) => tipo === ANIMACION).length;
 
@@ -357,6 +381,17 @@ const CON_UN_CUADRO_COLGADO = {
   ...DEPTO,
   puestos: [...DEPTO.puestos, { id: CUADRO_ID, ...CUADRO, x: 2, y: -1, giro: 0, casillas: [[2, -1]] }],
   guardados: [],
+};
+
+// Un 3 × 3 sin dos casillas libres juntas (macetas en (2, 1), (0, 1) y (1, 2)):
+// la cama sencilla guardada no cabe en ningún sitio; el cuadro guardado, sí.
+const SIN_SITIO_PARA_LA_CAMA = {
+  ...DEPTO,
+  puestos: [...DEPTO.puestos,
+    { ...LA_MACETA, x: 2, y: 1, giro: 0, casillas: [[2, 1]] },
+    { ...LA_MACETA, id: 26, x: 0, y: 1, giro: 0, casillas: [[0, 1]] },
+    { ...LA_MACETA, id: 27, x: 1, y: 2, giro: 0, casillas: [[1, 2]] }],
+  guardados: [{ id: GUARDADA_ID, ...CAMA }, { id: CUADRO_ID, ...CUADRO }],
 };
 
 // Lo que contestan poner, guardar y ampliar cuando sale bien.
@@ -777,4 +812,44 @@ test('lo que se pone desde guardados queda puesto y elegido', async () => {
   assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Cuadro');
   assert.equal(texto(pantalla, '[role=status].aviso'), '');
   assert.match(texto(pantalla, '.bandeja'), /No queda nada guardado\./);
+});
+
+// --- ronda de arreglo 1 --------------------------------------------------------------
+
+test('tomar de la bandeja algo que no cabe en ningún sitio lo dice y deja elegido lo que estaba', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(SIN_SITIO_PARA_LA_CAMA);
+  servidor.responde('POST departamento/guardar', BIEN(SIN_SITIO_PARA_LA_CAMA));
+  await tocarCasilla(pantalla, 2, 1);                                    // la maceta, elegida
+  await tocar(boton(pantalla, 'Guardados'));
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));         // no cabe en ningún sitio
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí no cabe.');
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-pressed'), 'false');
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Maceta');           // sigue elegida, y su menú sirve
+  await tocar(boton(menu(pantalla), 'Guardar'));
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/guardar', { mueble_id: MACETA_ID }]);
+});
+
+test('tomar de la bandeja algo que no cabe en ningún sitio no te quita lo que llevabas en la mano', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(SIN_SITIO_PARA_LA_CAMA);
+  servidor.responde('POST departamento/poner', BIEN(SIN_SITIO_PARA_LA_CAMA));
+  await tocar(boton(pantalla, 'Guardados'));
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Cuadro'));                // el cuadro, en la mano
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));         // la cama no cabe
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí no cabe.');
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Cuadro').getAttribute('aria-pressed'), 'true');
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-pressed'), 'false');
+  await correrReloj(7000);                                               // ese aviso pasa y vuelve la indicación
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Toca la pared donde lo quieres.');
+  await tocarTramo(pantalla, 2, -1);                                     // y el toque todavía pone
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: CUADRO_ID, x: 2, y: -1, giro: 0 }]);
+});
+
+test('la indicación de dónde tocar se queda mientras lleves algo en la mano, y se va al soltarlo', async () => {
+  const { pantalla, pedidos } = await abrir(CON_MACETA);
+  await tocarCasilla(pantalla, 2, 2); await tocar(boton(menu(pantalla), 'Mover'));
+  await correrReloj(7000);                                               // más que lo que dura un aviso
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Toca la casilla donde lo quieres.');
+  await tocarCasilla(pantalla, 0, 0);                                    // ahí está la cama: se suelta
+  assert.equal(texto(pantalla, '[role=status].aviso'), '');
+  assert.equal(pedidos.length, 1);
 });
