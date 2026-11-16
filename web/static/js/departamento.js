@@ -9,22 +9,24 @@
 // entrar, tú y tus gachamones os repartís por los sitios de entrada (tú, el
 // primero; ellos, en el orden en que llegan). Tocar una casilla que se pisa
 // lleva a tu avatar hasta ella, de casilla en casilla; con menos movimiento,
-// aparece ahí. Tus gachamones dan un paso solos de vez en cuando (cuándo y
-// hacia dónde lo dice `azar`, que se inyecta; si no, `Math.random`), salvo
-// con menos movimiento o mientras llevas algo en la mano. Dónde está parado
-// cada uno es sólo del dibujo: no se guarda ni se manda. Si lo que llega pide
-// otra pantalla (ya no estás en tu casa, ya no hay sesión) se lo pasa a
-// `seguir`; sin ningún gachamon, tu casa se sigue viendo.
+// aparece ahí; si los muebles le cierran el paso, no va. Tus gachamones dan
+// un paso solos de vez en cuando (cuándo y hacia dónde lo dice `azar`, que se
+// inyecta; si no, `Math.random`), salvo con menos movimiento o mientras
+// llevas algo en la mano. Dónde está parado cada uno es sólo del dibujo: no
+// se guarda ni se manda. Si lo que llega pide otra pantalla (ya no estás en
+// tu casa, ya no hay sesión) se lo pasa a `seguir`; sin ningún gachamon, tu
+// casa se sigue viendo.
 //
 // Los muebles y los gachamones se tocan, sin modos: tocar uno lo elige (se
 // marca dónde está) y encima sale su menú: el de un mueble, con «Mover»,
 // «Girar» y «Guardar»; el de un gachamon, con «Mover» y «Acariciar». Lo que
 // llevas en la mano (el mueble que mueves, el que sacas de la bandeja de
-// «Guardados», bajo la pieza, o el gachamon que mueves) marca dónde va, y el
-// toque siguiente dice dónde: en un sitio marcado se pone (el gachamon camina
-// hasta ahí, y eso no se manda); en cualquier otro, se suelta. «Ampliar»
-// cambia lo de la derecha por lo que cuesta crecer por cada lado; tocar un
-// lado no cobra: pregunta antes, como la Tienda.
+// «Guardados», bajo la pieza, o el gachamon que mueves, que va sólo adonde
+// tiene camino) marca dónde va, y el toque siguiente dice dónde: en un sitio
+// marcado se pone (el gachamon camina hasta ahí, y eso no se manda); en
+// cualquier otro, se suelta. «Ampliar» cambia lo de la derecha por lo que
+// cuesta crecer por cada lado; tocar un lado no cobra: pregunta antes, como
+// la Tienda.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
@@ -455,17 +457,18 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     for (const id of saltos.keys()) if (!enPieza.has(id)) saltos.delete(id);
   }
 
-  // Las casillas donde un gachamon puede ir: las que se pisan, menos donde ya
-  // está (o adonde ya va).
+  // Las casillas donde un gachamon puede ir: las que se pisan y a las que tiene
+  // camino desde donde está (o adonde ya va), menos ésa (`camino` no da
+  // ninguno hasta donde ya se está).
   function manoDelGachamon(id) {
     const quien = enPieza.get(id);
     if (!quien) return null;
     const ocupado = noSePisan(depto);
-    const [aquiI, aquiJ] = quien.ruta.length > 0 ? quien.ruta.at(-1) : [quien.i, quien.j];
+    const aqui = quien.ruta.length > 0 ? quien.ruta.at(-1) : [quien.i, quien.j];
     const sitios = [];
     for (let y = 0; y < depto.fondo; y += 1) {
       for (let x = 0; x < depto.ancho; x += 1) {
-        if (!ocupado.has(`${x},${y}`) && (x !== aquiI || y !== aquiJ)) sitios.push({ x, y });
+        if (camino(depto.ancho, depto.fondo, ocupado, aqui, [x, y]).length > 0) sitios.push({ x, y });
       }
     }
     return { gachamon: id, mueble: null, tipo: null, sitios };
@@ -677,8 +680,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   }
 
   // Quien camina, hasta esa casilla, por el camino más corto. A medio paso, se
-  // termina el paso y desde ahí se va al nuevo destino. Sin camino (lo cierran
-  // los muebles) o con menos movimiento, aparece ahí.
+  // termina el paso y desde ahí se va al nuevo destino. Con menos movimiento,
+  // aparece ahí. Sin camino (lo cierran los muebles) no va: sigue como estaba.
   function caminarHasta(quien, [i, j]) {
     const ocupado = noSePisan(depto);
     if (!quien || ocupado.has(`${i},${j}`)) return;
@@ -686,7 +689,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (quien.ruta.length === 0 && desde[0] === i && desde[1] === j) return;
     const pasos = camino(depto.ancho, depto.fondo, ocupado, desde, [i, j]);
     const yaVaAhi = desde[0] === i && desde[1] === j;
-    if (quieto() || (pasos.length === 0 && !yaVaAhi)) {
+    if (pasos.length === 0 && !yaVaAhi) return;
+    if (quieto()) {
       quien.ruta = [];
       quien.i = i;
       quien.j = j;

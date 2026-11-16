@@ -620,6 +620,18 @@ function ultimoCuadro(pantalla) {
 const pintados = (pantalla, trozo) => ultimoCuadro(pantalla)
   .filter(([nombre, [imagen]]) => nombre === 'drawImage' && String(imagen && imagen.src).includes(trozo));
 
+// Las casillas que se marcaron la última vez, en el orden en que se pintan: primero
+// dónde puede ir lo que llevas en la mano y al final dónde está lo elegido. Cada
+// marca empieza en la esquina de arriba de su casilla, medio alto de casilla
+// sobre su centro.
+function casillasMarcadas(pantalla) {
+  const { m, ancho, fondo } = medidaDe(pantalla);
+  return ultimoCuadro(pantalla).filter(([nombre]) => nombre === 'moveTo')
+    .map(([, [x, y]]) => casillaEn(m, x, y + m.th / 2, ancho, fondo));
+}
+
+const enOrden = (casillas) => [...casillas].sort(([a, b], [c, d]) => a - c || b - d);
+
 // La casilla donde la pantalla pintó la última vez ese retrato: la que queda
 // bajo sus pies, que están un cuarto de alto de casilla bajo el centro de la
 // casilla. `null` si no lo pintó.
@@ -1762,4 +1774,60 @@ test('la pregunta se queda mientras la pieza mida y cueste lo mismo, sin volver 
   assert.match(texto(pantalla, '.ampliar'), /\+ fila \(4 casillas\) · 60/);
   assert.equal(documento.activeElement, boton(pantalla, '+ fila'));
   assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0);
+});
+
+// --- lo que decidió el dueño al ver el plan terminado: sin camino, no va -------------------
+
+// Un 3 × 3 sin la cama, con macetas en (1, 2) y (2, 1): la esquina de delante, (2, 2), se pisa,
+// pero los muebles la cierran; a las demás que se pisan se llega. Tú entras en esa esquina
+// (y no sales de ahí) y Pelusa en (0, 2). Es la única casilla que se puede cerrar sin que un
+// mueble alto quede pegado delante de ella: su silueta la rozaría y el toque sería del mueble.
+const CON_LA_ESQUINA_CERRADA = {
+  ...DEPTO,
+  puestos: [{ ...LA_MACETA, x: 1, y: 2, giro: 0, casillas: [[1, 2]] },
+    { ...LA_MACETA, id: 26, x: 2, y: 1, giro: 0, casillas: [[2, 1]] }],
+};
+
+test('tocar una casilla a la que no hay camino no mueve a tu avatar, ni caminando ni apareciendo, y no dice nada', async () => {
+  for (const movimientoReducido of [false, true]) {
+    const { pantalla, pedidos } = await abrir(CON_LA_ESQUINA_CERRADA, ESTADO, { movimientoReducido });
+    assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // encerrado en la esquina
+    await tocarCasilla(pantalla, 0, 0);
+    assert.equal(cuadrosPendientes(), 0);                                // no echa a andar
+    assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // ni aparece ahí
+    assert.equal(menu(pantalla), null);
+    assert.equal(texto(pantalla, '[role=status].aviso'), '');
+    assert.equal(pedidos.length, 1);
+  }
+});
+
+test('con menos movimiento, quien tiene camino aparece en su destino; quien no, no va', async () => {
+  const { pantalla, servidor, documento } = await abrir({ ...CON_LA_ESQUINA_CERRADA, puestos: [] }, ESTADO, { movimientoReducido: true });
+  await tocarCasilla(pantalla, 0, 2);                                    // de (2, 2), sin nada en medio
+  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.equal(cuadrosPendientes(), 0);                                  // no camina: aparece
+  servidor.responde('GET departamento', CON_LA_ESQUINA_CERRADA);         // llegan las macetas: la esquina queda cerrada
+  await documento.dispara('visibilitychange');
+  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  await tocarCasilla(pantalla, 2, 2);
+  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);                      // no va
+});
+
+test('mover a un gachamon marca sólo las casillas a las que tiene camino, y tocar una sin camino lo suelta sin moverlo', async () => {
+  const { pantalla, pedidos } = await abrir(CON_LA_ESQUINA_CERRADA, ESTADO, { movimientoReducido: true });
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [0, 2]);
+  await tocarA(pantalla, CON_LA_ESQUINA_CERRADA, 0);
+  await tocar(boton(menu(pantalla), 'Mover'));
+  const marcadas = casillasMarcadas(pantalla);
+  assert.deepEqual(enOrden(marcadas.slice(0, -1)), [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0]]);   // sin (2, 2), que los muebles cierran
+  assert.deepEqual(marcadas.at(-1), [0, 2]);                             // y dónde está ella, elegida
+  await tocarCasilla(pantalla, 2, 2);
+  assert.equal(menu(pantalla), null);                                    // la suelta, como fuera de lo marcado
+  assert.equal(texto(pantalla, '[role=status].aviso'), '');
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [0, 2]);       // y se queda donde estaba
+  await tocarA(pantalla, CON_LA_ESQUINA_CERRADA, 0);
+  await tocar(boton(menu(pantalla), 'Mover'));
+  await tocarCasilla(pantalla, 1, 1);                                    // a una con camino, sí va (aparece)
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [1, 1]);
+  assert.equal(pedidos.length, 1);
 });
