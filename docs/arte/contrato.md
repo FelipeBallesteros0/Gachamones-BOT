@@ -179,6 +179,10 @@ Cada mueble de suelo tiene **las cuatro, dibujadas una por una: nada se espeja**
 Un mueble de 2 × 1, girado un cuarto de vuelta, ocupa 1 × 2, pero **su lienzo
 mide lo mismo**: las cuatro orientaciones de un mismo mueble tienen el mismo
 tamaño de archivo, y en `so` y `ne` lo que dibujas es la caja con su huella girada.
+El lado largo del mueble (su ancho, `a`) corre, en `se` y en `no`, **de arriba a
+la izquierda hacia abajo a la derecha**; en `so` y en `ne`, girado, de arriba a
+la derecha hacia abajo a la izquierda. El relleno de la cama sencilla
+(`pieza/muebles/cama_sencilla-se.png` y sus otras tres) sirve de ejemplo.
 
 Lo de pared lleva **sólo dos**: `se` es el que cuelga en la **pared izquierda**
 (mira abajo a la derecha) y `so` el que cuelga en la **pared derecha** (mira

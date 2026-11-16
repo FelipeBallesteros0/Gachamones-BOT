@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 import departamento as dep
-from herramientas import pieza
+from herramientas import pieza, rellenos
 from web import arte
 
 
@@ -50,9 +50,42 @@ def test_cada_dibujo_de_la_pieza_tiene_su_archivo_del_tamano_justo():
             assert imagen.size == (p.ancho, p.alto), p.ruta
 
 
+def _relleno(ruta: str) -> Image.Image:
+    """Lo que `herramientas/rellenos.py` dibuja para esa pieza, sin mirar el archivo del repo."""
+    pieza_del_contrato = next(p for p in arte.piezas() if p.ruta == ruta)
+    return rellenos._dibujar(pieza_del_contrato).convert("RGBA")
+
+
 def test_las_cuatro_orientaciones_de_relleno_no_son_el_mismo_dibujo():
-    datos = {o: (arte.RAIZ / f"pieza/muebles/maceta-{o}.png").read_bytes() for o in arte.ORIENTACIONES}
-    assert len(set(datos.values())) == 4
+    # Se prueba el generador, no los archivos del repo: el día que el dibujante
+    # entregue una maceta igual por dos lados, su commit no tiene por qué fallar.
+    for m in (m for m in dep.MUEBLES.values() if m.capa != dep.PARED):
+        dibujos = {_relleno(f"pieza/muebles/{m.clave}-{o}.png").tobytes() for o in arte.ORIENTACIONES}
+        assert len(dibujos) == 4, m.clave
+
+
+def test_el_dibujo_de_un_mueble_que_no_se_pisa_llena_al_menos_la_mitad_de_su_caja():
+    # Hoy tocar un mueble va por la silueta de su caja entera, y eso coincide con
+    # lo que se ve sólo mientras el dibujo llene la caja. Esta prueba es el aviso
+    # de que llegó un dibujo más bajo (o un cuadro más chico que su tramo).
+    for p in arte.piezas():
+        if not p.ruta.startswith("pieza/muebles/"):
+            continue
+        clave = p.ruta.removeprefix("pieza/muebles/").rsplit("-", 1)[0]
+        if dep.MUEBLES[clave].capa == dep.SUELO:
+            continue
+        with Image.open(arte.RAIZ / p.ruta) as imagen:
+            transparentes = imagen.convert("RGBA").getchannel("A").histogram()[0]
+        parte = transparentes / (p.ancho * p.alto)
+        assert parte <= 0.5, (
+            f"{p.ruta} deja transparente el {parte:.0%} de su caja, más de la mitad. Hoy tocar un mueble va por "
+            "la silueta de su caja entera, y eso sólo coincide con lo que se ve mientras el dibujo la llene: con "
+            "este dibujo, tocar el aire de encima lo elegiría a él en vez de lo que se ve detrás. Antes de "
+            "aceptarlo hay que pasar a mirar lo que se ve del dibujo en el punto tocado (`queSeToco`, en "
+            "web/static/js/proyeccion.js), como dicen los pendientes del rework 5 en "
+            "docs/superpowers/plans/2026-11-12-gachamon-web-pendientes.md («Lo primero al llegar arte más bajo "
+            "que su caja»)."
+        )
 
 
 def test_reducir_escribe_la_copia_de_un_original_y_rechaza_el_de_otro_tamano(tmp_path, monkeypatch):

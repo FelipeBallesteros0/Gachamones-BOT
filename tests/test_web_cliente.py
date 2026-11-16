@@ -534,6 +534,8 @@ def test_al_departamento_se_le_dice_si_se_llega_caminando_como_al_lugar():
 def test_la_pieza_no_es_pixel_art_pero_el_avatar_si():
     pieza = _guion("pieza.js")
     assert "imageSmoothingEnabled = true" in pieza and "imageSmoothingEnabled = false" in pieza
+    # Reducido (en 8 × 8 la casilla de 512 se pinta a unos 41 píxeles), el arte de verdad no sale con dientes.
+    assert "imageSmoothingQuality = 'high'" in pieza
 
 
 def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():

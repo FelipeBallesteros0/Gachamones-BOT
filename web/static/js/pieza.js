@@ -130,6 +130,9 @@ export function dibujarPieza(ctx, m, escena) {
   const { depto, cargadas } = escena;
   ctx.save();
   ctx.imageSmoothingEnabled = true;
+  // Se pinta muy reducida (en 8 × 8, la casilla de 512 ocupa unos 41 píxeles
+  // de pantalla): con la calidad de siempre, un dibujo con detalle saldría con dientes.
+  ctx.imageSmoothingQuality = 'high';
 
   for (let y = 0; y < depto.fondo; y += 1) pintar(ctx, cargadas, PARED_IZQUIERDA, cajaDelMueble(m, UN_TRAMO, -1, y, 0));
   for (let x = 0; x < depto.ancho; x += 1) pintar(ctx, cargadas, PARED_DERECHA, cajaDelMueble(m, UN_TRAMO, x, -1, 0));
