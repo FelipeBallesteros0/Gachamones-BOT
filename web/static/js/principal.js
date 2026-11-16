@@ -2,6 +2,7 @@
 // pinta la pantalla que toque.
 
 import { pedir, versiones } from './api.js';
+import { carta } from './carta.js';
 import { departamento } from './departamento.js';
 import * as entrada from './entrada.js';
 import { ficha } from './ficha.js';
@@ -24,6 +25,7 @@ const PANTALLAS = {
   avatar: entrada.avatar,
   huevo: entrada.huevo,
   bautizo: entrada.bautizo,
+  carta: (destino, seguir, { estado }) => carta(destino, estado, seguir),
   lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),
   departamento: (destino, seguir, { estado }) => departamento(destino, estado, seguir),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),

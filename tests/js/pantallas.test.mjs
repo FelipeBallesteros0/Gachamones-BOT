@@ -260,3 +260,12 @@ test('mientras se espera el código, la cuenta cambió si se vinculó o si cambi
   assert.equal(cambioLaCuenta(nueva, { ...nueva }), false);
   assert.equal(cambioLaCuenta(nueva, web), true);
 });
+
+test('la carta se ve antes que nada', () => {
+  for (const vista of [undefined, 'tienda', 'mochila', 'pueblo']) {
+    assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true }, vista), 'carta');
+  }
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true, gachamon: null }, undefined), 'carta');   // antes que el huevo
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: false }, undefined), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true, avatar: null }, undefined), 'avatar');   // primero, tener avatar
+});

@@ -563,3 +563,9 @@ def test_lo_que_no_se_puede_usar_no_se_apaga_con_disabled():
     for nombre in ("departamento.js", "lista.js", "plantel.js"):
         codigo = _sin_comentarios(_guion(nombre))
         assert "aria-disabled" in codigo and not re.search(r"\bdisabled\s*[:=]", codigo), nombre
+
+
+def test_la_carta_esta_montada():
+    principal = _guion("principal.js")
+    assert "from './carta.js'" in principal and "carta:" in principal
+    assert "carta/vista" in _guion("carta.js")

@@ -4,7 +4,8 @@
 // `estado` lo de /api/estado (null mientras la cuenta sea nueva). El orden de
 // las preguntas es el del juego: sin avatar no se ve nada más. Sin gachamon
 // activo, un recluta que espera nombre (`estado.sin_nombre`) se bautiza antes
-// que romper un huevo. `vista` es lo que se pidió ver cuando todo está en orden:
+// que romper un huevo. Quien tiene una carta sin leer la ve antes que nada (menos
+// el avatar). `vista` es lo que se pidió ver cuando todo está en orden:
 // con `'pueblo'`, el mapa en vez del lugar donde estás; con `'tienda'` o
 // `'incubadora'`, esa pantalla, si el lugar donde estás la ofrece (si no, el
 // lugar); con `'mochila'`, `'ficha'` o `'ropero'`, esa pantalla, estés donde
@@ -14,6 +15,7 @@ export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
   if (!estado || !estado.avatar) return 'avatar';
+  if (estado.carta) return 'carta';
   if (!estado.gachamon && estado.sin_nombre) return 'bautizo';
   if (!estado.gachamon) return 'huevo';
   if (estado.gachamon.espera_nombre) return 'bautizo';

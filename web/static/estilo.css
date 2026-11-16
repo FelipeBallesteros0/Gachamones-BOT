@@ -1677,6 +1677,34 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   color: var(--error-texto);
 }
 
+/* --- la carta del alcalde: una tarjeta de lectura, en la columna de siempre --- */
+
+.cuerpo-carta { justify-content: flex-start; }
+
+.carta {
+  display: grid;
+  gap: 14px;
+  padding: 22px 20px 20px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-grande);
+  background: var(--tarjeta);
+  box-shadow: var(--sombra);
+  line-height: 1.5;
+}
+
+.carta[hidden] { display: none; }
+
+.carta-linea { overflow-wrap: anywhere; }
+
+.carta-firma {
+  justify-self: end;
+  color: var(--texto-suave);
+  font-style: italic;
+  font-weight: 700;
+}
+
+.carta .boton[aria-busy="true"] { cursor: progress; opacity: 0.75; }
+
 /* --- la mochila: las filas, la pregunta y el aviso son los de la tienda --- */
 
 /* Sin nada que llevar (o que ponerse): la frase en un hueco, donde estaría la
