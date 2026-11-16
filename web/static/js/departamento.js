@@ -1096,21 +1096,25 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // lado y la pregunta abierta), o `null`: si no cambia, no se rehace, y el
   // foco no se mueve (un lector de pantalla no vuelve a leer nada).
   let ampliarDe = null;
+  // Las partes de la pregunta que se ve (`{eje, cabeza, si, no}`), o `null`:
+  // si el panel se rehace con ella abierta, el foco vuelve a la misma parte.
+  let partesDeLaPregunta = null;
 
-  // El botón de crecer por ese lado, o `null` si no está (no crece por ahí, o
-  // en su lugar está su pregunta).
+  // El botón de crecer por ese lado, o `null` si ya no crece por ahí.
   const botonDelLado = (eje) => [...panelAmpliar.querySelectorAll('.boton-lado')]
     .find((b) => b.getAttribute('data-eje') === eje) || null;
 
   // Lo de ampliar va en lugar de lo de la derecha: un botón por cada lado que
   // todavía puede crecer, con lo que suma y lo que cuesta, y «Volver». Tocar
-  // un lado no cobra: en su lugar sale la pregunta de la Tienda, con «Ampliar»
-  // y «No»; sólo una a la vez. La pregunta vale mientras la pieza mida y cueste
-  // lo que medía y costaba al abrirla: si llega otra, se cierra, para que no se
-  // cobre algo distinto de lo que se ve. Lo que nace mientras una petición va
-  // no se puede usar. El foco que estaba en él vuelve a lo mismo: el rótulo, ese
-  // lado (su botón, también si estaba en su pregunta) o, si ya no puede crecer
-  // por ahí, «Volver».
+  // un lado no cobra: debajo de su botón, que sigue a la vista (así se lee qué
+  // se compra) y dice que está abierta, sale la pregunta de la Tienda, con
+  // «Ampliar» y «No»; sólo una a la vez. La pregunta vale mientras la pieza
+  // mida y cueste lo que medía y costaba al abrirla: si llega otra, se cierra,
+  // para que no se cobre algo distinto de lo que se ve. Lo que nace mientras
+  // una petición va no se puede usar. El foco que estaba en él vuelve a lo
+  // mismo: el rótulo; la misma parte de la pregunta, si sigue abierta; su
+  // texto, si se acaba de abrir desde su botón; el botón de ese lado; o, si ya
+  // no puede crecer por ahí, «Volver».
   function ponerAmpliar() {
     derecha.hidden = ampliando;
     panelAmpliar.hidden = !ampliando;
@@ -1128,6 +1132,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (para === ampliarDe) return;
     ampliarDe = para;
     const conFoco = panelAmpliar.contains(document.activeElement) ? document.activeElement : null;
+    const antes = partesDeLaPregunta;
+    const parte = antes && conFoco ? ['cabeza', 'si', 'no'].find((k) => antes[k] === conFoco) : undefined;
+    partesDeLaPregunta = null;
     const ocupado = enCamino ? 'true' : null;
     const rotulo = el('h2', { class: 'rotulo', id: 'departamento-ampliar', tabindex: '-1' }, ROTULO_DE_AMPLIAR);
     const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
@@ -1140,25 +1147,33 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     let opciones;
     if (lados.length) {
       opciones = el('div', { class: 'ampliar-lados', role: 'group', 'aria-labelledby': 'departamento-ampliar' },
-        lados.map(({ eje, que, casillas, coste }) => {
-          if (preguntaAbierta && preguntaAbierta.eje === eje) {
-            const { caja, si, no } = cajaDePregunta(preguntaDeAmpliar(coste), 'Ampliar', {
-              alConfirmar: () => ampliar(eje, si),
-              alDesistir: () => desistirDeAmpliar(eje),
-            });
-            caja.setAttribute('data-eje', eje);
-            if (ocupado) for (const boton of [si, no]) boton.setAttribute('aria-disabled', ocupado);
-            return caja;
-          }
+        lados.flatMap(({ eje, que, casillas, coste }) => {
+          const abierta = Boolean(preguntaAbierta) && preguntaAbierta.eje === eje;
           // Se ve con el símbolo y se lee con la palabra, como los saldos.
           const boton = el('button', {
-            type: 'button', class: 'boton boton-lado', 'data-eje': eje, 'aria-disabled': ocupado,
+            type: 'button',
+            class: 'boton boton-lado',
+            'data-eje': eje,
+            'aria-expanded': String(abierta),
+            'aria-disabled': ocupado,
           },
             el('span', {}, `+ ${que} (${casillas} casillas) · `,
               el('span', { 'aria-hidden': 'true' }, `${coste} ${MONEDAS.simbolo}`),
               el('span', { class: 'solo-lector' }, MONEDAS.cuantas(coste))));
           boton.addEventListener('click', () => preguntarPorAmpliar(eje), { signal });
-          return boton;
+          if (!abierta) return [boton];
+          const {
+            caja, cabeza, si, no,
+          } = cajaDePregunta(preguntaDeAmpliar(coste), 'Ampliar', {
+            alConfirmar: () => ampliar(eje, si),
+            alDesistir: () => desistirDeAmpliar(eje),
+          });
+          caja.setAttribute('data-eje', eje);
+          if (ocupado) for (const suyo of [si, no]) suyo.setAttribute('aria-disabled', ocupado);
+          partesDeLaPregunta = {
+            eje, cabeza, si, no,
+          };
+          return [boton, caja];
         }));
     } else {
       opciones = el('p', { class: 'ampliar-tope' }, YA_NO_CRECE);
@@ -1167,22 +1182,34 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (conFoco) {
       const deUnLado = conFoco.closest('[data-eje]');
       const eje = deUnLado && deUnLado.getAttribute('data-eje');
-      (conFoco.classList.contains('rotulo') ? rotulo : (eje && botonDelLado(eje)) || volver).focus({ preventScroll: true });
+      const suPregunta = partesDeLaPregunta && partesDeLaPregunta.eje === eje ? partesDeLaPregunta : null;
+      const yaEstaba = Boolean(antes) && antes.eje === eje;
+      let destino = (eje && botonDelLado(eje)) || volver;
+      if (conFoco.classList.contains('rotulo')) destino = rotulo;
+      else if (suPregunta && parte) destino = suPregunta[parte];
+      else if (suPregunta && !yaEstaba) destino = suPregunta.cabeza;
+      destino.focus({ preventScroll: true });
     }
   }
 
-  // El primer toque en un lado: en su lugar sale la pregunta, con lo que cuesta
-  // ahora, y la que hubiera abierta se cierra. El foco va a la pregunta, que se
-  // lee; no a «Ampliar», para que una tecla que se queda apretada no cobre.
+  // El primer toque en un lado: debajo de su botón sale la pregunta, con lo
+  // que cuesta ahora, y la que hubiera abierta se cierra; tocarlo otra vez la
+  // cierra (un doble clic abre y cierra, y no cobra). El foco va a la pregunta,
+  // que se lee; no a «Ampliar», para que una tecla que se queda apretada no
+  // cobre.
   function preguntarPorAmpliar(eje) {
     if (enCamino || !depto) return;
+    if (preguntaAbierta && preguntaAbierta.eje === eje) {
+      desistirDeAmpliar(eje);
+      return;
+    }
     preguntaAbierta = { eje, coste: depto.ampliar[eje], mide: `${depto.ancho} × ${depto.fondo}` };
     ponerAmpliar();
-    const caja = panelAmpliar.querySelector('.pregunta');
-    if (caja) caja.querySelector('.pregunta-texto').focus({ preventScroll: true });
+    if (partesDeLaPregunta) partesDeLaPregunta.cabeza.focus({ preventScroll: true });
   }
 
-  // «No» (o Escape): se cierra sin mandar nada y el foco vuelve al botón que la abrió.
+  // «No», Escape o su botón otra vez: se cierra sin mandar nada y el foco
+  // vuelve al botón que la abrió.
   function desistirDeAmpliar(eje) {
     if (enCamino) return;
     preguntaAbierta = null;

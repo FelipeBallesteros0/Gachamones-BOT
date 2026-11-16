@@ -609,6 +609,24 @@ async function ampliarPor(pantalla, lado) {
   await tocar(boton(preguntaDeAmpliar(pantalla), 'Ampliar'));
 }
 
+// Lo que hay en lo de ampliar, en el orden de la página: el botón de cada lado
+// («+ fila», «+ columna») y la pregunta («pregunta»).
+const enLoDeAmpliar = (pantalla) => todos(uno(pantalla, '.ampliar'), '.boton-lado, .pregunta')
+  .map((n) => (n.classList.contains('pregunta') ? 'pregunta' : n.textContent.split(' (')[0]));
+
+// Desde ahora, cada nodo que recibe el foco (también el cuerpo, cuando el que lo
+// tenía sale de la página), en orden.
+function historialDelFoco(documento) {
+  const vistos = [];
+  let actual = documento.activeElement;
+  Object.defineProperty(documento, 'activeElement', {
+    configurable: true,
+    get: () => actual,
+    set: (nodo) => { actual = nodo; vistos.push(nodo); },
+  });
+  return vistos;
+}
+
 // Lo que se pintó en el lienzo de la pieza la última vez: desde el último borrado.
 function ultimoCuadro(pantalla) {
   const trazos = lienzoDe(pantalla).trazos || [];
@@ -1658,8 +1676,7 @@ test('tocar «+ columna» no manda nada: enseña la pregunta con lo que cuesta, 
   assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
   assert.deepEqual(rotulos(preguntaDeAmpliar(pantalla)), ['Ampliar', 'No']);
   assert.equal(documento.activeElement, uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'));   // se lee; no se confirma con una tecla
-  assert.equal(boton(pantalla, '+ columna'), null);                                     // la pregunta va en su lugar
-  assert.notEqual(boton(pantalla, '+ fila'), null);
+  assert.deepEqual(enLoDeAmpliar(pantalla), ['+ fila', '+ columna', 'pregunta']);          // bajo su lado, que sigue a la vista
   const barata = await abrir({ ...DEPTO, ampliar: { ancho: 1, fondo: 45 } });            // el coste lo manda el servidor
   await tocar(boton(barata.pantalla, 'Ampliar'));
   await tocar(boton(barata.pantalla, '+ columna'));
@@ -1673,19 +1690,20 @@ test('«No» y Escape cierran la pregunta sin mandar nada, y el foco vuelve al b
   await tocar(boton(preguntaDeAmpliar(pantalla), 'No'));
   assert.equal(preguntaDeAmpliar(pantalla), null);
   assert.equal(documento.activeElement, boton(pantalla, '+ columna'));
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-expanded'), 'false');
   await tocar(boton(pantalla, '+ fila'));
   await teclear(uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'), 'Escape');
   assert.equal(preguntaDeAmpliar(pantalla), null);
   assert.equal(documento.activeElement, boton(pantalla, '+ fila'));
+  assert.equal(boton(pantalla, '+ fila').getAttribute('aria-expanded'), 'false');
   assert.equal(pedidos.length, 1);
 });
 
-test('un doble toque en el botón, o en «Ampliar», manda una sola petición; mientras va, la pregunta espera', async () => {
+test('un doble toque en «Ampliar» manda una sola petición; mientras va, la pregunta espera', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
   await tocar(boton(pantalla, 'Ampliar'));
-  const columna = boton(pantalla, '+ columna');
-  await tocar(columna); await tocar(columna);
+  await tocar(boton(pantalla, '+ columna'));
   assert.equal(ampliados().length, 0);
   assert.equal(todos(pantalla, '.ampliar .pregunta').length, 1);
   const soltar = servidor.retiene('POST departamento/ampliar');
@@ -1695,7 +1713,9 @@ test('un doble toque en el botón, o en «Ampliar», manda una sola petición; m
   assert.equal(ampliar.getAttribute('aria-busy'), 'true');
   assert.equal(boton(preguntaDeAmpliar(pantalla), 'No').getAttribute('aria-disabled'), 'true');
   assert.equal(boton(pantalla, '+ fila').getAttribute('aria-disabled'), 'true');
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), 'true');
   await teclear(uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'), 'Escape');         // mientras va, no se cierra
+  await tocar(boton(pantalla, '+ columna'));                                             // ni tocando su lado
   assert.notEqual(preguntaDeAmpliar(pantalla), null);
   await soltar({ ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
   assert.equal(ampliados().length, 1);
@@ -1723,7 +1743,7 @@ test('si el servidor dice que no, se ve su frase y la pregunta se cierra', async
   await ampliarPor(pantalla, '+ columna');
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Te faltan 15 monedas.');
   assert.equal(preguntaDeAmpliar(pantalla), null);
-  assert.notEqual(boton(pantalla, '+ columna'), null);
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-expanded'), 'false');
 });
 
 test('sólo hay una pregunta abierta: la del otro lado cierra la primera, y «Volver» la cierra', async () => {
@@ -1734,7 +1754,8 @@ test('sólo hay una pregunta abierta: la del otro lado cierra la primera, y «Vo
   await tocar(boton(pantalla, '+ fila'));
   assert.equal(todos(pantalla, '.ampliar .pregunta').length, 1);
   assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 60 monedas?');
-  assert.notEqual(boton(pantalla, '+ columna'), null);
+  assert.deepEqual(enLoDeAmpliar(pantalla), ['+ fila', 'pregunta', '+ columna']);
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-expanded'), 'false');
   await tocar(boton(pantalla, 'Volver'));
   await tocar(boton(pantalla, 'Ampliar'));
   assert.equal(preguntaDeAmpliar(pantalla), null);
@@ -1774,6 +1795,51 @@ test('la pregunta se queda mientras la pieza mida y cueste lo mismo, sin volver 
   assert.match(texto(pantalla, '.ampliar'), /\+ fila \(4 casillas\) · 60/);
   assert.equal(documento.activeElement, boton(pantalla, '+ fila'));
   assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0);
+});
+
+// --- ronda de arreglo 1: la pregunta, bajo su lado --------------------------------------
+
+test('con la pregunta abierta, el rótulo de su lado sigue en la página, justo antes de ella, y dice que está abierta', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  assert.deepEqual(['+ fila', '+ columna'].map((l) => boton(pantalla, l).getAttribute('aria-expanded')), ['false', 'false']);
+  await tocar(boton(pantalla, '+ fila'));
+  assert.deepEqual(enLoDeAmpliar(pantalla), ['+ fila', 'pregunta', '+ columna']);
+  assert.match(texto(boton(pantalla, '+ fila')), /\+ fila \(3 casillas\) · 45/);         // lo que se compra, con lo que cuesta
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
+  assert.deepEqual(['+ fila', '+ columna'].map((l) => boton(pantalla, l).getAttribute('aria-expanded')), ['true', 'false']);
+});
+
+test('dos toques seguidos en el botón de un lado no mandan nada: el segundo cierra la pregunta', async () => {
+  const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  await tocar(boton(pantalla, '+ columna'));                             // donde cae el segundo clic: su mismo botón
+  assert.equal(preguntaDeAmpliar(pantalla), null);
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-expanded'), 'false');
+  assert.equal(documento.activeElement, boton(pantalla, '+ columna'));
+  assert.equal(pedidos.length, 1);                                       // sólo la lectura de al entrar
+});
+
+test('al abrir la pregunta el foco va derecho a su texto, y se queda en ella si el panel se rehace con ella abierta', async () => {
+  const { pantalla, servidor, documento } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  boton(pantalla, '+ fila').focus();
+  const focos = historialDelFoco(documento);
+  await tocar(boton(pantalla, '+ fila'));
+  const suTexto = uno(preguntaDeAmpliar(pantalla), '.pregunta-texto');
+  const enfocados = focos.filter((n) => n !== documento.body);
+  assert.ok(enfocados.length > 0);
+  assert.ok(enfocados.every((n) => n === suTexto), enfocados.map((n) => n.textContent));   // ni «Volver» ni otra cosa
+  servidor.responde('GET departamento', { ...DEPTO, ampliar: { ancho: 50, fondo: 45 } });   // cambia sólo el otro lado
+  await documento.dispara('visibilitychange');
+  assert.match(texto(pantalla, '.ampliar'), /\+ columna \(3 casillas\) · 50/);               // el panel se rehízo…
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');   // …con ella abierta
+  assert.equal(documento.activeElement, uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'));
+  boton(preguntaDeAmpliar(pantalla), 'No').focus();
+  servidor.responde('GET departamento', { ...DEPTO, ampliar: { ancho: 55, fondo: 45 } });
+  await documento.dispara('visibilitychange');
+  assert.equal(documento.activeElement, boton(preguntaDeAmpliar(pantalla), 'No'));          // en la misma parte
 });
 
 // --- lo que decidió el dueño al ver el plan terminado: sin camino, no va -------------------
