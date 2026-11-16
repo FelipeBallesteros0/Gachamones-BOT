@@ -2379,8 +2379,6 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .cuerpo-departamento > .lado-departamento,
   .cuerpo-departamento > .ampliar { grid-column: 2; grid-row: 1; }
 
-  .cuerpo-departamento > .aviso { grid-column: 2; grid-row: 2; }
-
   /* La lista, debajo de todo y de lado a lado: tus gachamones arriba, y los
      muebles puestos y los guardados uno junto al otro. */
   .cuerpo-departamento > .lista-departamento {
@@ -2389,6 +2387,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
     grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
     gap: 18px 28px;
   }
+
+  /* Lo que contesta el juego, en la última fila, a lo ancho. */
+  .cuerpo-departamento > .aviso { grid-column: 1 / -1; grid-row: 5; }
 
   .lista-departamento > .lista-gachamones { grid-column: 1 / -1; }
 

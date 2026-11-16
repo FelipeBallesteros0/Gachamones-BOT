@@ -247,8 +247,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
   });
   lista.nodo.hidden = true;
 
+  // Lo que contesta el juego va al final, después de la lista: su regla
+  // pegajosa lo deja al pie de la ventana, como en la Tienda, se actúe desde
+  // donde se actúe.
   const cuerpo = el('div', { class: 'cuerpo cuerpo-departamento' },
-    espera, pieza, aviso.nodo, derecha, panelAmpliar, lista.nodo);
+    espera, pieza, derecha, panelAmpliar, lista.nodo, aviso.nodo);
   contenedor.append(cabecera, cuerpo);
 
   function parar() {
