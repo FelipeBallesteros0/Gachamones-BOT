@@ -100,6 +100,7 @@ Instala el hook local cuando prepares el entorno:
 - Las gemas se gastan sólo en cosméticos, que no tocan ninguna estadística.
 - Cada persona tiene un solo departamento por servidor: parte en 3 × 3 y se amplía por filas o columnas hasta 8 × 8.
 - El servidor manda sobre qué mueble hay en qué casilla; el catálogo y sus formas viven en `departamento.py`, que es puro.
+- Dónde está parado cada gachamon y tu avatar no se guarda ni se manda al servidor: sólo se guardan los muebles.
 - Tener un mueble no es tenerlo puesto; guardar nunca destruye, y se puede tener más de uno de cada.
 - Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Mientras exista el huevo, el gachamon que nace de él no la pide.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.
@@ -145,13 +146,15 @@ Instala el hook local cuando prepares el entorno:
 - Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
 - El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
 - El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de `web/static/arte/` descritos en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza.
+- El arte de la pieza del departamento es la familia `pieza` del contrato (`web/arte.py`): no es pixel art, los originales van en `fuentes/pieza/` al doble de lo que sirve la página, `herramientas/pieza.py` los reduce, y cada mueble de suelo lleva cuatro orientaciones y cada uno de pared, dos.
+- El cliente no decide qué cabe: lo que calcula (`casillas.js`) es para dibujar y no proponer lo imposible, y `tests/test_casillas_cliente.py` lo contrasta con `departamento.py`.
 - Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.
 - En la web se compra estando en la Tienda, salvo ampliar, que se hace en el departamento; lo que todavía no se puede usar en la página no se le vende a nadie.
 - Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar— se rechaza sin gastarlo.
 - Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): sólo cambia quién sale contigo, y elegir a la que ya es la activa no cambia nada.
 - Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo y vivo que todavía lo espere o que se lo haya puesto él solo, nunca con el nombre de su especie.
-- En la web se cambia de activo estando en la Incubadora; vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
+- En la web se cambia de activo estando en la Incubadora o en tu departamento (`POST /departamento/salir`); vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
 
 ## Arte de texto
 

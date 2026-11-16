@@ -145,7 +145,19 @@ con el mismo dinero de siempre; lo que todavía no se puede usar en la página n
 se le vende a nadie. La mochila se abre desde cualquier lugar y sirve para usar
 lo que llevas, menos lo que sólo sirve para competir (las pociones de fuerza, de
 velocidad y de descanso rápido y las sopaipillas), que dice lo mismo que la
-Tienda y no se gasta. Desde cualquier lugar también se abre la ficha completa de tu
+Tienda y no se gasta.
+
+**Tu casa** es la pieza de tu departamento, en vista isométrica y por casillas,
+con tus muebles y todos tus gachamones. Tocas un mueble y salen sus opciones
+(Mover, Girar, Guardar); tocas el suelo y tu avatar camina hasta ahí; en
+«Guardados» están los muebles que tienes sin poner, y «Ampliar» suma una fila o
+una columna hasta 8 × 8. Tocas a un gachamon y abajo queda su ficha, con sus
+cuidados y «Salir con él»; «A todos» le hace un cuidado a cada uno de una vez.
+Bajo la pieza se ve el tamaño, las casillas ocupadas, las camas, los gachamones
+y la comodidad. Todo lo que se hace sobre el dibujo se puede hacer también desde
+una lista con botones, pensada para el teclado y el lector de pantalla. El
+ropero y la mochila siguen siendo del gachamon que sale contigo. Dónde está
+parado cada uno no se guarda: sólo los muebles. Desde cualquier lugar también se abre la ficha completa de tu
 gachamon, con sus medallas y los efectos que lleva activos, y el ropero, donde
 le pones y le quitas el sombrero y el título. La Incubadora enseña tu plantel:
 ahí sacas a otro gachamon para que sea el activo, y dice cuántos caben según las
@@ -190,6 +202,13 @@ contrato, con el nombre y el tamaño exacto de cada pieza, está en
 escrito) y se reemplaza guardando el archivo nuevo con el mismo nombre y el
 mismo tamaño. Los íconos (de objetos, cosméticos y muebles) salen de los
 catálogos del juego y miden 48 × 48: un objeto nuevo añade el suyo.
+
+La pieza de tu departamento es la excepción: no es pixel art, y quien dibuja
+entrega los originales, al doble de lo que sirve la página, en `fuentes/pieza/`;
+`./venv/bin/python -m herramientas.pieza` comprueba sus medidas y guarda las
+copias reducidas que usa la página. Qué imágenes hacen falta (cuatro por mueble
+de suelo, dos por mueble de pared) y de qué tamaño está en la sección «La pieza
+de tu departamento» de `docs/arte/contrato.md`.
 
 Para regenerar los rellenos que falten:
 
@@ -264,8 +283,8 @@ tipo de mueble puesto suma una vez y el tope crece con las casillas. Frena el
 intemperie y el huerto se fueron: el día del cambio se convierte una sola vez lo
 que cada persona tenía (se le devuelve lo que costaron sus casas, con 140 monedas
 más por cada una mediana o grande, y sus tickets, y se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El
-huerto está cerrado hasta que vuelva con el balcón, y la pantalla del
-departamento todavía no existe: las reglas y sus rutas están en el servidor.
+huerto está cerrado hasta que vuelva con el balcón. La pantalla del
+departamento es «Tu casa» (ver «La web»).
 
 **Nacer.** La especie sale por rareza: 12 % cada una de las siete comunes, 6 %
 las dos poco comunes y 4 % el dragón. Las estadísticas al nacer son **la base de

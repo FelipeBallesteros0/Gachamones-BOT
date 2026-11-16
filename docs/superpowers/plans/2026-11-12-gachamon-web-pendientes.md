@@ -742,7 +742,8 @@ Son observaciones, no decisiones.
   buzón; se le cosecha lo plantado como si estuviera maduro; cada ticket del
   refugio le vuelve en 40 monedas (también el que acaba de llegar del buzón);
   cada casa le vuelve al precio de catálogo de la casa que es ese día (una
-  mejorada vuelve como lo que es ahora); se le crea su departamento del primer
+  mejorada vuelve como lo que es ahora), y a la mediana y a la grande se les
+  suman 140 monedas más (ver «Lo decidido» de abajo); se le crea su departamento del primer
   tamaño de la serie en que quepan sus camas, con una cama puesta por cada
   gachamon vivo más la suya; a quien no tiene ninguno vivo, su cama puesta y
   otra guardada; sus muebles de antes pasan a guardados; y se le deja su
@@ -829,7 +830,7 @@ Son observaciones, no decisiones.
     que caben en la Incubadora.
   - Vincular después de haber amueblado deja atrás el departamento de la
     identidad web. Hoy apenas pesa; cuando se empiece amueblando, pesará.
-- **El departamento en pantalla**: no hay pantalla todavía; las rutas están
+- **El departamento en pantalla** (hecho en el rework 5, abajo): no había pantalla; las rutas están
   (`/departamento`, poner, guardar, ampliar) y la carta también. Cambiar de
   activo se sigue haciendo en el lugar «Incubadora», que dice cuántos caben por
   las camas.
@@ -874,6 +875,116 @@ Son observaciones, no decisiones.
   mochila deje de comprobar que el gachamon es el mismo, ni que nacer deje de
   poner al día al activo, y la migración de la columna `activa` no tiene prueba
   sobre una base sin ella.
+
+## Salió al ejecutar el rework 5 (el departamento en pantalla)
+
+### Lo decidido
+
+- **Lo que decidió el dueño:**
+  - El día del cambio, cada casa mediana o grande devuelve 140 monedas más que
+    su precio de catálogo (640 y 1340); la pequeña, 200. La carta dice «por tu
+    ticket» cuando era uno, y la especie del recluta va con su mayúscula.
+  - Las pociones de fuerza y de velocidad y las sopaipillas no se usan ni se
+    gastan desde la mochila: dicen lo mismo que la Tienda. La poción de
+    descanso rápido, igual. El cuidado de aseo se llama «Bañar» en todas
+    partes. El huerto cerrado tiene sus frases (la semilla, su nota en la
+    mochila y los porotos).
+  - Del gachamon que se toca en el departamento se abren sus cuidados y su
+    ficha completa; el ropero y la mochila siguen siendo del que sale contigo.
+  - El arte de la pieza: la casilla original mide 1024 × 512 y no es pixel art;
+    cuatro imágenes por mueble de suelo (NE, NO, SE, SO) y nada se espeja; lo
+    de pared, dos, una por pared. Los originales van en `fuentes/pieza/` y la
+    página sirve copias a la mitad.
+  - En el computador, la pieza a la izquierda; bajo la pieza se ve también la
+    comodidad; al poner, mover o guardar bien no sale texto; el tope de 12
+    cuidados pagados al día se queda.
+  - El orden de los planes cambió: primero la pantalla, después partir sin
+    gachamon; y las aventuras y reclutar se adelantan, justo después de este
+    proyecto y antes del balcón.
+- **Lo que se decidió al construir** (se puede cambiar):
+  - Se toca lo que se ve, con los gachamones primero: a un gachamon siempre se
+    le puede tocar, también con un mueble delante; después los muebles, por la
+    silueta de su caja; después la pared; después el suelo. Quién tapa a quién
+    se calcula por las cajas que ocupan en el suelo.
+  - Si no hay camino hasta la casilla tocada, el avatar (y el gachamon que se
+    mueve) aparece en ella. Al llegar un departamento nuevo, quien quedó sobre
+    un mueble o fuera de la pieza aparece en la casilla libre más cercana; si
+    no queda ninguna que se pise, no se dibuja a nadie en la pieza y se les
+    sigue eligiendo desde la lista.
+  - Tocar fuera de lo marcado suelta lo que llevas y cierra el menú. Lo que no
+    cabe en ningún sitio no entra en la mano («Ahí no cabe.») y todo queda como
+    estaba. «Toca la casilla donde lo quieres.» se queda mientras haya algo en
+    la mano.
+  - Los rótulos («Guardados · toca uno y después una casilla», «Ampliar el
+    departamento», «A todos») se ven en mayúsculas por estilo, como los demás
+    subtítulos. «A todos» enseña una línea por medalla ganada; si varios ganan
+    la misma, las líneas salen iguales porque la frase no dice de quién.
+  - Sin gachamon, la pantalla del departamento no se va sola al huevo mientras
+    estás en casa. Hay una sola petición a la vez en toda la pantalla.
+  - Cómo quedó armado el cliente: `casillas.js` (la rejilla) y `proyeccion.js`
+    (dónde se pinta cada cosa, quién tapa a quién, qué se tocó) son puros;
+    `pieza.js` dibuja; `departamento.js` es la pantalla y habla con el
+    servidor; `plantel.js`, `lista.js` y `flotantes.js` arman la ficha, la
+    lista para teclado y lector de pantalla y lo que flota sobre la pieza;
+    `cuidados.js` es lo que el lugar y el departamento hacen igual con un
+    gachamon; `carta.js` es la carta del alcalde.
+  - La carta del alcalde se ve al entrar, antes que nada (con avatar), una vez, y
+    se cierra con «Entendido».
+
+### Pendiente
+
+- **Partir sin gachamon** (el plan que sigue): la pantalla ya se ve y funciona
+  sin ninguno, pero a ella todavía se llega con uno (`siguiente` manda al
+  huevo). Quitar la Incubadora de «cuántos caben».
+- **El pueblo** (el último plan): la Incubadora sigue sirviendo para cambiar de
+  activo, además del departamento, y «Tu casa» todavía no se llama «Tu
+  departamento».
+- **El arte es de relleno**: cajas de color tan altas como la pared, que tapan
+  mucho de la pieza. Con el arte del dibujante no pasará.
+  - Lo primero al llegar arte más bajo que su caja: el toque sobre un mueble va
+    hoy por la silueta de su caja entera. Con el relleno coincide con lo que se
+    ve, pero con un mueble bajo, tocar el aire de encima lo elegiría a él en
+    vez de la casilla de atrás. Hay que pasar a mirar lo que se ve del dibujo.
+  - Si el arte definitivo pesa demasiado para el teléfono, las copias servidas
+    pueden pasar a otro formato sin tocar los originales. Los 57 rellenos de hoy
+    pesan menos de 1 MB en total; avisar al dueño si el arte del repo se acerca
+    a lo que aguanta la tarjeta de la Pi.
+- **Caminar** (el avatar y los gachamones) sólo se ha visto en el arnés, con el
+  reloj de cuadros sustituido: falta mirarlo en un navegador de verdad.
+- En la pieza, el gachamon no se da vuelta ni titubea al caminar. Cuando la
+  pieza queda limitada por el ancho (8 × 8 en el teléfono) se dibuja pegada
+  arriba y sobra una franja vacía debajo.
+- Mover a mano a un gachamon puede dejarlo en la casilla donde estás tú o donde
+  está otro (los paseos sí esquivan a la gente).
+- El pegamento de lo que flota sobre la escena (globo, corazones, ganancia,
+  celebración, medallas) está en dos sitios: la pantalla del lugar y el
+  departamento. Lo que decide qué se dice sí es común (`cuidados.js`).
+- `departamento.js` sigue siendo un archivo grande (cerca de 1400 líneas en una
+  sola función); partirlo más es un trabajo propio.
+- La lista para teclado y lector de pantalla está siempre a la vista, bajo la
+  pieza; con «Guardados» vacío dice lo mismo que la bandeja («No queda nada
+  guardado.»). Tras un «Guardar» hecho desde el menú del dibujo, el foco va al
+  título; lo de volver al mueble vale para lo que se hace desde la lista.
+- En la mochila quedan sin camino desde la página las frases de las pociones de
+  estadística y las sopaipillas, hasta que vuelvan las competencias.
+- Pequeñeces de las revisiones: la ficha con `gachamon_id` pone al día dos
+  veces, y `web/mochila.py` importa la Tienda de dos formas.
+- **Por decidir con el dueño:**
+  - Mientras carga, la pantalla dice «Cargando tu departamento…» (sigue a
+    «Cargando la tienda…»); es una frase que el dueño no vio en la lista: se
+    le enseña.
+  - La carta del alcalde no dice nada mientras carga, y su título queda vacío
+    hasta que llega (lo manda el servidor); si la carga falla, se ve el mensaje
+    de siempre y «Volver a intentarlo», pero sin título. Falta una frase de
+    espera («Cargando la carta…») y decidir si el título se pone desde el
+    principio.
+
+### Pruebas
+
+- Pruebas que conviene añadir algún día: `reducir()` con un lote mixto de
+  originales; que el relleno es determinista; tocar en la esquina de las dos
+  paredes y en 3 × 3 y 8 × 8; salir de la pantalla con un POST en curso; varias
+  de la lista.
 
 ## Para el plan 6 (tu casa)
 

@@ -255,7 +255,31 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
 - **«A todos»**: los cuatro botones, bajo la ficha.
 - **«Ampliar»**: muestra cuánto cuesta sumar una fila y cuánto una columna.
 - Bajo la pieza, una línea con el tamaño, las casillas ocupadas, las camas y
-  los gachamones.
+  los gachamones, y **también la comodidad** **[Felipe, 2026-11-16]**.
+- **En el computador, la pieza a la izquierda** y, a la derecha, la ficha, «A
+  todos» y los botones; los guardados quedan bajo la pieza **[Felipe,
+  2026-11-16]**.
+- **Al poner, mover o guardar bien no sale texto**; sólo cuando algo no se
+  puede **[Felipe, 2026-11-16]**. Al elegir algo para poner o mover, la
+  indicación «Toca la casilla donde lo quieres.» se queda mientras lo lleves en
+  la mano **[propuesta]**. Tocar fuera de lo marcado lo suelta y cierra el
+  menú; lo que no cabe en ningún sitio no entra en la mano («Ahí no cabe.») y
+  todo queda como estaba **[propuesta]**.
+- **Se toca lo que se ve, con los gachamones primero** **[propuesta]**: a un
+  gachamon siempre se le puede tocar, también con un mueble delante; después,
+  los muebles por la silueta de su caja; después la pared; después el suelo.
+  **Quién tapa a quién** se calcula de verdad, por las cajas que cada cosa
+  ocupa en el suelo, y no con la cuenta rápida del boceto, que dibujaba a un
+  gachamon debajo de la cama que tiene al lado **[propuesta]**.
+- **El tope de 12 cuidados pagados al día se queda** **[Felipe,
+  2026-11-16]**.
+- Si no hay camino hasta la casilla tocada, tu avatar (y el gachamon que
+  mueves) aparece en ella. Al llegar un departamento nuevo, quien quedó sobre
+  un mueble o fuera de la pieza aparece en la casilla libre más cercana; si no
+  queda ninguna casilla que se pueda pisar, no se dibuja a nadie y se les sigue
+  eligiendo desde la lista **[propuesta]**.
+- Del que eliges queda abajo su ficha completa, y el globo de lo que dice sale
+  sólo sobre el que sale contigo **[propuesta]**.
 - Vale en el teléfono y en el computador, con el corte de 900 px de hoy.
 - **Todo lo que se hace tocando el dibujo se puede hacer también sin él**
   (teclado y lector de pantalla): una lista de lo puesto y de lo guardado con
@@ -276,7 +300,9 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
   guardada y la primera aventura por hacer. Las monedas y las gemas que cada
   uno tenía no se tocan.
 - **Las casas compradas se devuelven enteras en monedas** (lo que cuesta cada
-  una en el catálogo). Es una devolución: no pasa por el tope diario, y se paga
+  una en el catálogo), y **cada casa mediana o grande devuelve 140 monedas más**
+  (pequeña 200, mediana 640, grande 1340) **[Felipe, 2026-11-16]**. Es una
+  devolución: no pasa por el tope diario, y se paga
   una sola vez por persona.
 - **Los muebles quedan guardados.**
 - **Lo plantado en el huerto se cosecha solo**, como si estuviera maduro, y va
@@ -291,9 +317,10 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
   ese día: no se les viene encima lo que durmieron.
 - El logro «Superviviente» pasa a ser sólo «100 aventuras».
 - Cada persona ve **una vez** una carta del alcalde que cuenta qué le tocó, en
-  la página, la primera vez que entra después del cambio **[propuesta]**. La
-  carta le dice también cómo se llama ahora cada recluta suyo que estaba sin
-  nombre.
+  la página, la primera vez que entra después del cambio, antes que nada, y se
+  cierra con «Entendido» **[propuesta]**. La carta le dice también cómo se
+  llama ahora cada recluta suyo que estaba sin nombre, con la especie con su
+  mayúscula, y dice «por tu ticket» cuando era uno **[Felipe, 2026-11-16]**.
 - **Los regalos que esperaban en el buzón se entregan solos** a la mochila de
   cada quien **[propuesta]**: el buzón era de Discord, y el juego de Discord se
   pausa ese día.
@@ -356,6 +383,18 @@ riesgo del día del cambio.
   ampliaciones se compran en el departamento **[propuesta]**.
 - **La ficha, el ropero y la mochila** se abren para el gachamon que tengas
   elegido en el departamento; fuera de él, para el activo **[propuesta]**.
+  Lo que se decidió después, al construir la pantalla **[Felipe, 2026-11-16]**:
+  del gachamon que tocas en el departamento se abre sólo su **ficha completa**
+  y sus cuidados; **el ropero y la mochila siguen siendo del que sale contigo**
+  (para vestir a otro o darle un objeto, primero «Salir con él»).
+- **Lo que la mochila ya no deja usar**: las pociones de fuerza y de velocidad
+  y las sopaipillas, que sólo sirven en las competencias, no se usan ni se
+  gastan desde ella y dicen lo mismo que la Tienda; la poción de descanso
+  rápido, que sólo sirve para volver a competir, queda igual **[propuesta,
+  aceptada]**. La semilla, su nota en la mochila y los porotos dicen que el
+  huerto vuelve más adelante **[Felipe, 2026-11-16]**.
+- El cuidado de aseo se llama **«Bañar»** en todas partes **[Felipe,
+  2026-11-16]**.
 
 ## 9. Restricciones
 
