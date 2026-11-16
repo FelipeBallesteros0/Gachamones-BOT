@@ -2,6 +2,7 @@
 // pinta la pantalla que toque.
 
 import { pedir, versiones } from './api.js';
+import { departamento } from './departamento.js';
 import * as entrada from './entrada.js';
 import { ficha } from './ficha.js';
 import { incubadora } from './incubadora.js';
@@ -24,6 +25,7 @@ const PANTALLAS = {
   huevo: entrada.huevo,
   bautizo: entrada.bautizo,
   lugar: (destino, seguir, { estado, llegando }) => lugar(destino, estado, seguir, llegando),
+  departamento: (destino, seguir, { estado }) => departamento(destino, estado, seguir),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),

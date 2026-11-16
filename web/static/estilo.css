@@ -2004,6 +2004,62 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .ficha-nombre { font-size: 1.75rem; }
 }
 
+/* --- el departamento: la pieza de tu casa --- */
+
+.cuerpo-departamento { gap: 12px; padding-top: 12px; }
+
+/* La pieza ocupa el ancho de la columna, y debajo va la línea de cómo está.
+   Sus dibujos no son de cuadros: el lienzo lleva los píxeles del aparato y no
+   se reescala. */
+.pieza { display: grid; gap: 8px; }
+
+.pieza-lienzo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 380 / 310;
+  border-radius: var(--radio-grande);
+  background: var(--secundario-hundido);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.pieza-linea {
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* En un computador, la pieza a la izquierda, grande, con su línea debajo; a la
+   derecha, lo demás. */
+@media (min-width: 900px) {
+  #juego[data-pantalla="departamento"] { max-width: 1120px; }
+
+  .cuerpo-departamento {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    gap: 16px 28px;
+    padding: 28px 28px 36px;
+  }
+
+  .cuerpo-departamento > .espera-tienda,
+  .cuerpo-departamento > .pieza { grid-column: 1; grid-row: 1 / span 3; }
+
+  .cuerpo-departamento > .salidas-lugar { grid-column: 2; grid-row: 1; }
+
+  .cuerpo-departamento > .aviso { grid-column: 2; grid-row: 2; }
+
+  .pieza-lienzo {
+    aspect-ratio: auto;
+    height: clamp(420px, calc(100vh - 190px), 640px);
+    height: clamp(420px, calc(100dvh - 190px), 640px);
+  }
+}
+
 /* Quien pidió menos movimiento en su sistema no ve animaciones: lo que
    aparece, aparece quieto. */
 @media (prefers-reduced-motion: reduce) {

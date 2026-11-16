@@ -8,7 +8,8 @@
 // con `'pueblo'`, el mapa en vez del lugar donde estás; con `'tienda'` o
 // `'incubadora'`, esa pantalla, si el lugar donde estás la ofrece (si no, el
 // lugar); con `'mochila'`, `'ficha'` o `'ropero'`, esa pantalla, estés donde
-// estés. Con otra, el lugar.
+// estés. Con otra, el lugar. Donde el lugar ofrece el departamento («Tu
+// casa»), lo que sería el lugar es el departamento.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
@@ -17,12 +18,13 @@ export function siguiente(sesion, cuenta, estado, vista) {
   if (!estado.gachamon) return 'huevo';
   if (estado.gachamon.espera_nombre) return 'bautizo';
   if (vista === 'pueblo') return 'pueblo';
-  if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : 'lugar';
-  if (vista === 'incubadora') return ofreceLaIncubadora(estado.lugar) ? 'incubadora' : 'lugar';
+  const aqui = ofreceElDepartamento(estado.lugar) ? 'departamento' : 'lugar';
+  if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : aqui;
+  if (vista === 'incubadora') return ofreceLaIncubadora(estado.lugar) ? 'incubadora' : aqui;
   if (vista === 'mochila') return 'mochila';
   if (vista === 'ficha') return 'ficha';
   if (vista === 'ropero') return 'ropero';
-  return 'lugar';
+  return aqui;
 }
 
 // Si en ese lugar (`estado.lugar`) se puede comprar.
@@ -33,6 +35,11 @@ export function ofreceLaTienda(lugar) {
 // Si en ese lugar (`estado.lugar`) se ve el plantel y se saca a otro.
 export function ofreceLaIncubadora(lugar) {
   return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('incubadora');
+}
+
+// Si ese lugar (`estado.lugar`) es tu departamento: ahí se ve la pieza.
+export function ofreceElDepartamento(lugar) {
+  return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('departamento');
 }
 
 // Si falla la petición de entrar al lugar al que se acaba de llegar: si el

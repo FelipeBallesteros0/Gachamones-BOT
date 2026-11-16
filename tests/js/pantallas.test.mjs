@@ -63,12 +63,15 @@ test('la tienda sólo se abre donde el lugar la ofrece', () => {
   assert.equal(siguiente(sesion, cuenta, en(['tienda']), 'otra cosa'), 'lugar');
 });
 
-test('«Tu casa» ofrece el departamento, que no cambia de pantalla: se sigue viendo el lugar', () => {
+test('en «Tu casa» la pantalla es el departamento', () => {
+  const en = (ofrece) => ({ ...jugando, lugar: { clave: 'x', nombre: 'X', ofrece } });
   const enCasa = { ...jugando, lugar: { clave: 'casa', nombre: 'Tu casa', ofrece: ['departamento'] } };
-  for (const vista of [undefined, 'lugar', 'tienda', 'incubadora', 'departamento']) {
-    assert.equal(siguiente(sesion, cuenta, enCasa, vista), 'lugar');
+  for (const vista of [undefined, 'lugar', 'tienda', 'incubadora', 'departamento', 'otra cosa']) {
+    assert.equal(siguiente(sesion, cuenta, enCasa, vista), 'departamento');
   }
-  assert.equal(siguiente(sesion, cuenta, enCasa, 'mochila'), 'mochila');
+  for (const vista of ['pueblo', 'mochila', 'ficha', 'ropero']) assert.equal(siguiente(sesion, cuenta, enCasa, vista), vista);
+  assert.equal(siguiente(sesion, cuenta, en([]), undefined), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, en(['tienda']), 'departamento'), 'lugar');
 });
 
 test('lo que va antes del juego gana a la tienda y a la mochila', () => {

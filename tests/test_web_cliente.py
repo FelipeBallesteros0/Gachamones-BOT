@@ -478,3 +478,32 @@ def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():
     assert "efectos/corazon.png" in lugar and "efectos/estrella.png" in lugar
     assert "\u2764" not in lugar
     assert "efectos/estrella.png" in _sin_comentarios(_guion("ficha.js"))
+
+
+# --- el departamento ----------------------------------------------------------------
+
+def test_el_departamento_esta_montado_y_tiene_su_ancho_en_el_computador():
+    principal = _guion("principal.js")
+    assert "from './departamento.js'" in principal and "departamento:" in principal
+    assert '#juego[data-pantalla="departamento"]' in (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
+
+
+def test_la_pieza_no_es_pixel_art_pero_el_avatar_si():
+    pieza = _guion("pieza.js")
+    assert "imageSmoothingEnabled = true" in pieza and "imageSmoothingEnabled = false" in pieza
+
+
+def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
+    import departamento
+
+    for nombre in ("departamento.js", "pieza.js", "casillas.js", "proyeccion.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        for clave in departamento.MUEBLES:
+            assert f"'{clave}'" not in codigo and f'"{clave}"' not in codigo, (nombre, clave)
+        assert not re.search(r"\b(15|85)\b", codigo), nombre      # lo que cuesta una casilla y una cama
+
+
+def test_el_departamento_camina_solo_mientras_algo_se_mueve_y_respeta_el_movimiento_reducido():
+    codigo = _guion("departamento.js")
+    for trozo in ("requestAnimationFrame", "cancelAnimationFrame", "prefers-reduced-motion", "visibilitychange", "aria-hidden"):
+        assert trozo in codigo, trozo
