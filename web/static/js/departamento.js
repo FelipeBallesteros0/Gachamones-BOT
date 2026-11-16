@@ -43,8 +43,9 @@
 // El servidor manda: la pieza se pinta como llega, y lo que se calcula aquí
 // (por dónde se camina, qué se tocó, qué cabe dónde) sirve sólo para dibujar y
 // para no proponer lo imposible. Poner, guardar, salir y acariciar se mandan
-// una vez; ampliar y cada cuidado, que mueven monedas, llevan un evento por
-// toque (el mismo en sus reintentos). Lo que sale bien no se dice: se ve;
+// una vez; cada cuidado, que mueve monedas, lleva un evento por toque (el
+// mismo en sus reintentos), y ampliar, el de lo que se ve (el lado y lo que
+// mide la pieza: el mismo hasta que crece). Lo que sale bien no se dice: se ve;
 // ampliar, los cuidados, salir y lo que no se puede dicen la frase del
 // servidor; sin respuesta, se dice y la pieza se vuelve a leer. Mientras una
 // petición va, lo que la mandó espera y no sale otra. El lienzo sólo se mira
@@ -1099,11 +1100,29 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
     if (rotulo) rotulo.focus({ preventScroll: true });
   }, { signal });
 
-  // Crecer por ese lado. Cuesta monedas: cada toque lleva su evento, y sus
-  // reintentos el mismo, para que no se cobre dos veces.
+  // El evento de crecer por un lado es el de lo que se ve: el lado y lo que
+  // mide la pieza ahora («ancho 3 × 3»). Se crea la primera vez y vale
+  // mientras la pieza mida lo mismo: si la respuesta se perdió y la relectura
+  // también, el toque siguiente lleva el mismo evento, y si el primero entró,
+  // el servidor contesta con la pieza de ahora sin cobrar otra vez. Un «no»
+  // (te faltan monedas, ya es el máximo) no se anota, así que repetirlo no
+  // estorba. Cuando la pieza crece, el toque siguiente estrena otro.
+  const eventosDeAmpliar = new Map();
+
+  function eventoDeAmpliar(eje) {
+    const loQueSeVe = `${eje} ${depto.ancho} × ${depto.fondo}`;
+    if (!eventosDeAmpliar.has(loQueSeVe)) {
+      const evento = nuevoEvento();
+      eventosDeAmpliar.set(loQueSeVe, evento);
+    }
+    return eventosDeAmpliar.get(loQueSeVe);
+  }
+
+  // Crecer por ese lado. Cuesta monedas: lleva el evento de lo que se ve, y
+  // sus reintentos el mismo, para que no se cobre dos veces.
   function ampliar(eje, boton) {
     if (enCamino) return;
-    const evento = nuevoEvento();
+    const evento = eventoDeAmpliar(eje);
     enviar(boton, () => conReintentos(() => pedir('POST', 'departamento/ampliar', { eje, evento_id: evento }), sigueAqui), null);
   }
 

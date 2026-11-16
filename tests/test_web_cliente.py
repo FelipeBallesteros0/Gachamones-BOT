@@ -246,9 +246,25 @@ def _argumentos(codigo: str, desde: int) -> str:
     raise AssertionError("paréntesis sin cerrar")
 
 
+def _cuerpo_de(codigo: str, funcion: str) -> str:
+    """Lo que hay entre las llaves de `function funcion(…) { … }` (con sus llaves anidadas)."""
+    cabeza = re.search(rf"\bfunction\s+{funcion}\s*\([^)]*\)\s*\{{", codigo)
+    assert cabeza, funcion
+    nivel = 1
+    for i in range(cabeza.end(), len(codigo)):
+        nivel += {"{": 1, "}": -1}.get(codigo[i], 0)
+        if nivel == 0:
+            return codigo[cabeza.end():i]
+    raise AssertionError("llave sin cerrar")
+
+
 def test_el_evento_se_crea_una_vez_fuera_de_lo_que_se_reintenta():
     # Lo que impide cobrar, gastar o cuidar dos veces: los reintentos de un toque
-    # llevan el mismo evento, creado antes y guardado en una constante.
+    # llevan el mismo evento, creado antes y guardado en una constante. La
+    # constante es `nuevoEvento()` a secas o lo que da una función de ese mismo
+    # archivo que lo crea así y lo guarda (ampliar guarda el de lo que se ve,
+    # para que el toque siguiente no cobre dos veces); ni `nuevoEvento()` ni esa
+    # función van dentro de lo que se reintenta, y esa función no reintenta.
     for nombre in ("tienda.js", "mochila.js", "lugar.js", "departamento.js"):
         codigo = _sin_comentarios(_guion(nombre))
         llamadas = list(re.finditer(r"\bconReintentos\(", codigo))
@@ -262,7 +278,15 @@ def test_el_evento_se_crea_una_vez_fuera_de_lo_que_se_reintenta():
             funcion = list(re.finditer(r"\bfunction\s+\w+\s*\(", antes))
             assert funcion, nombre
             dentro = antes[funcion[-1].start():]
-            assert re.search(rf"\bconst\s+{usado.group(1)}\s*=\s*nuevoEvento\(\)\s*;", dentro), (nombre, usado.group(1))
+            creado = re.search(rf"\bconst\s+{usado.group(1)}\s*=\s*(\w+)\([^;]*\)\s*;", dentro)
+            assert creado, (nombre, usado.group(1))
+            fuente = creado.group(1)
+            if fuente == "nuevoEvento":
+                continue
+            assert not re.search(rf"\b{fuente}\(", reintentado), (nombre, fuente)
+            guarda = _cuerpo_de(codigo, fuente)
+            assert re.search(r"\bconst\s+\w+\s*=\s*nuevoEvento\(\)\s*;", guarda), (nombre, fuente)
+            assert "conReintentos(" not in guarda, (nombre, fuente)
 
 
 # --- la mochila ------------------------------------------------------------------

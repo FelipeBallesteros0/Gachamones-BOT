@@ -840,7 +840,7 @@ test('sin guardados, la bandeja lo dice', async () => {
   assert.match(texto(pantalla, '.bandeja'), /No queda nada guardado\./);
 });
 
-test('ampliar lleva un evento por toque y enseña lo que cuesta', async () => {
+test('ampliar lleva el evento de lo que se ve y enseña lo que cuesta: cuando la pieza crece, el toque siguiente estrena otro', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   await tocar(boton(pantalla, 'Ampliar'));
   assert.match(texto(pantalla, '.ampliar'), /\+ columna \(3 casillas\) · 45/);
@@ -853,7 +853,32 @@ test('ampliar lleva un evento por toque y enseña lo que cuesta', async () => {
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Tu departamento ahora mide 4 × 3.');
   assert.match(texto(pantalla, '.ampliar'), /\+ fila \(4 casillas\) · 60/);
   await tocar(boton(pantalla, '+ columna'));
-  assert.notEqual(pedidos.at(-1)[1].evento_id, cuerpo.evento_id);        // otro toque, otro evento
+  assert.notEqual(pedidos.at(-1)[1].evento_id, cuerpo.evento_id);        // la pieza creció: otro toque, otro evento
+});
+
+test('si la respuesta de ampliar se pierde y la relectura también, el toque siguiente lleva el mismo evento y no cobra otra vez', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  servidor.falla('POST departamento/ampliar');                           // llega o no: la respuesta no vuelve
+  servidor.falla('GET departamento');                                    // y la relectura tampoco
+  await tocar(boton(pantalla, '+ columna'));
+  await correrReloj(800); await correrReloj(2000);                       // los dos reintentos
+  const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
+  assert.equal(ampliados().length, 3);
+  const [, primero] = ampliados()[0];
+  assert.deepEqual(ampliados().map(([, c]) => c.evento_id), [primero.evento_id, primero.evento_id, primero.evento_id]);
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'No hubo respuesta. Revisa tu conexión.');
+  assert.ok(pedidos.slice(pedidos.lastIndexOf(ampliados().at(-1))).some(([ruta]) => ruta === 'GET departamento'));   // se relee…
+  assert.match(texto(pantalla, '.ampliar'), /\+ columna \(3 casillas\) · 45/);      // …no llega: se ve lo de antes
+  assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), null);   // y se puede tocar otra vez
+  const mas = { ...DEPTO, ancho: 4, casillas: 12, ampliar: { ancho: 45, fondo: 60 } };
+  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: mas, estado: ESTADO });
+  await tocar(boton(pantalla, '+ columna'));
+  assert.equal(ampliados().length, 4);
+  assert.deepEqual(ampliados().at(-1)[1], { eje: 'ancho', evento_id: primero.evento_id });   // si el primero entró, es una repetición
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Tu departamento ahora mide 4 × 3.');
+  await tocar(boton(pantalla, '+ columna'));                             // ya con la pieza de 4 × 3
+  assert.notEqual(ampliados().at(-1)[1].evento_id, primero.evento_id);
 });
 
 test('en 8 × 8 ya no se ofrece crecer', async () => {
