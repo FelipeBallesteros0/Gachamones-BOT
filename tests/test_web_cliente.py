@@ -523,6 +523,31 @@ def test_la_ficha_de_uno_que_no_sale_contigo_no_ofrece_el_ropero():
     assert "gachamonId" in _guion("principal.js")
 
 
+def _bloques(codigo: str, cabeza: str) -> list[str]:
+    """Lo que hay dentro de cada bloque `cabeza { … }` (con sus llaves anidadas)."""
+    bloques = []
+    for hallado in re.finditer(re.escape(cabeza) + r"\s*\{", codigo):
+        nivel, desde = 1, hallado.end()
+        for i in range(desde, len(codigo)):
+            nivel += {"{": 1, "}": -1}.get(codigo[i], 0)
+            if nivel == 0:
+                bloques.append(codigo[desde:i])
+                break
+    return bloques
+
+
+def test_con_menos_movimiento_los_corazones_se_ven_en_el_lugar_y_en_tu_casa():
+    # Sin animación, los corazones no pueden quedarse en su opacidad de partida
+    # (0): las reglas de cada pantalla pesan más que `.corazon` a secas.
+    estilo = re.sub(r"/\*.*?\*/", "", (ESTATICOS / "estilo.css").read_text(encoding="utf-8"), flags=re.S)
+    vistos = set()
+    for bloque in _bloques(estilo, "@media (prefers-reduced-motion: reduce)"):
+        for selectores, cuerpo in re.findall(r"([^{}]+)\{([^{}]*)\}", bloque):
+            if re.search(r"opacity:\s*1\s*;", cuerpo):
+                vistos |= {" ".join(s.split()) for s in selectores.split(",")}
+    assert {".escena > .corazon", ".pieza-escenario > .corazon"} <= vistos, vistos
+
+
 def test_el_departamento_camina_solo_mientras_algo_se_mueve_y_respeta_el_movimiento_reducido():
     codigo = _guion("departamento.js")
     for trozo in ("requestAnimationFrame", "cancelAnimationFrame", "prefers-reduced-motion", "visibilitychange", "aria-hidden"):

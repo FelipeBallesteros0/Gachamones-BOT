@@ -38,7 +38,9 @@ export function panelDelPlantel(acciones) {
   const chapa = el('span', { class: 'chapa-sale-contigo' }, SALE_CONTIGO);
   const verFicha = el('button', { type: 'button', class: 'boton boton-chico boton-ver-ficha' }, 'Ver ficha');
   verFicha.addEventListener('click', () => acciones.verFicha());
-  const lineaDeCabeza = el('div', { class: 'ficha-cabeza' });
+  // El nombre y «Ver ficha» están siempre; la chapa va entre los dos sólo en
+  // la del que sale contigo.
+  const lineaDeCabeza = el('div', { class: 'ficha-cabeza' }, cabeza, verFicha);
   const detalle = el('p', { class: 'ficha-detalle' });
   const medidores = BARRAS.map(medidorDe);
   const cuidados = CUIDADOS.map((datos) => {
@@ -50,7 +52,8 @@ export function panelDelPlantel(acciones) {
   acariciar.addEventListener('click', () => acciones.acariciar(acariciar));
   const salir = el('button', { type: 'button', class: 'boton boton-chico principal boton-salir-con' });
   salir.addEventListener('click', () => acciones.salir(salir));
-  const accionesDelElegido = el('div', { class: 'acciones-elegido' });
+  // «Acariciar» está siempre; «Salir con …», sólo en la de otro.
+  const accionesDelElegido = el('div', { class: 'acciones-elegido' }, acariciar);
   const ficha = el('section', { class: 'ficha-elegido', 'aria-labelledby': 'departamento-elegido' });
 
   // --- a todos -----------------------------------------------------------------------
@@ -104,7 +107,10 @@ export function panelDelPlantel(acciones) {
   }
 
   // `quien` es el que se enseña (su ficha corta, con `activo`), o `null` si no
-  // vive ninguno. El foco que estaba en lo que se quita espera en su nombre.
+  // vive ninguno. Lo que se ve siempre se queda en su sitio (sacar del
+  // documento lo que tiene el foco se lo quita): sólo entran o salen la chapa
+  // y «Salir con …» cuando cambia si es el que sale contigo. El foco que
+  // estaba en lo que se quita espera en su nombre.
   function pintar(quien) {
     visto = quien;
     const conFoco = ficha.contains(document.activeElement) ? document.activeElement : null;
@@ -116,11 +122,13 @@ export function panelDelPlantel(acciones) {
     }
     nombre.textContent = quien.nombre;
     titulo.textContent = quien.titulo ? ` ${quien.titulo}` : '';
-    lineaDeCabeza.replaceChildren(...(quien.activo ? [cabeza, chapa, verFicha] : [cabeza, verFicha]));
+    if (quien.activo && !lineaDeCabeza.contains(chapa)) lineaDeCabeza.insertBefore(chapa, verFicha);
+    if (!quien.activo && lineaDeCabeza.contains(chapa)) chapa.remove();
     detalle.textContent = `${quien.nombre_especie} ${quien.nombre_etapa} · nivel ${quien.nivel}`;
     pintarMedidores(medidores, quien.barras);
-    salir.textContent = `Salir con ${quien.nombre}`;
-    accionesDelElegido.replaceChildren(...(quien.activo ? [acariciar] : [acariciar, salir]));
+    if (salir.textContent !== `Salir con ${quien.nombre}`) salir.textContent = `Salir con ${quien.nombre}`;
+    if (!quien.activo && !accionesDelElegido.contains(salir)) accionesDelElegido.append(salir);
+    if (quien.activo && accionesDelElegido.contains(salir)) salir.remove();
     if (!ficha.contains(cabeza)) {
       ficha.replaceChildren(lineaDeCabeza, detalle,
         el('div', { class: 'medidores' }, medidores.map((m) => m.nodo)),

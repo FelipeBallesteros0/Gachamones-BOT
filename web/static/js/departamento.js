@@ -492,12 +492,22 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random } 
 
   const elQueSale = () => (depto ? depto.plantel.find((g) => g.activo) || null : null);
 
+  // El retrato que se pinta de cada uno (su dirección), por id: el último que
+  // llegó. Cuando le cambia la cara se sigue pintando el de antes hasta que
+  // llegue el nuevo (si no, en ese rato se vería sólo su sombra).
+  const retratoPintado = new Map();
+
+  function retratoDe(g) {
+    if (cargadas.has(g.retrato)) retratoPintado.set(g.id, g.retrato);
+    return retratoPintado.get(g.id) || g.retrato;
+  }
+
   // Tus gachamones como los pinta y los toca la pieza: los que tienen casilla.
   function losDeLaPieza() {
     if (!depto) return [];
     return depto.plantel.filter((g) => enPieza.has(g.id)).map((g) => {
       const quien = enPieza.get(g.id);
-      return { id: g.id, i: quien.i, j: quien.j, retrato: g.retrato, activo: g.activo, sube: subeDe(g.id) };
+      return { id: g.id, i: quien.i, j: quien.j, retrato: retratoDe(g), activo: g.activo, sube: subeDe(g.id) };
     });
   }
 

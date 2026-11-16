@@ -2278,4 +2278,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   }
 
   .corazon, .ganancia.visible { opacity: 1; }
+
+  /* Las reglas de los corazones de cada pantalla pesan más que la de arriba. */
+  .escena > .corazon, .pieza-escenario > .corazon { opacity: 1; }
 }

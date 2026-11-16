@@ -34,6 +34,16 @@ function escuchar(oyentes, tipo, oyente, opciones) {
 // Dónde está el lienzo en la página: un toque se cuenta desde su esquina.
 const LIENZO = { left: 12, top: 40, width: 380, height: 310 };
 
+// Saca un nodo de donde esté. Como en un navegador, quitar del documento el
+// nodo enfocado (o lo que lo contiene) deja el foco en el cuerpo, aunque se
+// vuelva a meter enseguida.
+function sacar(nodo) {
+  const foco = document.activeElement;
+  if (foco && (nodo === foco || (nodo instanceof Elemento && nodo.contains(foco)))) document.activeElement = document.body;
+  if (nodo.padre) nodo.padre.hijos = nodo.padre.hijos.filter((h) => h !== nodo);
+  nodo.padre = null;
+}
+
 function cumpleSimple(nodo, simple) {
   return (simple.match(/^[a-z0-9]+|\.[\w-]+|\[[^\]]+\]/g) || []).every((parte) => {
     if (parte.startsWith('.')) return nodo.classList.contains(parte.slice(1));
@@ -97,18 +107,29 @@ class Elemento extends Nodo {
   addEventListener(tipo, oyente, opciones) { escuchar(this.oyentes, tipo, oyente, opciones); }
 
   append(...nodos) {
-    for (const nodo of nodos) nodo.padre = this;
-    this.hijos.push(...nodos);
+    for (const nodo of nodos) {
+      if (nodo.padre) sacar(nodo);
+      nodo.padre = this;
+      this.hijos.push(nodo);
+    }
   }
 
   replaceChildren(...nodos) {
-    this.hijos = [];
+    for (const hijo of [...this.hijos]) sacar(hijo);
     this.append(...nodos);
   }
 
+  insertBefore(nuevo, referencia) {
+    if (nuevo.padre) sacar(nuevo);
+    nuevo.padre = this;
+    const donde = referencia ? this.hijos.indexOf(referencia) : -1;
+    if (donde < 0) this.hijos.push(nuevo);
+    else this.hijos.splice(donde, 0, nuevo);
+    return nuevo;
+  }
+
   remove() {
-    if (this.padre) this.padre.hijos = this.padre.hijos.filter((h) => h !== this);
-    this.padre = null;
+    if (this.padre) sacar(this);
   }
 
   cumple(selector) {
@@ -163,7 +184,9 @@ class Elemento extends Nodo {
   }
 }
 
-// Una imagen que carga sola en cuanto se le da su dirección.
+// Una imagen que carga sola en cuanto se le da su dirección, salvo si la
+// dirección contiene algo retenido (`retenerImagenes`): ésa espera a que se suelte.
+const imagenesRetenidas = new Map();
 globalThis.Image = class {
   constructor() {
     this.naturalWidth = 48;
@@ -174,9 +197,23 @@ globalThis.Image = class {
 
   set src(direccion) {
     this.direccion = direccion;
-    queueMicrotask(() => { if (this.onload) this.onload(); });
+    const trozo = [...imagenesRetenidas.keys()].find((t) => String(direccion).includes(t));
+    if (trozo !== undefined) imagenesRetenidas.get(trozo).push(this);
+    else queueMicrotask(() => { if (this.onload) this.onload(); });
   }
 };
+
+// Las imágenes cuya dirección contiene `trozo` no cargan hasta que se llama a
+// lo que devuelve.
+function retenerImagenes(trozo) {
+  imagenesRetenidas.set(trozo, []);
+  return async () => {
+    const esperando = imagenesRetenidas.get(trozo) || [];
+    imagenesRetenidas.delete(trozo);
+    for (const imagen of esperando) if (imagen.onload) imagen.onload();
+    await asentar();
+  };
+}
 
 // Lo que corre con el tiempo se apunta y no corre solo: lo de `setTimeout` y
 // los cuadros de animación, sólo cuando una prueba los hace correr; lo de
@@ -265,7 +302,7 @@ function nuevoDocumento() {
   const documento = {
     hidden: false,
     activeElement: null,
-    body: null,
+    body: new Elemento('body'),
     createElement: (etiqueta) => new Elemento(etiqueta),
     createTextNode: (texto) => new Texto(texto),
     addEventListener: (tipo, oyente, opciones) => escuchar(oyentes, tipo, oyente, opciones),
@@ -424,6 +461,7 @@ async function abrir(depto, estado = ESTADO, { movimientoReducido = false, antes
   reducido = movimientoReducido;
   // Lo que dejó pendiente otra prueba no corre en ésta.
   pendientes.clear();
+  imagenesRetenidas.clear();
   const servidor = crearServidor();
   servidor.responde('GET departamento', depto);
   antes(servidor);
@@ -1141,4 +1179,52 @@ test('si no queda ninguna casilla que se pise no se pinta a nadie, y la ficha si
   assert.equal(dondeSePinto(pantalla, RULO.retrato), null);
   assert.equal(dondeEstasTu(pantalla), null);
   assert.match(texto(pantalla, '.ficha-elegido'), /Pelusa.*Sale contigo/s);
+});
+
+// --- ronda de arreglo 1 de los gachamones ----------------------------------------------
+
+test('volver a leer la pieza no le quita el foco a la ficha del elegido', async () => {
+  const { pantalla, documento, servidor } = await abrir(CON_DOS);
+  const ficha = uno(pantalla, '.ficha-elegido');
+  const ver = boton(ficha, 'Ver ficha');
+  ver.focus();
+  await documento.dispara('visibilitychange');                           // la misma pieza
+  assert.equal(documento.activeElement, ver);
+  const acariciar = boton(ficha, 'Acariciar');
+  acariciar.focus();
+  const conHambre = { ...CON_DOS, plantel: [{ ...CON_DOS.plantel[0], barras: { ...PELUSA.barras, comida: 30 } }, CON_DOS.plantel[1]] };
+  servidor.responde('GET departamento', conHambre);
+  await documento.dispara('visibilitychange');                           // datos nuevos del mismo
+  assert.equal(texto(ficha, '.medidor-cifra'), '30');
+  assert.equal(documento.activeElement, acariciar);
+  await tocarA(pantalla, CON_DOS, 1);                                     // Rulo, con «Salir con Rulo»
+  const salir = boton(ficha, 'Salir con Rulo');
+  salir.focus();
+  await documento.dispara('visibilitychange');
+  assert.equal(documento.activeElement, salir);
+});
+
+test('al salir con él, el foco que estaba en «Salir con …» pasa a su nombre', async () => {
+  const { pantalla, documento, servidor } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  servidor.responde('POST departamento/salir', { ok: true, clave: null, mensaje: 'Ahora sales con Rulo.', departamento: CON_RULO_ACTIVO, estado: { ...ESTADO, gachamon: RULO } });
+  const salir = boton(pantalla, 'Salir con Rulo');
+  salir.focus();
+  await tocar(salir);
+  assert.equal(documento.activeElement, uno(pantalla, '.ficha-elegido-nombre'));
+});
+
+test('al cambiarle la cara se sigue pintando su retrato de antes hasta que llega el nuevo', async () => {
+  const { pantalla, servidor } = await abrir(CON_DOS);
+  await tocarA(pantalla, CON_DOS, 1);
+  const CONTENTO = { ...RULO, cara: 'contento', retrato: '/gachamon/retrato/slime/bebe/contento/sin.png' };
+  const soltar = retenerImagenes('/contento/');
+  servidor.responde('POST cuidar', { ok: true, mensaje: 'Juegan un rato.', espera: 600, monedas: 0, evoluciono: false, logros: [],
+    gachamon: CONTENTO, estado: ESTADO });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Jugar'));
+  assert.deepEqual(dondeSePinto(pantalla, RULO.retrato), dondeEsta(CON_DOS, 1));   // el de antes, mientras llega
+  assert.equal(dondeSePinto(pantalla, CONTENTO.retrato), null);
+  await soltar();
+  assert.equal(dondeSePinto(pantalla, RULO.retrato), null);
+  assert.deepEqual(dondeSePinto(pantalla, CONTENTO.retrato), dondeEsta(CON_DOS, 1));
 });
