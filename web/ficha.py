@@ -67,8 +67,8 @@ def _el_pedido(jugador: Jugador, pedido: str | None, ahora) -> sim.Criatura:
         if criatura is None:
             raise problema(409, "sin_gachamon", "No tienes un gachamon.")
         return criatura
-    # Un entero a secas: ni un texto, ni un decimal, ni un signo.
-    if not re.fullmatch(r"[0-9]+", pedido) or not es_un_id(int(pedido)):
+    # Un entero a secas, de a lo más 19 cifras (que `int` no se atragante): ni un texto, ni un decimal, ni un signo.
+    if not re.fullmatch(r"[0-9]{1,19}", pedido) or not es_un_id(int(pedido)):
         raise problema(422, "peticion", "La petición no se entiende.")
     # El remiendo de la activa, como en el caso sin pedido; el plantel ya trae a cada uno al día.
     db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)

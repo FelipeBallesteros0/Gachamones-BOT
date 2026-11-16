@@ -152,7 +152,7 @@ def test_la_ficha_de_uno_que_no_sale_contigo(cliente, monkeypatch):
     sin = cliente.get(FICHA, params={"gachamon_id": 999999})
     assert sin.status_code == 409 and sin.json()["detail"]["clave"] == "no_esta"
     assert sin.json()["detail"]["mensaje"] == "Ese gachamon ya no está."
-    for malo in ("x", "1.5", "true", "0", "-1", str(2**70)):
+    for malo in ("x", "1.5", "true", "0", "-1", str(2**70), "9" * 5000):
         assert cliente.get(FICHA, params={"gachamon_id": malo}).status_code == 422
 
 
