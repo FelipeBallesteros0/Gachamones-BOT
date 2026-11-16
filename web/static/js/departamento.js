@@ -23,7 +23,8 @@
 // «Guardados», bajo la pieza, o el gachamon que mueves) marca dónde va, y el
 // toque siguiente dice dónde: en un sitio marcado se pone (el gachamon camina
 // hasta ahí, y eso no se manda); en cualquier otro, se suelta. «Ampliar»
-// cambia lo de la derecha por lo que cuesta crecer por cada lado.
+// cambia lo de la derecha por lo que cuesta crecer por cada lado; tocar un
+// lado no cobra: pregunta antes, como la Tienda.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
@@ -65,7 +66,7 @@
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
 import {
-  MONEDAS, cabeceraConSaldos, hayQueDecidirDeNuevo, listaQueSePide, mensajeDe, zonaDeAviso,
+  MONEDAS, cabeceraConSaldos, cajaDePregunta, hayQueDecidirDeNuevo, listaQueSePide, mensajeDe, zonaDeAviso,
 } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import {
@@ -114,6 +115,9 @@ const ROTULO_DE_GUARDADOS = 'Guardados · toca uno y después una casilla';
 const NADA_GUARDADO = 'No queda nada guardado.';
 const ROTULO_DE_AMPLIAR = 'Ampliar el departamento';
 const YA_NO_CRECE = 'Tu departamento ya no puede crecer más.';
+// La pregunta antes de crecer, como la de la Tienda: el coste es el que manda
+// el servidor, dicho con la palabra («45 monedas», «1 moneda»).
+const preguntaDeAmpliar = (coste) => `¿Ampliar por ${MONEDAS.cuantas(coste)}?`;
 
 // Los guardados, uno por tipo de mueble en el orden en que llegan: el primero
 // de cada tipo (el que se pone) y cuántos hay.
@@ -370,6 +374,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   let enLaMano = null;
   let bandejaAbierta = false;
   let ampliando = false;
+  // La pregunta abierta en lo de ampliar, o `null`: `{eje, coste, mide}`, el
+  // lado y lo que costaba y medía la pieza al abrirla. Sólo hay una.
+  let preguntaAbierta = null;
 
   // Mientras una petición va no sale otra; lo que la mandó espera hasta que vuelve.
   let enCamino = false;
@@ -1081,23 +1088,48 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // --- ampliar ---------------------------------------------------------------------------
 
+  // Para qué está hecho lo de ampliar (lo que mide la pieza, lo que cuesta cada
+  // lado y la pregunta abierta), o `null`: si no cambia, no se rehace, y el
+  // foco no se mueve (un lector de pantalla no vuelve a leer nada).
+  let ampliarDe = null;
+
+  // El botón de crecer por ese lado, o `null` si no está (no crece por ahí, o
+  // en su lugar está su pregunta).
+  const botonDelLado = (eje) => [...panelAmpliar.querySelectorAll('.boton-lado')]
+    .find((b) => b.getAttribute('data-eje') === eje) || null;
+
   // Lo de ampliar va en lugar de lo de la derecha: un botón por cada lado que
-  // todavía puede crecer, con lo que suma y lo que cuesta, y «Volver». El foco
-  // que estaba en él vuelve a lo mismo: el rótulo, ese lado o, si ya no puede
-  // crecer por ahí, «Volver».
+  // todavía puede crecer, con lo que suma y lo que cuesta, y «Volver». Tocar
+  // un lado no cobra: en su lugar sale la pregunta de la Tienda, con «Ampliar»
+  // y «No»; sólo una a la vez. La pregunta vale mientras la pieza mida y cueste
+  // lo que medía y costaba al abrirla: si llega otra, se cierra, para que no se
+  // cobre algo distinto de lo que se ve. Lo que nace mientras una petición va
+  // no se puede usar. El foco que estaba en él vuelve a lo mismo: el rótulo, ese
+  // lado (su botón, también si estaba en su pregunta) o, si ya no puede crecer
+  // por ahí, «Volver».
   function ponerAmpliar() {
     derecha.hidden = ampliando;
     panelAmpliar.hidden = !ampliando;
     if (!ampliando || !depto) return;
-    const conFoco = panelAmpliar.contains(document.activeElement) ? document.activeElement : null;
+    const mide = `${depto.ancho} × ${depto.fondo}`;
     const lados = [
       { eje: 'fondo', que: 'fila', casillas: depto.ancho, coste: depto.ampliar.fondo },
       { eje: 'ancho', que: 'columna', casillas: depto.fondo, coste: depto.ampliar.ancho },
     ].filter(({ coste }) => coste !== null && coste !== undefined);
+    if (preguntaAbierta) {
+      const lado = lados.find(({ eje }) => eje === preguntaAbierta.eje);
+      if (!lado || lado.coste !== preguntaAbierta.coste || mide !== preguntaAbierta.mide) preguntaAbierta = null;
+    }
+    const para = `${mide} ${lados.map(({ eje, coste }) => `${eje} ${coste}`).join(' ')} ${preguntaAbierta ? preguntaAbierta.eje : '-'}`;
+    if (para === ampliarDe) return;
+    ampliarDe = para;
+    const conFoco = panelAmpliar.contains(document.activeElement) ? document.activeElement : null;
+    const ocupado = enCamino ? 'true' : null;
     const rotulo = el('h2', { class: 'rotulo', id: 'departamento-ampliar', tabindex: '-1' }, ROTULO_DE_AMPLIAR);
     const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
     volver.addEventListener('click', () => {
       ampliando = false;
+      preguntaAbierta = null;
       ponerAmpliar();
       alAmpliar.focus({ preventScroll: true });
     }, { signal });
@@ -1105,14 +1137,23 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (lados.length) {
       opciones = el('div', { class: 'ampliar-lados', role: 'group', 'aria-labelledby': 'departamento-ampliar' },
         lados.map(({ eje, que, casillas, coste }) => {
+          if (preguntaAbierta && preguntaAbierta.eje === eje) {
+            const { caja, si, no } = cajaDePregunta(preguntaDeAmpliar(coste), 'Ampliar', {
+              alConfirmar: () => ampliar(eje, si),
+              alDesistir: () => desistirDeAmpliar(eje),
+            });
+            caja.setAttribute('data-eje', eje);
+            if (ocupado) for (const boton of [si, no]) boton.setAttribute('aria-disabled', ocupado);
+            return caja;
+          }
           // Se ve con el símbolo y se lee con la palabra, como los saldos.
           const boton = el('button', {
-            type: 'button', class: 'boton boton-lado', 'data-eje': eje, 'aria-disabled': enCamino ? 'true' : null,
+            type: 'button', class: 'boton boton-lado', 'data-eje': eje, 'aria-disabled': ocupado,
           },
             el('span', {}, `+ ${que} (${casillas} casillas) · `,
               el('span', { 'aria-hidden': 'true' }, `${coste} ${MONEDAS.simbolo}`),
               el('span', { class: 'solo-lector' }, MONEDAS.cuantas(coste))));
-          boton.addEventListener('click', () => ampliar(eje, boton), { signal });
+          boton.addEventListener('click', () => preguntarPorAmpliar(eje), { signal });
           return boton;
         }));
     } else {
@@ -1120,10 +1161,30 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     }
     panelAmpliar.replaceChildren(rotulo, opciones, volver);
     if (conFoco) {
-      const eje = conFoco.getAttribute('data-eje');
-      const mismo = eje && [...panelAmpliar.querySelectorAll('button')].find((b) => b.getAttribute('data-eje') === eje);
-      (conFoco.classList.contains('rotulo') ? rotulo : mismo || volver).focus({ preventScroll: true });
+      const deUnLado = conFoco.closest('[data-eje]');
+      const eje = deUnLado && deUnLado.getAttribute('data-eje');
+      (conFoco.classList.contains('rotulo') ? rotulo : (eje && botonDelLado(eje)) || volver).focus({ preventScroll: true });
     }
+  }
+
+  // El primer toque en un lado: en su lugar sale la pregunta, con lo que cuesta
+  // ahora, y la que hubiera abierta se cierra. El foco va a la pregunta, que se
+  // lee; no a «Ampliar», para que una tecla que se queda apretada no cobre.
+  function preguntarPorAmpliar(eje) {
+    if (enCamino || !depto) return;
+    preguntaAbierta = { eje, coste: depto.ampliar[eje], mide: `${depto.ancho} × ${depto.fondo}` };
+    ponerAmpliar();
+    const caja = panelAmpliar.querySelector('.pregunta');
+    if (caja) caja.querySelector('.pregunta-texto').focus({ preventScroll: true });
+  }
+
+  // «No» (o Escape): se cierra sin mandar nada y el foco vuelve al botón que la abrió.
+  function desistirDeAmpliar(eje) {
+    if (enCamino) return;
+    preguntaAbierta = null;
+    ponerAmpliar();
+    const boton = botonDelLado(eje);
+    if (boton) boton.focus({ preventScroll: true });
   }
 
   alAmpliar.addEventListener('click', () => {
@@ -1151,18 +1212,22 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     return eventosDeAmpliar.get(loQueSeVe);
   }
 
-  // Crecer por ese lado. Cuesta monedas: lleva el evento de lo que se ve, y
-  // sus reintentos el mismo, para que no se cobre dos veces.
+  // Crecer por ese lado: lo que hace «Ampliar» en su pregunta. Cuesta monedas:
+  // lleva el evento de lo que se ve, y sus reintentos el mismo, para que no se
+  // cobre dos veces. Mientras va, la pregunta espera; salga como salga, se
+  // cierra: para ampliar otra vez se vuelve a preguntar.
   function ampliar(eje, boton) {
-    if (enCamino) return;
+    if (enCamino || !sigueAqui()) return;
     const evento = eventoDeAmpliar(eje);
-    enviar(boton, () => conReintentos(() => pedir('POST', 'departamento/ampliar', { eje, evento_id: evento }), sigueAqui), null);
+    preguntaAbierta = null;
+    enviar(boton, () => conReintentos(() => pedir('POST', 'departamento/ampliar', { eje, evento_id: evento }), sigueAqui), null)
+      .then(() => { if (sigueAqui()) ponerAmpliar(); });
   }
 
   // --- mandar lo que se hace -------------------------------------------------------------
 
-  // Los botones que mandan algo o te lo ponen en la mano.
-  const queMandan = () => cuerpo.querySelectorAll('.menu-de-la-pieza button, .bandeja-tipo, .boton-lado');
+  // Los botones que mandan algo o te lo ponen en la mano (y los de la pregunta de ampliar).
+  const queMandan = () => cuerpo.querySelectorAll('.menu-de-la-pieza button, .bandeja-tipo, .boton-lado, .ampliar .pregunta button');
 
   // Los de la ficha y «A todos» los pone su panel (`panel.ocupar`), que sabe
   // además cuáles esperan a que se acabe su espera; los de la lista, la lista.

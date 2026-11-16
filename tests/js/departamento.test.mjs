@@ -446,6 +446,9 @@ const SIN_SITIO_PARA_LA_CAMA = {
   guardados: [{ id: GUARDADA_ID, ...CAMA }, { id: CUADRO_ID, ...CUADRO }],
 };
 
+// El de siempre, después de crecer una columna: una fila más cuesta ahora 60 (4 casillas).
+const CUATRO_POR_TRES = { ...DEPTO, ancho: 4, casillas: 12, ampliar: { ancho: 45, fondo: 60 } };
+
 // Lo que contestan poner, guardar y ampliar cuando sale bien.
 const BIEN = (depto) => ({ ok: true, clave: null, mensaje: null, departamento: depto, estado: ESTADO });
 
@@ -594,6 +597,16 @@ function dondeEsta(depto, n) {
 // Toca la casilla donde entró el gachamon `n` de su plantel.
 async function tocarA(pantalla, depto, n) {
   await tocarCasilla(pantalla, ...dondeEsta(depto, n));
+}
+
+// La pregunta abierta en lo de ampliar, o `null` si no hay ninguna.
+const preguntaDeAmpliar = (pantalla) => uno(pantalla, '.ampliar .pregunta');
+
+// Crecer por ese lado («+ columna», «+ fila»): se toca su botón y, en la
+// pregunta que sale, «Ampliar».
+async function ampliarPor(pantalla, lado) {
+  await tocar(boton(pantalla, lado));
+  await tocar(boton(preguntaDeAmpliar(pantalla), 'Ampliar'));
 }
 
 // Lo que se pintó en el lienzo de la pieza la última vez: desde el último borrado.
@@ -848,15 +861,14 @@ test('ampliar lleva el evento de lo que se ve y enseña lo que cuesta: cuando la
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   await tocar(boton(pantalla, 'Ampliar'));
   assert.match(texto(pantalla, '.ampliar'), /\+ columna \(3 casillas\) · 45/);
-  const mas = { ...DEPTO, ancho: 4, casillas: 12, ampliar: { ancho: 45, fondo: 60 } };
-  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: mas, estado: ESTADO });
-  await tocar(boton(pantalla, '+ columna'));
+  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
+  await ampliarPor(pantalla, '+ columna');
   const [ruta, cuerpo] = pedidos.at(-1);
   assert.equal(ruta, 'POST departamento/ampliar');
   assert.equal(cuerpo.eje, 'ancho'); assert.match(cuerpo.evento_id, /^[\w-]{8,64}$/);
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Tu departamento ahora mide 4 × 3.');
   assert.match(texto(pantalla, '.ampliar'), /\+ fila \(4 casillas\) · 60/);
-  await tocar(boton(pantalla, '+ columna'));
+  await ampliarPor(pantalla, '+ columna');
   assert.notEqual(pedidos.at(-1)[1].evento_id, cuerpo.evento_id);        // la pieza creció: otro toque, otro evento
 });
 
@@ -865,7 +877,7 @@ test('si la respuesta de ampliar se pierde y la relectura también, el toque sig
   await tocar(boton(pantalla, 'Ampliar'));
   servidor.falla('POST departamento/ampliar');                           // llega o no: la respuesta no vuelve
   servidor.falla('GET departamento');                                    // y la relectura tampoco
-  await tocar(boton(pantalla, '+ columna'));
+  await ampliarPor(pantalla, '+ columna');
   await correrReloj(800); await correrReloj(2000);                       // los dos reintentos
   const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
   assert.equal(ampliados().length, 3);
@@ -874,14 +886,14 @@ test('si la respuesta de ampliar se pierde y la relectura también, el toque sig
   assert.equal(texto(pantalla, '[role=status].aviso'), 'No hubo respuesta. Revisa tu conexión.');
   assert.ok(pedidos.slice(pedidos.lastIndexOf(ampliados().at(-1))).some(([ruta]) => ruta === 'GET departamento'));   // se relee…
   assert.match(texto(pantalla, '.ampliar'), /\+ columna \(3 casillas\) · 45/);      // …no llega: se ve lo de antes
+  assert.equal(preguntaDeAmpliar(pantalla), null);                                  // sin la pregunta
   assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), null);   // y se puede tocar otra vez
-  const mas = { ...DEPTO, ancho: 4, casillas: 12, ampliar: { ancho: 45, fondo: 60 } };
-  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: mas, estado: ESTADO });
-  await tocar(boton(pantalla, '+ columna'));
+  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
+  await ampliarPor(pantalla, '+ columna');
   assert.equal(ampliados().length, 4);
   assert.deepEqual(ampliados().at(-1)[1], { eje: 'ancho', evento_id: primero.evento_id });   // si el primero entró, es una repetición
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Tu departamento ahora mide 4 × 3.');
-  await tocar(boton(pantalla, '+ columna'));                             // ya con la pieza de 4 × 3
+  await ampliarPor(pantalla, '+ columna');                               // ya con la pieza de 4 × 3
   assert.notEqual(ampliados().at(-1)[1].evento_id, primero.evento_id);
 });
 
@@ -1474,7 +1486,7 @@ test('lo que sale bien desde el dibujo también se le dice a quien no lo ve; lo 
   await tocar(boton(pantalla, 'Ampliar'));
   servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.',
     departamento: { ...SIN_MACETA, ancho: 4, casillas: 12 }, estado: ESTADO });
-  await tocar(boton(pantalla, '+ columna'));
+  await ampliarPor(pantalla, '+ columna');
   assert.equal(texto(pantalla, '.solo-lector[role=status]'), '');                       // ésa ya se dice con su frase
 });
 
@@ -1502,6 +1514,8 @@ test('lo que aparece mientras una petición va (la bandeja, lo de ampliar) nace 
   await tocar(boton(pantalla, 'Ampliar'));                                               // y lo de ampliar, también
   assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), 'true');
   assert.equal(boton(pantalla, '+ fila').getAttribute('aria-disabled'), 'true');
+  await tocar(boton(pantalla, '+ columna'));                                             // y tocarlo no pregunta
+  assert.equal(preguntaDeAmpliar(pantalla), null);
   await soltar({ ok: true, mensaje: 'Pelusa quedó reluciente.', espera: 600, monedas: 0, evoluciono: false, logros: [], gachamon: PELUSA, estado: ESTADO });
   assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), null);
   assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-disabled'), null);
@@ -1620,4 +1634,132 @@ test('lo que reviente al pintar lo que contesta una acción llega a la avería, 
   await tocarCasilla(pantalla, 2, 2);
   await tocar(boton(menu(pantalla), 'Guardar'));
   assert.equal(await comoAcaba(hecho), 'avería');
+});
+
+// --- lo que decidió el dueño al ver el plan terminado: ampliar pregunta antes de cobrar --
+
+test('tocar «+ columna» no manda nada: enseña la pregunta con lo que cuesta, en palabras', async () => {
+  const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  assert.equal(pedidos.length, 1);                                                       // sólo la lectura de al entrar
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
+  assert.deepEqual(rotulos(preguntaDeAmpliar(pantalla)), ['Ampliar', 'No']);
+  assert.equal(documento.activeElement, uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'));   // se lee; no se confirma con una tecla
+  assert.equal(boton(pantalla, '+ columna'), null);                                     // la pregunta va en su lugar
+  assert.notEqual(boton(pantalla, '+ fila'), null);
+  const barata = await abrir({ ...DEPTO, ampliar: { ancho: 1, fondo: 45 } });            // el coste lo manda el servidor
+  await tocar(boton(barata.pantalla, 'Ampliar'));
+  await tocar(boton(barata.pantalla, '+ columna'));
+  assert.equal(texto(preguntaDeAmpliar(barata.pantalla), '.pregunta-texto'), '¿Ampliar por 1 moneda?');
+});
+
+test('«No» y Escape cierran la pregunta sin mandar nada, y el foco vuelve al botón que la abrió', async () => {
+  const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  await tocar(boton(preguntaDeAmpliar(pantalla), 'No'));
+  assert.equal(preguntaDeAmpliar(pantalla), null);
+  assert.equal(documento.activeElement, boton(pantalla, '+ columna'));
+  await tocar(boton(pantalla, '+ fila'));
+  await teclear(uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'), 'Escape');
+  assert.equal(preguntaDeAmpliar(pantalla), null);
+  assert.equal(documento.activeElement, boton(pantalla, '+ fila'));
+  assert.equal(pedidos.length, 1);
+});
+
+test('un doble toque en el botón, o en «Ampliar», manda una sola petición; mientras va, la pregunta espera', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
+  await tocar(boton(pantalla, 'Ampliar'));
+  const columna = boton(pantalla, '+ columna');
+  await tocar(columna); await tocar(columna);
+  assert.equal(ampliados().length, 0);
+  assert.equal(todos(pantalla, '.ampliar .pregunta').length, 1);
+  const soltar = servidor.retiene('POST departamento/ampliar');
+  const ampliar = boton(preguntaDeAmpliar(pantalla), 'Ampliar');
+  await tocar(ampliar); await tocar(ampliar);
+  assert.equal(ampliados().length, 1);
+  assert.equal(ampliar.getAttribute('aria-busy'), 'true');
+  assert.equal(boton(preguntaDeAmpliar(pantalla), 'No').getAttribute('aria-disabled'), 'true');
+  assert.equal(boton(pantalla, '+ fila').getAttribute('aria-disabled'), 'true');
+  await teclear(uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'), 'Escape');         // mientras va, no se cierra
+  assert.notEqual(preguntaDeAmpliar(pantalla), null);
+  await soltar({ ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
+  assert.equal(ampliados().length, 1);
+});
+
+test('tras ampliar bien la pregunta ya no está: para ampliar otra vez hay que tocar y confirmar de nuevo', async () => {
+  const { pantalla, pedidos, servidor, documento } = await abrir(DEPTO);
+  servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  const ampliar = boton(preguntaDeAmpliar(pantalla), 'Ampliar');
+  ampliar.focus();
+  await tocar(ampliar);
+  assert.equal(preguntaDeAmpliar(pantalla), null);
+  assert.equal(documento.activeElement, boton(pantalla, '+ columna'));                  // el foco, en el lado por el que creció
+  await tocar(boton(pantalla, '+ fila'));
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 60 monedas?');   // lo que cuesta ahora
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 1);
+});
+
+test('si el servidor dice que no, se ve su frase y la pregunta se cierra', async () => {
+  const { pantalla, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/ampliar', { ok: false, clave: 'faltan_monedas', mensaje: 'Te faltan 15 monedas.', departamento: DEPTO, estado: ESTADO });
+  await tocar(boton(pantalla, 'Ampliar'));
+  await ampliarPor(pantalla, '+ columna');
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Te faltan 15 monedas.');
+  assert.equal(preguntaDeAmpliar(pantalla), null);
+  assert.notEqual(boton(pantalla, '+ columna'), null);
+});
+
+test('sólo hay una pregunta abierta: la del otro lado cierra la primera, y «Volver» la cierra', async () => {
+  const { pantalla, pedidos } = await abrir(CUATRO_POR_TRES);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
+  await tocar(boton(pantalla, '+ fila'));
+  assert.equal(todos(pantalla, '.ampliar .pregunta').length, 1);
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 60 monedas?');
+  assert.notEqual(boton(pantalla, '+ columna'), null);
+  await tocar(boton(pantalla, 'Volver'));
+  await tocar(boton(pantalla, 'Ampliar'));
+  assert.equal(preguntaDeAmpliar(pantalla), null);
+  assert.equal(pedidos.length, 1);
+});
+
+test('mientras otra petición va, la pregunta abierta no se puede usar', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(CON_MACETA);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  const soltar = servidor.retiene('POST departamento/guardar');
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Guardar'));                              // desde la lista, que sigue a la vista
+  const ampliar = boton(preguntaDeAmpliar(pantalla), 'Ampliar');
+  assert.equal(ampliar.getAttribute('aria-disabled'), 'true');
+  assert.equal(boton(preguntaDeAmpliar(pantalla), 'No').getAttribute('aria-disabled'), 'true');
+  await tocar(ampliar);
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0);
+  await soltar(BIEN(SIN_MACETA));                                                        // la misma pieza, del mismo tamaño
+  assert.equal(boton(preguntaDeAmpliar(pantalla), 'Ampliar').getAttribute('aria-disabled'), null);
+});
+
+test('la pregunta se queda mientras la pieza mida y cueste lo mismo, sin volver a darle el foco; si llega otra, se cierra', async () => {
+  const { pantalla, pedidos, servidor, documento } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ fila'));
+  const pregunta = uno(preguntaDeAmpliar(pantalla), '.pregunta-texto');
+  // Ni se le quita ni se le vuelve a dar (un lector de pantalla la volvería a leer cada 30 segundos).
+  let enfocada = 0;
+  pregunta.focus = () => { enfocada += 1; documento.activeElement = pregunta; };
+  await documento.dispara('visibilitychange');                                           // la misma pieza
+  assert.equal(uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'), pregunta);
+  assert.equal(documento.activeElement, pregunta);
+  assert.equal(enfocada, 0);
+  servidor.responde('GET departamento', CUATRO_POR_TRES);                               // creció por otro lado (otra pestaña)
+  await documento.dispara('visibilitychange');
+  assert.equal(preguntaDeAmpliar(pantalla), null);                                       // lo que costaba ya no es lo que cuesta
+  assert.match(texto(pantalla, '.ampliar'), /\+ fila \(4 casillas\) · 60/);
+  assert.equal(documento.activeElement, boton(pantalla, '+ fila'));
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0);
 });
