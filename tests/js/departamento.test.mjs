@@ -528,6 +528,13 @@ async function tocar(nodo) {
   await asentar();
 }
 
+// Un clic con su `detail`, como lo cuenta un navegador: 1, un clic suelto; 2, el
+// segundo de un doble clic en el mismo sitio; 0, el que hace el teclado (Enter o espacio).
+async function clicar(nodo, detail) {
+  for (const oyente of [...(nodo.oyentes.click || [])]) oyente({ type: 'click', detail });
+  await asentar();
+}
+
 // La fila de ese mueble en la lista (en «Muebles puestos» o en «Guardados»).
 const fila = (raiz, id) => uno(raiz, `li[data-fila=${id}]`);
 
@@ -1840,6 +1847,35 @@ test('al abrir la pregunta el foco va derecho a su texto, y se queda en ella si 
   servidor.responde('GET departamento', { ...DEPTO, ampliar: { ancho: 55, fondo: 45 } });
   await documento.dispara('visibilitychange');
   assert.equal(documento.activeElement, boton(preguntaDeAmpliar(pantalla), 'No'));          // en la misma parte
+});
+
+// --- lo que pidió el dueño en el plan de la puerta: un doble clic no cobra ------------------
+
+// Lo que contesta crecer una fila cuando sale bien.
+const CRECIO_UNA_FILA = { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 3 × 4.', departamento: { ...DEPTO, fondo: 4, casillas: 12 }, estado: ESTADO };
+
+test('un «Ampliar» que llega como segundo clic de un doble clic no cobra, y la pregunta sigue abierta; el clic siguiente, sí', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/ampliar', CRECIO_UNA_FILA);
+  const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));                                             // una pregunta abierta en un lado
+  await clicar(boton(pantalla, '+ fila'), 1);                                            // un doble clic en el otro: el primero la cambia de sitio…
+  await clicar(boton(preguntaDeAmpliar(pantalla), 'Ampliar'), 2);                        // …y el segundo cae en «Ampliar»
+  assert.equal(ampliados().length, 0);
+  assert.equal(boton(pantalla, '+ fila').getAttribute('aria-expanded'), 'true');          // sigue abierta, la de ese lado
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
+  await clicar(boton(preguntaDeAmpliar(pantalla), 'Ampliar'), 1);                        // un clic suelto confirma
+  assert.deepEqual(ampliados().map(([, cuerpo]) => cuerpo.eje), ['fondo']);
+});
+
+test('con el teclado, «Ampliar» confirma como siempre', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/ampliar', CRECIO_UNA_FILA);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ fila'));
+  await clicar(boton(preguntaDeAmpliar(pantalla), 'Ampliar'), 0);                        // Enter o espacio
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 1);
 });
 
 // --- lo que decidió el dueño al ver el plan terminado: sin camino, no va -------------------

@@ -26,7 +26,7 @@
 // marcado se pone (el gachamon camina hasta ahí, y eso no se manda); en
 // cualquier otro, se suelta. «Ampliar» cambia lo de la derecha por lo que
 // cuesta crecer por cada lado; tocar un lado no cobra: pregunta antes, como
-// la Tienda.
+// la Tienda, y el segundo clic de un doble clic no confirma.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
@@ -1165,7 +1165,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
           const {
             caja, cabeza, si, no,
           } = cajaDePregunta(preguntaDeAmpliar(coste), 'Ampliar', {
-            alConfirmar: () => ampliar(eje, si),
+            // El segundo clic (o el tercero…) de una ráfaga en el mismo sitio no
+            // confirma: un doble clic en el otro lado mueve los botones, y ese
+            // segundo clic puede caer aquí. Un clic suelto (1) y el teclado (0), sí.
+            alConfirmar: (clic) => {
+              if (clic.detail > 1) return;
+              ampliar(eje, si);
+            },
             alDesistir: () => desistirDeAmpliar(eje),
           });
           caja.setAttribute('data-eje', eje);
