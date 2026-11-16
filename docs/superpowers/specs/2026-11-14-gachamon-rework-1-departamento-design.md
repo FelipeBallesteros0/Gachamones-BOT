@@ -228,6 +228,38 @@ Cómo lo propongo **[propuesta]**:
 - En pantalla se ve a los gachamones acercarse a usarlos de vez en cuando; es
   adorno, la regla la lleva el servidor.
 
+### 4.5 La puerta
+
+Felipe la pidió el 2026-11-16, al probar la pantalla: «falta la puerta de
+entrada, que va adjunta a la pared al igual que las ventanas y los cuadros, y
+debe ser movible pero no guardable en el inventario, y la puerta es una casilla
+más fuera del departamento que es donde apareces al entrar en el departamento,
+al igual que en Habbo».
+
+- **Cada departamento tiene una puerta, y sólo una** **[Felipe, 2026-11-16]**.
+  Va en la pared, en un tramo, como un cuadro; se puede **mover** a otro tramo
+  libre de cualquiera de las dos paredes, y **no se guarda**.
+- **Es una casilla más, fuera de la pieza** **[Felipe, 2026-11-16]**: la del
+  tramo donde está. Ahí apareces al entrar al departamento, y desde ahí caminas
+  hacia adentro por la casilla que queda enfrente.
+- **La casilla de enfrente se puede tapar con un mueble**, como en Habbo
+  **[Felipe, 2026-11-16]**: entonces apareces en la puerta y no pasas hasta
+  mover el mueble, cosa que puedes hacer desde ahí. (Sin camino, tu avatar no
+  va: sección 5.)
+- **La casilla de la puerta sólo la pisas tú** **[Felipe, 2026-11-16]**: los
+  gachamones no pasean hasta ella ni se les puede llevar.
+- **Por la puerta también se sale al pueblo** **[Felipe, 2026-11-16]**, además
+  del botón «Pueblo». Se sale desde su menú: tocar la puerta la elige, como a
+  cualquier mueble, y ahí están «Mover» y «Salir»; «Salir» te lleva caminando
+  hasta ella y, al llegar, al pueblo **[propuesta]**. Si no hay camino hasta la
+  puerta, no se sale y se dice **[propuesta]**.
+- **Nace con el departamento** **[propuesta]**: en la pared izquierda, en el
+  tramo de más adelante; el día del cambio, el alcalde la deja en el primer
+  tramo cuya casilla de enfrente esté libre de lo que él mismo puso. No se vende
+  en la Tienda, no aparece en «Guardados» y no suma comodidad.
+- **Su dibujo** sigue las reglas de lo de pared (dos imágenes, una por pared):
+  es el vano visto desde dentro, y tu avatar se pinta de pie en su umbral.
+
 ## 5. La pantalla de tu departamento
 
 Felipe aprobó dos bocetos, guardados junto a este documento en
@@ -447,6 +479,8 @@ riesgo del día del cambio.
   sin gachamon se separó del (4) al escribir su plan, y el 2026-11-16 Felipe
   puso la pantalla antes **[Felipe]**: hasta el (6), el huevo sigue existiendo
   y el que nace de él no pide cama.
+  Entre el (5) y el (6) va un plan corto, la puerta (sección 4.5), que Felipe
+  pidió al probar la pantalla **[Felipe, 2026-11-16]**.
 
 ## 11. Lo que queda al constructor
 
