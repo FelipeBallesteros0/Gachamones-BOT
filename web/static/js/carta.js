@@ -5,15 +5,14 @@
 // (`GET carta`): lo que dice —el título, las líneas y la firma— es del
 // servidor, y entra como texto. Mientras llega, el título ya dice «Carta del
 // alcalde» y se lee «Cargando la carta…»; si no llega, el título se queda.
-// «Entendido» la marca como vista
-// (`POST carta/vista`) y vuelve a decidir la pantalla con `seguir`. Si la carta
-// ya no está, se sigue de largo sin enseñar nada. Si al marcarla no hay
-// respuesta, se dice y la carta se queda, para volver a intentarlo: no se
-// pierde. Marcarla dos veces no cambia nada, así que no lleva evento. Sin
-// sesión (un 401) o con un 409 se vuelve a decidir. Una respuesta que llega
-// cuando ya se dejó la pantalla no pinta. La espera de la carta, su mensaje de
-// error y la zona de avisos son los de `articulos.js`. Todo texto entra por
-// `el` o por `textContent`.
+// «Entendido» la marca como vista (`POST carta/vista`) y vuelve a decidir la
+// pantalla con `seguir`. Si la carta ya no está, se sigue de largo sin enseñar
+// nada. Si al marcarla no hay respuesta, se dice y la carta se queda, para
+// volver a intentarlo: no se pierde. Marcarla dos veces no cambia nada, así
+// que no lleva evento. Sin sesión (un 401) o con un 409 se vuelve a decidir.
+// Una respuesta que llega cuando ya se dejó la pantalla no pinta. La espera de
+// la carta, su mensaje de error y la zona de avisos son los de `articulos.js`.
+// Todo texto entra por `el` o por `textContent`.
 
 import { pedir } from './api.js';
 import {

@@ -118,7 +118,7 @@ const NADA_GUARDADO = 'No queda nada guardado.';
 const ROTULO_DE_AMPLIAR = 'Ampliar el departamento';
 const YA_NO_CRECE = 'Tu departamento ya no puede crecer más.';
 // La pregunta antes de crecer, como la de la Tienda: el coste es el que manda
-// el servidor, dicho con la palabra («45 monedas», «1 moneda»).
+// el servidor, dicho con la palabra («N monedas», «1 moneda»).
 const preguntaDeAmpliar = (coste) => `¿Ampliar por ${MONEDAS.cuantas(coste)}?`;
 
 // Los guardados, uno por tipo de mueble en el orden en que llegan: el primero
