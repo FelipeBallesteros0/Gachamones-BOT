@@ -96,14 +96,23 @@ globalThis.Image = class {
 const { carta } = await import('../../web/static/js/carta.js');
 
 // Un servidor de mentira para `pedir`: cada ruta («GET carta») contesta lo que
-// se le dijo con `responde`, o falla como una red caída con `falla`.
+// se le dijo con `responde`, o falla como una red caída con `falla`. `retiene`
+// deja en camino la próxima petición a esa ruta hasta que se suelta con lo que
+// contesta.
 function servidorDeMentira() {
   const pedidos = [];
   const respuestas = new Map();
   const caidas = new Set();
+  const retenidas = new Map();
   globalThis.fetch = async (url, opciones) => {
     const ruta = `${opciones.method} ${String(url).replace(/^\/gachamon\/api\//, '')}`;
     pedidos.push([ruta]);
+    if (retenidas.has(ruta)) {
+      const espera = retenidas.get(ruta);
+      retenidas.delete(ruta);
+      const datos = await espera;
+      return { ok: true, status: 200, headers: { get: () => null }, json: async () => datos };
+    }
     if (caidas.has(ruta)) throw new Error('sin red');
     return { ok: true, status: 200, headers: { get: () => null }, json: async () => respuestas.get(ruta) };
   };
@@ -112,6 +121,11 @@ function servidorDeMentira() {
     servidor: {
       responde: (ruta, datos) => { respuestas.set(ruta, datos); caidas.delete(ruta); },
       falla: (ruta) => { caidas.add(ruta); },
+      retiene(ruta) {
+        let soltar;
+        retenidas.set(ruta, new Promise((listo) => { soltar = listo; }));
+        return (datos) => soltar(datos);
+      },
     },
   };
 }
@@ -196,4 +210,34 @@ test('las líneas de la carta entran como texto, no como página', { timeout: 20
   const { pantalla } = await abrir({ carta: { titulo: 'T', lineas: ['<b>hola</b>'], firma: 'F' } });
   assert.equal(texto(pantalla, '.carta-linea'), '<b>hola</b>');
   assert.equal(todos(pantalla, 'b').length, 0);
+});
+
+// --- lo que decidió el dueño al ver el plan terminado: la espera y el título ---------------
+
+test('mientras carga dice «Cargando la carta…», y el título ya dice «Carta del alcalde»', { timeout: 2000 }, async () => {
+  const { servidor } = servidorDeMentira();
+  const soltar = servidor.retiene('GET carta');
+  const pantalla = new Elemento('main');
+  const hecho = carta(pantalla, { carta: true }, () => {});
+  await new Promise((listo) => setTimeout(listo, 0));
+  assert.equal(texto(pantalla, 'h1'), 'Carta del alcalde');                 // nace con él: el foco no cae en un título vacío
+  assert.equal(texto(pantalla, '.espera-tienda-texto'), 'Cargando la carta…');
+  assert.equal(estado(pantalla).textContent, 'Cargando la carta…');         // y se anuncia
+  soltar(LA_CARTA);
+  await hecho;
+  assert.equal(texto(pantalla, '.espera-tienda-texto'), null);
+});
+
+test('cuando llega la carta, el título es el que manda el servidor', { timeout: 2000 }, async () => {
+  const { pantalla } = await abrir({ carta: { titulo: 'Otra carta', lineas: ['Una.'], firma: 'El alcalde' } });
+  assert.equal(texto(pantalla, 'h1'), 'Otra carta');
+});
+
+test('si no carga, el título se queda', { timeout: 2000 }, async () => {
+  const { servidor } = servidorDeMentira();
+  servidor.falla('GET carta');
+  const pantalla = new Elemento('main');
+  await carta(pantalla, { carta: true }, () => {});
+  assert.notEqual(boton(pantalla, 'Volver a intentarlo'), null);
+  assert.equal(texto(pantalla, 'h1'), 'Carta del alcalde');
 });

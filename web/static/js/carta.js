@@ -3,7 +3,9 @@
 //
 // `carta(contenedor, estado, seguir)` pinta la pantalla y pide la carta
 // (`GET carta`): lo que dice —el título, las líneas y la firma— es del
-// servidor, y entra como texto. «Entendido» la marca como vista
+// servidor, y entra como texto. Mientras llega, el título ya dice «Carta del
+// alcalde» y se lee «Cargando la carta…»; si no llega, el título se queda.
+// «Entendido» la marca como vista
 // (`POST carta/vista`) y vuelve a decidir la pantalla con `seguir`. Si la carta
 // ya no está, se sigue de largo sin enseñar nada. Si al marcarla no hay
 // respuesta, se dice y la carta se queda, para volver a intentarlo: no se
@@ -20,6 +22,9 @@ import {
 import { el } from './dom.js';
 
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
+const CARGANDO = 'Cargando la carta…';
+// El título hasta que llega el que manda el servidor.
+const TITULO = 'Carta del alcalde';
 
 export function carta(contenedor, estado, seguir) {
   let vivo = true;
@@ -42,7 +47,7 @@ export function carta(contenedor, estado, seguir) {
     return vivo;
   }
 
-  const titulo = el('h1', { class: 'donde', tabindex: '-1' });
+  const titulo = el('h1', { class: 'donde', tabindex: '-1' }, TITULO);
   const cabecera = el('header', { class: 'barra barra-lugar' }, titulo);
   const espera = el('div', { class: 'espera-tienda' });
   const papel = el('article', { class: 'carta', hidden: true });
@@ -89,7 +94,7 @@ export function carta(contenedor, estado, seguir) {
   }
 
   const laCarta = listaQueSePide({
-    ruta: 'carta', espera, lista: papel, cargando: '', titulo, sigueAqui, irse, alLlegar: leer,
+    ruta: 'carta', espera, lista: papel, cargando: CARGANDO, titulo, sigueAqui, irse, alLlegar: leer,
   });
   return laCarta.cargar();
 }
