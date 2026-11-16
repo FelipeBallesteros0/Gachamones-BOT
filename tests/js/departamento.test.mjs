@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { medir, proyectar } from '../../web/static/js/proyeccion.js';
+import { casillaEn, medir, proyectar } from '../../web/static/js/proyeccion.js';
 
 // Lo justo de un navegador para pintar el departamento sin pantalla, tocar sus
 // botones y su lienzo: elementos con sus hijos (y quién los contiene), su
 // texto, atributos, clases y oyentes, que se buscan con selectores sencillos
 // (etiqueta, `.clase`, `[atributo]`, `[atributo=valor]`, juntos y uno dentro
-// de otro); un lienzo que mide 380 × 310 y se deja pintar; y un reloj y unos
+// de otro); un lienzo que mide 380 × 310, no está en la esquina de la página y
+// apunta lo que se pinta en él; imágenes que cargan solas; y un reloj y unos
 // cuadros de animación que no corren solos.
 class Nodo {
   constructor() { this.padre = null; }
@@ -29,7 +30,8 @@ function escuchar(oyentes, tipo, oyente, opciones) {
   if (signal) signal.addEventListener('abort', () => { oyentes[tipo] = oyentes[tipo].filter((o) => o !== oyente); });
 }
 
-const LIENZO = { left: 10, top: 60, width: 380, height: 310 };
+// Dónde está el lienzo en la página: un toque se cuenta desde su esquina.
+const LIENZO = { left: 12, top: 40, width: 380, height: 310 };
 
 function cumpleSimple(nodo, simple) {
   return (simple.match(/^[a-z0-9]+|\.[\w-]+|\[[^\]]+\]/g) || []).every((parte) => {
@@ -140,9 +142,35 @@ class Elemento extends Nodo {
     return { left, top, width, height, x: left, y: top, right: left + width, bottom: top + height };
   }
 
-  // Un contexto que acepta todo lo que se le pida pintar.
-  getContext() { return new Proxy({}, { get: () => () => {} }); }
+  // Un contexto (uno por lienzo) que acepta todo lo que se le pida pintar y lo
+  // apunta en `trazos` como `[nombre, argumentos]`.
+  getContext() {
+    if (!this.contexto) {
+      const trazos = [];
+      this.trazos = trazos;
+      this.contexto = new Proxy({}, {
+        get: (_, nombre) => (...argumentos) => { trazos.push([nombre, argumentos]); },
+        set: () => true,
+      });
+    }
+    return this.contexto;
+  }
 }
+
+// Una imagen que carga sola en cuanto se le da su dirección.
+globalThis.Image = class {
+  constructor() {
+    this.naturalWidth = 48;
+    this.naturalHeight = 84;
+  }
+
+  get src() { return this.direccion; }
+
+  set src(direccion) {
+    this.direccion = direccion;
+    queueMicrotask(() => { if (this.onload) this.onload(); });
+  }
+};
 
 // Lo que corre con el tiempo se apunta y no corre solo.
 let marcas = 0;
@@ -342,6 +370,19 @@ async function tocarTramo(pantalla, i, j) {
   await tocarEn(pantalla, ...punto);
 }
 
+// La casilla donde la pantalla pintó a tu avatar la última vez: la que queda
+// bajo los pies de su cuerpo, que están 4 de sus 84 píxeles sobre el borde de
+// abajo (el contrato del arte). `null` si no lo pintó.
+function dondeEstasTu(pantalla) {
+  const { trazos = [] } = uno(pantalla, 'canvas');
+  const cuerpo = trazos.filter(([nombre, [imagen]]) => nombre === 'drawImage'
+    && String(imagen && imagen.src).includes('/avatar/cuerpo/')).at(-1);
+  if (!cuerpo) return null;
+  const [, [, x, y, ancho, alto]] = cuerpo;
+  const { m, ancho: a, fondo: f } = medidaDe(pantalla);
+  return casillaEn(m, x + ancho / 2, y + alto * (80 / 84), a, f);
+}
+
 // --- las pruebas ---------------------------------------------------------------------
 
 test('al entrar pide el departamento y dice cómo está', async () => {
@@ -354,7 +395,7 @@ test('al entrar pide el departamento y dice cómo está', async () => {
 
 test('si no carga lo dice y deja volver a intentarlo', async () => {
   const { pantalla, pedidos, servidor } = await abrir(new Error('sin red'));
-  assert.equal(texto(pantalla, '[role=alert]'), 'No hubo respuesta. Revisa tu conexión.');
+  assert.equal(texto(pantalla, '[role=alert]'), 'No hay conexión con el juego. Revisa tu internet y vuelve a intentarlo.');
   servidor.responde('GET departamento', DEPTO);
   await tocar(boton(pantalla, 'Volver a intentarlo'));
   assert.equal(pedidos.length, 2);
@@ -379,4 +420,12 @@ test('tocar fuera de la pieza no hace nada', async () => {
   await tocarEn(pantalla, 2, 2);                                        // una esquina del lienzo
   assert.equal(pedidos.length, 1);
   assert.equal(texto(pantalla, '[role=status].aviso'), '');
+});
+
+test('tocar una casilla que se pisa lleva ahí a tu avatar, contando el toque desde la esquina del lienzo', async () => {
+  const { pantalla, pedidos } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });   // no camina: aparece
+  assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // la entrada
+  await tocarCasilla(pantalla, 0, 2);
+  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.equal(pedidos.length, 1);                                      // dónde estás no se manda
 });

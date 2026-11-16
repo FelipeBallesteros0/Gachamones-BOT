@@ -17,7 +17,9 @@
 
 import { pedir } from './api.js';
 import { cargar, olvidarLasQueFaltan } from './arte.js';
-import { cabeceraConSaldos, hayQueDecidirDeNuevo, mensajeDe, pideOtraPantalla, zonaDeAviso } from './articulos.js';
+import {
+  cabeceraConSaldos, hayQueDecidirDeNuevo, listaQueSePide, pideOtraPantalla, zonaDeAviso,
+} from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import { camino, lineaDeEstado, noSePisan, sitiosDeEntrada } from './casillas.js';
 import { el } from './dom.js';
@@ -31,13 +33,6 @@ const DENSIDAD_MAXIMA = 3;
 const CASILLAS_POR_SEGUNDO = 3;
 
 const CARGANDO = 'Cargando…';
-const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
-
-// Por qué no llegó la pieza: si el juego no contestó, que no hubo respuesta;
-// si contestó que no, su frase.
-function porQueNoLlego(error) {
-  return error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error);
-}
 
 export function departamento(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
@@ -312,37 +307,9 @@ export function departamento(contenedor, estado, seguir) {
 
   // --- la primera vez --------------------------------------------------------------------
 
-  // Como la tienda y la mochila: mientras no llega se lee la espera; si no
-  // llega, por qué y «Volver a intentarlo», que la pide otra vez con el foco
-  // esperando en el título. Sin sesión o si ya no estás en tu casa, se va.
-  async function primeraLectura(trasReintentar = false) {
-    espera.hidden = false;
-    espera.replaceChildren(el('p', { class: 'espera-tienda-texto', role: 'status' }, CARGANDO));
-    let leido;
-    try {
-      leido = await pedir('GET', 'departamento');
-    } catch (error) {
-      if (!sigueAqui()) return;
-      if (hayQueDecidirDeNuevo(error)) {
-        irse();
-        return;
-      }
-      const reintentar = el('button', { type: 'button', class: 'boton boton-chico principal' }, 'Volver a intentarlo');
-      reintentar.addEventListener('click', () => {
-        // El botón se borra al reintentar: el foco espera en el título.
-        titulo.focus({ preventScroll: true });
-        primeraLectura(true);
-      }, { signal });
-      espera.replaceChildren(
-        el('p', { class: 'espera-tienda-texto es-error', role: 'alert' }, porQueNoLlego(error)), reintentar);
-      if (trasReintentar) reintentar.focus({ preventScroll: true });
-      return;
-    }
-    if (!sigueAqui()) return;
-    espera.replaceChildren();
-    espera.hidden = true;
-    pieza.hidden = false;
-    // El arte nunca falla: lo que no carga se dibuja como su recuadro.
+  // Con lo que llega la primera vez se pinta en cuanto está su arte (el arte
+  // nunca falla: lo que no carga se dibuja como su recuadro).
+  async function prepararLaPieza(leido) {
     await Promise.all([aplicarDepto(leido), traerAvatar()]);
     if (!sigueAqui()) return;
     listo = true;
@@ -360,7 +327,22 @@ export function departamento(contenedor, estado, seguir) {
     reencuadrar();
   }
 
+  // La pieza común de la tienda y la mochila: mientras no llega se lee la
+  // espera; si no llega, su mensaje y «Volver a intentarlo». Sin sesión o si ya
+  // no estás en tu casa, se va.
+  let preparada = null;
+  const laPieza = listaQueSePide({
+    ruta: 'departamento',
+    espera,
+    lista: pieza,
+    cargando: CARGANDO,
+    titulo,
+    sigueAqui,
+    irse,
+    alLlegar: (leido) => { preparada = prepararLaPieza(leido); },
+  });
+
   if (!aplicarEstado(estado)) return undefined;
   cadaTanto = setInterval(releer, PEDIR_CADA_MS);
-  return primeraLectura();
+  return laPieza.cargar().then(() => preparada);
 }
