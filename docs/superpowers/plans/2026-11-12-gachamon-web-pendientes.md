@@ -834,7 +834,7 @@ Son observaciones, no decisiones.
 - ~~**El departamento en pantalla**: no hay pantalla todavía; las rutas están
   (`/departamento`, poner, guardar, ampliar) y la carta también.~~ Hecho en el
   rework 5 (ver «Salió al ejecutar el rework 5», más abajo): la pantalla existe
-  y la Tienda ya no vende lo que no se podía poner. Cambiar de activo se hace
+  y todo lo que vende la Tienda ya se puede poner. Cambiar de activo se hace
   ahora también desde el departamento; la Incubadora sigue sirviendo para lo
   mismo hasta el plan del pueblo, y dice cuántos caben por las camas.
 - **El pueblo**: el lugar «Refugio» sigue en el mapa, cerrado y con su aviso, y
@@ -938,7 +938,9 @@ Son observaciones, no decisiones.
   huevo). Quitar la Incubadora de «cuántos caben».
 - **El pueblo** (el último plan): la Incubadora sigue sirviendo para cambiar de
   activo, además del departamento, y «Tu casa» todavía no se llama «Tu
-  departamento».
+  departamento». `escenas/casa.png` sigue en el contrato del arte aunque ya no
+  la pinta ninguna pantalla (en tu casa se ve la pieza): se saca con las del
+  Refugio y la Incubadora.
 - **El arte es de relleno**: cajas de color tan altas como la pared, que tapan
   mucho de la pieza. Con el arte del dibujante no pasará.
   - Lo primero al llegar arte más bajo que su caja: el toque sobre un mueble va
@@ -962,7 +964,21 @@ Son observaciones, no decisiones.
   celebración, medallas) está en dos sitios: la pantalla del lugar y el
   departamento. Lo que decide qué se dice sí es común (`cuidados.js`).
 - `departamento.js` sigue siendo un archivo grande (cerca de 1400 líneas en una
-  sola función); partirlo más es un trabajo propio.
+  sola función, con una docena de variables que toca todo). Partirlo es el
+  primer paso del plan de los muebles que se usan solos, que va a poner a los
+  gachamones a caminar hacia los muebles, y en este orden: primero los que
+  caminan (casi puros, se pueden probar sin pantalla), después el transporte
+  (mandar, esperar y releer, con sus contadores), la bandeja con lo de
+  ampliar, y el menú de lo elegido; la pantalla queda como coordinadora.
+- Un retrato que no cargó (un corte de un segundo) no se vuelve a pedir
+  mientras se está en la pantalla: ese gachamon queda como su recuadro hasta
+  salir y volver. El arte de la pieza sí se vuelve a pedir.
+- La bandeja de «Guardados» se alcanza con el teclado, pero su indicación
+  («Toca la casilla donde lo quieres.») sólo sirve para el dibujo: con el
+  teclado, lo suyo es «Poner» en la lista.
+- Tras «Ver ficha» y «Volver», la ficha de la derecha vuelve a ser la del que
+  sale contigo, no la del que se estaba mirando (la pantalla se monta de
+  nuevo).
 - La lista para teclado y lector de pantalla está siempre a la vista, bajo la
   pieza; con «Guardados» vacío dice lo mismo que la bandeja («No queda nada
   guardado.»). Tras un «Guardar» hecho desde el menú del dibujo, el foco va al

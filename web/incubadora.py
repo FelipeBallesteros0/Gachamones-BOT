@@ -29,6 +29,7 @@ from web.sesion import con_cabecera, es_un_id, problema
 
 router = APIRouter()
 
+
 def en_la_incubadora(jugador: Jugador) -> None:
     """Para sacar a otro hay que estar en la incubadora: lo dice el lugar guardado de la cuenta.
 
