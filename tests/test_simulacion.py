@@ -3,6 +3,8 @@ import random
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import pytest
+
 import especies as esp
 import simulacion as sim
 
@@ -76,6 +78,26 @@ def test_no_muere_sea_de_quien_sea():
     for usuario in ("123456789012345678", "-12"):
         c = sim.avanzar(criatura(usuario_id=usuario, hambre=1.0), T0 + timedelta(days=30))
         assert c.viva and c.hambre == 0.0
+
+
+def test_el_ritmo_multiplica_lo_que_cae_cada_barra():
+    """Cada barra lleva su multiplicador. Lo probaba la intemperie, que se fue
+    con las casas; hoy el departamento sólo toca el del ánimo."""
+    despues = T0 + timedelta(hours=10)
+    normal = sim.avanzar(criatura(), despues)
+    rapido = sim.avanzar(criatura(), despues, sim.Ritmo(hambre=1.25, animo=1.25, limpieza=1.25))
+    for barra in ("hambre", "animo", "limpieza"):
+        perdido = 100.0 - getattr(normal, barra)
+        assert 100.0 - getattr(rapido, barra) == pytest.approx(perdido * 1.25), barra
+
+
+def test_el_suelo_de_hambre_frena_la_caida():
+    """Por debajo del suelo el hambre no baja; sin él, lo de siempre, llega a 0.
+    Hoy no lo pone nadie (era de la intemperie), pero `Ritmo` lo sigue teniendo."""
+    un_mes = T0 + timedelta(days=30)
+    con_suelo = sim.avanzar(criatura(hambre=30.0), un_mes, sim.Ritmo(suelo_de_hambre=25.0))
+    assert con_suelo.hambre == 25.0 and con_suelo.viva
+    assert sim.avanzar(criatura(hambre=30.0), un_mes).hambre == 0.0
 
 
 def test_la_suciedad_amarga_el_animo_pero_no_mata():

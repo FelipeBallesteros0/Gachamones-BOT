@@ -271,7 +271,7 @@ def _efecto(nombre: str, lado: int) -> Image.Image:
 # y, debajo, la última si hay más de una: así una poción de 1d4 y una de 1d6 se distinguen).
 
 _COLORES_DE_ICONO = {"objetos": (46, 125, 210, 255), "cosmeticos": (150, 70, 200, 255),
-                     "muebles": (200, 110, 40, 255), "casas": (30, 160, 150, 255)}
+                     "muebles": (200, 110, 40, 255)}
 
 
 def _icono(grupo: str, clave: str, lado: int) -> Image.Image:

@@ -331,9 +331,9 @@ class Criatura:
     # Canal donde se atendió por última vez. Con el bot en varios canales, es
     # ahí donde se busca su pantalla vieja para congelarla al publicar la nueva.
     canal_id: str | None = None
-    # En cuál de las casas de su dueño vive. `None` es el refugio, que es adonde
-    # va quien no cabe en ninguna. Es de la criatura y no de la persona porque
-    # con varias casas dos gachamones del mismo dueño viven en sitios distintos.
+    # En cuál de las casas de su dueño vivía, de cuando había casas. Siempre en
+    # `None` desde el día del cambio: se queda porque la columna sigue en el
+    # esquema y la escribe cada guardado.
     casa_id: int | None = None
     # Siempre en falso: el aviso de hambre se fue con la muerte. Se queda porque
     # la columna sigue en el esquema.
@@ -887,13 +887,13 @@ def horas_de_vida(salud: int) -> float:
 class Ritmo:
     """Cuánto más rápido o más lento pasa el tiempo para una criatura.
 
-    Lo trae el hogar, y se le pasa a `avanzar` ya calculado: este módulo no sabe
-    de casas ni de refugios, sólo de multiplicadores. `casas.ritmo_de` es quien
-    los saca del hogar.
+    Lo trae el departamento de su dueño, y se le pasa a `avanzar` ya calculado:
+    este módulo no sabe de departamentos, sólo de multiplicadores.
+    `departamento.ritmo_de` es quien los saca de la comodidad.
 
-    `suelo_de_hambre` es de la intemperie: por debajo de ahí el hambre no baja.
-    Bajo techo vale 0, así que ahí la comida sí llega a 0 (lo que tampoco mata:
-    no se muere nadie).
+    `suelo_de_hambre`: por debajo de ahí el hambre no baja. Era de la intemperie,
+    que se fue; hoy no lo pone nadie y vale 0, así que la comida sí llega a 0 (lo
+    que tampoco mata: no se muere nadie).
     """
 
     hambre: float = 1.0
@@ -913,8 +913,8 @@ def avanzar(
     Le pasa a cualquiera que viva, sea o no la activa: salir contigo no cambia
     cómo le corre el reloj.
 
-    `ritmo` es lo que aporta el hogar: quien lo tiene lo calcula y lo pasa. Por
-    defecto va el de siempre, que es también el de quien tiene techo.
+    `ritmo` es lo que aporta el departamento: quien lo tiene lo calcula y lo
+    pasa (`db.avanzar`). Por defecto va el de siempre, sin alivio de ánimo.
 
     El tiempo no mata a nadie: con la comida en 0 se queda en 0 y sigue viva
     hasta que le den de comer. Una que ya estaba muerta no cambia.

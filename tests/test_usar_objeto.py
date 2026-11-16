@@ -13,16 +13,13 @@ import pytest
 import db
 import economia
 import huerto as hue
-import identidad
 import objetos as obj
 import simulacion as sim
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 U, G = "u1", "g1"
-WEB = identidad.de_cuenta_web(12)
 STATS = (15, 15, 15, 15)
 PLACA = obj.CATALOGO["placa"]
-TICKET = obj.CATALOGO["ticket_refugio"]
 
 
 @pytest.fixture
@@ -226,47 +223,6 @@ def test_la_sopaipilla_arcoiris_va_a_las_cuatro_con_su_dado(base):
     assert efectos(criatura.id) == {stat: resultado.bonus for stat in sim.ESTADISTICAS}
 
 
-def test_el_ticket_da_otra_semana_desde_ahora(base):
-    """Una identidad de Discord con la estancia empezada ayer: el ticket se la
-    escribe desde ahora, no desde que acababa. (Quien nunca había mirado su casa
-    ya tiene la semana entera que se le supone: ése no lo gasta.)"""
-    nace()
-    db.hogar_de(U, G, T0)
-    dar(U, "ticket_refugio", 1)
-    ahora = T0 + timedelta(days=1)
-
-    resultado = economia.usar_objeto("evento-uso-14", U, G, TICKET, ahora)
-
-    assert resultado.ok and resultado.efecto == "refugio"
-    assert resultado.refugio_hasta == ahora + timedelta(days=7)
-    luego = ahora + timedelta(days=3)
-    assert db.hogar_leido(U, G, luego).refugio_hasta == ahora + timedelta(days=7)
-    assert db.inventario(U, G) == {}
-
-
-def test_el_replay_del_ticket_devuelve_la_misma_fecha(base):
-    nace()
-    db.hogar_de(U, G, T0)
-    dar(U, "ticket_refugio", 2)
-    ahora = T0 + timedelta(days=1)
-    primera = economia.usar_objeto("evento-uso-15", U, G, TICKET, ahora)
-
-    segunda = economia.usar_objeto("evento-uso-15", U, G, TICKET, ahora + timedelta(hours=2))
-
-    assert segunda.replay and segunda.refugio_hasta == primera.refugio_hasta
-    assert db.inventario(U, G) == {"ticket_refugio": 1}
-
-
-def test_quien_juega_en_la_web_no_gasta_el_ticket(base):
-    nace(usuario=WEB)
-    dar(WEB, "ticket_refugio", 1)
-
-    resultado = economia.usar_objeto("evento-uso-16", WEB, G, TICKET, T0)
-
-    assert not resultado.ok and resultado.motivo == "sin_plazo"
-    assert db.inventario(WEB, G) == {"ticket_refugio": 1}
-
-
 def test_la_comida_no_pasa_de_cien(base):
     criatura = nace()
     dar(U, "golosinas", 1)
@@ -430,9 +386,9 @@ def test_el_replay_contesta_lo_de_la_primera_vez_aunque_el_activo_ya_sea_otro(ba
 
 # --- Lo que no haría nada no se gasta ----------------------------------------------
 #
-# Tres casos, ni uno más: comida que no sumaría nada, un reinicio sin espera que
-# borrar y un ticket que no alargaría la estancia. Se mira con el gachamon ya
-# puesto al día y antes de gastar, y no se anota: es un rechazo como los demás.
+# Dos casos, ni uno más: comida que no sumaría nada y un reinicio sin espera que
+# borrar. Se mira con el gachamon ya puesto al día y antes de gastar, y no se
+# anota: es un rechazo como los demás.
 
 POCION_COMIDA = obj.CATALOGO["pocion_comida"]
 SILBATO = obj.CATALOGO["silbato"]
@@ -486,30 +442,6 @@ def test_un_reinicio_sin_espera_no_se_gasta(base):
     con_espera = economia.usar_objeto("evento-uso-55", U, G, SILBATO, T0)
     assert con_espera.ok and con_espera.efecto == "reinicia"
     assert db.espera_de(kuro.id, sim.ENTRENAR, T0) == timedelta(0)
-    assert db.inventario(U, G) == {}
-
-
-def test_un_ticket_que_no_alargaria_no_se_gasta(base):
-    nace()
-    dar(U, "ticket_refugio", 1)
-    # Sin estancia empezada, la que se le supone ya llega a ahora + 7 días; y
-    # mirarla para decir que no tampoco se la empieza.
-    sin_empezar = economia.usar_objeto("evento-uso-56", U, G, TICKET, T0)
-    assert (sin_empezar.motivo, sin_empezar.efecto) == ("no_hace_falta", "refugio")
-    with db.conectar() as con:
-        assert not db._hay_hogar(con, U, G)
-
-    db.hogar_de(U, G, T0)                           # recién empezada: hasta T0 + 7 días
-    recien = economia.usar_objeto("evento-uso-57", U, G, TICKET, T0)
-    assert (recien.ok, recien.motivo, recien.efecto) == (False, "no_hace_falta", "refugio")
-    assert db.inventario(U, G) == {"ticket_refugio": 1}
-
-    a_la_mitad = T0 + timedelta(days=3, hours=12)
-    # Sin comer no llegaría vivo a la mitad de la estancia: come a los dos días.
-    hambrear(db.avanzar(db.criatura_activa(U, G), T0 + timedelta(days=2)), 100)
-    usado = economia.usar_objeto("evento-uso-58", U, G, TICKET, a_la_mitad)
-    assert usado.ok and usado.refugio_hasta == a_la_mitad + timedelta(days=7)
-    assert db.hogar_leido(U, G, a_la_mitad).refugio_hasta == a_la_mitad + timedelta(days=7)
     assert db.inventario(U, G) == {}
 
 

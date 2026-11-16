@@ -1,30 +1,25 @@
-"""El huerto de la casa: porotos de colores y sopaipillas.
+"""Los porotos de colores y las sopaipillas.
 
-Módulo puro, como `casas.py`: catálogo y reglas, sin base de datos ni Discord.
+Módulo puro: catálogo y reglas, sin base de datos ni Discord.
 
-El bucle es corto y tiene una gracia: se siembra algo, sale un puñado de porotos,
-y con tres del mismo color se cocina una sopaipilla que le da a tu gachamon un
-bonus temporal. Lo que hace que el color importe es que **a cada carácter le
-gustan en distinto orden**: la misma sopaipilla es un 1d12 para un gruñón y un
-1d4 para un miedoso.
+El huerto por casa se fue, y vuelve más adelante. Lo que se queda es lo que dio:
+con tres porotos del mismo color se cocina una sopaipilla que le da a tu
+gachamon un bonus temporal. Lo que hace que el color importe es que **a cada
+carácter le gustan en distinto orden**: la misma sopaipilla es un 1d12 para un
+gruñón y un 1d4 para un miedoso.
 
-**El color lo hereda lo sembrado**: siembras un poroto rojo y salen rojos. Sólo
-sortean color la semilla de la tienda y el poroto arcoíris, y ahí está el
-equilibrio del huerto: cultivar un color que ya tienes es seguro y aburrido,
-pero el único modo de conseguir uno que te falta es la semilla —que se compra y
-sale a suerte— o pedírselo a un vecino por el buzón.
+Las cuentas de la cosecha se quedan también, porque con ellas cosechó el día del
+cambio lo que cada quien tenía plantado (`economia.el_dia_del_cambio`). **El
+color lo hereda lo sembrado**: de un poroto rojo salen rojos. Sólo sortean color
+la semilla y el poroto arcoíris.
 
 Y de cualquier cosecha puede salir un **poroto arcoíris**, uno solo y con poca
 probabilidad. No tiene color, así que sembrarlo no hereda nada; lo que sí hace es
 una sopaipilla que no mira el carácter y sube las cuatro estadísticas a la vez.
-Con tres, y al ritmo al que salen, es lo bastante escaso como para que pedir uno
-prestado siga teniendo sentido.
 """
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
-from datetime import datetime, timedelta
 
 # Los cinco colores y los cinco tamaños de dado, que se corresponden uno a uno:
 # el sitio que ocupe el color en la lista de tu carácter decide con qué dado se
@@ -60,15 +55,10 @@ AFINIDAD: dict[str, tuple[str, ...]] = {
     "travieso":  ("amarillo", "rojo", "verde", "azul", "rosa"),
 }
 
-# Cuánto tarda un bancal y cuánto ahorra regarlo a mitad de camino. Regar no es
-# obligatorio: es lo que premia pasarse a media tarde.
-HORAS_DE_CULTIVO = 8
-HORAS_QUE_AHORRA_REGAR = 3
-
-# Lo que se puede sembrar y no es un poroto: la semilla de la tienda. Su clave es
-# la misma que la del objeto, y también el `DEFAULT` de la columna `sembrado`, así
-# que los bancales plantados antes de que el poroto fuera sembrable se comportan
-# solos como siempre: color al azar al cosechar.
+# Lo que se podía sembrar y no es un poroto: la semilla. Su clave es la misma
+# que la del objeto, y también el `DEFAULT` de la columna `sembrado`, así que los
+# bancales plantados antes de que el poroto fuera sembrable se comportan solos
+# como siempre: color al azar al cosechar.
 SEMILLA = "semilla"
 
 # El poroto arcoíris. **No entra en `COLORES` a propósito**: esa tupla alimenta
@@ -102,24 +92,6 @@ POROTOS_POR_SOPAIPILLA = 3
 # color al azar entre cinco, una sopaipilla pedía del orden de quince cosechas:
 # demasiado poco para ocho horas de espera por bancal.
 POROTOS_POR_COSECHA = (2, 4)
-
-# Cuántos bancales da cada casa, por su clave. El refugio no tiene huerto: no es
-# tuyo. Se guarda por clave y no por `casas.Casa` a propósito: así este módulo no
-# importa `casas`.
-# Los saltos son grandes —y no 1/2/3— desde que se puede tener más de una casa.
-# Con el huerto por casa, apilar pequeñas era la forma óptima de conseguir
-# bancales: dos costaban 400 y daban los mismos 2 que la mediana de 500, así que
-# la mediana no la compraba nadie. Y no había precio que lo arreglara, porque dos
-# pequeñas igualan también su aforo y sus huecos.
-#
-# Con 1/3/7 mejorar gana en todos los cruces sin tocar un solo precio: la mediana
-# (500) da 3 donde dos pequeñas (400) dan 2, y la grande (1200) da 7 donde dos
-# medianas (1000) dan 6. Hay un test que recorre esas combinaciones.
-BANCALES = {"pequena": 1, "mediana": 3, "grande": 7}
-
-
-def bancales_de(clave_de_casa: str | None) -> int:
-    return BANCALES.get(clave_de_casa or "", 0)
 
 
 def caras_de(caracter: str, color: str) -> int:
@@ -209,48 +181,3 @@ def color_sembrado(sembrado: str) -> str | None:
     """
     color = sembrado.removeprefix("poroto_")
     return color if color in COLORES else None
-
-
-def plantables(mochila: dict[str, int]) -> list[str]:
-    """Qué puede sembrar quien lleve esa mochila, en orden fijo.
-
-    Función pura y con la mochila como argumento para que el menú de la tienda se
-    pueda probar sin Discord. El orden no depende del diccionario: primero la
-    semilla, luego los colores como están escritos arriba y el arcoíris al final.
-    """
-    orden = [SEMILLA, *map(clave_de_poroto, COLORES), clave_de_poroto(ARCOIRIS)]
-    return [clave for clave in orden if mochila.get(clave, 0) > 0]
-
-
-@dataclass(frozen=True)
-class Bancal:
-    """Un trozo de huerto. Sin `plantado_en` está en barbecho."""
-
-    numero: int
-    plantado_en: datetime | None = None
-    regado: bool = False
-    # Qué se sembró, por su clave de objeto. Va al final y con valor por defecto
-    # porque hay sitios que construyen el bancal por posición.
-    sembrado: str = SEMILLA
-    # De qué casa es esta tierra. Con varias casas los números se repiten —cada
-    # una empieza por su bancal 1—, así que el par (casa, número) es lo único
-    # que identifica un bancal de verdad.
-    casa_id: int = 0
-
-    @property
-    def plantado(self) -> bool:
-        return self.plantado_en is not None
-
-    def listo_en(self) -> datetime | None:
-        if self.plantado_en is None:
-            return None
-        horas = HORAS_DE_CULTIVO - (HORAS_QUE_AHORRA_REGAR if self.regado else 0)
-        return self.plantado_en + timedelta(hours=horas)
-
-    def listo(self, ahora: datetime) -> bool:
-        momento = self.listo_en()
-        return momento is not None and ahora >= momento
-
-    def puede_regarse(self, ahora: datetime) -> bool:
-        """Sólo mientras crece: regar lo ya listo no adelantaría nada."""
-        return self.plantado and not self.regado and not self.listo(ahora)

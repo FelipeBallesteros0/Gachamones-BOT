@@ -22,15 +22,16 @@ class DadoFijo(random.Random):
 
 def test_estan_los_objetos_pedidos():
     """Una poción de comida, cinco tamaños por cada estadística, los dos
-    reinicios de enfriamiento, la placa con nombre, las golosinas, el ticket del
-    refugio y la semilla. Y aparte, lo que no se vende: un poroto y una
+    reinicios de enfriamiento, la placa con nombre y las golosinas. Y aparte, lo
+    que no se vende: la semilla, que ya no tiene dónde plantarse; un poroto y una
     sopaipilla por color, y el arcoíris —que no es un color pero se cosecha y se
     cuece igual— con **una sopaipilla por cada tamaño de dado**, porque el suyo
     se sortea al cocinarlo y hay que recordarlo."""
     a_la_venta = [o for o in obj.CATALOGO.values() if o.se_vende]
-    assert len(a_la_venta) == 17
+    assert len(a_la_venta) == 15
     assert len(obj.CATALOGO) == (
-        17                                  # lo que se vende
+        15                                  # lo que se vende
+        + 1                                 # la semilla
         + 2 * len(hue.COLORES)              # poroto y sopaipilla por color
         + 1                                 # el poroto arcoíris
         + len(hue.CARAS_DE_ARCOIRIS)        # y su sopaipilla, una por dado
@@ -47,8 +48,9 @@ def test_todo_objeto_tiene_precio_nombre_y_clave_distinta():
     for clave, objeto in obj.CATALOGO.items():
         assert objeto.clave == clave, clave
         # Lo que no se vende no tiene por qué valer nada: los porotos se
-        # cosechan y las sopaipillas se cocinan.
-        assert (objeto.precio > 0) == objeto.se_vende, clave
+        # cosechan y las sopaipillas se cocinan. Sólo la semilla conserva el
+        # precio de cuando se vendía.
+        assert (objeto.precio > 0) == (objeto.se_vende or clave == hue.SEMILLA), clave
         assert objeto.nombre.strip(), clave
         assert objeto.emoji.strip(), clave
         assert objeto.descripcion.strip(), clave
@@ -152,7 +154,7 @@ def test_los_reinicios_apuntan_a_acciones_de_verdad():
 def _efectos(objeto) -> list[bool]:
     return [objeto.stat is not None, objeto.reinicia is not None,
             bool(objeto.alimenta), objeto.renombra, objeto.ceba,
-            bool(objeto.dias_de_refugio), objeto.es_sopaipilla]
+            objeto.es_sopaipilla]
 
 
 def test_todo_objeto_hace_al_menos_una_cosa():
@@ -206,8 +208,7 @@ def test_lo_que_no_se_usa_en_la_mochila_esta_declarado():
     tiene que coincidir con lo que el objeto hace de verdad."""
     for clave, objeto in obj.CATALOGO.items():
         esperado = bool(objeto.stat or objeto.reinicia or objeto.alimenta
-                        or objeto.renombra or objeto.dias_de_refugio
-                        or objeto.es_sopaipilla)
+                        or objeto.renombra or objeto.es_sopaipilla)
         assert objeto.se_usa_en_mochila == esperado, clave
 
 

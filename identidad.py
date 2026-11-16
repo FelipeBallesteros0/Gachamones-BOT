@@ -3,12 +3,6 @@
 Un id de Discord es un entero positivo. Una identidad web es el número de su
 cuenta en negativo (`"-12"`), así que nunca puede chocar con uno de Discord.
 Módulo puro: no importa nada del proyecto.
-
-`sin_plazo_de_refugio` existe aparte de `es_web` a propósito: es la pregunta
-que hacen las reglas del refugio, que preguntan por ella y nunca por `es_web`;
-`db.crear` sí pregunta `es_web`, para otra cosa: si la cuenta sigue vigente.
-Hoy la respuesta coincide con `es_web`, pero el día que cambie la excepción se
-cambia sólo aquí.
 """
 
 from __future__ import annotations
@@ -30,9 +24,3 @@ def de_cuenta_web(rowino_uid: int) -> str:
     if rowino_uid < 1:
         raise ValueError("el número de cuenta web empieza en 1")
     return str(-rowino_uid)
-
-
-def sin_plazo_de_refugio(usuario_id: str) -> bool:
-    """¿Su estancia en el refugio no vence? Quien juega sólo en la web no gana
-    lo bastante para comprarse una casa antes de que corra el plazo de siempre."""
-    return es_web(usuario_id)

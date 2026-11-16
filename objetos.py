@@ -60,15 +60,12 @@ class Objeto:
     # Sirve además en una aventura, para ganarse a un salvaje. Se gasta al
     # ofrecérselo, sin pasar por la mochila.
     ceba: bool = False
-    # Devuelve una estancia entera en el refugio. Es la salida de la intemperie
-    # para quien todavía no llega a una casa.
-    dias_de_refugio: int = 0
     # De qué color es, si es un poroto o una sopaipilla. Los porotos no hacen
     # nada por sí solos —son ingrediente— y las sopaipillas dan el bonus.
     color: str | None = None
     es_sopaipilla: bool = False
-    # Si sale a la venta. Lo que se cosecha o se cocina no se compra, y además
-    # no cabría: la tienda ya roza las 25 opciones que admite un desplegable.
+    # Si sale a la venta. Lo que se cosecha o se cocina no se compra, y la
+    # semilla tampoco desde que se fue el huerto por casa.
     se_vende: bool = True
 
     @property
@@ -80,7 +77,7 @@ class Objeto:
         """
         return bool(
             self.reinicia or self.stat or self.alimenta or self.renombra
-            or self.dias_de_refugio or self.es_sopaipilla
+            or self.es_sopaipilla
         )
 
     @property
@@ -91,8 +88,7 @@ class Objeto:
         y se gasta al confirmarlo. Por eso son dos propiedades y no una.
         """
         return bool(
-            self.reinicia or self.stat or self.alimenta or self.dias_de_refugio
-            or self.es_sopaipilla
+            self.reinicia or self.stat or self.alimenta or self.es_sopaipilla
         )
 
 
@@ -184,19 +180,6 @@ _registrar(Objeto(
     renombra=True,
 ))
 
-# La salida de la intemperie para quien todavía no llega a una casa. Cuesta
-# poco a propósito: es una red de seguridad, no una alternativa a comprar. Quien
-# lo use cada semana gasta más que la casa pequeña en dos meses y sigue sin
-# tener dónde poner un mueble.
-_registrar(Objeto(
-    clave="ticket_refugio",
-    nombre="Ticket del refugio",
-    emoji="🎟️",
-    precio=40,
-    descripcion="Otra semana en el refugio, desde que lo uses.",
-    dias_de_refugio=7,
-))
-
 
 def a_la_venta() -> tuple[Objeto, ...]:
     """Lo del catálogo que se compra, en el orden del catálogo."""
@@ -230,9 +213,11 @@ def aplicar_a_la_criatura(objeto: Objeto, criatura: sim.Criatura) -> sim.Criatur
 
 # --- Lo del huerto ---------------------------------------------------------
 #
-# Nada de esto sale a la venta salvo la semilla: los porotos se cosechan y las
-# sopaipillas se cocinan. Van en el catálogo igual porque viven en la mochila y
-# se pueden regalar por el buzón, que es media gracia de tener colores.
+# Nada de esto sale a la venta: los porotos se cosechaban y las sopaipillas se
+# cocinan. La semilla tampoco, desde que se fue el huerto por casa, ni sale de
+# botín; quien tenga alguna la conserva. Van en el catálogo igual porque viven
+# en la mochila y se pueden regalar por el buzón, que es media gracia de tener
+# colores.
 
 _registrar(Objeto(
     clave=hue.SEMILLA,
@@ -244,6 +229,7 @@ _registrar(Objeto(
         f"a {hue.POROTOS_POR_COSECHA[1]} porotos, todos del mismo color al azar. "
         "Es la única forma de conseguir un color que no tengas."
     ),
+    se_vende=False,
 ))
 
 for _color in hue.COLORES:

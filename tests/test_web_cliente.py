@@ -181,14 +181,13 @@ def test_desde_la_tienda_del_pueblo_se_entra_a_comprar_y_la_ficha_dice_el_titulo
 
 
 def test_las_pantallas_de_la_tienda_no_escriben_precios_ni_claves_del_catalogo():
-    import casas as cas
     import cosmeticos as cos
+    import departamento as dep
     import objetos as obj
 
-    objetos, cosmeticos = obj.a_la_venta(), cos.CATALOGO.values()
-    casas, muebles = cas.CATALOGO.values(), cas.MUEBLES.values()
-    claves = {p.clave for p in (*objetos, *cosmeticos, *casas, *muebles)}
-    precios = {p.precio for p in (*objetos, *cosmeticos, *casas, *muebles)}
+    objetos, cosmeticos, muebles = obj.a_la_venta(), cos.CATALOGO.values(), dep.MUEBLES.values()
+    claves = {p.clave for p in (*objetos, *cosmeticos, *muebles)}
+    precios = {p.precio for p in (*objetos, *cosmeticos, *muebles)}
     # `articulos.js` lleva lo que la tienda comparte con la mochila.
     for nombre in ("tienda.js", "compras.js", "articulos.js"):
         codigo = _sin_comentarios(_guion(nombre))

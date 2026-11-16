@@ -21,7 +21,6 @@ import cosmeticos as cos
 import db
 import departamento as dep
 import economia
-import huerto as hue
 import objetos as obj
 import simulacion as sim
 from web import estado, pueblo
@@ -32,27 +31,15 @@ from web.sesion import con_cabecera, problema
 log = logging.getLogger("gachamones")
 router = APIRouter()
 
-COMPETIR, HUERTO = "competir", "huerto"
+COMPETIR = "competir"
 
 _NOTA_DE_COMPETIR = "Sirve en las competencias, que todavía no están en la página."
-_NOTA_DEL_HUERTO = "Se siembra en el huerto, que todavía no está en la página."
-
-
-def fuera_de_la_pagina(objeto: obj.Objeto) -> bool:
-    """Lo que la página ya no trata: el ticket del refugio, que cerró.
-
-    No sale en la Tienda ni en la mochila, y pedirlo es una petición que no se
-    entiende. Sigue en `objetos` mientras existan sus reglas.
-    """
-    return bool(objeto.dias_de_refugio)
 
 
 def donde_sirve(objeto: obj.Objeto) -> str | None:
     """Dónde se usa lo que todavía no se usa en la web; `None` si ya sirve aquí."""
     if objeto.stat or objeto.reinicia == sim.COMPETIR:
         return COMPETIR
-    if objeto.clave == hue.SEMILLA:
-        return HUERTO
     return None
 
 
@@ -62,19 +49,11 @@ def se_le_vende(objeto: obj.Objeto) -> bool:
 
 
 def _nota(objeto: obj.Objeto) -> str | None:
-    sirve = donde_sirve(objeto)
-    if sirve is None:
-        return None
-    return {COMPETIR: _NOTA_DE_COMPETIR, HUERTO: _NOTA_DEL_HUERTO}[sirve]
+    return None if donde_sirve(objeto) is None else _NOTA_DE_COMPETIR
 
 
 def en_llano(texto: str) -> str:
     return texto.replace("**", "")
-
-
-def _a_la_venta() -> tuple[obj.Objeto, ...]:
-    """Lo que la Tienda enseña, en el orden del catálogo."""
-    return tuple(o for o in obj.a_la_venta() if not fuera_de_la_pagina(o))
 
 
 def _objetos(jugador: Jugador) -> list[dict]:
@@ -86,7 +65,7 @@ def _objetos(jugador: Jugador) -> list[dict]:
             "tienes": mochila.get(o.clave, 0),
             "se_vende": se_le_vende(o), "nota": _nota(o),
         }
-        for o in _a_la_venta()
+        for o in obj.a_la_venta()
     ]
 
 
@@ -204,7 +183,7 @@ def _pieza(que: str, clave: Any):
     if not isinstance(clave, str):
         raise no_se_entiende()
     if que == OBJETO:
-        objeto = next((o for o in _a_la_venta() if o.clave == clave), None)
+        objeto = next((o for o in obj.a_la_venta() if o.clave == clave), None)
         if objeto is None:
             raise no_se_entiende()
         if not se_le_vende(objeto):

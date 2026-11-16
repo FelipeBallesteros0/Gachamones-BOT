@@ -3,7 +3,6 @@ from dataclasses import replace
 
 import pytest
 
-import casas as cas
 import departamento as dep
 import simulacion as sim
 
@@ -33,11 +32,30 @@ def depto(*piezas, ancho=3, fondo=3):
     return dep.Departamento(ancho, fondo, tuple(piezas))
 
 
+# Los catorce de las casas de antes, como eran: (clave, nombre, emoji, precio, comodidad).
+LOS_CATORCE = [
+    ("felpudo", "Felpudo", "🚪", 30, 2),
+    ("maceta", "Maceta", "🪴", 50, 3),
+    ("cuadro", "Cuadro", "🖼️", 50, 3),
+    ("estanteria", "Estantería", "🗄️", 80, 4),
+    ("lampara", "Lámpara", "💡", 80, 4),
+    ("alfombra", "Alfombra", "🧶", 120, 5),
+    ("cortinas", "Cortinas", "🪟", 120, 5),
+    ("cojines", "Cojines", "🛋️", 180, 6),
+    ("fuente", "Fuente", "⛲", 180, 6),
+    ("chimenea", "Chimenea", "🔥", 180, 6),
+    ("calefactor", "Calefactor", "🌡️", 280, 7),
+    ("cama", "Cama grande", "🛏️", 280, 7),
+    ("ventanal", "Ventanal", "🏞️", 280, 7),
+    ("biblioteca", "Biblioteca", "📚", 280, 7),
+]
+
+
 def test_el_catalogo_son_los_catorce_de_siempre_y_la_cama_sencilla():
-    assert set(dep.MUEBLES) == set(cas.MUEBLES) | {"cama_sencilla"}
-    for clave, viejo in cas.MUEBLES.items():
+    assert set(dep.MUEBLES) == {fila[0] for fila in LOS_CATORCE} | {"cama_sencilla"}
+    for clave, nombre, emoji, precio, comodidad in LOS_CATORCE:
         nuevo = dep.MUEBLES[clave]
-        assert (nuevo.nombre, nuevo.emoji, nuevo.precio, nuevo.comodidad) == (viejo.nombre, viejo.emoji, viejo.precio, viejo.comodidad)
+        assert (nuevo.nombre, nuevo.emoji, nuevo.precio, nuevo.comodidad) == (nombre, emoji, precio, comodidad), clave
     sencilla = dep.MUEBLES["cama_sencilla"]
     assert (sencilla.nombre, sencilla.precio, sencilla.comodidad) == ("Cama sencilla", 85, 2)
     assert {c for c, m in dep.MUEBLES.items() if m.cama} == {"cama", "cama_sencilla"}
@@ -115,8 +133,8 @@ def test_el_tope_depende_de_las_casillas():
 
 def test_la_comodidad_alivia_el_animo_como_siempre():
     assert dep.alivio_de_animo(75) == 1.0 and dep.alivio_de_animo(150) == 0.75 == dep.alivio_de_animo(200)
-    for comodidad in (75, 80, 100, 125, 150):
-        assert dep.alivio_de_animo(comodidad) == pytest.approx(cas.alivio_de_animo(comodidad))
+    for comodidad, alivio in ((75, 1.0), (80, 59 / 60), (100, 11 / 12), (125, 5 / 6), (150, 0.75)):
+        assert dep.alivio_de_animo(comodidad) == pytest.approx(alivio)
     assert dep.ritmo_de(depto()) == sim.Ritmo(animo=dep.alivio_de_animo(80))
 
 def test_ampliar_cuesta_15_por_casilla_y_para_en_8():

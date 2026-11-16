@@ -12,13 +12,11 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 
 import aventura as av
-import casas as cas
 import competir as comp
 import cosmeticos as cos
 import db
 import departamento as dep
 import huerto as hue
-import identidad
 import logros as lgr
 import objetos as obj
 import simulacion as sim
@@ -766,8 +764,8 @@ def otorgar_hallazgo(
     **Ni las monedas ni las gemas pasan por el bote diario**, y se cobran
     enteras. Un hallazgo no es un sueldo: es un golpe de suerte, y antes se
     cobraba dos veces mal — si habías llegado al tope no te daba nada, y si no,
-    te comía sitio de lo que ibas a ganar cuidando. Es el mismo trato que la
-    venta de una casa, por el mismo motivo: no se gana jugando.
+    te comía sitio de lo que ibas a ganar cuidando. Es el mismo trato que las
+    devoluciones, por el mismo motivo: no se gana jugando.
 
     Que no rompa la economía no es una impresión: sale al 4 % con 1–10 monedas,
     o sea 0,22 por aventura, y con la espera de 37 minutos entre viajes ni
@@ -1328,8 +1326,8 @@ def _ya_hecha(
 
     Va justo detrás del `BEGIN IMMEDIATE` y antes de cualquier otra lectura que
     pueda rechazar: un replay contesta que salió bien aunque el estado de ahora
-    ya no lo permita —la casa ya mejorada, la corona ya en el ropero, la casa
-    vendida que ya no está—. Un evento usado para pedir otra cosa es un error de
+    ya no lo permita —la corona ya en el ropero, el departamento ya ampliado, el
+    objeto ya gastado—. Un evento usado para pedir otra cosa es un error de
     quien llama, como en `comprar`.
     """
     if evento_id is None:
@@ -1475,295 +1473,6 @@ def comprar_cosmetico(
         )
         return ResultadoCosmetico(
             ok=True, criatura=vestido, saldo=saldo, sustituido=sustituido
-        )
-
-
-@dataclass(frozen=True)
-class ResultadoMudanza:
-    """Cómo salió comprar casa."""
-
-    ok: bool = False
-    casa: cas.Casa | None = None        # la nueva
-    desde: cas.Casa | None = None       # la que se mejoró; None es una casa más
-    casa_id: int = 0                    # cuál es, para poder mudar gente a ella
-    saldo: int = 0                      # asciicoins que quedan
-    problema: str | None = None
-    motivo: str | None = None           # por qué no, como clave
-    replay: bool = False                # ya estaba hecha con ese evento
-
-
-@dataclass(frozen=True)
-class ResultadoVenta:
-    """Cómo salió vender la casa."""
-
-    ok: bool = False
-    casa: cas.Casa | None = None      # la que se ha vendido
-    cobrado: int = 0
-    saldo: int = 0
-    guardados: int = 0                # muebles que vuelven al armario
-    desalojados: int = 0              # gachamones que se van al refugio
-    problema: str | None = None
-    motivo: str | None = None         # por qué no, como clave
-    replay: bool = False              # ya estaba hecha con ese evento
-
-
-def vender_casa(
-    usuario_id: str, guild_id: str, casa_id: int,
-    ahora: datetime | None = None, evento_id: str | None = None,
-) -> ResultadoVenta:
-    """Vende **esa** casa y recoloca lo que tenía dentro.
-
-    **Lo cobrado no pasa por el bote diario, y es lo más importante de aquí.**
-    El bote son veinte asciicoins al día y la casa grande devuelve novecientos
-    sesenta: si esto contara como ganancia se cobrarían veinte y se perderían
-    novecientos cuarenta. Una venta es una **devolución**, no una ganancia, y por
-    eso entra directa al monedero y no lleva fila en `operaciones_economia` —que
-    además envenenaría el bote del día, porque `_ganado_hoy` suma todo lo
-    acreditado.
-
-    Lo que impide cobrarla dos veces no es el ledger sino el propio estado: la
-    fila de `casas_propias` ya no está y el segundo intento no la encuentra. Es
-    el cerrojo de `comprar_cosmetico`. Con `evento_id` (la web), repetir la
-    petición contesta lo que se cobró la primera vez, aunque la casa ya no esté.
-
-    Sus gachamones se van al refugio, sus muebles vuelven al armario —retirar uno
-    nunca lo destruye— y lo plantado en sus bancales se pierde, porque la tierra
-    era de esa casa. Las demás casas no se tocan.
-    """
-    ahora = ahora or db.ahora_utc()
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        hecha = _ya_hecha(
-            con, evento_id, usuario_id, guild_id, "venta", str(casa_id)
-        )
-        if hecha is not None:
-            return ResultadoVenta(
-                ok=True, replay=True, casa=cas.buscar(hecha["casa"]),
-                cobrado=hecha["cobrado"], guardados=hecha["guardados"],
-                desalojados=hecha["desalojados"],
-                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
-            )
-
-        hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
-        propia = hogar.casa_por_id(casa_id)
-        if propia is None:
-            return ResultadoVenta(
-                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
-                problema=(
-                    "No tienes casa que vender: vives en el refugio."
-                    if not hogar.casas else "Esa casa no es tuya."
-                ),
-                motivo="no_es_tuya" if hogar.casas else "sin_casa",
-            )
-
-        casa = propia.casa
-        cobrado = cas.lo_que_dan_por(casa)
-        _asegurar_monedero(con, usuario_id, guild_id)
-        con.execute(
-            "UPDATE monederos SET asciicoins = asciicoins + ? "
-            "WHERE usuario_id = ? AND guild_id = ?",
-            (cobrado, usuario_id, guild_id),
-        )
-        desalojados = db.inquilinos_en(con, usuario_id, guild_id).get(casa_id, 0)
-        guardados = db.vender_la_casa_en(
-            con, usuario_id, guild_id, casa_id, ahora
-        )
-        _anotar(
-            con, evento_id, usuario_id, guild_id, "venta", str(casa_id),
-            {"casa": casa.clave, "cobrado": cobrado, "guardados": guardados,
-             "desalojados": desalojados},
-            ahora,
-        )
-        return ResultadoVenta(
-            ok=True, casa=casa, cobrado=cobrado, guardados=guardados,
-            desalojados=desalojados,
-            saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
-        )
-
-
-def comprar_casa(
-    usuario_id: str, guild_id: str, casa: cas.Casa,
-    ahora: datetime | None = None, mejorar: int | None = None,
-    evento_id: str | None = None,
-) -> ResultadoMudanza:
-    """Cobra los asciicoins y te da una casa, en una transacción.
-
-    Hace dos cosas según venga `mejorar`:
-
-    * **Sin él, es una casa más**, hasta el tope de `cas.MAXIMO_CASAS`.
-    * **Con él, se mejora esa casa**, y ahí sigue mandando la regla de siempre:
-      sólo se sube de tamaño. Mejorar conserva el `id`, así que sus inquilinos,
-      sus muebles y sus bancales se quedan donde estaban — es una obra y no una
-      mudanza.
-
-    Se paga con asciicoins y no con gemas a propósito: las gemas están enteras
-    comprometidas con los cosméticos, y los asciicoins hasta ahora sólo compraban
-    pociones. Esto les da adónde ir.
-
-    No lleva fila en `operaciones_economia` aunque sean asciicoins: allí se
-    congela lo que pagó un evento que puede reprocesarse, y desde Discord cada
-    compra es una acción deliberada que no se reprocesa. La web sí repite la
-    petición cuando no le llega la respuesta, y por eso manda `evento_id`: con
-    el mismo evento, la segunda vez contesta la casa de la primera en vez de
-    comprar otra.
-    """
-    if cas.CATALOGO.get(casa.clave) != casa:
-        raise ValueError("la casa no coincide con el catálogo actual")
-
-    # Comprar otra mediana y mejorar la casa 4 a mediana son peticiones
-    # distintas aunque nombren la misma casa.
-    solicitud = casa.clave if mejorar is None else f"{casa.clave}:{mejorar}"
-    ahora = ahora or db.ahora_utc()
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        hecha = _ya_hecha(con, evento_id, usuario_id, guild_id, "casa", solicitud)
-        if hecha is not None:
-            return ResultadoMudanza(
-                ok=True, replay=True, casa=casa,
-                desde=cas.buscar(hecha["desde"]), casa_id=hecha["casa_id"],
-                saldo=_saldos_en(con, usuario_id, guild_id).asciicoins,
-            )
-
-        hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
-        _asegurar_monedero(con, usuario_id, guild_id)
-        saldo = _saldos_en(con, usuario_id, guild_id).asciicoins
-
-        vieja = hogar.casa_por_id(mejorar) if mejorar else None
-        if mejorar is not None and vieja is None:
-            return ResultadoMudanza(
-                saldo=saldo, problema="Esa casa no es tuya.",
-                motivo="no_es_tuya",
-            )
-        if vieja is not None and not cas.puede_mejorarse_a(vieja, casa):
-            return ResultadoMudanza(
-                casa=vieja.casa, desde=vieja.casa, casa_id=vieja.id, saldo=saldo,
-                problema=f"Esa ya es {vieja.casa.nombre}, y no se puede empeorar.",
-                motivo="no_se_empeora",
-            )
-        if vieja is None and not hogar.puede_comprar_otra():
-            return ResultadoMudanza(
-                saldo=saldo,
-                problema=(
-                    f"Ya tienes {cas.MAXIMO_CASAS} casas, que es el máximo. "
-                    "Vende una o mejora las que tienes."
-                ),
-                motivo="maximo_de_casas",
-            )
-
-        # Mejorar cuesta sólo la diferencia: pagar el precio entero por subir de
-        # tamaño saldría más caro que vender y comprar, y nadie mejoraría nunca.
-        cuesta = casa.precio - (cas.lo_que_dan_por(vieja.casa) if vieja else 0)
-        pagado = con.execute(
-            "UPDATE monederos SET asciicoins = asciicoins - ? "
-            "WHERE usuario_id = ? AND guild_id = ? AND asciicoins >= ?",
-            (cuesta, usuario_id, guild_id, cuesta),
-        ).rowcount > 0
-        saldo = _saldos_en(con, usuario_id, guild_id).asciicoins
-        if not pagado:
-            falta = cuesta - saldo
-            return ResultadoMudanza(
-                casa=casa, desde=vieja.casa if vieja else None, saldo=saldo,
-                problema=(
-                    f"Te faltan {falta} {obj.nombre_de_monedas(falta)}. "
-                    "Se ganan cuidando, evolucionando y compitiendo."
-                ),
-                motivo="faltan_monedas",
-            )
-
-        if vieja is not None:
-            db.mejorar_casa_en(con, vieja.id, casa.clave)
-            casa_id = vieja.id
-        else:
-            casa_id = db.anadir_casa_en(
-                con, usuario_id, guild_id, casa.clave, ahora
-            )
-            # Los que estaban en el refugio se mudan solos hasta llenarla. Quien
-            # se compra una casa quiere meter dentro a los suyos, y obligarle a
-            # colocarlos uno a uno sería pedirle que repita lo obvio; repartir
-            # sigue estando ahí para cuando quiera otra cosa.
-            db.acoger_a_los_sin_casa_en(
-                con, usuario_id, guild_id, casa_id, casa.aforo
-            )
-        _anotar(
-            con, evento_id, usuario_id, guild_id, "casa", solicitud,
-            {"casa_id": casa_id, "desde": vieja.casa.clave if vieja else None},
-            ahora,
-        )
-        return ResultadoMudanza(
-            ok=True, casa=casa, desde=vieja.casa if vieja else None,
-            casa_id=casa_id, saldo=saldo,
-        )
-
-
-@dataclass(frozen=True)
-class ResultadoMudanzaDeGachamon:
-    """Cómo salió cambiar de casa a un gachamon."""
-
-    ok: bool = False
-    criatura: sim.Criatura | None = None
-    casa: cas.Casa | None = None       # adonde va; None es el refugio
-    problema: str | None = None
-
-
-def mudar_gachamon(
-    usuario_id: str, guild_id: str, criatura_id: int, casa_id: int | None,
-    ahora: datetime | None = None,
-) -> ResultadoMudanzaDeGachamon:
-    """Cambia de casa a un gachamon tuyo, si le queda sitio.
-
-    `casa_id` a `None` lo manda al refugio, que es lo que hace falta para poder
-    vaciar una casa antes de venderla y para sacar a alguien de una que se pasa
-    del aforo.
-
-    El aforo se comprueba **dentro** de la transacción y contando de verdad
-    quién hay: entre que se pinta el menú y se pulsa pueden haber entrado otros,
-    y el desplegable se queda con la foto vieja.
-
-    Quien ya estaba por encima del aforo —lo que dejó la migración— no estorba:
-    esto sólo frena que **entre** uno más, así que esas casas se van vaciando y
-    nunca se llenan de nuevo por encima del tope.
-    """
-    ahora = ahora or db.ahora_utc()
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        criatura = db.criatura_en(con, criatura_id)
-        if (
-            criatura is None
-            or criatura.usuario_id != usuario_id
-            or criatura.guild_id != guild_id
-        ):
-            return ResultadoMudanzaDeGachamon(problema="Ese gachamon no es tuyo.")
-        if not criatura.viva:
-            return ResultadoMudanzaDeGachamon(
-                criatura=criatura, problema="Ya no está entre nosotros."
-            )
-        if criatura.casa_id == casa_id:
-            return ResultadoMudanzaDeGachamon(
-                criatura=criatura, problema="Ya vive ahí."
-            )
-
-        hogar = db._hogar_de(con, usuario_id, guild_id, ahora)
-        destino = hogar.casa_por_id(casa_id)
-        if casa_id is not None and destino is None:
-            return ResultadoMudanzaDeGachamon(
-                criatura=criatura, problema="Esa casa no es tuya."
-            )
-        if destino is not None:
-            dentro = db.inquilinos_en(con, usuario_id, guild_id).get(casa_id, 0)
-            if not destino.caben_mas_inquilinos(dentro):
-                return ResultadoMudanzaDeGachamon(
-                    criatura=criatura,
-                    problema=(
-                        f"En {destino.casa.nombre} ya viven "
-                        f"{dentro}/{destino.casa.aforo}. Saca a alguien primero."
-                    ),
-                )
-
-        db.mudar_criatura_en(con, criatura_id, casa_id)
-        return ResultadoMudanzaDeGachamon(
-            ok=True,
-            criatura=replace(criatura, casa_id=casa_id),
-            casa=destino.casa if destino else None,
         )
 
 
@@ -2011,188 +1720,6 @@ def ampliar_departamento(
 
 
 @dataclass(frozen=True)
-class ResultadoHuerto:
-    """Cómo salió plantar, regar o cosechar."""
-
-    ok: bool = False
-    bancal: int = 0
-    sembrado: str | None = None         # la clave de lo que se acaba de sembrar
-    cosechado: str | None = None        # la clave del poroto que salió
-    cuantos: int = 0                    # cuántos, todos de ese mismo color
-    arcoiris: bool = False              # y si además salió uno arcoíris
-    listo_en: datetime | None = None
-    problema: str | None = None
-
-
-def _huerto_abierto(
-    con, usuario_id: str, guild_id: str, ahora: datetime
-) -> tuple[list[hue.Bancal], str | None]:
-    """Los bancales de **todas** tus casas, o por qué no tienes ninguno.
-
-    Van en una sola lista y en el orden en que compraste las casas: quien juega
-    ve su huerto entero de una vez, y cada bancal lleva de qué casa es.
-    """
-    hogar = db._hogar_leido(con, usuario_id, guild_id, ahora)
-    bancales: list[hue.Bancal] = []
-    for propia in hogar.casas:
-        bancales += db._huerto_de(
-            con, usuario_id, guild_id, propia.id,
-            hue.bancales_de(propia.casa.clave),
-        )
-    if not bancales:
-        return [], (
-            "El refugio no tiene huerto. Cómprate una casa en 🛒 **Tienda**."
-        )
-    return bancales, None
-
-
-def _bancal_de(
-    bancales: list[hue.Bancal], casa_id: int, numero: int
-) -> hue.Bancal | None:
-    """El bancal `numero` de esa casa, o `None` si no es suyo.
-
-    Hace falta la pareja porque cada casa numera los suyos desde 1: buscar sólo
-    por número le daría el bancal de otra casa a quien tenga varias, y regaría o
-    cosecharía donde no toca. Con `casa_id` a 0 —lo que manda quien sólo tiene
-    una— vale el primero que lleve ese número.
-    """
-    return next(
-        (b for b in bancales
-         if b.numero == numero and (not casa_id or b.casa_id == casa_id)),
-        None,
-    )
-
-
-def plantar(
-    usuario_id: str, guild_id: str, bancal: int, ahora: datetime | None = None,
-    que: str = hue.SEMILLA, casa_id: int = 0,
-) -> ResultadoHuerto:
-    """Gasta lo que se siembre y lo siembra.
-
-    `que` va **después de `ahora`** y con valor por defecto porque hay bastante
-    código que llama a esto por posición; así seguir sembrando semillas se
-    escribe igual que antes.
-    """
-    ahora = ahora or db.ahora_utc()
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        bancales, estorbo = _huerto_abierto(con, usuario_id, guild_id, ahora)
-        if estorbo:
-            return ResultadoHuerto(problema=estorbo)
-        elegido = _bancal_de(bancales, casa_id, bancal)
-        if elegido is None:
-            return ResultadoHuerto(problema="Ese bancal no es tuyo.")
-        if elegido.plantado:
-            return ResultadoHuerto(
-                bancal=bancal, problema="En ese bancal ya hay algo creciendo."
-            )
-        objeto = obj.CATALOGO.get(que)
-        if objeto is None:
-            return ResultadoHuerto(bancal=bancal, problema="Eso no se siembra.")
-        if not db.gastar_en(con, usuario_id, guild_id, que):
-            # Con el nombre entero en vez de concordar en género: «ninguna
-            # semilla» y «ningún poroto rojo» pedían dos frases para decir lo
-            # mismo, y la lista de cosas sembrables sólo va a crecer.
-            pista = " Cómpralas en 🛒 **Tienda**." if que == hue.SEMILLA else ""
-            return ResultadoHuerto(
-                bancal=bancal,
-                problema=f"Ya no te queda {objeto.emoji} **{objeto.nombre}**.{pista}",
-            )
-
-        db.plantar_en(
-            con, usuario_id, guild_id, elegido.casa_id, bancal, ahora, que
-        )
-        return ResultadoHuerto(
-            ok=True, bancal=bancal, sembrado=que,
-            listo_en=hue.Bancal(bancal, ahora).listo_en(),
-        )
-
-
-def regar(
-    usuario_id: str, guild_id: str, bancal: int, ahora: datetime | None = None,
-    casa_id: int = 0,
-) -> ResultadoHuerto:
-    """Adelanta la cosecha. Sólo mientras crece: regar lo listo no haría nada."""
-    ahora = ahora or db.ahora_utc()
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        bancales, estorbo = _huerto_abierto(con, usuario_id, guild_id, ahora)
-        if estorbo:
-            return ResultadoHuerto(problema=estorbo)
-        elegido = _bancal_de(bancales, casa_id, bancal)
-        if elegido is None or not elegido.plantado:
-            return ResultadoHuerto(
-                bancal=bancal, problema="Ahí no hay nada plantado."
-            )
-        if elegido.regado:
-            return ResultadoHuerto(bancal=bancal, problema="Ya está regado.")
-        if elegido.listo(ahora):
-            return ResultadoHuerto(
-                bancal=bancal, problema="Ya está listo: cosecha y vuelve a sembrar."
-            )
-
-        db.regar_en(con, usuario_id, guild_id, elegido.casa_id, bancal)
-        regado = replace(elegido, regado=True)
-        return ResultadoHuerto(ok=True, bancal=bancal, listo_en=regado.listo_en())
-
-
-def cosechar(
-    usuario_id: str, guild_id: str, bancal: int,
-    ahora: datetime | None = None, rng=None, casa_id: int = 0,
-) -> ResultadoHuerto:
-    """Recoge la cosecha y deja el bancal en barbecho.
-
-    **El color lo hereda lo sembrado**, y sólo se sortea cuando lo sembrado no
-    tiene ninguno: la semilla de la tienda y el arcoíris. Sembrar un poroto rojo
-    y recoger azules sería no entender qué se plantó.
-
-    Salen varios y **todos del mismo color**: se tira una vez y esa tirada vale
-    para la mata entera, que es lo que se espera de una planta. Aparte va el
-    arcoíris, que sale de cualquier cosecha, sustituye a uno del lote y no cambia
-    cuántos recoges.
-    """
-    ahora = ahora or db.ahora_utc()
-    with db.conectar() as con:
-        con.execute("BEGIN IMMEDIATE")
-        bancales, estorbo = _huerto_abierto(con, usuario_id, guild_id, ahora)
-        if estorbo:
-            return ResultadoHuerto(problema=estorbo)
-        elegido = _bancal_de(bancales, casa_id, bancal)
-        if elegido is None or not elegido.plantado:
-            return ResultadoHuerto(
-                bancal=bancal, problema="Ahí no hay nada plantado."
-            )
-        if not elegido.listo(ahora):
-            return ResultadoHuerto(
-                bancal=bancal, listo_en=elegido.listo_en(),
-                problema="Todavía no está listo.",
-            )
-
-        color = hue.color_sembrado(elegido.sembrado) or hue.tirar_color(rng)
-        clave = hue.clave_de_poroto(color)
-        lote = hue.tirar_cuantos(rng)
-        arcoiris = hue.tirar_arcoiris(rng)
-
-        # El arcoíris **sustituye** a uno del lote, no se suma: lo raro es que
-        # salga, no que la cosecha rinda más de la cuenta.
-        normales = lote - 1 if arcoiris else lote
-        if normales:
-            db.guardar_en_la_mochila_en(
-                con, usuario_id, guild_id, clave, normales
-            )
-        if arcoiris:
-            db.guardar_en_la_mochila_en(
-                con, usuario_id, guild_id,
-                hue.clave_de_poroto(hue.ARCOIRIS), 1,
-            )
-        db.arrancar_en(con, usuario_id, guild_id, elegido.casa_id, bancal)
-        return ResultadoHuerto(
-            ok=True, bancal=bancal, cosechado=clave, cuantos=normales,
-            arcoiris=arcoiris,
-        )
-
-
-@dataclass(frozen=True)
 class ResultadoCocina:
     ok: bool = False
     sopaipilla: obj.Objeto | None = None
@@ -2408,18 +1935,17 @@ class ResultadoUso:
     """
 
     ok: bool = False
-    motivo: str | None = None            # sin_gachamon | no_tienes | no_se_usa | sin_plazo | nombre | mismo_nombre | no_hace_falta
+    motivo: str | None = None            # sin_gachamon | no_tienes | no_se_usa | nombre | mismo_nombre | no_hace_falta
     problema: str | None = None          # la frase de quien valida el nombre, cuando motivo == "nombre"
     objeto: str = ""
     criatura: sim.Criatura | None = None  # cómo queda
-    efecto: str | None = None            # reinicia | estadistica | sopaipilla | refugio | comida | nombre
+    efecto: str | None = None            # reinicia | estadistica | sopaipilla | comida | nombre
     accion: str | None = None            # la que queda libre, si efecto == "reinicia"
     stats: tuple[str, ...] = ()
     bonus: int = 0
     caras: int = 0
     gusto: str | None = None             # `huerto.le_gusta`, en la sopaipilla de color
     comida: int = 0                      # cuánta ganó
-    refugio_hasta: datetime | None = None
     nombre_anterior: str = ""
     replay: bool = False
 
@@ -2505,10 +2031,6 @@ def _usar(
             return ResultadoUso(
                 motivo="no_se_usa", objeto=objeto.clave, criatura=criatura
             )
-        if objeto.dias_de_refugio and identidad.sin_plazo_de_refugio(usuario_id):
-            return ResultadoUso(
-                motivo="sin_plazo", objeto=objeto.clave, criatura=criatura
-            )
 
         # Como en `ejecutar_cuidado`: se pone al día antes de mirar si haría
         # falta y de aplicarle nada.
@@ -2583,13 +2105,6 @@ def _aplicar_objeto(
             else hue.le_gusta(criatura.caracter, objeto.color),
         }
 
-    if objeto.dias_de_refugio:
-        hasta = db.alargar_el_refugio_en(
-            con, criatura.usuario_id, criatura.guild_id, objeto.dias_de_refugio,
-            ahora,
-        )
-        return criatura, {"efecto": "refugio", "refugio_hasta": hasta.isoformat()}
-
     # Lo único que queda de `se_aplica_al_momento`, y `_usar` ya lo ha mirado:
     # no hay caso por descarte que gaste la unidad sin hacer nada. No es un
     # `assert`, que con `python -O` desaparece; al lanzar, la transacción
@@ -2613,10 +2128,9 @@ def _no_haria_nada(
 ) -> str | None:
     """Si usarlo ahora no haría nada, el efecto que habría tenido; si no, `None`.
 
-    Tres casos, ni uno más, mirados como los aplicaría `_aplicar_objeto` y con
-    sus mismas cuentas: un reinicio sin espera que borrar, un ticket que no
-    alargaría la estancia (el hogar se lee, no se escribe) y comida que sumaría
-    0 redondeado. Las pociones y las sopaipillas siempre ponen o renuevan su
+    Dos casos, ni uno más, mirados como los aplicaría `_aplicar_objeto` y con
+    sus mismas cuentas: un reinicio sin espera que borrar y comida que sumaría 0
+    redondeado. Las pociones y las sopaipillas siempre ponen o renuevan su
     efecto.
     """
     if objeto.reinicia:
@@ -2625,11 +2139,6 @@ def _no_haria_nada(
         return "reinicia"
     if objeto.stat or objeto.es_sopaipilla:
         return None
-    if objeto.dias_de_refugio:
-        hogar = db._hogar_leido(con, criatura.usuario_id, criatura.guild_id, ahora)
-        if hogar.refugio_hasta < ahora + timedelta(days=objeto.dias_de_refugio):
-            return None
-        return "refugio"
     if objeto.alimenta and _alimentar(criatura, objeto)[1] == 0:
         return "comida"
     return None
@@ -2640,13 +2149,11 @@ def _resultado_del_uso(
     replay: bool = False,
 ) -> ResultadoUso:
     """El mismo resultado la primera vez y en un replay: sale de lo anotado."""
-    hasta = datos.get("refugio_hasta")
     return ResultadoUso(
         ok=True, objeto=objeto.clave, criatura=criatura, replay=replay,
         efecto=datos["efecto"], accion=datos.get("accion"),
         stats=tuple(datos.get("stats", ())), bonus=datos.get("bonus", 0),
         caras=datos.get("caras", 0), gusto=datos.get("gusto"),
         comida=datos.get("comida", 0),
-        refugio_hasta=datetime.fromisoformat(hasta) if hasta else None,
         nombre_anterior=datos.get("nombre_anterior", ""),
     )

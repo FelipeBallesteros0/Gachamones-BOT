@@ -54,12 +54,14 @@ def test_lo_que_no_se_usa_desde_la_mochila_lo_dice(cliente, monkeypatch):
 
 
 @pytest.mark.parametrize("vinculada", [False, True])
-def test_el_ticket_del_refugio_ya_no_se_lista_ni_se_usa(cliente, monkeypatch, vinculada):
-    # El refugio cerró: la mochila ya no trata su ticket, tampoco el de quien tenía plazo en él.
+def test_lo_que_ya_no_esta_en_el_catalogo_no_se_lista_ni_se_usa(cliente, monkeypatch, vinculada):
+    # Como un ticket del refugio que hubiera quedado en una mochila: el objeto ya no existe.
     poner_reloj(monkeypatch)
     (con_vinculo if vinculada else con_gachamon)(cliente)
     usuario = LA_DE_DISCORD if vinculada else YO
-    dar(usuario, "ticket_refugio"); dar(usuario, "placa")
+    with db.conectar() as con:
+        db.guardar_en_la_mochila_en(con, usuario, G, "ticket_refugio")
+    dar(usuario, "placa")
     assert [o["clave"] for o in cliente.get(MOCHILA).json()["objetos"]] == ["placa"]
     r = usar(cliente, "ticket_refugio")
     assert r.status_code == 422

@@ -23,9 +23,7 @@ import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual, la_misma_activa
 from web.sesion import con_cabecera, es_un_id, problema
-from web.tienda import (
-    datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, fuera_de_la_pagina, no_se_entiende,
-)
+from web.tienda import datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, no_se_entiende
 
 router = APIRouter()
 
@@ -58,7 +56,7 @@ def lo_que_llevas(jugador: Jugador) -> dict:
     mochila = db.inventario(jugador.usuario_id, jugador.guild_id)
     lista = []
     for o in obj.CATALOGO.values():
-        if mochila.get(o.clave, 0) <= 0 or fuera_de_la_pagina(o):
+        if mochila.get(o.clave, 0) <= 0:
             continue
         uso, nota = _uso(o)
         lista.append({
@@ -156,7 +154,7 @@ def usar_de_la_mochila(
     ahora = db.ahora_utc()
     la_misma_activa(jugador, ahora, _SIN_GACHAMON)
     objeto = obj.CATALOGO.get(clave)
-    if objeto is None or fuera_de_la_pagina(objeto):
+    if objeto is None:
         raise no_se_entiende()
     usuario, guild = jugador.usuario_id, jugador.guild_id
     try:

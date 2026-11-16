@@ -8,15 +8,16 @@ cuatro es el caso que más se prueba aquí.
 La base vieja se fabrica deshaciendo el esquema nuevo —`hogar` con su columna
 `casa`, `huerto` sin `casa_id`— en vez de copiar la de producción, que no se
 toca. Datos sintéticos, como manda la política.
+
+Las casas ya no tienen reglas: las convierte el día del cambio. La migración se
+queda porque una base vieja tiene que poder llegar hasta ese día, y por eso
+estas pruebas miran las filas que deja y no lo que las casas hacían con ellas.
 """
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
-import casas as cas
 import db
-import economia
-import huerto as hue
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 STATS = (15, 15, 15, 15)
@@ -136,8 +137,7 @@ def test_nadie_pierde_su_sitio_aunque_se_pase_del_aforo():
             (casa_id,),
         ).fetchone()["n"]
 
-    assert dentro == 4
-    assert cas.CATALOGO["pequena"].aforo == 3, "si no, este test no prueba nada"
+    assert dentro == 4, "la pequeña tenía aforo 3: si no, este test no prueba nada"
 
 
 def test_lo_plantado_sigue_creciendo_en_la_casa_que_era():
@@ -204,175 +204,3 @@ def test_una_base_nueva_no_necesita_migracion():
         db._migrar_casas(con)
 
     assert not casas_de()
-
-
-def test_los_bancales_del_huerto_salen_de_la_suma_de_las_casas():
-    """Lo que cambia el equilibrio: con varias casas, los bancales se suman."""
-    assert hue.BANCALES == {"pequena": 1, "mediana": 3, "grande": 7}
-    assert cas.MAXIMO_CASAS == 3
-
-
-@pytest.mark.parametrize("baratas, cara", [
-    (("pequena", "pequena"), "mediana"),
-    (("mediana", "mediana"), "grande"),
-])
-def test_apilar_casas_baratas_nunca_gana_a_mejorar(baratas, cara):
-    """El motivo de que los bancales pasaran de 1/2/3 a 1/3/7: con los viejos,
-    dos pequeñas costaban 400 y daban los mismos 2 bancales que la mediana de
-    500, y no había precio que lo arreglara porque igualaban también su aforo.
-    """
-    precio_apilado = sum(cas.CATALOGO[c].precio for c in baratas)
-    bancales_apilado = sum(hue.BANCALES[c] for c in baratas)
-
-    assert precio_apilado < cas.CATALOGO[cara].precio, "si no, no hay dilema"
-    assert bancales_apilado < hue.BANCALES[cara]
-
-
-def test_el_huerto_de_tres_casas_cabe_en_un_desplegable():
-    """El menú del huerto lleva una fila por bancal y Discord admite 25. Es lo
-    que fija el tope de tres casas, y por eso se comprueba aquí."""
-    maximo = cas.MAXIMO_CASAS * max(hue.BANCALES.values())
-
-    assert maximo <= 25, maximo
-    assert (cas.MAXIMO_CASAS + 1) * max(hue.BANCALES.values()) > 25, (
-        "con una casa más ya no cabría, que es de donde sale el tope"
-    )
-
-
-# --- El aforo y el reparto --------------------------------------------------
-
-def con_casa(clave="pequena", usuario="u1"):
-    with db.conectar() as con:
-        economia._asegurar_monedero(con, usuario, "g1")
-        con.execute(
-            "UPDATE monederos SET asciicoins = 9000 WHERE usuario_id = ? "
-            "AND guild_id = 'g1'", (usuario,),
-        )
-        con.commit()
-    return economia.comprar_casa(usuario, "g1", cas.CATALOGO[clave], T0).casa_id
-
-
-def test_un_gachamon_nace_en_la_primera_casa_con_sitio():
-    """Si naciera siempre en el refugio habría que colocar a mano a cada recién
-    llegado, y el reparto es para decidir, no para hacer trabajo obligatorio."""
-    casa = con_casa("pequena")
-
-    nacidos = [
-        db.crear("u1", "g1", "pulpo", f"K{i}", STATS, T0, activa=(i == 0))
-        for i in range(4)
-    ]
-
-    dentro = db.inquilinos_de("u1", "g1")
-    assert dentro[casa] == cas.CATALOGO["pequena"].aforo == 3
-    assert dentro[None] == 1, "el cuarto no cabe y se queda en el refugio"
-    assert nacidos[3].casa_id is None
-
-
-def test_comprar_una_casa_acoge_a_los_que_estaban_en_el_refugio():
-    for i in range(4):
-        db.crear("u1", "g1", "pulpo", f"K{i}", STATS, T0, activa=(i == 0))
-    assert db.inquilinos_de("u1", "g1") == {None: 4}
-
-    casa = con_casa("mediana")
-
-    dentro = db.inquilinos_de("u1", "g1")
-    assert dentro[casa] == 4 and None not in dentro
-
-
-def test_no_cabe_uno_mas_del_aforo():
-    casa = con_casa("pequena")
-    for i in range(4):
-        db.crear("u1", "g1", "pulpo", f"K{i}", STATS, T0, activa=(i == 0))
-    fuera = [c for c in db.plantel("u1", "g1") if c.casa_id is None][0]
-
-    resultado = economia.mudar_gachamon("u1", "g1", fuera.id, casa, T0)
-
-    assert not resultado.ok and "3/3" in resultado.problema
-    assert db.inquilinos_de("u1", "g1")[casa] == 3
-
-
-def test_mudar_al_refugio_hace_sitio_para_otro():
-    """El refugio siempre acepta: es lo que permite vaciar una casa antes de
-    venderla, y sin él quien llene las tres no podría mover a nadie."""
-    casa = con_casa("pequena")
-    for i in range(4):
-        db.crear("u1", "g1", "pulpo", f"K{i}", STATS, T0, activa=(i == 0))
-    dentro = [c for c in db.plantel("u1", "g1") if c.casa_id == casa][0]
-    fuera = [c for c in db.plantel("u1", "g1") if c.casa_id is None][0]
-
-    assert economia.mudar_gachamon("u1", "g1", dentro.id, None, T0).ok
-    assert economia.mudar_gachamon("u1", "g1", fuera.id, casa, T0).ok
-
-    reparto = db.inquilinos_de("u1", "g1")
-    assert reparto[casa] == 3 and reparto[None] == 1
-
-
-def test_quien_ya_se_pasaba_del_aforo_no_es_desalojado():
-    """Lo que dejó la migración: el aforo frena que **entre** uno más, no echa
-    a quien ya estaba. Así esas casas se vacían solas y nunca vuelven a
-    llenarse por encima del tope."""
-    partida_vieja(casa="pequena", cuantos=4)
-    casa = casas_de()[0]["id"]
-    assert db.inquilinos_de("u1", "g1")[casa] == 4
-
-    dentro = db.plantel("u1", "g1")[0]
-    assert economia.mudar_gachamon("u1", "g1", dentro.id, None, T0).ok
-    assert db.inquilinos_de("u1", "g1")[casa] == 3
-
-    # Y ya no puede volver: al bajar a tres la casa está llena de verdad. Es lo
-    # que hace que el exceso se vaya para no volver en vez de quedarse fijo.
-    vuelta = economia.mudar_gachamon("u1", "g1", dentro.id, casa, T0)
-    assert not vuelta.ok and "3/3" in vuelta.problema
-
-
-def test_cada_gachamon_vive_su_propia_comodidad():
-    """Lo que hace que repartir importe: dos de la misma persona pueden estar
-    en sitios distintos, y a quien no cabe le pasa el tiempo como en el
-    refugio aunque su dueño tenga una casa grande."""
-    casa = con_casa("grande")
-    hogar = db.hogar_de("u1", "g1", T0)
-
-    dentro = cas.ritmo_de(hogar, T0, casa)
-    fuera = cas.ritmo_de(hogar, T0, None)
-
-    assert dentro.animo < fuera.animo, "en casa el ánimo baja más despacio"
-    assert hogar.comodidad_de(casa, T0) > hogar.comodidad_de(None, T0)
-
-
-def test_vender_una_casa_desaloja_solo_la_suya():
-    """Sus inquilinos al refugio, sus muebles al armario y sus bancales fuera;
-    las otras casas, intactas."""
-    primera = con_casa("pequena")
-    segunda = con_casa("mediana")
-    for i in range(5):
-        db.crear("u1", "g1", "pulpo", f"K{i}", STATS, T0, activa=(i == 0))
-    antes = db.inquilinos_de("u1", "g1")
-    assert antes[primera] == 3 and antes[segunda] == 2
-
-    resultado = economia.vender_casa("u1", "g1", primera, T0)
-
-    assert resultado.ok and resultado.desalojados == 3
-    despues = db.inquilinos_de("u1", "g1")
-    assert primera not in despues
-    assert despues[segunda] == 2, "la otra casa no se toca"
-    assert despues[None] == 3
-
-
-def test_vender_una_casa_no_arranca_lo_plantado_en_las_otras():
-    """Los bancales se borran por casa. Por persona, vender la pequeña dejaría
-    en barbecho el huerto entero de la grande sin que nadie lo pidiera."""
-    primera = con_casa("pequena")
-    segunda = con_casa("grande")
-    ahora = T0
-    with db.conectar() as con:
-        for casa, bancal in ((primera, 1), (segunda, 1), (segunda, 2)):
-            db.plantar_en(con, "u1", "g1", casa, bancal, ahora)
-        con.commit()
-
-    economia.vender_casa("u1", "g1", primera, ahora)
-
-    with db.conectar() as con:
-        quedan = con.execute("SELECT casa_id, bancal FROM huerto").fetchall()
-    assert {(f["casa_id"], f["bancal"]) for f in quedan} == {
-        (segunda, 1), (segunda, 2)
-    }

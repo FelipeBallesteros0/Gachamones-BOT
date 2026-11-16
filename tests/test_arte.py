@@ -5,17 +5,16 @@ from collections import Counter
 from PIL import Image
 
 import avatar
-import casas
 import cosmeticos
 import departamento
 import objetos
 from web import arte, pueblo
 
 
-def test_el_contrato_tiene_sus_200_piezas():
+def test_el_contrato_tiene_sus_196_piezas():
     piezas = arte.piezas()
     assert Counter(p.familia for p in piezas) == {
-        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4, "iconos": 63,
+        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4, "iconos": 59,
     }
     assert len({p.ruta for p in piezas}) == len(piezas)
     rutas = {p.ruta: (p.ancho, p.alto) for p in piezas}
@@ -73,14 +72,14 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     monkeypatch.setattr(arte, "RAIZ", tmp_path / "arte")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 200
+    assert len(escritas) == 196
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
     assert rellenos.generar() == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 200
+    assert len(rellenos.generar(todo=True)) == 196
 
 
 def _relleno(ruta: str) -> Image.Image:
@@ -125,14 +124,13 @@ def _rutas_de_iconos():
         [f"iconos/objetos/{c}.png" for c in objetos.CATALOGO]
         + [f"iconos/cosmeticos/{c}.png" for c in cosmeticos.CATALOGO]
         + [f"iconos/muebles/{c}.png" for c in departamento.MUEBLES]
-        + [f"iconos/casas/{c}.png" for c in casas.CATALOGO]
     )
 
 
 def test_cada_cosa_que_se_compra_o_se_lleva_tiene_su_icono():
     rutas = {p.ruta: p for p in arte.piezas()}
     esperadas = _rutas_de_iconos()
-    assert len(esperadas) == 63
+    assert len(esperadas) == 59
     for ruta in esperadas:
         assert (rutas[ruta].ancho, rutas[ruta].alto, rutas[ruta].familia) == (48, 48, "iconos")
 
@@ -154,5 +152,5 @@ def test_los_rellenos_de_iconos_se_distinguen_y_tienen_fondo_transparente():
     for grupo, items in por_grupo.items():
         assert len({b for _, b, _ in items}) == len(items), grupo
     colores = {items[0][2] for items in por_grupo.values()}
-    assert len(colores) == 4
+    assert len(colores) == 3
     assert all(len({c for _, _, c in items}) == 1 for items in por_grupo.values())

@@ -913,12 +913,6 @@
    "familia": "iconos"
   },
   {
-   "ruta": "iconos/objetos/ticket_refugio.png",
-   "ancho": 48,
-   "alto": 48,
-   "familia": "iconos"
-  },
-  {
    "ruta": "iconos/objetos/semilla.png",
    "ancho": 48,
    "alto": 48,
@@ -1178,24 +1172,6 @@
   },
   {
    "ruta": "iconos/muebles/cama_sencilla.png",
-   "ancho": 48,
-   "alto": 48,
-   "familia": "iconos"
-  },
-  {
-   "ruta": "iconos/casas/pequena.png",
-   "ancho": 48,
-   "alto": 48,
-   "familia": "iconos"
-  },
-  {
-   "ruta": "iconos/casas/mediana.png",
-   "ancho": 48,
-   "alto": 48,
-   "familia": "iconos"
-  },
-  {
-   "ruta": "iconos/casas/grande.png",
    "ancho": 48,
    "alto": 48,
    "familia": "iconos"

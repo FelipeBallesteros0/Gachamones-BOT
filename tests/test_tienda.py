@@ -250,10 +250,9 @@ def test_ningun_objeto_miente_sobre_lo_que_hizo():
     niega**. Lo que no puede es devolver un mensaje inventado, que es lo que
     pasaba por tener un caso por descarte al final de `usar`.
 
-    Cada uno con algo que hacer (hambre, esperas, estancia por alargar): lo que
-    no haría nada se niega con `no_hace_falta`, y eso tiene sus propias pruebas.
+    Cada uno con algo que hacer (hambre, esperas): lo que no haría nada se niega
+    con `no_hace_falta`, y eso tiene sus propias pruebas.
     """
-    db.hogar_de("u1", "g1", T0 - timedelta(days=1))
     for clave, objeto in obj.CATALOGO.items():
         criatura = con_hambre(40.0)
         for accion in (sim.ENTRENAR, sim.COMPETIR):

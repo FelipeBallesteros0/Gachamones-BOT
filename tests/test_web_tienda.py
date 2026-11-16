@@ -59,15 +59,12 @@ def test_el_catalogo_pide_sesion_y_cuenta(cliente, monkeypatch):
 
 
 NOTA_DE_COMPETIR = "Sirve en las competencias, que todavía no están en la página."
-NOTA_DEL_HUERTO = "Se siembra en el huerto, que todavía no está en la página."
 PARA_COMPETIR = ("fuerza_1d4", "velocidad_1d12", "descanso_rapido")
-SIN_USO_AQUI = PARA_COMPETIR + ("semilla",)
 
 
 def _con_sus_notas(objetos_):
     for clave in PARA_COMPETIR:
         assert objetos_[clave]["se_vende"] is False and objetos_[clave]["nota"] == NOTA_DE_COMPETIR
-    assert objetos_["semilla"]["se_vende"] is False and objetos_["semilla"]["nota"] == NOTA_DEL_HUERTO
 
 
 def test_a_quien_no_tiene_discord_no_se_le_vende_lo_que_todavia_no_se_usa_en_la_pagina(cliente, monkeypatch):
@@ -75,7 +72,7 @@ def test_a_quien_no_tiene_discord_no_se_le_vende_lo_que_todavia_no_se_usa_en_la_
     con_gachamon(cliente)
     ir(cliente, "tienda")
     objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
-    assert len(objetos_) == 16
+    assert len(objetos_) == 15
     _con_sus_notas(objetos_)
     for clave in ("pocion_comida", "silbato", "golosinas", "placa"):
         assert objetos_[clave]["se_vende"] is True and objetos_[clave]["nota"] is None
@@ -87,10 +84,10 @@ def test_lo_que_no_se_usa_en_la_pagina_no_se_le_vende_ni_a_quien_tiene_discord(c
     ir(cliente, "tienda")
     dar(monedas=5000, usuario=LA_DE_DISCORD)
     objetos_ = {o["clave"]: o for o in cliente.get(TIENDA).json()["objetos"]}
-    assert len(objetos_) == 16
+    assert len(objetos_) == 15
     _con_sus_notas(objetos_)
     assert objetos_["pocion_comida"]["se_vende"] is True and objetos_["pocion_comida"]["nota"] is None
-    for i, clave in enumerate(SIN_USO_AQUI):
+    for i, clave in enumerate(PARA_COMPETIR):
         respuesta = comprar(cliente, "objeto", clave, f"evento-sin-uso-{i}")
         assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "mas_adelante"
     assert economia.saldos(LA_DE_DISCORD, G).asciicoins == 5000 and db.inventario(LA_DE_DISCORD, G) == {}
@@ -112,20 +109,22 @@ def test_la_tienda_ya_no_vende_casas(cliente):
     assert cliente.post(f"{API}/tienda/casa", json={"accion": "comprar", "casa": "pequena", "evento_id": "c1"}, headers=CABECERA).status_code in (404, 405)
 
 
-def test_la_tienda_no_vende_el_ticket_del_refugio(cliente):
+def test_la_tienda_no_vende_ni_el_ticket_del_refugio_ni_la_semilla(cliente):
     con_gachamon(cliente); ir(cliente, "tienda")
-    assert "ticket_refugio" not in {o["clave"] for o in cliente.get(f"{API}/tienda").json()["objetos"]}
+    claves = {o["clave"] for o in cliente.get(f"{API}/tienda").json()["objetos"]}
+    assert "ticket_refugio" not in claves and "semilla" not in claves
 
 
+@pytest.mark.parametrize("clave", ["ticket_refugio", "semilla"])
 @pytest.mark.parametrize("vinculada", [False, True])
-def test_el_ticket_del_refugio_no_se_compra_ni_teniendo_discord(cliente, monkeypatch, vinculada):
-    # Antes se le vendía a quien tenía plazo en el refugio: ya no se le vende a nadie.
+def test_ni_el_ticket_ni_la_semilla_se_compran_ni_teniendo_discord(cliente, monkeypatch, vinculada, clave):
+    # El ticket ya no existe y la semilla ya no se vende: pedirlos no se entiende.
     poner_reloj(monkeypatch)
     (con_vinculo if vinculada else con_gachamon)(cliente)
     ir(cliente, "tienda")
     usuario = LA_DE_DISCORD if vinculada else YO
     dar(monedas=500, usuario=usuario)
-    respuesta = comprar(cliente, "objeto", "ticket_refugio", "evento-ticket-01")
+    respuesta = comprar(cliente, "objeto", clave, "evento-de-antes-01")
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
     assert economia.saldos(usuario, G).asciicoins == 500 and db.inventario(usuario, G) == {}
@@ -139,8 +138,8 @@ def test_cada_objeto_trae_lo_suyo_en_el_orden_del_catalogo(cliente, monkeypatch)
         db.guardar_en_la_mochila_en(con, usuario, guild, "pocion_comida", 3)
     ir(cliente, "tienda")
     lista = cliente.get(TIENDA).json()["objetos"]
-    # Todo lo que está a la venta, menos el ticket del refugio, que cerró.
-    assert [o["clave"] for o in lista] == [o.clave for o in objetos.a_la_venta() if o.clave != "ticket_refugio"]
+    # Todo lo que está a la venta.
+    assert [o["clave"] for o in lista] == [o.clave for o in objetos.a_la_venta()]
     comida = lista[[o["clave"] for o in lista].index("pocion_comida")]
     esperado = objetos.CATALOGO["pocion_comida"]
     assert comida["nombre"] == esperado.nombre and comida["precio"] == esperado.precio
@@ -219,7 +218,7 @@ def test_donde_sirve_cada_objeto():
     sirve = {o.clave: tienda.donde_sirve(o) for o in objetos.a_la_venta()}
     assert {c for c, d in sirve.items() if d == "competir"} == {"fuerza_1d4", "velocidad_1d12", "descanso_rapido"} | {
         o.clave for o in objetos.a_la_venta() if o.stat}
-    assert {c for c, d in sirve.items() if d == "huerto"} == {"semilla"}
+    assert set(sirve.values()) == {"competir", None}
     assert sirve["pocion_comida"] is None and sirve["placa"] is None
 
 
@@ -286,7 +285,7 @@ def test_el_reintento_de_un_no_alcanza_cuando_ya_alcanza_no_ensena_una_cifra_imp
 
 @pytest.mark.parametrize("cuerpo,estado,clave", [
     ({"evento_id": "evento-compra-03", "que": "objeto", "clave": "poroto_rojo"}, 422, "peticion"),
-    ({"evento_id": "evento-compra-04", "que": "objeto", "clave": "semilla"}, 409, "mas_adelante"),
+    ({"evento_id": "evento-compra-04", "que": "objeto", "clave": "fuerza_1d4"}, 409, "mas_adelante"),
     ({"evento_id": "evento-compra-05", "que": "sombrilla", "clave": "corona"}, 422, "peticion"),
     ({"evento_id": "corto", "que": "objeto", "clave": "pocion_comida"}, 422, "evento"),
     ({"que": "objeto", "clave": "pocion_comida"}, 422, "evento"),
@@ -321,7 +320,7 @@ def test_una_pieza_que_la_tienda_no_vende_es_422_peticion(cliente, monkeypatch, 
 
 def test_las_frases_de_lo_que_no_se_compra(cliente, monkeypatch):
     en_la_tienda_con(cliente, monkeypatch, monedas=500)
-    assert comprar(cliente, "objeto", "semilla", "evento-frase-01").json()["detail"] == {
+    assert comprar(cliente, "objeto", "descanso_rapido", "evento-frase-01").json()["detail"] == {
         "clave": "mas_adelante", "mensaje": "Eso todavía no se vende aquí."}
     assert comprar(cliente, "objeto", "pocion_comida", "corto").json()["detail"] == {
         "clave": "evento", "mensaje": "Ese identificador de evento no vale."}
@@ -514,8 +513,7 @@ def test_la_cama_sencilla_esta_a_la_venta_por_85(cliente, monkeypatch):
 
 
 def test_un_mueble_no_pide_tener_casa(cliente, monkeypatch):
-    reloj = en_la_tienda_con(cliente, monkeypatch, monedas=30)
-    assert db.hogar_leido(YO, G, reloj()).casas == ()
+    en_la_tienda_con(cliente, monkeypatch, monedas=30)
     for _ in range(2):   # el reintento con el mismo evento no cobra ni entrega otro
         r = comprar(cliente, "mueble", "felpudo", "evento-sin-casa").json()
         assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Compraste Felpudo. Quedó en tus guardados.")

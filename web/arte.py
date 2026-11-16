@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import avatar
-import casas
 import cosmeticos
 import departamento
 import objetos
@@ -50,7 +49,7 @@ def piezas() -> tuple[Pieza, ...]:
                       for pose in POSES]
     lista += [Pieza(f"efectos/{e}.png", *EFECTO, "efectos") for e in EFECTOS]
     for grupo, catalogo in (("objetos", objetos.CATALOGO), ("cosmeticos", cosmeticos.CATALOGO),
-                            ("muebles", departamento.MUEBLES), ("casas", casas.CATALOGO)):
+                            ("muebles", departamento.MUEBLES)):
         lista += [Pieza(f"iconos/{grupo}/{clave}.png", *ICONO, "iconos") for clave in catalogo]
     return tuple(lista)
 
