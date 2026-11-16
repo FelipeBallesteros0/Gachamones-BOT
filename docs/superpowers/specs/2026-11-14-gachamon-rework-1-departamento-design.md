@@ -254,6 +254,8 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
   aceptada]**.
 - **«A todos»**: los cuatro botones, bajo la ficha.
 - **«Ampliar»**: muestra cuánto cuesta sumar una fila y cuánto una columna.
+  **Antes de cobrar pregunta, como la Tienda** («¿Ampliar por 45 monedas?»,
+  con «Ampliar» y «No») **[Felipe, 2026-11-16]**.
 - Bajo la pieza, una línea con el tamaño, las casillas ocupadas, las camas y
   los gachamones, y **también la comodidad** **[Felipe, 2026-11-16]**.
 - **En el computador, la pieza a la izquierda** y, a la derecha, la ficha, «A
@@ -273,11 +275,12 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
   gachamon debajo de la cama que tiene al lado **[propuesta]**.
 - **El tope de 12 cuidados pagados al día se queda** **[Felipe,
   2026-11-16]**.
-- Si no hay camino hasta la casilla tocada, tu avatar (y el gachamon que
-  mueves) aparece en ella. Al llegar un departamento nuevo, quien quedó sobre
-  un mueble o fuera de la pieza aparece en la casilla libre más cercana; si no
-  queda ninguna casilla que se pueda pisar, no se dibuja a nadie y se les sigue
-  eligiendo desde la lista **[propuesta]**.
+- **Si no hay camino hasta la casilla tocada, no se va**: tu avatar se queda
+  donde está, y al mover a un gachamon sólo se marcan las casillas a las que
+  tiene camino **[Felipe, 2026-11-16]**. Al llegar un departamento nuevo, quien
+  quedó sobre un mueble o fuera de la pieza aparece en la casilla libre más
+  cercana; si no queda ninguna casilla que se pueda pisar, no se dibuja a nadie
+  y se les sigue eligiendo desde la lista **[propuesta]**.
 - Del que eliges queda abajo su ficha completa **[Felipe, 2026-11-16]**, y el
   globo de lo que dice sale sólo sobre el que sale contigo **[propuesta]**.
 - Vale en el teléfono y en el computador, con el corte de 900 px de hoy.

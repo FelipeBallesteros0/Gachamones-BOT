@@ -901,16 +901,30 @@ Son observaciones, no decisiones.
   - El orden de los planes cambió: primero la pantalla, después partir sin
     gachamon; y las aventuras y reclutar se adelantan, justo después de este
     proyecto y antes del balcón.
+  - Al ver el plan terminado: **ampliar pregunta antes de cobrar**, como la
+    Tienda («¿Ampliar por 45 monedas?», con «Ampliar» y «No», y el coste que
+    manda el servidor). Salga como salga, tras «Ampliar» la pregunta se cierra;
+    «No», Escape y «Volver» también la cierran, y sólo hay una abierta. Si
+    llega una pieza que mide o cuesta otra cosa, se cierra sola, para no cobrar
+    algo distinto de lo que se ve; mientras mida y cueste lo mismo, una
+    relectura no la toca ni le vuelve a dar el foco.
+  - **Sin camino no se va**: si los muebles cierran el paso hasta la casilla
+    tocada, tu avatar se queda donde está, sin decir nada; al mover a un
+    gachamon sólo se marcan las casillas a las que tiene camino, y tocar una
+    sin camino lo suelta sin moverlo. Con menos movimiento, quien tiene camino
+    sigue apareciendo en su destino.
+  - Las frases de espera: «Cargando tu departamento…» y «Cargando la carta…».
+    La carta tiene su título, «Carta del alcalde», desde el principio; cuando
+    llega se pone el que manda el servidor, y si la carga falla se queda.
 - **Lo que se decidió al construir** (se puede cambiar):
   - Se toca lo que se ve, con los gachamones primero: a un gachamon siempre se
     le puede tocar, también con un mueble delante; después los muebles, por la
     silueta de su caja; después la pared; después el suelo. Quién tapa a quién
     se calcula por las cajas que ocupan en el suelo.
-  - Si no hay camino hasta la casilla tocada, el avatar (y el gachamon que se
-    mueve) aparece en ella. Al llegar un departamento nuevo, quien quedó sobre
-    un mueble o fuera de la pieza aparece en la casilla libre más cercana; si
-    no queda ninguna que se pise, no se dibuja a nadie en la pieza y se les
-    sigue eligiendo desde la lista.
+  - Al llegar un departamento nuevo, quien quedó sobre un mueble o fuera de la
+    pieza aparece en la casilla libre más cercana; si no queda ninguna que se
+    pise, no se dibuja a nadie en la pieza y se les sigue eligiendo desde la
+    lista.
   - Tocar fuera de lo marcado suelta lo que llevas y cierra el menú. Lo que no
     cabe en ningún sitio no entra en la mano («Ahí no cabe.») y todo queda como
     estaba. «Toca la casilla donde lo quieres.» se queda mientras haya algo en
@@ -987,15 +1001,10 @@ Son observaciones, no decisiones.
   estadística y las sopaipillas, hasta que vuelvan las competencias.
 - Pequeñeces de las revisiones: la ficha con `gachamon_id` pone al día dos
   veces, y `web/mochila.py` importa la Tienda de dos formas.
-- **Por decidir con el dueño:**
-  - Mientras carga, la pantalla dice «Cargando tu departamento…» (sigue a
-    «Cargando la tienda…»); es una frase que el dueño no vio en la lista: se
-    le enseña.
-  - La carta del alcalde no dice nada mientras carga, y su título queda vacío
-    hasta que llega (lo manda el servidor); si la carga falla, se ve el mensaje
-    de siempre y «Volver a intentarlo», pero sin título. Falta una frase de
-    espera («Cargando la carta…») y decidir si el título se pone desde el
-    principio.
+- Un gachamon al que los muebles dejan sin ninguna casilla con camino: su
+  «Mover» dice «Ahí no cabe.», la frase de los muebles (ya pasaba antes, pero
+  sólo si no quedaba ninguna otra casilla que se pisara). Si se quiere otra
+  frase, o que no se ofrezca «Mover», es del dueño.
 
 ### Pruebas
 
