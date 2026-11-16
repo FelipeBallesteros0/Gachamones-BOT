@@ -142,8 +142,10 @@ def test_la_pantalla_del_lugar_dice_donde_estas_y_avisa_lo_del_lugar():
 
 
 def test_el_cuidado_de_aseo_se_llama_banar():
-    lugar = _guion("lugar.js")
-    assert "nombre: 'Bañar'" in lugar and "'Limpiar'" not in lugar and "accion: 'limpiar'" in lugar
+    # La lista de los cuidados vive en `cuidados.js`, y el lugar la importa.
+    cuidados, lugar = _guion("cuidados.js"), _guion("lugar.js")
+    assert "nombre: 'Bañar'" in cuidados and "'Limpiar'" not in cuidados and "accion: 'limpiar'" in cuidados
+    assert "'Limpiar'" not in lugar and "from './cuidados.js'" in lugar
 
 
 # --- la Tienda -------------------------------------------------------------------
@@ -474,9 +476,12 @@ def test_las_frases_de_la_incubadora_y_del_recluta_son_las_del_plan():
 
 
 def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():
+    # Los corazones los pone el lugar; el aviso de una medalla nueva, con su
+    # estrella, vive en `cuidados.js`.
     lugar = _sin_comentarios(_guion("lugar.js"))
-    assert "efectos/corazon.png" in lugar and "efectos/estrella.png" in lugar
-    assert "\u2764" not in lugar
+    cuidados = _sin_comentarios(_guion("cuidados.js"))
+    assert "efectos/corazon.png" in lugar and "efectos/estrella.png" in cuidados
+    assert "\u2764" not in lugar and "\u2764" not in cuidados
     assert "efectos/estrella.png" in _sin_comentarios(_guion("ficha.js"))
 
 

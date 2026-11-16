@@ -16,17 +16,20 @@
 // Las reglas son del servidor: en qué lugar estás y qué se avisa ahí, y las
 // barras, que se pintan con lo que dice el estado sin simular el paso del
 // tiempo; lo único que corre aquí son las cuentas de espera. Todo texto entra
-// por `el` o por `textContent`.
+// por `el` o por `textContent`. Lo que hace igual que tu departamento (los
+// cuidados, las barras, las esperas y qué se celebra y qué se avisa tras un
+// cuidado o una caricia) está en `cuidados.js`.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, faltante, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
 import { lienzoDelAvatar } from './avatar.js';
+import {
+  BARRAS, CUIDADOS, avisoDeLaEvolucion, avisoDeMedalla, botonDeCuidado, contarCuidado, faltaPara, medidorDe,
+  pintarMedidores, ponerEsperas, segun, trasAcariciar, trasCuidar,
+} from './cuidados.js';
 import { el } from './dom.js';
 import { ofreceLaIncubadora, ofreceLaTienda, siguiente } from './pantallas.js';
-import {
-  avisoDelCuidado, avisosDeMedallas, cuantasGemas, cuantasMonedas, elegirGlobo,
-  formatoEspera, seCelebraLaEvolucion,
-} from './tiempo.js';
+import { cuantasGemas, cuantasMonedas, elegirGlobo } from './tiempo.js';
 
 const PEDIR_ESTADO_CADA_MS = 30_000;
 const PRIMER_GLOBO_MS = 2500;
@@ -49,32 +52,6 @@ const DENSIDAD_MAXIMA = 3;
 
 // El fondo de la escena de cada lugar, una pieza del contrato del arte.
 const escenaDe = (clave) => `escenas/${clave}.png`;
-
-const CUIDADOS = [
-  { accion: 'alimentar', icono: '🍖', nombre: 'Alimentar' },
-  { accion: 'jugar', icono: '🎮', nombre: 'Jugar' },
-  { accion: 'entrenar', icono: '🏋️', nombre: 'Entrenar' },
-  { accion: 'limpiar', icono: '🧼', nombre: 'Bañar' },
-];
-
-const BARRAS = [
-  { clave: 'comida', icono: '🍖', nombre: 'Comida' },
-  { clave: 'animo', icono: '😊', nombre: 'Ánimo' },
-  { clave: 'aseo', icono: '🧼', nombre: 'Aseo' },
-];
-
-// Por debajo de 40 el gachamon lo pide (`globos.UMBRAL_NECESIDAD`).
-function nivelDeBarra(valor) {
-  if (valor < 40) return 'bajo';
-  if (valor < 65) return 'medio';
-  return 'alto';
-}
-
-// Las palabras que pone la propia pantalla concuerdan con el gachamon:
-// masculino salvo para una hembra.
-function segun(genero, masculino, femenino) {
-  return genero === 'hembra' ? femenino : masculino;
-}
 
 function mensajeDe(error) {
   return error && typeof error.mensaje === 'string' && error.mensaje ? error.mensaje : ALGO_SALIO_MAL;
@@ -195,15 +172,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   const titulo = el('h1', { tabindex: '-1' }, nombreDelGachamon, tituloDelGachamon);
   const insignia = el('p', { class: 'insignia', hidden: true });
   const detalle = el('p', { class: 'ficha-detalle' });
-  const medidores = BARRAS.map(({ clave, icono, nombre }) => {
-    const cifra = el('span', { class: 'medidor-cifra' });
-    const relleno = el('span', { class: 'medidor-relleno' });
-    const nodo = el('div', { class: 'medidor' },
-      el('span', { class: 'medidor-nombre' }, el('span', { 'aria-hidden': 'true' }, icono), ` ${nombre}`),
-      cifra,
-      el('span', { class: 'medidor-pista', 'aria-hidden': 'true' }, relleno));
-    return { clave, nodo, cifra, relleno };
-  });
+  const medidores = BARRAS.map(medidorDe);
   // La ficha completa (estadísticas, experiencia, medallas…) se abre aparte.
   const aLaFicha = el('button', { type: 'button', class: 'boton boton-chico boton-ver-ficha' }, 'Ver ficha');
   aLaFicha.addEventListener('click', () => {
@@ -229,14 +198,9 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
 
   // --- los cuidados ---------------------------------------------------------------
 
-  const cuidados = CUIDADOS.map(({ accion, icono, nombre }) => {
-    const espera = el('span', { class: 'cuidado-espera' });
-    const nodo = el('button', { type: 'button', class: 'cuidado' },
-      el('span', { class: 'cuidado-icono', 'aria-hidden': 'true' }, icono),
-      el('span', { class: 'cuidado-nombre' }, nombre),
-      espera);
-    const cuidado = { accion, nombre, nodo, espera };
-    nodo.addEventListener('click', () => cuidar(cuidado));
+  const cuidados = CUIDADOS.map((datos) => {
+    const cuidado = botonDeCuidado(datos);
+    cuidado.nodo.addEventListener('click', () => cuidar(cuidado));
     return cuidado;
   });
 
@@ -286,11 +250,6 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   // Cuándo se acaba cada espera, en la hora de este teléfono.
   const hasta = {};
 
-  function faltaPara(accion) {
-    const fin = hasta[accion];
-    return typeof fin === 'number' ? Math.max(0, Math.ceil((fin - Date.now()) / 1000)) : 0;
-  }
-
   function aplicar(nuevo) {
     if (!vivo || !nuevo) return;
     const cuando = Date.parse(nuevo.ahora);
@@ -334,17 +293,9 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     insignia.textContent = segun(g.genero, 'Desfallecido', 'Desfallecida');
     insignia.hidden = !g.desfallecido;
     detalle.textContent = `${g.nombre_especie} ${g.nombre_etapa} · nivel ${g.nivel}`;
-    for (const m of medidores) {
-      const valor = Number(g.barras[m.clave]) || 0;
-      m.cifra.textContent = String(valor);
-      m.relleno.style.width = `${valor}%`;
-      m.relleno.dataset.nivel = nivelDeBarra(valor);
-    }
+    pintarMedidores(medidores, g.barras);
 
-    const ahora = Date.now();
-    for (const [accion, segundos] of Object.entries(g.esperas || {})) {
-      hasta[accion] = ahora + Math.max(0, Number(segundos) || 0) * 1000;
-    }
+    ponerEsperas(hasta, g.esperas);
 
     // Un globo no dice lo que ya no pasa: si lo que pedía ya no está, se calla.
     if (globo.classList.contains('visible')
@@ -415,17 +366,9 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       parar();
       return;
     }
-    for (const c of cuidados) {
-      const falta = faltaPara(c.accion);
-      const texto = formatoEspera(falta);
-      if (c.espera.textContent !== texto) c.espera.textContent = texto;
-      const ocupado = c.nodo.classList.contains('esperando');
-      c.nodo.setAttribute('aria-disabled', String(ocupado || falta > 0));
-      if (falta > 0) c.nodo.setAttribute('aria-label', `${c.nombre}, disponible en ${texto}`);
-      else c.nodo.removeAttribute('aria-label');
-    }
+    for (const c of cuidados) contarCuidado(c, faltaPara(hasta, c.accion));
     const g = actual.gachamon;
-    const sePuede = faltaPara('acariciar') === 0;
+    const sePuede = faltaPara(hasta, 'acariciar') === 0;
     const texto = sePuede ? `Toca a ${g.nombre} para acariciar${segun(g.genero, 'lo', 'la')}.` : '';
     if (pista.textContent !== texto) pista.textContent = texto;
     pista.hidden = Boolean(aviso.textContent);
@@ -532,15 +475,13 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   function celebrar(g) {
     callarGlobo();
     cancelar(celebracionHasta);
-    celebracion.replaceChildren(el('p', { class: 'celebracion-texto' },
-      `✨ ¡${g.nombre} ha evolucionado! Ahora es ${g.nombre_etapa}.`));
+    celebracion.replaceChildren(avisoDeLaEvolucion(g));
     celebracionHasta = luego(CELEBRACION_DURA_MS, () => celebracion.replaceChildren());
   }
 
   // Una medalla nueva: su aviso se queda un rato y se va solo.
   function medalla(texto) {
-    const nodo = el('p', { class: 'medalla' },
-      lienzoDePieza('efectos/estrella.png', 20, 20), texto);
+    const nodo = avisoDeMedalla(texto);
     medallas.append(nodo);
     luego(MEDALLA_DURA_MS, () => nodo.remove());
   }
@@ -564,14 +505,12 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       const respuesta = await pedir('POST', 'acariciar');
       if (!vivo) return;
       const g = respuesta.estado && respuesta.estado.gachamon;
-      if (respuesta.ok) {
-        corazones();
-        gesto('salta');
-      } else if (respuesta.espera > 0 && g) {
-        // Antes de tiempo no hay corazones ni error: apenas se mueve.
-        gesto('titubea');
-        avisar(`Podrás acariciar${segun(g.genero, 'lo', 'la')} en ${formatoEspera(respuesta.espera)}.`);
-      }
+      trasAcariciar(respuesta, g, {
+        corazones,
+        saltar: () => gesto('salta'),
+        titubear: () => gesto('titubea'),
+        avisar,
+      });
       aplicar(respuesta.estado);
     } catch (error) {
       fallida = true;
@@ -584,7 +523,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
 
   async function cuidar(cuidado) {
     const { accion, nodo } = cuidado;
-    if (nodo.classList.contains('esperando') || faltaPara(accion) > 0) return;
+    if (nodo.classList.contains('esperando') || faltaPara(hasta, accion) > 0) return;
     acciones += 1;
     nodo.classList.add('esperando');
     nodo.setAttribute('aria-busy', 'true');
@@ -605,15 +544,13 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       if (!vivo) return;
       aplicar(respuesta.estado);
       if (!vivo) return;
-      if (respuesta.ok) {
-        gesto('salta');
-        if (respuesta.monedas > 0) ganar(respuesta.monedas);
-      }
-      if (seCelebraLaEvolucion(respuesta, etapaAntes)) celebrar(actual.gachamon);
-      for (const texto of avisosDeMedallas(respuesta)) medalla(texto);
-      // La frase del juego se lee siempre: «Se ha empachado» también cuenta.
-      const frase = avisoDelCuidado(respuesta);
-      if (frase) avisar(frase);
+      trasCuidar(respuesta, etapaAntes, {
+        saltar: () => gesto('salta'),
+        ganar,
+        celebrar: () => celebrar(actual.gachamon),
+        medalla,
+        avisar,
+      });
     } catch (error) {
       fallido = true;
       if (vivo) fallo(error);
