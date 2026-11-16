@@ -286,6 +286,10 @@ CAMBIO_DE_LA_VIVIENDA = "la_vivienda_por_casillas"
 # entonces. Cada casa vuelve al precio de la que es (una pequeña que se mejoró a
 # grande vuelve como grande).
 PRECIO_DE_LAS_CASAS_DE_ANTES = {"pequena": 200, "mediana": 500, "grande": 1200}
+# Lo que se suma, ese día, al precio de una casa mediana o grande: la mejora que
+# el dueño decidió para quien ya la había comprado.
+MEJORA_DE_LAS_CASAS_DE_ANTES = 140
+_CASAS_QUE_SE_MEJORAN = ("mediana", "grande")
 PRECIO_DEL_TICKET_DE_ANTES = 40
 _TICKET_DE_ANTES = "ticket_refugio"
 _CAMA_SENCILLA = "cama_sencilla"
@@ -494,6 +498,8 @@ def _cerrar_las_casas(
         else:
             claves.append(casa["casa"])
             monedas += precio
+            if casa["casa"] in _CASAS_QUE_SE_MEJORAN:
+                monedas += MEJORA_DE_LAS_CASAS_DE_ANTES
         con.execute(
             "UPDATE criaturas SET casa_id = NULL "
             "WHERE usuario_id = ? AND guild_id = ? AND casa_id = ?",

@@ -225,7 +225,7 @@ _registrar(Objeto(
     emoji="🌱",
     precio=15,
     descripcion=(
-        f"Se planta en el huerto de tu casa. Salen de {hue.POROTOS_POR_COSECHA[0]} "
+        f"Se planta en el huerto, que vuelve más adelante. Salen de {hue.POROTOS_POR_COSECHA[0]} "
         f"a {hue.POROTOS_POR_COSECHA[1]} porotos, todos del mismo color al azar. "
         "Es la única forma de conseguir un color que no tengas."
     ),
@@ -240,7 +240,8 @@ for _color in hue.COLORES:
         precio=0,
         descripcion=(
             f"Con {hue.POROTOS_POR_SOPAIPILLA} se cocina una sopaipilla "
-            f"{_color}. Y se puede sembrar: da más porotos {hue.PLURAL_COLOR[_color]}."
+            f"{_color}. Y se puede sembrar: da más porotos {hue.PLURAL_COLOR[_color]}. "
+            "El huerto y la cocina vuelven más adelante."
         ),
         color=_color,
         se_vende=False,
@@ -273,7 +274,7 @@ _registrar(Objeto(
         f"y nunca más de uno. Con {hue.POROTOS_POR_SOPAIPILLA} se cocina la "
         f"sopaipilla arcoíris, y su dado —de 1d{min(hue.CARAS_DE_ARCOIRIS)} a "
         f"1d{max(hue.CARAS_DE_ARCOIRIS)}— sale al cocinarla. Sembrarlo da "
-        "porotos de un color al azar."
+        "porotos de un color al azar. El huerto y la cocina vuelven más adelante."
     ),
     color=hue.ARCOIRIS,
     se_vende=False,

@@ -38,7 +38,7 @@ _NOTA_DE_COMPETIR = "Sirve en las competencias, que todavía no están en la pá
 
 def donde_sirve(objeto: obj.Objeto) -> str | None:
     """Dónde se usa lo que todavía no se usa en la web; `None` si ya sirve aquí."""
-    if objeto.stat or objeto.reinicia == sim.COMPETIR:
+    if objeto.stat or objeto.reinicia == sim.COMPETIR or objeto.es_sopaipilla:
         return COMPETIR
     return None
 
@@ -48,7 +48,8 @@ def se_le_vende(objeto: obj.Objeto) -> bool:
     return donde_sirve(objeto) is None
 
 
-def _nota(objeto: obj.Objeto) -> str | None:
+def nota_de(objeto: obj.Objeto) -> str | None:
+    """Por qué no se usa en la web lo que todavía no sirve aquí; `None` si ya sirve."""
     return None if donde_sirve(objeto) is None else _NOTA_DE_COMPETIR
 
 
@@ -63,7 +64,7 @@ def _objetos(jugador: Jugador) -> list[dict]:
             "clave": o.clave, "nombre": o.nombre, "descripcion": en_llano(o.descripcion),
             "precio": o.precio, "icono": f"iconos/objetos/{o.clave}.png",
             "tienes": mochila.get(o.clave, 0),
-            "se_vende": se_le_vende(o), "nota": _nota(o),
+            "se_vende": se_le_vende(o), "nota": nota_de(o),
         }
         for o in obj.a_la_venta()
     ]

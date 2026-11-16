@@ -663,9 +663,13 @@ Son observaciones, no decisiones.
 - Los mensajes de reclutas ya publicados en Discord siguen diciendo que no
   tienen nombre, y sus botones ahora contestan el aviso: que la carta del
   alcalde le cuente a cada quien cómo se llama su recluta pesa más que antes.
+- **Decidido por el dueño tras el rework 4:** la mochila de la página ya no
+  deja usar ni gasta las pociones de fuerza, de velocidad y de descanso rápido
+  ni las sopaipillas, y dice lo mismo que la Tienda («Sirve en las
+  competencias, que todavía no están en la página.»); el cuidado de aseo se
+  llama «Bañar»; los textos de la semilla, los porotos y la nota de la mochila
+  dicen que el huerto vuelve más adelante.
 - **Por decidir (de producto, lo decide el dueño):**
-  - La mochila de la página deja gastar pociones de fuerza y de velocidad y
-    sopaipillas, que hoy no sirven en ningún sitio.
   - Quien ya tiene plantel propio en la página no puede vincular, y su plantel
     de Discord queda guardado sin dónde jugarlo.
   - El aviso le explica cómo vincular también a quien ya vinculó.
@@ -746,6 +750,10 @@ Son observaciones, no decisiones.
 - El reloj de todos los gachamones vivos parte de ese momento: a ninguno se le
   cobra el tiempo desde la última vez que se guardó.
 - Las devoluciones no pasan por el tope diario ni por el libro de operaciones.
+- Decidido por el dueño: el día del cambio cada casa mediana o grande devuelve
+  140 monedas más que su precio de catálogo (pequeña 200, mediana 640, grande
+  1340). La carta dice «por tu ticket» cuando era uno, y la especie de cada
+  recluta va con su mayúscula.
 - Las filas ya convertidas (las casas, los muebles de antes, lo plantado) se
   borran, para que nada valga dos veces.
 - A cada persona le queda escrita una carta del alcalde, que la página enseña
@@ -765,7 +773,8 @@ Son observaciones, no decisiones.
   despliegue: parar el bot y la web, copiar, guardar la copia fuera de la
   rotación, y recién entonces actualizar.
 - Qué mirar al ensayarlo sobre una copia: las monedas devueltas son la suma de
-  los precios de catálogo de las casas más 40 por ticket (los de las mochilas y
+  los precios de catálogo de las casas, más 140 por cada casa mediana o grande,
+  más 40 por ticket (los de las mochilas y
   los del buzón sin recoger); las tablas de casas, muebles de antes y huerto
   quedan vacías; hay tantos departamentos y cartas como personas; nadie tiene
   menos monedas ni gemas que antes.

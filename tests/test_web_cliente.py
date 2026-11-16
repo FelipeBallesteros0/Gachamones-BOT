@@ -141,6 +141,11 @@ def test_la_pantalla_del_lugar_dice_donde_estas_y_avisa_lo_del_lugar():
     assert "escenas/" in lugar
 
 
+def test_el_cuidado_de_aseo_se_llama_banar():
+    lugar = _guion("lugar.js")
+    assert "nombre: 'Bañar'" in lugar and "'Limpiar'" not in lugar and "accion: 'limpiar'" in lugar
+
+
 # --- la Tienda -------------------------------------------------------------------
 
 def _guion(nombre: str) -> str:

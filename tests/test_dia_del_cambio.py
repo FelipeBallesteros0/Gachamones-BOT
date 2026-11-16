@@ -218,11 +218,19 @@ def test_si_no_cupieran_todas_las_camas_el_resto_queda_guardado():
 
 # --- Lo que se devuelve -------------------------------------------------------
 
+def test_una_casa_mediana_o_grande_devuelve_140_mas():
+    con_monedas(0)
+    casa_de_antes("u1", "pequena"); casa_de_antes("u1", "mediana"); casa_de_antes("u1", "grande")
+    el_cambio()
+    assert economia.saldos("u1", "g1").asciicoins == 200 + 640 + 1340 == 2180
+    assert db.carta_sin_ver("u1", "g1", CAMBIO)["monedas_por_casas"] == 2180
+
+
 def test_las_casas_se_devuelven_enteras_y_fuera_del_tope():
     ana = nacer("Ana"); con_monedas(10)
     vive_en(ana, casa_de_antes("u1", "mediana")); casa_de_antes("u1", "grande")
-    assert el_cambio().monedas == 1700
-    assert economia.saldos("u1", "g1") == economia.Saldos(1710, GEMAS_DE_ANTES)
+    assert el_cambio().monedas == 640 + 1340
+    assert economia.saldos("u1", "g1") == economia.Saldos(10 + 640 + 1340, GEMAS_DE_ANTES)
     assert filas("casas_propias") == [] == filas("operaciones_economia")
     assert db.por_id(ana.id).casa_id is None
 
@@ -264,7 +272,7 @@ def test_a_quien_ya_jugaba_el_cambio_le_deja_su_monedero_creado():
 def test_vale_para_cada_servidor_por_separado():
     casa_de_antes("u1", "pequena", guild="g1"); casa_de_antes("u1", "grande", guild="g2")
     el_cambio()
-    assert (economia.saldos("u1", "g1").asciicoins, economia.saldos("u1", "g2").asciicoins) == (MONEDAS_DE_ANTES + 200, MONEDAS_DE_ANTES + 1200)
+    assert (economia.saldos("u1", "g1").asciicoins, economia.saldos("u1", "g2").asciicoins) == (MONEDAS_DE_ANTES + 200, MONEDAS_DE_ANTES + 1340)
 
 
 # --- Lo que se guarda, se cosecha y se entrega ----------------------------------
@@ -325,7 +333,7 @@ def test_la_carta_cuenta_lo_que_le_toco_a_cada_quien():
     en_la_mochila("u1", "ticket_refugio", 1); regalo("u1", "golosinas", "Bea")
     el_cambio()
     assert db.carta_sin_ver("u1", "g1", CAMBIO) == {
-        "ancho": 3, "fondo": 3, "camas": 2, "vivos": 1, "casas": ["mediana"], "monedas_por_casas": 500,
+        "ancho": 3, "fondo": 3, "camas": 2, "vivos": 1, "casas": ["mediana"], "monedas_por_casas": 640,
         "muebles": 1, "cosecha": {}, "tickets": 1, "monedas_por_tickets": 40, "regalos": 1,
         "nombres": [{"especie": "pulpo", "nombre": "Ana"}],
     }

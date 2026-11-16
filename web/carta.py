@@ -55,8 +55,9 @@ def lineas_de(contenido: dict) -> list[str]:
             "Coseché lo que tenías plantado y lo dejé en tu mochila. El huerto vuelve más adelante."
         )
     if contenido.get("tickets", 0) > 0:
+        suyo = "tu ticket" if contenido["tickets"] == 1 else "tus tickets"
         lineas.append(
-            f"El refugio cerró. Te devolví {_monedas(contenido['monedas_por_tickets'])} por tus tickets."
+            f"El refugio cerró. Te devolví {_monedas(contenido['monedas_por_tickets'])} por {suyo}."
         )
     if contenido.get("regalos", 0) > 0:
         lineas.append("Lo que te esperaba en el buzón ya está en tu mochila.")
@@ -66,7 +67,7 @@ def lineas_de(contenido: dict) -> list[str]:
         if especie is None:   # la especie ya no está en el catálogo
             continue
         lineas.append(
-            f"Tu {especie.nombre.lower()} ahora se llama {recluta['nombre']}. "
+            f"Tu {especie.nombre} ahora se llama {recluta['nombre']}. "
             "Se puso el nombre solo, y se lo puedes cambiar una vez."
         )
 

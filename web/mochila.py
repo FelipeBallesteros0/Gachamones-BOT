@@ -23,6 +23,7 @@ import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual, la_misma_activa
 from web.sesion import con_cabecera, es_un_id, problema
+from web import tienda
 from web.tienda import datos_y_evento, dicho_no, dicho_si, en_llano, evento_usado, no_se_entiende
 
 router = APIRouter()
@@ -31,7 +32,7 @@ AL_MOMENTO, CON_NOMBRE = "al_momento", "con_nombre"
 
 _SIN_GACHAMON = "Para usar eso hace falta un gachamon."
 _YA_NO_ES_EL_MISMO = "Tu gachamon ya no es el mismo. Mira otra vez."
-_NOTA_DEL_HUERTO = "Se usa en el huerto."
+_NOTA_DEL_HUERTO = "Se usa en el huerto, que vuelve más adelante."
 _NO_SE_USA = "Eso no se usa desde la mochila."
 _YA_SE_LLAMA_ASI = "Ya se llama así."
 _NO_QUEDA = "Ya no te queda ninguno."
@@ -44,6 +45,8 @@ def _uso(objeto: obj.Objeto) -> tuple[str | None, str | None]:
     """Cómo se usa desde la mochila y, si no se usa, por qué."""
     if objeto.renombra:
         return CON_NOMBRE, None
+    if tienda.donde_sirve(objeto) == tienda.COMPETIR:
+        return None, tienda.nota_de(objeto)
     if objeto.clave == hue.SEMILLA or (objeto.color and not objeto.es_sopaipilla):
         return None, _NOTA_DEL_HUERTO
     if objeto.se_aplica_al_momento:
@@ -156,6 +159,10 @@ def usar_de_la_mochila(
     objeto = obj.CATALOGO.get(clave)
     if objeto is None:
         raise no_se_entiende()
+    # Lo que sólo sirve para competir ni se usa ni se gasta, como la semilla.
+    if tienda.donde_sirve(objeto) == tienda.COMPETIR:
+        return {**dicho_no("no_se_usa", tienda.nota_de(objeto)),
+                "mochila": lo_que_llevas(jugador), "estado": estado.armar(jugador, ahora)}
     usuario, guild = jugador.usuario_id, jugador.guild_id
     try:
         if objeto.renombra:

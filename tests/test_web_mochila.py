@@ -36,7 +36,7 @@ def test_la_mochila_ensena_lo_que_llevas_y_como_se_usa(cliente, monkeypatch):
     assert [(o["clave"], o["cantidad"], o["uso"]) for o in objetos_] == [
         ("pocion_comida", 2, "al_momento"), ("placa", 1, "con_nombre"), ("semilla", 3, None),
     ]
-    assert objetos_[2]["nota"] == "Se usa en el huerto." and objetos_[0]["nota"] is None
+    assert objetos_[2]["nota"] == "Se usa en el huerto, que vuelve más adelante." and objetos_[0]["nota"] is None
     assert objetos_[0]["icono"] == "iconos/objetos/pocion_comida.png"
     assert "**" not in objetos_[0]["descripcion"]
 
@@ -50,7 +50,7 @@ def test_lo_que_no_se_usa_desde_la_mochila_lo_dice(cliente, monkeypatch):
     por_clave = {o["clave"]: o for o in cliente.get(MOCHILA).json()["objetos"]}
     assert por_clave["adorno"]["uso"] is None and por_clave["adorno"]["descripcion"] == "Algo bonito."
     assert por_clave["adorno"]["nota"] == "Eso no se usa desde la mochila."
-    assert por_clave["poroto_rojo"]["uso"] is None and por_clave["poroto_rojo"]["nota"] == "Se usa en el huerto."
+    assert por_clave["poroto_rojo"]["uso"] is None and por_clave["poroto_rojo"]["nota"] == "Se usa en el huerto, que vuelve más adelante."
 
 
 @pytest.mark.parametrize("vinculada", [False, True])
@@ -155,6 +155,30 @@ def test_la_semilla_no_se_usa_desde_la_mochila(cliente, monkeypatch):
     assert db.inventario(YO, G) == {"semilla": 1}
 
 
+NO_SIRVE_AUN = "Sirve en las competencias, que todavía no están en la página."
+
+
+@pytest.mark.parametrize("clave", ["fuerza_1d4", "velocidad_1d12", "descanso_rapido", "sopaipilla_rojo", "sopaipilla_arcoiris_1d6"])
+def test_lo_que_solo_sirve_para_competir_no_se_usa_ni_se_gasta(cliente, monkeypatch, clave):
+    poner_reloj(monkeypatch); con_gachamon(cliente); dar(YO, clave)
+    fila = next(o for o in cliente.get(MOCHILA).json()["objetos"] if o["clave"] == clave)
+    assert (fila["uso"], fila["nota"]) == (None, NO_SIRVE_AUN)
+    r = usar(cliente, clave).json()
+    assert (r["ok"], r["clave"], r["mensaje"]) == (False, "no_se_usa", NO_SIRVE_AUN)
+    assert db.inventario(YO, G) == {clave: 1}                  # no se gastó
+
+
+def test_los_textos_del_huerto_dicen_que_vuelve(cliente, monkeypatch):
+    assert objetos.CATALOGO["semilla"].descripcion == (
+        "Se planta en el huerto, que vuelve más adelante. Salen de 2 a 4 porotos, "
+        "todos del mismo color al azar. Es la única forma de conseguir un color que no tengas.")
+    for clave in ("poroto_rojo", "poroto_arcoiris"):
+        assert objetos.CATALOGO[clave].descripcion.endswith(" El huerto y la cocina vuelven más adelante.")
+    poner_reloj(monkeypatch); con_gachamon(cliente); dar(YO, "semilla")
+    fila = next(o for o in cliente.get(MOCHILA).json()["objetos"] if o["clave"] == "semilla")
+    assert fila["nota"] == "Se usa en el huerto, que vuelve más adelante."
+
+
 def test_las_frases_de_cada_efecto(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
     con_vinculo(cliente)
@@ -176,9 +200,9 @@ def test_las_frases_de_cada_efecto(cliente, monkeypatch):
             assert "**" not in r["mensaje"] and "{" not in r["mensaje"] and "None" not in r["mensaje"]
     mensajes = [m for _, m in ok]
     assert any(m.endswith(" otra vez.") for m in mensajes)
-    assert any("durante 5 minutos." in m and " gana +" in m for m in mensajes)
-    assert any("se come una" in m and "de fuerza y de velocidad durante 5 minutos." in m for m in mensajes)
-    assert any("en las cuatro estadísticas durante 5 minutos." in m for m in mensajes)
+    # Las pociones de estadística y las sopaipillas sólo sirven para competir: ya no se usan desde aquí.
+    assert not any("durante 5 minutos" in m for m in mensajes)
+    assert not any(objetos.CATALOGO[c].stat or objetos.CATALOGO[c].es_sopaipilla for c in al_momento)
 
 
 def test_una_clave_que_no_existe_es_un_422(cliente, monkeypatch):

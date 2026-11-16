@@ -54,7 +54,7 @@ const CUIDADOS = [
   { accion: 'alimentar', icono: '🍖', nombre: 'Alimentar' },
   { accion: 'jugar', icono: '🎮', nombre: 'Jugar' },
   { accion: 'entrenar', icono: '🏋️', nombre: 'Entrenar' },
-  { accion: 'limpiar', icono: '🧼', nombre: 'Limpiar' },
+  { accion: 'limpiar', icono: '🧼', nombre: 'Bañar' },
 ];
 
 const BARRAS = [

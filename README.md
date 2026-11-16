@@ -143,7 +143,9 @@ abren más adelante (el Refugio sigue en el mapa, cerrado: ya nadie vive en él)
 En la Tienda del pueblo se compran objetos, cosméticos (con gemas) y muebles,
 con el mismo dinero de siempre; lo que todavía no se puede usar en la página no
 se le vende a nadie. La mochila se abre desde cualquier lugar y sirve para usar
-lo que llevas. Desde cualquier lugar también se abre la ficha completa de tu
+lo que llevas, menos lo que sólo sirve para competir (las pociones de fuerza, de
+velocidad y de descanso rápido y las sopaipillas), que dice lo mismo que la
+Tienda y no se gasta. Desde cualquier lugar también se abre la ficha completa de tu
 gachamon, con sus medallas y los efectos que lleva activos, y el ropero, donde
 le pones y le quitas el sombrero y el título. La Incubadora enseña tu plantel:
 ahí sacas a otro gachamon para que sea el activo, y dice cuántos caben según las
@@ -260,8 +262,8 @@ guarda. La **comodidad** es una puntuación (no un porcentaje): parte de 80, cad
 tipo de mueble puesto suma una vez y el tope crece con las casillas. Frena el
 ánimo de todos los que viven ahí y no toca el hambre. Las casas, el refugio, la
 intemperie y el huerto se fueron: el día del cambio se convierte una sola vez lo
-que cada persona tenía (se le devuelve lo que costaron sus casas y sus tickets,
-y se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El
+que cada persona tenía (se le devuelve lo que costaron sus casas, con 140 monedas
+más por cada una mediana o grande, y sus tickets, y se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El
 huerto está cerrado hasta que vuelva con el balcón, y la pantalla del
 departamento todavía no existe: las reglas y sus rutas están en el servidor.
 
