@@ -44,7 +44,7 @@
   10. Bajo la pieza se muestra también la comodidad.
   11. El tope de 12 cuidados pagados al día se queda.
   12. Al poner, mover o guardar **bien no sale texto**; sólo cuando algo no se puede.
-- **Frases nuevas de este plan** (se le enseñan a Felipe al confirmar el plan; van tal cual). Las de los bocetos que aprobó van marcadas «boceto»:
+- **Frases nuevas de este plan** (Felipe las aprobó el 2026-11-16, al aprobar el plan; van tal cual). Las de los bocetos que aprobó van marcadas «boceto»:
   - La línea bajo la pieza: `{ancho} × {fondo} · {ocupadas} de {casillas} casillas · camas {camas} · gachamones {n} · comodidad {comodidad} de {tope}`
   - El menú de un mueble (boceto): `✋ Mover` · `🔄 Girar` · `📦 Guardar`. El de un gachamon: `✋ Mover` (boceto) y `Acariciar`; `Acariciar` está también en su ficha.
   - Con algo elegido para poner o mover (boceto): `Toca la casilla donde lo quieres.` Para lo de pared: `Toca la pared donde lo quieres.`
@@ -56,12 +56,12 @@
   - Mientras carga y si no carga, lo que ya dicen la tienda y la mochila (el mensaje de siempre y «Volver a intentarlo»). Si al girar no cabe de ninguna otra forma, la frase que ya da el juego: `Ahí no cabe.`
   - La lista para quien no usa el dibujo: los rótulos `Tus gachamones`, `Muebles puestos`, `Guardados` y `¿Dónde?`; los botones `Mover`, `Girar`, `Guardar`, `Poner` y `Ponerlo ahí`; cada sitio, `fila {f}, columna {c}`, `pared izquierda, tramo {n}` o `pared derecha, tramo {n}`; cada mueble puesto, `{nombre}, en fila {f}, columna {c}` (o `{nombre}, en la pared izquierda, tramo {n}`).
   - La carta: el botón `Entendido`.
-- **Lo que este plan decide en nombre de Felipe** (propuestas; se le enseñan con el plan):
+- **Lo que este plan decidió en nombre de Felipe** (se le enseñaron con el plan y lo aprobó el 2026-11-16):
   1. **En «Tu casa» la pantalla es el departamento**, no la del lugar de antes: ahí están los cuidados, la mochila y el pueblo. Los demás lugares siguen como hoy.
   2. Al poner algo desde guardados, **si no cabe como viene se prueba girado** (como en el boceto); «Girar» recorre las cuatro posiciones.
   3. **Acariciar sigue existiendo en casa**: tocar a un gachamon lo elige (su ficha queda abajo) y en su menú, junto a «Mover», está «Acariciar».
-  4. **Lo de pared tiene dos imágenes, no cuatro**: una por cada pared del fondo, que es donde puede ir. Los muebles de suelo, las cuatro.
-  5. **La página sirve la pieza reducida a la cuarta parte** (casilla de 256 × 128): la casilla nunca se ve más ancha que eso. Los originales de 1024 × 512 quedan en `fuentes/pieza/`.
+  4. **Lo de pared tiene dos imágenes, no cuatro**: una por cada pared del fondo, que es donde puede ir. Los muebles de suelo, las cuatro. Felipe lo eligió expresamente («Dos, una por pared»).
+  5. **La página sirve la pieza reducida a la mitad** (casilla de 512 × 256), en un solo tamaño: con la pieza en 3 × 3, una pantalla de alta densidad pinta la casilla con unos 450 píxeles, y a la cuarta parte el dibujo se vería borroso. Los originales de 1024 × 512 quedan en `fuentes/pieza/`. Si el arte definitivo pesa demasiado para el teléfono, las copias servidas pueden pasar a otro formato sin tocar los originales.
   6. **El globo de lo que dice el gachamon** sale sólo sobre el que sale contigo (es lo que manda el servidor hoy).
   7. La carta del alcalde se ve **al entrar, antes que nada**, y se cierra con «Entendido».
   8. «Salir con él» contesta con **la misma frase que da hoy la Incubadora**, y la Incubadora sigue sirviendo para lo mismo hasta el plan 8.
@@ -250,23 +250,23 @@ def test_la_ficha_del_gachamon_de_otra_persona_no_se_ve(cliente, monkeypatch):
 - Modify: `web/arte.py`, `herramientas/rellenos.py`, `web/static/datos/arte.json`, `web/static/arte/pieza/…` (los rellenos), `docs/arte/contrato.md`, `tests/test_arte.py`, `tests/js/arte.test.mjs`
 
 **Interfaces:**
-- Produces (en `web/arte.py`; todo lo que sirve la página es **la cuarta parte** del original):
-  - `CASILLA = (256, 128)`, `ALTURA = 256` (lo que sobresale un mueble o mide la pared), `REDUCCION = 4`, `ORIENTACIONES = ("se", "so", "no", "ne")` (por giro 0, 1, 2 y 3: cada giro es un cuarto de vuelta).
+- Produces (en `web/arte.py`; todo lo que sirve la página es **la mitad** del original):
+  - `CASILLA = (512, 256)`, `ALTURA = 512` (lo que sobresale un mueble o mide la pared), `REDUCCION = 2`, `ORIENTACIONES = ("se", "so", "no", "ne")` (por giro 0, 1, 2 y 3: cada giro es un cuarto de vuelta).
   - Una familia nueva, `pieza`, con estas piezas:
 
     | Ruta | Cuántas | Tamaño servido |
     |---|---|---|
-    | `pieza/suelo.png` | 1 | 256 × 128 (una casilla) |
-    | `pieza/pared-izquierda.png`, `pieza/pared-derecha.png` | 2 | 128 × 320 (un tramo: media casilla de ancho, 64 de pendiente y 256 de alto) |
-    | `pieza/muebles/<clave>-<orientación>.png`, de cada mueble de suelo (`capa` `bulto` o `suelo`) | 4 por mueble | ancho `(a + f) × 128`; alto `(a + f) × 64`, más 256 si es `bulto` (`a` y `f` son su ancho y su fondo en casillas: 1 × 1 → 256 × 384 o 256 × 128; 2 × 1 → 384 × 448; 2 × 2 → 512 × 512, o 512 × 256 la alfombra) |
-    | `pieza/muebles/<clave>-se.png` y `-so.png`, de cada mueble de `pared` | 2 por mueble | ancho `tramos × 128`; alto `tramos × 64 + 256` |
+    | `pieza/suelo.png` | 1 | 512 × 256 (una casilla) |
+    | `pieza/pared-izquierda.png`, `pieza/pared-derecha.png` | 2 | 256 × 640 (un tramo: media casilla de ancho, 128 de pendiente y 512 de alto) |
+    | `pieza/muebles/<clave>-<orientación>.png`, de cada mueble de suelo (`capa` `bulto` o `suelo`) | 4 por mueble | ancho `(a + f) × 256`; alto `(a + f) × 128`, más 512 si es `bulto` (`a` y `f` son su ancho y su fondo en casillas: 1 × 1 → 512 × 768 o 512 × 256; 2 × 1 → 768 × 896; 2 × 2 → 1024 × 1024, o 1024 × 512 la alfombra) |
+    | `pieza/muebles/<clave>-se.png` y `-so.png`, de cada mueble de `pared` | 2 por mueble | ancho `tramos × 256`; alto `tramos × 128 + 512` |
 
     Con el catálogo de hoy (doce de suelo y tres de pared) son 57 piezas; el contrato pasa de 196 a 253.
   - `originales_de_la_pieza() -> tuple[Pieza, ...]`: las mismas rutas bajo `fuentes/`, a tamaño de original (por `REDUCCION`).
 - Produces (`herramientas/pieza.py`, que se corre con `./venv/bin/python -m herramientas.pieza`): `reducir() -> list[str]`: por cada original que **exista** en `fuentes/pieza/…`, comprueba que mide exactamente lo que dice el contrato (si no, lo dice y no escribe nada) y escribe su copia reducida en `web/static/arte/pieza/…` (Pillow, `LANCZOS`). Devuelve las rutas escritas.
 - `herramientas/rellenos.py` gana la rama de la familia `pieza`: dibuja el relleno **al tamaño servido** (una casilla lisa; un tramo de pared; para cada mueble, una caja de color sobre su huella con las primeras letras de su clave y **una marca en la cara hacia la que mira**, para que girar se note). Determinista. No se generan originales de relleno: en `fuentes/pieza/` sólo va lo que entregue el dibujante.
 - **Cómo se coloca cada dibujo** (lo dice el contrato y lo usa el cliente): el de un mueble de suelo cubre a lo ancho exactamente su huella —de la esquina izquierda a la derecha del rombo que ocupa— y su borde de abajo coincide con la esquina de delante; el de un tramo de pared, o de un mueble de pared, cubre a lo ancho sus tramos y a lo alto toda la pared.
-- `docs/arte/contrato.md` gana la sección «La pieza de tu departamento»: la casilla original de 1024 × 512; que no es pixel art; los nombres de archivo y los tamaños originales (los de la tabla por cuatro); las cuatro orientaciones y qué significa cada una (hacia dónde mira el frente del mueble: `se` abajo a la derecha, `so` abajo a la izquierda, `no` arriba a la izquierda, `ne` arriba a la derecha); que lo de pared lleva sólo `se` (colgado en la pared izquierda) y `so` (en la derecha); cómo se coloca; que los originales se dejan en `fuentes/pieza/` con el mismo nombre y después se corre la herramienta. Y se corrige lo que quede hablando de «el interior de cada casa».
+- `docs/arte/contrato.md` gana la sección «La pieza de tu departamento»: la casilla original de 1024 × 512; que no es pixel art; los nombres de archivo y los tamaños originales (los de la tabla por dos); las cuatro orientaciones y qué significa cada una (hacia dónde mira el frente del mueble: `se` abajo a la derecha, `so` abajo a la izquierda, `no` arriba a la izquierda, `ne` arriba a la derecha); que lo de pared lleva sólo `se` (colgado en la pared izquierda) y `so` (en la derecha); cómo se coloca; que los originales se dejan en `fuentes/pieza/` con el mismo nombre y después se corre la herramienta. Y se corrige lo que quede hablando de «el interior de cada casa».
 
 - [ ] **Step 1: Escribir las pruebas que fallan**, en `tests/test_arte_pieza.py`:
 
@@ -285,20 +285,20 @@ def test_la_pieza_tiene_su_familia_en_el_contrato():
         assert f"pieza/muebles/{m.clave}-no.png" not in rutas
 
 @pytest.mark.parametrize("ruta, tamano", [
-    ("pieza/suelo.png", (256, 128)), ("pieza/pared-izquierda.png", (128, 320)),
-    ("pieza/muebles/maceta-se.png", (256, 384)), ("pieza/muebles/felpudo-no.png", (256, 128)),
-    ("pieza/muebles/cama_sencilla-so.png", (384, 448)), ("pieza/muebles/fuente-ne.png", (512, 512)),
-    ("pieza/muebles/alfombra-se.png", (512, 256)), ("pieza/muebles/cuadro-se.png", (128, 320)),
-    ("pieza/muebles/cortinas-so.png", (256, 384)),
+    ("pieza/suelo.png", (512, 256)), ("pieza/pared-izquierda.png", (256, 640)),
+    ("pieza/muebles/maceta-se.png", (512, 768)), ("pieza/muebles/felpudo-no.png", (512, 256)),
+    ("pieza/muebles/cama_sencilla-so.png", (768, 896)), ("pieza/muebles/fuente-ne.png", (1024, 1024)),
+    ("pieza/muebles/alfombra-se.png", (1024, 512)), ("pieza/muebles/cuadro-se.png", (256, 640)),
+    ("pieza/muebles/cortinas-so.png", (512, 768)),
 ])
 def test_cada_dibujo_mide_lo_que_ocupa(ruta, tamano):
     p = next(p for p in arte.piezas() if p.ruta == ruta)
     assert (p.ancho, p.alto) == tamano
 
-def test_los_originales_miden_cuatro_veces_lo_servido():
+def test_los_originales_miden_el_doble_de_lo_servido():
     servidas = {p.ruta: p for p in arte.piezas() if p.familia == "pieza"}
     for o in arte.originales_de_la_pieza():
-        assert (o.ancho, o.alto) == (servidas[o.ruta].ancho * 4, servidas[o.ruta].alto * 4)
+        assert (o.ancho, o.alto) == (servidas[o.ruta].ancho * 2, servidas[o.ruta].alto * 2)
     assert next(o for o in arte.originales_de_la_pieza() if o.ruta == "pieza/suelo.png").ancho == 1024
 
 def test_cada_dibujo_de_la_pieza_tiene_su_archivo_del_tamano_justo():
@@ -317,7 +317,7 @@ def test_reducir_escribe_la_copia_de_un_original_y_rechaza_el_de_otro_tamano(tmp
     Image.new("RGBA", (1024, 512), (10, 200, 30, 255)).save(fuentes / "pieza/suelo.png")
     assert pieza.reducir() == ["pieza/suelo.png"]
     with Image.open(servido / "pieza/suelo.png") as chica:
-        assert chica.size == (256, 128) and chica.getpixel((128, 64))[:3] == (10, 200, 30)
+        assert chica.size == (512, 256) and chica.getpixel((256, 128))[:3] == (10, 200, 30)
     Image.new("RGBA", (1000, 500)).save(fuentes / "pieza/suelo.png")
     with pytest.raises(ValueError, match="1024"):
         pieza.reducir()
@@ -1225,7 +1225,7 @@ def test_la_carta_esta_montada():
 
 **Interfaces:**
 - **El diseño.** Lo que Felipe decidió el 2026-11-16 sobre el orden y el arte ya está en él desde que se confirmó este plan (§1, las aventuras y reclutar adelantados; §4.2, el arte de la pieza; §10, el corte con el orden nuevo). Aquí se le añade lo que salió de construir, cada cambio marcado **[Felipe, 2026-11-16]** o **[propuesta]** según de quién sea: §5, lo que cambió respecto del boceto (bajo la pieza se ve también la comodidad; al poner, mover o guardar bien no sale texto; en el computador, la pieza a la izquierda; se toca lo que se ve, con los gachamones primero, y quién tapa a quién se calcula de verdad); §6, cada casa mediana o grande devuelve 140 monedas más, «por tu ticket» y la especie con su mayúscula; §8, del gachamon elegido sólo la ficha (el ropero y la mochila siguen siendo del que sale contigo) y lo que la mochila ya no deja usar.
-- **`AGENTS.md`**, concisos y sin SHAs: se cambia de activo estando en la Incubadora **o en tu departamento**; dónde está parado cada gachamon y tu avatar no se guarda; el arte de la pieza (su familia en el contrato, los originales en `fuentes/pieza/` a cuatro veces lo servido, la herramienta que los reduce, cuatro orientaciones por mueble de suelo y dos por mueble de pared); el cliente no decide qué cabe: lo que calcula es para dibujar, y una prueba lo contrasta con `departamento.py`.
+- **`AGENTS.md`**, concisos y sin SHAs: se cambia de activo estando en la Incubadora **o en tu departamento**; dónde está parado cada gachamon y tu avatar no se guarda; el arte de la pieza (su familia en el contrato, los originales en `fuentes/pieza/` al doble de lo servido, la herramienta que los reduce, cuatro orientaciones por mueble de suelo y dos por mueble de pared); el cliente no decide qué cabe: lo que calcula es para dibujar, y una prueba lo contrasta con `departamento.py`.
 - **`README.md`**: «Tu casa» es la pieza del departamento y qué se puede hacer en ella; cómo entregar un dibujo de la pieza (apuntando al contrato).
 - **Pendientes**, sección «Salió al ejecutar el rework 5 (el departamento en pantalla)», con la voz de las anteriores y sin SHAs, números de tarea ni ids. El controlador le pasa al implementador un archivo de notas con lo decidido durante la ejecución; como mínimo: lo decidido; lo que queda para «partir sin gachamon» (la pantalla ya se ve sin gachamon, pero a ella se llega con uno; quitar la Incubadora de «cuántos caben»); lo que queda para el pueblo (la Incubadora sigue sirviendo para cambiar de activo; «Tu casa» todavía no se llama «Tu departamento»); el ropero y la mochila siguen siendo del que sale contigo; el arte es de relleno hasta que el dibujante entregue; la silueta que se toca de un mueble es su caja entera, y con el arte definitivo puede convenir la del dibujo; y cuánto pesa el arte en el repo, para avisar si se acerca a lo que aguanta la tarjeta de la Pi.
 

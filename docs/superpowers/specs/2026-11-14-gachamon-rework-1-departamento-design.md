@@ -153,7 +153,7 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   **[Felipe, 2026-11-16]** (antes este documento decía dos imágenes, cada una
   usada también espejada). Vale igual para los de 1 × 1. Un mueble alargado
   cambia las casillas que ocupa al girar. Lo que va en la pared lleva dos
-  imágenes, una por pared **[propuesta]**.
+  imágenes, una por pared **[Felipe, 2026-11-16]**.
 - **El arte de la pieza no es pixel art**, y la casilla mide **1024 × 512
   píxeles**: así lo acordó Felipe con el dibujante **[Felipe, 2026-11-16]**.
   Los originales van en el repo, en `fuentes/`, y la página sirve copias
