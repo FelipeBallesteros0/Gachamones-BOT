@@ -198,7 +198,7 @@ def test_cada_mueble_trae_lo_suyo_y_cuantos_tienes_puestos_o_guardados(cliente, 
         db.anadir_mueble_en(con, usuario, guild, "felpudo")
     ir(cliente, "tienda")
     lista = cliente.get(TIENDA).json()["muebles"]["lista"]
-    assert [m["clave"] for m in lista] == [c for c, m in dep.MUEBLES.items() if not m.puerta]   # la puerta no se vende
+    assert [m["clave"] for m in lista] == [m.clave for m in dep.a_la_venta()]   # la puerta no se vende
     assert lista[0] == {"clave": "felpudo", "nombre": "Felpudo", "precio": 30, "comodidad": 2,
                         "icono": "iconos/muebles/felpudo.png", "tienes": 2}
     assert {m["clave"]: m["tienes"] for m in lista if m["tienes"]} == {"felpudo": 2, "cama_sencilla": 2}

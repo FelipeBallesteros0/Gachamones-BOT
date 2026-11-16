@@ -92,8 +92,7 @@ def _muebles(jugador: Jugador) -> dict:
                 "comodidad": m.comodidad, "icono": f"iconos/muebles/{m.clave}.png",
                 "tienes": tienes[m.clave],
             }
-            for m in dep.MUEBLES.values()
-            if not m.puerta
+            for m in dep.a_la_venta()
         ],
     }
 
@@ -190,8 +189,9 @@ def _pieza(que: str, clave: Any):
         if not se_le_vende(objeto):
             raise problema(409, "mas_adelante", "Eso todavía no se vende aquí.")
         return objeto
-    pieza = (cos.CATALOGO if que == COSMETICO else dep.MUEBLES).get(clave)
-    if pieza is None or getattr(pieza, "puerta", False):   # la puerta no está a la venta
+    en_venta = cos.CATALOGO if que == COSMETICO else {m.clave: m for m in dep.a_la_venta()}   # la puerta no está
+    pieza = en_venta.get(clave)
+    if pieza is None:
         raise no_se_entiende()
     return pieza
 

@@ -444,3 +444,15 @@ def test_el_dia_del_cambio_deja_a_cada_quien_su_puerta_con_la_entrada_libre():
     tapadas = {c for p in d.puestas if dep.MUEBLES[p.clave].capa == dep.BULTO
                for c in dep.huella(dep.MUEBLES[p.clave], p.x, p.y, p.giro)}
     assert dep.frente_a(puertas[0].x, puertas[0].y) not in tapadas
+
+
+def test_el_dia_del_cambio_mueve_la_puerta_al_otro_lado_si_las_camas_tapan_toda_la_pared_izquierda():
+    import departamento as dep
+    for n in range(6):
+        nacer(f"G{n}", activa=(n == 0))
+    el_cambio()
+    d = db.departamento_leido("u1", "g1")
+    assert (d.ancho, d.fondo, d.camas_puestas) == (5, 4, 7)
+    assert any((p.x, p.y) == (0, 3) for p in d.puestas if p.clave == "cama_sencilla")   # tapa la entrada de (-1, 3)
+    puertas = [p for p in d.piezas if p.clave == dep.PUERTA]
+    assert [(p.x, p.y) for p in puertas] == [(4, -1)]

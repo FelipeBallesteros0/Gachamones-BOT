@@ -123,7 +123,7 @@ def _rutas_de_iconos():
     return (
         [f"iconos/objetos/{c}.png" for c in objetos.CATALOGO]
         + [f"iconos/cosmeticos/{c}.png" for c in cosmeticos.CATALOGO]
-        + [f"iconos/muebles/{c}.png" for c, m in departamento.MUEBLES.items() if not m.puerta]   # la puerta no lleva ícono
+        + [f"iconos/muebles/{m.clave}.png" for m in departamento.a_la_venta()]   # la puerta no lleva ícono
     )
 
 

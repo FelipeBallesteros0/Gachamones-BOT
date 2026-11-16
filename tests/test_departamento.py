@@ -235,3 +235,16 @@ def test_el_alcalde_busca_un_tramo_con_la_entrada_libre():
     todo = depto(*(P(n, "maceta", n % 3, n // 3) for n in range(9)))
     assert dep.tramo_para_la_puerta(todo) == (-1, 2)             # ninguna libre: el primero sin nada colgado
     assert dep.tramo_para_la_puerta(depto(P(1, "felpudo", 0, 2))) == (-1, 2)   # lo que se pisa no tapa
+
+
+def test_sin_tramo_libre_para_la_puerta_el_alcalde_lo_dice_con_un_error_claro():
+    colgado = depto(*(P(n + 1, "cuadro", x, y) for n, (x, y) in enumerate(
+        [(-1, 0), (-1, 1), (-1, 2), (0, -1), (1, -1), (2, -1)])))
+    with pytest.raises(ValueError, match="no hay tramo libre para la puerta"):
+        dep.tramo_para_la_puerta(colgado)
+
+
+def test_a_la_venta_son_los_muebles_del_catalogo_menos_la_puerta_en_su_orden():
+    venta = dep.a_la_venta()
+    assert isinstance(venta, tuple) and dep.MUEBLES[dep.PUERTA] not in venta
+    assert [m.clave for m in venta] == [c for c in dep.MUEBLES if c != dep.PUERTA]

@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (253)
+## Los dibujos de ahora (255)
 
 ### Pueblo (`pueblo/`)
 
@@ -112,7 +112,7 @@ su ícono con el mismo nombre.
 |---|---|---|
 | `iconos/objetos/<clave>.png` | 32 | Cada objeto: pociones, golosinas, porotos, sopaipillas, placa, silbato, semilla. También los que no se venden, porque se ven en la mochila. |
 | `iconos/cosmeticos/<clave>.png` | 12 | Cada cosmético del gachamon: sombreros y títulos. |
-| `iconos/muebles/<clave>.png` | 15 | Cada mueble del departamento, la cama sencilla incluida. |
+| `iconos/muebles/<clave>.png` | 15 | Cada mueble del departamento que se vende, la cama sencilla incluida. La puerta no lleva ícono: no se vende ni se guarda. |
 
 Cada ícono ya tiene su relleno en `web/static/arte/iconos/`, con el nombre
 exacto de su archivo: dibuja el tuyo y guárdalo encima. Por ejemplo:
@@ -162,7 +162,8 @@ el felpudo y la alfombra, que miden sólo `(a + f) × 256` de alto). Por ejemplo
 `<clave>` es el nombre del mueble en el juego, el mismo del ícono
 (`iconos/muebles/<clave>.png`): `felpudo`, `maceta`, `cuadro`, `estanteria`,
 `lampara`, `alfombra`, `cortinas`, `cojines`, `fuente`, `chimenea`,
-`calefactor`, `cama`, `ventanal`, `biblioteca` y `cama_sencilla`.
+`calefactor`, `cama`, `ventanal`, `biblioteca` y `cama_sencilla`. La puerta
+(`puerta`) tiene sus dibujos de pieza, pero ningún ícono.
 
 ### Las cuatro orientaciones
 
@@ -187,6 +188,24 @@ la derecha hacia abajo a la izquierda. El relleno de la cama sencilla
 Lo de pared lleva **sólo dos**: `se` es el que cuelga en la **pared izquierda**
 (mira abajo a la derecha) y `so` el que cuelga en la **pared derecha** (mira
 abajo a la izquierda). No hay `no` ni `ne` de lo que va en la pared.
+
+### La puerta
+
+La puerta de cada departamento es un mueble de pared de un tramo, así que lleva
+**dos archivos**: `pieza/muebles/puerta-se.png` (la que va en la pared
+izquierda) y `pieza/muebles/puerta-so.png` (la de la derecha). Miden lo que
+cualquier cosa de pared de un tramo: **512 × 1280** de original (256 × 640
+servido). **No tiene ícono**: no se vende ni se guarda, y ninguna pantalla lo
+pide.
+
+Se dibuja como **el vano de una puerta visto desde dentro**: ocupa su tramo de
+pared **de arriba abajo**, con su marco y el hueco por el que se sale. Tu avatar
+se pinta **de pie en su umbral**, delante del dibujo, así que **el dibujo no debe
+traer a nadie dentro ni tapar el umbral** (la casilla de la puerta es la que
+queda fuera del departamento, junto a su pared).
+
+Su relleno es un marco claro con un hueco oscuro de arriba abajo, el rótulo
+«PUERTA» y un pomo amarillo, para que no se confunda con un cuadro.
 
 ### Cómo se coloca cada dibujo
 

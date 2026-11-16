@@ -45,8 +45,9 @@ def en_el_departamento(jugador: Jugador) -> None:
         raise problema(409, "no_estas_ahi", "Para eso tienes que estar en tu departamento.")
 
 
-def _icono(clave: str) -> str:
-    return f"iconos/muebles/{clave}.png"
+def _icono(mueble: dep.Mueble) -> str | None:
+    """Su ícono; la puerta no lo tiene, porque no se vende ni se guarda."""
+    return None if mueble.puerta else f"iconos/muebles/{mueble.clave}.png"
 
 
 def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
@@ -62,7 +63,7 @@ def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
             continue
         puestos.append({
             "id": pieza.id, "clave": mueble.clave, "nombre": mueble.nombre,
-            "icono": _icono(mueble.clave), "x": pieza.x, "y": pieza.y, "giro": pieza.giro,
+            "icono": _icono(mueble), "x": pieza.x, "y": pieza.y, "giro": pieza.giro,
             "capa": mueble.capa, "cama": mueble.cama, "puerta": mueble.puerta,
             "ancho": mueble.ancho, "fondo": mueble.fondo,
             "casillas": [list(c) for c in sorted(dep.huella(mueble, pieza.x, pieza.y, pieza.giro))],
@@ -73,7 +74,7 @@ def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
             continue
         guardados.append({
             "id": pieza.id, "clave": mueble.clave, "nombre": mueble.nombre,
-            "icono": _icono(mueble.clave), "capa": mueble.capa, "cama": mueble.cama,
+            "icono": _icono(mueble), "capa": mueble.capa, "cama": mueble.cama,
             "ancho": mueble.ancho, "fondo": mueble.fondo,
         })
     return {

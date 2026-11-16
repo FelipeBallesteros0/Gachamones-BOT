@@ -225,6 +225,14 @@ def test_el_departamento_dice_cual_es_la_puerta(cliente):
     assert all(not g.get("puerta") for g in d["guardados"])
 
 
+def test_el_puesto_de_la_puerta_no_lleva_icono_y_los_demas_si(cliente):
+    con_gachamon(cliente); en_casa(cliente)
+    d = cliente.get(f"{API}/departamento").json()
+    assert [(p["clave"], p["icono"]) for p in d["puestos"]] == [
+        ("cama_sencilla", "iconos/muebles/cama_sencilla.png"), ("puerta", None)]
+    assert all(g["icono"] for g in d["guardados"])
+
+
 def test_la_puerta_no_se_guarda_desde_la_pagina(cliente):
     con_gachamon(cliente); en_casa(cliente)
     puerta = next(p for p in cliente.get(f"{API}/departamento").json()["puestos"] if p["puerta"])

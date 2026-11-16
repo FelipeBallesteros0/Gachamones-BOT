@@ -35,6 +35,43 @@ def test_cada_dibujo_mide_lo_que_ocupa(ruta, tamano):
     assert (p.ancho, p.alto) == tamano
 
 
+def test_la_puerta_tiene_sus_dos_dibujos_y_ningun_icono():
+    rutas = {p.ruta: p for p in arte.piezas()}
+    se, so = rutas["pieza/muebles/puerta-se.png"], rutas["pieza/muebles/puerta-so.png"]
+    assert (se.ancho, se.alto) == (256, 640) and (so.ancho, so.alto) == (256, 640)
+    assert "pieza/muebles/puerta-no.png" not in rutas and "pieza/muebles/puerta-ne.png" not in rutas
+    assert "iconos/muebles/puerta.png" not in rutas
+    assert len(arte.piezas()) == 255
+
+
+def test_el_relleno_de_la_puerta_no_es_el_de_un_cuadro():
+    for lado in ("se", "so"):
+        puerta = _relleno(f"pieza/muebles/puerta-{lado}.png")
+        cuadro = _relleno(f"pieza/muebles/cuadro-{lado}.png")
+        assert puerta.size == cuadro.size and puerta.tobytes() != cuadro.tobytes()
+
+
+def test_el_relleno_de_la_puerta_es_un_vano_oscuro_enmarcado_de_arriba_abajo():
+    for lado in ("se", "so"):
+        imagen = _relleno(f"pieza/muebles/puerta-{lado}.png")
+        ancho, alto = imagen.size
+        x = ancho // 2
+        # En la vertical del medio: el hueco oscuro y opaco, de arriba abajo, y no el color de un cuadro.
+        oscuros = [y for y in range(alto) if imagen.getpixel((x, y))[3] == 255 and max(imagen.getpixel((x, y))[:3]) < 90]
+        assert len(oscuros) > 0.4 * alto, lado
+        # Un marco claro alrededor del hueco, en la misma fila.
+        fila = [imagen.getpixel((i, alto // 2)) for i in range(ancho)]
+        claros = [i for i, c in enumerate(fila) if c[3] == 255 and max(c[:3]) > 100]
+        assert claros and min(claros) < x < max(claros), lado
+        transparentes = imagen.getchannel("A").histogram()[0]
+        assert transparentes / (ancho * alto) <= 0.5, lado
+
+
+def test_el_relleno_de_la_puerta_es_el_mismo_cada_vez():
+    for lado in ("se", "so"):
+        assert _relleno(f"pieza/muebles/puerta-{lado}.png").tobytes() == _relleno(f"pieza/muebles/puerta-{lado}.png").tobytes()
+
+
 def test_los_originales_miden_el_doble_de_lo_servido():
     servidas = {p.ruta: p for p in arte.piezas() if p.familia == "pieza"}
     originales = arte.originales_de_la_pieza()

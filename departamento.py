@@ -80,6 +80,11 @@ MUEBLES: dict[str, Mueble] = {
 }
 
 
+def a_la_venta() -> tuple[Mueble, ...]:
+    """Los muebles del catálogo que se compran, en su orden: todos menos la puerta."""
+    return tuple(m for m in MUEBLES.values() if not m.puerta)
+
+
 @dataclass(frozen=True)
 class Pieza:
     id: int
@@ -200,6 +205,9 @@ def tramo_para_la_puerta(depto: Departamento) -> tuple[int, int]:
     mueble de los que no se pisan, buscando por la pared izquierda de adelante
     hacia atrás y después por la derecha, igual. Si ninguno la tiene libre, el
     primero sin nada colgado en ese mismo orden.
+
+    Lanza `ValueError` si todos los tramos de las dos paredes tienen algo
+    colgado: no hay dónde poner la puerta.
     """
     tramos = [(-1, y) for y in range(depto.fondo - 1, -1, -1)]
     tramos += [(x, -1) for x in range(depto.ancho - 1, -1, -1)]
@@ -215,6 +223,8 @@ def tramo_para_la_puerta(depto: Departamento) -> tuple[int, int]:
         elif mueble.capa == BULTO:
             tapado |= casillas
     sin_nada = [t for t in tramos if t not in colgado]
+    if not sin_nada:
+        raise ValueError("no hay tramo libre para la puerta: todos los de las dos paredes tienen algo colgado")
     return next((t for t in sin_nada if frente_a(*t) not in tapado), sin_nada[0])
 
 

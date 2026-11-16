@@ -354,6 +354,35 @@ def _tramo_de_pared(ancho: int, alto: int, lado: str, color: tuple, renglones: l
     return imagen
 
 
+def _puerta(ancho: int, alto: int, lado: str) -> Image.Image:
+    """El vano de una puerta visto desde dentro: un marco claro y, de arriba abajo, un hueco oscuro.
+
+    Ocupa su tramo de pared entero (el mismo paralelogramo que un cuadro) y no trae a nadie:
+    tu avatar se pinta de pie en el umbral, delante.
+    """
+    imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
+    pincel = ImageDraw.Draw(imagen)
+    pendiente = ancho // 2
+    alto_de_pared = alto - pendiente
+
+    def paralelogramo(margen_x: int, margen_y: int) -> list[tuple[int, int]]:
+        x0, x1 = margen_x, ancho - 1 - margen_x
+        def arriba(x: int) -> float:
+            fraccion = x / (ancho - 1)
+            return pendiente * (1 - fraccion if lado == "izquierda" else fraccion)
+        return [(x0, arriba(x0) + margen_y), (x1, arriba(x1) + margen_y),
+                (x1, arriba(x1) + alto_de_pared - 1 - margen_y), (x0, arriba(x0) + alto_de_pared - 1 - margen_y)]
+
+    pincel.polygon(paralelogramo(0, 0), fill=(176, 132, 84, 255), outline=_BLANCO, width=4)
+    pincel.polygon(paralelogramo(28, 28), fill=(24, 20, 30, 255), outline=_oscurecer((176, 132, 84, 255), 0.6), width=4)
+    centro = (ancho / 2, pendiente / 2 + alto_de_pared / 2)
+    _rotular(pincel, centro, ["PUERTA"], 44)
+    pomo_x = ancho * (0.78 if lado == "izquierda" else 0.22)
+    pomo_y = pendiente * (1 - pomo_x / (ancho - 1) if lado == "izquierda" else pomo_x / (ancho - 1)) + alto_de_pared * 0.82
+    pincel.ellipse((pomo_x - 9, pomo_y - 9, pomo_x + 9, pomo_y + 9), fill=_MARCA, outline=_TINTA, width=2)
+    return imagen
+
+
 def _flecha(pincel: ImageDraw.ImageDraw, centro: tuple, orientacion: str, inicio: float, largo: float) -> None:
     """Una flecha amarilla que sale de `centro` hacia donde mira el frente."""
     dx, dy = _MIRA[orientacion]
@@ -423,6 +452,8 @@ def _pieza_del_departamento(partes: list[str], ancho: int, alto: int) -> Image.I
     clave, orientacion = nombre.rsplit("-", 1)
     mueble = departamento.MUEBLES[clave]
     indice = list(departamento.MUEBLES).index(clave)
+    if mueble.puerta:
+        return _puerta(ancho, alto, "izquierda" if orientacion == "se" else "derecha")
     if mueble.capa == departamento.PARED:
         return _tramo_de_pared(ancho, alto, "izquierda" if orientacion == "se" else "derecha",
                                _color_de_lugar(indice, 0.9, 0.5), _renglones_de(clave), orientacion)
