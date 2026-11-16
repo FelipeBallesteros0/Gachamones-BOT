@@ -5,13 +5,15 @@
 // al servidor (`GET departamento`) al entrar, y la pinta en su lienzo; debajo,
 // una línea dice cómo está. Cada 30 segundos y al volver a la pestaña la
 // vuelve a pedir, y con ella el estado (`GET estado`), como el lugar: con él
-// se renuevan los saldos y lo que dice el que sale contigo. Al
-// entrar, tú y tus gachamones os repartís por los sitios de entrada (tú, el
-// primero; ellos, en el orden en que llegan). Tocar una casilla que se pisa
-// lleva a tu avatar hasta ella, de casilla en casilla; con menos movimiento,
-// aparece ahí; si los muebles le cierran el paso, no va. Tus gachamones dan
-// un paso solos de vez en cuando (cuándo y hacia dónde lo dice `azar`, que se
-// inyecta; si no, `Math.random`), salvo con menos movimiento o mientras
+// se renuevan los saldos y lo que dice el que sale contigo. Al entrar
+// apareces en la puerta, una casilla más, fuera de la pieza (sin puerta, en el
+// primero de los sitios de entrada), y tus gachamones se reparten por los
+// sitios de entrada, en el orden en que llegan. Tocar una casilla que se pisa
+// lleva a tu avatar hasta ella, de casilla en casilla (desde la puerta, por la
+// casilla de enfrente); con menos movimiento, aparece ahí; si los muebles le
+// cierran el paso, no va. A la puerta sólo vas tú: tus gachamones dan un paso
+// solos de vez en cuando por la pieza (cuándo y hacia dónde lo dice `azar`,
+// que se inyecta; si no, `Math.random`), salvo con menos movimiento o mientras
 // llevas algo en la mano. Dónde está parado cada uno es sólo del dibujo: no
 // se guarda ni se manda. Si lo que llega pide otra pantalla (ya no estás en
 // tu casa, ya no hay sesión) se lo pasa a `seguir`; sin ningún gachamon, tu
@@ -19,7 +21,10 @@
 //
 // Los muebles y los gachamones se tocan, sin modos: tocar uno lo elige (se
 // marca dónde está) y encima sale su menú: el de un mueble, con «Mover»,
-// «Girar» y «Guardar»; el de un gachamon, con «Mover» y «Acariciar». Lo que
+// «Girar» y «Guardar»; el de la puerta, con «Mover» y «Salir»; el de un
+// gachamon, con «Mover» y «Acariciar». «Salir» te lleva caminando hasta la
+// puerta y, al llegar, al pueblo, como «Pueblo»; hacer otra cosa por el
+// camino lo cancela, y sin camino no se sale y se dice. Lo que
 // llevas en la mano (el mueble que mueves, el que sacas de la bandeja de
 // «Guardados», bajo la pieza, o el gachamon que mueves, que va sólo adonde
 // tiene camino) marca dónde va, y el toque siguiente dice dónde: en un sitio
@@ -72,7 +77,7 @@ import {
 } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import {
-  camino, dondeCabe, giroParaPoner, libreMasCercana, lineaDeEstado, noSePisan, pasoSuelto, sitiosDeEntrada,
+  camino, dondeCabe, giroParaPoner, laPuerta, libreMasCercana, lineaDeEstado, noSePisan, pasoSuelto, sitiosDeEntrada,
 } from './casillas.js';
 import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
@@ -117,6 +122,7 @@ const ROTULO_DE_GUARDADOS = 'Guardados · toca uno y después una casilla';
 const NADA_GUARDADO = 'No queda nada guardado.';
 const ROTULO_DE_AMPLIAR = 'Ampliar el departamento';
 const YA_NO_CRECE = 'Tu departamento ya no puede crecer más.';
+const NO_HAY_CAMINO = 'No hay camino hasta la puerta.';
 // La pregunta antes de crecer, como la de la Tienda: el coste es el que manda
 // el servidor, dicho con la palabra («N monedas», «1 moneda»).
 const preguntaDeAmpliar = (coste) => `¿Ampliar por ${MONEDAS.cuantas(coste)}?`;
@@ -262,6 +268,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     poner: ponerDesdeLaLista,
     girar,
     guardar,
+    salir: salirPorLaPuerta,
   });
   lista.nodo.hidden = true;
 
@@ -320,14 +327,17 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // El estado del juego, el último que llegó: con él se sale al pueblo o a la mochila.
   let actual = estado;
 
+  // Al pueblo: lo que hace «Pueblo», y «Salir» al llegar a la puerta.
+  function irAlPueblo() {
+    parar();
+    seguir(actual, { vista: 'pueblo' });
+  }
+
   aLaMochila.addEventListener('click', () => {
     parar();
     seguir(actual, { vista: 'mochila' });
   }, { signal });
-  alPueblo.addEventListener('click', () => {
-    parar();
-    seguir(actual, { vista: 'pueblo' });
-  }, { signal });
+  alPueblo.addEventListener('click', irAlPueblo, { signal });
 
   // Cada estado que llega se pregunta lo mismo que al entrar: si ya no toca
   // esta pantalla, se va. Un globo no dice lo que ya no pasa: si lo que pedía
@@ -354,11 +364,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   let listo = false;
 
   // Tu avatar (un caminante, o `null` si no queda casilla que se pise) y
-  // cuánto lleva andando (para el paso). Tus gachamones en la pieza, por id:
-  // el que no tiene casilla no está. Los que están saltando, por id: cuánto
-  // llevan del salto, en segundos.
+  // cuánto lleva andando (para el paso); `saliendo`, si va camino de la puerta
+  // a salir por ella. Tus gachamones en la pieza, por id: el que no tiene
+  // casilla no está. Los que están saltando, por id: cuánto llevan del salto,
+  // en segundos.
   let tu = null;
   let andado = 0;
+  let saliendo = false;
   let enPieza = new Map();
   const saltos = new Map();
 
@@ -418,35 +430,60 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // quedó sobre un mueble (o fuera), aparece en la casilla libre más cercana,
   // sin caminar. Si iba caminando, el paso que está dando se termina si esa
   // casilla se sigue pisando (si no, aparece) y el resto del camino se rehace;
-  // si ya no se llega, se queda ahí. `null` si no queda casilla que se pise.
-  function reubicar(quien, ocupado) {
-    const sePisa = ([i, j]) => i >= 0 && j >= 0 && i < depto.ancho && j < depto.fondo && !ocupado.has(`${i},${j}`);
+  // si ya no se llega, se queda ahí. Con `puerta` (sólo tú), su casilla se
+  // pisa, y a medio paso entre ella y la de enfrente se está en ella. `null` si
+  // no queda casilla que se pise.
+  function reubicar(quien, ocupado, puerta = null) {
+    const esLaPuerta = ([i, j]) => puerta !== null && i === puerta.celda[0] && j === puerta.celda[1];
+    const sePisa = ([i, j]) => esLaPuerta([i, j])
+      || (i >= 0 && j >= 0 && i < depto.ancho && j < depto.fondo && !ocupado.has(`${i},${j}`));
     if (quien.ruta.length > 0) {
       const [paso, ...resto] = quien.ruta;
       if (sePisa(paso)) {
         if (!resto.every(sePisa)) {
           const destino = quien.ruta.at(-1);
-          quien.ruta = [paso, ...(sePisa(destino) ? camino(depto.ancho, depto.fondo, ocupado, paso, destino) : [])];
+          quien.ruta = [paso, ...(sePisa(destino) ? camino(depto.ancho, depto.fondo, ocupado, paso, destino, puerta) : [])];
         }
         return quien;
       }
       quien.ruta = [];
     }
-    const aqui = [Math.round(quien.i), Math.round(quien.j)];
+    const fuera = quien.i < 0 || quien.j < 0;
+    const aqui = puerta && fuera ? puerta.celda : [Math.round(quien.i), Math.round(quien.j)];
     const donde = sePisa(aqui) ? aqui : libreMasCercana(depto.ancho, depto.fondo, ocupado, aqui);
     if (!donde) return null;
     [quien.i, quien.j] = donde;
     return quien;
   }
 
+  // Tú, en la pieza que llegó (`entrada`, tu sitio de entrada si no hay
+  // puerta). Al entrar apareces en la puerta. Si estabas en ella (o entrando o
+  // saliendo por ella) y ahora está en otro sitio, sigues en ella, donde esté;
+  // si estabas dentro, te reubicas como cualquiera, y si dentro ya no queda
+  // casilla que se pise, vas a la puerta.
+  function reubicarte(ocupado, puerta, entrada) {
+    const enLaPuerta = () => caminanteEn(puerta && puerta.celda, CASILLAS_POR_SEGUNDO);
+    if (!tu) return puerta ? enLaPuerta() : caminanteEn(entrada, CASILLAS_POR_SEGUNDO);
+    const fuera = tu.i < 0 || tu.j < 0;
+    const suPuerta = tu.i < 0 ? [-1, tu.j] : [tu.i, -1];
+    if (fuera && !(puerta && suPuerta[0] === puerta.celda[0] && suPuerta[1] === puerta.celda[1])) {
+      tu.ruta = [];
+      if (puerta) [tu.i, tu.j] = puerta.celda;
+    }
+    return reubicar(tu, ocupado, puerta) || enLaPuerta();
+  }
+
   // Tú y tus gachamones, en la pieza que llegó: el que ya estaba se reubica;
   // el que todavía no estaba (al entrar, uno que llega, o el que no tenía
   // casilla) entra por su sitio de entrada: tú el primero, ellos en el orden
-  // de `plantel`. El que ya no vive contigo se va.
+  // de `plantel`. Con puerta, tú entras por ella y el primer sitio se queda
+  // libre: ellos entran donde siempre. El que ya no vive contigo se va.
   function repartir() {
     const ocupado = noSePisan(depto);
     const entrada = sitiosDeEntrada(depto.ancho, depto.fondo, ocupado, depto.plantel.length + 1);
-    tu = tu ? reubicar(tu, ocupado) : caminanteEn(entrada[0], CASILLAS_POR_SEGUNDO);
+    tu = reubicarte(ocupado, laPuerta(depto), entrada[0]);
+    // Si ibas a salir y la pieza nueva te dejó parado, ya no sales: se sale sólo llegando.
+    if (!tu || tu.ruta.length === 0) saliendo = false;
     const antes = enPieza;
     enPieza = new Map();
     depto.plantel.forEach((g, n) => {
@@ -638,6 +675,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     antes = ahora;
     andado += dt;
     if (tu) avanzar(tu, dt);
+    if (salirSiLlegaste()) return;
     for (const quien of enPieza.values()) avanzar(quien, dt);
     for (const [id, t] of saltos) {
       if (t + dt >= UN_SALTO_DURA_S) saltos.delete(id);
@@ -679,26 +717,54 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     }
   }
 
-  // Quien camina, hasta esa casilla, por el camino más corto. A medio paso, se
-  // termina el paso y desde ahí se va al nuevo destino. Con menos movimiento,
-  // aparece ahí. Sin camino (lo cierran los muebles) no va: sigue como estaba.
-  function caminarHasta(quien, [i, j]) {
+  // Quien camina, hasta esa casilla, por el camino más corto; con `puerta`
+  // (sólo tú), también hasta su casilla y desde ella, por la de enfrente. A
+  // medio paso, se termina el paso y desde ahí se va al nuevo destino. Con
+  // menos movimiento, aparece ahí. Sin camino (lo cierran los muebles) no va:
+  // sigue como estaba. Dice si va (o ya está ahí).
+  function caminarHasta(quien, [i, j], puerta = null) {
     const ocupado = noSePisan(depto);
-    if (!quien || ocupado.has(`${i},${j}`)) return;
+    if (!quien || ocupado.has(`${i},${j}`)) return false;
     const desde = quien.ruta.length > 0 ? quien.ruta[0] : [quien.i, quien.j];
-    if (quien.ruta.length === 0 && desde[0] === i && desde[1] === j) return;
-    const pasos = camino(depto.ancho, depto.fondo, ocupado, desde, [i, j]);
+    if (quien.ruta.length === 0 && desde[0] === i && desde[1] === j) return true;
+    const pasos = camino(depto.ancho, depto.fondo, ocupado, desde, [i, j], puerta);
     const yaVaAhi = desde[0] === i && desde[1] === j;
-    if (pasos.length === 0 && !yaVaAhi) return;
+    if (pasos.length === 0 && !yaVaAhi) return false;
     if (quieto()) {
       quien.ruta = [];
       quien.i = i;
       quien.j = j;
       dibujar();
-      return;
+      return true;
     }
     quien.ruta = quien.ruta.length > 0 ? [quien.ruta[0], ...pasos] : pasos;
     pedirCuadro();
+    return true;
+  }
+
+  // «Salir»: caminas hasta la puerta y, al llegar, al pueblo; si ya estás en
+  // ella, o con menos movimiento, enseguida. Sin camino no se sale, y se dice.
+  // Mientras una petición va, no se sale.
+  function salirPorLaPuerta() {
+    const puerta = depto && laPuerta(depto);
+    if (enCamino || !puerta) return;
+    if (!caminarHasta(tu, puerta.celda, puerta)) {
+      decir(NO_HAY_CAMINO, true);
+      return;
+    }
+    saliendo = true;
+    salirSiLlegaste();
+  }
+
+  // Si ibas saliendo y ya no caminas: en la puerta, al pueblo; si te cortaron
+  // el paso antes de llegar, te quedas. Dice si saliste.
+  function salirSiLlegaste() {
+    if (!saliendo || !tu || tu.ruta.length > 0) return false;
+    saliendo = false;
+    const puerta = laPuerta(depto);
+    if (!puerta || tu.i !== puerta.celda[0] || tu.j !== puerta.celda[1]) return false;
+    irAlPueblo();
+    return true;
   }
 
   // Lo que no pisa un gachamon que da un paso solo: los muebles, y donde
@@ -792,13 +858,14 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     verLoElegido();
   }
 
-  // Lo tomas en la mano y se marcan sus sitios; si no cabe en ninguno, se dice
-  // y no lo tomas.
+  // Lo tomas en la mano y se marcan sus sitios (y si ibas a salir, ya no);
+  // si no cabe en ninguno, se dice y no lo tomas.
   function tomar(mano) {
     if (!mano || !mano.sitios.length) {
       decir(NO_CABE, true);
       return;
     }
+    saliendo = false;
     enLaMano = mano;
     decir(indicacionDe(mano));
     verLoElegido();
@@ -847,9 +914,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Tocar un mueble o un gachamon lo elige, y tocarlo otra vez deja de
   // elegirlo; lo que se pisa (una alfombra, el felpudo) además se camina.
   // Tocar el suelo es caminar, y lo elegido deja de estarlo; tocar fuera o una
-  // pared vacía, también.
+  // pared vacía, también. Tocar la pieza mientras vas a salir te deja dentro.
   lienzo.addEventListener('click', (evento) => {
     if (!listo || !m || !sigueAqui()) return;
+    saliendo = false;
     const caja = lienzo.getBoundingClientRect();
     const x = evento.clientX - caja.left;
     const y = evento.clientY - caja.top;
@@ -870,7 +938,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
       else if (casilla && tocado.mueble !== undefined) id = tocado.mueble;
       elegir(id === elegido ? null : id);
     }
-    if (casilla) caminarHasta(tu, casilla);
+    if (casilla) caminarHasta(tu, casilla, laPuerta(depto));
   }, { signal });
 
   // --- el menú de lo elegido -------------------------------------------------------------
@@ -887,9 +955,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   function hacerElMenu(puesto) {
     const botones = [botonDelMenu('✋', 'Mover', moverLoElegido)];
-    // Lo de pared no se gira.
+    // Lo de pared no se gira; la puerta no se guarda: por ella se sale.
     if (puesto.capa !== PARED) botones.push(botonDelMenu('🔄', 'Girar', (boton) => girar(puesto.id, boton)));
-    botones.push(botonDelMenu('📦', 'Guardar', (boton) => guardar(puesto.id, boton)));
+    if (puesto.puerta) botones.push(botonDelMenu('🚪', 'Salir', salirPorLaPuerta));
+    else botones.push(botonDelMenu('📦', 'Guardar', (boton) => guardar(puesto.id, boton)));
     menu.replaceChildren(el('p', { class: 'menu-nombre' }, puesto.nombre), el('div', { class: 'menu-botones' }, botones));
     menu.setAttribute('aria-label', puesto.nombre);
     menuDe = `mueble ${puesto.id}`;
@@ -1294,9 +1363,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // estado y hace `alContestar(respuesta)`; lo que reviente al pintarlo llega
   // a la avería. Sin respuesta, pudo haber llegado igual: se dice y la pieza
   // se vuelve a leer. Al acabar, si se tiró una lectura mientras iba, se pide
-  // otra.
+  // otra. Si ibas a salir por la puerta, ya no.
   async function mandar(origen, hacer, alContestar) {
     if (enCamino) return;
+    saliendo = false;
     acciones += 1;
     esperar(origen);
     decir('');

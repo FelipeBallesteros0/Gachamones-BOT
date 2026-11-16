@@ -2,9 +2,10 @@
 // adelante: las dos paredes del fondo, tramo a tramo; el suelo, casilla a
 // casilla; lo colgado en la pared; y, en el orden de `ordenDePintado`, lo que
 // se pisa, los muebles, los gachamones (el que sale contigo, con su marca
-// encima) y tu avatar. Encima de todo, y translúcidas, las marcas: dónde se
-// puede poner lo que llevas en la mano y la huella de lo elegido. No sabe de
-// red ni de reloj: pinta la escena que le dan.
+// encima) y tu avatar, que en la puerta se ve de pie en su umbral. Encima de
+// todo, y translúcidas, las marcas: dónde se puede poner lo que llevas en la
+// mano y la huella de lo elegido. No sabe de red ni de reloj: pinta la escena
+// que le dan.
 //
 // La pieza no es pixel art: sus dibujos se pintan con suavizado. El avatar y
 // los retratos sí lo son, y se pintan sin él. Un dibujo que no se pudo cargar
@@ -14,7 +15,7 @@
 import { faltante, pintarPieza } from './arte.js';
 import { dibujarAvatar } from './avatar.js';
 import {
-  cajaDelGachamon, cajaDelMueble, ordenDePintado, proyectar, recuadroDe, rutaDelMueble,
+  cajaDelGachamon, cajaDelMueble, ordenDePintado, proyectar, recuadroDe, rutaDelMueble, umbralDe,
 } from './proyeccion.js';
 
 const SUELO = 'suelo';
@@ -97,6 +98,19 @@ function pintarGachamon(ctx, m, cargadas, g) {
   }
 }
 
+// Dónde se pinta tu avatar: donde está, salvo en la casilla de la puerta, que
+// queda fuera de la pieza: ahí, en su umbral (`umbralDe`); a medio paso entre
+// ella y la casilla de enfrente, en la línea que los une.
+function dondeSePinta({ i, j }) {
+  if (i >= 0 && j >= 0) return [i, j];
+  const enLaIzquierda = i < 0;
+  const umbral = umbralDe(enLaIzquierda ? [-1, j] : [i, -1]);
+  const enfrente = enLaIzquierda ? [0, j] : [i, 0];
+  // Lo que le falta para llegar a la de enfrente: 1 en la puerta.
+  const falta = enLaIzquierda ? -i : -j;
+  return [0, 1].map((k) => enfrente[k] + (umbral[k] - enfrente[k]) * falta);
+}
+
 // Una casilla `(i, j)` del suelo, o un tramo de pared (`(-1, j)`, la
 // izquierda; `(i, -1)`, la derecha), pintada encima de todo.
 function marcar(ctx, m, [i, j], relleno, borde) {
@@ -124,8 +138,9 @@ function marcar(ctx, m, [i, j], relleno, borde) {
 // que contesta `GET departamento`; `cargadas`, el arte que ya llegó, por ruta
 // (`{ruta, imagen}`, con las capas del avatar y los retratos); `gachamones`,
 // `[{id, i, j, retrato, activo, sube}]`; `tu`, `{i, j, pose, espejo, avatar}` o
-// `null`; `libres` y `elegido`, listas de casillas o tramos `[i, j]` (o
-// `null`). Las posiciones pueden tener decimales: alguien a medio paso.
+// `null` (tú puedes estar en la casilla de la puerta, fuera de la pieza);
+// `libres` y `elegido`, listas de casillas o tramos `[i, j]` (o `null`). Las
+// posiciones pueden tener decimales: alguien a medio paso.
 export function dibujarPieza(ctx, m, escena) {
   const { depto, cargadas } = escena;
   ctx.save();
@@ -152,12 +167,13 @@ export function dibujarPieza(ctx, m, escena) {
   }
   const { tu } = escena;
   if (tu) {
+    const [i, j] = dondeSePinta(tu);
     cosas.push({
       tipo: 'tu',
-      i: tu.i,
-      j: tu.j,
+      i,
+      j,
       pintar: () => {
-        const [x, y] = proyectar(m, tu.i + 0.5, tu.j + 0.5);
+        const [x, y] = proyectar(m, i + 0.5, j + 0.5);
         dibujarAvatar(ctx, cargadas, tu.avatar, tu.pose, x, y, ALTO_DEL_AVATAR * m.tw, tu.espejo);
       },
     });

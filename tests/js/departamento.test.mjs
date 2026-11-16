@@ -377,6 +377,7 @@ function crearServidor() {
 
 // --- lo que se pinta ---------------------------------------------------------------
 
+const PUERTA_ID = 20;
 const CAMA_ID = 21;
 const GUARDADA_ID = 22;
 const MACETA_ID = 23;
@@ -387,6 +388,8 @@ const CAMA = { clave: 'cama_sencilla', nombre: 'Cama sencilla', icono: 'iconos/m
 const MACETA = { clave: 'maceta', icono: 'iconos/muebles/maceta.png', capa: 'bulto', cama: false, ancho: 1, fondo: 1 };
 const CUADRO = { clave: 'cuadro', nombre: 'Cuadro', icono: 'iconos/muebles/cuadro.png', capa: 'pared', cama: false, ancho: 1, fondo: 1 };
 const FELPUDO = { clave: 'felpudo', nombre: 'Felpudo', icono: 'iconos/muebles/felpudo.png', capa: 'suelo', cama: false, ancho: 1, fondo: 1 };
+// La puerta, como la manda el servidor: de pared, de un tramo, sin ícono y con su marca.
+const PUERTA = { clave: 'puerta', nombre: 'Puerta', icono: null, capa: 'pared', cama: false, puerta: true, ancho: 1, fondo: 1 };
 
 const PELUSA = {
   id: 7, nombre: 'Pelusa', espera_nombre: false, se_nombro_solo: false, especie: 'pollito', nombre_especie: 'Pollito',
@@ -404,14 +407,28 @@ const ESTADO = {
   lugar: { clave: 'casa', nombre: 'Tu casa', abre: null, aviso: null, ofrece: ['departamento'] },
 };
 
-// Un 3 × 3 con la cama sencilla en (0, 0), a lo ancho, y otra guardada.
+// Un 3 × 3 con la cama sencilla en (0, 0), a lo ancho, y otra guardada; y la
+// puerta donde nace, en el tramo de más adelante de la pared izquierda, (-1, 2):
+// la casilla de dentro que le queda enfrente es (0, 2).
 const DEPTO = {
   ancho: 3, fondo: 3, casillas: 9, comodidad: 82, tope: 100, camas: 1, gachamones: 1,
   plantel: [{ ...PELUSA, activo: true }], cabe_otro: false, ampliar: { ancho: 45, fondo: 45 },
-  puestos: [{ id: CAMA_ID, ...CAMA, x: 0, y: 0, giro: 0, casillas: [[0, 0], [1, 0]] }],
+  puestos: [{ id: CAMA_ID, ...CAMA, x: 0, y: 0, giro: 0, casillas: [[0, 0], [1, 0]] },
+    { id: PUERTA_ID, ...PUERTA, x: -1, y: 2, giro: 0, casillas: [[-1, 2]] }],
   guardados: [{ id: GUARDADA_ID, ...CAMA }],
   saldos: { monedas: 130, gemas: 2 },
 };
+
+// Ese mismo departamento sin su puerta, como eran antes de ella: tu avatar entra
+// en el primer sitio de entrada, la esquina de delante.
+const sinPuerta = (depto) => ({ ...depto, puestos: depto.puestos.filter((p) => !p.puerta) });
+const SIN_PUERTA = sinPuerta(DEPTO);
+
+// Una copia del departamento con ese puesto de más.
+const conPuesto = (depto, puesto) => ({ ...depto, puestos: [...depto.puestos, puesto] });
+
+// Una copia del departamento con el puesto de ese id cambiado (`cambios`, lo que cambia de él).
+const moverPuesto = (depto, id, cambios) => ({ ...depto, puestos: depto.puestos.map((p) => (p.id === id ? { ...p, ...cambios } : p)) });
 
 // El mismo, con una maceta en (2, 2).
 const CON_MACETA = {
@@ -583,17 +600,41 @@ async function tocarTramo(pantalla, i, j) {
   await tocarEn(pantalla, ...punto);
 }
 
-// La casilla donde la pantalla pintó a tu avatar la última vez: la que queda
-// bajo los pies de su cuerpo, que están 4 de sus 84 píxeles sobre el borde de
-// abajo (el contrato del arte). `null` si no lo pintó.
-function dondeEstasTu(pantalla) {
-  const { trazos = [] } = lienzoDe(pantalla);
-  const cuerpo = trazos.filter(([nombre, [imagen]]) => nombre === 'drawImage'
-    && String(imagen && imagen.src).includes('/avatar/cuerpo/')).at(-1);
+// Dónde está en la pieza lo que se pintó con los pies en ese punto del lienzo,
+// en sus coordenadas (las que se le pasan a `dibujarPieza`, que pinta a cada uno
+// con los pies en el centro de su casilla), a la décima: sin redondear a la
+// casilla, para ver también dónde se pinta lo que no está en el suelo (el umbral
+// de la puerta). El avatar se pinta en píxeles enteros: la décima se lo traga.
+function enLaPieza(pantalla, x, y) {
+  const { m } = medidaDe(pantalla);
+  const u = (x - m.ox) / (m.tw / 2);
+  const v = (y - m.oy) / (m.th / 2);
+  const aLaDecima = (n) => Math.round(n * 10) / 10 + 0;                 // y sin -0
+  return [aLaDecima((v + u) / 2 - 0.5), aLaDecima((v - u) / 2 - 0.5)];
+}
+
+// Dónde pintó la pantalla a tu avatar la última vez que pintó la pieza: lo que
+// queda bajo los pies de su cuerpo, que están 4 de sus 84 píxeles sobre el borde
+// de abajo (el contrato del arte). `null` si esa vez no lo pintó.
+function dondeEstas(pantalla) {
+  const cuerpo = pintados(pantalla, '/avatar/cuerpo/').at(-1);
   if (!cuerpo) return null;
   const [, [, x, y, ancho, alto]] = cuerpo;
-  const { m, ancho: a, fondo: f } = medidaDe(pantalla);
-  return casillaEn(m, x + ancho / 2, y + alto * (80 / 84), a, f);
+  return enLaPieza(pantalla, x + ancho / 2, y + alto * (80 / 84));
+}
+
+// Dónde pintó la pantalla a cada gachamon la última vez, como `dondeEstas`: sus
+// pies están un cuarto de alto de casilla bajo el centro de su casilla.
+function dondeEstanLosGachamones(pantalla) {
+  const { m } = medidaDe(pantalla);
+  return pintados(pantalla, '/gachamon/retrato/')
+    .map(([, [, x, y, ancho, alto]]) => enLaPieza(pantalla, x + ancho / 2, y + alto - m.th / 4));
+}
+
+// Hace que la pantalla vuelva a leer la pieza, como al volver a la pestaña (la
+// del documento de ahora: el de la última pantalla que se abrió).
+async function releer() {
+  await document.dispara('visibilitychange');
 }
 
 // El sitio de entrada del gachamon `n` de su plantel: tú vas en el primero.
@@ -705,16 +746,16 @@ test('tocar fuera de la pieza no hace nada', async () => {
   await tocarEn(pantalla, 2, 2);                                        // una esquina del lienzo
   assert.equal(pedidos.length, 1);
   assert.equal(texto(pantalla, '[role=status].aviso'), '');
-  assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // no se movió
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                    // no se movió: sigue en la puerta
   assert.equal(cuadrosPendientes(), 0);                                 // ni echó a andar
   assert.equal(menu(pantalla), null);
 });
 
 test('tocar una casilla que se pisa lleva ahí a tu avatar, contando el toque desde la esquina del lienzo', async () => {
   const { pantalla, pedidos } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });   // no camina: aparece
-  assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // la entrada
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                    // la entrada: la puerta
   await tocarCasilla(pantalla, 0, 2);
-  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.deepEqual(dondeEstas(pantalla), [0, 2]);
   assert.equal(pedidos.length, 1);                                      // dónde estás no se manda
 });
 
@@ -772,12 +813,12 @@ test('lo que reviente al preparar la pieza llega a la avería, también tras «V
 // --- caminar ---------------------------------------------------------------------------
 
 test('tu avatar camina hasta la casilla tocada y, al llegar, deja de pedir cuadros', async () => {
-  const { pantalla } = await abrir(DEPTO);
+  const { pantalla } = await abrir(SIN_PUERTA);                          // entras en la esquina de delante, (2, 2)
   await tocarCasilla(pantalla, 0, 2);
-  assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // todavía no se movió: camina
+  assert.deepEqual(dondeEstas(pantalla), [2, 2]);                       // todavía no se movió: camina
   assert.equal(cuadrosPendientes(), 1);
   await correrCuadros(1000);                                            // dos casillas, a tres por segundo
-  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.deepEqual(dondeEstas(pantalla), [0, 2]);
   assert.equal(cuadrosPendientes(), 0);
 });
 
@@ -787,26 +828,28 @@ test('tocar otra casilla a mitad de camino cambia el destino', async () => {
   await correrCuadros(200);                                             // a medio primer paso
   await tocarCasilla(pantalla, 2, 0);
   await correrCuadros(3000);
-  assert.deepEqual(dondeEstasTu(pantalla), [2, 0]);
+  assert.deepEqual(dondeEstas(pantalla), [2, 0]);
   assert.equal(cuadrosPendientes(), 0);
 });
 
 test('un mueble que llega donde estás te deja en la casilla libre más cercana, sin caminar', async () => {
-  const { pantalla, servidor, documento } = await abrir(DEPTO);          // estás en la entrada, (2, 2)
+  const { pantalla, servidor, documento } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);        // estás en (2, 2)
   servidor.responde('GET departamento', CON_MACETA);                     // y ahí llega la maceta
   await documento.dispara('visibilitychange');
-  assert.deepEqual(dondeEstasTu(pantalla), [2, 1]);
+  assert.deepEqual(dondeEstas(pantalla), [2, 1]);
   assert.equal(cuadrosPendientes(), 0);
 });
 
 test('un mueble que llega en tu camino lo corta: terminas el paso y te quedas ahí', async () => {
   const { pantalla, servidor, documento } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
   await tocarCasilla(pantalla, 0, 2);                                    // de (2, 2) a (0, 2), por (1, 2)
   await correrCuadros(100);
   servidor.responde('GET departamento', { ...DEPTO, puestos: [...DEPTO.puestos, { ...LA_MACETA, x: 0, y: 2, giro: 0, casillas: [[0, 2]] }] });
   await documento.dispara('visibilitychange');
   await correrCuadros(3000);
-  assert.deepEqual(dondeEstasTu(pantalla), [1, 2]);
+  assert.deepEqual(dondeEstas(pantalla), [1, 2]);
   assert.equal(cuadrosPendientes(), 0);
 });
 
@@ -980,7 +1023,7 @@ test('tocar algo que se pisa lo elige y camina hasta ahí', async () => {
   const { pantalla } = await abrir(CON_FELPUDO, ESTADO, { movimientoReducido: true });
   await tocarCasilla(pantalla, 0, 2);
   assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Felpudo');
-  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.deepEqual(dondeEstas(pantalla), [0, 2]);
 });
 
 test('lo colgado se elige tocándolo en la pared, y no se gira', async () => {
@@ -1172,7 +1215,7 @@ test('al salir con otro, la marca pasa a él', async () => {
 });
 
 test('caminan solos de vez en cuando, con el azar que se les da', async () => {
-  const { pantalla } = await abrir(CON_DOS, ESTADO, { azar: () => 0 });  // el primero, cada 4 s, al primer sitio libre
+  const { pantalla } = await abrir(sinPuerta(CON_DOS), ESTADO, { azar: () => 0 });   // el primero, cada 4 s, al primer sitio libre
   await correrReloj(3999);
   assert.equal(cuadrosPendientes(), 0);
   await correrReloj(1);
@@ -1285,11 +1328,14 @@ test('si no queda ninguna casilla que se pise no se pinta a nadie, y la ficha si
     puestos: [...CON_DOS.puestos,
       ...[[2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]].map(([x, y], n) => ({ ...LA_MACETA, id: 40 + n, x, y, giro: 0, casillas: [[x, y]] }))],
   };
-  const { pantalla } = await abrir(LLENO);
+  const { pantalla } = await abrir(sinPuerta(LLENO));
   assert.equal(dondeSePinto(pantalla, PELUSA.retrato), null);
   assert.equal(dondeSePinto(pantalla, RULO.retrato), null);
-  assert.equal(dondeEstasTu(pantalla), null);
+  assert.equal(dondeEstas(pantalla), null);
   assert.match(texto(pantalla, '.ficha-elegido'), /Pelusa.*Sale contigo/s);
+  const conPuerta = await abrir(LLENO);                                  // con puerta, a ti se te ve en ella
+  assert.deepEqual(dondeEstanLosGachamones(conPuerta.pantalla), []);
+  assert.deepEqual(dondeEstas(conPuerta.pantalla), [-0.6, 2]);
 });
 
 // --- ronda de arreglo 1 de los gachamones ----------------------------------------------
@@ -1345,8 +1391,9 @@ test('al cambiarle la cara se sigue pintando su retrato de antes hasta que llega
 test('cada mueble puesto está en la lista con su sitio y sus botones', async () => {
   const { pantalla } = await abrir(CON_MACETA);
   const filas = todos(pantalla, '.lista-puestos li');
-  assert.deepEqual(filas.map((f) => texto(f, '.mueble-nombre')), ['Cama sencilla, en fila 1, columna 1', 'Maceta, en fila 3, columna 3']);
-  for (const f of filas) assert.deepEqual(rotulos(f), ['Mover', 'Girar', 'Guardar']);
+  assert.deepEqual(filas.map((f) => texto(f, '.mueble-nombre')),
+    ['Cama sencilla, en fila 1, columna 1', 'Puerta, en la pared izquierda, tramo 3', 'Maceta, en fila 3, columna 3']);
+  assert.deepEqual(filas.map((f) => rotulos(f)), [['Mover', 'Girar', 'Guardar'], ['Mover', 'Salir'], ['Mover', 'Girar', 'Guardar']]);
   assert.deepEqual(rotulos(uno(pantalla, '.lista-guardados li')), ['Poner']);
 });
 
@@ -1376,7 +1423,7 @@ test('lo de pared se ofrece en sus tramos y no se gira', async () => {
   await tocar(boton(fila(pantalla, CUADRO_ID), 'Poner'));
   const sitios = todos(pantalla, '.donde option').map((o) => o.textContent);
   assert.deepEqual(sitios, ['pared derecha, tramo 1', 'pared derecha, tramo 2', 'pared derecha, tramo 3',
-                            'pared izquierda, tramo 1', 'pared izquierda, tramo 2', 'pared izquierda, tramo 3']);
+                            'pared izquierda, tramo 1', 'pared izquierda, tramo 2']);   // en el 3 está la puerta
 });
 
 test('tras guardar, el foco sigue en ese mueble y se vuelve a decir cómo quedó la pieza', async () => {
@@ -1880,8 +1927,8 @@ test('con el teclado, «Ampliar» confirma como siempre', async () => {
 
 // --- lo que decidió el dueño al ver el plan terminado: sin camino, no va -------------------
 
-// Un 3 × 3 sin la cama, con macetas en (1, 2) y (2, 1): la esquina de delante, (2, 2), se pisa,
-// pero los muebles la cierran; a las demás que se pisan se llega. Tú entras en esa esquina
+// Un 3 × 3 sin la cama ni la puerta, con macetas en (1, 2) y (2, 1): la esquina de delante, (2, 2),
+// se pisa, pero los muebles la cierran; a las demás que se pisan se llega. Tú entras en esa esquina
 // (y no sales de ahí) y Pelusa en (0, 2). Es la única casilla que se puede cerrar sin que un
 // mueble alto quede pegado delante de ella: su silueta la rozaría y el toque sería del mueble.
 const CON_LA_ESQUINA_CERRADA = {
@@ -1893,10 +1940,10 @@ const CON_LA_ESQUINA_CERRADA = {
 test('tocar una casilla a la que no hay camino no mueve a tu avatar, ni caminando ni apareciendo, y no dice nada', async () => {
   for (const movimientoReducido of [false, true]) {
     const { pantalla, pedidos } = await abrir(CON_LA_ESQUINA_CERRADA, ESTADO, { movimientoReducido });
-    assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // encerrado en la esquina
+    assert.deepEqual(dondeEstas(pantalla), [2, 2]);                       // encerrado en la esquina
     await tocarCasilla(pantalla, 0, 0);
     assert.equal(cuadrosPendientes(), 0);                                // no echa a andar
-    assert.deepEqual(dondeEstasTu(pantalla), [2, 2]);                     // ni aparece ahí
+    assert.deepEqual(dondeEstas(pantalla), [2, 2]);                       // ni aparece ahí
     assert.equal(menu(pantalla), null);
     assert.equal(texto(pantalla, '[role=status].aviso'), '');
     assert.equal(pedidos.length, 1);
@@ -1906,13 +1953,13 @@ test('tocar una casilla a la que no hay camino no mueve a tu avatar, ni caminand
 test('con menos movimiento, quien tiene camino aparece en su destino; quien no, no va', async () => {
   const { pantalla, servidor, documento } = await abrir({ ...CON_LA_ESQUINA_CERRADA, puestos: [] }, ESTADO, { movimientoReducido: true });
   await tocarCasilla(pantalla, 0, 2);                                    // de (2, 2), sin nada en medio
-  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.deepEqual(dondeEstas(pantalla), [0, 2]);
   assert.equal(cuadrosPendientes(), 0);                                  // no camina: aparece
   servidor.responde('GET departamento', CON_LA_ESQUINA_CERRADA);         // llegan las macetas: la esquina queda cerrada
   await documento.dispara('visibilitychange');
-  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);
+  assert.deepEqual(dondeEstas(pantalla), [0, 2]);
   await tocarCasilla(pantalla, 2, 2);
-  assert.deepEqual(dondeEstasTu(pantalla), [0, 2]);                      // no va
+  assert.deepEqual(dondeEstas(pantalla), [0, 2]);                        // no va
 });
 
 test('mover a un gachamon marca sólo las casillas a las que tiene camino, y tocar una sin camino lo suelta sin moverlo', async () => {
@@ -1932,4 +1979,227 @@ test('mover a un gachamon marca sólo las casillas a las que tiene camino, y toc
   await tocarCasilla(pantalla, 1, 1);                                    // a una con camino, sí va (aparece)
   assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [1, 1]);
   assert.equal(pedidos.length, 1);
+});
+
+// --- la puerta: apareces en ella al entrar y por ella sales ---------------------------------
+
+test('al entrar apareces en la puerta', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                   // su umbral
+});
+
+test('sin puerta se entra como antes', async () => {
+  const { pantalla } = await abrir(SIN_PUERTA);
+  assert.deepEqual(dondeEstas(pantalla), [2, 2]);
+  assert.equal(todos(pantalla, '.lista-puestos li').some((f) => /Salir/.test(f.textContent)), false);
+});
+
+test('desde la puerta se camina hacia adentro por la casilla de enfrente', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2);
+  await correrCuadros(5000);
+  assert.deepEqual(dondeEstas(pantalla), [2, 2]);
+});
+
+test('con la entrada tapada te quedas en la puerta, y puedes mover lo que estorba', async () => {
+  const tapada = conPuesto(DEPTO, { id: MACETA_ID, ...MACETA, nombre: 'Maceta', x: 0, y: 2, giro: 0, casillas: [[0, 2]] });
+  const { pantalla, pedidos, servidor } = await abrir(tapada);
+  await tocarCasilla(pantalla, 2, 2);
+  await correrCuadros(5000);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                   // no va
+  servidor.responde('POST departamento/poner', BIEN(conPuesto(DEPTO, { id: MACETA_ID, ...MACETA, nombre: 'Maceta', x: 2, y: 0, giro: 0, casillas: [[2, 0]] })));
+  await tocarCasilla(pantalla, 0, 2); await tocar(boton(menu(pantalla), 'Mover')); await tocarCasilla(pantalla, 2, 0);
+  assert.equal(pedidos.at(-1)[0], 'POST departamento/poner');
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  assert.deepEqual(dondeEstas(pantalla), [2, 2]);                      // ahora sí
+});
+
+test('el menú de la puerta trae mover y salir, y nada más', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  await tocarTramo(pantalla, -1, 2);
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Puerta');
+  assert.deepEqual(rotulos(menu(pantalla)), ['Mover', 'Salir']);
+});
+
+test('salir desde la puerta lleva al pueblo al momento', async () => {
+  const { pantalla, seguido, pedidos } = await abrir(DEPTO);
+  await tocarTramo(pantalla, -1, 2);
+  await tocar(boton(menu(pantalla), 'Salir'));
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
+  assert.equal(pedidos.filter(([ruta]) => ruta.startsWith('POST')).length, 0);
+});
+
+test('salir desde dentro camina hasta la puerta y entonces va al pueblo', async () => {
+  const { pantalla, seguido } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocarTramo(pantalla, -1, 2); await tocar(boton(menu(pantalla), 'Salir'));
+  assert.equal(seguido.length, 0);                                     // todavía va caminando
+  await correrCuadros(5000);
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
+});
+
+test('tocar otra cosa mientras caminas a la puerta cancela la salida', async () => {
+  const { pantalla, seguido } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocarTramo(pantalla, -1, 2); await tocar(boton(menu(pantalla), 'Salir'));
+  await correrCuadros(100);
+  await tocarCasilla(pantalla, 2, 1);
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+  assert.deepEqual(dondeEstas(pantalla), [2, 1]);
+});
+
+test('sin camino hasta la puerta no se sale y se dice', async () => {
+  const { pantalla, seguido, servidor } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  servidor.responde('GET departamento', conPuesto(DEPTO, { id: MACETA_ID, ...MACETA, nombre: 'Maceta', x: 0, y: 2, giro: 0, casillas: [[0, 2]] }));
+  await releer(pantalla);
+  // Delante de la puerta, la maceta la tapa en el dibujo (se toca lo que se ve, y la
+  // silueta de un mueble es tan alta como la pared): se sale desde la lista.
+  await tocar(boton(fila(pantalla, PUERTA_ID), 'Salir'));
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'No hay camino hasta la puerta.');
+});
+
+test('con menos movimiento se sale sin caminar', async () => {
+  const { pantalla, seguido } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+  await tocarCasilla(pantalla, 2, 2);
+  await tocarTramo(pantalla, -1, 2); await tocar(boton(menu(pantalla), 'Salir'));
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
+});
+
+test('mover la puerta estando en ella te lleva con ella; estando dentro, no', async () => {
+  const movida = moverPuesto(DEPTO, PUERTA_ID, { x: 1, y: -1, casillas: [[1, -1]] });
+  let { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/poner', BIEN(movida));
+  await tocarTramo(pantalla, -1, 2); await tocar(boton(menu(pantalla), 'Mover')); await tocarTramo(pantalla, 1, -1);
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: PUERTA_ID, x: 1, y: -1, giro: 0 }]);
+  assert.deepEqual(dondeEstas(pantalla), [1, -0.6]);
+  ({ pantalla, servidor } = await abrir(DEPTO));
+  servidor.responde('POST departamento/poner', BIEN(movida));
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocarTramo(pantalla, -1, 2); await tocar(boton(menu(pantalla), 'Mover')); await tocarTramo(pantalla, 1, -1);
+  assert.deepEqual(dondeEstas(pantalla), [2, 2]);
+});
+
+test('en la lista, la puerta se mueve y por ella se sale, pero no se gira ni se guarda', async () => {
+  const { pantalla, seguido } = await abrir(DEPTO);
+  const fila_ = fila(pantalla, PUERTA_ID);
+  assert.equal(texto(fila_, '.mueble-nombre'), 'Puerta, en la pared izquierda, tramo 3');
+  assert.deepEqual(rotulos(fila_), ['Mover', 'Salir']);
+  await tocar(boton(fila_, 'Salir'));
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
+});
+
+test('los gachamones no llegan a la puerta', async () => {
+  const { pantalla } = await abrir(CON_DOS, ESTADO, { azar: () => 0 });
+  for (let n = 0; n < 40; n += 1) {
+    await correrReloj(9000);
+    await correrCuadros(1000);                                          // y dan los pasos que echaron a andar
+  }
+  assert.equal(dondeEstanLosGachamones(pantalla).length, 2);
+  assert.ok(dondeEstanLosGachamones(pantalla).every(([i, j]) => i >= 0 && j >= 0));
+});
+
+// --- lo que el encargo de la puerta dice y no prueba lo de arriba ---------------------------
+
+test('entrando por la puerta se te ve pasar de su umbral a la casilla de enfrente, sin saltos', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 0, 2);
+  await correrCuadros(150);                                             // a medio paso
+  const [i, j] = dondeEstas(pantalla);
+  assert.ok(i > -0.6 && i < 0, String(i));
+  assert.equal(j, 2);
+});
+
+test('con menos movimiento, sin camino tampoco se entra ni se sale: ni caminando ni apareciendo', async () => {
+  const tapada = conPuesto(DEPTO, { id: MACETA_ID, ...MACETA, nombre: 'Maceta', x: 0, y: 2, giro: 0, casillas: [[0, 2]] });
+  const desdeLaPuerta = await abrir(tapada, ESTADO, { movimientoReducido: true });
+  await tocarCasilla(desdeLaPuerta.pantalla, 2, 2);
+  assert.deepEqual(dondeEstas(desdeLaPuerta.pantalla), [-0.6, 2]);       // no entra
+  const desdeDentro = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+  await tocarCasilla(desdeDentro.pantalla, 2, 2);
+  const encerrado = [[1, 2], [2, 1]].reduce((d, [x, y], n) => conPuesto(d, { ...LA_MACETA, id: 30 + n, x, y, giro: 0, casillas: [[x, y]] }), DEPTO);
+  desdeDentro.servidor.responde('GET departamento', encerrado);           // la esquina de delante, cerrada
+  await releer(desdeDentro.pantalla);
+  await tocarTramo(desdeDentro.pantalla, -1, 2); await tocar(boton(menu(desdeDentro.pantalla), 'Salir'));
+  assert.equal(desdeDentro.seguido.length, 0);                          // no sale
+  assert.deepEqual(dondeEstas(desdeDentro.pantalla), [2, 2]);             // ni aparece en ella
+  assert.equal(texto(desdeDentro.pantalla, '[role=status].aviso'), 'No hay camino hasta la puerta.');
+});
+
+test('mientras va una petición no se sale por la puerta', async () => {
+  const { pantalla, seguido, servidor } = await abrir(CON_MACETA);
+  const soltar = servidor.retiene('POST departamento/guardar');
+  await tocar(boton(fila(pantalla, MACETA_ID), 'Guardar'));
+  const salir = boton(fila(pantalla, PUERTA_ID), 'Salir');
+  assert.equal(salir.getAttribute('aria-disabled'), 'true');
+  await tocar(salir);
+  assert.equal(seguido.length, 0);
+  await soltar(BIEN(SIN_MACETA));
+  await tocar(boton(fila(pantalla, PUERTA_ID), 'Salir'));
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
+});
+
+test('hacer otra cosa mientras caminas a la puerta (cuidar, tomar algo de los guardados) también cancela la salida', async () => {
+  const { pantalla, seguido, servidor } = await abrir(DEPTO);
+  servidor.responde('POST cuidar', { ok: true, mensaje: 'Pelusa quedó reluciente.', espera: 600, monedas: 0, evoluciono: false, logros: [], gachamon: PELUSA, estado: ESTADO });
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocar(boton(fila(pantalla, PUERTA_ID), 'Salir'));
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Bañar'));
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                     // llegó a la puerta, y se quedó
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocar(boton(fila(pantalla, PUERTA_ID), 'Salir'));
+  await tocar(boton(pantalla, 'Guardados'));
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+});
+
+test('si la puerta cambia de sitio mientras estás en ella (en otra pestaña), sigues en ella; si estás dentro, no te mueves', async () => {
+  const movida = moverPuesto(DEPTO, PUERTA_ID, { x: 2, y: -1, casillas: [[2, -1]] });
+  const { pantalla, servidor } = await abrir(DEPTO);
+  servidor.responde('GET departamento', movida);
+  await releer(pantalla);
+  assert.deepEqual(dondeEstas(pantalla), [2, -0.6]);
+  await tocarCasilla(pantalla, 1, 1); await correrCuadros(5000);       // entras por la de enfrente, (2, 0)
+  assert.deepEqual(dondeEstas(pantalla), [1, 1]);
+  servidor.responde('GET departamento', DEPTO);
+  await releer(pantalla);
+  assert.deepEqual(dondeEstas(pantalla), [1, 1]);
+});
+
+test('la puerta no está entre los guardados', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  await tocar(boton(pantalla, 'Guardados'));
+  assert.deepEqual(todos(uno(pantalla, '.bandeja'), 'button').map((b) => texto(b, '.bandeja-nombre')), ['Cama sencilla × 1']);
+  assert.deepEqual(todos(pantalla, '.lista-guardados li').map((f) => texto(f, '.mueble-nombre')), ['Cama sencilla']);
+});
+
+test('si dentro ya no queda casilla que se pise, te quedas en la puerta', async () => {
+  const { pantalla, servidor } = await abrir(DEPTO);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  const lleno = [[2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]]
+    .reduce((d, [x, y], n) => conPuesto(d, { ...LA_MACETA, id: 40 + n, x, y, giro: 0, casillas: [[x, y]] }), DEPTO);
+  servidor.responde('GET departamento', lleno);
+  await releer(pantalla);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);
+});
+
+test('si lo que llega te para camino de la puerta, ya no sales, tampoco después', async () => {
+  const { pantalla, seguido, servidor } = await abrir(DEPTO, ESTADO, { azar: () => 0 });
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocar(boton(fila(pantalla, PUERTA_ID), 'Salir'));                 // echas a andar hacia la puerta…
+  const lleno = [[2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]]
+    .reduce((d, [x, y], n) => conPuesto(d, { ...LA_MACETA, id: 40 + n, x, y, giro: 0, casillas: [[x, y]] }), DEPTO);
+  servidor.responde('GET departamento', lleno);
+  await releer(pantalla);                                                 // …la pieza se llena y quedas en la puerta, sin llegar
+  servidor.responde('GET departamento', DEPTO);
+  await releer(pantalla);                                                 // se vacía
+  await correrReloj(9000); await correrCuadros(5000);                     // y un gachamon da un paso
+  assert.equal(seguido.length, 0);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);
 });

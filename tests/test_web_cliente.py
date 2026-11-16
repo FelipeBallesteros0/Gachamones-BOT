@@ -549,6 +549,13 @@ def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
         assert not re.search(r"\b(15|85)\b", codigo), nombre      # lo que cuesta una casilla y una cama
 
 
+def test_el_cliente_reconoce_la_puerta_por_su_marca_y_no_por_su_clave():
+    for nombre in ("departamento.js", "pieza.js", "lista.js", "casillas.js", "proyeccion.js", "plantel.js", "flotantes.js"):
+        codigo = _sin_comentarios(_guion(nombre))
+        assert "'puerta'" not in codigo and '"puerta"' not in codigo, nombre
+    assert ".puerta" in _guion("casillas.js")
+
+
 def test_lo_comun_de_los_cuidados_vive_en_un_solo_sitio():
     cuidados, lugar, depto = (_guion(n) for n in ("cuidados.js", "lugar.js", "departamento.js"))
     assert "export const CUIDADOS" in cuidados and "nombre: 'Bañar'" in cuidados
