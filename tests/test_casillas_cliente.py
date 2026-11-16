@@ -1,4 +1,8 @@
-"""Contrasta lo que el cliente cree que cabe (casillas.js) con lo que dice el servidor."""
+"""Contrasta lo que el cliente cree que cabe (casillas.js) con lo que dice el servidor.
+
+Lo que recibe el cliente sale de `web.departamento.vista`, la que arma `GET
+/departamento`: si cambia el nombre de un campo, esta prueba lo nota.
+"""
 import json
 import shutil
 import subprocess
@@ -6,7 +10,10 @@ from pathlib import Path
 
 import pytest
 
+import db
 import departamento as dep
+from web import departamento as web_departamento
+from web.cuenta import Jugador
 
 RAIZ = Path(__file__).resolve().parent.parent
 MODULO = RAIZ / "web" / "static" / "js" / "casillas.js"
@@ -35,20 +42,17 @@ def _departamento_de_ejemplo() -> dep.Departamento:
     ))
 
 
-def _como_lo_da_la_vista(depto: dep.Departamento) -> dict:
-    """La forma de `GET /departamento`, sólo con lo que el cliente usa para las cuentas."""
-    puestos = []
-    for pieza in depto.puestas:
-        mueble = dep.MUEBLES[pieza.clave]
-        puestos.append({
-            "id": pieza.id, "clave": mueble.clave, "x": pieza.x, "y": pieza.y, "giro": pieza.giro,
-            "capa": mueble.capa, "cama": mueble.cama, "ancho": mueble.ancho, "fondo": mueble.fondo,
-            "casillas": [list(c) for c in sorted(dep.huella(mueble, pieza.x, pieza.y, pieza.giro))],
-        })
-    return {"ancho": depto.ancho, "fondo": depto.fondo, "casillas": depto.casillas, "puestos": puestos, "guardados": []}
+# Una persona sintética, en una base temporal: la vista lee sus saldos y su plantel.
+JUGADOR = Jugador(persona=None, usuario_id="web:casillas", guild_id="g", vinculada=False)
 
 
-def test_el_cliente_y_el_servidor_dicen_lo_mismo():
+@pytest.fixture
+def base_temporal(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "casillas.db")
+    db.inicializar()
+
+
+def test_el_cliente_y_el_servidor_dicen_lo_mismo(base_temporal):
     node = shutil.which("node")
     if node is None:
         pytest.skip("no hay Node en esta máquina")
@@ -56,8 +60,8 @@ def test_el_cliente_y_el_servidor_dicen_lo_mismo():
     casos, esperado = [], []
     for mueble in dep.MUEBLES.values():
         depto = dep.Departamento(base.ancho, base.fondo, (*base.piezas, dep.Pieza(CANDIDATA, mueble.clave)))
-        pieza = {"id": CANDIDATA, "clave": mueble.clave, "capa": mueble.capa, "cama": mueble.cama,
-                 "ancho": mueble.ancho, "fondo": mueble.fondo}
+        # El candidato, como lo trae la vista: guardado, a la espera de ponerse.
+        [pieza] = [g for g in web_departamento.vista(JUGADOR, depto)["guardados"] if g["id"] == CANDIDATA]
         for x in range(-1, base.ancho + 1):
             for y in range(-1, base.fondo + 1):
                 for giro in range(4):
@@ -66,7 +70,7 @@ def test_el_cliente_y_el_servidor_dicen_lo_mismo():
                         "huella": [list(c) for c in sorted(dep.huella(mueble, x, y, giro))],
                         "problema": dep.problema_al_poner(depto, CANDIDATA, x, y, giro),
                     })
-    entrada = json.dumps({"depto": _como_lo_da_la_vista(base), "casos": casos})
+    entrada = json.dumps({"depto": web_departamento.vista(JUGADOR, base), "casos": casos})
     hecho = subprocess.run([node, "--input-type=module", "-e", PROGRAMA], input=entrada,
                            capture_output=True, text=True, cwd=RAIZ)
     assert hecho.returncode == 0, hecho.stderr
