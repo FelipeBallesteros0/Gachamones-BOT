@@ -1,9 +1,10 @@
 // Tus gachamones, al lado de la pieza de tu departamento: la ficha del que
-// está elegido (su nombre, la chapa «Sale contigo» si es el que sale contigo,
-// «Especie etapa · nivel N», sus tres barras, sus cuatro cuidados con lo que
-// les falta, «Acariciar», «Ver ficha» y, si no es el que sale contigo, «Salir
-// con …») y, debajo, «A todos». Sin ningún gachamon, en lugar de la ficha se
-// dice que todavía no vive ninguno, y «A todos» no está.
+// está elegido (su nombre, «Desfallecido» o «Desfallecida» mientras lo esté,
+// como en la pantalla del lugar, la chapa «Sale contigo» si es el que sale
+// contigo, «Especie etapa · nivel N», sus tres barras, sus cuatro cuidados
+// con lo que les falta, «Acariciar», «Ver ficha» y, si no es el que sale
+// contigo, «Salir con …») y, debajo, «A todos». Sin ningún gachamon, en lugar
+// de la ficha se dice que todavía no vive ninguno, y «A todos» no está.
 //
 // `panelDelPlantel(acciones)` arma los nodos una vez y los deja al día con lo
 // que le pasa la pantalla: no habla con el servidor ni decide quién está
@@ -14,7 +15,7 @@
 // Todo texto entra por `el` o por `textContent`.
 
 import {
-  BARRAS, CUIDADOS, botonDeCuidado, contarCuidado, faltaPara, medidorDe, pintarMedidores, ponerEsperas,
+  BARRAS, CUIDADOS, botonDeCuidado, contarCuidado, faltaPara, medidorDe, pintarMedidores, ponerEsperas, segun,
 } from './cuidados.js';
 import { el } from './dom.js';
 
@@ -36,11 +37,14 @@ export function panelDelPlantel(acciones) {
   const titulo = el('span', { class: 'titulo-del-gachamon' });
   const cabeza = el('h2', { class: 'ficha-elegido-nombre', id: 'departamento-elegido', tabindex: '-1' }, nombre, titulo);
   const chapa = el('span', { class: 'chapa-sale-contigo' }, SALE_CONTIGO);
+  // La misma insignia que la pantalla del lugar.
+  const insignia = el('p', { class: 'insignia', hidden: true });
   const verFicha = el('button', { type: 'button', class: 'boton boton-chico boton-ver-ficha' }, 'Ver ficha');
   verFicha.addEventListener('click', () => acciones.verFicha());
-  // El nombre y «Ver ficha» están siempre; la chapa va entre los dos sólo en
-  // la del que sale contigo.
-  const lineaDeCabeza = el('div', { class: 'ficha-cabeza' }, cabeza, verFicha);
+  // El nombre, la insignia (que se ve sólo si está desfallecido) y «Ver
+  // ficha» están siempre; la chapa va antes de «Ver ficha» sólo en la del que
+  // sale contigo.
+  const lineaDeCabeza = el('div', { class: 'ficha-cabeza' }, cabeza, insignia, verFicha);
   const detalle = el('p', { class: 'ficha-detalle' });
   const medidores = BARRAS.map(medidorDe);
   const cuidados = CUIDADOS.map((datos) => {
@@ -125,6 +129,8 @@ export function panelDelPlantel(acciones) {
     }
     nombre.textContent = quien.nombre;
     titulo.textContent = quien.titulo ? ` ${quien.titulo}` : '';
+    insignia.textContent = segun(quien.genero, 'Desfallecido', 'Desfallecida');
+    insignia.hidden = !quien.desfallecido;
     if (quien.activo && !lineaDeCabeza.contains(chapa)) lineaDeCabeza.insertBefore(chapa, verFicha);
     if (!quien.activo && lineaDeCabeza.contains(chapa)) chapa.remove();
     detalle.textContent = `${quien.nombre_especie} ${quien.nombre_etapa} · nivel ${quien.nivel}`;

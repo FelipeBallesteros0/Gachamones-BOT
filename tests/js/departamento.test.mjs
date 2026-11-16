@@ -1562,3 +1562,18 @@ test('si el estado que trae una relectura pide otra pantalla, la del departament
   assert.equal(seguido.length, 1);
   assert.equal(seguido[0][0], enLaTienda);
 });
+
+test('la ficha del elegido dice «Desfallecido» o «Desfallecida» mientras lo esté, como la del lugar', async () => {
+  const sinComer = (g) => ({ ...g, desfallecido: true, barras: { ...g.barras, comida: 0 } });
+  const DESFALLECIDOS = { ...CON_DOS, plantel: [{ ...sinComer(PELUSA), activo: true }, { ...sinComer(RULO), activo: false }] };
+  const { pantalla, servidor, documento } = await abrir(DESFALLECIDOS);
+  const ficha = uno(pantalla, '.ficha-elegido');
+  assert.equal(texto(ficha, '.insignia'), 'Desfallecida');                // Pelusa
+  assert.equal(uno(ficha, '.insignia').hidden, false);
+  await tocarA(pantalla, DESFALLECIDOS, 1);
+  assert.equal(texto(ficha, '.insignia'), 'Desfallecido');                // Rulo
+  assert.equal(uno(ficha, '.insignia').hidden, false);
+  servidor.responde('GET departamento', CON_DOS);                          // ya comieron
+  await documento.dispara('visibilitychange');
+  assert.equal(uno(ficha, '.insignia').hidden, true);
+});
