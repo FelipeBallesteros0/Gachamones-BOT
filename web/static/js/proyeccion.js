@@ -81,6 +81,12 @@ export function cajaDelMueble(m, forma, x, y, giro) {
   return { x: izquierda, y: abajo - alto, ancho: medias * m.tw / 2, alto };
 }
 
+// Dónde se pinta quien está en la casilla de la puerta: de pie en el vano, no
+// detrás de la pared.
+export function umbralDe([i, j]) {
+  return i === -1 ? [-0.6, j] : [i, -0.6];
+}
+
 export function cajaDelGachamon(m, i, j) {
   const [cx, cy] = proyectar(m, i + 0.5, j + 0.5);
   const lado = 0.8 * m.tw;

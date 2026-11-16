@@ -98,13 +98,31 @@ function vecinasDe(ancho, fondo, [i, j]) {
     .filter(([a, b]) => a >= 0 && a < ancho && b >= 0 && b < fondo);
 }
 
-export function camino(ancho, fondo, ocupado, desde, hasta) {
+// La puerta del departamento, si trae una: su casilla (la del tramo, fuera de
+// la pieza) y la de dentro que queda enfrente. Se reconoce por la marca que manda
+// el servidor.
+export function laPuerta(depto) {
+  const puesto = depto.puestos.find((p) => p.puerta);
+  if (!puesto) return null;
+  const [x, y] = puesto.casillas[0];
+  return { id: puesto.id, celda: [x, y], dentro: [Math.max(x, 0), Math.max(y, 0)] };
+}
+
+// Con `puerta`, su casilla es un sitio más, vecino sólo de la de dentro.
+export function camino(ancho, fondo, ocupado, desde, hasta, puerta = null) {
   if (ocupado.has(clave(...hasta)) || clave(...desde) === clave(...hasta)) return [];
+  const vecinas = (actual) => {
+    const propias = vecinasDe(ancho, fondo, actual);
+    if (!puerta) return propias;
+    if (clave(...actual) === clave(...puerta.dentro)) return [...propias, puerta.celda];
+    if (clave(...actual) === clave(...puerta.celda)) return [puerta.dentro];
+    return propias;
+  };
   const vino = new Map([[clave(...desde), null]]);
   const cola = [desde];
   for (let n = 0; n < cola.length; n += 1) {
     const actual = cola[n];
-    for (const vecina of vecinasDe(ancho, fondo, actual)) {
+    for (const vecina of vecinas(actual)) {
       const k = clave(...vecina);
       if (vino.has(k) || ocupado.has(k)) continue;
       vino.set(k, actual);

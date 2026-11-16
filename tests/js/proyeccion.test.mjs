@@ -158,3 +158,19 @@ test('la esquina vacía del recuadro de un mueble no es el mueble', () => {
   const ahi = p.queSeToco(M, PIEZA, [], caja.x + 2, caja.y + 2);
   assert.ok(ahi === null || ahi.tipo !== 'mueble' || ahi.id !== 7);
 });
+
+test('quien está en la puerta se pinta en su umbral', () => {
+  assert.deepEqual(p.umbralDe([-1, 2]), [-0.6, 2]);
+  assert.deepEqual(p.umbralDe([1, -1]), [1, -0.6]);
+  const m = p.medir(380, 310, 3, 3);
+  const [x, y] = p.proyectar(m, -0.6 + 0.5, 2 + 0.5);
+  const caja = p.cajaDelMueble(m, { ancho: 1, fondo: 1, capa: 'pared' }, -1, 2, 0);
+  assert.ok(x >= caja.x && x <= caja.x + caja.ancho);
+  assert.ok(y <= caja.y + caja.alto && y >= caja.y + caja.alto - m.th);
+});
+
+test('en la puerta se pinta antes que lo que tiene delante', () => {
+  const tu = { tipo: 'tu', i: -0.6, j: 2 };
+  const maceta = { tipo: 'mueble', i: 0, j: 2, a: 1, f: 1 };
+  assert.deepEqual(p.ordenDePintado([maceta, tu]), [tu, maceta]);
+});

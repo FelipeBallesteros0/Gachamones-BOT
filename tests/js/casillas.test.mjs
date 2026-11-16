@@ -8,6 +8,7 @@ const MACETA = { clave: 'maceta', ancho: 1, fondo: 1, capa: 'bulto' };
 const FELPUDO = { clave: 'felpudo', ancho: 1, fondo: 1, capa: 'suelo' };
 const CUADRO = { clave: 'cuadro', ancho: 1, fondo: 1, capa: 'pared' };
 const CORTINAS = { clave: 'cortinas', ancho: 2, fondo: 1, capa: 'pared' };
+const PUERTA = { clave: 'puerta', ancho: 1, fondo: 1, capa: 'pared', puerta: true };
 
 function depto(puestos, ancho = 3, fondo = 3) {
   return { ancho, fondo, casillas: ancho * fondo, comodidad: 80, tope: 100, camas: 0, gachamones: 0, puestos, guardados: [] };
@@ -105,4 +106,36 @@ test('cada sitio tiene su nombre', () => {
   assert.equal(c.nombreDelSitio(1, 0), 'fila 1, columna 2');
   assert.equal(c.nombreDelSitio(-1, 2), 'pared izquierda, tramo 3');
   assert.equal(c.nombreDelSitio(0, -1), 'pared derecha, tramo 1');
+});
+
+test('la puerta tiene su casilla fuera de la pieza y otra enfrente', () => {
+  const izquierda = depto([{ id: 9, ...PUERTA, x: -1, y: 2, giro: 0, casillas: [[-1, 2]] }]);
+  assert.deepEqual(c.laPuerta(izquierda), { id: 9, celda: [-1, 2], dentro: [0, 2] });
+  const derecha = depto([{ id: 9, ...PUERTA, x: 1, y: -1, giro: 0, casillas: [[1, -1]] }]);
+  assert.deepEqual(c.laPuerta(derecha), { id: 9, celda: [1, -1], dentro: [1, 0] });
+  assert.equal(c.laPuerta(depto([{ id: 1, ...CUADRO, x: -1, y: 0, giro: 0, casillas: [[-1, 0]] }])), null);
+});
+
+test('desde la puerta se entra por la casilla de enfrente, y por ella se sale', () => {
+  const puerta = { id: 9, celda: [-1, 2], dentro: [0, 2] };
+  assert.deepEqual(c.camino(3, 3, new Set(), [-1, 2], [2, 2], puerta), [[0, 2], [1, 2], [2, 2]]);
+  assert.deepEqual(c.camino(3, 3, new Set(), [2, 0], [-1, 2], puerta).at(-1), [-1, 2]);
+  assert.deepEqual(c.camino(3, 3, new Set(), [0, 1], [-1, 2], puerta), [[0, 2], [-1, 2]]);
+  assert.deepEqual(c.camino(3, 3, new Set(), [-1, 2], [-1, 2], puerta), []);
+});
+
+test('con la entrada tapada no se entra ni se sale', () => {
+  const puerta = { id: 9, celda: [-1, 2], dentro: [0, 2] };
+  const tapada = new Set(['0,2']);
+  assert.deepEqual(c.camino(3, 3, tapada, [-1, 2], [2, 2], puerta), []);
+  assert.deepEqual(c.camino(3, 3, tapada, [2, 2], [-1, 2], puerta), []);
+});
+
+test('sin puerta, su casilla no existe y nadie pasea hasta ella', () => {
+  assert.deepEqual(c.camino(3, 3, new Set(), [0, 2], [-1, 2]), []);
+  for (let n = 0; n < 20; n += 1) {
+    const [i, j] = c.pasoSuelto(3, 3, new Set(), [0, 2], () => n / 20);
+    assert.ok(i >= 0 && j >= 0);
+  }
+  assert.ok(c.sitiosDeEntrada(3, 3, new Set(), 9).every(([i, j]) => i >= 0 && j >= 0));
 });
