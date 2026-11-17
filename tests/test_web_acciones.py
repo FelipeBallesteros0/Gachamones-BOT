@@ -39,7 +39,7 @@ def test_jugar_sube_el_animo_paga_una_moneda_y_devuelve_el_estado(cliente, monke
     assert respuesta.status_code == 200 and cuerpo["ok"] is True
     assert cuerpo["monedas"] == 1 and cuerpo["mensaje"]
     assert cuerpo["estado"]["gachamon"]["barras"]["animo"] > antes
-    assert cuerpo["estado"]["saldos"]["monedas"] == 51
+    assert cuerpo["estado"]["saldos"]["monedas"] == 1
     assert cuerpo["estado"]["gachamon"]["esperas"]["jugar"] == 29 * 60
 
 
@@ -50,7 +50,7 @@ def test_el_mismo_evento_repetido_no_premia_ni_aplica_dos_veces(cliente, monkeyp
     primera = cuidar(cliente, "jugar", "evento-doble").json()
     repetida = cuidar(cliente, "jugar", "evento-doble").json()
     assert repetida["ok"] is True and repetida["monedas"] == primera["monedas"] == 1
-    assert repetida["estado"]["saldos"]["monedas"] == 51
+    assert repetida["estado"]["saldos"]["monedas"] == 1
     assert repetida["estado"]["gachamon"]["barras"] == primera["estado"]["gachamon"]["barras"]
     assert db.criatura_activa(YO, G).xp == sim.XP_POR_CUIDADO[sim.JUGAR]
 
@@ -73,7 +73,7 @@ def test_antes_de_tiempo_la_regla_dice_que_no_y_cuanto_falta(cliente, monkeypatc
     cuerpo = cuidar(cliente, "jugar", "evento-0002").json()
     assert cuerpo["ok"] is False and cuerpo["monedas"] == 0
     assert cuerpo["espera"] == 20 * 60 and cuerpo["mensaje"]
-    assert cuerpo["estado"]["saldos"]["monedas"] == 51
+    assert cuerpo["estado"]["saldos"]["monedas"] == 1
 
 
 @pytest.mark.parametrize("cuerpo, clave", [
@@ -93,7 +93,7 @@ def test_un_pedido_mal_hecho_no_toca_nada(cliente, monkeypatch, cuerpo, clave):
     con_gachamon(cliente)
     respuesta = cliente.post(CUIDAR, json=cuerpo, headers=ESCRIBIR)
     assert respuesta.status_code == 422 and respuesta.json()["detail"]["clave"] == clave
-    assert economia.saldos(YO, G).asciicoins == 50
+    assert economia.saldos(YO, G).asciicoins == 0
 
 
 def test_sin_gachamon_no_hay_a_quien_cuidar_ni_acariciar(cliente, monkeypatch):
@@ -116,7 +116,7 @@ def test_acariciar_cuenta_una_vez_y_despues_dice_cuanto_falta(cliente, monkeypat
     segunda = cliente.post(ACARICIAR, headers=ESCRIBIR).json()
     assert segunda["ok"] is False and segunda["espera"] == 15 * 60
     assert segunda["estado"]["gachamon"]["barras"] == cliente.get("/gachamon/api/estado").json()["gachamon"]["barras"]
-    assert segunda["estado"]["saldos"] == {"monedas": 50, "gemas": 50}
+    assert segunda["estado"]["saldos"] == {"monedas": 0, "gemas": 0}
 
 
 def test_nadie_cuida_ni_acaricia_al_gachamon_de_otro(cliente, monkeypatch):
@@ -133,7 +133,7 @@ def test_nadie_cuida_ni_acaricia_al_gachamon_de_otro(cliente, monkeypatch):
               "guild_id": G, "criatura_id": mio.id},
     )
     assert intruso.status_code == 409
-    assert db.por_id(mio.id).xp == 0 and economia.saldos(YO, G).asciicoins == 50
+    assert db.por_id(mio.id).xp == 0 and economia.saldos(YO, G).asciicoins == 0
 
 
 def test_las_dos_piden_la_cabecera(cliente, monkeypatch):
@@ -156,7 +156,7 @@ def test_un_cuidado_que_desbloquea_una_medalla_la_trae_y_sube_las_gemas(cliente,
     reloj.pasar(hours=6)
     cuerpo = cuidar(cliente, "jugar", "evento-alfa").json()
     assert cuerpo["ok"] is True and cuerpo["logros"] == [ALFA]
-    assert cuerpo["estado"]["saldos"] == {"monedas": 51, "gemas": 75}
+    assert cuerpo["estado"]["saldos"] == {"monedas": 1, "gemas": 25}
 
 
 def test_repetir_el_mismo_evento_no_paga_la_medalla_otra_vez(cliente, monkeypatch):
@@ -166,8 +166,8 @@ def test_repetir_el_mismo_evento_no_paga_la_medalla_otra_vez(cliente, monkeypatc
     assert cuidar(cliente, "jugar", "evento-alfa").json()["logros"] == [ALFA]
     repetido = cuidar(cliente, "jugar", "evento-alfa").json()
     assert repetido["ok"] is True and repetido["logros"] == []
-    assert repetido["estado"]["saldos"]["gemas"] == 75
-    assert economia.saldos(YO, G).asciigems == 75
+    assert repetido["estado"]["saldos"]["gemas"] == 25
+    assert economia.saldos(YO, G).asciigems == 25
 
 
 def test_un_cuidado_normal_no_trae_medallas(cliente, monkeypatch):
@@ -177,7 +177,7 @@ def test_un_cuidado_normal_no_trae_medallas(cliente, monkeypatch):
     cuidar(cliente, "jugar", "evento-alfa")
     normal = cuidar(cliente, "limpiar", "evento-normal").json()
     assert normal["ok"] is True and normal["logros"] == []
-    assert normal["estado"]["saldos"]["gemas"] == 75
+    assert normal["estado"]["saldos"]["gemas"] == 25
 
 
 def test_un_cuidado_que_no_sale_no_mira_las_medallas(cliente, monkeypatch):
@@ -229,7 +229,7 @@ def test_si_el_relevo_sale_en_la_peticion_no_se_le_aplica(cliente, monkeypatch, 
     assert guardado.activa and guardado.xp == 0 and guardado.animo == relevo.animo
     assert all(s == timedelta(0) for s in db.esperas(
         relevo.id, reloj.ahora, (sim.JUGAR, sim.ACARICIAR)).values())
-    assert economia.saldos(ANA_DISCORD, G) == economia.Saldos(50, 50)
+    assert economia.saldos(ANA_DISCORD, G) == economia.Saldos(0, 0)
 
     # Una vez visto, ya es el mismo: lo siguiente sí le llega.
     assert hacer(cliente).status_code == 200
@@ -302,7 +302,7 @@ def test_una_evolucion_lo_dice_y_paga_su_premio(cliente, monkeypatch):
     # Una del cuidado y diez de la evolución.
     assert cuerpo["monedas"] == 11
     assert cuerpo["estado"]["gachamon"]["etapa"] != "bebe"
-    assert cuerpo["estado"]["saldos"]["monedas"] == 61
+    assert cuerpo["estado"]["saldos"]["monedas"] == 11
 
 
 def test_un_cuidado_sin_evolucion_dice_que_no(cliente, monkeypatch):
@@ -375,7 +375,7 @@ def test_cuidar_a_uno_ajeno_es_no_esta(cliente, monkeypatch, ruta):
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == {"clave": "no_esta", "mensaje": "Ese gachamon ya no está."}
     assert db.por_id(ajeno.id) == ajeno and db.por_id(mio.id) == mio
-    assert economia.saldos(YO, G).asciicoins == 50
+    assert economia.saldos(YO, G).asciicoins == 0
 
 
 @pytest.mark.parametrize("ruta", [CUIDAR, ACARICIAR], ids=["cuidar", "acariciar"])
@@ -389,7 +389,7 @@ def test_un_gachamon_id_que_no_es_un_id_es_un_422(cliente, monkeypatch, ruta, ga
     })
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
-    assert db.por_id(mio.id) == mio and economia.saldos(YO, G).asciicoins == 50
+    assert db.por_id(mio.id) == mio and economia.saldos(YO, G).asciicoins == 0
 
 
 def test_acariciar_a_otro_por_su_id(cliente, monkeypatch):
@@ -436,14 +436,14 @@ def test_a_todos_por_la_web_dice_a_cuantos(cliente, monkeypatch):
     assert cuerpo["a_cuantos"] == 3 and cuerpo["de_cuantos"] == 3
     assert cuerpo["tocados"] == [db.criatura_activa(YO, G).id, bea.id, cia.id]
     assert cuerpo["mensaje"] == "Jugaste con 3 de 3."
-    assert cuerpo["monedas"] == 3 and cuerpo["estado"]["saldos"]["monedas"] == 53
+    assert cuerpo["monedas"] == 3 and cuerpo["estado"]["saldos"]["monedas"] == 3
     # Cada medalla dice de quién es: aquí, la de la alfa de los tres.
     assert cuerpo["logros"] == [{**ALFA, "de": nombre} for nombre in ("Pelusa", "Bea", "Cía")]
     repetida = a_todos(cliente, "jugar").json()
     assert repetida["ok"] is True and repetida["a_cuantos"] == 3 and repetida["de_cuantos"] == 3
     assert repetida["tocados"] == cuerpo["tocados"] and repetida["mensaje"] == "Jugaste con 3 de 3."
     assert repetida["monedas"] == 3 and repetida["logros"] == []
-    assert repetida["estado"]["saldos"]["monedas"] == 53
+    assert repetida["estado"]["saldos"]["monedas"] == 3
 
 
 @pytest.mark.parametrize("accion, mensaje", [
@@ -468,7 +468,7 @@ def test_a_todos_cuando_a_nadie_le_toca(cliente, monkeypatch):
     assert respuesta.status_code == 200 and cuerpo["ok"] is False
     assert cuerpo["a_cuantos"] == 0 and cuerpo["de_cuantos"] == 1 and cuerpo["tocados"] == []
     assert cuerpo["mensaje"] == "Ahora mismo no le toca a ninguno."
-    assert cuerpo["monedas"] == 0 and cuerpo["estado"]["saldos"]["monedas"] == 50
+    assert cuerpo["monedas"] == 0 and cuerpo["estado"]["saldos"]["monedas"] == 0
 
 
 def test_a_todos_sin_gachamones_es_un_409(cliente, monkeypatch):
@@ -487,7 +487,7 @@ def test_a_todos_con_una_accion_que_no_existe_es_un_422(cliente, monkeypatch):
     respuesta = a_todos(cliente, "bailar")
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {"clave": "accion", "mensaje": "Esa acción no existe."}
-    assert economia.saldos(YO, G).asciicoins == 50
+    assert economia.saldos(YO, G).asciicoins == 0
 
 
 def test_a_todos_con_el_evento_de_otra_accion_es_un_409(cliente, monkeypatch):
@@ -500,7 +500,7 @@ def test_a_todos_con_el_evento_de_otra_accion_es_un_409(cliente, monkeypatch):
     assert respuesta.json()["detail"] == {
         "clave": "evento", "mensaje": "Ese cuidado ya se usó para otra acción.",
     }
-    assert economia.saldos(YO, G).asciicoins == 51
+    assert economia.saldos(YO, G).asciicoins == 1
 
 
 def test_a_todos_pide_la_cabecera(cliente, monkeypatch):

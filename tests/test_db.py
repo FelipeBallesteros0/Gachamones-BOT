@@ -675,6 +675,27 @@ def test_el_monedero_dual_nace_50_50_y_es_idempotente():
     assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)
 
 
+def partida_de(usuario, guild="g1"):
+    """Con cuántas monedas y gemas nació su monedero."""
+    with db.conectar() as con:
+        return con.execute(
+            "SELECT partida FROM monederos WHERE usuario_id = ? AND guild_id = ?",
+            (usuario, guild),
+        ).fetchone()["partida"]
+
+
+def test_un_monedero_nace_con_cincuenta_antes_del_cambio_y_con_cero_despues():
+    import economia
+
+    assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)   # la base no ha pasado por el cambio
+    assert partida_de("u1") == 50
+    economia.el_dia_del_cambio(T0, random.Random(1))
+    assert economia.saldos("u2", "g1") == economia.Saldos(0, 0)     # alguien que empieza después
+    assert partida_de("u2") == 0
+    assert economia.saldos("u1", "g1") == economia.Saldos(50, 50)   # el de antes no se toca
+    assert partida_de("u1") == 50
+
+
 def test_cada_servidor_lleva_su_monedero():
     import economia
     import objetos as obj

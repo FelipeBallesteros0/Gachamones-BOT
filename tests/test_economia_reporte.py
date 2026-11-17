@@ -1,4 +1,5 @@
 import json
+import random
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
@@ -79,3 +80,45 @@ def test_reconciliacion_detecta_manipulacion_y_intervalo_invalido():
 
     with pytest.raises(ValueError, match="intervalo UTC inválido"):
         reporte.datos_reporte(db.RUTA, date(2026, 1, 2), date(2026, 1, 1))
+
+
+def test_la_conciliacion_cuadra_con_monederos_que_nacieron_en_cero():
+    economia.saldos("antes", "g")                     # nace con 50: el cambio no ha ocurrido
+    economia.el_dia_del_cambio(T0, random.Random(1))
+    db.crear("despues", "g", "pulpo", "A", (15, 15, 15, 15), T0)
+    economia.ejecutar_cuidado("cuidado", "despues", "g", sim.JUGAR, T0)   # nace en 0 y gana 1
+    economia.comprar("compra", "antes", "g", obj.CATALOGO["pocion_comida"], T0)  # gasta 10
+    assert (economia.saldos("antes", "g"), economia.saldos("despues", "g")) == (
+        economia.Saldos(40, 50), economia.Saldos(1, 0))
+
+    datos = reporte.datos_reporte(db.RUTA, date(2026, 1, 1), date(2026, 1, 1))
+    assert datos["reconciliacion"] == {
+        "alcance": "historico_global", "esperado": 50 + 0 + 1 - 10, "saldos": 41, "cuadra": True,
+    }
+    assert datos["asciigems_fuera_de_la_partida"] == 0    # 50 de 50 y 0 de 0
+    assert "Asciigems fuera de su partida: 0" in reporte.render_texto(datos)
+
+
+def test_las_gemas_se_comparan_con_la_partida_de_cada_monedero():
+    economia.saldos("antes", "g")
+    economia.el_dia_del_cambio(T0, random.Random(1))
+    economia.saldos("despues", "g")
+    with db.conectar() as con:
+        con.execute("UPDATE monederos SET asciigems = 50 WHERE usuario_id = 'despues'")
+    datos = reporte.datos_reporte(db.RUTA, date(2026, 1, 1), date(2026, 1, 1))
+    assert datos["asciigems_fuera_de_la_partida"] == 1    # el que nació en 0 y tiene 50
+    assert "asciigems_fuera_de_50" not in datos
+    assert "Asciigems fuera de su partida: 1" in reporte.render_texto(datos)
+
+
+def test_sobre_una_base_sin_partida_cuenta_cincuenta_por_monedero():
+    economia.saldos("u", "g")
+    economia.comprar("compra", "u", "g", obj.CATALOGO["pocion_comida"], T0)
+    economia.saldos("v", "g")
+    with db.conectar() as con:                          # una copia de antes de la migración
+        con.execute("ALTER TABLE monederos DROP COLUMN partida")
+        con.execute("UPDATE monederos SET asciigems = 49 WHERE usuario_id = 'v'")
+    datos = reporte.datos_reporte(db.RUTA, date(2026, 1, 1), date(2026, 1, 1))
+    assert datos["reconciliacion"]["esperado"] == 50 * 2 - 10
+    assert datos["reconciliacion"]["cuadra"]
+    assert datos["asciigems_fuera_de_la_partida"] == 1

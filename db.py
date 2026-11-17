@@ -461,18 +461,39 @@ CREATE INDEX IF NOT EXISTS idx_muebles
     ON muebles(usuario_id, guild_id);
 """
 
+# `partida` es con cuántas monedas y gemas nació ese monedero: lo que el
+# reporte de conciliación suma a los movimientos para saber cuánto tiene que
+# haber.
 DDL_MONEDEROS = """
 CREATE TABLE monederos (
     usuario_id TEXT NOT NULL,
     guild_id TEXT NOT NULL,
     asciicoins INTEGER NOT NULL DEFAULT 50 CHECK (asciicoins >= 0),
     asciigems INTEGER NOT NULL DEFAULT 50 CHECK (asciigems >= 0),
+    partida INTEGER NOT NULL DEFAULT 50,
     PRIMARY KEY (usuario_id, guild_id)
 )
 """
 
-COLUMNAS_MONEDERO = ("usuario_id", "guild_id", "asciicoins", "asciigems")
+COLUMNAS_MONEDERO = ("usuario_id", "guild_id", "asciicoins", "asciigems", "partida")
+COLUMNAS_MONEDERO_SIN_PARTIDA = ("usuario_id", "guild_id", "asciicoins", "asciigems")
 COLUMNAS_MONEDERO_LEGACY = ("usuario_id", "guild_id", "gemas")
+
+# La marca del día del cambio de la vivienda. La escribe
+# `economia.el_dia_del_cambio`, pero vive aquí porque el esquema también la
+# lee, para saber con cuánto nace un monedero, y `db` no importa `economia`.
+CAMBIO_DE_LA_VIVIENDA = "la_vivienda_por_casillas"
+# Con cuántas monedas y gemas nacía todo monedero hasta el día del cambio.
+PARTIDA_DE_ANTES = 50
+# Con cuánto nace un monedero nuevo, en SQL para que quepa en la misma
+# sentencia que lo crea: lo de antes mientras el día del cambio no haya
+# ocurrido en esa base, y 0 desde entonces. El cambio le deja monedero a todo
+# el que ya estaba, así que desde ese día un monedero nuevo es de alguien que
+# empieza.
+PARTIDA_DE_UN_MONEDERO_NUEVO = (
+    "CASE WHEN EXISTS (SELECT 1 FROM cambios_hechos "
+    f"WHERE clave = '{CAMBIO_DE_LA_VIVIENDA}') THEN 0 ELSE {PARTIDA_DE_ANTES} END"
+)
 
 CAMPOS = (
     "usuario_id", "guild_id", "especie", "nombre", "genero", "caracter",
@@ -608,7 +629,20 @@ def _columnas(con: sqlite3.Connection, tabla: str) -> tuple[str, ...]:
 
 
 def _migrar_monederos(con: sqlite3.Connection) -> None:
-    """Publica el monedero dual y reinicia saldos legacy a 50/50, una sola vez."""
+    """Deja el monedero en su forma de hoy y le crea el suyo a quien le falte.
+
+    Conoce tres formas, y cualquier otra para el arranque sin tocar nada:
+
+    * La heredada, de sólo gemas: se rehace con el monedero dual y todos los
+      saldos a 50/50, una sola vez.
+    * La de antes de `partida`: la recibe con 50 para todos, que es verdad
+      (hasta el día del cambio todo monedero nacía con 50), sin tocar ningún
+      saldo.
+    * La de hoy: se deja como está, así que correrla dos veces no cambia nada.
+
+    Después, quien tiene criaturas u objetos y no tiene monedero lo recibe con
+    lo que nace uno nuevo (`PARTIDA_DE_UN_MONEDERO_NUEVO`).
+    """
     con.execute("BEGIN IMMEDIATE")
     columnas = _columnas(con, "monederos")
     if not columnas:
@@ -622,14 +656,21 @@ def _migrar_monederos(con: sqlite3.Connection) -> None:
             "SELECT usuario_id, guild_id, 50, 50 FROM monederos_legacy"
         )
         con.execute("DROP TABLE monederos_legacy")
+    elif columnas == COLUMNAS_MONEDERO_SIN_PARTIDA:
+        con.execute(
+            "ALTER TABLE monederos ADD COLUMN partida INTEGER NOT NULL "
+            f"DEFAULT {PARTIDA_DE_ANTES}"
+        )
     elif columnas != COLUMNAS_MONEDERO:
         raise RuntimeError(f"forma de monederos desconocida: {columnas!r}")
 
     for tabla in ("criaturas", "inventario"):
         con.execute(
             "INSERT OR IGNORE INTO monederos "
-            "(usuario_id, guild_id, asciicoins, asciigems) "
-            f"SELECT DISTINCT usuario_id, guild_id, 50, 50 FROM {tabla}"
+            "(usuario_id, guild_id, asciicoins, asciigems, partida) "
+            "SELECT DISTINCT t.usuario_id, t.guild_id, n.partida, n.partida, "
+            f"n.partida FROM {tabla} AS t, "
+            f"(SELECT {PARTIDA_DE_UN_MONEDERO_NUEVO} AS partida) AS n"
         )
     con.commit()
 

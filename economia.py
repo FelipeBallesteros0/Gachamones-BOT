@@ -183,10 +183,25 @@ def _fecha_economica(ahora: datetime) -> str:
     return ahora.astimezone(timezone.utc).date().isoformat()
 
 
-def _asegurar_monedero(con, usuario_id: str, guild_id: str) -> None:
+def _asegurar_monedero(
+    con, usuario_id: str, guild_id: str, *, ya_estaba: bool = False
+) -> None:
+    """Le crea el monedero a quien no lo tiene; uno que ya existe no se toca.
+
+    Nace con 50 monedas y 50 gemas mientras el día del cambio no haya ocurrido
+    en esta base, y con 0 y 0 desde entonces (`db.PARTIDA_DE_UN_MONEDERO_NUEVO`);
+    `partida` anota con cuánto nació. Con `ya_estaba` nace con 50 y 50 haya
+    ocurrido o no: lo pide el día del cambio para quien ya jugaba, porque su
+    marca se escribe al empezar, antes de asegurar los monederos.
+
+    Una sola sentencia y sin leer antes: un `INSERT OR IGNORE` que decide la
+    partida dentro de la misma sentencia.
+    """
+    partida = db.PARTIDA_DE_ANTES if ya_estaba else db.PARTIDA_DE_UN_MONEDERO_NUEVO
     con.execute(
         "INSERT OR IGNORE INTO monederos "
-        "(usuario_id, guild_id, asciicoins, asciigems) VALUES (?, ?, 50, 50)",
+        "(usuario_id, guild_id, asciicoins, asciigems, partida) "
+        f"SELECT ?, ?, partida, partida, partida FROM (SELECT {partida} AS partida)",
         (usuario_id, guild_id),
     )
 
@@ -280,7 +295,9 @@ def devolver_cosmeticos_retirados(ahora: datetime) -> ResumenDevolucion:
 # departamento por casillas. Ese día se convierte, una sola vez, lo de cada
 # quien, y nadie pierde nada: lo que no tiene sitio en lo nuevo se le devuelve.
 
-CAMBIO_DE_LA_VIVIENDA = "la_vivienda_por_casillas"
+# Su clave vive en `db`, que también la lee para saber con cuánto nace un
+# monedero.
+CAMBIO_DE_LA_VIVIENDA = db.CAMBIO_DE_LA_VIVIENDA
 # Lo que costaban el día del cambio. Van escritos aquí y no se leen de
 # `casas.py` ni de `objetos.py`, que dejan de tenerlos: se devuelve lo que valían
 # entonces. Cada casa vuelve al precio de la que es (una pequeña que se mejoró a
@@ -377,10 +394,13 @@ def _mudar_a(
     monedas le devolvió.
 
     El monedero se le asegura le toque o no una devolución: quien ya jugaba lo
-    conserva tal cual, aunque todavía no tuviera fila. El buzón va antes que
-    los tickets, para que un ticket regalado también se devuelva.
+    conserva tal cual, y si todavía no tenía fila lo recibe con 50 y 50, como
+    le habría nacido antes del cambio. Va con `ya_estaba` porque la marca del
+    cambio ya está escrita a estas alturas, y sin él nacería en cero, como el
+    de quien empieza. El buzón va antes que los tickets, para que un ticket
+    regalado también se devuelva.
     """
-    _asegurar_monedero(con, usuario_id, guild_id)
+    _asegurar_monedero(con, usuario_id, guild_id, ya_estaba=True)
     regalos = _entregar_el_buzon(con, usuario_id, guild_id)
     cosecha = _cosechar_lo_plantado(con, usuario_id, guild_id, rng)
     tickets = _sacar_los_tickets(con, usuario_id, guild_id)

@@ -144,8 +144,8 @@ def test_al_nacer_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch):
     respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
     assert respuesta.status_code == 201
     # «Uno entre veinticinco»: veinte gemas, ya en el saldo del estado.
-    assert respuesta.json()["saldos"]["gemas"] == 70
-    assert economia.saldos(YO, G).asciigems == 70
+    assert respuesta.json()["saldos"]["gemas"] == 20
+    assert economia.saldos(YO, G).asciigems == 20
     assert set(respuesta.json()) == {
         "ahora", "persona", "avatar", "saldos", "gachamon", "globos", "lugar", "carta",
     }
@@ -165,7 +165,7 @@ def test_la_ayuda_con_gachamon_nace_siempre_de_una_especie_comun(cliente, monkey
     estado = con_gachamon(cliente)
     assert esp.ESPECIES[estado["gachamon"]["especie"]].rareza == esp.COMUN
     assert estado["gachamon"]["nombre"] == "Pelusa"
-    assert estado["saldos"]["gemas"] == economia.saldos(YO, G).asciigems == 50
+    assert estado["saldos"]["gemas"] == economia.saldos(YO, G).asciigems == 0
     # Y al salir de la ayuda, el huevo vuelve a ser el que era.
     assert nacer.esp.elegir_del_huevo(None) is rara
 

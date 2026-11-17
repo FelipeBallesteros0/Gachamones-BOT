@@ -1,6 +1,7 @@
 from dataclasses import replace
 
 import db
+import economia
 import especies as esp
 import identidad
 import retrato
@@ -25,8 +26,16 @@ def test_sin_cuenta_no_hay_estado(cliente):
     assert respuesta.json()["detail"]["clave"] == "sin_cuenta"
 
 
+def sin_el_dia_del_cambio():
+    """El servicio hace el día del cambio al arrancar: sin su marca, la base es
+    una en la que todavía no ha ocurrido."""
+    with db.conectar() as con:
+        con.execute("DELETE FROM cambios_hechos WHERE clave = ?", (economia.CAMBIO_DE_LA_VIVIENDA,))
+
+
 def test_recien_llegado_no_tiene_ni_avatar_ni_gachamon(cliente, monkeypatch):
     poner_reloj(monkeypatch)
+    sin_el_dia_del_cambio()                     # antes del cambio, un monedero nace con 50 y 50
     entrar(cliente, 1)
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     estado = cliente.get(ESTADO).json()
@@ -36,6 +45,18 @@ def test_recien_llegado_no_tiene_ni_avatar_ni_gachamon(cliente, monkeypatch):
     assert estado["persona"] == {"usuario": "felipe", "vinculada": False}
     assert estado["ahora"] == T0.isoformat()
     assert "hogar" not in estado and estado["lugar"]["clave"] == "casa"
+
+
+def test_quien_llega_despues_del_cambio_parte_en_cero(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    with db.conectar() as con:                  # el servicio hizo el día del cambio al arrancar
+        assert con.execute(
+            "SELECT 1 FROM cambios_hechos WHERE clave = ?", (economia.CAMBIO_DE_LA_VIVIENDA,)
+        ).fetchone()
+    entrar(cliente, 1)
+    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    estado = cliente.get(ESTADO).json()
+    assert estado["saldos"] == {"monedas": 0, "gemas": 0}
 
 
 def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):

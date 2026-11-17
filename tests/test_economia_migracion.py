@@ -1,15 +1,79 @@
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 import pytest
 
 import db
+import economia
+
+T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+# La tabla en la forma que tiene en producción antes de `partida`.
+DDL_MONEDEROS_SIN_PARTIDA = """
+CREATE TABLE monederos (
+    usuario_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    asciicoins INTEGER NOT NULL DEFAULT 50 CHECK (asciicoins >= 0),
+    asciigems INTEGER NOT NULL DEFAULT 50 CHECK (asciigems >= 0),
+    PRIMARY KEY (usuario_id, guild_id)
+)
+"""
 
 
 def _conectar(ruta):
     con = sqlite3.connect(ruta)
     con.row_factory = sqlite3.Row
     return con
+
+
+def _monederos():
+    with db.conectar() as con:
+        return [tuple(f) for f in con.execute("SELECT * FROM monederos ORDER BY usuario_id")]
+
+
+def _base_sin_partida(ruta):
+    with _conectar(ruta) as con:
+        con.execute(DDL_MONEDEROS_SIN_PARTIDA)
+        con.execute("INSERT INTO monederos VALUES ('u1', 'g', 37, 12)")
+        con.execute("INSERT INTO monederos VALUES ('u2', 'g', 0, 50)")
+
+
+def test_una_base_de_antes_recibe_la_columna_con_cincuenta(tmp_path, monkeypatch):
+    ruta = tmp_path / "de_antes.db"
+    _base_sin_partida(ruta)
+    monkeypatch.setattr(db, "RUTA", ruta)
+
+    db.inicializar()
+    with db.conectar() as con:
+        assert db._columnas(con, "monederos") == (
+            "usuario_id", "guild_id", "asciicoins", "asciigems", "partida"
+        )
+    assert _monederos() == [("u1", "g", 37, 12, 50), ("u2", "g", 0, 50, 50)]
+
+    db.inicializar()                       # un segundo arranque no cambia nada
+    assert _monederos() == [("u1", "g", 37, 12, 50), ("u2", "g", 0, 50, 50)]
+
+
+def test_dos_arranques_a_la_vez_le_ponen_la_partida_una_sola_vez(tmp_path, monkeypatch):
+    ruta = tmp_path / "de_antes_a_la_vez.db"
+    _base_sin_partida(ruta)
+    monkeypatch.setattr(db, "RUTA", ruta)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(lambda _: db.inicializar(), range(2)))
+    assert _monederos() == [("u1", "g", 37, 12, 50), ("u2", "g", 0, 50, 50)]
+
+
+def test_lo_que_rellena_el_arranque_despues_del_cambio_nace_en_cero(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "RUTA", tmp_path / "despues.db")
+    db.inicializar()
+    economia.el_dia_del_cambio(T0)         # en una base vacía sólo deja su marca
+    with db.conectar() as con:
+        con.execute(
+            "INSERT INTO inventario VALUES ('llega-despues', 'g', 'placa', 1)"
+        )
+    db.inicializar()
+    assert _monederos() == [("llega-despues", "g", 0, 0, 0)]
 
 
 def test_migra_legacy_reiniciando_exactamente_50_50(tmp_path, monkeypatch):
@@ -25,7 +89,7 @@ def test_migra_legacy_reiniciando_exactamente_50_50(tmp_path, monkeypatch):
     db.inicializar()
     with db.conectar() as con:
         fila = con.execute("SELECT * FROM monederos").fetchone()
-    assert tuple(fila) == ("u", "g", 50, 50)
+    assert tuple(fila) == ("u", "g", 50, 50, 50)
 
     db.inicializar()
     with db.conectar() as con:
@@ -95,4 +159,4 @@ def test_inicializaciones_concurrentes_convergen(tmp_path, monkeypatch):
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(lambda _: db.inicializar(), range(2)))
     with db.conectar() as con:
-        assert tuple(con.execute("SELECT * FROM monederos").fetchone()) == ("u", "g", 50, 50)
+        assert tuple(con.execute("SELECT * FROM monederos").fetchone()) == ("u", "g", 50, 50, 50)

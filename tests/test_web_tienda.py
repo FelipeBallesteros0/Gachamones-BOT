@@ -10,7 +10,7 @@ import especies as esp
 import identidad
 import nacer
 import objetos
-from ayudas_web import AVATAR, CABECERA, ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, poner_reloj
+from ayudas_web import AVATAR, CABECERA, ESCRIBIR, PUEBLO, alta, con_gachamon, con_monedas_web, entrar, poner_reloj
 from web import tienda
 
 API = "/gachamon/api"
@@ -167,8 +167,9 @@ def test_los_saldos_son_los_de_la_cuenta(cliente, monkeypatch):
     monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: comun)
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
+    con_monedas_web(cliente, 37)        # nació en cero: una cifra que no sea la de partida
     ir(cliente, "tienda")
-    assert cliente.get(TIENDA).json()["saldos"] == {"monedas": 50, "gemas": 50}
+    assert cliente.get(TIENDA).json()["saldos"] == {"monedas": 37, "gemas": 0}
 
 
 def test_los_cosmeticos_marcan_lo_que_ya_es_tuyo_puesto_o_no(cliente, monkeypatch):

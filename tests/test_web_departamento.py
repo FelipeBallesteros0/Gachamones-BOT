@@ -26,7 +26,7 @@ def test_tu_departamento_de_partida(cliente):
     assert [(p["clave"], p["x"], p["y"], p["casillas"]) for p in d["puestos"]] == [
         ("cama_sencilla", 0, 0, [[0, 0], [1, 0]]), ("puerta", -1, 2, [[-1, 2]])]
     assert [(g["clave"], g["cama"], g["ancho"], g["fondo"]) for g in d["guardados"]] == [("cama_sencilla", True, 2, 1)]
-    assert d["saldos"] == {"monedas": 50, "gemas": 50}
+    assert d["saldos"] == {"monedas": 0, "gemas": 0}
     cama = d["puestos"][0]
     assert (cama["nombre"], cama["icono"], cama["giro"], cama["capa"], cama["cama"]) == (
         "Cama sencilla", "iconos/muebles/cama_sencilla.png", 0, "bulto", True)
@@ -66,7 +66,7 @@ def test_poner_guardar_y_sus_noes(cliente):
     assert poner(x=0, y=0, giro=0)["mensaje"] == "Ahí ya hay algo."
     bien = poner(x=0, y=1, giro=0)
     assert (bien["ok"], bien["mensaje"], bien["departamento"]["camas"], bien["departamento"]["cabe_otro"]) == (True, None, 2, False)
-    assert bien["estado"]["saldos"] == {"monedas": 50, "gemas": 50}
+    assert bien["estado"]["saldos"] == {"monedas": 0, "gemas": 0}
     no = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": cama}, headers=CABECERA).json()
     assert (no["ok"], no["clave"], no["mensaje"]) == (False, "hace_falta", "Esa cama hace falta: sin ella alguien se queda sin dónde dormir.")
     ajeno = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": 9999}, headers=CABECERA).json()

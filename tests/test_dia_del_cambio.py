@@ -269,6 +269,45 @@ def test_a_quien_ya_jugaba_el_cambio_le_deja_su_monedero_creado():
     assert [(f["usuario_id"], f["asciicoins"], f["asciigems"]) for f in filas("monederos")] == [("u1", MONEDAS_DE_ANTES, GEMAS_DE_ANTES)]
 
 
+def monedero(usuario, guild="g1"):
+    """Sus monedas, sus gemas y con cuánto nació su monedero; None si no tiene."""
+    with db.conectar() as con:
+        fila = con.execute(
+            "SELECT asciicoins, asciigems, partida FROM monederos WHERE usuario_id = ? AND guild_id = ?",
+            (usuario, guild),
+        ).fetchone()
+    return None if fila is None else tuple(fila)
+
+
+def test_el_dia_del_cambio_le_deja_cincuenta_a_quien_ya_estaba_sin_monedero():
+    LO_DE_CADA_QUIEN["avatares"]()                     # sólo un avatar: ni gachamon ni monedero
+    assert monedero("u1") is None
+    el_cambio()
+    assert monedero("u1") == (MONEDAS_DE_ANTES, GEMAS_DE_ANTES, 50)
+
+
+def test_asegurar_a_quien_ya_estaba_da_cincuenta_aunque_el_cambio_ya_ocurriera():
+    el_cambio()                                        # en una base vacía sólo deja su marca
+    assert CAMBIO in marcas()
+    with db.conectar() as con:
+        economia._asegurar_monedero(con, "u1", "g1", ya_estaba=True)
+        economia._asegurar_monedero(con, "u2", "g1")
+    assert monedero("u1") == (50, 50, 50)
+    assert monedero("u2") == (0, 0, 0)
+
+
+def test_correr_el_cambio_otra_vez_no_le_da_nada_a_nadie():
+    LO_DE_CADA_QUIEN["avatares"]()                     # u1 estaba, sin monedero
+    con_monedas(37, usuario="u2")                      # u2 estaba, con el suyo
+    el_cambio()
+    economia.saldos("u3", "g1")                        # u3 empieza después: nace en cero
+    antes = {f["usuario_id"]: (f["asciicoins"], f["asciigems"], f["partida"]) for f in filas("monederos")}
+    assert antes == {"u1": (50, 50, 50), "u2": (37, 50, 50), "u3": (0, 0, 0)}
+    assert economia.el_dia_del_cambio(T1 + timedelta(hours=1)) == economia.ResumenDelCambio()
+    economia.poner_al_dia(T1 + timedelta(hours=2))     # y el arranque entero, migración incluida
+    assert {f["usuario_id"]: (f["asciicoins"], f["asciigems"], f["partida"]) for f in filas("monederos")} == antes
+
+
 def test_vale_para_cada_servidor_por_separado():
     casa_de_antes("u1", "pequena", guild="g1"); casa_de_antes("u1", "grande", guild="g2")
     el_cambio()

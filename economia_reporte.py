@@ -11,6 +11,7 @@ from pathlib import Path
 from statistics import median
 
 import config
+import db
 import economia
 
 TIPOS_RECOMPENSA = ("cuidado", "evolucion", "competencia")
@@ -39,8 +40,12 @@ def datos_reporte(ruta: str | Path, desde: date, hasta: date) -> dict:
             "WHERE fecha_utc BETWEEN ? AND ? ORDER BY fecha_utc, tipo, solicitud",
             (desde.isoformat(), hasta.isoformat()),
         ).fetchall()
+        # Una copia de antes de la migración no tiene `partida`: ahí todo
+        # monedero nació con lo de antes.
+        columnas = {f["name"] for f in con.execute("PRAGMA table_info(monederos)")}
+        partida = "partida" if "partida" in columnas else str(db.PARTIDA_DE_ANTES)
         monederos = con.execute(
-            "SELECT asciicoins, asciigems FROM monederos"
+            f"SELECT asciicoins, asciigems, {partida} AS partida FROM monederos"
         ).fetchall()
         delta_total = con.execute(
             "SELECT COALESCE(SUM(delta_asciicoins), 0) FROM operaciones_economia"
@@ -102,7 +107,7 @@ def datos_reporte(ruta: str | Path, desde: date, hasta: date) -> dict:
         }
         if saldos else {"mediana": 0.0, "p90": 0, "maximo": 0}
     )
-    esperado = 50 * len(monederos) + delta_total
+    esperado = sum(f["partida"] for f in monederos) + delta_total
     suma_saldos = sum(saldos)
     return {
         "intervalo_utc": {"desde": desde.isoformat(), "hasta": hasta.isoformat()},
@@ -130,7 +135,9 @@ def datos_reporte(ruta: str | Path, desde: date, hasta: date) -> dict:
             "saldos": suma_saldos,
             "cuadra": esperado == suma_saldos,
         },
-        "asciigems_fuera_de_50": sum(f["asciigems"] != 50 for f in monederos),
+        "asciigems_fuera_de_la_partida": sum(
+            f["asciigems"] != f["partida"] for f in monederos
+        ),
     }
 
 
@@ -180,7 +187,7 @@ def render_texto(datos: dict) -> str:
             f"{'OK' if reconciliacion['cuadra'] else 'ERROR'} "
             f"({reconciliacion['esperado']} = {reconciliacion['saldos']})"
         ),
-        f"Asciigems fuera de 50: {datos['asciigems_fuera_de_50']}",
+        f"Asciigems fuera de su partida: {datos['asciigems_fuera_de_la_partida']}",
     ]
     return "\n".join(lineas)
 

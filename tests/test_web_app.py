@@ -75,7 +75,7 @@ def test_poner_al_dia_crea_la_base_y_se_puede_repetir(tmp_path, monkeypatch):
     economia.poner_al_dia(T0)
     segunda = economia.poner_al_dia(T0)
     assert (segunda.personas, segunda.piezas, segunda.gemas) == (0, 0, 0)
-    assert economia.saldos("u", "g").asciigems == 50
+    assert economia.saldos("u", "g").asciigems == 0
 
 
 def test_arrancar_el_servicio_hace_la_devolucion(tmp_path, monkeypatch):
@@ -87,7 +87,7 @@ def test_arrancar_el_servicio_hace_la_devolucion(tmp_path, monkeypatch):
         db.guardar_en_el_ropero_en(con, "u", "g", "tinte_rojo")
     with ayudas_web.servicio(tmp_path, monkeypatch):
         pass
-    assert economia.saldos("u", "g").asciigems == 70
+    assert economia.saldos("u", "g").asciigems == 20
     assert db.ropero("u", "g") == frozenset()
 
 
