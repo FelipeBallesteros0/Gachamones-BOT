@@ -516,13 +516,16 @@ def _departamento_del_alcalde(
     con, usuario_id: str, guild_id: str, vivos: int, ahora: datetime
 ) -> tuple[int, int, int, int]:
     """Le crea el departamento con una cama puesta por gachamon vivo más la suya
-    y su puerta, en un tramo con la entrada libre (`dep.tramo_para_la_puerta`).
+    y su puerta.
 
-    Del primer tamaño donde caben (`dep.tamano_para`) y con las camas donde
-    dice `dep.acomodar_camas`. A quien no le queda ningún vivo, además, otra
-    guardada: lo mismo que a quien empieza. Si no cupieran todas —más de 32 en
-    8 × 8; con el tope de 25 de antes no puede pasar—, las que sobran quedan
-    guardadas.
+    Del primer tamaño donde caben (`dep.tamano_para`), con las camas y la
+    puerta donde dice `dep.acomodo_del_alcalde`: la puerta, en un tramo con la
+    entrada libre; si con las camas puestas no queda ninguno, la cama que la
+    tapa se corre a un sitio de cama que sobre. Sólo en un 8 × 8 lleno de camas
+    queda tapada, y con el tope de 25 de antes no puede pasar. A quien no le
+    queda ningún vivo, además, otra guardada: lo mismo que a quien empieza. Si
+    no cupieran todas —más de 32 en 8 × 8; tampoco puede pasar—, las que sobran
+    quedan guardadas.
 
     Nadie tiene departamento todavía, así que nace con un `INSERT` a secas: si
     alguien ya tuviera uno, el cambio entero se deshace en vez de sumarle camas.
@@ -532,7 +535,8 @@ def _departamento_del_alcalde(
     """
     camas = vivos + 1
     ancho, fondo = dep.tamano_para(camas)
-    sitios = dep.acomodar_camas(ancho, fondo, min(camas, _CAMAS_QUE_CABEN))
+    sitios, (puerta_x, puerta_y) = dep.acomodo_del_alcalde(
+        ancho, fondo, min(camas, _CAMAS_QUE_CABEN))
     con.execute(
         "INSERT INTO departamentos (usuario_id, guild_id, ancho, fondo, creado_en) "
         "VALUES (?, ?, ?, ?, ?)",
@@ -543,10 +547,7 @@ def _departamento_del_alcalde(
     guardadas = camas - len(sitios) + (0 if vivos else 1)
     for _ in range(guardadas):
         db.anadir_mueble_en(con, usuario_id, guild_id, _CAMA_SENCILLA)
-    # La puerta, calculada con las camas ya puestas: la entrada tiene que quedar libre.
-    con_camas = dep.Departamento(ancho, fondo, tuple(
-        dep.Pieza(n, _CAMA_SENCILLA, x, y, giro) for n, (x, y, giro) in enumerate(sitios)))
-    puerta_x, puerta_y = dep.tramo_para_la_puerta(con_camas)
+    # La puerta, la última, en el tramo que buscó el alcalde con las camas ya puestas.
     db.anadir_mueble_en(con, usuario_id, guild_id, dep.PUERTA, puerta_x, puerta_y)
     return ancho, fondo, len(sitios), len(sitios) + guardadas
 

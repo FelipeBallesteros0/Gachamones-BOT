@@ -456,3 +456,20 @@ def test_el_dia_del_cambio_mueve_la_puerta_al_otro_lado_si_las_camas_tapan_toda_
     assert any((p.x, p.y) == (0, 3) for p in d.puestas if p.clave == "cama_sencilla")   # tapa la entrada de (-1, 3)
     puertas = [p for p in d.piezas if p.clave == dep.PUERTA]
     assert [(p.x, p.y) for p in puertas] == [(4, -1)]
+
+
+def test_con_21_o_24_vivos_el_alcalde_no_deja_la_entrada_tapada_por_una_de_sus_camas():
+    import departamento as dep
+    vivos = {"u1": 21, "u2": 24}             # con esos, las camas cubren la columna 0 y la fila 0
+    for usuario, cuantos in vivos.items():
+        for i in range(cuantos):
+            db.crear(usuario, "g1", "pulpo", f"N{i}", STATS, T0, activa=(i == 0))
+    el_cambio()
+    for usuario, cuantos in vivos.items():
+        d = db.departamento_leido(usuario, "g1")
+        assert d.camas_puestas == cuantos + 1
+        puertas = [p for p in d.piezas if p.clave == dep.PUERTA]
+        assert len(puertas) == 1 and puertas[0].puesta
+        bajo_las_camas = {c for p in d.puestas if dep.MUEBLES[p.clave].cama
+                          for c in dep.huella(dep.MUEBLES[p.clave], p.x, p.y, p.giro)}
+        assert dep.frente_a(puertas[0].x, puertas[0].y) not in bajo_las_camas

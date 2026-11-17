@@ -277,15 +277,51 @@ def tamano_para(camas: int) -> tuple[int, int]:
     return ancho, fondo
 
 
-def acomodar_camas(ancho: int, fondo: int, cuantas: int) -> tuple[tuple[int, int, int], ...]:
-    """Dónde deja el alcalde `cuantas` camas de 2 × 1 en un departamento vacío.
+def _sitios_de_cama(ancho: int, fondo: int) -> list[tuple[int, int, int]]:
+    """Todos los sitios donde el alcalde puede dejar una cama de 2 × 1 en un
+    departamento vacío, `(x, y, giro)`, en el orden en que los llena.
 
     Por filas, de a dos columnas. Si el ancho es impar, la última columna se
-    llena con camas giradas, de a dos filas.
+    llena con camas giradas, de a dos filas. Ninguno pisa a otro.
     """
     sitios = [(x, y, 0) for y in range(fondo) for x in range(0, ancho - 1, 2)]
     if ancho % 2:
         sitios += [(ancho - 1, y, 1) for y in range(0, fondo - 1, 2)]
+    return sitios
+
+
+def acomodar_camas(ancho: int, fondo: int, cuantas: int) -> tuple[tuple[int, int, int], ...]:
+    """Dónde deja el alcalde `cuantas` camas de 2 × 1 en un departamento vacío:
+    en los primeros de `_sitios_de_cama`."""
+    sitios = _sitios_de_cama(ancho, fondo)
     if cuantas > len(sitios):
         raise ValueError(f"en {ancho} × {fondo} no caben {cuantas} camas")
     return tuple(sitios[:cuantas])
+
+
+def acomodo_del_alcalde(
+    ancho: int, fondo: int, cuantas: int
+) -> tuple[tuple[tuple[int, int, int], ...], tuple[int, int]]:
+    """Dónde deja el alcalde `cuantas` camas sencillas y la puerta de un
+    departamento vacío: las camas, `(x, y, giro)`, y el tramo de la puerta.
+
+    Las camas, donde dice `acomodar_camas`, y la puerta, donde dice
+    `tramo_para_la_puerta` con ellas puestas. Si así una de sus camas le tapa
+    la entrada y sobra algún sitio de cama, esa cama pasa al último que sobra y
+    la puerta se vuelve a buscar. Si no sobra ninguno (un 8 × 8 lleno de
+    camas), la entrada queda tapada.
+    """
+    camas = acomodar_camas(ancho, fondo, cuantas)
+    puerta = tramo_para_la_puerta(_con_las_camas(ancho, fondo, camas))
+    sobran = [s for s in _sitios_de_cama(ancho, fondo) if s not in camas]
+    entrada = frente_a(*puerta)
+    tapa = next((c for c in camas if entrada in huella(MUEBLES["cama_sencilla"], *c)), None)
+    if tapa is not None and sobran:
+        camas = tuple(sobran[-1] if c == tapa else c for c in camas)
+        puerta = tramo_para_la_puerta(_con_las_camas(ancho, fondo, camas))
+    return camas, puerta
+
+
+def _con_las_camas(ancho: int, fondo: int, camas: tuple[tuple[int, int, int], ...]) -> Departamento:
+    return Departamento(ancho, fondo, tuple(
+        Pieza(n, "cama_sencilla", x, y, giro) for n, (x, y, giro) in enumerate(camas)))

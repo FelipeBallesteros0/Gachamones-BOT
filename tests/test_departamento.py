@@ -244,6 +244,61 @@ def test_sin_tramo_libre_para_la_puerta_el_alcalde_lo_dice_con_un_error_claro():
         dep.tramo_para_la_puerta(colgado)
 
 
+def bajo_las_camas(sitios):
+    """Las casillas que tapan esas camas sencillas, como las deja el alcalde: (x, y, giro)."""
+    return [c for x, y, giro in sitios for c in dep.huella(dep.MUEBLES["cama_sencilla"], x, y, giro)]
+
+def lo_de_hoy(ancho, fondo, camas):
+    """Las camas donde dice `acomodar_camas` y la puerta donde dice `tramo_para_la_puerta` con ellas."""
+    sitios = dep.acomodar_camas(ancho, fondo, camas)
+    con_camas = depto(*(P(n, "cama_sencilla", x, y, giro) for n, (x, y, giro) in enumerate(sitios)), ancho=ancho, fondo=fondo)
+    return sitios, dep.tramo_para_la_puerta(con_camas)
+
+@pytest.mark.parametrize("vivos", range(0, 26))   # el tope de gachamones de antes era 25
+def test_el_alcalde_deja_todas_las_camas_y_la_entrada_libre(vivos):
+    camas = vivos + 1
+    ancho, fondo = dep.tamano_para(camas)
+    sitios, puerta = dep.acomodo_del_alcalde(ancho, fondo, camas)
+    assert len(sitios) == camas
+    tapadas = bajo_las_camas(sitios)
+    assert all(0 <= x < ancho and 0 <= y < fondo for x, y in tapadas)          # dentro de la pieza
+    assert len(tapadas) == len(set(tapadas))                                  # y sin pisarse
+    assert dep.frente_a(*puerta) not in tapadas
+
+@pytest.mark.parametrize("vivos", [v for v in range(0, 26) if v not in (21, 24)])
+def test_donde_la_entrada_ya_quedaba_libre_el_alcalde_no_cambia_nada(vivos):
+    camas = vivos + 1
+    ancho, fondo = dep.tamano_para(camas)
+    assert dep.acomodo_del_alcalde(ancho, fondo, camas) == lo_de_hoy(ancho, fondo, camas)
+
+def test_con_21_vivos_la_cama_que_tapa_la_entrada_pasa_al_ultimo_sitio_que_sobra():
+    assert dep.tamano_para(22) == (7, 7)
+    sitios, puerta = lo_de_hoy(7, 7, 22)
+    assert puerta == (-1, 6) and (0, 6, 0) in sitios                         # hoy, la cama de (0, 6) la tapa
+    assert dep.acomodo_del_alcalde(7, 7, 22) == (
+        tuple((6, 4, 1) if s == (0, 6, 0) else s for s in sitios), (-1, 6))
+
+def test_con_24_vivos_la_cama_que_tapa_la_entrada_pasa_al_ultimo_sitio_que_sobra():
+    assert dep.tamano_para(25) == (8, 7)
+    sitios, puerta = lo_de_hoy(8, 7, 25)
+    assert puerta == (-1, 6) and (0, 6, 0) in sitios
+    assert dep.acomodo_del_alcalde(8, 7, 25) == (
+        tuple((6, 6, 0) if s == (0, 6, 0) else s for s in sitios), (-1, 6))
+
+@pytest.mark.parametrize("vivos", range(26, 32))   # por encima del tope de antes: no puede pasar, y no lanza
+def test_por_encima_del_tope_de_antes_el_alcalde_tampoco_lanza(vivos):
+    camas = vivos + 1
+    ancho, fondo = dep.tamano_para(camas)
+    sitios, _ = dep.acomodo_del_alcalde(ancho, fondo, camas)
+    assert len(sitios) == camas
+
+def test_en_un_8x8_lleno_de_camas_no_sobra_sitio_y_la_entrada_queda_tapada():
+    assert dep.tamano_para(32) == (8, 8)
+    sitios, puerta = dep.acomodo_del_alcalde(8, 8, 32)
+    assert (sitios, puerta) == lo_de_hoy(8, 8, 32)
+    assert dep.frente_a(*puerta) in bajo_las_camas(sitios)
+
+
 def test_a_la_venta_son_los_muebles_del_catalogo_menos_la_puerta_en_su_orden():
     venta = dep.a_la_venta()
     assert isinstance(venta, tuple) and dep.MUEBLES[dep.PUERTA] not in venta
