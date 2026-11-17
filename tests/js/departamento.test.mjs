@@ -26,12 +26,15 @@ class Texto extends Nodo {
   get textContent() { return this.texto; }
 }
 
-// Los oyentes de un elemento o del documento, que se quitan solos con su `signal`.
+// Los oyentes de un elemento o del documento, que se quitan solos con su
+// `signal`. Los que escuchan en captura (`capture`) van aparte: oyen también
+// los clics de lo que contienen, y antes que ellos (`hacerClic`).
 function escuchar(oyentes, tipo, oyente, opciones) {
   const signal = opciones && opciones.signal;
   if (signal && signal.aborted) return;
-  (oyentes[tipo] ||= []).push(oyente);
-  if (signal) signal.addEventListener('abort', () => { oyentes[tipo] = oyentes[tipo].filter((o) => o !== oyente); });
+  const clave = opciones && opciones.capture ? `${tipo}:captura` : tipo;
+  (oyentes[clave] ||= []).push(oyente);
+  if (signal) signal.addEventListener('abort', () => { oyentes[clave] = oyentes[clave].filter((o) => o !== oyente); });
 }
 
 // Dónde está el lienzo en la página: un toque se cuenta desde su esquina.
@@ -558,16 +561,25 @@ const seVe = (nodo) => Boolean(nodo) && nodo.closest('[hidden]') === null;
 // El lienzo de la pieza (los íconos de la bandeja también son lienzos).
 const lienzoDe = (pantalla) => uno(pantalla, '.pieza-lienzo');
 
-async function tocar(nodo) {
-  for (const oyente of [...(nodo.oyentes.click || [])]) oyente({ type: 'click' });
+// Un clic en ese nodo, como en un navegador: primero lo oyen, en captura, los
+// que lo contienen (de fuera hacia dentro), y después él. `evento.target` es él.
+async function hacerClic(nodo, evento) {
+  const conObjetivo = { ...evento, target: nodo };
+  const fuera = [];
+  for (let n = nodo.padre; n; n = n.padre) fuera.unshift(n);
+  for (const n of fuera) for (const oyente of [...(n.oyentes['click:captura'] || [])]) oyente(conObjetivo);
+  for (const oyente of [...(nodo.oyentes['click:captura'] || []), ...(nodo.oyentes.click || [])]) oyente(conObjetivo);
   await asentar();
+}
+
+async function tocar(nodo) {
+  await hacerClic(nodo, { type: 'click' });
 }
 
 // Un clic con su `detail`, como lo cuenta un navegador: 1, un clic suelto; 2, el
 // segundo de un doble clic en el mismo sitio; 0, el que hace el teclado (Enter o espacio).
 async function clicar(nodo, detail) {
-  for (const oyente of [...(nodo.oyentes.click || [])]) oyente({ type: 'click', detail });
-  await asentar();
+  await hacerClic(nodo, { type: 'click', detail });
 }
 
 // La fila de ese mueble en la lista (en «Muebles puestos» o en «Guardados»).
@@ -594,10 +606,7 @@ async function teclear(nodo, tecla) {
 async function tocarEn(pantalla, x, y) {
   const lienzo = lienzoDe(pantalla);
   const caja = lienzo.getBoundingClientRect();
-  for (const oyente of [...(lienzo.oyentes.click || [])]) {
-    oyente({ type: 'click', clientX: caja.left + x, clientY: caja.top + y, preventDefault() {} });
-  }
-  await asentar();
+  await hacerClic(lienzo, { type: 'click', clientX: caja.left + x, clientY: caja.top + y, preventDefault() {} });
 }
 
 // La pieza que se ve, medida como la mide la pantalla: su tamaño sale de la línea de abajo.
@@ -2949,4 +2958,123 @@ test('abrir lo de ampliar trae su panel a la vista, y abrir la pregunta de un la
   await tocar(boton(preguntaDeAmpliar(pantalla), 'No'));                 // cerrarla no trae nada
   assert.deepEqual(loTraido(), []);
   assert.equal(pedidos.length, 1);                                       // y nada de eso se manda
+});
+
+// --- la revisión final del modo construcción: el doble clic, el cobro, la salida y el foco ----
+
+test('un doble clic en «Construir» no deja nada en la mano ni abre lo de ampliar: el segundo clic no cuenta en la bandeja ni en «Ampliar»', async () => {
+  const { pantalla, pedidos } = await abrir(SIN_MACETA);
+  await clicar(boton(pantalla, 'Construir'), 1);                          // el primer clic entra al modo y la página se desliza…
+  const maceta = boton(uno(pantalla, '.bandeja'), 'Maceta');
+  await clicar(maceta, 2);                                               // …y el segundo cae en un tipo de la bandeja
+  assert.equal(maceta.getAttribute('aria-pressed'), 'false');            // nada en la mano
+  assert.deepEqual(casillasMarcadas(pantalla), []);
+  const abre = boton(uno(pantalla, '.pieza'), 'Ampliar');
+  await clicar(abre, 2);                                                 // …o en «Ampliar»
+  assert.equal(seVe(uno(pantalla, '.ampliar')), false);                  // el panel sin abrir
+  await clicar(maceta, 1);                                               // un clic suelto, sí
+  assert.equal(maceta.getAttribute('aria-pressed'), 'true');
+  await clicar(maceta, 0);                                               // y el teclado (otra vez la misma: la suelta)
+  assert.equal(maceta.getAttribute('aria-pressed'), 'false');
+  await clicar(maceta, 0);
+  assert.equal(maceta.getAttribute('aria-pressed'), 'true');
+  await clicar(abre, 1);
+  assert.equal(seVe(uno(pantalla, '.ampliar')), true);
+  await tocar(boton(pantalla, 'Volver'));
+  await clicar(abre, 0);
+  assert.equal(seVe(uno(pantalla, '.ampliar')), true);
+  assert.equal(pedidos.filter(([ruta]) => ruta.startsWith('POST')).length, 0);
+});
+
+test('un «Ampliar» de una pregunta ya cerrada, tras «Listo» o tras «Volver», no manda nada', async () => {
+  for (const [como, cerrar] of [['Listo', terminar], ['Volver', (p) => tocar(boton(p, 'Volver'))]]) {
+    const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+    servidor.responde('POST departamento/ampliar', CRECIO_UNA_FILA);
+    await construir(pantalla);
+    await tocar(boton(pantalla, 'Ampliar'));
+    await tocar(boton(pantalla, '+ fila'));
+    const confirmar = boton(preguntaDeAmpliar(pantalla), 'Ampliar');
+    await cerrar(pantalla);
+    assert.equal(seVe(confirmar), false, como);                          // escondido, pero sigue en la página
+    await clicar(confirmar, 1);                                          // un clic que le llegue igual
+    assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0, como);
+  }
+  // Ni el de la pregunta de un lado cuando la abierta ya es la del otro.
+  const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  servidor.responde('POST departamento/ampliar', CRECIO_UNA_FILA);
+  await construir(pantalla);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ fila'));
+  const deLaFila = boton(preguntaDeAmpliar(pantalla), 'Ampliar');
+  await tocar(boton(pantalla, '+ columna'));                             // la de la fila se cierra
+  await clicar(deLaFila, 1);
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0);
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');   // la abierta sigue ahí
+});
+
+test('cualquier clic fuera de la pieza mientras caminas a la puerta cancela la salida, también en un cuidado que todavía espera', async () => {
+  const conEspera = { ...DEPTO, plantel: [{ ...PELUSA, activo: true, esperas: { jugar: 600 } }] };
+  const { pantalla, seguido, pedidos } = await abrir(conEspera);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocarTramo(pantalla, -1, 2);                                     // echas a andar hacia la puerta…
+  assert.equal(cuadrosPendientes(), 1);
+  const jugar = boton(uno(pantalla, '.ficha-elegido'), 'Jugar');
+  assert.equal(jugar.getAttribute('aria-disabled'), 'true');            // …y pulsas uno con su cuenta atrás
+  await tocar(jugar);
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                     // llegas a la puerta, y te quedas
+  assert.equal(pedidos.filter(([ruta]) => ruta.startsWith('POST')).length, 0);
+  await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
+  await tocarTramo(pantalla, -1, 2);                                     // otra vez…
+  await tocar(uno(pantalla, '.pieza-linea'));                            // …y un clic en algo que no es un botón
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);
+});
+
+test('el «Ampliar» que abre lo de ampliar dice si está abierto; el que cobra, no', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  await construir(pantalla);
+  const abre = boton(uno(pantalla, '.pieza'), 'Ampliar');
+  assert.equal(abre.getAttribute('aria-expanded'), 'false');
+  await tocar(abre);
+  assert.equal(abre.getAttribute('aria-expanded'), 'true');
+  await tocar(boton(pantalla, 'Volver'));
+  assert.equal(abre.getAttribute('aria-expanded'), 'false');
+  await tocar(abre);
+  await tocar(boton(pantalla, '+ fila'));
+  assert.equal(abre.getAttribute('aria-expanded'), 'true');
+  assert.equal(boton(preguntaDeAmpliar(pantalla), 'Ampliar').getAttribute('aria-expanded'), null);
+  await terminar(pantalla);
+  assert.equal(abre.getAttribute('aria-expanded'), 'false');
+});
+
+test('al pulsar el botón del modo el foco acaba en él, también si estaba en el menú de lo elegido (hay navegadores donde pulsar un botón no lo enfoca)', async () => {
+  const { pantalla, documento } = await abrir(DEPTO);
+  await construir(pantalla);
+  await tocarCasilla(pantalla, 0, 0);                                    // la cama, con su menú
+  boton(menu(pantalla), 'Mover').focus();
+  await tocar(boton(pantalla, 'Listo'));                                 // sin darle el foco
+  assert.equal(documento.activeElement, boton(pantalla, 'Construir'));
+  const viviendo = await abrir(CON_DOS);
+  await tocarA(viviendo.pantalla, CON_DOS, 1);                           // Rulo, con su menú
+  boton(menu(viviendo.pantalla), 'Acariciar').focus();
+  await tocar(boton(viviendo.pantalla, 'Construir'));
+  assert.equal(viviendo.documento.activeElement, boton(viviendo.pantalla, 'Listo'));
+});
+
+test('mover un cuadro colgado sigue ofreciendo los tramos que dan a un mueble: la entrada libre sólo se le pide a la puerta', async () => {
+  const { pantalla } = await abrir(CON_UN_CUADRO_COLGADO);
+  await construir(pantalla);
+  await tocarTramo(pantalla, 2, -1);
+  await tocar(boton(menu(pantalla), 'Mover'));
+  const marcados = sitiosMarcados(pantalla);
+  assert.deepEqual(marcados.at(-1), [2, -1]);                            // dónde está él, elegido
+  // Los tramos libres menos el suyo: los dos primeros de la derecha y el primero de
+  // la izquierda dan a la cama, y se ofrecen igual (a la puerta no se le ofrecerían).
+  assert.deepEqual(enOrden(marcados.slice(0, -1)), [[-1, 0], [-1, 1], [0, -1], [1, -1]]);
+  await tocar(boton(fila(pantalla, CUADRO_ID), 'Mover'));                // y la lista, lo mismo
+  assert.deepEqual(todos(pantalla, '.donde option').map((o) => o.textContent).sort(),
+    ['pared derecha, tramo 1', 'pared derecha, tramo 2', 'pared izquierda, tramo 1', 'pared izquierda, tramo 2']);
 });

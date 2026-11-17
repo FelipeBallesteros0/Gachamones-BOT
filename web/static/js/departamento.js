@@ -41,17 +41,19 @@
 // modos, tocar el suelo es caminar. Entrar al modo suelta lo que llevas en la
 // mano, deja de elegir al gachamon y cancela la salida; «Listo» lo deja todo
 // recogido: suelta lo que llevas, deja de elegir el mueble y cierra lo de
-// ampliar (con su pregunta, sin cobrar nada) y el «¿Dónde?» de la lista. Lo
-// que se esconde no se lleva el foco: queda en el botón del modo. Ir a salir
-// se cancela tocando la pieza (salvo otra vez la puerta), tomando algo en la
-// mano, mandando una petición, entrando al modo o eligiendo a un gachamon en
-// la lista. Lo que llevas en la mano (el mueble que mueves, el que sacas de la
-// bandeja, o el gachamon que mueves, que va sólo adonde tiene camino) marca
-// dónde va, y el toque siguiente dice dónde: en un sitio marcado se pone (el
-// gachamon camina hasta ahí, y eso no se manda); en cualquier otro, se suelta.
-// «Ampliar» cambia lo de la derecha por lo que cuesta crecer por cada lado, y
-// lo trae a la vista; tocar un lado no cobra: pregunta antes (y la trae a la
-// vista), como la Tienda, y el segundo clic de un doble clic no confirma.
+// ampliar (con su pregunta, sin cobrar nada) y el «¿Dónde?» de la lista. Al
+// pulsar el botón del modo el foco acaba en él, y lo que se esconde no se lo
+// lleva. Ir a salir se cancela con cualquier clic fuera de la pieza, tocando
+// la pieza (salvo otra vez la puerta) o mandando una petición. Lo que llevas
+// en la mano (el mueble que mueves, el que sacas de la bandeja, o el gachamon
+// que mueves, que va sólo adonde tiene camino) marca dónde va, y el toque
+// siguiente dice dónde: en un sitio marcado se pone (el gachamon camina hasta
+// ahí, y eso no se manda); en cualquier otro, se suelta. En la bandeja y en
+// el «Ampliar» que abre lo de ampliar (que dice si está abierto), el segundo
+// clic de un doble clic no cuenta. «Ampliar» cambia lo de la derecha por lo
+// que cuesta crecer por cada lado, y lo trae a la vista; tocar un lado no
+// cobra: pregunta antes (y la trae a la vista), como la Tienda, el segundo
+// clic de un doble clic no confirma, y sólo cobra con su pregunta a la vista.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
@@ -270,7 +272,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Debajo, y sólo mientras dura el modo, lo que se usa en él: la bandeja de
   // los guardados, abierta, y «Ampliar».
   const bandeja = el('div', { class: 'bandeja' });
-  const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar');
+  // El «Ampliar» que abre lo de ampliar dice si está abierto (el que cobra
+  // está en su pregunta).
+  const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar', { 'aria-expanded': 'false' });
   const herramientas = el('div', { class: 'obra-herramientas', hidden: true }, bandeja, alAmpliar);
   // Mientras no llega, en su lugar se lee la espera (o por qué no llegó).
   const pieza = el('div', { class: 'pieza', hidden: true }, escenario, obra, herramientas, linea);
@@ -903,14 +907,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     verLoElegido();
   }
 
-  // Lo tomas en la mano y se marcan sus sitios (y si ibas a salir, ya no);
-  // si no cabe en ninguno, se dice y no lo tomas.
+  // Lo tomas en la mano y se marcan sus sitios; si no cabe en ninguno, se dice
+  // y no lo tomas.
   function tomar(mano) {
     if (!mano || !mano.sitios.length) {
       decir(NO_CABE, true);
       return;
     }
-    saliendo = false;
     enLaMano = mano;
     decir(indicacionDe(mano));
     verLoElegido();
@@ -955,6 +958,14 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     poner(mueble, destino, escenario);
     verLoElegido();
   }
+
+  // Ir a salir se cancela con cualquier clic en la pantalla que no sea sobre
+  // la pieza, en un solo sitio: en captura, antes de lo que haga lo que se
+  // pulsó, y aunque no haga nada (un cuidado que todavía espera). El toque
+  // sobre la pieza lo decide su oyente.
+  cuerpo.addEventListener('click', (evento) => {
+    if (evento.target !== lienzo) saliendo = false;
+  }, { capture: true, signal });
 
   // Tocar la pieza mientras vas a salir te deja dentro, salvo que lo tocado
   // sea otra vez la puerta. Con algo en la mano, el toque dice dónde va; si
@@ -1023,22 +1034,19 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // Entrar o salir del modo, con su botón, que se queda con el foco. Las dos
   // cosas sueltan lo que llevas en la mano (sin ponerlo). Al entrar, deja de
-  // estar elegido el gachamon (su ficha sigue a la derecha), si ibas a salir ya
-  // no, se abren la bandeja y «Ampliar» (y se traen a la vista: en un
-  // computador pueden quedar bajo el borde de la ventana), la lista trae los
-  // muebles y se dice qué hacer. Al terminar, deja de estar elegido el mueble,
-  // se cierran lo de ampliar (con su pregunta, sin mandar nada) y el «¿Dónde?»
-  // de la lista, y se le dice a quien no ve la pieza. Con una petición en
-  // camino, nada.
+  // estar elegido el gachamon (su ficha sigue a la derecha), se abren la
+  // bandeja y «Ampliar» (y se traen a la vista: en un computador pueden quedar
+  // bajo el borde de la ventana), la lista trae los muebles y se dice qué
+  // hacer; si ibas a salir, ya no (como con cualquier clic fuera de la pieza).
+  // Al terminar, deja de estar elegido el mueble, se cierran lo de ampliar (con
+  // su pregunta, sin mandar nada) y el «¿Dónde?» de la lista, y se le dice a
+  // quien no ve la pieza. Con una petición en camino, nada.
   alModo.addEventListener('click', () => {
     if (enCamino || !listo) return;
-    const foco = document.activeElement;
     soltar();
     construyendo = !construyendo;
     elegidoG = null;
-    if (construyendo) {
-      saliendo = false;
-    } else {
+    if (!construyendo) {
       elegido = null;
       ampliando = false;
       preguntaAbierta = null;
@@ -1048,21 +1056,14 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     ponerAmpliar();
     pintarLaLista();
     verLoElegido();
-    noPerderElFoco(foco);
+    // El foco acaba en él, siempre: hay navegadores donde pulsar un botón no
+    // lo enfoca, y lo que tenía el foco (un menú, la bandeja, lo de ampliar,
+    // el «¿Dónde?») puede haberse escondido o haberlo mandado al título.
+    alModo.focus({ preventScroll: true });
     if (construyendo) herramientas.scrollIntoView({ block: 'nearest' });
     decir(construyendo ? TOCA_UN_MUEBLE : '');
     lista.anunciar(construyendo ? '' : OBRA_TERMINADA);
   }, { signal });
-
-  // Lo que se esconde no se lleva el foco. Lo tiene el botón del modo, que es
-  // el que se pulsó; pero hay navegadores donde pulsar un botón no lo enfoca:
-  // si el foco que había (`antes`) se quedó en algo que ya no se ve, o se fue
-  // con lo que se quitó, pasa al botón.
-  function noPerderElFoco(antes) {
-    const ahora = document.activeElement;
-    const perdido = !ahora || ahora === document.body || ahora.closest('[hidden]') !== null;
-    if (antes && antes !== document.body && perdido) alModo.focus({ preventScroll: true });
-  }
 
   // --- el menú de lo elegido -------------------------------------------------------------
 
@@ -1182,11 +1183,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // --- lo que pide la lista --------------------------------------------------------------
 
   // Elegir a un gachamon desde la lista es lo mismo que tocarlo, sin su menú:
-  // su ficha queda a la derecha y en la pieza no queda nada elegido. Si ibas a
-  // salir, ya no.
+  // su ficha queda a la derecha y en la pieza no queda nada elegido.
   function verDesdeLaLista(id) {
     if (enCamino || !depto || !depto.plantel.some((g) => g.id === id)) return;
-    saliendo = false;
     elegido = null;
     elegidoG = null;
     visto = id;
@@ -1242,7 +1241,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
           icono,
           el('span', { class: 'bandeja-nombre' }, `${primero.nombre} × ${cuantos}`),
           el('span', { class: 'bandeja-ocupa' }, cuantoOcupa(primero)));
-        boton.addEventListener('click', () => tomarDeLaBandeja(primero.clave), { signal });
+        // El segundo clic de un doble clic no cuenta: el primero, en «Construir»,
+        // desliza la página, y el segundo puede caer aquí. Un clic suelto (1) y
+        // el teclado (0), sí.
+        boton.addEventListener('click', (clic) => {
+          if (clic.detail > 1) return;
+          tomarDeLaBandeja(primero.clave);
+        }, { signal });
         tiposEnLaBandeja.set(primero.clave, boton);
         return boton;
       });
@@ -1300,6 +1305,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   function ponerAmpliar() {
     derecha.hidden = ampliando;
     panelAmpliar.hidden = !ampliando;
+    alAmpliar.setAttribute('aria-expanded', String(ampliando));
     if (!ampliando || !depto) return;
     const mide = `${depto.ancho} × ${depto.fondo}`;
     const lados = [
@@ -1412,8 +1418,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // «Ampliar», bajo la pieza mientras dura el modo, lo abre; «Volver» y
   // «Listo» lo cierran. Lo que abre va en lugar de lo de la derecha, que en un
-  // teléfono queda más abajo: se trae a la vista.
-  alAmpliar.addEventListener('click', () => {
+  // teléfono queda más abajo: se trae a la vista. El segundo clic de un doble
+  // clic no cuenta, como en la bandeja.
+  alAmpliar.addEventListener('click', (clic) => {
+    if (clic.detail > 1) return;
     ampliando = true;
     ponerAmpliar();
     panelAmpliar.scrollIntoView({ block: 'nearest' });
@@ -1441,10 +1449,12 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // Crecer por ese lado: lo que hace «Ampliar» en su pregunta. Cuesta monedas:
   // lleva el evento de lo que se ve, y sus reintentos el mismo, para que no se
-  // cobre dos veces. Mientras va, la pregunta espera; salga como salga, se
-  // cierra: para ampliar otra vez se vuelve a preguntar.
+  // cobre dos veces. Sólo con su pregunta a la vista: lo de ampliar abierto y
+  // la pregunta abierta, la de ese lado. Mientras va, la pregunta espera; salga
+  // como salga, se cierra: para ampliar otra vez se vuelve a preguntar.
   function ampliar(eje, boton) {
     if (enCamino || !sigueAqui()) return;
+    if (!ampliando || !preguntaAbierta || preguntaAbierta.eje !== eje) return;
     const evento = eventoDeAmpliar(eje);
     preguntaAbierta = null;
     enviar(boton, () => conReintentos(() => pedir('POST', 'departamento/ampliar', { eje, evento_id: evento }), sigueAqui), null)
