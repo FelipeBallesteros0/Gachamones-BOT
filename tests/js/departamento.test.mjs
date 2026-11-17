@@ -10,8 +10,9 @@ import {
 // texto, atributos, clases y oyentes, que se buscan con selectores sencillos
 // (etiqueta, `.clase`, `[atributo]`, `[atributo=valor]`, juntos y uno dentro
 // de otro); un lienzo que mide 380 × 310, no está en la esquina de la página y
-// apunta lo que se pinta en él; imágenes que cargan solas; y un reloj y unos
-// cuadros de animación que no corren solos.
+// apunta lo que se pinta en él (los demás nodos no tienen caja salvo la que les
+// dé una prueba, `caja`); imágenes que cargan solas; y un reloj y unos cuadros
+// de animación que no corren solos.
 class Nodo {
   constructor() { this.padre = null; }
 }
@@ -68,6 +69,8 @@ class Elemento extends Nodo {
     this.style = { setProperty() {} };
     this.dataset = {};
     this.isConnected = true;
+    // Dónde está en la página, si una prueba se lo dice (`{left, top, width, height}`).
+    this.caja = null;
   }
 
   setAttribute(nombre, valor) { this.atributos[nombre] = String(valor); }
@@ -105,6 +108,9 @@ class Elemento extends Nodo {
   get textContent() { return this.hijos.map((h) => h.textContent).join(''); }
 
   set textContent(texto) { this.replaceChildren(...(texto === '' ? [] : [new Texto(String(texto))])); }
+
+  // Sus hijos que son elementos, como en un navegador.
+  get children() { return this.hijos.filter((h) => h instanceof Elemento); }
 
   addEventListener(tipo, oyente, opciones) { escuchar(this.oyentes, tipo, oyente, opciones); }
 
@@ -178,7 +184,9 @@ class Elemento extends Nodo {
   scrollIntoView() {}
 
   getBoundingClientRect() {
-    const { left, top, width, height } = this.etiqueta === 'canvas' ? LIENZO : { left: 0, top: 0, width: 0, height: 0 };
+    let suya = this.etiqueta === 'canvas' ? LIENZO : { left: 0, top: 0, width: 0, height: 0 };
+    if (this.caja) suya = this.caja;
+    const { left, top, width, height } = suya;
     return { left, top, width, height, x: left, y: top, right: left + width, bottom: top + height };
   }
 
@@ -2828,4 +2836,79 @@ test('el botón del modo nace sin poderse usar, y se puede usar cuando la pieza 
   assert.equal(alModo.getAttribute('aria-disabled'), null);
   await construir(pantalla);
   assert.equal(boton(pantalla, 'Listo'), alModo);
+});
+
+// --- la revisión final del modo construcción: lo que flota no es la puerta ------------------
+
+// Le da a lo que flota una caja de `ancho` × `alto` centrada en ese punto del
+// lienzo (contado desde su esquina), como si la pantalla lo hubiera puesto ahí.
+function cajaSobre(nodo, [x, y], ancho = 120, alto = 40) {
+  nodo.caja = { left: LIENZO.left + x - ancho / 2, top: LIENZO.top + y - alto / 2, width: ancho, height: alto };
+}
+
+// Donde toca `tocarTramo` en el tramo de la puerta de `DEPTO`, (-1, 2): a media altura.
+function enElTramoDeLaPuerta(pantalla) {
+  const { m } = medidaDe(pantalla);
+  return proyectar(m, 0, 2.5, m.pared / 2);
+}
+
+test('viviendo, tocar el globo que queda sobre la puerta no te saca', async () => {
+  const { pantalla, seguido } = await abrir(DEPTO, { ...ESTADO, globos: [SUELTA] });   // recién entrado: estás en ella
+  await correrReloj(2500);
+  const globo = uno(pantalla, '.globo');
+  assert.equal(texto(globo), '¡Qué día tan bonito!');                    // a la vista…
+  cajaSobre(globo, enElTramoDeLaPuerta(pantalla));                       // …sobre el tramo de la puerta
+  await tocarTramo(pantalla, -1, 2);                                     // un toque dentro del globo y sobre ese tramo
+  assert.equal(seguido.length, 0);
+  await correrCuadros(5000);
+  assert.equal(seguido.length, 0);
+  await correrReloj(7000);                                               // el globo se calla
+  assert.equal(globo.classList.contains('visible'), false);
+  await tocarTramo(pantalla, -1, 2);                                     // el mismo toque
+  assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
+  // Con el globo a la vista en otro sitio, el toque en la puerta saca: cuenta dónde cae.
+  const lejos = await abrir(DEPTO, { ...ESTADO, globos: [SUELTA] });
+  await correrReloj(2500);
+  cajaSobre(uno(lejos.pantalla, '.globo'), proyectar(medidaDe(lejos.pantalla).m, 2.5, 0.5));
+  await tocarTramo(lejos.pantalla, -1, 2);
+  assert.deepEqual(lejos.seguido.at(-1)[1], { vista: 'pueblo' });
+});
+
+test('viviendo, tocar el suelo bajo el globo sigue siendo caminar', async () => {
+  const { pantalla, seguido } = await abrir(DEPTO, { ...ESTADO, globos: [SUELTA] });
+  await correrReloj(2500);
+  const { m } = medidaDe(pantalla);
+  cajaSobre(uno(pantalla, '.globo'), proyectar(m, 2.5, 2.5));             // sobre la casilla (2, 2), libre
+  await tocarCasilla(pantalla, 2, 2);
+  await correrCuadros(5000);
+  assert.deepEqual(dondeEstas(pantalla), [2, 2]);
+  assert.equal(seguido.length, 0);
+  // Y a un gachamon bajo el globo se le elige, como siempre.
+  const conRulo = await abrir(CON_DOS, { ...ESTADO, globos: [SUELTA] });
+  await correrReloj(2500);
+  const [i, j] = dondeEsta(CON_DOS, 1);
+  cajaSobre(uno(conRulo.pantalla, '.globo'), proyectar(medidaDe(conRulo.pantalla).m, i + 0.5, j + 0.5));
+  await tocarA(conRulo.pantalla, CON_DOS, 1);
+  assert.equal(texto(menu(conRulo.pantalla), '.menu-nombre'), 'Rulo');
+});
+
+test('viviendo, tocar el aviso de una evolución o de una medalla que queda sobre la puerta no te saca', async () => {
+  const casos = [
+    ['.celebracion-texto', { ...CUIDADO_HECHO, evoluciono: true }, 4500],
+    ['.medalla', { ...CUIDADO_HECHO, logros: [{ nombre: 'De la alfa', gemas: 25 }] }, 6000],
+  ];
+  for (const [aviso, respuesta, dura] of casos) {
+    const { pantalla, seguido, servidor } = await abrir(DEPTO);           // recién entrado: estás en la puerta
+    servidor.responde('POST cuidar', respuesta);
+    await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Bañar'));
+    assert.notEqual(uno(pantalla, aviso), null, aviso);                  // a la vista…
+    cajaSobre(uno(pantalla, aviso), enElTramoDeLaPuerta(pantalla));      // …sobre el tramo de la puerta
+    await tocarTramo(pantalla, -1, 2);
+    await correrCuadros(5000);
+    assert.equal(seguido.length, 0, aviso);
+    await correrReloj(dura);                                             // se va solo
+    assert.equal(uno(pantalla, aviso), null, aviso);
+    await tocarTramo(pantalla, -1, 2);                                   // el mismo toque
+    assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' }, aviso);
+  }
 });

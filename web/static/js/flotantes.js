@@ -9,9 +9,11 @@
 // No sabe de la pieza ni de quién está dónde: la pantalla le dice si el que
 // sale contigo puede hablar ahora (`puedeHablar()`), dónde está su cabeza
 // (`dondeHabla()`: `{caja, sube, lado}`, o `null` si no está en la pieza) y
-// qué puede decir (`globos()`). Lo que se hace al rato va por los relojes de
-// la pantalla (`luego`, `cancelar`), que lo paran todo al salir. Todo texto
-// entra por `el` o por `textContent`.
+// qué puede decir (`globos()`). Lo que flota no recibe el toque (pasa a la
+// pieza); `cubre(x, y)` le dice a la pantalla si un punto de la página cae
+// dentro de algo que flota y se está viendo. Lo que se hace al rato va por los
+// relojes de la pantalla (`luego`, `cancelar`), que lo paran todo al salir.
+// Todo texto entra por `el` o por `textContent`.
 
 import { MONEDAS } from './articulos.js';
 import { lienzoDePieza } from './arte.js';
@@ -161,6 +163,17 @@ export function loQueFlota({ escenario, luego, cancelar, azar, puedeHablar, dond
     globo.style.top = `${Math.max(caja.y - sube, alto + SOBRE_LA_CABEZA)}px`;
   }
 
+  // Si ese punto de la página (`x`, `y`, como los de un toque) cae dentro de
+  // algo que flota y se está viendo: el globo mientras habla, el aviso de que
+  // evolucionó o el de una medalla. Las cajas son las que pinta la página.
+  function cubre(x, y) {
+    const seVen = [...(hablando() ? [globo] : []), ...celebracion.children, ...medallas.children];
+    return seVen.some((nodo) => {
+      const caja = nodo.getBoundingClientRect();
+      return x >= caja.left && x <= caja.right && y >= caja.top && y <= caja.bottom;
+    });
+  }
+
   return {
     ganancia,
     globo,
@@ -175,5 +188,6 @@ export function loQueFlota({ escenario, luego, cancelar, azar, puedeHablar, dond
     callarSiYaNoPasa,
     colocarElGlobo,
     hablando,
+    cubre,
   };
 }

@@ -30,7 +30,9 @@
 // mueble hace su acción y nada más (`queSeUsa`): hoy la única es la de la
 // puerta, que te lleva caminando hasta ella y, al llegar, al pueblo, como
 // «Pueblo» (si ya estás en ella, al momento; sin camino no se sale y se dice);
-// un mueble sin acción no hace nada, y lo que se pisa se camina. Tocar a un
+// un mueble sin acción no hace nada, y lo que se pisa se camina; un toque
+// sobre lo que flota (el globo, la evolución, las medallas) no hace la acción
+// de ningún mueble. Tocar a un
 // gachamon lo elige (se marca dónde está) y encima sale su menú, con «Mover» y
 // «Acariciar». Construyendo, a los gachamones no se les toca (el toque va a lo
 // que tienen detrás, `queSeToco`): tocar un mueble lo elige y encima sale su
@@ -966,15 +968,17 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     const y = evento.clientY - caja.top;
     if (enLaMano) ponerLoQueLlevasEn(x, y);
     else if (construyendo) tocarConstruyendo(x, y);
-    else tocarViviendo(x, y);
+    else tocarViviendo(x, y, flota.cubre(evento.clientX, evento.clientY));
   }, { signal });
 
   // Viviendo, el toque es de lo que tiene acción (hoy, sólo la puerta: te
   // saca), de un gachamon (tocarlo lo elige, y tocarlo otra vez deja de
   // elegirlo) o del suelo (se camina; también sobre lo que se pisa). Ningún
   // mueble se elige: el que no tiene acción no hace nada. Lo que no es un
-  // gachamon deja de elegir al que lo estaba.
-  function tocarViviendo(x, y) {
+  // gachamon deja de elegir al que lo estaba. Un toque que cae sobre lo que
+  // flota y se ve (`sobreLoQueFlota`: el globo, la evolución, las medallas) no
+  // hace la acción de ningún mueble: no iba para él.
+  function tocarViviendo(x, y, sobreLoQueFlota) {
     const tocado = queSeUsa(m, depto, losDeLaPieza(), x, y, (puesto) => Boolean(puesto.puerta));
     if (tocado && tocado.tipo === 'gachamon') {
       if (!enCamino) elegirGachamon(tocado.id === elegidoG ? null : tocado.id);
@@ -982,8 +986,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     }
     if (!enCamino) elegir(null);
     if (!tocado) return;
-    if (tocado.tipo === 'accion') salirPorLaPuerta();
-    else caminarHasta(tu, [tocado.i, tocado.j], laPuerta(depto));
+    if (tocado.tipo !== 'accion') caminarHasta(tu, [tocado.i, tocado.j], laPuerta(depto));
+    else if (!sobreLoQueFlota) salirPorLaPuerta();
   }
 
   // Construyendo, a los gachamones no se les toca: el toque va a lo que tengan
