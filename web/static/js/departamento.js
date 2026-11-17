@@ -49,9 +49,9 @@
 // bandeja, o el gachamon que mueves, que va sólo adonde tiene camino) marca
 // dónde va, y el toque siguiente dice dónde: en un sitio marcado se pone (el
 // gachamon camina hasta ahí, y eso no se manda); en cualquier otro, se suelta.
-// «Ampliar» cambia lo de la derecha por lo que cuesta crecer por cada lado;
-// tocar un lado no cobra: pregunta antes, como la Tienda, y el segundo clic de
-// un doble clic no confirma.
+// «Ampliar» cambia lo de la derecha por lo que cuesta crecer por cada lado, y
+// lo trae a la vista; tocar un lado no cobra: pregunta antes (y la trae a la
+// vista), como la Tienda, y el segundo clic de un doble clic no confirma.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
@@ -1393,7 +1393,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     }
     preguntaAbierta = { eje, coste: depto.ampliar[eje], mide: `${depto.ancho} × ${depto.fondo}` };
     ponerAmpliar();
-    if (partesDeLaPregunta) partesDeLaPregunta.cabeza.focus({ preventScroll: true });
+    if (!partesDeLaPregunta) return;
+    partesDeLaPregunta.cabeza.focus({ preventScroll: true });
+    // En un teléfono puede abrirse bajo el borde de la ventana: se trae a la vista.
+    const pregunta = panelAmpliar.querySelector('.pregunta');
+    if (pregunta) pregunta.scrollIntoView({ block: 'nearest' });
   }
 
   // «No», Escape o su botón otra vez: se cierra sin mandar nada y el foco
@@ -1407,10 +1411,12 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   }
 
   // «Ampliar», bajo la pieza mientras dura el modo, lo abre; «Volver» y
-  // «Listo» lo cierran.
+  // «Listo» lo cierran. Lo que abre va en lugar de lo de la derecha, que en un
+  // teléfono queda más abajo: se trae a la vista.
   alAmpliar.addEventListener('click', () => {
     ampliando = true;
     ponerAmpliar();
+    panelAmpliar.scrollIntoView({ block: 'nearest' });
     const rotulo = panelAmpliar.querySelector('h2');
     if (rotulo) rotulo.focus({ preventScroll: true });
   }, { signal });

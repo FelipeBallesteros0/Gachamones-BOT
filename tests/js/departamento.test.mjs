@@ -37,6 +37,10 @@ function escuchar(oyentes, tipo, oyente, opciones) {
 // Dónde está el lienzo en la página: un toque se cuenta desde su esquina.
 const LIENZO = { left: 12, top: 40, width: 380, height: 310 };
 
+// Lo que la pantalla trajo a la vista (`scrollIntoView`), en orden, como
+// `[nodo, opciones]`. Se vacía al abrir cada pantalla.
+const traidos = [];
+
 // Saca un nodo de donde esté. Como en un navegador, quitar del documento el
 // nodo enfocado (o lo que lo contiene) deja el foco en el cuerpo, aunque se
 // vuelva a meter enseguida.
@@ -181,7 +185,7 @@ class Elemento extends Nodo {
 
   focus() { document.activeElement = this; }
 
-  scrollIntoView() {}
+  scrollIntoView(opciones) { traidos.push([this, opciones]); }
 
   getBoundingClientRect() {
     let suya = this.etiqueta === 'canvas' ? LIENZO : { left: 0, top: 0, width: 0, height: 0 };
@@ -506,6 +510,7 @@ async function abrir(depto, estado = ESTADO, {
   // Lo que dejó pendiente otra prueba no corre en ésta.
   pendientes.clear();
   imagenesRetenidas.clear();
+  traidos.length = 0;
   const servidor = crearServidor();
   servidor.responde('GET departamento', depto);
   servidor.responde('GET estado', estado);
@@ -2911,4 +2916,37 @@ test('viviendo, tocar el aviso de una evolución o de una medalla que queda sobr
     await tocarTramo(pantalla, -1, 2);                                   // el mismo toque
     assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' }, aviso);
   }
+});
+
+// --- la revisión final del modo construcción: en el teléfono, lo que se abre se ve ----------
+
+// Lo que la pantalla trajo a la vista desde que se abrió (o desde que se vació
+// `traidos`): la primera clase de cada nodo, con las opciones con que se trajo.
+const loTraido = () => traidos.map(([nodo, opciones]) => [nodo.classList.contains('pregunta') ? 'pregunta' : String(nodo.getAttribute('class')).split(' ')[0], opciones]);
+
+test('entrar al modo trae a la vista sus herramientas, y «Listo» no trae nada', async () => {
+  const { pantalla } = await abrir(DEPTO);
+  assert.deepEqual(loTraido(), []);
+  await construir(pantalla);
+  assert.deepEqual(loTraido(), [['obra-herramientas', { block: 'nearest' }]]);   // sin animación
+  traidos.length = 0;
+  await terminar(pantalla);
+  assert.deepEqual(loTraido(), []);
+});
+
+test('abrir lo de ampliar trae su panel a la vista, y abrir la pregunta de un lado, la pregunta', async () => {
+  const { pantalla, pedidos } = await abrir(DEPTO);
+  await construir(pantalla);
+  traidos.length = 0;
+  await tocar(boton(pantalla, 'Ampliar'));
+  assert.deepEqual(loTraido(), [['ampliar', { block: 'nearest' }]]);
+  assert.equal(traidos[0][0], uno(pantalla, '.ampliar'));
+  traidos.length = 0;
+  await tocar(boton(pantalla, '+ columna'));
+  assert.deepEqual(loTraido(), [['pregunta', { block: 'nearest' }]]);
+  assert.equal(traidos[0][0], preguntaDeAmpliar(pantalla));
+  traidos.length = 0;
+  await tocar(boton(preguntaDeAmpliar(pantalla), 'No'));                 // cerrarla no trae nada
+  assert.deepEqual(loTraido(), []);
+  assert.equal(pedidos.length, 1);                                       // y nada de eso se manda
 });

@@ -46,6 +46,12 @@
   --sombra: 0 12px 32px rgba(0, 0, 0, 0.18);
   --margen: 16px;
 
+  /* Lo que ocupa al pie de la ventana el aviso de lo que contesta el juego
+     (`.aviso-tienda`) con dos líneas: su distancia al borde, las dos líneas,
+     su relleno y un respiro, más lo que tape el teléfono abajo. Lo que la
+     pantalla trae a la vista se queda por encima de él. */
+  --sitio-del-aviso: calc(12px + 2 * 1.45 * 16px + 20px + 10px + env(safe-area-inset-bottom));
+
   --letra: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --letra-fija: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -2095,8 +2101,14 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 /* Debajo del botón, mientras dura el modo, lo que se usa en él: la bandeja de
    los guardados y, junto a ella, «Ampliar», que mide lo que su texto. Al
    entrar al modo se trae a la vista dejando sitio para el aviso pegado al pie
-   de la ventana, que si no lo taparía. */
-.obra-herramientas { display: grid; gap: 10px; scroll-margin-bottom: 72px; }
+   de la ventana, que si no lo taparía. `--bajo-los-tipos` es lo que deja la
+   fila de la bandeja bajo sus botones (para deslizarse de lado). */
+.obra-herramientas {
+  --bajo-los-tipos: 6px;
+  display: grid;
+  gap: 10px;
+  scroll-margin-bottom: var(--sitio-del-aviso);
+}
 
 .obra-herramientas > .boton-ampliar { justify-self: start; width: auto; }
 
@@ -2159,7 +2171,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .bandeja-tipos {
   display: flex;
   gap: 8px;
-  padding: 2px 2px 6px;
+  padding: 2px 2px var(--bajo-los-tipos);
   overflow-x: auto;
 }
 
@@ -2282,7 +2294,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .ficha-elegido .boton[aria-disabled="true"],
 .a-todos .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
 
-/* Ampliar va en lugar de lo de la derecha: un botón por lado y «Volver». */
+/* Ampliar va en lugar de lo de la derecha: un botón por lado y «Volver». Al
+   abrirse (él, o la pregunta de un lado) se trae a la vista, como las
+   herramientas, dejando sitio para el aviso del pie. */
 .ampliar {
   display: grid;
   gap: 10px;
@@ -2290,7 +2304,10 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   border: 1px solid var(--linea);
   border-radius: var(--radio-grande);
   background: var(--tarjeta);
+  scroll-margin-bottom: var(--sitio-del-aviso);
 }
+
+.ampliar .pregunta { scroll-margin-bottom: var(--sitio-del-aviso); }
 
 .ampliar h2:focus { outline: none; }
 
@@ -2411,7 +2428,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   /* Bajo la pieza, la bandeja y, a su derecha, «Ampliar», a la altura de sus muebles. */
   .obra-herramientas { grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 16px; }
 
-  .obra-herramientas > .boton-ampliar { margin-bottom: 6px; }
+  .obra-herramientas > .boton-ampliar { margin-bottom: var(--bajo-los-tipos); }
 
   .cuerpo-departamento > .lado-departamento,
   .cuerpo-departamento > .ampliar { grid-column: 2; grid-row: 1; }
