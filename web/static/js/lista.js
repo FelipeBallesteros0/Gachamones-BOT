@@ -7,7 +7,7 @@
 //   tiene su ficha a la vista. Elegirlo es lo mismo que tocarlo en la pieza,
 //   sin su menú.
 // - «Muebles puestos»: cada uno con su nombre y su sitio, y «Mover», «Girar»
-//   (no lo de pared) y «Guardar»; la puerta, «Mover» y «Salir».
+//   (no lo de pared) y «Guardar» (no la puerta, que trae sólo «Mover»).
 // - «Guardados»: cada mueble guardado, de a uno, con su nombre, cuánto ocupa
 //   y «Poner».
 // - «Mover» y «Poner» abren «¿Dónde?» en la fila de ese mueble: un
@@ -22,8 +22,8 @@
 // con lo que le pasa la pantalla (`pintar(depto, visto)`, con el id del que
 // tiene su ficha a la vista): no habla con el servidor ni decide qué está
 // elegido. `acciones` es lo que hace la pantalla: `{ver(id), sitios(id),
-// noCabe(), poner(id, sitio, boton), girar(id, boton), guardar(id, boton),
-// salir()}`; `sitios(id)` son los `{x, y, giro}` donde cabe ese mueble. Lo
+// noCabe(), poner(id, sitio, boton), girar(id, boton), guardar(id, boton)}`;
+// `sitios(id)` son los `{x, y, giro}` donde cabe ese mueble. Lo
 // que queda en su sitio no se mueve (sacar del documento lo que tiene el foco
 // se lo quita); si el foco estaba en algo que se fue, vuelve a ese mismo
 // mueble, en la lista donde haya quedado. Mientras una petición va (`ocupar`),
@@ -44,7 +44,6 @@ const PARED = 'pared';
 const MOVER = 'mover';
 const GIRAR = 'girar';
 const GUARDAR = 'guardar';
-const SALIR = 'salir';
 const PONER = 'poner';
 const SITIO = 'sitio';
 const AHI = 'ahi';
@@ -142,9 +141,10 @@ export function listaDelDepartamento(acciones) {
     if (puesto.capa !== PARED) {
       botones.push(botonDeLaLista('Girar', (boton) => acciones.girar(puesto.id, boton), { 'data-accion': GIRAR }));
     }
-    // La puerta no se guarda: por ella se sale.
-    if (puesto.puerta) botones.push(botonDeLaLista('Salir', () => acciones.salir(), { 'data-accion': SALIR }));
-    else botones.push(botonDeLaLista('Guardar', (boton) => acciones.guardar(puesto.id, boton), { 'data-accion': GUARDAR }));
+    // La puerta no se guarda.
+    if (!puesto.puerta) {
+      botones.push(botonDeLaLista('Guardar', (boton) => acciones.guardar(puesto.id, boton), { 'data-accion': GUARDAR }));
+    }
     const fila = filaDe(puesto.id, [nombre], botones, mover);
     fila.pintar = (p) => {
       const texto = nombreConSitio(p);

@@ -2060,6 +2060,38 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-align: center;
 }
 
+/* Bajo el dibujo, el botón del modo («Construir» o, dentro, «Listo», que
+   resalta) y, mientras dura, «Modo construcción» a su lado. Construyendo, el
+   dibujo se enmarca, a rayas, como una obra. */
+.pieza-obra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+}
+
+.boton-construir { gap: 8px; }
+
+.boton-construir > span[aria-hidden="true"] { font-size: 1.125rem; line-height: 1; }
+
+.boton-construir[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
+
+.rotulo-de-obra {
+  padding: 4px 12px;
+  border: 1px solid var(--alerta-borde);
+  border-radius: 999px;
+  background: var(--alerta-fondo);
+  color: var(--alerta-texto);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.pieza.construyendo .pieza-lienzo {
+  outline: 3px dashed var(--alerta-borde);
+  outline-offset: 2px;
+}
+
 /* El lienzo y, encima, el menú del mueble elegido: sus botones son de verdad.
    Se coloca junto al mueble (`left` es su centro y `top` su borde de abajo) y
    no se sale de la pieza. Lo que se puso tocando la pieza espera ahí. */

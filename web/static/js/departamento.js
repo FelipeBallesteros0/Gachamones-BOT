@@ -19,19 +19,32 @@
 // tu casa, ya no hay sesión) se lo pasa a `seguir`; sin ningún gachamon, tu
 // casa se sigue viendo.
 //
-// Los muebles y los gachamones se tocan, sin modos: tocar uno lo elige (se
-// marca dónde está) y encima sale su menú: el de un mueble, con «Mover»,
-// «Girar» y «Guardar»; el de la puerta, con «Mover» y «Salir»; el de un
-// gachamon, con «Mover» y «Acariciar». «Salir» te lleva caminando hasta la
-// puerta y, al llegar, al pueblo, como «Pueblo»; hacer otra cosa por el
-// camino lo cancela, y sin camino no se sale y se dice. Lo que
-// llevas en la mano (el mueble que mueves, el que sacas de la bandeja de
-// «Guardados», bajo la pieza, o el gachamon que mueves, que va sólo adonde
-// tiene camino) marca dónde va, y el toque siguiente dice dónde: en un sitio
-// marcado se pone (el gachamon camina hasta ahí, y eso no se manda); en
-// cualquier otro, se suelta. «Ampliar» cambia lo de la derecha por lo que
-// cuesta crecer por cada lado; tocar un lado no cobra: pregunta antes, como
-// la Tienda, y el segundo clic de un doble clic no confirma.
+// La pieza tiene dos modos, y siempre se entra en el normal: el modo es de la
+// pantalla, no se guarda ni se manda. El botón de bajo el dibujo, «🔨
+// Construir», entra al de construcción; dentro, ese mismo botón dice «✔ Listo»,
+// a su lado se lee «Modo construcción» y la pieza se enmarca. Con una petición
+// en camino no se cambia de modo. Viviendo (el normal), un toque sobre un
+// mueble hace su acción y nada más (`queSeUsa`): hoy la única es la de la
+// puerta, que te lleva caminando hasta ella y, al llegar, al pueblo, como
+// «Pueblo» (si ya estás en ella, al momento; sin camino no se sale y se dice);
+// un mueble sin acción no hace nada, y lo que se pisa se camina. Tocar a un
+// gachamon lo elige (se marca dónde está) y encima sale su menú, con «Mover» y
+// «Acariciar». Construyendo, a los gachamones no se les toca (el toque va a lo
+// que tienen detrás, `queSeToco`): tocar un mueble lo elige y encima sale su
+// menú, con «Mover», «Girar» (no lo de pared) y «Guardar» (no la puerta), y al
+// mover la puerta sólo se ofrecen los tramos con la entrada libre. En los dos
+// modos, tocar el suelo es caminar. Entrar al modo suelta lo que llevas en la
+// mano, deja de elegir al gachamon y cancela la salida; «Listo» suelta lo que
+// llevas y deja de elegir el mueble. Ir a salir se cancela tocando la pieza
+// (salvo otra vez la puerta), tomando algo en la mano, mandando una petición,
+// entrando al modo o eligiendo a un gachamon en la lista. Lo que llevas en la
+// mano (el mueble que mueves, el que sacas de la bandeja de «Guardados», bajo
+// la pieza, o el gachamon que mueves, que va sólo adonde tiene camino) marca
+// dónde va, y el toque siguiente dice dónde: en un sitio marcado se pone (el
+// gachamon camina hasta ahí, y eso no se manda); en cualquier otro, se suelta.
+// «Ampliar» cambia lo de la derecha por lo que cuesta crecer por cada lado;
+// tocar un lado no cobra: pregunta antes, como la Tienda, y el segundo clic de
+// un doble clic no confirma.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
@@ -77,7 +90,8 @@ import {
 } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import {
-  camino, dondeCabe, giroParaPoner, laPuerta, libreMasCercana, lineaDeEstado, noSePisan, pasoSuelto, sitiosDeEntrada,
+  camino, conLaEntradaLibre, dondeCabe, giroParaPoner, laPuerta, libreMasCercana, lineaDeEstado, noSePisan, pasoSuelto,
+  sitiosDeEntrada,
 } from './casillas.js';
 import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
@@ -87,7 +101,7 @@ import { ofreceElDepartamento, siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
 import {
-  cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, tramoEn,
+  cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, queSeUsa, tramoEn,
 } from './proyeccion.js';
 
 const VISTA = 'departamento';
@@ -123,6 +137,13 @@ const NADA_GUARDADO = 'No queda nada guardado.';
 const ROTULO_DE_AMPLIAR = 'Ampliar el departamento';
 const YA_NO_CRECE = 'Tu departamento ya no puede crecer más.';
 const NO_HAY_CAMINO = 'No hay camino hasta la puerta.';
+// El botón del modo, lo que se lee a su lado mientras dura, lo que se dice al
+// entrar y, sólo al lector de pantalla, al terminar.
+const CONSTRUIR = ['🔨', 'Construir'];
+const LISTO = ['✔', 'Listo'];
+const EN_OBRA = 'Modo construcción';
+const TOCA_UN_MUEBLE = 'Toca un mueble para moverlo, girarlo o guardarlo.';
+const OBRA_TERMINADA = 'Modo construcción terminado.';
 // La pregunta antes de crecer, como la de la Tienda: el coste es el que manda
 // el servidor, dicho con la palabra («N monedas», «1 moneda»).
 const preguntaDeAmpliar = (coste) => `¿Ampliar por ${MONEDAS.cuantas(coste)}?`;
@@ -225,9 +246,17 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   const saldoDeMonedas = cabecera.querySelector('.saldo');
   if (saldoDeMonedas) saldoDeMonedas.append(flota.ganancia);
   const linea = el('p', { class: 'pieza-linea' });
+  // Bajo el dibujo, el botón del modo («Construir» o «Listo»: el mismo botón,
+  // que cambia lo que dice) y, mientras dura el modo, a su lado, «Modo
+  // construcción».
+  const iconoDelModo = el('span', { 'aria-hidden': 'true' }, CONSTRUIR[0]);
+  const textoDelModo = el('span', {}, CONSTRUIR[1]);
+  const alModo = el('button', { type: 'button', class: 'boton boton-chico boton-construir' }, iconoDelModo, textoDelModo);
+  const rotuloDeObra = el('p', { class: 'rotulo-de-obra', hidden: true }, EN_OBRA);
+  const obra = el('div', { class: 'pieza-obra' }, alModo, rotuloDeObra);
   const bandeja = el('div', { class: 'bandeja', id: 'departamento-bandeja', hidden: true });
   // Mientras no llega, en su lugar se lee la espera (o por qué no llegó).
-  const pieza = el('div', { class: 'pieza', hidden: true }, escenario, linea, bandeja);
+  const pieza = el('div', { class: 'pieza', hidden: true }, escenario, obra, linea, bandeja);
   const espera = el('div', { class: 'espera-tienda' });
 
   const aviso = zonaDeAviso();
@@ -268,7 +297,6 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     poner: ponerDesdeLaLista,
     girar,
     guardar,
-    salir: salirPorLaPuerta,
   });
   lista.nodo.hidden = true;
 
@@ -327,7 +355,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // El estado del juego, el último que llegó: con él se sale al pueblo o a la mochila.
   let actual = estado;
 
-  // Al pueblo: lo que hace «Pueblo», y «Salir» al llegar a la puerta.
+  // Al pueblo: lo que hace «Pueblo», y tocar la puerta al llegar a ella.
   function irAlPueblo() {
     parar();
     seguir(actual, { vista: 'pueblo' });
@@ -386,6 +414,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // mueble puesto que mueves. Un gachamon que mueves es `{gachamon, sitios,
   // mueble: null, tipo: null}`, con las casillas que se pisan como `sitios`.
   let enLaMano = null;
+  // En el modo construcción (si no, viviendo). Siempre se entra viviendo.
+  let construyendo = false;
   let bandejaAbierta = false;
   let ampliando = false;
   // La pregunta abierta en lo de ampliar, o `null`: `{eje, coste, mide}`, el
@@ -523,7 +553,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     const puesto = elPuesto(mueble.id);
     if (!puesto) return null;
     const sitios = dondeCabe(depto, puesto, puesto.giro).filter((s) => s.x !== puesto.x || s.y !== puesto.y);
-    return { mueble: puesto, tipo: null, sitios };
+    // La puerta sólo se lleva a donde se puede entrar por ella.
+    return { mueble: puesto, tipo: null, sitios: puesto.puerta ? conLaEntradaLibre(depto, sitios) : sitios };
   }
 
   // Pone la pieza que llegó: su línea, los saldos, tú y tus gachamones (en la
@@ -742,9 +773,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     return true;
   }
 
-  // «Salir»: caminas hasta la puerta y, al llegar, al pueblo; si ya estás en
-  // ella, o con menos movimiento, enseguida. Sin camino no se sale, y se dice.
-  // Mientras una petición va, no se sale.
+  // Tocar la puerta, viviendo: caminas hasta ella y, al llegar, al pueblo; si
+  // ya estás en ella, o con menos movimiento, enseguida. Sin camino no se sale,
+  // y se dice. Mientras una petición va, no se sale.
   function salirPorLaPuerta() {
     const puerta = depto && laPuerta(depto);
     if (enCamino || !puerta) return;
@@ -911,26 +942,45 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     verLoElegido();
   }
 
-  // Tocar un mueble o un gachamon lo elige, y tocarlo otra vez deja de
-  // elegirlo; lo que se pisa (una alfombra, el felpudo) además se camina.
-  // Tocar el suelo es caminar, y lo elegido deja de estarlo; tocar fuera o una
-  // pared vacía, también. Tocar la pieza mientras vas a salir te deja dentro.
+  // Tocar la pieza mientras vas a salir te deja dentro, salvo que lo tocado
+  // sea otra vez la puerta. Con algo en la mano, el toque dice dónde va; si
+  // no, depende del modo. Mientras una petición va, lo elegido se queda como
+  // está: sólo se camina.
   lienzo.addEventListener('click', (evento) => {
     if (!listo || !m || !sigueAqui()) return;
     saliendo = false;
     const caja = lienzo.getBoundingClientRect();
     const x = evento.clientX - caja.left;
     const y = evento.clientY - caja.top;
-    if (enLaMano) {
-      ponerLoQueLlevasEn(x, y);
-      return;
-    }
-    const tocado = queSeToco(m, depto, losDeLaPieza(), x, y);
-    // Mientras una petición va, lo elegido se queda como está: sólo se camina.
+    if (enLaMano) ponerLoQueLlevasEn(x, y);
+    else if (construyendo) tocarConstruyendo(x, y);
+    else tocarViviendo(x, y);
+  }, { signal });
+
+  // Viviendo, el toque es de lo que tiene acción (hoy, sólo la puerta: te
+  // saca), de un gachamon (tocarlo lo elige, y tocarlo otra vez deja de
+  // elegirlo) o del suelo (se camina; también sobre lo que se pisa). Ningún
+  // mueble se elige: el que no tiene acción no hace nada. Lo que no es un
+  // gachamon deja de elegir al que lo estaba.
+  function tocarViviendo(x, y) {
+    const tocado = queSeUsa(m, depto, losDeLaPieza(), x, y, (puesto) => Boolean(puesto.puerta));
     if (tocado && tocado.tipo === 'gachamon') {
       if (!enCamino) elegirGachamon(tocado.id === elegidoG ? null : tocado.id);
       return;
     }
+    if (!enCamino) elegir(null);
+    if (!tocado) return;
+    if (tocado.tipo === 'accion') salirPorLaPuerta();
+    else caminarHasta(tu, [tocado.i, tocado.j], laPuerta(depto));
+  }
+
+  // Construyendo, a los gachamones no se les toca: el toque va a lo que tengan
+  // detrás. Tocar un mueble lo elige, y tocarlo otra vez deja de elegirlo; lo
+  // que se pisa (una alfombra, el felpudo) además se camina. Tocar el suelo es
+  // caminar, y lo elegido deja de estarlo; tocar fuera o una pared vacía,
+  // también.
+  function tocarConstruyendo(x, y) {
+    const tocado = queSeToco(m, depto, [], x, y);
     const casilla = tocado && tocado.tipo === 'casilla' ? [tocado.i, tocado.j] : null;
     if (!enCamino) {
       let id = null;
@@ -939,6 +989,36 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
       elegir(id === elegido ? null : id);
     }
     if (casilla) caminarHasta(tu, casilla, laPuerta(depto));
+  }
+
+  // --- el modo ---------------------------------------------------------------------------
+
+  // Lo que se ve del modo: lo que dice su botón, «Modo construcción» y el marco.
+  function ponerElModo() {
+    const [icono, texto] = construyendo ? LISTO : CONSTRUIR;
+    iconoDelModo.textContent = icono;
+    textoDelModo.textContent = texto;
+    alModo.classList.toggle('principal', construyendo);
+    rotuloDeObra.hidden = !construyendo;
+    pieza.classList.toggle('construyendo', construyendo);
+  }
+
+  // Entrar o salir del modo, con su botón, que se queda con el foco. Las dos
+  // cosas sueltan lo que llevas en la mano (sin ponerlo). Al entrar, deja de
+  // estar elegido el gachamon (su ficha sigue a la derecha), si ibas a salir ya
+  // no, y se dice qué hacer. Al terminar, deja de estar elegido el mueble, y
+  // se le dice a quien no ve la pieza. Con una petición en camino, nada.
+  alModo.addEventListener('click', () => {
+    if (enCamino || !listo) return;
+    soltar();
+    construyendo = !construyendo;
+    elegidoG = null;
+    if (construyendo) saliendo = false;
+    else elegido = null;
+    ponerElModo();
+    verLoElegido();
+    decir(construyendo ? TOCA_UN_MUEBLE : '');
+    lista.anunciar(construyendo ? '' : OBRA_TERMINADA);
   }, { signal });
 
   // --- el menú de lo elegido -------------------------------------------------------------
@@ -955,10 +1035,9 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   function hacerElMenu(puesto) {
     const botones = [botonDelMenu('✋', 'Mover', moverLoElegido)];
-    // Lo de pared no se gira; la puerta no se guarda: por ella se sale.
+    // Lo de pared no se gira; la puerta no se guarda.
     if (puesto.capa !== PARED) botones.push(botonDelMenu('🔄', 'Girar', (boton) => girar(puesto.id, boton)));
-    if (puesto.puerta) botones.push(botonDelMenu('🚪', 'Salir', salirPorLaPuerta));
-    else botones.push(botonDelMenu('📦', 'Guardar', (boton) => guardar(puesto.id, boton)));
+    if (!puesto.puerta) botones.push(botonDelMenu('📦', 'Guardar', (boton) => guardar(puesto.id, boton)));
     menu.replaceChildren(el('p', { class: 'menu-nombre' }, puesto.nombre), el('div', { class: 'menu-botones' }, botones));
     menu.setAttribute('aria-label', puesto.nombre);
     menuDe = `mueble ${puesto.id}`;
@@ -1060,9 +1139,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // --- lo que pide la lista --------------------------------------------------------------
 
   // Elegir a un gachamon desde la lista es lo mismo que tocarlo, sin su menú:
-  // su ficha queda a la derecha y en la pieza no queda nada elegido.
+  // su ficha queda a la derecha y en la pieza no queda nada elegido. Si ibas a
+  // salir, ya no.
   function verDesdeLaLista(id) {
     if (enCamino || !depto || !depto.plantel.some((g) => g.id === id)) return;
+    saliendo = false;
     elegido = null;
     elegidoG = null;
     visto = id;
@@ -1332,8 +1413,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // --- mandar lo que se hace -------------------------------------------------------------
 
-  // Los botones que mandan algo o te lo ponen en la mano (y los de la pregunta de ampliar).
-  const queMandan = () => cuerpo.querySelectorAll('.menu-de-la-pieza button, .bandeja-tipo, .boton-lado, .ampliar .pregunta button');
+  // Los botones que mandan algo o te lo ponen en la mano (y los de la pregunta
+  // de ampliar), y el del modo, que no cambia mientras una petición va.
+  const queMandan = () => cuerpo.querySelectorAll(
+    '.menu-de-la-pieza button, .bandeja-tipo, .boton-lado, .ampliar .pregunta button, .boton-construir',
+  );
 
   // Los de la ficha y «A todos» los pone su panel (`panel.ocupar`), que sabe
   // además cuáles esperan a que se acabe su espera; los de la lista, la lista.
