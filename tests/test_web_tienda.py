@@ -500,7 +500,7 @@ def test_la_tienda_vende_muebles_de_a_varios(cliente, monkeypatch):
     en_la_tienda_con(cliente, monkeypatch, monedas=200)
     for evento in ("evento-mueble-1", "evento-mueble-2"):
         r = comprar(cliente, "mueble", "felpudo", evento).json()
-        assert (r["ok"], r["mensaje"]) == (True, "Compraste Felpudo. Quedó en tus guardados.")
+        assert (r["ok"], r["mensaje"]) == (True, "Compraste Felpudo. Quedó en tus guardados: en tu casa, entra a «Construir».")
     felpudo = next(m for m in r["tienda"]["muebles"]["lista"] if m["clave"] == "felpudo")
     assert felpudo["tienes"] == 2 and "tuyo" not in felpudo and "tienes_casa" not in r["tienda"]["muebles"]
     assert r["estado"]["saldos"]["monedas"] == 140
@@ -516,7 +516,7 @@ def test_un_mueble_no_pide_tener_casa(cliente, monkeypatch):
     en_la_tienda_con(cliente, monkeypatch, monedas=30)
     for _ in range(2):   # el reintento con el mismo evento no cobra ni entrega otro
         r = comprar(cliente, "mueble", "felpudo", "evento-sin-casa").json()
-        assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Compraste Felpudo. Quedó en tus guardados.")
+        assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Compraste Felpudo. Quedó en tus guardados: en tu casa, entra a «Construir».")
         assert r["estado"]["saldos"]["monedas"] == 0
     guardados = db.departamento_leido(YO, G).guardadas
     assert [p.clave for p in guardados] == ["cama_sencilla", "felpudo"]
