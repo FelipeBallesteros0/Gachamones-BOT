@@ -377,7 +377,7 @@ moverse o salir del departamento».
   **[propuesta, aceptada]**.
 - **Lo que se lee**: al entrar al modo, «Toca un mueble para moverlo, girarlo o
   guardarlo.»; y al terminar, sólo para el lector de pantalla, «Modo
-  construcción terminado.» **[Felipe, 2026-11-16]**.
+  construcción terminado.» **[propuesta, aceptada]**.
 - **La carta del alcalde nombra el botón** **[Felipe, 2026-11-16]**: donde
   habla de los muebles guardados, dice «entra a «Construir» y ponlos donde
   quieras» (sección 6).

@@ -1042,7 +1042,8 @@ Son observaciones, no decisiones.
   - No suma comodidad, no se vende y no aparece en «Guardados».
   - Si no hay camino al salir, no se sale y se dice.
   - Las frases: `Puerta`, `🚪 Salir` y `Salir`, `La puerta no se guarda.`,
-    `No hay camino hasta la puerta.`
+    `No hay camino hasta la puerta.` (`🚪 Salir` y `Salir` dejaron de usarse con
+    el modo construcción: ver el rework 5c.)
 - **Lo que se decidió al construir** (se puede cambiar):
   - El día del cambio, si con las camas que deja puestas el alcalde ninguna
     entrada queda libre (pasa con 21 o 24 gachamones vivos), corre la cama que
@@ -1144,9 +1145,16 @@ Son observaciones, no decisiones.
     y «Acariciar»).
   - La carta del alcalde nombra el botón: dice que se entra a «Construir».
   - Al mover la puerta sólo se ofrecen los tramos con la entrada libre.
-  - Las frases: `Modo construcción`, `Toca un mueble para moverlo, girarlo o
-    guardarlo.` y `Modo construcción terminado.`
+- **Lo que decidió el dueño tras la revisión final** (2026-11-17):
+  - Tocar tu propio avatar parado en la puerta te saca: estando en ella, un
+    toque sobre ti es un toque en la puerta. Se le preguntó y lo dejó como está
+    («Dejarlo como está»).
+  - La Tienda nombra «Construir», como la carta: al comprar un mueble dice
+    `Compraste {nombre}. Quedó en tus guardados: en tu casa, entra a
+    «Construir».`
 - **Lo que el plan propuso y el dueño aprobó** (se le enseñó con el plan):
+  - Las frases: `Modo construcción`, `Toca un mueble para moverlo, girarlo o
+    guardarlo.` y `Modo construcción terminado.` («Apruebo las tres»).
   - Siempre se entra en el modo normal; el modo no se recuerda.
   - El botón va bajo la pieza; en el modo, ahí mismo se lee «Modo construcción»
     y quedan, abiertos mientras dure, la bandeja de guardados y «Ampliar». La
@@ -1183,15 +1191,26 @@ Son observaciones, no decisiones.
     En el computador la bandeja y «Ampliar» van lado a lado.
   - Al entrar al modo, la bandeja y «Ampliar» se traen a la vista, sin
     animación, dejando sitio al aviso del pie.
-  - Si al terminar el modo el foco quedó en algo que se esconde, pasa al botón
-    del modo.
+  - Al abrir lo de ampliar, su panel se trae a la vista (en un teléfono se abre
+    más abajo que su botón), y al abrirse la pregunta de un lado, la pregunta.
+    El sitio que se le deja al aviso del pie sale de una variable del tema,
+    pensada para el aviso en dos líneas.
+  - Un toque sobre lo que flota (el globo, la evolución, las medallas) no hace
+    la acción de un mueble: tocar el globo que queda sobre la puerta no te saca.
+    El suelo de debajo se sigue caminando y a un gachamon se le sigue eligiendo.
+  - El segundo clic de un doble clic se ignora también en la bandeja y en el
+    «Ampliar» que abre el panel, como en el de confirmar: al entrar al modo la
+    página se desliza y ese clic caía en lo que quedaba debajo. El «Ampliar» que
+    abre el panel dice si está abierto.
+  - `ampliar` no manda nada sin su pregunta a la vista: lo de ampliar abierto y
+    la pregunta abierta, la de ese lado.
+  - Al pulsar el botón del modo el foco acaba en él, siempre.
   - Fuera del modo, las secciones de muebles de la lista se esconden, no se
     destruyen.
-  - Qué cancela una salida en curso, una sola regla: cualquier otra cosa que
-    toques o abras. Son tocar la pieza (salvo la propia puerta), tomar algo en la
-    mano, cualquier petición (cuidar, acariciar, «A todos», salir con otro),
-    elegir a un gachamon desde la lista y entrar al modo. «Ver ficha», «Mochila»
-    y «Pueblo» dejan la pantalla.
+  - Qué cancela una salida en curso, una sola regla: cualquier clic fuera de la
+    pieza la cancela (también un cuidado que todavía espera), en un solo sitio;
+    tocar la pieza también, salvo la propia puerta, y mandar una petición.
+    «Ver ficha», «Mochila» y «Pueblo» dejan la pantalla.
 
 ### Lo que resolvió de la puerta
 
@@ -1212,13 +1231,22 @@ Son observaciones, no decisiones.
 - Un gachamon parado delante de la puerta se lleva el toque antes que ella: es
   el orden aprobado (los gachamones primero).
 - Hoy la única acción propia de un mueble es la de la puerta. Las demás llegan
-  con los muebles que se usan solos y con los objetos para jugar.
+  con los muebles que se usan solos y con los objetos para jugar. Cuando
+  lleguen: la pantalla trata hoy cualquier acción como la de la puerta, sin
+  mirar de qué mueble es.
+- Construyendo, la puerta con un mueble justo delante no se puede elegir en el
+  dibujo: el toque es del mueble. Se elige en la lista, o moviendo antes el
+  mueble.
 - El modo no se recuerda entre visitas.
 - Lo de «Ampliar» anotado en el rework 5b (un clic ignorado no avisa; el doble
   toque en un teléfono) sigue igual.
-- El sitio que se le deja al aviso del pie al entrar al modo es una medida fija:
-  en un teléfono con barra de inicio, con el aviso en dos líneas, puede tapar la
-  parte de abajo de «Ampliar» un momento.
+- Con la pantalla atrasada (otra pestaña, o la respuesta y la relectura perdidas
+  y después el otro lado), ampliar cobra el precio de ahora y no el de la
+  pregunta: lo que se manda no lleva lo que mide la pieza ni lo que cuesta. Es
+  de antes de este plan.
+- Con lo de ampliar abierto no se ven «Mochila» ni «Pueblo» (ya era así).
+- La página sólo tiene tema claro: lo nuevo va con las variables de color del
+  tema.
 - Viviendo y sin gachamones, la lista para teclado queda como una raya suelta.
 - Con muchos tipos de mueble guardados, en el computador el último asoma cortado
   junto a «Ampliar» (la fila se desliza).

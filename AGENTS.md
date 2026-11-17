@@ -103,7 +103,8 @@ Instala el hook local cuando prepares el entorno:
 - Dónde está parado cada gachamon y tu avatar no se guarda ni se manda al servidor: sólo se guardan los muebles.
 - Cada departamento tiene exactamente una puerta, siempre puesta: nace con él (`dep.DE_PARTIDA` y el día del cambio), no se vende (`dep.a_la_venta()`) ni se guarda (`economia.guardar_mueble` la rechaza), y se mueve como lo de pared.
 - La casilla de la puerta queda fuera de la pieza y sólo la pisa tu avatar; el cliente reconoce la puerta por la marca `puerta` que manda el servidor, nunca por su clave.
-- El modo construcción es sólo del cliente: no se guarda ni se manda, siempre se entra en el normal y el servidor no sabe de modos. Viviendo, el toque sólo lo recibe lo que tiene acción propia (`proyeccion.queSeUsa`); construyendo, `proyeccion.queSeToco` elige y a los gachamones no se les toca. Al mover la puerta el cliente sólo propone los tramos con la entrada libre (`casillas.conLaEntradaLibre`).
+- El modo construcción es del cliente: no se guarda ni se manda, y siempre se entra en el normal. Viviendo, de los muebles sólo recibe el toque el que tiene acción propia (`proyeccion.queSeUsa`); construyendo, a los gachamones no se les toca (`proyeccion.queSeToco`).
+- Al mover la puerta, el cliente sólo propone los tramos con la entrada libre (`casillas.conLaEntradaLibre`).
 - Tener un mueble no es tenerlo puesto; guardar nunca destruye, y se puede tener más de uno de cada.
 - Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Mientras exista el huevo, el gachamon que nace de él no la pide.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.
