@@ -78,7 +78,8 @@ def test_la_ficha_lleva_al_gachamon_y_los_saldos(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     estado = con_gachamon(cliente)
     cuerpo = cliente.get(FICHA).json()
-    assert cuerpo["gachamon"] == estado["gachamon"]
+    # El nombre que se sugiere para ponerle es sólo del estado.
+    assert cuerpo["gachamon"] == {c: v for c, v in estado["gachamon"].items() if c != "sugerido"}
     assert cuerpo["saldos"] == estado["saldos"]
 
 

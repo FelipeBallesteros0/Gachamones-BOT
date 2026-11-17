@@ -23,7 +23,8 @@ import db
 import economia
 import retrato
 from web import (
-    PREFIJO, carta, cuenta, departamento, ficha, incubadora, juego, mochila, retratos, ropero, tienda,
+    PREFIJO, aventura, carta, cuenta, departamento, ficha, incubadora, juego, mochila, retratos,
+    ropero, tienda,
 )
 from web.sesion import Persona, persona_actual, problema
 
@@ -243,6 +244,7 @@ def crear_app() -> FastAPI:
     app.include_router(incubadora.router, prefix=f"{PREFIJO}/api")
     app.include_router(departamento.router, prefix=f"{PREFIJO}/api")
     app.include_router(carta.router, prefix=f"{PREFIJO}/api")
+    app.include_router(aventura.router, prefix=f"{PREFIJO}/api")
     app.include_router(retratos.router, prefix=PREFIJO)
 
     @app.get(f"{PREFIJO}/api/salud")

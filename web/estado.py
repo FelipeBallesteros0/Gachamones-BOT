@@ -76,22 +76,49 @@ def ficha(criatura: sim.Criatura, ahora: datetime) -> dict:
     }
 
 
-def _lugar(jugador: Jugador) -> dict:
+def _lugar(jugador: Jugador, sin_gachamon: bool, cama_libre: bool) -> dict:
     clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
     return {
         "clave": clave,
         "nombre": pueblo.LUGARES[clave].nombre,
         "abre": pueblo.LUGARES[clave].abre,
-        "aviso": pueblo.aviso(clave),
-        "ofrece": list(pueblo.ofrece(clave)),
+        "aviso": pueblo.aviso(clave, sin_gachamon=sin_gachamon, cama_libre=cama_libre),
+        "ofrece": list(pueblo.ofrece(clave, sin_gachamon=sin_gachamon)),
     }
+
+
+# La guía de quien no tiene ningún gachamon vivo: el paso que le toca.
+_GUIA_CAMA = {
+    "clave": "cama",
+    "texto": "Pon tu segunda cama: entra a «Construir», tócala en los guardados y después toca una casilla.",
+}
+_GUIA_AVENTURA = {
+    "clave": "aventura",
+    "texto": "Ya hay cama para un gachamon. Sal al pueblo y ve a «Aventura».",
+}
+
+
+def _guia(sin_gachamon: bool, cama_libre: bool) -> dict | None:
+    """El paso que le toca a quien no tiene ningún gachamon vivo; con alguno, ninguno."""
+    if not sin_gachamon:
+        return None
+    return dict(_GUIA_AVENTURA if cama_libre else _GUIA_CAMA)
+
+
+def _el_gachamon(activa: sim.Criatura, ahora: datetime) -> dict:
+    """La ficha de la activa y, si espera nombre, el que se le sugiere."""
+    sugerido = nacer.nombre_sugerido(activa) if nacer.espera_nombre(activa) else None
+    return {**ficha(activa, ahora), "sugerido": sugerido}
 
 
 def armar(jugador: Jugador, ahora: datetime) -> dict:
     activa = db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
     avatar = db.avatar_de(jugador.usuario_id, jugador.guild_id)
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
-    lugar = _lugar(jugador)
+    # Sin ninguno vivo, la cama libre dice qué paso le toca: ponerla, o la aventura.
+    sin_gachamon = activa is None
+    cama_libre = sin_gachamon and db.hay_cama_libre(jugador.usuario_id, jugador.guild_id)
+    lugar = _lugar(jugador, sin_gachamon, cama_libre)
     return {
         "ahora": ahora.isoformat(),
         "persona": {
@@ -99,7 +126,7 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         },
         "avatar": None if avatar is None else asdict(avatar),
         "saldos": {"monedas": saldos.asciicoins, "gemas": saldos.asciigems},
-        "gachamon": None if activa is None else ficha(activa, ahora),
+        "gachamon": None if activa is None else _el_gachamon(activa, ahora),
         "globos": [] if activa is None else [
             {"tipo": g.tipo, "texto": g.texto} for g in globos.de(activa, lugar["clave"])
         ],
@@ -107,4 +134,5 @@ def armar(jugador: Jugador, ahora: datetime) -> dict:
         "carta": db.carta_sin_ver(
             jugador.usuario_id, jugador.guild_id, economia.CAMBIO_DE_LA_VIVIENDA
         ) is not None,
+        "guia": _guia(sin_gachamon, cama_libre),
     }

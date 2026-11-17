@@ -36,9 +36,25 @@ OFRECE: dict[str, tuple[str, ...]] = {
     "casa": ("departamento",), "tienda": ("tienda",), "incubadora": ("incubadora",),
 }
 
+# «Aventura» abre más adelante, pero a quien no tiene ningún gachamon vivo ya le
+# ofrece la primera aventura, la que lo trae. El dato del lugar no cambia: lo que
+# cambia es lo que se le ofrece a esa persona.
+AVENTURA = "aventura"
+SIN_CAMA = "Antes pon tu segunda cama en tu departamento: sin cama, nadie se queda contigo."
 
-def ofrece(clave: str) -> tuple[str, ...]:
-    """Lo que se puede hacer en ese lugar; vacío si no abre `ya` o no ofrece nada."""
+
+def _la_primera_aventura(clave: str, sin_gachamon: bool) -> bool:
+    return sin_gachamon and clave == AVENTURA and clave in LUGARES
+
+
+def ofrece(clave: str, *, sin_gachamon: bool = False) -> tuple[str, ...]:
+    """Lo que se puede hacer en ese lugar; vacío si no abre `ya` o no ofrece nada.
+
+    Con `sin_gachamon` (no tiene ningún gachamon vivo), «Aventura» ofrece la
+    primera aventura. Sin decirlo, todo lugar ofrece lo de siempre.
+    """
+    if _la_primera_aventura(clave, sin_gachamon):
+        return (AVENTURA,)
     lugar = LUGARES.get(clave)
     if lugar is None or lugar.abre != YA:
         return ()
@@ -59,11 +75,18 @@ def donde_esta(clave: object) -> str:
     return clave if existe(clave) else de_partida()
 
 
-def aviso(clave: str) -> str | None:
+def aviso(
+    clave: str, *, sin_gachamon: bool = False, cama_libre: bool = False,
+) -> str | None:
     """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
 
-    El Refugio sigue en el mapa, pero cerró: lo dice a quien llega.
+    El Refugio sigue en el mapa, pero cerró: lo dice a quien llega. En
+    «Aventura», a quien no tiene ningún gachamon (`sin_gachamon`) le dice lo que
+    le falta para la primera, la cama; con ella libre, nada. Sin decirlo, todo
+    lugar avisa lo de siempre.
     """
+    if _la_primera_aventura(clave, sin_gachamon):
+        return None if cama_libre else SIN_CAMA
     abre = LUGARES[clave].abre
     if abre == DESPUES:
         return "Esto se abre más adelante."

@@ -1,4 +1,5 @@
 import random
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -75,6 +76,84 @@ def test_dos_huevos_a_la_vez_dejan_un_gachamon():
     with ThreadPoolExecutor(max_workers=2) as hilos:
         nacidos = [n for n in hilos.map(romper, range(2)) if n]
     assert len(nacidos) == 1 and len(db.plantel("u", "g")) == 1
+
+
+# --- El primero, en la primera aventura ---------------------------------------
+
+def test_el_primero_sale_de_las_diez_del_huevo_y_pide_cama():
+    # Sin la segunda cama puesta (la de partida es la tuya) no nace nadie.
+    with pytest.raises(db.SinCamaLibre):
+        nacer.encontrar_al_primero(U, G, T0, random.Random(3))
+    assert db.plantel(U, G) == [] and not db.tiene_gachamones(U, G)
+
+    poner_camas(U, 1, G)
+    primero = nacer.encontrar_al_primero(U, G, T0, random.Random(3))
+    especie = esp.elegir_del_huevo(random.Random(3))
+    assert primero.especie == especie.clave and especie.clave in esp.DEL_HUEVO
+    assert primero.nombre == especie.nombre and nacer.espera_nombre(primero)
+    assert primero.activa and primero.viva and primero.nivel == 1
+    assert primero.se_nombro_solo is False
+    assert db.criatura_activa(U, G).id == primero.id
+    assert [c.id for c in db.plantel(U, G)] == [primero.id]
+
+
+def test_con_un_gachamon_vivo_no_hay_primero():
+    poner_camas(U, 3, G)
+    nace("Nube")
+    with pytest.raises(nacer.YaTieneGachamon):
+        nacer.encontrar_al_primero(U, G, T0)
+    # Tampoco con uno vivo que no es el activo: el remiendo lo hace activo.
+    db.crear("v", G, "pulpo", "Tinta", STATS, T0, activa=False)
+    poner_camas("v", 3, G)
+    with pytest.raises(nacer.YaTieneGachamon):
+        nacer.encontrar_al_primero("v", G, T0)
+    assert len(db.plantel(U, G)) == 1 and len(db.plantel("v", G)) == 1
+
+
+@pytest.mark.parametrize("camas", [1, 2], ids=["la_cama_justa", "con_cama_de_sobra"])
+def test_dos_primeros_a_la_vez_dejan_uno(camas, monkeypatch):
+    """Los dos miran el plantel vacío antes de que el otro cree nada: con la
+    cama justa, el segundo ya no la encuentra; con una de sobra, lo para el
+    índice de la activa. Los dos casos dicen que ya tienes uno."""
+    poner_camas(U, camas, G)
+    los_dos_miraron = threading.Barrier(2, timeout=10)
+    elegir = esp.elegir_del_huevo
+
+    def despues_de_mirar(rng):
+        los_dos_miraron.wait()
+        return elegir(rng)
+
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", despues_de_mirar)
+
+    def encontrar(_):
+        try:
+            return nacer.encontrar_al_primero(U, G, T0)
+        except nacer.YaTieneGachamon:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as hilos:
+        encontrados = [n for n in hilos.map(encontrar, range(2)) if n]
+    assert len(encontrados) == 1 and len(db.plantel(U, G)) == 1
+
+
+def test_el_primero_no_nace_si_la_cuenta_se_vinculo_mientras_tanto():
+    web = db.crear_identidad_web(12, G, T0).usuario_id
+    poner_camas(web, 1, G)
+    codigo = db.pedir_codigo_de_vinculo(12, T0)
+    assert db.canjear_codigo_de_vinculo(codigo, "111111111111111111", G, T0) == "ok"
+    with pytest.raises(nacer.YaNoEsSuIdentidad):
+        nacer.encontrar_al_primero(web, G, T0)
+    assert not db.tiene_gachamones(web, G)
+
+
+def test_quien_se_quedo_sin_ninguno_puede_encontrar_al_primero():
+    viejo = nace("Viejo")
+    db.guardar(replace(viejo, muerta_en=T0, causa_muerte="hambre"))
+    poner_camas(U, 1, G)
+    primero = nacer.encontrar_al_primero(U, G, T0 + timedelta(days=5))
+    assert primero.viva and primero.activa
+    assert [c.id for c in db.plantel(U, G)] == [primero.id]
+    assert db.por_id(viejo.id).muerta_en == T0
 
 
 def test_bautizar_le_pone_nombre_una_vez():

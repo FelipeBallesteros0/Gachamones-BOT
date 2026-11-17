@@ -111,6 +111,21 @@ def en_casa(cliente):
     return ir(cliente, "casa")
 
 
+def poner_la_segunda_cama(cliente) -> None:
+    """Pone la cama que el departamento de partida trae guardada, como en «Construir».
+
+    Deja a la cuenta en su casa, que es donde se pone.
+    """
+    en_casa(cliente)
+    depto = cliente.get("/gachamon/api/departamento").json()
+    cama = next(g["id"] for g in depto["guardados"] if g["cama"])
+    hecho = cliente.post(
+        "/gachamon/api/departamento/poner",
+        json={"mueble_id": cama, "x": 0, "y": 1, "giro": 0}, headers=ESCRIBIR,
+    )
+    assert hecho.status_code == 200 and hecho.json()["ok"], hecho.text
+
+
 def con_monedas_web(cliente, cuantas, uid: int = 1) -> None:
     """Deja el monedero de esa cuenta web con esas monedas (y las gemas como estaban)."""
     cuenta = db.cuenta_web(uid)

@@ -116,3 +116,19 @@ def test_quien_no_tiene_lugar_guardado_o_ya_no_existe_esta_en_su_casa():
     assert pueblo.donde_esta("tienda") == "tienda"
     for clave in (None, "", "no_existe", 7):
         assert pueblo.donde_esta(clave) == pueblo.de_partida() == "casa"
+
+
+def test_aventura_ofrece_la_primera_solo_a_quien_no_tiene_gachamon():
+    sin_cama = "Antes pon tu segunda cama en tu departamento: sin cama, nadie se queda contigo."
+    # Llamadas como siempre, «Aventura» sigue cerrada: el dato no cambia.
+    assert pueblo.LUGARES["aventura"].abre == pueblo.DESPUES
+    assert pueblo.ofrece("aventura") == () and pueblo.aviso("aventura") == "Esto se abre más adelante."
+    assert pueblo.ofrece("aventura", sin_gachamon=True) == ("aventura",)
+    assert pueblo.aviso("aventura", sin_gachamon=True, cama_libre=False) == sin_cama
+    assert pueblo.aviso("aventura", sin_gachamon=True, cama_libre=True) is None
+    # A los demás lugares no les cambia nada.
+    for clave in pueblo.LUGARES:
+        if clave != "aventura":
+            assert pueblo.ofrece(clave, sin_gachamon=True) == pueblo.ofrece(clave), clave
+            for cama_libre in (False, True):
+                assert pueblo.aviso(clave, sin_gachamon=True, cama_libre=cama_libre) == pueblo.aviso(clave)

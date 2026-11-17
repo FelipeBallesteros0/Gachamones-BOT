@@ -4,8 +4,9 @@ import db
 import economia
 import especies as esp
 import identidad
+import nombres
 import retrato
-from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, entrar, poner_reloj
+from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, entrar, poner_la_segunda_cama, poner_reloj
 
 ESTADO = "/gachamon/api/estado"
 STATS = (10, 10, 10, 10)
@@ -75,12 +76,12 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
         "cara": "feliz", "desfallecido": False,
         "retrato": f"/gachamon/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}",
         "esperas": {"alimentar": 0, "jugar": 0, "entrenar": 0, "limpiar": 0, "acariciar": 0},
-        "titulo": None,
+        "titulo": None, "sugerido": None,
     }
     assert estado["globos"] and all(g["tipo"] in ("lugar", "suelta") for g in estado["globos"])
-    assert estado["carta"] is False
+    assert estado["carta"] is False and estado["guia"] is None
     assert set(estado) == {
-        "ahora", "persona", "avatar", "saldos", "gachamon", "globos", "lugar", "carta",
+        "ahora", "persona", "avatar", "saldos", "gachamon", "globos", "lugar", "carta", "guia",
     }
 
 
@@ -238,3 +239,65 @@ def test_el_titulo_sale_ya_concordado(cliente, monkeypatch):
     with db.conectar() as con:
         con.execute("UPDATE criaturas SET titulo = 'titulo_invicto' WHERE id = ?", (creado.id,))
     assert cliente.get(ESTADO).json()["gachamon"]["titulo"] == "la Invicta"
+
+
+# --- Sin gachamon: la guía y la primera aventura -------------------------------
+
+GUIA_CAMA = "Pon tu segunda cama: entra a «Construir», tócala en los guardados y después toca una casilla."
+GUIA_AVENTURA = "Ya hay cama para un gachamon. Sal al pueblo y ve a «Aventura»."
+SIN_CAMA = "Antes pon tu segunda cama en tu departamento: sin cama, nadie se queda contigo."
+
+
+def test_la_guia_dice_el_paso_que_toca(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    assert cliente.get(ESTADO).json()["guia"] == {"clave": "cama", "texto": GUIA_CAMA}
+    poner_la_segunda_cama(cliente)
+    assert cliente.get(ESTADO).json()["guia"] == {"clave": "aventura", "texto": GUIA_AVENTURA}
+    creado = nace()
+    assert cliente.get(ESTADO).json()["guia"] is None
+    # Quien se quedó sin ninguno antes del cambio vuelve a tener la guía.
+    morir_de_antes(creado, reloj.ahora)
+    assert cliente.get(ESTADO).json()["guia"] == {"clave": "aventura", "texto": GUIA_AVENTURA}
+
+
+def test_el_que_espera_nombre_trae_uno_sugerido_y_es_siempre_el_mismo(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    especie = esp.ESPECIES["pollito"].nombre
+    creado = nace(nombre=especie)                      # espera nombre
+    sugerido = cliente.get(ESTADO).json()["gachamon"]["sugerido"]
+    assert sugerido in nombres.NOMBRES
+    reloj.pasar(hours=3)
+    assert all(cliente.get(ESTADO).json()["gachamon"]["sugerido"] == sugerido for _ in range(5))
+
+    # Ni el de otro de su plantel ni el de su especie: aquí sólo queda «Miga».
+    monkeypatch.setattr(nombres, "NOMBRES", ("Nube", especie, "Miga"))
+    nace(nombre="Nube", activa=False)
+    assert cliente.get(ESTADO).json()["gachamon"]["sugerido"] == "Miga"
+
+    # Con un nombre propio ya no se sugiere ninguno.
+    db.guardar(replace(db.por_id(creado.id), nombre="Pelusa"))
+    gachamon = cliente.get(ESTADO).json()["gachamon"]
+    assert gachamon["espera_nombre"] is False and gachamon["sugerido"] is None
+
+
+def test_aventura_se_ofrece_solo_a_quien_no_tiene_gachamon(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+
+    def el_lugar(clave):
+        cliente.post("/gachamon/api/lugar", json={"lugar": clave}, headers=ESCRIBIR)
+        lugar = cliente.get(ESTADO).json()["lugar"]
+        assert lugar["clave"] == clave
+        return lugar["abre"], lugar["ofrece"], lugar["aviso"]
+
+    assert el_lugar("aventura") == ("despues", ["aventura"], SIN_CAMA)
+    poner_la_segunda_cama(cliente)
+    assert el_lugar("aventura") == ("despues", ["aventura"], None)
+    # Los demás lugares, sin gachamon, como siempre.
+    assert el_lugar("plaza") == ("despues", [], "Esto se abre más adelante.")
+    assert el_lugar("tienda") == ("ya", ["tienda"], None)
+    assert el_lugar("casa") == ("ya", ["departamento"], None)
+    nace()
+    assert el_lugar("aventura") == ("despues", [], "Esto se abre más adelante.")

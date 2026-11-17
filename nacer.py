@@ -1,4 +1,4 @@
-"""Nacer: romper el huevo, unirse un recluta y bautizar.
+"""Nacer: romper el huevo, encontrar al primero, unirse un recluta y bautizar.
 
 Aquí está lo que decide qué nace, con qué nombre llega un recluta y cuándo se
 puede bautizar; quien llama (la ruta de la web) sólo traduce el resultado.
@@ -17,11 +17,12 @@ import simulacion as sim
 
 
 class YaTieneGachamon(Exception):
-    """El huevo es sólo el de partida."""
+    """El de partida es sólo uno: el del huevo o el de la primera aventura."""
 
 
 class YaNoEsSuIdentidad(Exception):
-    """La identidad web del huevo ya no es la de esa cuenta: se vinculó."""
+    """La identidad web que iba a recibir al de partida ya no es la de esa
+    cuenta: se vinculó."""
 
 
 SIN_GACHAMON = "sin_gachamon"
@@ -60,6 +61,16 @@ def nombre_de_recluta(
     evitar = [criatura.nombre for criatura in db.plantel(usuario_id, guild_id)]
     evitar.append(esp.ESPECIES[especie].nombre)
     return nombres.elegir(rng, evitar)
+
+
+def nombre_sugerido(criatura: sim.Criatura) -> str:
+    """El nombre que se le propone a su dueño al ponérselo: uno de la lista,
+    como el de un recluta (`nombre_de_recluta`), y siempre el mismo para ese
+    gachamon, porque el azar se siembra con su id y no con el reloj."""
+    return nombre_de_recluta(
+        criatura.usuario_id, criatura.guild_id, criatura.especie,
+        random.Random(criatura.id),
+    )
 
 
 def unir_recluta(
@@ -133,6 +144,57 @@ def romper_el_huevo(
         raise YaNoEsSuIdentidad from None
     except (sqlite3.IntegrityError, ValueError):
         # Índice único: dos huevos a la vez. ValueError: plantel lleno.
+        raise YaTieneGachamon from None
+
+
+def encontrar_al_primero(
+    usuario_id: str,
+    guild_id: str,
+    ahora: datetime,
+    rng: random.Random | None = None,
+) -> sim.Criatura:
+    """El gachamon de partida, el que se gana en la primera aventura.
+
+    Sale de las diez del huevo, con sus pesos (`esp.elegir_del_huevo`), nace
+    activo y con el nombre de su especie, provisional hasta que su dueño le
+    ponga uno (por eso lo espera). La hace cualquiera sin ningún gachamon vivo,
+    también quien se quedó sin ninguno antes del día del cambio; con alguno vivo
+    levanta `YaTieneGachamon`.
+
+    Pide una cama libre, como todos: sin ella deja pasar `db.SinCamaLibre` y no
+    crea nada. Si la cuenta se vinculó mientras tanto, `YaNoEsSuIdentidad`.
+    Dos a la vez dejan uno solo: al segundo lo para la cama, que ya ocupó el
+    primero, o el índice de la activa; en los dos casos, `YaTieneGachamon`.
+    """
+    rng = rng or random.Random()
+    # El remiendo de siempre: si quedó un plantel sin activo, aquí pasa a serlo
+    # uno de los vivos. Con plantel, vivo aunque no tenga activo, no hay primero.
+    db.activa_al_dia(usuario_id, guild_id, ahora)
+    if db.plantel(usuario_id, guild_id):
+        raise YaTieneGachamon
+    especie = esp.elegir_del_huevo(rng)
+    try:
+        return db.crear(
+            usuario_id=usuario_id,
+            guild_id=guild_id,
+            especie=especie.clave,
+            nombre=especie.nombre,  # provisional hasta que le ponga uno
+            stats=esp.tirar_stats_iniciales(especie, rng),
+            genero=esp.tirar_genero(rng),
+            caracter=per.tirar_caracter(rng),
+            ahora=ahora,
+            cuenta_vigente=True,
+            pide_cama=True,
+        )
+    except db.IdentidadCaducada:
+        raise YaNoEsSuIdentidad from None
+    except db.SinCamaLibre:
+        # Si mientras tanto llegó otro, la cama que faltó es la que ocupó él.
+        if db.plantel(usuario_id, guild_id):
+            raise YaTieneGachamon from None
+        raise
+    except sqlite3.IntegrityError:
+        # Índice único de la activa: dos a la vez, con cama para los dos.
         raise YaTieneGachamon from None
 
 
