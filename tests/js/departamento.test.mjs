@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { noSePisan, sitiosDeEntrada } from '../../web/static/js/casillas.js';
-import { casillaEn, medir, proyectar } from '../../web/static/js/proyeccion.js';
+import { nombreDelSitio, noSePisan, sitiosDeEntrada } from '../../web/static/js/casillas.js';
+import {
+  casillaEn, medir, proyectar, tramoEn,
+} from '../../web/static/js/proyeccion.js';
 
 // Lo justo de un navegador para pintar el departamento sin pantalla, tocar sus
 // botones y su lienzo: elementos con sus hijos (y quién los contiene), su
@@ -697,6 +699,43 @@ function casillasMarcadas(pantalla) {
 }
 
 const enOrden = (casillas) => [...casillas].sort(([a, b], [c, d]) => a - c || b - d);
+
+// Los sitios que se marcaron la última vez, como `casillasMarcadas` pero sin
+// confundir un tramo de pared con la casilla de delante (las dos marcas empiezan
+// en la misma esquina): cada marca es un trazo de cuatro esquinas, y su centro
+// cae en su tramo (`[-1, j]`, la pared izquierda; `[i, -1]`, la derecha), a media
+// altura de la pared, o en su casilla del suelo.
+function sitiosMarcados(pantalla) {
+  const { m, ancho, fondo } = medidaDe(pantalla);
+  const trazos = ultimoCuadro(pantalla);
+  return trazos.flatMap(([nombre, punto], n) => {
+    if (nombre !== 'moveTo') return [];
+    const esquinas = [punto, ...trazos.slice(n + 1, n + 4).map(([, otro]) => otro)];
+    const [x, y] = [0, 1].map((k) => esquinas.reduce((suma, esquina) => suma + esquina[k], 0) / esquinas.length);
+    return [tramoEn(m, x, y, ancho, fondo) || casillaEn(m, x, y, ancho, fondo)];
+  });
+}
+
+// Dónde se pintó a cada gachamon en todos los cuadros desde que se abrió la
+// pantalla, no sólo en el último, como `dondeEstanLosGachamones`.
+function dondeSePintaronLosGachamones(pantalla) {
+  const { m } = medidaDe(pantalla);
+  return (lienzoDe(pantalla).trazos || [])
+    .filter(([nombre, [imagen]]) => nombre === 'drawImage' && String(imagen && imagen.src).includes('/gachamon/retrato/'))
+    .map(([, [, x, y, ancho, alto]]) => enLaPieza(pantalla, x + ancho / 2, y + alto - m.th / 4));
+}
+
+// Un azar que no se queda en una elección: da, por turnos, 0, 1/7, 2/7 … 6/7 y
+// vuelta a empezar. Siete no es múltiplo de los tres que pide cada paseo (cuándo,
+// quién y hacia dónde), así que cada uno de ellos va pasando por todos los valores.
+function azarQueRecorre() {
+  let n = 0;
+  return () => {
+    const valor = (n % 7) / 7;
+    n += 1;
+    return valor;
+  };
+}
 
 // La casilla donde la pantalla pintó la última vez ese retrato: la que queda
 // bajo sus pies, que están un cuarto de alto de casilla bajo el centro de la
@@ -2092,14 +2131,58 @@ test('en la lista, la puerta se mueve y por ella se sale, pero no se gira ni se 
   assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
 });
 
+// El 3 × 3 de siempre, con su cama y su puerta, y macetas en (1, 2) y (2, 1): Pelusa
+// entra en (0, 2), la casilla de enfrente de la puerta, y desde ahí, con tu avatar
+// en (1, 1), sólo puede dar un paso a (0, 1) y volver. Si el paseo contara con la
+// puerta, desde (0, 2) la puerta sería uno de sus dos pasos posibles.
+const DELANTE_DE_LA_PUERTA = [[1, 2], [2, 1]]
+  .reduce((d, [x, y], n) => conPuesto(d, { ...LA_MACETA, id: 30 + n, x, y, giro: 0, casillas: [[x, y]] }), DEPTO);
+
 test('los gachamones no llegan a la puerta', async () => {
-  const { pantalla } = await abrir(CON_DOS, ESTADO, { azar: () => 0 });
+  const { pantalla } = await abrir(DELANTE_DE_LA_PUERTA, ESTADO, { azar: azarQueRecorre() });
+  assert.deepEqual(dondeEstanLosGachamones(pantalla), [[0, 2]]);         // en la casilla de enfrente
+  await tocarCasilla(pantalla, 1, 1); await correrCuadros(5000);          // tú entras y le dejas sitio
+  assert.deepEqual(dondeEstas(pantalla), [1, 1]);
   for (let n = 0; n < 40; n += 1) {
     await correrReloj(9000);
-    await correrCuadros(1000);                                          // y dan los pasos que echaron a andar
+    await correrCuadros(1000);                                          // y da los pasos que echó a andar
   }
-  assert.equal(dondeEstanLosGachamones(pantalla).length, 2);
-  assert.ok(dondeEstanLosGachamones(pantalla).every(([i, j]) => i >= 0 && j >= 0));
+  const pintada = dondeSePintaronLosGachamones(pantalla);
+  const vista = new Set(pintada.map(String));
+  assert.ok(vista.has('0,1') && vista.has('0,2'), [...vista].join(' '));  // paseó: fue a (0, 1) y volvió
+  assert.ok(pintada.every(([i, j]) => i >= 0 && j >= 0), [...vista].join(' '));   // y nunca en la puerta ni en su umbral
+  assert.equal(dondeEstanLosGachamones(pantalla).length, 1);
+});
+
+test('a un gachamon no se le puede llevar a la puerta', async () => {
+  const { pantalla, pedidos, seguido } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [1, 2]);       // tú, en la puerta
+  await tocarA(pantalla, DEPTO, 0);
+  await tocar(boton(menu(pantalla), 'Mover'));
+  const marcados = sitiosMarcados(pantalla);
+  assert.deepEqual(enOrden(marcados.slice(0, -1)), [[0, 1], [0, 2], [1, 1], [2, 0], [2, 1], [2, 2]]);   // sin la puerta
+  assert.deepEqual(marcados.at(-1), [1, 2]);                              // y dónde está ella, elegida
+  await tocarTramo(pantalla, -1, 2);                                      // el tramo de la puerta
+  assert.equal(menu(pantalla), null);                                     // la suelta, como fuera de lo marcado
+  assert.deepEqual(sitiosMarcados(pantalla), []);
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [1, 2]);       // sin moverla
+  assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);
+  assert.equal(seguido.length, 0);                                        // y sin salir
+  assert.equal(pedidos.length, 1);
+});
+
+test('al mover la puerta se ofrecen los tramos libres de las dos paredes', async () => {
+  const conCuadro = await abrir(CON_UN_CUADRO_COLGADO);                   // el cuadro, en el tramo 3 de la pared derecha
+  await tocarTramo(conCuadro.pantalla, -1, 2);
+  await tocar(boton(menu(conCuadro.pantalla), 'Mover'));
+  const marcados = sitiosMarcados(conCuadro.pantalla);
+  assert.deepEqual(enOrden(marcados.slice(0, -1)), [[-1, 0], [-1, 1], [0, -1], [1, -1]]);   // ni el suyo ni el del cuadro
+  assert.deepEqual(marcados.at(-1), [-1, 2]);                             // y dónde está ella, elegida
+  const enLaLista = await abrir(CON_UN_CUADRO_COLGADO);
+  await tocar(boton(fila(enLaLista.pantalla, PUERTA_ID), 'Mover'));
+  const ofrecidos = todos(enLaLista.pantalla, '.donde option').map((o) => o.textContent);
+  assert.deepEqual(ofrecidos, ['pared derecha, tramo 1', 'pared derecha, tramo 2', 'pared izquierda, tramo 1', 'pared izquierda, tramo 2']);
+  assert.deepEqual(marcados.slice(0, -1).map(([x, y]) => nombreDelSitio(x, y)), ofrecidos);   // los mismos que en el dibujo
 });
 
 // --- lo que el encargo de la puerta dice y no prueba lo de arriba ---------------------------
