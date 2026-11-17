@@ -1,5 +1,6 @@
 """Las camas puestas mandan: reclutar pide una cama libre y no hay tope de 25."""
 import ast
+import os
 import random
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +12,7 @@ import departamento as dep
 import especies as esp
 import identidad
 import nacer as nacer_
-from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon
+from ayudas_web import PUEBLO, con_gachamon
 from test_web_incubadora import ir
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
@@ -102,6 +103,14 @@ def test_la_cama_libre_es_por_persona_y_por_servidor():
 
 
 RAIZ = Path(__file__).resolve().parent.parent
+# Lo que no es código del juego: las pruebas, el entorno, lo compilado y lo oculto.
+_FUERA_DEL_JUEGO = {"tests", "venv", "__pycache__", "node_modules"}
+
+
+def _modulos_que_no_son_de_pruebas():
+    for carpeta, subcarpetas, archivos in os.walk(RAIZ):
+        subcarpetas[:] = sorted(c for c in subcarpetas if c not in _FUERA_DEL_JUEGO and not c.startswith("."))
+        yield from (Path(carpeta) / a for a in sorted(archivos) if a.endswith(".py"))
 
 
 def _llamadas_a_crear(ruta):
@@ -121,29 +130,23 @@ def _pide_cama(llamada):
     )
 
 
-def test_todo_gachamon_pide_cama(cliente):
-    """Ya no hay huevo: ninguna ruta de la web ni ninguna función de `nacer` crea
-    un gachamon sin pedir cama. `db.crear` no la pide por su cuenta: es lo que usan
-    las pruebas de reglas para crear criaturas a mano."""
-    # Por las rutas, con sólo tu cama puesta: ni la primera aventura ni el huevo, que ya no está.
-    alta(cliente)
-    ir(cliente, "aventura")
-    respuesta = cliente.post("/gachamon/api/aventura/primera", headers=ESCRIBIR)
-    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "sin_cama"
-    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 404
-    assert not db.tiene_gachamones(USUARIO_WEB, str(PUEBLO))
-    # En `nacer`, con sólo tu cama puesta: tampoco.
-    with pytest.raises(db.SinCamaLibre):
-        nacer_.encontrar_al_primero("u1", "g1", T0, random.Random(1))
-    with pytest.raises(db.SinCamaLibre):
-        recluta()
-    assert not db.tiene_gachamones("u1", "g1") and not hasattr(nacer_, "romper_el_huevo")
-    # Y todo lo que crea uno, en `nacer` y en la web, se lo pide a `db.crear` pidiendo cama.
-    llamadas = {
-        ruta.relative_to(RAIZ).as_posix(): _llamadas_a_crear(ruta)
-        for ruta in (RAIZ / "nacer.py", *sorted((RAIZ / "web").glob("*.py")))
-    }
-    assert llamadas["nacer.py"]                    # el primero y el recluta: la búsqueda no está vacía
+def test_todo_gachamon_pide_cama():
+    """Ya no hay huevo: nada del juego crea un gachamon sin pedir cama. Todo
+    `db.crear(...)` de un módulo que no es de pruebas la pide (`pide_cama=True`);
+    `db.crear` no la pide por su cuenta porque es lo que usan las pruebas de
+    reglas para crear criaturas a mano.
+
+    Lo que hace cada camino lo fijan sus propias pruebas: que el huevo ya no
+    existe, `test_web_nacer.py::test_el_huevo_ya_no_existe`; que sin cama libre
+    no hay primero, `test_web_aventura.py::test_sin_la_segunda_cama_no_hay_encuentro`
+    y `test_nacer.py::test_el_primero_sale_de_las_diez_del_huevo_y_pide_cama`; y
+    que sin cama libre no se une un recluta, `test_un_recluta_pide_una_cama_libre`.
+    """
+    llamadas = {ruta.relative_to(RAIZ).as_posix(): _llamadas_a_crear(ruta) for ruta in _modulos_que_no_son_de_pruebas()}
+    # La búsqueda llega a todas partes menos a las pruebas, y no vuelve vacía: `nacer` crea.
+    assert {"nacer.py", "economia.py", "web/aventura.py", "cogs/mudanza.py", "herramientas/pieza.py"} <= set(llamadas)
+    assert not any(ruta.startswith(("tests/", "venv/")) for ruta in llamadas)
+    assert llamadas["nacer.py"]
     sin_pedirla = [f"{ruta}:{l.lineno}" for ruta, ls in llamadas.items() for l in ls if not _pide_cama(l)]
     assert sin_pedirla == []
 

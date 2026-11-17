@@ -462,6 +462,28 @@ def test_si_el_relevo_sale_en_la_peticion_no_se_cobra(cliente, monkeypatch):
     assert db.criatura_activa(LA_DE_DISCORD, G).id == nube.id   # el relevo sí salió
 
 
+def test_con_el_relevo_pendiente_un_mueble_se_compra_igual(cliente, monkeypatch):
+    """Un mueble no depende de ningún gachamon: que el relevo salga en la misma
+    petición no lo frena, y lo que devuelve ya trae al relevo."""
+    reloj = poner_reloj(monkeypatch)
+    con_vinculo(cliente)
+    ir(cliente, "tienda")
+    dar(monedas=5000, usuario=LA_DE_DISCORD)
+    nube = db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", (15, 15, 15, 15), reloj.ahora, activa=False)
+    # Pelusa murió cuando todavía se moría de hambre, y nadie sacó todavía al relevo.
+    pelusa = db.criatura_activa(LA_DE_DISCORD, G)
+    db.guardar(replace(pelusa, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+
+    for _ in range(2):   # el reintento con el mismo evento no cobra ni entrega otro
+        respuesta = comprar(cliente, "mueble", "felpudo", "evento-relevo-mueble")
+        assert respuesta.status_code == 200
+        cuerpo = respuesta.json()
+        assert (cuerpo["ok"], cuerpo["clave"]) == (True, None)
+        assert cuerpo["estado"]["gachamon"]["id"] == nube.id
+    assert economia.saldos(LA_DE_DISCORD, G).asciicoins == 5000 - dep.MUEBLES["felpudo"].precio
+    assert [p.clave for p in db.departamento_leido(LA_DE_DISCORD, G).guardadas] == ["felpudo"]
+
+
 # --- El cosmético ----------------------------------------------------------------
 
 def test_el_cosmetico_cobra_gemas_y_el_gachamon_ya_lo_lleva(cliente, monkeypatch):

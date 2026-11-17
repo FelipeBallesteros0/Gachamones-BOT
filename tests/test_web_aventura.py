@@ -5,8 +5,11 @@ import db
 import economia
 import especies as esp
 import identidad
+import logros as lgr
 import nacer
-from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, alta, entrar, ir, poner_la_segunda_cama, poner_reloj
+from ayudas_web import (
+    AVATAR, ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, ganar_el_primero, ir, poner_la_segunda_cama, poner_reloj,
+)
 
 AVENTURA, PRIMERA = "/gachamon/api/aventura", "/gachamon/api/aventura/primera"
 ESTADO = "/gachamon/api/estado"
@@ -195,6 +198,41 @@ def test_si_el_pago_de_las_medallas_fallo_el_reintento_lo_paga(cliente, monkeypa
     assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
     assert economia.saldos(YO, G).asciigems == 20 and len(db.plantel(YO, G)) == 1
     assert set(db.logros_de_persona(YO, G)) == {"uno_entre_veinticinco"}
+
+
+def diez_reclutados_sin_cobrar(usuario=YO):
+    """Dos medallas de la persona cumplidas y sin anotar (la del primer salvaje y la
+    de los diez): diez reclutados en su marcador y ninguna medalla apuntada."""
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        db.apuntar_persona_en(con, usuario, G, lgr.RECLUTADOS, 10)
+
+
+def test_quien_ya_tenia_gachamones_no_cobra_nada_al_pedir_la_primera_aventura(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)                       # su gachamon, ya con nombre
+    diez_reclutados_sin_cobrar()
+    antes = economia.saldos(YO, G)
+    ir(cliente, "aventura")
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
+    assert economia.saldos(YO, G) == antes and db.logros_de_persona(YO, G) == {}
+
+
+def test_con_dos_gachamones_aunque_uno_espere_nombre_la_primera_aventura_no_cobra(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["pollito"])
+    alta(cliente)
+    ganar_el_primero(cliente)                   # el primero, todavía sin nombre
+    db.crear(YO, G, "pulpo", "Nube", (10, 10, 10, 10), reloj.ahora, activa=False)
+    diez_reclutados_sin_cobrar()
+    antes = economia.saldos(YO, G)
+    ir(cliente, "aventura")
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
+    assert economia.saldos(YO, G) == antes and db.logros_de_persona(YO, G) == {}
 
 
 def test_si_algo_falla_despues_del_encuentro_el_gachamon_ya_es_tuyo(cliente, monkeypatch):
