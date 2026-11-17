@@ -1285,9 +1285,11 @@ def crear(
 
     - **La cama libre** se comprueba aquí dentro con `BEGIN IMMEDIATE`, porque
       no cabe en un índice, y sólo si `pide_cama`: levanta `SinCamaLibre` antes
-      de insertar y de apuntar nada. Quien nace del huevo no la pide.
+      de insertar y de apuntar nada. Todo gachamon de verdad la pide (`nacer`);
+      sin `pide_cama` sólo crean criaturas a mano las pruebas de reglas.
     - **Una sola activa** lo sigue imponiendo el índice único, que hace saltar
-      `sqlite3.IntegrityError`: es la defensa contra romper dos huevos a la vez.
+      `sqlite3.IntegrityError`: es la defensa contra dos primeros a la vez con
+      cama para los dos.
 
     `cuenta_vigente` sólo cuenta para una identidad web: comprueba, en esta
     misma transacción, que `cuentas_web` sigue teniéndola. Si no, levanta

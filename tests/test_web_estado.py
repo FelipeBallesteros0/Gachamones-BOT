@@ -6,7 +6,7 @@ import especies as esp
 import identidad
 import nombres
 import retrato
-from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, entrar, poner_la_segunda_cama, poner_reloj
+from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, entrar, ganar_el_primero, poner_la_segunda_cama, poner_reloj
 
 ESTADO = "/gachamon/api/estado"
 STATS = (10, 10, 10, 10)
@@ -111,10 +111,10 @@ def test_el_que_espera_nombre_lo_dice(cliente, monkeypatch):
     assert cliente.get(ESTADO).json()["gachamon"]["espera_nombre"] is True
 
 
-def test_el_del_huevo_no_se_nombro_solo(cliente, monkeypatch):
+def test_el_primero_no_se_nombro_solo(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
+    ganar_el_primero(cliente)
     estado = cliente.get(ESTADO).json()
     assert estado["gachamon"]["se_nombro_solo"] is False
 

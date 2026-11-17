@@ -28,54 +28,10 @@ def nace(nombre):
     return db.crear(U, G, "pulpo", nombre, STATS, T0)
 
 
-def test_del_huevo_sale_una_de_las_diez_con_nombre_provisional():
-    nacida = nacer.romper_el_huevo("u", "g", T0, random.Random(3))
-    especie = esp.ESPECIES[nacida.especie]
-    assert especie.peso > 0
-    assert nacida.nombre == especie.nombre and nacer.espera_nombre(nacida)
-    assert nacida.activa and nacida.viva and nacida.nivel == 1
-    assert db.criatura_activa("u", "g").id == nacida.id
-
-
-def test_el_mismo_azar_da_el_mismo_gachamon():
-    a = nacer.romper_el_huevo("a", "g", T0, random.Random(5))
-    b = nacer.romper_el_huevo("b", "g", T0, random.Random(5))
-    assert (a.especie, a.genero, a.caracter, a.base_fuerza, a.base_ingenio) == (
-        b.especie, b.genero, b.caracter, b.base_fuerza, b.base_ingenio)
-
-
-def test_el_huevo_es_solo_el_de_partida():
-    nacer.romper_el_huevo("u", "g", T0)
-    with pytest.raises(nacer.YaTieneGachamon):
-        nacer.romper_el_huevo("u", "g", T0)
-    assert len(db.plantel("u", "g")) == 1
-
-
-def test_con_uno_en_la_incubadora_tampoco_hay_huevo():
-    primero = nacer.romper_el_huevo("u", "g", T0)
-    db.guardar(replace(primero, muerta_en=T0, causa_muerte="hambre"))
-    db.crear("u", "g", "pulpo", "Tinta", (10, 10, 10, 10), T0, activa=False)
-    with pytest.raises(nacer.YaTieneGachamon):
-        nacer.romper_el_huevo("u", "g", T0)
-
-
-def test_cuando_se_le_murio_el_unico_puede_sacar_otro():
-    unico = nacer.romper_el_huevo("d", "g", T0)
-    db.guardar(replace(unico, muerta_en=T0, causa_muerte="hambre"))
-    otro = nacer.romper_el_huevo("d", "g", T0 + timedelta(days=5))
-    assert otro.viva and len(db.plantel("d", "g")) == 1
-
-
-def test_dos_huevos_a_la_vez_dejan_un_gachamon():
-    def romper(_):
-        try:
-            return nacer.romper_el_huevo("u", "g", T0)
-        except nacer.YaTieneGachamon:
-            return None
-
-    with ThreadPoolExecutor(max_workers=2) as hilos:
-        nacidos = [n for n in hilos.map(romper, range(2)) if n]
-    assert len(nacidos) == 1 and len(db.plantel("u", "g")) == 1
+def el_primero(usuario=U, guild=G, rng=None):
+    """El de partida de esa persona: con su segunda cama puesta, la primera aventura."""
+    poner_camas(usuario, 1, guild)
+    return nacer.encontrar_al_primero(usuario, guild, T0, rng)
 
 
 # --- El primero, en la primera aventura ---------------------------------------
@@ -146,6 +102,13 @@ def test_el_primero_no_nace_si_la_cuenta_se_vinculo_mientras_tanto():
     assert not db.tiene_gachamones(web, G)
 
 
+def test_el_mismo_azar_da_el_mismo_gachamon():
+    a = el_primero("a", rng=random.Random(5))
+    b = el_primero("b", rng=random.Random(5))
+    assert (a.especie, a.genero, a.caracter, a.base_fuerza, a.base_ingenio) == (
+        b.especie, b.genero, b.caracter, b.base_fuerza, b.base_ingenio)
+
+
 def test_quien_se_quedo_sin_ninguno_puede_encontrar_al_primero():
     viejo = nace("Viejo")
     db.guardar(replace(viejo, muerta_en=T0, causa_muerte="hambre"))
@@ -157,7 +120,7 @@ def test_quien_se_quedo_sin_ninguno_puede_encontrar_al_primero():
 
 
 def test_bautizar_le_pone_nombre_una_vez():
-    nacer.romper_el_huevo("u", "g", T0)
+    el_primero()
     assert nacer.bautizar("u", "g", "  Pelusa  ", T0).nombre == "Pelusa"
     assert db.criatura_activa("u", "g").nombre == "Pelusa"
     with pytest.raises(nacer.NoSePuedeBautizar):
@@ -166,7 +129,7 @@ def test_bautizar_le_pone_nombre_una_vez():
 
 @pytest.mark.parametrize("malo", ["", "   ", "<b>x</b>", "x" * 25, "Pelu🙂"])
 def test_un_nombre_que_no_vale_no_bautiza(malo):
-    nacida = nacer.romper_el_huevo("u", "g", T0)
+    nacida = el_primero()
     with pytest.raises(ValueError):
         nacer.bautizar("u", "g", malo, T0)
     assert db.criatura_activa("u", "g").nombre == nacida.nombre
@@ -177,21 +140,9 @@ def test_sin_gachamon_no_hay_a_quien_bautizar():
         nacer.bautizar("nadie", "g", "Pelusa", T0)
 
 
-def test_no_nace_un_huerfano_si_la_cuenta_se_vinculo_mientras_tanto():
-    import identidad
-
-    web = db.crear_identidad_web(12, "g", T0).usuario_id
-    codigo = db.pedir_codigo_de_vinculo(12, T0)
-    assert db.canjear_codigo_de_vinculo(codigo, "111111111111111111", "g", T0) == "ok"
-    with pytest.raises(nacer.YaNoEsSuIdentidad):
-        nacer.romper_el_huevo(web, "g", T0)
-    assert not db.tiene_gachamones(web, "g")
-    assert identidad.es_web(web)
-
-
 def test_una_identidad_web_vigente_si_puede_nacer():
-    web = db.crear_identidad_web(12, "g", T0).usuario_id
-    assert nacer.romper_el_huevo(web, "g", T0).usuario_id == web
+    web = db.crear_identidad_web(12, G, T0).usuario_id
+    assert el_primero(web).usuario_id == web
 
 
 def test_cuenta_vigente_solo_va_por_nombre():
@@ -201,7 +152,7 @@ def test_cuenta_vigente_solo_va_por_nombre():
 
 
 def test_bautizar_no_toca_al_recluta():
-    nacida = nacer.romper_el_huevo("u", "g", T0)
+    nacida = el_primero()
     nacer.bautizar("u", "g", "Pelusa", T0)
     recluta = db.crear("u", "g", "pulpo", "Brote", (10, 10, 10, 10), T0, activa=False)
     with pytest.raises(nacer.NoSePuedeBautizar) as caido:
@@ -212,8 +163,8 @@ def test_bautizar_no_toca_al_recluta():
 
 
 def test_bautizar_no_toca_al_de_otra_persona():
-    nacer.romper_el_huevo("a", "g", T0)
-    ajena = nacer.romper_el_huevo("b", "g", T0)
+    el_primero("a")
+    ajena = el_primero("b")
     nacer.bautizar("a", "g", "Pelusa", T0)
     assert db.criatura_activa("b", "g").nombre == ajena.nombre
 
@@ -222,7 +173,7 @@ def test_bautizar_no_toca_al_de_otra_persona():
     lambda n: n, str.upper, str.lower, lambda n: f"  {n}  ",
 ], ids=["igual", "mayusculas", "minusculas", "con_espacios"])
 def test_el_nombre_de_su_especie_no_es_un_nombre_propio(como):
-    nacida = nacer.romper_el_huevo("u", "g", T0, random.Random(3))
+    nacida = el_primero(rng=random.Random(3))
     especie = esp.ESPECIES[nacida.especie].nombre
     with pytest.raises(nacer.NombreNoVale) as caido:
         nacer.bautizar("u", "g", como(especie), T0)
@@ -233,7 +184,7 @@ def test_el_nombre_de_su_especie_no_es_un_nombre_propio(como):
 
 
 def test_el_nombre_de_otra_especie_si_vale():
-    nacida = nacer.romper_el_huevo("u", "g", T0, random.Random(3))
+    nacida = el_primero(rng=random.Random(3))
     otra = next(e.nombre for e in esp.ESPECIES.values() if e.clave != nacida.especie)
     assert nacer.bautizar("u", "g", otra, T0).nombre == otra
 

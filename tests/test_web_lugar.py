@@ -16,7 +16,7 @@ def ir(cliente, lugar):
 
 def test_quien_llega_esta_en_su_casa(cliente, monkeypatch):
     poner_reloj(monkeypatch)
-    con_gachamon(cliente)
+    alta(cliente)   # recién llegada: ganar al primero ya la habría llevado a «Aventura» y de vuelta
     lugar = cliente.get(ESTADO).json()["lugar"]
     assert lugar == {"clave": "casa", "nombre": "Tu casa", "abre": "ya", "aviso": None, "ofrece": ["departamento"]}
     assert db.lugar_de_cuenta(1) is None
@@ -49,10 +49,11 @@ def test_llegar_a_un_lugar_lo_guarda_y_devuelve_el_estado(cliente, monkeypatch):
 def test_un_lugar_que_no_existe_no_se_guarda(cliente, monkeypatch, cuerpo):
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
+    ir(cliente, "plaza")                      # un lugar que no es ninguno de los cuerpos
     respuesta = cliente.post(LUGAR, json=cuerpo, headers=ESCRIBIR)
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {"clave": "lugar", "mensaje": "Ese lugar no existe."}
-    assert db.lugar_de_cuenta(1) is None
+    assert db.lugar_de_cuenta(1) == "plaza"
 
 
 def test_si_el_lugar_guardado_ya_no_esta_en_el_pueblo_vuelves_a_tu_casa(cliente, monkeypatch):
@@ -88,7 +89,7 @@ def test_el_cuerpo_no_puede_decir_de_quien_es_el_lugar(cliente, monkeypatch):
     con_gachamon(cliente, 1)
     alta(cliente, 2, nombre="Ana")
     cliente.post(LUGAR, headers=ESCRIBIR, json={"lugar": "plaza", "rowino_uid": 1, "usuario_id": "-1"})
-    assert db.lugar_de_cuenta(1) is None and db.lugar_de_cuenta(2) == "plaza"
+    assert db.lugar_de_cuenta(1) == "casa" and db.lugar_de_cuenta(2) == "plaza"
 
 
 def test_el_estado_trae_las_frases_del_lugar_donde_estas(cliente, monkeypatch):

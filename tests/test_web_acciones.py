@@ -15,8 +15,8 @@ YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 @pytest.fixture(autouse=True)
 def huevo_comun(monkeypatch):
-    """El huevo da siempre una especie común: con una rara (una de cada
-    veinticinco) nacer pagaría «Uno entre veinticinco» y las gemas variarían."""
+    """El primero sale siempre de una especie común: con una rara (una de cada
+    veinticinco) pagaría «Uno entre veinticinco» y las gemas variarían."""
     import especies as esp
     import nacer
 
@@ -327,7 +327,7 @@ def test_una_espera_con_fraccion_de_segundo_se_redondea_hacia_arriba(cliente, mo
 # --- Cuidar o acariciar al que elijas -----------------------------------------
 
 def _con_otro(cliente, reloj, animo=None):
-    """La cuenta con su huevo ya bautizado y un segundo gachamon que no sale."""
+    """La cuenta con su primer gachamon ya con nombre y un segundo gachamon que no sale."""
     con_gachamon(cliente)
     otro = db.crear(YO, G, "pollito", "Bea", STATS, reloj.ahora, activa=False)
     if animo is not None:

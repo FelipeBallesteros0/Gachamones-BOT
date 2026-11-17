@@ -1,47 +1,20 @@
-from dataclasses import replace
+"""Ponerle nombre al primero y a los demás; y que el huevo ya no existe.
 
+El primero se gana en la primera aventura: sus pruebas están en
+`test_web_aventura.py`.
+"""
 import db
 import identidad
-from ayudas_web import ESCRIBIR, PUEBLO, alta, entrar, poner_reloj
+from ayudas_web import ESCRIBIR, PUEBLO, alta, ganar_el_primero, poner_la_segunda_cama, poner_reloj
 
 HUEVO, BAUTIZAR = "/gachamon/api/huevo", "/gachamon/api/bautizar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 
-def test_sin_avatar_no_hay_huevo(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
-    entrar(cliente, 1)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
-    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "sin_avatar"
-    assert db.plantel(YO, G) == []
-
-
-def test_romper_el_huevo_devuelve_el_estado_con_el_recien_nacido(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
-    alta(cliente)
-    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 201
-    gachamon = respuesta.json()["gachamon"]
-    assert gachamon["espera_nombre"] is True and gachamon["nombre"] == gachamon["nombre_especie"]
-    assert gachamon["etapa"] == "bebe"
-
-
-def test_el_segundo_huevo_se_rechaza(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
-    alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
-    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 409 and respuesta.json()["detail"] == {
-        "clave": "ya_tienes",
-        "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
-    }
-
-
 def test_bautizar(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
+    ganar_el_primero(cliente)
     respuesta = cliente.post(BAUTIZAR, json={"nombre": " Pelusa "}, headers=ESCRIBIR)
     assert respuesta.status_code == 200
     assert respuesta.json()["gachamon"]["nombre"] == "Pelusa"
@@ -53,7 +26,7 @@ def test_bautizar(cliente, monkeypatch):
 def test_un_nombre_malo_vuelve_con_su_frase(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
+    ganar_el_primero(cliente)
     for cuerpo in ({"nombre": "<img src=x>"}, {"nombre": ""}, {}, {"nombre": 7}):
         respuesta = cliente.post(BAUTIZAR, json=cuerpo, headers=ESCRIBIR)
         assert respuesta.status_code == 422, cuerpo
@@ -64,7 +37,7 @@ def test_un_nombre_malo_vuelve_con_su_frase(cliente, monkeypatch):
 def test_un_gachamon_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
+    ganar_el_primero(cliente)
     yo = db.criatura_activa(YO, G).id
     for gachamon_id in (str(yo), None, True, float(yo), [yo]):
         respuesta = cliente.post(BAUTIZAR, json={"nombre": "Pelusa", "gachamon_id": gachamon_id}, headers=ESCRIBIR)
@@ -76,7 +49,7 @@ def test_un_gachamon_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
 def test_sin_gachamon_id_se_bautiza_a_la_activa_como_siempre(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
+    ganar_el_primero(cliente)
     recluta = db.crear(YO, G, "pulpo", "Brote", (10, 10, 10, 10), db.ahora_utc(), activa=False)
     respuesta = cliente.post(BAUTIZAR, json={"nombre": "Pelusa"}, headers=ESCRIBIR)
     assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Pelusa"
@@ -90,10 +63,9 @@ def test_bautizar_sin_gachamon(cliente, monkeypatch):
     assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "sin_gachamon"
 
 
-def test_las_dos_piden_la_cabecera(cliente, monkeypatch):
+def test_bautizar_pide_la_cabecera(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    assert cliente.post(HUEVO).status_code == 403
     assert cliente.post(BAUTIZAR, json={"nombre": "Pelusa"}).status_code == 403
 
 
@@ -103,7 +75,7 @@ def test_un_valueerror_ajeno_no_sale_como_nombre_malo(cliente, monkeypatch):
 
     poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
+    ganar_el_primero(cliente)
 
     def falla(*_):
         raise ValueError("texto interno")
@@ -115,41 +87,7 @@ def test_un_valueerror_ajeno_no_sale_como_nombre_malo(cliente, monkeypatch):
     assert "texto interno" not in respuesta.text
 
 
-def test_cuenta_cambio_por_la_ruta(cliente, monkeypatch):
-    import nacer
-
-    poner_reloj(monkeypatch)
-    alta(cliente)
-
-    def vinculada(*_, **__):
-        raise nacer.YaNoEsSuIdentidad
-
-    monkeypatch.setattr(nacer, "romper_el_huevo", vinculada)
-    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "cuenta_cambio"
-
-
-# --- Las medallas de la persona al nacer ----------------------------------------
-
-def test_al_nacer_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch):
-    import economia
-    import especies as esp
-    import nacer
-
-    poner_reloj(monkeypatch)
-    alta(cliente)
-    rara = esp.ESPECIES["dragoncito"]
-    assert rara.rareza == esp.RARA
-    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: rara)
-    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 201
-    # «Uno entre veinticinco»: veinte gemas, ya en el saldo del estado.
-    assert respuesta.json()["saldos"]["gemas"] == 20
-    assert economia.saldos(YO, G).asciigems == 20
-    assert set(respuesta.json()) == {
-        "ahora", "persona", "avatar", "saldos", "gachamon", "globos", "lugar", "carta", "guia",
-    }
-
+# --- La ayuda de las pruebas ----------------------------------------------------
 
 def test_la_ayuda_con_gachamon_nace_siempre_de_una_especie_comun(cliente, monkeypatch):
     import economia
@@ -158,56 +96,49 @@ def test_la_ayuda_con_gachamon_nace_siempre_de_una_especie_comun(cliente, monkey
     from ayudas_web import con_gachamon
 
     poner_reloj(monkeypatch)
-    # Aunque al huevo le tocara una rara, la ayuda nace de una común: nacer no
-    # paga «Uno entre veinticinco» y las gemas no dependen de la suerte.
+    # Aunque al sorteo del primero le tocara una rara, la ayuda gana una común:
+    # no paga «Uno entre veinticinco» y las gemas no dependen de la suerte.
     rara = esp.ESPECIES["dragoncito"]
     monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: rara)
     estado = con_gachamon(cliente)
     assert esp.ESPECIES[estado["gachamon"]["especie"]].rareza == esp.COMUN
     assert estado["gachamon"]["nombre"] == "Pelusa"
     assert estado["saldos"]["gemas"] == economia.saldos(YO, G).asciigems == 0
-    # Y al salir de la ayuda, el huevo vuelve a ser el que era.
+    # Y al salir de la ayuda, el sorteo vuelve a ser el que era.
     assert nacer.esp.elegir_del_huevo(None) is rara
 
 
-# --- El huevo cuando solo queda un recluta ------------------------------------
+def test_la_ayuda_con_gachamon_deja_dos_camas_puestas_y_esta_en_casa(cliente, monkeypatch):
+    from ayudas_web import con_gachamon
 
-ANA_DISCORD = "222222222222222222"
-
-
-def test_con_la_activa_muerta_y_un_recluta_el_huevo_dice_lo_de_siempre(cliente, monkeypatch):
-    from ayudas_web import AVATAR
-
-    reloj = poner_reloj(monkeypatch)
-    entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
-    assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
-    assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
-    viejo = db.crear(ANA_DISCORD, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
-    recluta = db.crear(ANA_DISCORD, G, "pulpo", "Bruma", (10, 10, 10, 10), reloj.ahora, activa=False)
-    reloj.pasar(days=5)
-    db.guardar(replace(viejo, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
-
-    # El remiendo de la lectura lo pone de activo: con plantel vivo siempre hay uno.
-    assert cliente.get("/gachamon/api/estado").json()["gachamon"]["nombre"] == "Bruma"
-    respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.status_code == 409
-    assert respuesta.json()["detail"] == {
-        "clave": "ya_tienes",
-        "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
-    }
-    assert db.por_id(recluta.id).activa
+    poner_reloj(monkeypatch)
+    estado = con_gachamon(cliente)
+    # Lo ganó como quien juega: puso su segunda cama, y el primero duerme en ella.
+    depto = db.departamento_leido(YO, G)
+    assert depto.camas_puestas == 2
+    assert [p.clave for p in depto.guardadas] == []
+    assert [(c.id, c.nombre, c.activa) for c in db.plantel(YO, G)] == [(estado["gachamon"]["id"], "Pelusa", True)]
+    # De vuelta en su casa, sin guía (ya tiene gachamon) y con el monedero en cero.
+    assert estado["lugar"]["clave"] == "casa" and estado["guia"] is None
+    assert cliente.get("/gachamon/api/estado").json()["lugar"]["clave"] == "casa"
+    assert estado["saldos"] == {"monedas": 0, "gemas": 0}
 
 
-def test_con_una_activa_el_segundo_huevo_dice_lo_de_siempre(cliente, monkeypatch):
+# --- El huevo ya no existe -----------------------------------------------------
+
+def test_el_huevo_ya_no_existe(cliente, monkeypatch):
+    import nacer
+
     poner_reloj(monkeypatch)
     alta(cliente)
-    cliente.post(HUEVO, headers=ESCRIBIR)
+    poner_la_segunda_cama(cliente)          # aun con cama para uno, el huevo no está
     respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert respuesta.json()["detail"] == {
-        "clave": "ya_tienes",
-        "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
-    }
+    nunca_existio = cliente.post("/gachamon/api/nunca-existio", headers=ESCRIBIR)
+    assert respuesta.status_code == 404
+    assert respuesta.json() == nunca_existio.json() == {
+        "detail": {"clave": "no_existe", "mensaje": "Eso no existe."}}
+    assert db.plantel(YO, G) == [] and not db.tiene_gachamones(YO, G)
+    assert not hasattr(nacer, "romper_el_huevo")
 
 
 # --- El nombre de la especie no es un nombre ----------------------------------
@@ -215,7 +146,7 @@ def test_con_una_activa_el_segundo_huevo_dice_lo_de_siempre(cliente, monkeypatch
 def test_bautizar_con_el_nombre_de_su_especie_no_vale(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
-    especie = cliente.post(HUEVO, headers=ESCRIBIR).json()["gachamon"]["nombre_especie"]
+    especie = ganar_el_primero(cliente)["estado"]["gachamon"]["nombre_especie"]
     respuesta = cliente.post(BAUTIZAR, json={"nombre": especie.upper()}, headers=ESCRIBIR)
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {

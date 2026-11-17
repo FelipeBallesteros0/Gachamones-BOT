@@ -168,9 +168,13 @@ def datos_y_evento(cuerpo: Any) -> tuple[dict, str]:
     return datos, evento
 
 
-def _de_la_tienda_y_el_mismo(jugador: Jugador, ahora: datetime) -> None:
+def _de_la_tienda_y_el_mismo(jugador: Jugador, que: str, ahora: datetime) -> None:
+    """Se compra estando en la tienda; un objeto o un cosmético, además, con el
+    mismo gachamon que se estaba viendo. Un mueble es de tu casa y no de un
+    gachamon: se compra también sin ninguno."""
     en_la_tienda(jugador)
-    la_misma_activa(jugador, ahora, _SIN_GACHAMON)
+    if que != MUEBLE:
+        la_misma_activa(jugador, ahora, _SIN_GACHAMON)
 
 
 def evento_usado(evento: str):
@@ -246,7 +250,7 @@ def comprar_en_la_tienda(
     if not isinstance(que, str) or que not in (OBJETO, COSMETICO, MUEBLE):
         raise no_se_entiende()
     ahora = db.ahora_utc()
-    _de_la_tienda_y_el_mismo(jugador, ahora)
+    _de_la_tienda_y_el_mismo(jugador, que, ahora)
     pieza = _pieza(que, datos.get("clave"))
     usuario, guild = jugador.usuario_id, jugador.guild_id
     try:

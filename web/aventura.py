@@ -31,7 +31,8 @@ DESPUES = (
     "Desde hoy vive contigo.",
 )
 
-YA_TIENES, SIN_CAMA = "ya_tienes", "sin_cama"
+# Las claves de por qué no se puede; las frases son `_YA_TIENES` y `pueblo.SIN_CAMA`.
+MOTIVO_YA_TIENES, MOTIVO_SIN_CAMA = "ya_tienes", "sin_cama"
 _YA_TIENES = "Ya tienes un gachamon. La primera aventura es sólo la de partida."
 
 
@@ -49,16 +50,16 @@ def en_la_aventura(jugador: Jugador) -> None:
 def ver_la_aventura(jugador: Jugador = Depends(jugador_actual)) -> dict:
     en_la_aventura(jugador)
     if db.plantel(jugador.usuario_id, jugador.guild_id):
-        motivo = YA_TIENES
+        motivo = MOTIVO_YA_TIENES
     elif not db.hay_cama_libre(jugador.usuario_id, jugador.guild_id):
-        motivo = SIN_CAMA
+        motivo = MOTIVO_SIN_CAMA
     else:
         motivo = None
     return {"primera": {
         "puede": motivo is None,
         "motivo": motivo,
         # Las frases de antes, a quien no tiene ninguno: con o sin cama, la aventura es la misma.
-        "antes": [] if motivo == YA_TIENES else list(ANTES),
+        "antes": [] if motivo == MOTIVO_YA_TIENES else list(ANTES),
     }}
 
 
@@ -71,17 +72,19 @@ def la_primera_aventura(jugador: Jugador = Depends(jugador_actual)) -> dict:
     try:
         primero = nacer.encontrar_al_primero(jugador.usuario_id, jugador.guild_id, ahora)
     except nacer.YaTieneGachamon:
-        raise problema(409, YA_TIENES, _YA_TIENES) from None
+        # Si el pago de las medallas se cortó tras el encuentro, el reintento llega
+        # aquí: se pagan ahora. Lo ya pagado no se paga dos veces.
+        economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
+        raise problema(409, MOTIVO_YA_TIENES, _YA_TIENES) from None
     except db.SinCamaLibre:
-        raise problema(409, SIN_CAMA, pueblo.SIN_CAMA) from None
+        raise problema(409, MOTIVO_SIN_CAMA, pueblo.SIN_CAMA) from None
     except nacer.YaNoEsSuIdentidad:
         raise problema(
             409, "cuenta_cambio", "Tu cuenta cambió mientras tanto. Vuelve a entrar.",
         ) from None
     # Desde aquí el gachamon ya es tuyo, en su propia transacción: si lo que
     # sigue fallara, al volver a entrar te esperaría para que le pongas nombre.
-    # Como al romper el huevo: al llegar el primero se miran las medallas de la
-    # persona (una rara).
+    # Al llegar el primero se miran las medallas de la persona (una rara).
     economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
     # Vuelves a tu casa con él.
     db.poner_lugar(jugador.persona.rowino_uid, "casa")

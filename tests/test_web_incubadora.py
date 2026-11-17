@@ -13,7 +13,7 @@ from web import pueblo
 
 INCUBADORA, SACAR = "/gachamon/api/incubadora", "/gachamon/api/incubadora/sacar"
 ESTADO, LUGAR = "/gachamon/api/estado", "/gachamon/api/lugar"
-HUEVO, BAUTIZAR = "/gachamon/api/huevo", "/gachamon/api/bautizar"
+BAUTIZAR = "/gachamon/api/bautizar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 OTRA_PERSONA = "333333333333333333"
 STATS = (10, 10, 10, 10)
@@ -38,18 +38,25 @@ def activa():
 
 
 def con_plantel(cliente):
-    """La cuenta 1, vinculada: Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
+    """La cuenta 1, vinculada: Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden.
+
+    Cada uno con su cama puesta, como todo gachamon.
+    """
     con_vinculo(cliente)
     pelusa = activa()
     nube = db.crear(LA_DE_DISCORD, G, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
     recluta = db.crear(
         LA_DE_DISCORD, G, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True
     )
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        for x, y, giro in ((0, 2, 0), (2, 0, 1)):          # la tuya y la de Pelusa ya están puestas
+            db.anadir_mueble_en(con, LA_DE_DISCORD, G, "cama_sencilla", x, y, giro)
     return pelusa, nube, recluta
 
 
 def vinculada_sin_gachamon(cliente):
-    """La cuenta 1 vinculada a Discord, con avatar y sin haber roto el huevo."""
+    """La cuenta 1 vinculada a Discord, con avatar y todavía sin ningún gachamon."""
     entrar(cliente, 1)
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
@@ -101,7 +108,7 @@ def test_el_plantel_en_orden(cliente, monkeypatch):
         "nivel": 1, "retrato": el_retrato("pollito"), "activo": False,
     }
     assert cuerpo["plantel"][1]["nombre"] == "Pelusa"
-    assert cuerpo["maximo"] == 3                 # con una sola cama puesta, los tres que ya tiene
+    assert cuerpo["maximo"] == 3                 # las camas puestas menos la tuya: una por cada uno
     saldos = economia.saldos(LA_DE_DISCORD, G)
     assert cuerpo["saldos"] == {"monedas": saldos.asciicoins, "gemas": saldos.asciigems}
     # Ninguna fila habla de «sin nombre»: ya no existe ese estado.
@@ -323,17 +330,3 @@ def test_si_solo_queda_un_recluta_el_remiendo_lo_pone_de_activo(cliente, monkeyp
     assert estado["gachamon"]["id"] == recluta.id and estado["gachamon"]["nombre"] == "Brote"
     assert "sin_nombre" not in estado
     assert activa().id == recluta.id
-
-
-# --- El huevo ------------------------------------------------------------------
-
-def test_el_huevo_con_un_recluta_dice_lo_de_siempre(cliente, monkeypatch):
-    poner_reloj(monkeypatch)
-    alta(cliente)
-    recluta = db.crear(YO, G, "pulpo", "Brote", STATS, db.ahora_utc(), activa=False)
-    hecho = cliente.post(HUEVO, headers=ESCRIBIR)
-    assert hecho.status_code == 409
-    assert hecho.json()["detail"] == {
-        "clave": "ya_tienes", "mensaje": "Ya tienes un gachamon. El huevo es sólo el de partida.",
-    }
-    assert [c.id for c in db.plantel(YO, G)] == [recluta.id]

@@ -29,7 +29,7 @@ def test_a_quien_no_le_toco_nada_la_carta_le_dice_lo_justo():
     assert carta.lineas_de(nada) == [
         "El pueblo cambió, y vengo a contarte qué te toca.",
         "Desde hoy todos vivimos en el mismo edificio. Tu departamento mide 3 × 3 casillas, y lo puedes ampliar.",
-        "Te dejé tu cama puesta y otra guardada, para cuando llegue un gachamon.",
+        "Te dejé tu cama puesta y otra guardada: ponla y ve a «Aventura», que ahí te espera un gachamon.",
         "Y dos cosas más: ya ningún gachamon muere, y a todos les pasa el tiempo, no sólo al que sale contigo.",
     ]
 

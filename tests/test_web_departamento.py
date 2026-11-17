@@ -3,7 +3,7 @@ import pytest
 import db
 import identidad
 from web import pueblo
-from ayudas_web import PUEBLO, CABECERA, con_gachamon, con_monedas_web, en_casa, entrar, ir
+from ayudas_web import PUEBLO, CABECERA, alta, con_gachamon, con_monedas_web, en_casa, entrar, ir
 
 API = "/gachamon/api"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
@@ -19,10 +19,10 @@ def ancho_y_fondo(uid, ancho, fondo):
 
 
 def test_tu_departamento_de_partida(cliente):
-    con_gachamon(cliente); en_casa(cliente)
+    alta(cliente); en_casa(cliente)   # quien empieza, antes de ganar a su primero
     d = cliente.get(f"{API}/departamento").json()
     assert (d["ancho"], d["fondo"], d["casillas"], d["comodidad"], d["tope"]) == (3, 3, 9, 82, 100)
-    assert (d["camas"], d["gachamones"], d["cabe_otro"], d["ampliar"]) == (1, 1, False, {"ancho": 45, "fondo": 45})
+    assert (d["camas"], d["gachamones"], d["cabe_otro"], d["ampliar"]) == (1, 0, False, {"ancho": 45, "fondo": 45})
     assert [(p["clave"], p["x"], p["y"], p["casillas"]) for p in d["puestos"]] == [
         ("cama_sencilla", 0, 0, [[0, 0], [1, 0]]), ("puerta", -1, 2, [[-1, 2]])]
     assert [(g["clave"], g["cama"], g["ancho"], g["fondo"]) for g in d["guardados"]] == [("cama_sencilla", True, 2, 1)]
@@ -59,14 +59,19 @@ def test_un_lugar_guardado_que_ya_no_existe_te_deja_en_tu_departamento(cliente, 
 
 
 def test_poner_guardar_y_sus_noes(cliente):
-    con_gachamon(cliente); en_casa(cliente)
+    alta(cliente); en_casa(cliente)   # con la segunda cama guardada: ganar al primero la pone
     cama = cliente.get(f"{API}/departamento").json()["guardados"][0]["id"]
     poner = lambda **c: cliente.post(f"{API}/departamento/poner", json={"mueble_id": cama, **c}, headers=CABECERA).json()
     assert (poner(x=2, y=2, giro=0)["clave"], poner(x=2, y=2, giro=0)["mensaje"]) == ("no_cabe", "Ahí no cabe.")
     assert poner(x=0, y=0, giro=0)["mensaje"] == "Ahí ya hay algo."
     bien = poner(x=0, y=1, giro=0)
-    assert (bien["ok"], bien["mensaje"], bien["departamento"]["camas"], bien["departamento"]["cabe_otro"]) == (True, None, 2, False)
+    assert (bien["ok"], bien["mensaje"], bien["departamento"]["camas"], bien["departamento"]["cabe_otro"]) == (True, None, 2, True)
     assert bien["estado"]["saldos"] == {"monedas": 0, "gemas": 0}
+    # Llega el primero, a esa cama: ya no cabe otro, y la cama hace falta.
+    ir(cliente, "aventura")
+    assert cliente.post(f"{API}/aventura/primera", headers=CABECERA).status_code == 200
+    d = cliente.get(f"{API}/departamento").json()
+    assert (d["camas"], d["gachamones"], d["cabe_otro"]) == (2, 1, False)
     no = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": cama}, headers=CABECERA).json()
     assert (no["ok"], no["clave"], no["mensaje"]) == (False, "hace_falta", "Esa cama hace falta: sin ella alguien se queda sin dónde dormir.")
     ajeno = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": 9999}, headers=CABECERA).json()
@@ -81,7 +86,7 @@ def test_guardar_lo_que_sobra_lo_deja_en_guardados_y_repetirlo_no_cambia_nada(cl
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         maceta = db.anadir_mueble_en(con, cuenta.usuario_id, cuenta.guild_id, "maceta")
-    poner = cliente.post(f"{API}/departamento/poner", json={"mueble_id": maceta, "x": 0, "y": 1, "giro": 0}, headers=CABECERA).json()
+    poner = cliente.post(f"{API}/departamento/poner", json={"mueble_id": maceta, "x": 2, "y": 0, "giro": 0}, headers=CABECERA).json()
     assert poner["ok"] and [p["id"] for p in poner["departamento"]["puestos"]][-1] == maceta
     for _ in range(2):
         r = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": maceta}, headers=CABECERA).json()
@@ -110,7 +115,7 @@ def test_un_cuerpo_que_no_es_un_objeto_es_un_422_y_no_toca_nada(cliente, ruta, c
 
 
 def test_una_pieza_que_ya_no_esta_en_el_catalogo_no_se_lista(cliente):
-    con_gachamon(cliente); en_casa(cliente)
+    alta(cliente); en_casa(cliente)   # con su cama guardada: guardados no queda vacío
     cuenta = db.cuenta_web(1)
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
@@ -155,9 +160,9 @@ def test_en_8_ya_no_crece(cliente):
 
 
 def test_cada_quien_ve_y_toca_solo_lo_suyo(cliente):
-    con_gachamon(cliente, uid=1); en_casa(cliente)
+    alta(cliente, uid=1); en_casa(cliente)
     suya = cliente.get(f"{API}/departamento").json()["puestos"][0]["id"]
-    con_gachamon(cliente, uid=2, nombre="Brisa"); en_casa(cliente)
+    alta(cliente, uid=2, nombre="Brisa"); en_casa(cliente)
     d2 = cliente.get(f"{API}/departamento").json()
     assert suya not in [p["id"] for p in d2["puestos"] + d2["guardados"]]
     for ruta, cuerpo in (("guardar", {"mueble_id": suya}), ("poner", {"mueble_id": suya, "x": 0, "y": 2, "giro": 0})):
@@ -169,7 +174,7 @@ def test_cada_quien_ve_y_toca_solo_lo_suyo(cliente):
 
 
 def con_otro(cliente):
-    """La cuenta con su huevo bautizado (Pelusa) y un segundo gachamon, Rulo, que no sale."""
+    """La cuenta con su primer gachamon ya con nombre (Pelusa) y un segundo gachamon, Rulo, que no sale."""
     con_gachamon(cliente)
     return db.crear(YO, G, "pollito", "Rulo", STATS, db.ahora_utc(), activa=False)
 
@@ -217,7 +222,7 @@ def test_salir_pide_estar_en_el_departamento_y_un_id_de_verdad(cliente):
 
 
 def test_el_departamento_dice_cual_es_la_puerta(cliente):
-    con_gachamon(cliente); en_casa(cliente)
+    alta(cliente); en_casa(cliente)   # con su cama guardada: guardados no queda vacío
     d = cliente.get(f"{API}/departamento").json()
     assert [(p["clave"], p["x"], p["y"], p["puerta"]) for p in d["puestos"]] == [
         ("cama_sencilla", 0, 0, False), ("puerta", -1, 2, True)]
@@ -226,7 +231,7 @@ def test_el_departamento_dice_cual_es_la_puerta(cliente):
 
 
 def test_el_puesto_de_la_puerta_no_lleva_icono_y_los_demas_si(cliente):
-    con_gachamon(cliente); en_casa(cliente)
+    alta(cliente); en_casa(cliente)   # con su cama guardada: guardados no queda vacío
     d = cliente.get(f"{API}/departamento").json()
     assert [(p["clave"], p["icono"]) for p in d["puestos"]] == [
         ("cama_sencilla", "iconos/muebles/cama_sencilla.png"), ("puerta", None)]

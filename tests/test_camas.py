@@ -1,6 +1,8 @@
 """Las camas puestas mandan: reclutar pide una cama libre y no hay tope de 25."""
+import ast
 import random
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -9,7 +11,7 @@ import departamento as dep
 import especies as esp
 import identidad
 import nacer as nacer_
-from ayudas_web import PUEBLO, con_gachamon
+from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon
 from test_web_incubadora import ir
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
@@ -58,7 +60,7 @@ def recluta(rng=1):
 
 
 def test_un_recluta_pide_una_cama_libre():
-    nacer("Ana")                                   # del huevo: tú y Ana, con una sola cama puesta
+    nacer("Ana")                                   # tú y Ana, con una sola cama puesta: ninguna libre
     with pytest.raises(db.SinCamaLibre):
         recluta()
     poner_camas("u1", 2)                           # ya son tres: la tuya, la de Ana y una libre
@@ -99,8 +101,51 @@ def test_la_cama_libre_es_por_persona_y_por_servidor():
     assert not db.hay_cama_libre("u1", "g1")
 
 
-def test_el_que_nace_del_huevo_todavia_no_pide_cama():
-    assert nacer_.romper_el_huevo("u1", "g1", T0, random.Random(1)).id
+RAIZ = Path(__file__).resolve().parent.parent
+
+
+def _llamadas_a_crear(ruta):
+    """Cada `db.crear(...)` escrito en ese archivo."""
+    arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+    return [
+        nodo for nodo in ast.walk(arbol)
+        if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute)
+        and nodo.func.attr == "crear" and isinstance(nodo.func.value, ast.Name) and nodo.func.value.id == "db"
+    ]
+
+
+def _pide_cama(llamada):
+    return any(
+        k.arg == "pide_cama" and isinstance(k.value, ast.Constant) and k.value.value is True
+        for k in llamada.keywords
+    )
+
+
+def test_todo_gachamon_pide_cama(cliente):
+    """Ya no hay huevo: ninguna ruta de la web ni ninguna función de `nacer` crea
+    un gachamon sin pedir cama. `db.crear` no la pide por su cuenta: es lo que usan
+    las pruebas de reglas para crear criaturas a mano."""
+    # Por las rutas, con sólo tu cama puesta: ni la primera aventura ni el huevo, que ya no está.
+    alta(cliente)
+    ir(cliente, "aventura")
+    respuesta = cliente.post("/gachamon/api/aventura/primera", headers=ESCRIBIR)
+    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "sin_cama"
+    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 404
+    assert not db.tiene_gachamones(USUARIO_WEB, str(PUEBLO))
+    # En `nacer`, con sólo tu cama puesta: tampoco.
+    with pytest.raises(db.SinCamaLibre):
+        nacer_.encontrar_al_primero("u1", "g1", T0, random.Random(1))
+    with pytest.raises(db.SinCamaLibre):
+        recluta()
+    assert not db.tiene_gachamones("u1", "g1") and not hasattr(nacer_, "romper_el_huevo")
+    # Y todo lo que crea uno, en `nacer` y en la web, se lo pide a `db.crear` pidiendo cama.
+    llamadas = {
+        ruta.relative_to(RAIZ).as_posix(): _llamadas_a_crear(ruta)
+        for ruta in (RAIZ / "nacer.py", *sorted((RAIZ / "web").glob("*.py")))
+    }
+    assert llamadas["nacer.py"]                    # el primero y el recluta: la búsqueda no está vacía
+    sin_pedirla = [f"{ruta}:{l.lineno}" for ruta, ls in llamadas.items() for l in ls if not _pide_cama(l)]
+    assert sin_pedirla == []
 
 
 def test_ya_no_hay_tope_de_25():
@@ -115,6 +160,9 @@ def test_hay_mas_nombres_que_gachamones_caben():
 
 def test_la_incubadora_dice_cuantos_caben_por_las_camas(cliente):
     con_gachamon(cliente); ir(cliente, "incubadora")
-    assert cliente.get("/gachamon/api/incubadora").json()["maximo"] == 1     # el del huevo, que aún no tiene cama
-    poner_camas(USUARIO_WEB, 3, guild=str(PUEBLO))                           # ya son cuatro puestas
-    assert cliente.get("/gachamon/api/incubadora").json()["maximo"] == 3
+    assert cliente.get("/gachamon/api/incubadora").json()["maximo"] == 1     # tu cama y la del primero
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        for x, y, giro in SITIOS[1:]:                                        # en (0, 1) está la del primero
+            db.anadir_mueble_en(con, USUARIO_WEB, str(PUEBLO), "cama_sencilla", x, y, giro)
+    assert cliente.get("/gachamon/api/incubadora").json()["maximo"] == 3     # ya son cuatro puestas

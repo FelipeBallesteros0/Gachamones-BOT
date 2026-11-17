@@ -55,9 +55,8 @@ def _del_plantel(criatura: sim.Criatura) -> dict:
 def el_plantel(jugador: Jugador, ahora: datetime) -> dict:
     """Los vivos de la cuenta, la activa primero y luego por id, y cuántos caben.
 
-    Caben las camas puestas menos la tuya, y nunca menos de los que ya tiene:
-    el que nació del huevo todavía no tiene su cama. Cada uno tal como está
-    ahora, con la cara que tiene a esta hora.
+    Caben las camas puestas menos la tuya: todo gachamon tiene la suya. Cada uno
+    tal como está ahora, con la cara que tiene a esta hora.
     """
     # El remiendo, si no hay activa; lo que devuelve ya viene en el plantel.
     db.activa_al_dia(jugador.usuario_id, jugador.guild_id, ahora)
@@ -68,7 +67,7 @@ def el_plantel(jugador: Jugador, ahora: datetime) -> dict:
     dinero = economia.saldos(jugador.usuario_id, jugador.guild_id)
     return {
         "plantel": [_del_plantel(c) for c in vivos],
-        "maximo": max(len(vivos), camas - 1),
+        "maximo": camas - 1,
         "saldos": {"monedas": dinero.asciicoins, "gemas": dinero.asciigems},
     }
 

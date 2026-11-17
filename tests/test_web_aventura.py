@@ -1,10 +1,12 @@
 """La primera aventura: quien no tiene ningún gachamon gana al primero en «Aventura»."""
+from dataclasses import replace
+
 import db
 import economia
 import especies as esp
 import identidad
 import nacer
-from ayudas_web import ESCRIBIR, PUEBLO, alta, entrar, ir, poner_la_segunda_cama, poner_reloj
+from ayudas_web import AVATAR, ESCRIBIR, PUEBLO, alta, entrar, ir, poner_la_segunda_cama, poner_reloj
 
 AVENTURA, PRIMERA = "/gachamon/api/aventura", "/gachamon/api/aventura/primera"
 ESTADO = "/gachamon/api/estado"
@@ -75,6 +77,29 @@ def test_el_segundo_encuentro_se_rechaza(cliente, monkeypatch):
     assert len(db.plantel(YO, G)) == 1
 
 
+ANA_DISCORD = "222222222222222222"
+
+
+def test_con_la_activa_muerta_y_un_recluta_la_aventura_dice_que_ya_tienes(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    entrar(cliente, 2)
+    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
+    assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
+    viejo = db.crear(ANA_DISCORD, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
+    recluta = db.crear(ANA_DISCORD, G, "pulpo", "Bruma", (10, 10, 10, 10), reloj.ahora, activa=False)
+    reloj.pasar(days=5)
+    db.guardar(replace(viejo, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+
+    # El remiendo de la lectura lo pone de activo: con plantel vivo siempre hay uno.
+    assert cliente.get(ESTADO).json()["gachamon"]["nombre"] == "Bruma"
+    ir(cliente, "aventura")
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
+    assert db.por_id(recluta.id).activa and [c.id for c in db.plantel(ANA_DISCORD, G)] == [recluta.id]
+
+
 def test_fuera_del_lugar_no_hay_aventura(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)
@@ -134,6 +159,42 @@ def test_al_encontrarlo_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch
     assert respuesta.json()["estado"]["saldos"] == {"monedas": 0, "gemas": 20}
     assert economia.saldos(YO, G).asciigems == 20
     assert respuesta.json()["despues"][0] == f"Sale de su escondite: es {rara.nombre}."
+
+
+def test_un_segundo_encuentro_no_vuelve_a_pagar_las_medallas(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    lista_para_la_aventura(cliente)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["dragoncito"])
+    assert cliente.post(PRIMERA, headers=ESCRIBIR).status_code == 200
+    ir(cliente, "aventura")
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 409 and respuesta.json()["detail"]["clave"] == "ya_tienes"
+    assert economia.saldos(YO, G).asciigems == 20
+    assert set(db.logros_de_persona(YO, G)) == {"uno_entre_veinticinco"}
+
+
+def test_si_el_pago_de_las_medallas_fallo_el_reintento_lo_paga(cliente, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    poner_reloj(monkeypatch)
+    lista_para_la_aventura(cliente)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["dragoncito"])
+    pagar = economia.pagar_logros_de_persona
+
+    def falla(*_):
+        raise RuntimeError("se cortó")
+
+    monkeypatch.setattr(economia, "pagar_logros_de_persona", falla)
+    sin_trampa = TestClient(cliente.app, raise_server_exceptions=False, cookies=cliente.cookies)
+    assert sin_trampa.post(PRIMERA, headers=ESCRIBIR).status_code == 500
+    assert economia.saldos(YO, G).asciigems == 0 and len(db.plantel(YO, G)) == 1
+    # El reintento ya no encuentra a nadie (el gachamon es tuyo), pero las medallas sí se pagan.
+    monkeypatch.setattr(economia, "pagar_logros_de_persona", pagar)
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
+    assert economia.saldos(YO, G).asciigems == 20 and len(db.plantel(YO, G)) == 1
+    assert set(db.logros_de_persona(YO, G)) == {"uno_entre_veinticinco"}
 
 
 def test_si_algo_falla_despues_del_encuentro_el_gachamon_ya_es_tuyo(cliente, monkeypatch):

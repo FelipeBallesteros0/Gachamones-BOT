@@ -10,7 +10,9 @@ import especies as esp
 import identidad
 import nacer
 import objetos
-from ayudas_web import AVATAR, CABECERA, ESCRIBIR, PUEBLO, alta, con_gachamon, con_monedas_web, entrar, poner_reloj
+from ayudas_web import (
+    AVATAR, CABECERA, ESCRIBIR, PUEBLO, alta, con_gachamon, con_monedas_web, entrar, ganar_el_primero, poner_reloj,
+)
 from web import tienda
 
 API = "/gachamon/api"
@@ -30,13 +32,13 @@ def mia():
 
 
 def con_vinculo(cliente):
-    """La cuenta 1 vinculada a un id de Discord sintético, con su gachamon ya nacido."""
+    """La cuenta 1 vinculada a un id de Discord sintético, con su primer gachamon ya ganado."""
     entrar(cliente, 1)
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, LA_DE_DISCORD, str(PUEBLO), db.ahora_utc()) == "ok"
     assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
-    assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
+    ganar_el_primero(cliente)
     hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": "Pelusa"}, headers=ESCRIBIR)
     assert hecho.status_code == 200
 
@@ -160,8 +162,8 @@ def test_ninguna_descripcion_lleva_marcas_de_discord(cliente, monkeypatch):
 
 
 def test_los_saldos_son_los_de_la_cuenta(cliente, monkeypatch):
-    # El huevo da una especie común: con una rara (una de cada veinticinco)
-    # nacer pagaría «Uno entre veinticinco» y habría 20 gemas más.
+    # El primero sale de una especie común: con una rara (una de cada veinticinco)
+    # pagaría «Uno entre veinticinco» y habría 20 gemas más.
     comun = esp.ESPECIES["pollito"]
     assert comun.rareza == esp.COMUN
     monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: comun)
@@ -194,7 +196,7 @@ def test_cada_mueble_trae_lo_suyo_y_cuantos_tienes_puestos_o_guardados(cliente, 
     usuario, guild = mia()
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        db._departamento_en(con, usuario, guild, reloj())     # tu cama puesta y otra guardada
+        db._departamento_en(con, usuario, guild, reloj())     # ya está: con sus dos camas puestas
         db.anadir_mueble_en(con, usuario, guild, "felpudo", 1, 1)
         db.anadir_mueble_en(con, usuario, guild, "felpudo")
     ir(cliente, "tienda")
@@ -207,7 +209,7 @@ def test_cada_mueble_trae_lo_suyo_y_cuantos_tienes_puestos_o_guardados(cliente, 
 
 def test_mirar_el_catalogo_no_crea_el_departamento(cliente, monkeypatch):
     poner_reloj(monkeypatch)
-    con_gachamon(cliente)
+    alta(cliente)   # sin gachamon: ganarlo pone la segunda cama, y eso crea el departamento
     ir(cliente, "tienda")
     assert cliente.get(TIENDA).status_code == 200
     with db.conectar() as con:
@@ -311,12 +313,13 @@ def test_lo_que_la_pantalla_nunca_pide_no_cobra_y_no_revienta(cliente, monkeypat
 ])
 def test_una_pieza_que_la_tienda_no_vende_es_422_peticion(cliente, monkeypatch, cuerpo):
     en_la_tienda_con(cliente, monkeypatch, monedas=500, gemas=500)
+    depto = db.departamento_leido(YO, G)
     respuesta = cliente.post(COMPRAR, json={"evento_id": "evento-pieza-01", **cuerpo}, headers=ESCRIBIR)
     assert respuesta.status_code == 422
     assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
     assert economia.saldos(YO, G) == economia.Saldos(500, 500)
     assert db.inventario(YO, G) == {} and db.ropero(YO, G) == frozenset()
-    assert db.departamento_leido(YO, G) == dep.DE_PARTIDA
+    assert db.departamento_leido(YO, G) == depto
 
 
 def test_las_frases_de_lo_que_no_se_compra(cliente, monkeypatch):
@@ -344,6 +347,7 @@ def test_te_falta_una_moneda_en_singular(cliente, monkeypatch):
 
 def test_fuera_de_la_tienda_no_se_compra_nada(cliente, monkeypatch):
     en_la_tienda_con(cliente, monkeypatch, monedas=5000, gemas=500)
+    depto = db.departamento_leido(YO, G)
     ir(cliente, "plaza")
     for respuesta in (
         comprar(cliente, "objeto", "pocion_comida", "evento-fuera-01"),
@@ -354,7 +358,7 @@ def test_fuera_de_la_tienda_no_se_compra_nada(cliente, monkeypatch):
         assert respuesta.json()["detail"] == {
             "clave": "no_estas_ahi", "mensaje": "Para eso tienes que estar en la tienda."}
     assert economia.saldos(YO, G) == economia.Saldos(5000, 500) and db.inventario(YO, G) == {}
-    assert db.ropero(YO, G) == frozenset() and db.departamento_leido(YO, G) == dep.DE_PARTIDA
+    assert db.ropero(YO, G) == frozenset() and db.departamento_leido(YO, G) == depto
 
 
 def test_sin_la_cabecera_no_pasa(cliente, monkeypatch):
@@ -377,17 +381,51 @@ def test_el_orden_de_las_comprobaciones(cliente, monkeypatch):
     assert comprar(cliente, "objeto", "pocion_comida", "corto").json()["detail"]["clave"] == "evento"
     assert comprar(cliente, "sombrilla", "pocion_comida", "evento-orden-1").json()["detail"]["clave"] == "peticion"
     assert comprar(cliente, "objeto", "poroto_rojo", "evento-orden-3").json()["detail"]["clave"] == "no_estas_ahi"
-    # En la tienda, sin gachamon: eso se mira antes que la pieza.
+    # En la tienda, sin gachamon: para un objeto, eso se mira antes que la pieza.
     ir(cliente, "tienda")
     for respuesta in (
         comprar(cliente, "objeto", "poroto_rojo", "evento-orden-4"),
         comprar(cliente, "objeto", "pocion_comida", "evento-orden-5"),
-        comprar(cliente, "mueble", "trono", "evento-orden-6"),
     ):
         assert respuesta.status_code == 409
         assert respuesta.json()["detail"] == {
             "clave": "sin_gachamon", "mensaje": "Para comprar hace falta un gachamon."}
+    # Un mueble no pide gachamon: lo que se mira es la pieza.
+    mueble = comprar(cliente, "mueble", "trono", "evento-orden-6")
+    assert mueble.status_code == 422 and mueble.json()["detail"]["clave"] == "peticion"
     assert economia.saldos(YO, G).asciicoins == 500 and db.inventario(YO, G) == {}
+    assert db.departamento_leido(YO, G) == dep.DE_PARTIDA
+
+
+def test_un_mueble_se_compra_sin_gachamon(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)   # con avatar y sin gachamon
+    con_monedas_web(cliente, 30)
+    ir(cliente, "tienda")
+    respuesta = comprar(cliente, "mueble", "felpudo", "evento-sin-gachamon")
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert (cuerpo["ok"], cuerpo["clave"], cuerpo["mensaje"]) == (
+        True, None, "Compraste Felpudo. Quedó en tus guardados: en tu casa, entra a «Construir».")
+    assert cuerpo["estado"]["gachamon"] is None and cuerpo["estado"]["saldos"]["monedas"] == 0
+    assert [p.clave for p in db.departamento_leido(YO, G).guardadas] == ["cama_sencilla", "felpudo"]
+    assert economia.saldos(YO, G).asciicoins == 0 and db.plantel(YO, G) == []
+
+
+def test_un_objeto_sigue_pidiendo_gachamon(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)   # con avatar y sin gachamon
+    dar(monedas=500, gemas=500)
+    ir(cliente, "tienda")
+    for respuesta in (
+        comprar(cliente, "objeto", "pocion_comida", "evento-objeto-sin"),
+        comprar(cliente, "cosmetico", "corona", "evento-corona-sin"),
+    ):
+        assert respuesta.status_code == 409
+        assert respuesta.json()["detail"] == {
+            "clave": "sin_gachamon", "mensaje": "Para comprar hace falta un gachamon."}
+    assert economia.saldos(YO, G) == economia.Saldos(500, 500)
+    assert db.inventario(YO, G) == {} and db.ropero(YO, G) == frozenset()
 
 
 def test_un_evento_usado_para_una_cosa_no_sirve_para_otra(cliente, monkeypatch):
@@ -401,7 +439,7 @@ def test_un_evento_usado_para_una_cosa_no_sirve_para_otra(cliente, monkeypatch):
     assert comprar(cliente, "mueble", "felpudo", "evento-doble-2").json()["ok"] is True
     otra = comprar(cliente, "mueble", "maceta", "evento-doble-2")
     assert otra.status_code == 409 and otra.json()["detail"]["clave"] == "evento"
-    assert [p.clave for p in db.departamento_leido(YO, G).guardadas] == ["cama_sencilla", "felpudo"]
+    assert [p.clave for p in db.departamento_leido(YO, G).guardadas] == ["felpudo"]   # la segunda cama está puesta
     assert economia.saldos(YO, G).asciicoins == 4990 - dep.MUEBLES["felpudo"].precio
 
 
@@ -520,7 +558,7 @@ def test_un_mueble_no_pide_tener_casa(cliente, monkeypatch):
         assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Compraste Felpudo. Quedó en tus guardados: en tu casa, entra a «Construir».")
         assert r["estado"]["saldos"]["monedas"] == 0
     guardados = db.departamento_leido(YO, G).guardadas
-    assert [p.clave for p in guardados] == ["cama_sencilla", "felpudo"]
+    assert [p.clave for p in guardados] == ["felpudo"]   # la segunda cama ya está puesta
 
 
 def test_un_motivo_del_mueble_que_no_conocemos_no_se_disfraza():

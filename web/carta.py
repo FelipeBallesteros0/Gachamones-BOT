@@ -36,7 +36,9 @@ def lineas_de(contenido: dict) -> list[str]:
             f"Te dejé puestas {contenido['camas']} camas: una para ti y una para cada gachamon."
         )
     else:
-        lineas.append("Te dejé tu cama puesta y otra guardada, para cuando llegue un gachamon.")
+        lineas.append(
+            "Te dejé tu cama puesta y otra guardada: ponla y ve a «Aventura», que ahí te espera un gachamon."
+        )
 
     casas = contenido.get("casas") or []
     if len(casas) == 1:

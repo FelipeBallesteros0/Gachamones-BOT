@@ -1,4 +1,4 @@
-"""Nacer: romper el huevo, encontrar al primero, unirse un recluta y bautizar.
+"""Nacer: encontrar al primero, unirse un recluta y bautizar.
 
 Aquí está lo que decide qué nace, con qué nombre llega un recluta y cuándo se
 puede bautizar; quien llama (la ruta de la web) sólo traduce el resultado.
@@ -17,7 +17,7 @@ import simulacion as sim
 
 
 class YaTieneGachamon(Exception):
-    """El de partida es sólo uno: el del huevo o el de la primera aventura."""
+    """El de partida es sólo uno: el de la primera aventura."""
 
 
 class YaNoEsSuIdentidad(Exception):
@@ -110,41 +110,6 @@ def unir_recluta(
         se_nombro_solo=True,
         pide_cama=True,
     )
-
-
-def romper_el_huevo(
-    usuario_id: str,
-    guild_id: str,
-    ahora: datetime,
-    rng: random.Random | None = None,
-    canal_id: str | None = None,
-) -> sim.Criatura:
-    """Hace nacer al gachamon de partida, con el nombre de su especie."""
-    rng = rng or random.Random()
-    # El remiendo de siempre: si quedó un plantel sin activo, aquí pasa a serlo
-    # uno de los vivos. Con plantel, vivo aunque no tenga activo, no hay huevo.
-    db.activa_al_dia(usuario_id, guild_id, ahora)
-    if db.plantel(usuario_id, guild_id):
-        raise YaTieneGachamon
-    especie = esp.elegir_del_huevo(rng)
-    try:
-        return db.crear(
-            usuario_id=usuario_id,
-            guild_id=guild_id,
-            especie=especie.clave,
-            nombre=especie.nombre,  # provisional hasta que la bautice
-            stats=esp.tirar_stats_iniciales(especie, rng),
-            genero=esp.tirar_genero(rng),
-            caracter=per.tirar_caracter(rng),
-            ahora=ahora,
-            canal_id=canal_id,
-            cuenta_vigente=True,
-        )
-    except db.IdentidadCaducada:
-        raise YaNoEsSuIdentidad from None
-    except (sqlite3.IntegrityError, ValueError):
-        # Índice único: dos huevos a la vez. ValueError: plantel lleno.
-        raise YaTieneGachamon from None
 
 
 def encontrar_al_primero(

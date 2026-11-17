@@ -1,5 +1,5 @@
-"""Lo que se lee y se hace jugando: el estado, el huevo, el bautizo, los
-cuidados y la caricia."""
+"""Lo que se lee y se hace jugando: el estado, el bautizo, los cuidados y la
+caricia. El primer gachamon se gana en la primera aventura (`web.aventura`)."""
 from __future__ import annotations
 
 import logging
@@ -52,28 +52,6 @@ def _nadie(gachamon_id: int | None, sin_gachamon: str) -> HTTPException:
 @router.get("/estado")
 def ver_estado(jugador: Jugador = Depends(jugador_actual)) -> dict:
     return estado.armar(jugador, db.ahora_utc())
-
-
-@router.post("/huevo", status_code=201, dependencies=[Depends(con_cabecera)])
-def romper_el_huevo(jugador: Jugador = Depends(jugador_actual)) -> dict:
-    if db.avatar_de(jugador.usuario_id, jugador.guild_id) is None:
-        raise problema(409, "sin_avatar", "Primero crea tu avatar.")
-    ahora = db.ahora_utc()
-    try:
-        nacer.romper_el_huevo(jugador.usuario_id, jugador.guild_id, ahora)
-    except nacer.YaTieneGachamon:
-        raise problema(
-            409, "ya_tienes",
-            "Ya tienes un gachamon. El huevo es sólo el de partida.",
-        ) from None
-    except nacer.YaNoEsSuIdentidad:
-        raise problema(
-            409, "cuenta_cambio",
-            "Tu cuenta cambió mientras tanto. Vuelve a entrar.",
-        ) from None
-    # Como en Discord: al nacer se miran las medallas de la persona (una rara).
-    economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
-    return estado.armar(jugador, ahora)
 
 
 @router.post("/bautizar", dependencies=[Depends(con_cabecera)])

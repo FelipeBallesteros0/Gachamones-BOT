@@ -45,20 +45,21 @@ def test_veterano_se_paga_aunque_nadie_haya_jugado():
 # que importa es el cable suelto: el gachamon nace o se une, y la medalla no.
 
 
-def test_al_romper_el_huevo_una_rara_es_tuya(monkeypatch):
+def test_al_encontrar_al_primero_una_rara_es_tuya(monkeypatch):
     import especies as esp
     import nacer as nac
 
     monkeypatch.setattr(
         esp, "elegir_del_huevo", lambda _: esp.ESPECIES["dragoncito"]
     )
-    bicho = nac.romper_el_huevo("1", "g1", T0, random.Random(1))
+    poner_camas("1", 1)
+    bicho = nac.encontrar_al_primero("1", "g1", T0, random.Random(1))
 
     recibo = economia.pagar_logros_de_persona("1", "g1", T0)
 
     assert {logro.clave for logro in recibo.nuevos} == {"uno_entre_veinticinco"}
     assert set(db.logros_de_persona("1", "g1")) == {"uno_entre_veinticinco"}
-    # Tuya, no del bicho: la suerte fue de quien rompió el cascarón.
+    # Tuya, no del bicho: la suerte fue de quien se lo encontró.
     assert "uno_entre_veinticinco" not in db.logros_de(bicho.id)
 
 

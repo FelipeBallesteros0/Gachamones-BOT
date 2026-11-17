@@ -75,24 +75,42 @@ AVATAR = {"nombre": "Feli", "genero": "macho", "piel": "media", "pelo": "corto",
 
 
 def alta(cliente, uid: int = 1, nombre: str = "Feli") -> None:
-    """Deja una cuenta con identidad web y avatar, lista para sacar su huevo."""
+    """Deja una cuenta con identidad web y avatar, todavía sin ningún gachamon."""
     entrar(cliente, uid)
     cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
     hecho = cliente.put("/gachamon/api/avatar", json={**AVATAR, "nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
 
 
-def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
-    """Una cuenta con avatar y un gachamon ya bautizado. Devuelve el estado.
+def ganar_el_primero(cliente) -> dict:
+    """La primera aventura de la cuenta de la cookie, por las rutas, como la juega
+    quien empieza: pone la segunda cama, va a «Aventura» y se encuentra al primero,
+    que todavía espera nombre. El encuentro la deja en su casa.
 
-    El huevo da una especie común: con una rara (una de cada veinticinco)
-    nacer pagaría «Uno entre veinticinco» y habría 20 gemas más según la suerte.
+    Devuelve lo que contesta el encuentro (`estado` y `despues`).
+    """
+    poner_la_segunda_cama(cliente)
+    assert ir(cliente, "aventura").status_code == 200
+    hecho = cliente.post("/gachamon/api/aventura/primera", headers=ESCRIBIR)
+    assert hecho.status_code == 200, hecho.text
+    return hecho.json()
+
+
+def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
+    """Una cuenta con avatar y su primer gachamon, ya con nombre. Devuelve el estado.
+
+    Lo gana por las rutas (`ganar_el_primero`) y le pone nombre, así que queda
+    en su casa, con sus dos camas puestas y ninguna guardada.
+
+    El primero sale siempre de una especie común: con una rara (una de cada
+    veinticinco) pagaría «Uno entre veinticinco» y habría 20 gemas más según la
+    suerte.
     """
     alta(cliente, uid)
     comun = esp.ESPECIES["pollito"]
     with pytest.MonkeyPatch.context() as parche:
         parche.setattr(nacer.esp, "elegir_del_huevo", lambda rng: comun)
-        assert cliente.post("/gachamon/api/huevo", headers=ESCRIBIR).status_code == 201
+        ganar_el_primero(cliente)
     hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
     return hecho.json()

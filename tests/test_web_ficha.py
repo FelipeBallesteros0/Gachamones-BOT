@@ -140,7 +140,7 @@ def test_sin_sesion_es_un_401(cliente):
 
 
 def con_otro(cliente):
-    """La cuenta con su huevo bautizado y un segundo gachamon, Rulo, que no sale."""
+    """La cuenta con su primer gachamon ya con nombre y un segundo gachamon, Rulo, que no sale."""
     con_gachamon(cliente)
     return db.crear(YO, G, "pollito", "Rulo", STATS, db.ahora_utc(), activa=False)
 
