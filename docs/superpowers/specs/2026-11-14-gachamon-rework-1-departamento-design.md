@@ -120,6 +120,9 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   comunes** y se une siempre; hay diálogo, pero sin opciones. Se abre cuando ya
   pusiste la segunda cama: el juego lo pide como primer paso **[propuesta,
   aceptada]**. Después, las aventuras son las de siempre, con tu activo.
+  **[Felipe, 2026-11-17]** El primero se sortea entre **las diez que salían del
+  huevo, con sus pesos**: casi siempre una común, y rara vez una poco común o
+  una rara. El detalle, en la sección 8.1.
 - **El nombre de un recluta se pone al reclutarlo. Si no se lo pones, se pone
   uno él solo** **[Felipe]**. El nombre sale de una lista del juego, nunca es
   el de su especie ni uno que ya tengas, y se le puede cambiar una vez desde su
@@ -492,6 +495,55 @@ riesgo del día del cambio.
   huerto vuelve más adelante **[Felipe, 2026-11-16]**.
 - El cuidado de aseo se llama **«Bañar»** en todas partes **[Felipe,
   2026-11-16]**.
+
+### 8.1 Partir sin gachamon y la primera aventura
+
+Lo que faltaba decidir de la sección 3 y de «La entrada cambia», cerrado con
+Felipe el 2026-11-17 al escribir su plan.
+
+- **Quién hace la primera aventura**: cualquiera que no tenga ningún gachamon
+  vivo. Quien empieza; quien tenía una cuenta con avatar y el huevo sin romper;
+  y quien se quedó sin ninguno antes del día del cambio. Estos dos últimos
+  conservan sus monedas y sus gemas **[propuesta, aceptada]**.
+- **Quién «empieza»**: aquel cuyo monedero nace después del día del cambio (el
+  cambio le deja monedero a todo el que ya estaba). Nace en 0 monedas y 0 gemas
+  **[propuesta, aceptada]**; lo de partir en cero es de la sección 3
+  **[Felipe]**.
+- **El primero se sortea entre las diez del huevo, con sus pesos**
+  **[Felipe, 2026-11-17]**. Necesita cama, como todos: ya no hay ningún
+  gachamon que no la pida **[propuesta, aceptada]**.
+- **La guía es el paso que toca, bajo la pieza** **[Felipe, 2026-11-17]**:
+  mientras no tengas gachamon, en tu departamento se lee siempre el paso
+  siguiente: «Pon tu segunda cama: entra a «Construir», tócala en los guardados
+  y después toca una casilla.» y, con la cama puesta, «Ya hay cama para un
+  gachamon. Sal al pueblo y ve a «Aventura».» **[propuesta, aceptada]**.
+- **La aventura ocurre en el lugar «Aventura»**, con un diálogo fijo de a una
+  frase («Sales del pueblo por el sendero. Hoy vas tú solo.» · «Entre los
+  matorrales, algo se mueve.» · «No huye. Se queda mirándote.» · «Sale de su
+  escondite: es {especie}.» · «Le tiendes la mano. La huele… y se queda a tu
+  lado.» · «Desde hoy vive contigo.») **[propuesta, aceptada]**. No guarda nada
+  hasta el encuentro: si cierras la página antes, empieza de nuevo; si la
+  cierras después, el gachamon ya es tuyo y vuelves al paso del nombre. Al
+  terminar vuelves a tu departamento con él, y es el que sale contigo
+  **[propuesta, aceptada]**. Sin la segunda cama puesta no hay encuentro, y se
+  dice. Con gachamon, el lugar sigue diciendo «Esto se abre más adelante.»
+  **[propuesta, aceptada]**.
+- **El nombre: un campo con un nombre sugerido**, que cambias o dejas
+  **[Felipe, 2026-11-17]**.
+- **Sin gachamon**, el pueblo y los lugares se ven con tu avatar solo y sin
+  cuidados; la mochila se ve; la ficha y el ropero no se abren **[propuesta,
+  aceptada]**. **Los muebles se pueden comprar sin gachamon**; los objetos y
+  los cosméticos siguen pidiendo uno **[Felipe, 2026-11-17]**.
+- **El huevo desaparece de la página**: la bienvenida cambia su ícono y su
+  nota; el dibujo del huevo de la pantalla de inicio de sesión se queda, como
+  adorno, hasta que haya otro; en Discord, `/huevo` sigue siendo el aviso de
+  hoy **[propuesta, aceptada]**.
+- **La carta del alcalde**, a quien no le queda ninguno, dice dónde está el
+  suyo: «Te dejé tu cama puesta y otra guardada: ponla y ve a «Aventura», que
+  ahí te espera un gachamon.» **[propuesta, aceptada]**.
+- Vincular Discord sigue como hoy (sólo sin gachamones): quien amuebló sin
+  gachamon y después vincula deja ese departamento atrás **[propuesta,
+  aceptada]**.
 
 ## 9. Restricciones
 
