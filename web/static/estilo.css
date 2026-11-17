@@ -2092,6 +2092,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   outline-offset: 2px;
 }
 
+/* Debajo del botón, mientras dura el modo, lo que se usa en él: la bandeja de
+   los guardados y, junto a ella, «Ampliar», que mide lo que su texto. Al
+   entrar al modo se trae a la vista dejando sitio para el aviso pegado al pie
+   de la ventana, que si no lo taparía. */
+.obra-herramientas { display: grid; gap: 10px; scroll-margin-bottom: 72px; }
+
+.obra-herramientas > .boton-ampliar { justify-self: start; width: auto; }
+
+.boton-ampliar > span { font-size: 1.25rem; line-height: 1; }
+
 /* El lienzo y, encima, el menú del mueble elegido: sus botones son de verdad.
    Se coloca junto al mueble (`left` es su centro y `top` su borde de abajo) y
    no se sale de la pieza. Lo que se puso tocando la pieza espera ahí. */
@@ -2141,8 +2151,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-transform: uppercase;
 }
 
-/* La bandeja de los guardados, bajo la pieza: un botón por tipo de mueble,
-   en fila, y se desliza de lado si no caben. El que llevas en la mano, marcado. */
+/* La bandeja de los guardados, bajo la pieza y abierta mientras dura el modo:
+   un botón por tipo de mueble, en fila, y se desliza de lado si no caben. El
+   que llevas en la mano, marcado. */
 .bandeja { display: grid; gap: 8px; }
 
 .bandeja-tipos {
@@ -2211,8 +2222,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   max-width: min(80%, 300px);
 }
 
-/* Lo de la derecha: la ficha del gachamon elegido y «A todos», los guardados
-   y ampliar, y debajo la mochila y el pueblo. */
+/* Lo de la derecha, en los dos modos: la ficha del gachamon elegido y «A
+   todos», y debajo la mochila y el pueblo. */
 .lado-departamento { display: grid; gap: 10px; }
 
 .plantel-departamento { display: grid; gap: 10px; }
@@ -2271,17 +2282,6 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .ficha-elegido .boton[aria-disabled="true"],
 .a-todos .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
 
-.acciones-departamento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-
-.boton-guardados > span,
-.boton-ampliar > span { font-size: 1.25rem; line-height: 1; }
-
-.boton-guardados[aria-expanded="true"] {
-  background: var(--elegido);
-  color: var(--elegido-texto);
-  box-shadow: inset 0 0 0 2px var(--elegido-borde);
-}
-
 /* Ampliar va en lugar de lo de la derecha: un botón por lado y «Volver». */
 .ampliar {
   display: grid;
@@ -2298,12 +2298,12 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .boton-lado { font-variant-numeric: tabular-nums; }
 
-/* La lista, bajo la pieza y sus paneles, siempre a la vista: lo mismo que el
+/* La lista, bajo la pieza y sus paneles, y que sigue al modo: lo mismo que el
    dibujo, con botones. Tus gachamones en fila (el que tiene su ficha a la
-   vista, marcado); cada mueble, en su tarjeta, con su nombre y su sitio a la
-   izquierda y sus botones a la derecha (debajo, si no caben); y «¿Dónde?»,
-   cuando se abre, ocupa la tarjeta de lado a lado (y lo que lo abrió se ve
-   marcado). */
+   vista, marcado); construyendo, cada mueble, en su tarjeta, con su nombre y
+   su sitio a la izquierda y sus botones a la derecha (debajo, si no caben); y
+   «¿Dónde?», cuando se abre, ocupa la tarjeta de lado a lado (y lo que lo
+   abrió se ve marcado). */
 .lista-departamento {
   display: grid;
   gap: 18px;
@@ -2391,8 +2391,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .lista-departamento .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
 
-/* En un computador, la pieza a la izquierda, grande, con su línea debajo; a la
-   derecha, lo demás. */
+/* En un computador, la pieza a la izquierda, grande, con lo suyo debajo (el
+   botón del modo, la bandeja y «Ampliar», y su línea); a la derecha, lo demás. */
 @media (min-width: 900px) {
   #juego[data-pantalla="departamento"] { max-width: 1120px; }
 
@@ -2408,11 +2408,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .cuerpo-departamento > .espera-tienda,
   .cuerpo-departamento > .pieza { grid-column: 1; grid-row: 1 / span 3; }
 
+  /* Bajo la pieza, la bandeja y, a su derecha, «Ampliar», a la altura de sus muebles. */
+  .obra-herramientas { grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 16px; }
+
+  .obra-herramientas > .boton-ampliar { margin-bottom: 6px; }
+
   .cuerpo-departamento > .lado-departamento,
   .cuerpo-departamento > .ampliar { grid-column: 2; grid-row: 1; }
 
-  /* La lista, debajo de todo y de lado a lado: tus gachamones arriba, y los
-     muebles puestos y los guardados uno junto al otro. */
+  /* La lista, debajo de todo y de lado a lado: tus gachamones arriba y,
+     construyendo, los muebles puestos y los guardados uno junto al otro. */
   .cuerpo-departamento > .lista-departamento {
     grid-column: 1 / -1;
     grid-row: 4;

@@ -1,7 +1,10 @@
 // La lista de tu departamento, bajo la pieza y sus paneles: todo lo que se
 // hace tocando el dibujo, con botones de verdad, para quien no usa el dibujo
-// (con el teclado, con un lector de pantalla). Siempre está a la vista: no es
-// un modo.
+// (con el teclado, con un lector de pantalla). Sigue al modo de la pantalla,
+// como el dibujo: viviendo trae sólo «Tus gachamones»; en el modo
+// construcción, además, «Muebles puestos» y «Guardados». Fuera del modo esas
+// dos se esconden (sus filas siguen ahí, al día con la pieza) y «¿Dónde?» se
+// cierra.
 //
 // - «Tus gachamones»: un botón por cada uno, marcado (`aria-pressed`) el que
 //   tiene su ficha a la vista. Elegirlo es lo mismo que tocarlo en la pieza,
@@ -13,15 +16,17 @@
 // - «Mover» y «Poner» abren «¿Dónde?» en la fila de ese mueble: un
 //   desplegable con los sitios donde cabe (al mover, sin el sitio donde ya
 //   está) y «Ponerlo ahí». Si no cabe en ninguno no se abre, y la pantalla lo
-//   dice. Se cierra con Escape, pulsando otra vez lo que lo abrió o cuando ese
-//   mueble cambia de sitio; si cambia lo que cabe, sus sitios se rehacen.
+//   dice. Se cierra con Escape, pulsando otra vez lo que lo abrió, cuando ese
+//   mueble cambia de sitio o al terminar el modo; si cambia lo que cabe, sus
+//   sitios se rehacen.
 // - Un `role="status"` que no se ve (`anunciar`), donde la pantalla le vuelve
 //   a decir a quien no ve el dibujo cómo quedó la pieza.
 //
 // `listaDelDepartamento(acciones)` arma los nodos una vez y los deja al día
-// con lo que le pasa la pantalla (`pintar(depto, visto)`, con el id del que
-// tiene su ficha a la vista): no habla con el servidor ni decide qué está
-// elegido. `acciones` es lo que hace la pantalla: `{ver(id), sitios(id),
+// con lo que le pasa la pantalla (`pintar(depto, visto, construyendo)`, con el
+// id del que tiene su ficha a la vista y si se está en el modo construcción:
+// sin él, viviendo): no habla con el servidor ni decide qué está elegido.
+// `acciones` es lo que hace la pantalla: `{ver(id), sitios(id),
 // noCabe(), poner(id, sitio, boton), girar(id, boton), guardar(id, boton)}`;
 // `sitios(id)` son los `{x, y, giro}` donde cabe ese mueble. Lo
 // que queda en su sitio no se mueve (sacar del documento lo que tiene el foco
@@ -109,13 +114,13 @@ export function listaDelDepartamento(acciones) {
 
   // Una lista de muebles («Muebles puestos» o «Guardados»): su sección, con su
   // rótulo, lo que dice si está vacía (`vacio`, si dice algo) y sus filas por
-  // id, en el orden en que están.
+  // id, en el orden en que están. Es del modo construcción: nace escondida.
   function seccion(clase, rotulo, vacio = null) {
     const id = `${clase}-rotulo`;
     const ul = el('ul', { class: 'lista-muebles' });
     const vacia = vacio ? el('p', { class: 'lista-vacia', hidden: true }, vacio) : null;
     const titulo = el('h2', { class: 'rotulo', id, tabindex: '-1' }, rotulo);
-    const nodo = el('section', { class: clase, 'aria-labelledby': id }, titulo, ul, vacia);
+    const nodo = el('section', { class: clase, 'aria-labelledby': id, hidden: true }, titulo, ul, vacia);
     return { nodo, ul, vacia, titulo, filas: new Map() };
   }
 
@@ -305,17 +310,22 @@ export function listaDelDepartamento(acciones) {
   // --- lo que hace la pantalla ------------------------------------------------------------
 
   // `depto` es la pieza que llegó; `visto`, el id del que tiene su ficha a la
-  // vista. Tras lo que mandó la fila de un mueble, el foco que se perdió (o
-  // que nunca llegó al botón: en algunos navegadores tocar un botón no lo
-  // enfoca) va a ese mueble; si no, el que se fue con lo que se quitó vuelve.
-  function pintar(depto, visto) {
+  // vista; `construyendo`, si se está en el modo construcción (si no, los
+  // muebles se esconden y «¿Dónde?» se cierra). Tras lo que mandó la fila de
+  // un mueble, el foco que se perdió (o que nunca llegó al botón: en algunos
+  // navegadores tocar un botón no lo enfoca) va a ese mueble; si no, el que se
+  // fue con lo que se quitó vuelve.
+  function pintar(depto, visto, construyendo = false) {
     const antes = dondeEsta();
     const vuelta = trasLaPeticion;
     trasLaPeticion = null;
     ponerGachamones(depto.plantel, visto);
     ponerFilas(puestos, depto.puestos, filaPuesta);
     ponerFilas(guardados, depto.guardados, filaGuardada);
-    ponerElDonde();
+    if (construyendo) ponerElDonde();
+    else cerrarDonde();
+    puestos.nodo.hidden = !construyendo;
+    guardados.nodo.hidden = !construyendo;
     const foco = document.activeElement;
     if (vuelta && (!foco || foco === document.body)) devolverElFoco(vuelta);
     else if (antes && !nodo.contains(foco)) devolverElFoco(antes);

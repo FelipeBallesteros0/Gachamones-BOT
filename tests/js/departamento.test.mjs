@@ -539,6 +539,9 @@ function menu(pantalla) {
   return abierto && !abierto.hidden ? abierto : null;
 }
 
+// Si se ve: está en la página y ni él ni nada de lo que lo contiene está escondido.
+const seVe = (nodo) => Boolean(nodo) && nodo.closest('[hidden]') === null;
+
 // El lienzo de la pieza (los íconos de la bandeja también son lienzos).
 const lienzoDe = (pantalla) => uno(pantalla, '.pieza-lienzo');
 
@@ -977,7 +980,7 @@ test('mover: se toca dónde, y tocar donde no cabe lo suelta', async () => {
 test('poner uno guardado donde no cabe como viene lo prueba girado', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);            // una cama guardada
   servidor.responde('POST departamento/poner', BIEN(DEPTO));
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);                                             // la bandeja es del modo
   assert.match(texto(uno(pantalla, '.bandeja'), 'button'), /Cama sencilla.*× 1.*2 casillas/s);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));
   await tocarCasilla(pantalla, 2, 1);                                    // a lo ancho se sale: va girada
@@ -987,7 +990,7 @@ test('poner uno guardado donde no cabe como viene lo prueba girado', async () =>
 test('lo de pared se pone tocando la pared', async () => {
   const { pantalla, pedidos, servidor } = await abrir(CON_UN_CUADRO_GUARDADO);
   servidor.responde('POST departamento/poner', BIEN(CON_UN_CUADRO_GUARDADO));
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   assert.match(texto(uno(pantalla, '.bandeja'), 'button'), /Cuadro.*en la pared/s);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cuadro'));
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Toca la pared donde lo quieres.');
@@ -995,14 +998,16 @@ test('lo de pared se pone tocando la pared', async () => {
   assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: CUADRO_ID, x: 1, y: -1, giro: 0 }]);
 });
 
-test('sin guardados, la bandeja lo dice', async () => {
+test('construyendo sin nada guardado, la bandeja lo dice', async () => {
   const { pantalla } = await abrir({ ...DEPTO, guardados: [] });
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
+  assert.equal(seVe(uno(pantalla, '.bandeja')), true);
   assert.match(texto(pantalla, '.bandeja'), /No queda nada guardado\./);
 });
 
 test('ampliar lleva el evento de lo que se ve y enseña lo que cuesta: cuando la pieza crece, el toque siguiente estrena otro', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  await construir(pantalla);                                             // «Ampliar» es del modo
   await tocar(boton(pantalla, 'Ampliar'));
   assert.match(texto(pantalla, '.ampliar'), /\+ columna \(3 casillas\) · 45/);
   servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
@@ -1018,6 +1023,7 @@ test('ampliar lleva el evento de lo que se ve y enseña lo que cuesta: cuando la
 
 test('si la respuesta de ampliar se pierde y la relectura también, el toque siguiente lleva el mismo evento y no cobra otra vez', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   servidor.falla('POST departamento/ampliar');                           // llega o no: la respuesta no vuelve
   servidor.falla('GET departamento');                                    // y la relectura tampoco
@@ -1043,6 +1049,7 @@ test('si la respuesta de ampliar se pierde y la relectura también, el toque sig
 
 test('en 8 × 8 ya no se ofrece crecer', async () => {
   const { pantalla } = await abrir({ ...DEPTO, ancho: 8, fondo: 8, casillas: 64, ampliar: { ancho: null, fondo: null } });
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   assert.equal(texto(pantalla, '.ampliar p'), 'Tu departamento ya no puede crecer más.');
 });
@@ -1106,7 +1113,7 @@ test('lo colgado se elige tocándolo en la pared, y no se gira', async () => {
 
 test('lo que llevas en la mano se ve en la bandeja, y tocarlo otra vez lo suelta', async () => {
   const { pantalla, pedidos } = await abrir(CON_UN_CUADRO_GUARDADO);
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cuadro'));
   assert.equal(boton(uno(pantalla, '.bandeja'), 'Cuadro').getAttribute('aria-pressed'), 'true');
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cuadro'));
@@ -1118,7 +1125,7 @@ test('lo que llevas en la mano se ve en la bandeja, y tocarlo otra vez lo suelta
 test('lo que se pone desde guardados queda puesto y elegido', async () => {
   const { pantalla, servidor } = await abrir(CON_UN_CUADRO_GUARDADO);
   servidor.responde('POST departamento/poner', BIEN(CON_UN_CUADRO_COLGADO));
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cuadro'));
   await tocarTramo(pantalla, 2, -1);
   assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Cuadro');
@@ -1132,8 +1139,7 @@ test('tomar de la bandeja algo que no cabe en ningún sitio lo dice y deja elegi
   const { pantalla, pedidos, servidor } = await abrir(SIN_SITIO_PARA_LA_CAMA);
   servidor.responde('POST departamento/guardar', BIEN(SIN_SITIO_PARA_LA_CAMA));
   await construir(pantalla);
-  await tocarCasilla(pantalla, 2, 1);                                    // la maceta, elegida
-  await tocar(boton(pantalla, 'Guardados'));
+  await tocarCasilla(pantalla, 2, 1);                                    // la maceta, elegida (la bandeja ya está abierta)
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));         // no cabe en ningún sitio
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí no cabe.');
   assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-pressed'), 'false');
@@ -1145,7 +1151,7 @@ test('tomar de la bandeja algo que no cabe en ningún sitio lo dice y deja elegi
 test('tomar de la bandeja algo que no cabe en ningún sitio no te quita lo que llevabas en la mano', async () => {
   const { pantalla, pedidos, servidor } = await abrir(SIN_SITIO_PARA_LA_CAMA);
   servidor.responde('POST departamento/poner', BIEN(SIN_SITIO_PARA_LA_CAMA));
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cuadro'));                // el cuadro, en la mano
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));         // la cama no cabe
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí no cabe.');
@@ -1261,7 +1267,8 @@ test('sin ningún gachamon la pieza se ve igual y lo dice', async () => {
   const { pantalla } = await abrir({ ...DEPTO, gachamones: 0, plantel: [] }, { ...ESTADO, gachamon: null, globos: [] });
   assert.equal(texto(pantalla, '.ficha-elegido'), 'Todavía no vive ningún gachamon contigo.');
   assert.equal(boton(pantalla, 'Alimentar a todos'), null);
-  assert.notEqual(boton(pantalla, 'Ampliar'), null);
+  await construir(pantalla);                                             // «Ampliar» es del modo
+  assert.equal(seVe(boton(pantalla, 'Ampliar')), true);
 });
 
 // --- lo que el encargo dice de los gachamones y no prueba lo de arriba -----------------
@@ -1307,7 +1314,7 @@ test('con menos movimiento, o con algo en la mano, se quedan quietos', async () 
   assert.equal(cuadrosPendientes(), 0);
   assert.deepEqual(dondeSePinto(quietos.pantalla, PELUSA.retrato), dondeEsta(CON_DOS, 0));
   const { pantalla } = await abrir(CON_DOS, ESTADO, { azar: () => 0 });
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));        // la cama, en la mano
   await correrReloj(20_000);
   assert.equal(cuadrosPendientes(), 0);
@@ -1380,7 +1387,7 @@ test('con un mueble en la mano, tocar a un gachamon es tocar su casilla', async 
   const conMacetaGuardada = { ...CON_DOS, guardados: [LA_MACETA] };
   const { pantalla, pedidos, servidor } = await abrir(conMacetaGuardada);
   servidor.responde('POST departamento/poner', BIEN(conMacetaGuardada));
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   await tocar(boton(uno(pantalla, '.bandeja'), 'Maceta'));
   await tocarA(pantalla, conMacetaGuardada, 1);                          // donde está Rulo
   const [i, j] = dondeEsta(conMacetaGuardada, 1);
@@ -1465,6 +1472,7 @@ test('al cambiarle la cara se sigue pintando su retrato de antes hasta que llega
 
 test('cada mueble puesto está en la lista con su sitio y sus botones', async () => {
   const { pantalla } = await abrir(CON_MACETA);
+  await construir(pantalla);                                             // los muebles de la lista son del modo
   const filas = todos(pantalla, '.lista-puestos li');
   assert.deepEqual(filas.map((f) => texto(f, '.mueble-nombre')),
     ['Cama sencilla, en fila 1, columna 1', 'Puerta, en la pared izquierda, tramo 3', 'Maceta, en fila 3, columna 3']);
@@ -1475,6 +1483,7 @@ test('cada mueble puesto está en la lista con su sitio y sus botones', async ()
 test('mover desde la lista: se elige el sitio en un desplegable', async () => {
   const { pantalla, pedidos, servidor } = await abrir(CON_MACETA);
   servidor.responde('POST departamento/poner', BIEN(CON_MACETA));
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
   const sitios = todos(pantalla, '.donde option').map((o) => o.textContent);
   assert.ok(sitios.includes('fila 1, columna 3'));
@@ -1487,6 +1496,7 @@ test('mover desde la lista: se elige el sitio en un desplegable', async () => {
 test('poner desde la lista uno que sólo cabe girado', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   servidor.responde('POST departamento/poner', BIEN(DEPTO));
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, GUARDADA_ID), 'Poner'));
   elegir(uno(pantalla, '.donde select'), 'fila 1, columna 3');
   await tocar(boton(pantalla, 'Ponerlo ahí'));
@@ -1495,6 +1505,7 @@ test('poner desde la lista uno que sólo cabe girado', async () => {
 
 test('lo de pared se ofrece en sus tramos y no se gira', async () => {
   const { pantalla } = await abrir(CON_UN_CUADRO_GUARDADO);
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, CUADRO_ID), 'Poner'));
   const sitios = todos(pantalla, '.donde option').map((o) => o.textContent);
   assert.deepEqual(sitios, ['pared derecha, tramo 1', 'pared derecha, tramo 2', 'pared derecha, tramo 3',
@@ -1504,6 +1515,8 @@ test('lo de pared se ofrece en sus tramos y no se gira', async () => {
 test('tras guardar, el foco sigue en ese mueble y se vuelve a decir cómo quedó la pieza', async () => {
   const { pantalla, servidor, documento } = await abrir(CON_MACETA);
   servidor.responde('POST departamento/guardar', BIEN(SIN_MACETA));
+  await construir(pantalla);
+  documento.activeElement = documento.body;                              // un navegador donde tocar un botón no lo enfoca
   await tocar(boton(fila(pantalla, MACETA_ID), 'Guardar'));
   assert.equal(fila(pantalla, MACETA_ID).closest('.lista-guardados') !== null, true);
   assert.equal(fila(pantalla, MACETA_ID).contains(documento.activeElement), true);
@@ -1532,6 +1545,7 @@ const MACETA_MOVIDA = {
 test('mover desde la lista: el foco vuelve a ese mueble, el ¿Dónde? se cierra y se vuelve a decir cómo quedó', async () => {
   const { pantalla, servidor, documento } = await abrir(CON_MACETA);
   servidor.responde('POST departamento/poner', BIEN(MACETA_MOVIDA));
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
   assert.equal(documento.activeElement, uno(pantalla, '.donde select'));                 // a elegir el sitio
   const deQue = uno(pantalla, `[id=${uno(pantalla, '.donde select').getAttribute('aria-describedby')}]`);
@@ -1548,9 +1562,11 @@ test('mover desde la lista: el foco vuelve a ese mueble, el ¿Dónde? se cierra 
 test('girar desde la lista manda el giro siguiente que cabe; lo colgado dice su pared y no se gira', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   servidor.responde('POST departamento/poner', BIEN(DEPTO));
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, CAMA_ID), 'Girar'));
   assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: CAMA_ID, x: 0, y: 0, giro: 1 }]);
   const colgado = await abrir(CON_UN_CUADRO_COLGADO);
+  await construir(colgado.pantalla);
   const cuadro = fila(colgado.pantalla, CUADRO_ID);
   assert.equal(texto(cuadro, '.mueble-nombre'), 'Cuadro, en la pared derecha, tramo 3');
   assert.deepEqual(rotulos(cuadro), ['Mover', 'Guardar']);
@@ -1558,6 +1574,7 @@ test('girar desde la lista manda el giro siguiente que cabe; lo colgado dice su 
 
 test('desde la lista, lo que no cabe en ningún sitio lo dice y no pregunta dónde', async () => {
   const { pantalla, pedidos } = await abrir(SIN_SITIO_PARA_LA_CAMA);
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, GUARDADA_ID), 'Poner'));
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Ahí no cabe.');
   assert.equal(uno(pantalla, '.donde select'), null);
@@ -1566,6 +1583,7 @@ test('desde la lista, lo que no cabe en ningún sitio lo dice y no pregunta dón
 
 test('Escape cierra el ¿Dónde? y el foco vuelve a lo que lo abrió', async () => {
   const { pantalla, documento } = await abrir(CON_MACETA);
+  await construir(pantalla);
   const mover = boton(fila(pantalla, MACETA_ID), 'Mover');
   await tocar(mover);
   assert.equal(mover.getAttribute('aria-expanded'), 'true');
@@ -1578,6 +1596,7 @@ test('Escape cierra el ¿Dónde? y el foco vuelve a lo que lo abrió', async () 
 test('si el servidor no lo deja poner ahí, lo dice y el ¿Dónde? sigue abierto', async () => {
   const { pantalla, servidor, documento } = await abrir(CON_MACETA);
   servidor.responde('POST departamento/poner', { ok: false, clave: 'ocupado', mensaje: 'Ahí ya hay algo.', departamento: CON_MACETA, estado: ESTADO });
+  await construir(pantalla);
   await tocar(boton(fila(pantalla, MACETA_ID), 'Mover'));
   const ahi = boton(pantalla, 'Ponerlo ahí');
   ahi.focus();
@@ -1590,6 +1609,7 @@ test('si el servidor no lo deja poner ahí, lo dice y el ¿Dónde? sigue abierto
 
 test('volver a leer la pieza no le quita el foco a la lista ni dice nada', async () => {
   const { pantalla, documento } = await abrir(CON_MACETA);
+  await construir(pantalla);
   const girar = boton(fila(pantalla, MACETA_ID), 'Girar');
   girar.focus();
   // Ni se le quita ni se le vuelve a dar (un lector de pantalla lo volvería a leer cada 30 segundos).
@@ -1612,6 +1632,7 @@ test('mientras una petición va, la lista espera: lo que la mandó, ocupado, y l
   const CON_MACETA_Y_DOS = { ...CON_MACETA, gachamones: 2, plantel: CON_DOS.plantel };
   const { pantalla, pedidos, servidor } = await abrir(CON_MACETA_Y_DOS);
   const soltar = servidor.retiene('POST departamento/guardar');
+  await construir(pantalla);
   const guardar = boton(fila(pantalla, MACETA_ID), 'Guardar');
   await tocar(guardar);
   assert.equal(guardar.getAttribute('aria-busy'), 'true');
@@ -1656,6 +1677,7 @@ test('lo que se pone desde la lista queda elegido, y el gachamon que lo estaba d
   const { pantalla, servidor } = await abrir(CON_DOS, HABLA);
   servidor.responde('POST departamento/poner', { ...BIEN(PUESTA), estado: HABLA });
   await tocarA(pantalla, CON_DOS, 0);                                                    // Pelusa, con su menú encima
+  await construir(pantalla);                                                             // los guardados de la lista son del modo
   await tocar(boton(fila(pantalla, GUARDADA_ID), 'Poner'));
   await tocar(boton(pantalla, 'Ponerlo ahí'));
   assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Cama sencilla');
@@ -1665,13 +1687,13 @@ test('lo que se pone desde la lista queda elegido, y el gachamon que lo estaba d
 
 // --- lo que no se puede usar, también lo que aparece después; la ficha, siempre con nombre --
 
-test('lo que aparece mientras una petición va (la bandeja, lo de ampliar) nace sin poderse usar', async () => {
+test('mientras una petición va, la bandeja no se puede usar, y lo de ampliar que se abre entonces nace sin poderse usar', async () => {
   const { pantalla, servidor } = await abrir(CON_DOS);
   const soltar = servidor.retiene('POST cuidar');
+  await construir(pantalla);                                                             // con una petición en camino no se entra al modo
   await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Bañar'));                         // un cuidado en camino
-  await tocar(boton(pantalla, 'Guardados'));                                             // la bandeja aparece ahora
   assert.equal(boton(uno(pantalla, '.bandeja'), 'Cama sencilla').getAttribute('aria-disabled'), 'true');
-  await tocar(boton(pantalla, 'Ampliar'));                                               // y lo de ampliar, también
+  await tocar(boton(pantalla, 'Ampliar'));                                               // lo de ampliar aparece ahora
   assert.equal(boton(pantalla, '+ columna').getAttribute('aria-disabled'), 'true');
   assert.equal(boton(pantalla, '+ fila').getAttribute('aria-disabled'), 'true');
   await tocar(boton(pantalla, '+ columna'));                                             // y tocarlo no pregunta
@@ -1801,6 +1823,7 @@ test('lo que reviente al pintar lo que contesta una acción llega a la avería, 
 
 test('tocar «+ columna» no manda nada: enseña la pregunta con lo que cuesta, en palabras', async () => {
   const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   assert.equal(pedidos.length, 1);                                                       // sólo la lectura de al entrar
@@ -1809,6 +1832,7 @@ test('tocar «+ columna» no manda nada: enseña la pregunta con lo que cuesta, 
   assert.equal(documento.activeElement, uno(preguntaDeAmpliar(pantalla), '.pregunta-texto'));   // se lee; no se confirma con una tecla
   assert.deepEqual(enLoDeAmpliar(pantalla), ['+ fila', '+ columna', 'pregunta']);          // bajo su lado, que sigue a la vista
   const barata = await abrir({ ...DEPTO, ampliar: { ancho: 1, fondo: 45 } });            // el coste lo manda el servidor
+  await construir(barata.pantalla);
   await tocar(boton(barata.pantalla, 'Ampliar'));
   await tocar(boton(barata.pantalla, '+ columna'));
   assert.equal(texto(preguntaDeAmpliar(barata.pantalla), '.pregunta-texto'), '¿Ampliar por 1 moneda?');
@@ -1816,6 +1840,7 @@ test('tocar «+ columna» no manda nada: enseña la pregunta con lo que cuesta, 
 
 test('«No» y Escape cierran la pregunta sin mandar nada, y el foco vuelve al botón que la abrió', async () => {
   const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   await tocar(boton(preguntaDeAmpliar(pantalla), 'No'));
@@ -1833,6 +1858,7 @@ test('«No» y Escape cierran la pregunta sin mandar nada, y el foco vuelve al b
 test('un doble toque en «Ampliar» manda una sola petición; mientras va, la pregunta espera', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   assert.equal(ampliados().length, 0);
@@ -1855,6 +1881,7 @@ test('un doble toque en «Ampliar» manda una sola petición; mientras va, la pr
 test('tras ampliar bien la pregunta ya no está: para ampliar otra vez hay que tocar y confirmar de nuevo', async () => {
   const { pantalla, pedidos, servidor, documento } = await abrir(DEPTO);
   servidor.responde('POST departamento/ampliar', { ok: true, clave: null, mensaje: 'Tu departamento ahora mide 4 × 3.', departamento: CUATRO_POR_TRES, estado: ESTADO });
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   const ampliar = boton(preguntaDeAmpliar(pantalla), 'Ampliar');
@@ -1870,6 +1897,7 @@ test('tras ampliar bien la pregunta ya no está: para ampliar otra vez hay que t
 test('si el servidor dice que no, se ve su frase y la pregunta se cierra', async () => {
   const { pantalla, servidor } = await abrir(DEPTO);
   servidor.responde('POST departamento/ampliar', { ok: false, clave: 'faltan_monedas', mensaje: 'Te faltan 15 monedas.', departamento: DEPTO, estado: ESTADO });
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await ampliarPor(pantalla, '+ columna');
   assert.equal(texto(pantalla, '[role=status].aviso'), 'Te faltan 15 monedas.');
@@ -1879,6 +1907,7 @@ test('si el servidor dice que no, se ve su frase y la pregunta se cierra', async
 
 test('sólo hay una pregunta abierta: la del otro lado cierra la primera, y «Volver» la cierra', async () => {
   const { pantalla, pedidos } = await abrir(CUATRO_POR_TRES);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
@@ -1895,6 +1924,7 @@ test('sólo hay una pregunta abierta: la del otro lado cierra la primera, y «Vo
 
 test('mientras otra petición va, la pregunta abierta no se puede usar', async () => {
   const { pantalla, pedidos, servidor } = await abrir(CON_MACETA);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   const soltar = servidor.retiene('POST departamento/guardar');
@@ -1910,6 +1940,7 @@ test('mientras otra petición va, la pregunta abierta no se puede usar', async (
 
 test('la pregunta se queda mientras la pieza mida y cueste lo mismo, sin volver a darle el foco; si llega otra, se cierra', async () => {
   const { pantalla, pedidos, servidor, documento } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ fila'));
   const pregunta = uno(preguntaDeAmpliar(pantalla), '.pregunta-texto');
@@ -1932,6 +1963,7 @@ test('la pregunta se queda mientras la pieza mida y cueste lo mismo, sin volver 
 
 test('con la pregunta abierta, el rótulo de su lado sigue en la página, justo antes de ella, y dice que está abierta', async () => {
   const { pantalla } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   assert.deepEqual(['+ fila', '+ columna'].map((l) => boton(pantalla, l).getAttribute('aria-expanded')), ['false', 'false']);
   await tocar(boton(pantalla, '+ fila'));
@@ -1943,6 +1975,7 @@ test('con la pregunta abierta, el rótulo de su lado sigue en la página, justo 
 
 test('dos toques seguidos en el botón de un lado no mandan nada: el segundo cierra la pregunta', async () => {
   const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));
   await tocar(boton(pantalla, '+ columna'));                             // donde cae el segundo clic: su mismo botón
@@ -1954,6 +1987,7 @@ test('dos toques seguidos en el botón de un lado no mandan nada: el segundo cie
 
 test('al abrir la pregunta el foco va derecho a su texto, y se queda en ella si el panel se rehace con ella abierta', async () => {
   const { pantalla, servidor, documento } = await abrir(DEPTO);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   boton(pantalla, '+ fila').focus();
   const focos = historialDelFoco(documento);
@@ -1982,6 +2016,7 @@ test('un «Ampliar» que llega como segundo clic de un doble clic no cobra, y la
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   servidor.responde('POST departamento/ampliar', CRECIO_UNA_FILA);
   const ampliados = () => pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar');
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ columna'));                                             // una pregunta abierta en un lado
   await clicar(boton(pantalla, '+ fila'), 1);                                            // un doble clic en el otro: el primero la cambia de sitio…
@@ -1996,6 +2031,7 @@ test('un «Ampliar» que llega como segundo clic de un doble clic no cobra, y la
 test('con el teclado, «Ampliar» confirma como siempre', async () => {
   const { pantalla, pedidos, servidor } = await abrir(DEPTO);
   servidor.responde('POST departamento/ampliar', CRECIO_UNA_FILA);
+  await construir(pantalla);
   await tocar(boton(pantalla, 'Ampliar'));
   await tocar(boton(pantalla, '+ fila'));
   await clicar(boton(preguntaDeAmpliar(pantalla), 'Ampliar'), 0);                        // Enter o espacio
@@ -2068,6 +2104,7 @@ test('al entrar apareces en la puerta', async () => {
 test('sin puerta se entra como antes', async () => {
   const { pantalla } = await abrir(SIN_PUERTA);
   assert.deepEqual(dondeEstas(pantalla), [2, 2]);
+  await construir(pantalla);                                           // los muebles de la lista son del modo
   assert.equal(todos(pantalla, '.lista-puestos li').some((f) => /Salir/.test(f.textContent)), false);
 });
 
@@ -2169,9 +2206,11 @@ test('mover la puerta estando en ella te lleva con ella; estando dentro, no', as
 
 test('en la lista, la puerta se mueve, pero no se gira ni se guarda; sin el dibujo se sale con «Pueblo»', async () => {
   const { pantalla, seguido } = await abrir(DEPTO);
+  await construir(pantalla);                                           // los muebles de la lista son del modo
   const fila_ = fila(pantalla, PUERTA_ID);
   assert.equal(texto(fila_, '.mueble-nombre'), 'Puerta, en la pared izquierda, tramo 3');
   assert.deepEqual(rotulos(fila_), ['Mover']);
+  await terminar(pantalla);                                            // «Pueblo» está en los dos modos
   await tocar(boton(pantalla, 'Pueblo'));
   assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
 });
@@ -2297,7 +2336,7 @@ test('mientras va una petición no se sale por la puerta', async () => {
   assert.deepEqual(seguido.at(-1)[1], { vista: 'pueblo' });
 });
 
-test('hacer otra cosa mientras caminas a la puerta (cuidar, tomar algo de los guardados) también cancela la salida', async () => {
+test('hacer otra cosa mientras caminas a la puerta (cuidar, o entrar al modo y tomar algo de los guardados) también cancela la salida', async () => {
   const { pantalla, seguido, servidor } = await abrir(DEPTO);
   servidor.responde('POST cuidar', { ok: true, mensaje: 'Pelusa quedó reluciente.', espera: 600, monedas: 0, evoluciono: false, logros: [], gachamon: PELUSA, estado: ESTADO });
   await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
@@ -2308,7 +2347,8 @@ test('hacer otra cosa mientras caminas a la puerta (cuidar, tomar algo de los gu
   assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                     // llegó a la puerta, y se quedó
   await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
   await tocarTramo(pantalla, -1, 2);
-  await tocar(boton(pantalla, 'Guardados'));
+  assert.equal(cuadrosPendientes(), 1);                                  // echas a andar otra vez…
+  await construir(pantalla);                                             // …y los guardados están en el modo
   await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));
   await correrCuadros(5000);
   assert.equal(seguido.length, 0);
@@ -2329,7 +2369,7 @@ test('si la puerta cambia de sitio mientras estás en ella (en otra pestaña), s
 
 test('la puerta no está entre los guardados', async () => {
   const { pantalla } = await abrir(DEPTO);
-  await tocar(boton(pantalla, 'Guardados'));
+  await construir(pantalla);
   assert.deepEqual(todos(uno(pantalla, '.bandeja'), 'button').map((b) => texto(b, '.bandeja-nombre')), ['Cama sencilla × 1']);
   assert.deepEqual(todos(pantalla, '.lista-guardados li').map((f) => texto(f, '.mueble-nombre')), ['Cama sencilla']);
 });
@@ -2349,7 +2389,7 @@ test('si lo que llega te para camino de la puerta, ya no sales, tampoco después
   await tocarCasilla(pantalla, 2, 2); await correrCuadros(5000);
   await tocarTramo(pantalla, -1, 2);                                      // echas a andar hacia la puerta…
   assert.equal(cuadrosPendientes(), 1);
-  const lleno =[[2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]]
+  const lleno = [[2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]]
     .reduce((d, [x, y], n) => conPuesto(d, { ...LA_MACETA, id: 40 + n, x, y, giro: 0, casillas: [[x, y]] }), DEPTO);
   servidor.responde('GET departamento', lleno);
   await releer(pantalla);                                                 // …la pieza se llena y quedas en la puerta, sin llegar
@@ -2616,4 +2656,176 @@ test('elegir a un gachamon desde la lista cancela la salida', async () => {
   assert.equal(seguido.length, 0);
   assert.match(texto(pantalla, '.ficha-elegido'), /Rulo/);
   assert.deepEqual(dondeEstas(pantalla), [-0.6, 2]);                     // llegas a la puerta, y te quedas
+});
+
+// --- guardados, ampliar y la lista de muebles, dentro del modo construcción --------------
+
+test('viviendo no se ven Guardados ni Ampliar', async () => {
+  const { pantalla } = await abrir(SIN_MACETA);
+  assert.equal(boton(pantalla, 'Guardados'), null);                      // ese botón ya no existe
+  assert.equal(seVe(uno(pantalla, '.bandeja')), false);
+  assert.equal(seVe(boton(pantalla, 'Ampliar')), false);
+  const derecha = uno(pantalla, '.lado-departamento');                   // a la derecha, para vivir: la ficha,
+  assert.equal(seVe(uno(derecha, '.ficha-elegido')), true);              // «A todos», «Mochila» y «Pueblo»
+  assert.equal(seVe(uno(derecha, '.a-todos')), true);
+  assert.deepEqual(['Mochila', 'Pueblo'].map((que) => seVe(boton(derecha, que))), [true, true]);
+  assert.equal(boton(derecha, 'Ampliar'), null);
+  await construir(pantalla);
+  assert.equal(boton(pantalla, 'Guardados'), null);                      // tampoco construyendo
+  await terminar(pantalla);
+  assert.equal(boton(pantalla, 'Guardados'), null);
+  assert.equal(seVe(uno(pantalla, '.bandeja')), false);
+  assert.equal(seVe(boton(pantalla, 'Ampliar')), false);
+});
+
+test('construyendo, la bandeja está abierta y Ampliar a la vista', async () => {
+  const { pantalla } = await abrir(SIN_MACETA);
+  await construir(pantalla);
+  const bandeja = uno(pantalla, '.bandeja');
+  assert.equal(seVe(bandeja), true);
+  assert.equal(texto(bandeja, '.rotulo'), 'Guardados · toca uno y después una casilla');
+  assert.deepEqual(todos(bandeja, '.bandeja-nombre').map((n) => n.textContent), ['Cama sencilla × 1', 'Maceta × 1']);
+  const ampliar = boton(pantalla, 'Ampliar');
+  assert.equal(seVe(ampliar), true);
+  // Bajo la pieza: el botón del modo y, debajo, la bandeja y «Ampliar».
+  const partes = ['boton-construir', 'bandeja', 'boton-ampliar'];
+  assert.deepEqual(todos(uno(pantalla, '.pieza'), partes.map((c) => `.${c}`).join(', '))
+    .map((n) => partes.find((c) => n.classList.contains(c))), partes);
+  await terminar(pantalla);
+  assert.equal(seVe(uno(pantalla, '.bandeja')), false);
+  assert.equal(seVe(ampliar), false);
+});
+
+test('de la bandeja a la pieza, dentro del modo', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(SIN_MACETA);
+  servidor.responde('POST departamento/poner', BIEN(CON_MACETA));
+  await construir(pantalla);
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Maceta'));
+  assert.equal(texto(pantalla, '[role=status].aviso'), 'Toca la casilla donde lo quieres.');
+  await tocarCasilla(pantalla, 2, 2);                                    // libre
+  assert.deepEqual(pedidos.at(-1), ['POST departamento/poner', { mueble_id: MACETA_ID, x: 2, y: 2, giro: 0 }]);
+  assert.notEqual(boton(pantalla, 'Listo'), null);                       // la pieza nueva no saca del modo…
+  assert.equal(seVe(uno(pantalla, '.bandeja')), true);                   // …ni cierra la bandeja
+  assert.deepEqual(todos(uno(pantalla, '.bandeja'), '.bandeja-nombre').map((n) => n.textContent), ['Cama sencilla × 1']);
+});
+
+test('«Listo» con algo de la bandeja en la mano lo suelta', async () => {
+  const { pantalla, pedidos } = await abrir(SIN_MACETA);
+  await construir(pantalla);
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Maceta'));
+  assert.ok(casillasMarcadas(pantalla).length > 0);                     // dónde puede ir
+  await terminar(pantalla);
+  assert.deepEqual(casillasMarcadas(pantalla), []);                      // nada marcado
+  assert.equal(texto(pantalla, '[role=status].aviso'), '');              // ni la indicación de dónde tocar
+  await tocarCasilla(pantalla, 2, 2);                                    // el toque siguiente es caminar, no poner
+  await construir(pantalla);
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Maceta').getAttribute('aria-pressed'), 'false');   // al volver, no la llevas
+  assert.equal(pedidos.filter(([ruta]) => ruta.startsWith('POST')).length, 0);
+});
+
+test('«Listo» cierra lo de ampliar y su pregunta sin cobrar', async () => {
+  const { pantalla, pedidos, documento } = await abrir(DEPTO);
+  await construir(pantalla);
+  await tocar(boton(pantalla, 'Ampliar'));
+  await tocar(boton(pantalla, '+ columna'));
+  assert.equal(texto(preguntaDeAmpliar(pantalla), '.pregunta-texto'), '¿Ampliar por 45 monedas?');
+  assert.equal(seVe(uno(pantalla, '.lado-departamento')), false);       // lo de ampliar va en su lugar
+  await terminar(pantalla);
+  assert.equal(seVe(uno(pantalla, '.ampliar')), false);
+  assert.equal(seVe(uno(pantalla, '.lado-departamento')), true);
+  assert.equal(documento.activeElement, boton(pantalla, 'Construir'));   // el foco, en el botón que se pulsó
+  assert.equal(pedidos.filter(([ruta]) => ruta === 'POST departamento/ampliar').length, 0);
+  await construir(pantalla);
+  await tocar(boton(pantalla, 'Ampliar'));
+  assert.equal(seVe(uno(pantalla, '.ampliar')), true);
+  assert.equal(preguntaDeAmpliar(pantalla), null);                       // sin la pregunta de antes
+  assert.equal(pedidos.filter(([ruta]) => ruta.startsWith('POST')).length, 0);
+});
+
+test('la lista sigue al modo', async () => {
+  const { pantalla, servidor } = await abrir(CON_MACETA);
+  const secciones = ['.lista-gachamones', '.lista-puestos', '.lista-guardados'].map((s) => uno(pantalla, s));
+  const seVen = () => secciones.map(seVe);
+  assert.deepEqual(seVen(), [true, false, false]);                      // viviendo, sólo «Tus gachamones»
+  assert.deepEqual(secciones.slice(1).map((s) => s.hidden), [true, true]);   // las otras, escondidas
+  await construir(pantalla);
+  assert.deepEqual(seVen(), [true, true, true]);                        // construyendo, las tres
+  assert.deepEqual(rotulos(fila(pantalla, PUERTA_ID)), ['Mover']);
+  const laMaceta = fila(pantalla, MACETA_ID);
+  await terminar(pantalla);
+  assert.deepEqual(seVen(), [true, false, false]);
+  servidor.responde('GET departamento', MACETA_MOVIDA);                 // viviendo, la maceta cambia de sitio (otra pestaña)
+  await releer();
+  await construir(pantalla);
+  assert.equal(fila(pantalla, MACETA_ID), laMaceta);                    // su fila es la misma…
+  assert.equal(texto(laMaceta, '.mueble-nombre'), 'Maceta, en fila 2, columna 3');   // …y está al día
+});
+
+test('«Listo» cierra «¿Dónde?»', async () => {
+  const { pantalla, documento } = await abrir(DEPTO);
+  await construir(pantalla);
+  const mover = boton(fila(pantalla, CAMA_ID), 'Mover');
+  await tocar(mover);
+  assert.notEqual(uno(pantalla, '[id=lista-donde]'), null);
+  await terminar(pantalla);                                              // el foco pasa al botón al pulsarlo
+  assert.equal(uno(pantalla, '[id=lista-donde]'), null);
+  assert.equal(mover.getAttribute('aria-expanded'), 'false');
+  assert.equal(documento.activeElement, boton(pantalla, 'Construir'));
+  await construir(pantalla);
+  assert.equal(uno(pantalla, '[id=lista-donde]'), null);                // al volver, sigue cerrado
+});
+
+test('la relectura no cierra la bandeja', async () => {
+  const { pantalla, servidor } = await abrir(SIN_MACETA);
+  await construir(pantalla);
+  servidor.responde('GET departamento', { ...SIN_MACETA, guardados: [...SIN_MACETA.guardados, { ...LA_MACETA, id: 26 }] });
+  await releer();
+  assert.equal(seVe(uno(pantalla, '.bandeja')), true);
+  assert.deepEqual(todos(uno(pantalla, '.bandeja'), '.bandeja-nombre').map((n) => n.textContent), ['Cama sencilla × 1', 'Maceta × 2']);
+  assert.notEqual(boton(pantalla, 'Listo'), null);
+});
+
+test('el tipo que se acaba devuelve el foco al botón del modo', async () => {
+  const { pantalla, servidor, documento } = await abrir(SIN_MACETA);
+  servidor.responde('POST departamento/poner', BIEN(CON_MACETA));
+  await construir(pantalla);
+  const maceta = boton(uno(pantalla, '.bandeja'), 'Maceta × 1');
+  maceta.focus();
+  await tocar(maceta);
+  await tocarCasilla(pantalla, 2, 2);                                    // ya no queda ninguna guardada
+  assert.equal(boton(uno(pantalla, '.bandeja'), 'Maceta'), null);
+  assert.equal(documento.activeElement, boton(pantalla, 'Listo'));
+});
+
+test('al terminar el modo, el foco que se quedó en lo que se esconde (hay navegadores donde pulsar un botón no lo enfoca) pasa al botón del modo', async () => {
+  const casos = [
+    ['¿Dónde?, con el foco en su desplegable', '[id=lista-donde]', (p) => tocar(boton(fila(p, CAMA_ID), 'Mover'))],
+    ['un tipo de la bandeja', '.bandeja', async (p) => { boton(uno(p, '.bandeja'), 'Cama sencilla').focus(); }],
+    ['la pregunta de ampliar, con el foco en su texto', '.ampliar', async (p) => {
+      await tocar(boton(p, 'Ampliar'));
+      await tocar(boton(p, '+ columna'));
+    }],
+  ];
+  for (const [caso, donde, preparar] of casos) {
+    const { pantalla, documento } = await abrir(DEPTO);
+    await construir(pantalla);
+    await preparar(pantalla);
+    assert.ok(uno(pantalla, donde).contains(documento.activeElement), caso);
+    await tocar(boton(pantalla, 'Listo'));                               // sin darle el foco
+    assert.equal(documento.activeElement, boton(pantalla, 'Construir'), caso);
+  }
+});
+
+test('el botón del modo nace sin poderse usar, y se puede usar cuando la pieza está lista para tocarse', async () => {
+  let soltar;
+  const { pantalla } = await abrir(DEPTO, ESTADO, { antes: () => { soltar = retenerImagenes('/gachamon/retrato/'); } });
+  const alModo = boton(pantalla, 'Construir');
+  assert.equal(seVe(alModo), true);                                      // la pieza ya se ve, y su arte no ha llegado
+  assert.equal(alModo.getAttribute('aria-disabled'), 'true');
+  await tocar(alModo);
+  assert.equal(boton(pantalla, 'Listo'), null);                          // y no hace nada
+  await soltar();
+  assert.equal(alModo.getAttribute('aria-disabled'), null);
+  await construir(pantalla);
+  assert.equal(boton(pantalla, 'Listo'), alModo);
 });

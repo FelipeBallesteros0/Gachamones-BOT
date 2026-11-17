@@ -21,9 +21,12 @@
 //
 // La pieza tiene dos modos, y siempre se entra en el normal: el modo es de la
 // pantalla, no se guarda ni se manda. El botón de bajo el dibujo, «🔨
-// Construir», entra al de construcción; dentro, ese mismo botón dice «✔ Listo»,
-// a su lado se lee «Modo construcción» y la pieza se enmarca. Con una petición
-// en camino no se cambia de modo. Viviendo (el normal), un toque sobre un
+// Construir», entra al de construcción (mientras llega el arte de la pieza no
+// se puede usar, y lo dice); dentro, ese mismo botón dice «✔ Listo», a su lado
+// se lee «Modo construcción», la pieza se enmarca y debajo quedan abiertas la
+// bandeja de los guardados y «Ampliar», que fuera del modo no se ven: viviendo,
+// la pantalla es para cuidar, caminar y salir. Con una petición en camino no
+// se cambia de modo. Viviendo (el normal), un toque sobre un
 // mueble hace su acción y nada más (`queSeUsa`): hoy la única es la de la
 // puerta, que te lleva caminando hasta ella y, al llegar, al pueblo, como
 // «Pueblo» (si ya estás en ella, al momento; sin camino no se sale y se dice);
@@ -34,12 +37,14 @@
 // menú, con «Mover», «Girar» (no lo de pared) y «Guardar» (no la puerta), y al
 // mover la puerta sólo se ofrecen los tramos con la entrada libre. En los dos
 // modos, tocar el suelo es caminar. Entrar al modo suelta lo que llevas en la
-// mano, deja de elegir al gachamon y cancela la salida; «Listo» suelta lo que
-// llevas y deja de elegir el mueble. Ir a salir se cancela tocando la pieza
-// (salvo otra vez la puerta), tomando algo en la mano, mandando una petición,
-// entrando al modo o eligiendo a un gachamon en la lista. Lo que llevas en la
-// mano (el mueble que mueves, el que sacas de la bandeja de «Guardados», bajo
-// la pieza, o el gachamon que mueves, que va sólo adonde tiene camino) marca
+// mano, deja de elegir al gachamon y cancela la salida; «Listo» lo deja todo
+// recogido: suelta lo que llevas, deja de elegir el mueble y cierra lo de
+// ampliar (con su pregunta, sin cobrar nada) y el «¿Dónde?» de la lista. Lo
+// que se esconde no se lleva el foco: queda en el botón del modo. Ir a salir
+// se cancela tocando la pieza (salvo otra vez la puerta), tomando algo en la
+// mano, mandando una petición, entrando al modo o eligiendo a un gachamon en
+// la lista. Lo que llevas en la mano (el mueble que mueves, el que sacas de la
+// bandeja, o el gachamon que mueves, que va sólo adonde tiene camino) marca
 // dónde va, y el toque siguiente dice dónde: en un sitio marcado se pone (el
 // gachamon camina hasta ahí, y eso no se manda); en cualquier otro, se suelta.
 // «Ampliar» cambia lo de la derecha por lo que cuesta crecer por cada lado;
@@ -48,7 +53,8 @@
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver
-// ficha» y «Salir con …», y «A todos». Cuidarlo y acariciarlo se mandan con su
+// ficha» y «Salir con …», y «A todos»; debajo, «Mochila» y «Pueblo». Todo eso
+// está en los dos modos. Cuidarlo y acariciarlo se mandan con su
 // id, y se avisa como en el lugar (`cuidados.js`); «A todos» vuelve a leer la
 // pieza, y «Salir con …» la trae. El que sale contigo lleva su marca, y su
 // globo sale sobre él, como en el lugar; con `llegando` (se acaba de llegar
@@ -57,13 +63,14 @@
 // globo, los corazones, la ganancia, la evolución y las medallas) lo arma
 // `flotantes.js`.
 //
-// Debajo de todo, y siempre a la vista, la lista (`lista.js`): lo mismo que se
-// hace en el dibujo, con botones, para quien no usa el dibujo. Elegir ahí a un
-// gachamon es tocarlo sin su menú; «Mover», «Poner», «Girar» y «Guardar» hacen
-// lo mismo que el menú y la bandeja, y lo que sale bien sin decirse con texto
-// (poner, mover, girar, guardar) se le vuelve a decir a quien no ve el dibujo:
-// cómo quedó la pieza. El foco no se pierde: vuelve a ese mismo mueble, en la
-// lista donde haya quedado.
+// Debajo de todo, la lista (`lista.js`): lo mismo que se hace en el dibujo,
+// con botones, para quien no usa el dibujo, y que sigue al modo: viviendo
+// trae tus gachamones; construyendo, además, los muebles puestos y los
+// guardados. Elegir ahí a un gachamon es tocarlo sin su menú; «Mover»,
+// «Poner», «Girar» y «Guardar» hacen lo mismo que el menú y la bandeja, y lo
+// que sale bien sin decirse con texto (poner, mover, girar, guardar) se le
+// vuelve a decir a quien no ve el dibujo: cómo quedó la pieza. El foco no se
+// pierde: vuelve a ese mismo mueble, en la lista donde haya quedado.
 //
 // El servidor manda: la pieza se pinta como llega, y lo que se calcula aquí
 // (por dónde se camina, qué se tocó, qué cabe dónde) sirve sólo para dibujar y
@@ -246,17 +253,25 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   const saldoDeMonedas = cabecera.querySelector('.saldo');
   if (saldoDeMonedas) saldoDeMonedas.append(flota.ganancia);
   const linea = el('p', { class: 'pieza-linea' });
+  const conIcono = (clase, icono, texto, atributos = {}) => el('button', { type: 'button', class: clase, ...atributos },
+    el('span', { 'aria-hidden': 'true' }, icono), texto);
   // Bajo el dibujo, el botón del modo («Construir» o «Listo»: el mismo botón,
   // que cambia lo que dice) y, mientras dura el modo, a su lado, «Modo
-  // construcción».
+  // construcción». Nace sin poderse usar: se puede cuando la pieza está lista
+  // para tocarse.
   const iconoDelModo = el('span', { 'aria-hidden': 'true' }, CONSTRUIR[0]);
   const textoDelModo = el('span', {}, CONSTRUIR[1]);
-  const alModo = el('button', { type: 'button', class: 'boton boton-chico boton-construir' }, iconoDelModo, textoDelModo);
+  const alModo = el('button', { type: 'button', class: 'boton boton-chico boton-construir', 'aria-disabled': 'true' },
+    iconoDelModo, textoDelModo);
   const rotuloDeObra = el('p', { class: 'rotulo-de-obra', hidden: true }, EN_OBRA);
   const obra = el('div', { class: 'pieza-obra' }, alModo, rotuloDeObra);
-  const bandeja = el('div', { class: 'bandeja', id: 'departamento-bandeja', hidden: true });
+  // Debajo, y sólo mientras dura el modo, lo que se usa en él: la bandeja de
+  // los guardados, abierta, y «Ampliar».
+  const bandeja = el('div', { class: 'bandeja' });
+  const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar');
+  const herramientas = el('div', { class: 'obra-herramientas', hidden: true }, bandeja, alAmpliar);
   // Mientras no llega, en su lugar se lee la espera (o por qué no llegó).
-  const pieza = el('div', { class: 'pieza', hidden: true }, escenario, obra, linea, bandeja);
+  const pieza = el('div', { class: 'pieza', hidden: true }, escenario, obra, herramientas, linea);
   const espera = el('div', { class: 'espera-tienda' });
 
   const aviso = zonaDeAviso();
@@ -265,16 +280,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Cuándo vuelve la indicación de dónde tocar tras otro aviso (ver `decir`).
   let volverAIndicar = null;
 
-  const conIcono = (clase, icono, texto, atributos = {}) => el('button', { type: 'button', class: clase, ...atributos },
-    el('span', { 'aria-hidden': 'true' }, icono), texto);
-  const aLosGuardados = conIcono('boton boton-guardados', '📦', 'Guardados',
-    { 'aria-expanded': 'false', 'aria-controls': 'departamento-bandeja' });
-  const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar');
   const aLaMochila = conIcono('boton boton-mochila', '🎒', 'Mochila');
   const alPueblo = conIcono('boton boton-pueblo', '🗺️', 'Pueblo');
-  // Guardados y Ampliar son de la pieza: se ven cuando llega, como la ficha
-  // del elegido y «A todos», que van arriba.
-  const deLaPieza = el('div', { class: 'acciones-departamento', hidden: true }, aLosGuardados, alAmpliar);
   const panel = panelDelPlantel({
     cuidar,
     acariciar: (boton) => {
@@ -287,7 +294,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   });
   const delPlantel = el('div', { class: 'plantel-departamento', hidden: true }, panel.ficha, panel.aTodos);
   const derecha = el('div', { class: 'lado-departamento' },
-    delPlantel, deLaPieza, el('div', { class: 'salidas-lugar' }, aLaMochila, alPueblo));
+    delPlantel, el('div', { class: 'salidas-lugar' }, aLaMochila, alPueblo));
   const panelAmpliar = el('div', { class: 'ampliar', hidden: true });
   // La lista, como la ficha: se ve cuando llega la pieza.
   const lista = listaDelDepartamento({
@@ -415,8 +422,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // mueble: null, tipo: null}`, con las casillas que se pisan como `sitios`.
   let enLaMano = null;
   // En el modo construcción (si no, viviendo). Siempre se entra viviendo.
+  // Mientras dura, la bandeja está abierta.
   let construyendo = false;
-  let bandejaAbierta = false;
   let ampliando = false;
   // La pregunta abierta en lo de ampliar, o `null`: `{eje, coste, mide}`, el
   // lado y lo que costaba y medía la pieza al abrirla. Sólo hay una.
@@ -598,7 +605,12 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     const g = elVisto();
     visto = g ? g.id : null;
     panel.pintar(g);
-    if (depto) lista.pintar(depto, visto);
+    pintarLaLista();
+  }
+
+  // La lista, al día con la pieza y con el modo.
+  function pintarLaLista() {
+    if (depto) lista.pintar(depto, visto, construyendo);
   }
 
   // La ficha de uno, recién llegada con lo que contestó una acción: sus barras,
@@ -993,7 +1005,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // --- el modo ---------------------------------------------------------------------------
 
-  // Lo que se ve del modo: lo que dice su botón, «Modo construcción» y el marco.
+  // Lo que se ve del modo: lo que dice su botón, «Modo construcción», el marco
+  // y, debajo, la bandeja y «Ampliar».
   function ponerElModo() {
     const [icono, texto] = construyendo ? LISTO : CONSTRUIR;
     iconoDelModo.textContent = icono;
@@ -1001,25 +1014,51 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     alModo.classList.toggle('principal', construyendo);
     rotuloDeObra.hidden = !construyendo;
     pieza.classList.toggle('construyendo', construyendo);
+    herramientas.hidden = !construyendo;
   }
 
   // Entrar o salir del modo, con su botón, que se queda con el foco. Las dos
   // cosas sueltan lo que llevas en la mano (sin ponerlo). Al entrar, deja de
   // estar elegido el gachamon (su ficha sigue a la derecha), si ibas a salir ya
-  // no, y se dice qué hacer. Al terminar, deja de estar elegido el mueble, y
-  // se le dice a quien no ve la pieza. Con una petición en camino, nada.
+  // no, se abren la bandeja y «Ampliar» (y se traen a la vista: en un
+  // computador pueden quedar bajo el borde de la ventana), la lista trae los
+  // muebles y se dice qué hacer. Al terminar, deja de estar elegido el mueble,
+  // se cierran lo de ampliar (con su pregunta, sin mandar nada) y el «¿Dónde?»
+  // de la lista, y se le dice a quien no ve la pieza. Con una petición en
+  // camino, nada.
   alModo.addEventListener('click', () => {
     if (enCamino || !listo) return;
+    const foco = document.activeElement;
     soltar();
     construyendo = !construyendo;
     elegidoG = null;
-    if (construyendo) saliendo = false;
-    else elegido = null;
+    if (construyendo) {
+      saliendo = false;
+    } else {
+      elegido = null;
+      ampliando = false;
+      preguntaAbierta = null;
+    }
     ponerElModo();
+    ponerBandeja();
+    ponerAmpliar();
+    pintarLaLista();
     verLoElegido();
+    noPerderElFoco(foco);
+    if (construyendo) herramientas.scrollIntoView({ block: 'nearest' });
     decir(construyendo ? TOCA_UN_MUEBLE : '');
     lista.anunciar(construyendo ? '' : OBRA_TERMINADA);
   }, { signal });
+
+  // Lo que se esconde no se lleva el foco. Lo tiene el botón del modo, que es
+  // el que se pulsó; pero hay navegadores donde pulsar un botón no lo enfoca:
+  // si el foco que había (`antes`) se quedó en algo que ya no se ve, o se fue
+  // con lo que se quitó, pasa al botón.
+  function noPerderElFoco(antes) {
+    const ahora = document.activeElement;
+    const perdido = !ahora || ahora === document.body || ahora.closest('[hidden]') !== null;
+    if (antes && antes !== document.body && perdido) alModo.focus({ preventScroll: true });
+  }
 
   // --- el menú de lo elegido -------------------------------------------------------------
 
@@ -1178,12 +1217,11 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     }
   }
 
-  // La bandeja, con un botón por tipo de mueble guardado. El foco que estaba
-  // en uno vuelve al de ese mismo tipo; si ya no queda, al botón que la abre.
+  // La bandeja, abierta mientras dura el modo, con un botón por tipo de mueble
+  // guardado. El foco que estaba en uno vuelve al de ese mismo tipo; si ya no
+  // queda, al botón del modo.
   function ponerBandeja() {
-    bandeja.hidden = !bandejaAbierta;
-    aLosGuardados.setAttribute('aria-expanded', String(bandejaAbierta));
-    if (!bandejaAbierta || !depto) return;
+    if (!construyendo || !depto) return;
     const conFoco = [...tiposEnLaBandeja].find(([, boton]) => boton === document.activeElement);
     tiposEnLaBandeja.clear();
     const rotulo = el('p', { class: 'rotulo', id: 'departamento-guardados' }, ROTULO_DE_GUARDADOS);
@@ -1208,7 +1246,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
         el('div', { class: 'bandeja-tipos', role: 'group', 'aria-labelledby': 'departamento-guardados' }, botones));
     }
     marcarLoQueLlevas();
-    if (conFoco) (tiposEnLaBandeja.get(conFoco[0]) || aLosGuardados).focus({ preventScroll: true });
+    if (conFoco) (tiposEnLaBandeja.get(conFoco[0]) || alModo).focus({ preventScroll: true });
   }
 
   // Elegir uno de la bandeja lo pone en la mano, empezando por el giro 0;
@@ -1229,16 +1267,6 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     elegidoG = null;
     tomar(mano);
   }
-
-  // Abrir o cerrar la bandeja; al abrirla se trae a la vista (en un computador
-  // puede quedar bajo el borde de la ventana) y al cerrarla se suelta lo que
-  // salió de ella.
-  aLosGuardados.addEventListener('click', () => {
-    bandejaAbierta = !bandejaAbierta;
-    if (!bandejaAbierta && enLaMano && enLaMano.tipo !== null) soltar();
-    ponerBandeja();
-    if (bandejaAbierta) bandeja.scrollIntoView({ block: 'nearest' });
-  }, { signal });
 
   // --- ampliar ---------------------------------------------------------------------------
 
@@ -1374,6 +1402,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (boton) boton.focus({ preventScroll: true });
   }
 
+  // «Ampliar», bajo la pieza mientras dura el modo, lo abre; «Volver» y
+  // «Listo» lo cierran.
   alAmpliar.addEventListener('click', () => {
     ampliando = true;
     ponerAmpliar();
@@ -1678,7 +1708,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     await Promise.all([aplicarDepto(leido), traerAvatar()]);
     if (!sigueAqui()) return;
     listo = true;
-    deLaPieza.hidden = false;
+    // Ya se puede tocar la pieza: también entrar al modo.
+    if (!enCamino) alModo.removeAttribute('aria-disabled');
     delPlantel.hidden = false;
     lista.nodo.hidden = false;
     // Las cuentas de las esperas bajan solas; tus gachamones pasean y el que
