@@ -1,6 +1,6 @@
 // La geometría de la pieza del departamento en vista isométrica: medir la
 // casilla, proyectar, saber qué hay bajo un punto, dónde se pinta cada dibujo,
-// quién tapa a quién y qué se tocó. Es puro: sin pantalla, sin reloj, sin red.
+// quién tapa a quién, qué se tocó y qué se usa. Es puro: sin pantalla, sin reloj, sin red.
 // El servidor manda: esto sirve para dibujar y para no proponer lo imposible.
 import { huellaDe } from './casillas.js';
 
@@ -144,23 +144,38 @@ function enLaSilueta(m, r, x, y) {
 
 const delanteDeTodo = (candidatos) => ordenDePintado(candidatos).at(-1);
 
-export function queSeToco(m, depto, gachamones, x, y) {
+// El gachamon de más adelante bajo el punto, si hay alguno.
+function gachamonBajo(m, gachamones, x, y) {
   const tocados = gachamones
     .filter((g) => dentro(cajaDelGachamon(m, g.i, g.j), x, y))
     .map((g) => ({ tipo: 'gachamon', i: g.i, j: g.j, id: g.id }));
-  if (tocados.length > 0) return { tipo: 'gachamon', id: delanteDeTodo(tocados).id };
+  return tocados.length > 0 ? delanteDeTodo(tocados) : null;
+}
 
+// Los muebles de bulto cuya silueta contiene el punto, con su recuadro de casillas.
+function bultosBajo(m, depto, x, y) {
   const muebles = [];
   for (const puesto of depto.puestos) {
     if (puesto.capa === SUELO || puesto.capa === PARED) continue;
     const r = recuadroDe(huellaDe(puesto, puesto.x, puesto.y, puesto.giro));
     if (enLaSilueta(m, r, x, y)) muebles.push({ tipo: 'mueble', i: r.i0, j: r.j0, a: r.i1 - r.i0, f: r.j1 - r.j0, id: puesto.id });
   }
+  return muebles;
+}
+
+// El mueble de pared colgado en ese tramo, si lo hay.
+const colgadoEn = (depto, tramo) => depto.puestos.find((p) => p.capa === PARED && p.casillas.some(([i, j]) => i === tramo[0] && j === tramo[1]));
+
+export function queSeToco(m, depto, gachamones, x, y) {
+  const gachamon = gachamonBajo(m, gachamones, x, y);
+  if (gachamon) return { tipo: 'gachamon', id: gachamon.id };
+
+  const muebles = bultosBajo(m, depto, x, y);
   if (muebles.length > 0) return { tipo: 'mueble', id: delanteDeTodo(muebles).id };
 
   const tramo = tramoEn(m, x, y, depto.ancho, depto.fondo);
   if (tramo) {
-    const colgado = depto.puestos.find((p) => p.capa === PARED && p.casillas.some(([i, j]) => i === tramo[0] && j === tramo[1]));
+    const colgado = colgadoEn(depto, tramo);
     return colgado ? { tipo: 'mueble', id: colgado.id } : { tipo: 'tramo', i: tramo[0], j: tramo[1] };
   }
 
@@ -172,4 +187,25 @@ export function queSeToco(m, depto, gachamones, x, y) {
     return salida;
   }
   return null;
+}
+
+// Qué recibe un toque viviendo: sólo lo que tiene acción propia (`conAccion`
+// dice, de un mueble puesto, si la tiene). Lo que no la tiene no hace nada, ni
+// pasa el toque al suelo de detrás, ni le quita el toque a lo que sí la tiene.
+export function queSeUsa(m, depto, gachamones, x, y, conAccion) {
+  const gachamon = gachamonBajo(m, gachamones, x, y);
+  if (gachamon) return { tipo: 'gachamon', id: gachamon.id };
+
+  const bultos = bultosBajo(m, depto, x, y);
+  const poneAccion = (c) => conAccion(depto.puestos.find((p) => p.id === c.id));
+  const conAcc = bultos.filter(poneAccion);
+  if (conAcc.length > 0) return { tipo: 'accion', id: delanteDeTodo(conAcc).id };
+
+  const tramo = tramoEn(m, x, y, depto.ancho, depto.fondo);
+  const colgado = tramo ? colgadoEn(depto, tramo) : null;
+  if (colgado && conAccion(colgado)) return { tipo: 'accion', id: colgado.id };
+  if (bultos.length > 0 || tramo) return null;
+
+  const casilla = casillaEn(m, x, y, depto.ancho, depto.fondo);
+  return casilla ? { tipo: 'casilla', i: casilla[0], j: casilla[1] } : null;
 }

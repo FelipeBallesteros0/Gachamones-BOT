@@ -174,3 +174,42 @@ test('en la puerta se pinta antes que lo que tiene delante', () => {
   const maceta = { tipo: 'mueble', i: 0, j: 2, a: 1, f: 1 };
   assert.deepEqual(p.ordenDePintado([maceta, tu]), [tu, maceta]);
 });
+
+// Un 4 × 4 con la puerta en el tramo 2 de la pared izquierda, una maceta justo delante de ella, en (0, 2),
+// un felpudo en (3, 0), un cuadro en el tramo 1 de la pared derecha y un gachamon parado en (1, 1).
+const PUERTA = { clave: 'puerta', ancho: 1, fondo: 1, capa: 'pared', puerta: true };
+const VIVIENDO = depto([{ id: 5, ...PUERTA, x: -1, y: 2, giro: 0, casillas: [[-1, 2]] },
+                        { id: 7, ...MACETA, x: 0, y: 2, giro: 0, casillas: [[0, 2]] },
+                        { id: 9, ...FELPUDO, x: 3, y: 0, giro: 0, casillas: [[3, 0]] },
+                        { id: 11, ...CUADRO, x: 1, y: -1, giro: 0, casillas: [[1, -1]] }], 4, 4);
+const conAccion = (puesto) => Boolean(puesto.puerta);
+const uso = (i, j, h = 0) => p.queSeUsa(M, VIVIENDO, GENTE, ...p.proyectar(M, i, j, h), conAccion);
+
+test('viviendo, sólo recibe el toque lo que tiene acción', () => {
+  assert.deepEqual(uso(1.5, 1.5), { tipo: 'gachamon', id: 3 });
+  assert.deepEqual(uso(0.5, 3.5), { tipo: 'casilla', i: 0, j: 3 });
+  assert.deepEqual(uso(3.5, 0.5), { tipo: 'casilla', i: 3, j: 0 });        // lo que se pisa no se elige: se camina
+  assert.equal(uso(0.5, 2.5), null);                                         // el pie de la maceta: nada
+  assert.equal(uso(1.5, 0, M.pared / 2), null);                              // el cuadro: nada
+  assert.equal(uso(3.5, 0, M.pared / 2), null);                              // un tramo vacío
+  assert.equal(p.queSeUsa(M, VIVIENDO, GENTE, 2, 2, conAccion), null);       // una esquina del lienzo
+});
+
+test('un mueble delante no le quita el toque a la puerta', () => {
+  const enLaPuerta = p.proyectar(M, 0, 2.5, M.pared / 2);                    // el centro de su tramo
+  assert.deepEqual(p.queSeToco(M, VIVIENDO, [], ...enLaPuerta), { tipo: 'mueble', id: 7 });   // construyendo, la maceta
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, [], ...enLaPuerta, conAccion), { tipo: 'accion', id: 5 });
+  assert.equal(p.queSeUsa(M, VIVIENDO, [], ...enLaPuerta, () => false), null);                // sin acción, nada
+});
+
+test('la puerta se usa en las dos paredes, y un gachamon delante se toca antes', () => {
+  const derecha = depto([{ id: 5, ...PUERTA, x: 2, y: -1, giro: 0, casillas: [[2, -1]] }], 4, 4);
+  assert.deepEqual(p.queSeUsa(M, derecha, [], ...p.proyectar(M, 2.5, 0, M.pared / 2), conAccion), { tipo: 'accion', id: 5 });
+  const delante = [{ id: 4, i: 0, j: 2 }];
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, delante, ...p.proyectar(M, 0, 2.5, M.pared / 2), conAccion), { tipo: 'gachamon', id: 4 });
+});
+
+test('un mueble de bulto con acción también se usa', () => {
+  const laMaceta = (puesto) => puesto.id === 7;
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, [], ...p.proyectar(M, 0.5, 2.5), laMaceta), { tipo: 'accion', id: 7 });
+});

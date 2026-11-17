@@ -1,6 +1,6 @@
 // Las cuentas de la rejilla del departamento: qué ocupa un mueble, qué cabe
-// dónde y por dónde se camina. Es puro: sin pantalla, sin reloj, sin red; el
-// azar entra como función. El servidor manda: esto sirve para dibujar y para no
+// dónde (y dónde se ofrece la puerta) y por dónde se camina. Es puro: sin
+// pantalla, sin reloj, sin red; el azar entra como función. El servidor manda: esto sirve para dibujar y para no
 // proponer lo imposible, nunca para decidir.
 
 const SUELO = 'suelo';
@@ -106,6 +106,14 @@ export function laPuerta(depto) {
   if (!puesto) return null;
   const [x, y] = puesto.casillas[0];
   return { id: puesto.id, celda: [x, y], dentro: [Math.max(x, 0), Math.max(y, 0)] };
+}
+
+// De unos sitios de pared (como los da `dondeCabe`), los que tienen libre la
+// casilla de dentro que queda enfrente (la misma que da `laPuerta`). El servidor
+// acepta la puerta con la entrada tapada; la pantalla sólo no la propone.
+export function conLaEntradaLibre(depto, sitios) {
+  const tapadas = noSePisan(depto);
+  return sitios.filter(({ x, y }) => !tapadas.has(clave(Math.max(x, 0), Math.max(y, 0))));
 }
 
 // Con `puerta`, su casilla es un sitio más, vecino sólo de la de dentro.

@@ -168,3 +168,14 @@ test('la puerta en el primer tramo de cada pared: las dos dan a la esquina de at
   assert.deepEqual(c.camino(3, 3, new Set(), [0, 0], [0, -1], izquierda), []);
   assert.deepEqual(c.camino(3, 3, new Set(), [0, 0], [-1, 0], derecha), []);
 });
+
+test('la puerta sólo se ofrece donde la entrada queda libre', () => {
+  // Un 3 × 3 con una cama de 2 × 1 en (0, 0) —tapa (0, 0) y (1, 0)— y un felpudo en (0, 1).
+  const pieza = depto([{ id: 1, clave: 'cama_sencilla', capa: 'bulto', ancho: 2, fondo: 1, x: 0, y: 0, giro: 0, casillas: [[0, 0], [1, 0]] },
+                       { id: 2, clave: 'felpudo', capa: 'suelo', ancho: 1, fondo: 1, x: 0, y: 1, giro: 0, casillas: [[0, 1]] }]);
+  const sitios = [{ x: -1, y: 0, giro: 0 }, { x: -1, y: 1, giro: 0 }, { x: 0, y: -1, giro: 0 },
+                  { x: 1, y: -1, giro: 0 }, { x: 2, y: -1, giro: 0 }];
+  assert.deepEqual(c.conLaEntradaLibre(pieza, sitios), [{ x: -1, y: 1, giro: 0 }, { x: 2, y: -1, giro: 0 }]);
+  assert.deepEqual(c.conLaEntradaLibre(depto([]), sitios), sitios);          // sin muebles, todos
+  assert.deepEqual(c.conLaEntradaLibre(pieza, []), []);
+});
