@@ -2130,10 +2130,11 @@ def _departamento_en(
     con: sqlite3.Connection, usuario_id: str, guild_id: str, ahora: datetime
 ) -> dep.Departamento:
     """El departamento, **creándolo** como `dep.DE_PARTIDA` si es la primera
-    vez que se mira: la fila y sus dos camas, una puesta y otra guardada.
+    vez que se mira: la fila, sus dos camas, una puesta y otra guardada, y su
+    puerta, puesta.
 
     El `INSERT OR IGNORE` es lo que decide si nace: si dos peticiones llegan a
-    la vez, sólo la que consigue la fila pone las camas.
+    la vez, sólo la que consigue la fila pone sus piezas.
     """
     nace = con.execute(
         "INSERT OR IGNORE INTO departamentos "

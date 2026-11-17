@@ -259,7 +259,9 @@ al igual que en Habbo».
   hasta la puerta, no se sale y se dice **[propuesta, aceptada]**.
 - **Nace con el departamento** **[propuesta, aceptada]**: en la pared izquierda, en el
   tramo de más adelante; el día del cambio, el alcalde la deja en el primer
-  tramo cuya casilla de enfrente esté libre de lo que él mismo puso. No se vende
+  tramo cuya casilla de enfrente esté libre de lo que él mismo puso. Si con sus
+  camas puestas no queda ninguno, corre la cama que tapa la entrada a un sitio
+  de cama que le sobre **[propuesta]**. No se vende
   en la Tienda, no aparece en «Guardados» y no suma comodidad.
 - **Su dibujo** sigue las reglas de lo de pared (dos imágenes, una por pared):
   es el vano visto desde dentro, y tu avatar se pinta de pie en su umbral.

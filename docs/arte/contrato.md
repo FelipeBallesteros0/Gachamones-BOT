@@ -204,6 +204,16 @@ se pinta **de pie en su umbral**, delante del dibujo, así que **el dibujo no de
 traer a nadie dentro ni tapar el umbral** (la casilla de la puerta es la que
 queda fuera del departamento, junto a su pared).
 
+Para que tu avatar quepa en el hueco, esto es **dónde cae dentro del dibujo**,
+contando desde la esquina de arriba a la izquierda del original de 512 × 1280:
+ocupa una caja de unos 410 × 717, pegada al borde de delante del dibujo. En
+`puerta-se.png` va **de x 0 a 410**; en `puerta-so.png`, **de x 102 a 512**; y
+en los dos, **de y 444 a 1161**. Servido, la mitad: de x 0 a 205 o de 51 a 256,
+y de y 222 a 580. Es la misma caja con cualquier tamaño de pieza y en cualquier
+tramo; la página redondea el avatar al píxel de pantalla, así que en pantalla
+puede correrse un poco. Se pinta siempre delante del dibujo: lo del marco que
+caiga dentro de esa caja queda detrás de él.
+
 Su relleno es un marco claro con un hueco oscuro de arriba abajo, el rótulo
 «PUERTA» y un pomo amarillo, para que no se confunda con un cuadro.
 

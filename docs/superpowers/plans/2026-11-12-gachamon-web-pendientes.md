@@ -1028,16 +1028,26 @@ Son observaciones, no decisiones.
   - La casilla de dentro que queda frente a la puerta se puede tapar con un
     mueble: entonces apareces en la puerta y no pasas hasta moverlo.
   - La casilla de la puerta sólo la pisas tú: los gachamones no.
-  - La puerta también sirve para salir al pueblo, además del botón «Pueblo», y
-    se sale desde su menú («Mover» y «Salir»).
+  - La puerta también sirve para salir al pueblo, además del botón «Pueblo».
+  - Sin camino, tu avatar no va (lo decidió ese mismo día, sobre el plan
+    anterior): vale también desde la puerta y hacia ella.
+  - Se sale desde el menú de la puerta («Mover» y «Salir»): de lo que le
+    propuso el plan, esto lo eligió él expresamente.
+  - Pidió meter en este plan un arreglo de «Ampliar»: uno que llega como
+    segundo clic de un doble clic no cobra.
+- **Lo que el plan propuso y el dueño aprobó** (se le enseñó con el plan):
+  - Nace en la pared izquierda, en el tramo de más adelante; el día del cambio,
+    en el primer tramo con la entrada libre de lo que dejó el alcalde.
+  - No suma comodidad, no se vende y no aparece en «Guardados».
+  - Si no hay camino al salir, no se sale y se dice.
   - Las frases: `Puerta`, `🚪 Salir` y `Salir`, `La puerta no se guarda.`,
     `No hay camino hasta la puerta.`
-  - Nace en la pared izquierda, en el tramo de más adelante (el día del cambio,
-    en el primer tramo con la entrada libre de lo que dejó el alcalde); no suma
-    comodidad, no se vende y no aparece en «Guardados»; si no hay camino al
-    salir, no se sale y se dice.
-  - Un «Ampliar» que llega como segundo clic de un doble clic no cobra.
 - **Lo que se decidió al construir** (se puede cambiar):
+  - El día del cambio, si con las camas que deja puestas el alcalde ninguna
+    entrada queda libre (pasa con 21 o 24 gachamones vivos), corre la cama que
+    la tapa a un sitio de cama que le sobre, y la puerta queda con la entrada
+    libre; con los demás planteles todo queda como antes. Lo añadió la revisión
+    final, para que se cumpla lo aprobado; en el diseño va como propuesta.
   - La puerta es un mueble más del catálogo, de pared y de un tramo, con su
     marca propia; el cliente la reconoce por esa marca que manda el servidor,
     nunca por su clave.
@@ -1083,6 +1093,24 @@ Son observaciones, no decisiones.
 - Buscar el tramo para la puerta da un error claro si todas las paredes tuvieran
   algo colgado; con las reglas de hoy no puede pasar el día del cambio (sólo hay
   camas).
+- Un «Ampliar» que se ignora por llegar pegado a otro clic no avisa de nada: si
+  confirmas enseguida sin mover el ratón, ese clic no hace nada y hay que
+  esperar un momento y volver a tocar. No se pierde dinero.
+- El arreglo del doble clic de «Ampliar» no cubre el doble toque de un
+  teléfono: ahí cada toque cuenta como un clic suelto, así que el segundo puede
+  confirmar. No se ha comprobado en un aparato; a lo sumo confirma una vez,
+  nunca dos.
+- Qué cancela una salida en curso no es parejo: tocar la pieza, tomar algo en la
+  mano o mandar una petición la cancelan, pero abrir «Ampliar», «Guardados» o
+  «Mover» de la lista, no (ni elegir a un gachamon desde la lista). Se unifica
+  en el modo construcción.
+- Al mover la puerta se ofrecen también los tramos con la entrada tapada por un
+  mueble; si estabas en la puerta, te vas con ella y quedas detrás de ese
+  mueble. Si se ofrecen, se marcan distinto o se avisa, hay que preguntárselo
+  al dueño.
+- Con un 8 × 8 lleno de camas, el alcalde dejaría la entrada tapada: no le
+  sobra ningún sitio donde correr la cama. No puede pasar con el tope de 25
+  gachamones de antes.
 
 ## Para el plan 6 (tu casa)
 
