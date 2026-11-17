@@ -1106,8 +1106,9 @@ Son observaciones, no decisiones.
   en el modo construcción.
 - Al mover la puerta se ofrecen también los tramos con la entrada tapada por un
   mueble; si estabas en la puerta, te vas con ella y quedas detrás de ese
-  mueble. Si se ofrecen, se marcan distinto o se avisa, hay que preguntárselo
-  al dueño.
+  mueble. El dueño decidió el 2026-11-16 que no se ofrezcan: al moverla sólo se
+  marcan los tramos con la entrada libre. Lo hace el plan del modo
+  construcción.
 - Con un 8 × 8 lleno de camas, el alcalde dejaría la entrada tapada: no le
   sobra ningún sitio donde correr la cama. No puede pasar con el tope de 25
   gachamones de antes.

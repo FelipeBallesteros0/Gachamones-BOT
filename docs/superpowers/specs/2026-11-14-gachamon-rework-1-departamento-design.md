@@ -68,13 +68,14 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
 
 **Sería un fracaso, aunque funcione**
 
-- Que decorar tenga «modos» o pasos de más. Felipe probó un boceto con un modo
-  «Decorar» y lo encontró complicado: se toca el mueble y ahí salen sus
-  opciones **[Felipe]**.
-  **[Felipe, 2026-11-16]** Después decidió añadir un modo construcción para
+- Que decorar tenga pasos de más: se toca el mueble y ahí salen sus opciones
+  **[Felipe]**. Al principio esta línea decía también «modos»: Felipe probó un
+  boceto con un modo «Decorar» y lo encontró complicado **[Felipe]**.
+  **[Felipe, 2026-11-16]** Después decidió añadir un **modo construcción** para
   mover muebles, puertas y ventanas: así, fuera de él, un toque sobre un mueble
   hace su acción y no hay choques como el de la puerta, que al tocarla se podía
-  mover o salir. Ese modo tendrá su propio plan.
+  mover o salir. Está en la sección 5.1. Dentro del modo sigue valiendo lo de
+  siempre: tocar el mueble y elegir **[propuesta, aceptada]**.
 - Que haya un tope de camas o de gachamones que no salga de las casillas: «la
   limitación va por las casillas solamente» **[Felipe]**.
 - Que alguien pierda gachamones, muebles o monedas con el cambio.
@@ -248,15 +249,19 @@ al igual que en Habbo».
   hacia adentro por la casilla que queda enfrente.
 - **La casilla de enfrente se puede tapar con un mueble**, como en Habbo
   **[Felipe, 2026-11-16]**: entonces apareces en la puerta y no pasas hasta
-  mover el mueble, cosa que puedes hacer desde ahí. (Sin camino, tu avatar no
-  va: sección 5.)
+  mover el mueble, cosa que puedes hacer desde ahí, entrando al modo
+  construcción. (Sin camino, tu avatar no va: sección 5.) Lo que no se ofrece
+  es llevar la propia puerta a un tramo con la entrada tapada: al moverla sólo
+  se marcan los que la tienen libre **[Felipe, 2026-11-16]**.
 - **La casilla de la puerta sólo la pisas tú** **[Felipe, 2026-11-16]**: los
   gachamones no pasean hasta ella ni se les puede llevar.
 - **Por la puerta también se sale al pueblo** **[Felipe, 2026-11-16]**, además
-  del botón «Pueblo». Se sale desde su menú: tocar la puerta la elige, como a
-  cualquier mueble, y ahí están «Mover» y «Salir»; «Salir» te lleva caminando
-  hasta ella y, al llegar, al pueblo **[Felipe, 2026-11-16]**. Si no hay camino
-  hasta la puerta, no se sale y se dice **[propuesta, aceptada]**.
+  del botón «Pueblo». **Tocarla, en modo normal, te saca directo**: caminas
+  hasta ella y, al llegar, sales; si mientras caminas tocas otra cosa, no
+  sales; si ya estás en ella, sales al momento **[Felipe, 2026-11-16]**. (Al
+  principio se salía desde su menú, que traía «Mover» y «Salir»; con el modo
+  construcción —sección 5.1— el menú es sólo de ese modo y trae «Mover».) Si
+  no hay camino hasta la puerta, no se sale y se dice **[propuesta, aceptada]**.
 - **Nace con el departamento** **[propuesta, aceptada]**: en la pared izquierda, en el
   tramo de más adelante; el día del cambio, el alcalde la deja en el primer
   tramo cuya casilla de enfrente esté libre de lo que él mismo puso. Si con sus
@@ -280,9 +285,10 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
   el avatar camina hasta ahí rodeando los muebles.
 - **Tocas un mueble y encima salen sus opciones: Mover, Girar, Guardar**
   **[Felipe]**. Con «Mover» se marcan las casillas libres y tocas dónde lo
-  quieres.
+  quieres. Desde el 2026-11-16, **dentro del modo construcción** (sección 5.1).
 - **«Guardados»** abre lo que tienes sin poner: tocas uno y después una
-  casilla **[propuesta, aceptada]**.
+  casilla **[propuesta, aceptada]**. Desde el 2026-11-16 no es un botón: la
+  bandeja está abierta mientras dura el modo construcción (sección 5.1).
 - **Tocas a un gachamon** y su ficha queda abajo: sus barras, sus cuidados y
   «Salir con él». También tiene «Mover», para apartarlo **[Felipe]**.
 - **Los gachamones caminan solos** por la pieza **[Felipe]**. Mientras mueves
@@ -293,7 +299,8 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
 - **«A todos»**: los cuatro botones, bajo la ficha.
 - **«Ampliar»**: muestra cuánto cuesta sumar una fila y cuánto una columna.
   **Antes de cobrar pregunta, como la Tienda** («¿Ampliar por 45 monedas?»,
-  con «Ampliar» y «No») **[Felipe, 2026-11-16]**.
+  con «Ampliar» y «No») **[Felipe, 2026-11-16]**. Está dentro del modo
+  construcción (sección 5.1).
 - Bajo la pieza, una línea con el tamaño, las casillas ocupadas, las camas y
   los gachamones, y **también la comodidad** **[Felipe, 2026-11-16]**.
 - **En el computador, la pieza a la izquierda** y, a la derecha, la ficha, «A
@@ -308,6 +315,8 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
 - **Se toca lo que se ve, con los gachamones primero** **[propuesta]**: a un
   gachamon siempre se le puede tocar, también con un mueble delante; después,
   los muebles por la silueta de su caja; después la pared; después el suelo.
+  Con los modos (sección 5.1): en el normal sólo recibe el toque lo que tiene
+  acción, y en el de construcción a los gachamones no se les toca.
   **Quién tapa a quién** se calcula de verdad, por las cajas que cada cosa
   ocupa en el suelo, y no con la cuenta rápida del boceto, que dibujaba a un
   gachamon debajo de la cama que tiene al lado **[propuesta]**.
@@ -324,7 +333,54 @@ cajas de colores: valen por lo que muestran, no por cómo están hechos.
 - Vale en el teléfono y en el computador, con el corte de 900 px de hoy.
 - **Todo lo que se hace tocando el dibujo se puede hacer también sin él**
   (teclado y lector de pantalla): una lista de lo puesto y de lo guardado con
-  los mismos botones **[propuesta]**.
+  los mismos botones **[propuesta]**. La lista de muebles sigue al modo
+  (sección 5.1).
+
+### 5.1 El modo construcción
+
+Felipe lo pidió el 2026-11-16, con la puerta recién puesta en pantalla: «se me
+acaba de ocurrir, añadir un modo construccion para mover muebles y puertas y
+ventanas, de esa forma en el modo normal solo podras usar la accion de ese
+mueble, y no habran choques como con la puerta que al hacerle click podria
+moverse o salir del departamento».
+
+- **Dos modos: el normal y el de construcción** **[Felipe, 2026-11-16]**.
+  Siempre se entra en el normal, y el modo no se recuerda: es cosa de la
+  pantalla, no se guarda ni se manda al servidor **[propuesta, aceptada]**.
+- **El botón se llama «🔨 Construir» y, dentro del modo, «✔ Listo»**
+  **[Felipe, 2026-11-16]**. Va bajo la pieza; mientras dura el modo, a su lado
+  se lee «Modo construcción» y la pieza se enmarca **[propuesta, aceptada]**.
+- **En modo normal, un toque sobre un mueble hace su acción**
+  **[Felipe, 2026-11-16]**. Hoy la única es la de la puerta: te saca (sección
+  4.5). **Un mueble sin acción propia no hace nada**: no se elige; si se pisa
+  (una alfombra), caminas hasta ahí; y no le quita el toque a lo que tiene
+  acción aunque esté delante **[Felipe, 2026-11-16]**. A los gachamones se les
+  toca como siempre, con su menú («Mover» y «Acariciar»).
+- **En el modo construcción se tocan los muebles, la puerta y lo de pared**: de
+  cada uno salen «Mover», «Girar» (no lo de pared) y «Guardar» (no la puerta)
+  **[Felipe, 2026-11-16]**. **A los gachamones no se les toca**: el toque pasa
+  al mueble que tengan detrás; siguen paseando, y si pones un mueble donde hay
+  uno, se corre solo **[Felipe, 2026-11-16]**.
+- **Tocar el suelo es caminar en los dos modos** **[propuesta, aceptada]**.
+- **«Guardados» y «Ampliar» están sólo dentro del modo**
+  **[Felipe, 2026-11-16]**: la bandeja, abierta bajo la pieza mientras dura; y
+  «Ampliar», a su lado **[propuesta, aceptada]**. Fuera del modo la pantalla
+  queda para vivir: cuidar, caminar, salir.
+- **«Listo» deja todo recogido**: suelta lo que lleves en la mano y cierra el
+  menú y lo de ampliar, sin cobrar nada. Con una petición en camino no se
+  cambia de modo **[propuesta, aceptada]**.
+- **Sin el dibujo** (teclado y lector de pantalla): en modo normal la lista
+  trae tus gachamones; en el de construcción, además, los muebles puestos y los
+  guardados con sus botones. Para salir sin el dibujo está «Pueblo»
+  **[propuesta, aceptada]**.
+- Los cuidados, «A todos», «Mochila» y «Pueblo» siguen en los dos modos
+  **[propuesta, aceptada]**.
+- **Lo que se lee**: al entrar al modo, «Toca un mueble para moverlo, girarlo o
+  guardarlo.»; y al terminar, sólo para el lector de pantalla, «Modo
+  construcción terminado.» **[Felipe, 2026-11-16]**.
+- **La carta del alcalde nombra el botón** **[Felipe, 2026-11-16]**: donde
+  habla de los muebles guardados, dice «entra a «Construir» y ponlos donde
+  quieras» (sección 6).
 
 ## 6. El día del cambio
 
