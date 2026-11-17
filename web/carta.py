@@ -46,9 +46,9 @@ def lineas_de(contenido: dict) -> list[str]:
 
     muebles = contenido.get("muebles", 0)
     if muebles == 1:
-        lineas.append("Tu mueble está en guardados: ponlo donde quieras.")
+        lineas.append("Tu mueble está en guardados: entra a «Construir» y ponlo donde quieras.")
     elif muebles > 1:
-        lineas.append(f"Tus {muebles} muebles están en guardados: ponlos donde quieras.")
+        lineas.append(f"Tus {muebles} muebles están en guardados: entra a «Construir» y ponlos donde quieras.")
 
     if contenido.get("cosecha"):
         lineas.append(

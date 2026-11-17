@@ -15,7 +15,7 @@ def test_la_carta_dice_todo_lo_que_toco_en_su_orden():
         "Desde hoy todos vivimos en el mismo edificio. Tu departamento mide 4 × 3 casillas, y lo puedes ampliar.",
         "Te dejé puestas 3 camas: una para ti y una para cada gachamon.",
         "Te devolví lo que costaron tus casas: 1700 monedas.",
-        "Tus 2 muebles están en guardados: ponlos donde quieras.",
+        "Tus 2 muebles están en guardados: entra a «Construir» y ponlos donde quieras.",
         "Coseché lo que tenías plantado y lo dejé en tu mochila. El huerto vuelve más adelante.",
         "El refugio cerró. Te devolví 40 monedas por tu ticket.",
         "Lo que te esperaba en el buzón ya está en tu mochila.",
@@ -36,7 +36,12 @@ def test_a_quien_no_le_toco_nada_la_carta_le_dice_lo_justo():
 
 def test_una_casa_y_un_mueble_van_en_singular():
     lineas = carta.lineas_de({**TODO, "casas": ["pequena"], "monedas_por_casas": 200, "muebles": 1})
-    assert "Te devolví lo que costó tu casa: 200 monedas." in lineas and "Tu mueble está en guardados: ponlo donde quieras." in lineas
+    assert "Te devolví lo que costó tu casa: 200 monedas." in lineas and "Tu mueble está en guardados: entra a «Construir» y ponlo donde quieras." in lineas
+
+
+def test_con_tres_muebles_la_carta_nombra_el_boton():
+    lineas = carta.lineas_de({**TODO, "muebles": 3})
+    assert "Tus 3 muebles están en guardados: entra a «Construir» y ponlos donde quieras." in lineas
 
 
 def test_una_moneda_va_en_singular():

@@ -152,18 +152,21 @@ plantel: ahí sacas a otro gachamon para que sea el activo, y dice cuántos cabe
 según las camas.
 
 **Tu casa** es la pieza de tu departamento, en vista isométrica y por casillas,
-con tus muebles y todos tus gachamones. Tocas un mueble y salen sus opciones
-(Mover, Girar si se puede —lo que cuelga de la pared no gira— y Guardar);
-tocas el suelo y tu avatar camina hasta ahí; en «Guardados» están los muebles que tienes sin poner, y «Ampliar» suma una fila o
-una columna hasta 8 × 8. Tocas a un gachamon y abajo queda su ficha, con sus
-cuidados y «Salir con él»; «A todos» le hace un cuidado a cada uno de una vez.
-Bajo la pieza se ve el tamaño, las casillas ocupadas, las camas, los gachamones
-y la comodidad. Todo lo que se hace sobre el dibujo se puede hacer también desde
-una lista con botones, pensada para el teclado y el lector de pantalla. El
+con tus muebles y todos tus gachamones. Siempre entras en el modo normal, el de
+vivir: tocas el suelo y tu avatar camina hasta ahí; tocas a un gachamon y abajo
+queda su ficha, con sus cuidados y «Salir con él»; «A todos» le hace un cuidado
+a cada uno de una vez. Para mover muebles, poner los que tienes guardados o
+ampliar, entras a «Construir» (y terminas con «Listo»): ahí tocas un mueble y
+salen sus opciones (Mover, Girar si se puede —lo que cuelga de la pared no
+gira— y Guardar), en «Guardados» están los muebles que tienes sin poner, y
+«Ampliar» suma una fila o una columna hasta 8 × 8. Bajo la pieza se ve el
+tamaño, las casillas ocupadas, las camas, los gachamones y la comodidad. Todo lo
+que se hace sobre el dibujo se puede hacer también desde una lista con botones,
+pensada para el teclado y el lector de pantalla. El
 ropero y la mochila siguen siendo del gachamon que sale contigo. Dónde está
 parado cada uno no se guarda: sólo los muebles. Al entrar apareces en la puerta
-de tu departamento, que se puede mover, de una pared a la otra, y por ella
-también se sale al pueblo, desde su menú.
+de tu departamento, que se puede mover (en «Construir») de una pared a la otra,
+y tocándola se sale al pueblo.
 
 En local:
 

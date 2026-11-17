@@ -1032,7 +1032,8 @@ Son observaciones, no decisiones.
   - Sin camino, tu avatar no va (lo decidió ese mismo día, sobre el plan
     anterior): vale también desde la puerta y hacia ella.
   - Se sale desde el menú de la puerta («Mover» y «Salir»): de lo que le
-    propuso el plan, esto lo eligió él expresamente.
+    propuso el plan, esto lo eligió él expresamente. (Cambiado por el modo
+    construcción: ahora se sale tocando la puerta; ver el rework 5c.)
   - Pidió meter en este plan un arreglo de «Ampliar»: uno que llega como
     segundo clic de un doble clic no cobra.
 - **Lo que el plan propuso y el dueño aprobó** (se le enseñó con el plan):
@@ -1070,7 +1071,8 @@ Son observaciones, no decisiones.
 - **Un modo construcción** para mover muebles, puertas y ventanas, de forma que
   fuera de él un toque sobre un mueble haga su acción (hoy sólo la puerta tiene
   una: salir). Decidido por el dueño el 2026-11-16; tendrá su propio plan y
-  cambia la regla del diseño que decía que decorar no tiene modos.
+  cambia la regla del diseño que decía que decorar no tiene modos. (Hecho: ver
+  el rework 5c.)
 
 ### Pendiente
 
@@ -1080,7 +1082,10 @@ Son observaciones, no decisiones.
   dibujo los muebles se tocan antes que la pared (su silueta de toque es tan alta
   como la pared). Se deshace tocando el mueble que estorba y moviéndolo; mientras
   tanto se sale con el botón «Pueblo» o con «Salir» desde la lista. Queda por
-  resolver, con el modo construcción.
+  resolver, con el modo construcción. (Resuelto en parte por el modo
+  construcción: viviendo, lo que no tiene acción ya no le quita el toque a la
+  puerta, y «Salir» ya no está en la lista; el mueble alto que tapa a quien
+  está en la puerta sigue pendiente, ver el rework 5c.)
 - Un departamento hecho antes de este plan no tiene puerta. En producción no hay
   ninguno: todos nacen el día del cambio o después, ya con ella. La pantalla
   funciona también sin puerta (se entra como antes y no hay «Salir»).
@@ -1103,15 +1108,127 @@ Son observaciones, no decisiones.
 - Qué cancela una salida en curso no es parejo: tocar la pieza, tomar algo en la
   mano o mandar una petición la cancelan, pero abrir «Ampliar», «Guardados» o
   «Mover» de la lista, no (ni elegir a un gachamon desde la lista). Se unifica
-  en el modo construcción.
+  en el modo construcción. (Resuelto por el modo construcción: ahora es una sola
+  regla; ver el rework 5c.)
 - Al mover la puerta se ofrecen también los tramos con la entrada tapada por un
   mueble; si estabas en la puerta, te vas con ella y quedas detrás de ese
   mueble. El dueño decidió el 2026-11-16 que no se ofrezcan: al moverla sólo se
   marcan los tramos con la entrada libre. Lo hace el plan del modo
-  construcción.
+  construcción. (Resuelto: ver el rework 5c.)
 - Con un 8 × 8 lleno de camas, el alcalde dejaría la entrada tapada: no le
   sobra ningún sitio donde correr la cama. No puede pasar con el tope de 25
   gachamones de antes.
+
+## Salió al ejecutar el rework 5c (el modo construcción)
+
+### Lo decidido
+
+- **Lo que decidió el dueño** (2026-11-16):
+  - Lo pidió con la puerta recién puesta en pantalla, para que en el modo
+    normal sólo se use la acción de cada mueble y no haya choques como con la
+    puerta, que al tocarla podía moverse o salir. Se le recomendó dejarlo para
+    más adelante (él mismo había descartado un modo «Decorar» al principio) y
+    eligió hacerlo ahora.
+  - Hay un modo construcción para mover muebles, puertas y ventanas; en el modo
+    normal, un toque sobre un mueble sólo hace su acción.
+  - El botón se llama `🔨 Construir` y, dentro del modo, `✔ Listo`.
+  - «Guardados» y «Ampliar» están sólo dentro del modo.
+  - En el modo normal, tocar la puerta te saca directo: caminas hasta ella y
+    sales al pueblo, sin menú; si mientras caminas tocas otra cosa, no sales; si
+    ya estás en la puerta, sales al momento.
+  - En el modo normal, tocar un mueble sin acción propia no hace nada: no lo
+    elige; si se pisa (una alfombra), caminas hasta ahí; y no le quita el toque
+    a la puerta cuando está delante de ella.
+  - En el modo construcción a los gachamones no se les toca: el toque pasa al
+    mueble que tengan detrás. En el modo normal, su menú sigue como hoy («Mover»
+    y «Acariciar»).
+  - La carta del alcalde nombra el botón: dice que se entra a «Construir».
+  - Al mover la puerta sólo se ofrecen los tramos con la entrada libre.
+  - Las frases: `Modo construcción`, `Toca un mueble para moverlo, girarlo o
+    guardarlo.` y `Modo construcción terminado.`
+- **Lo que el plan propuso y el dueño aprobó** (se le enseñó con el plan):
+  - Siempre se entra en el modo normal; el modo no se recuerda.
+  - El botón va bajo la pieza; en el modo, ahí mismo se lee «Modo construcción»
+    y quedan, abiertos mientras dure, la bandeja de guardados y «Ampliar». La
+    pieza se enmarca.
+  - Tocar el suelo es caminar en los dos modos.
+  - En el modo, la puerta trae sólo `✋ Mover`: `🚪 Salir` y `Salir` dejan de
+    usarse; se sale tocando la puerta o con «Pueblo».
+  - La lista para teclado y lector de pantalla sigue al modo: en el normal trae
+    «Tus gachamones»; en el de construcción, además, «Muebles puestos» y
+    «Guardados».
+  - «✔ Listo» deja todo recogido: suelta lo que lleves en la mano, cierra el
+    menú y cierra lo de ampliar, sin cobrar nada.
+  - Los cuidados, «A todos», «Mochila» y «Pueblo» siguen en los dos modos.
+  - Con una petición en camino no se cambia de modo.
+- **Lo que se decidió al construir** (se puede cambiar):
+  - Qué recibe un toque en el modo normal lo decide una función pura
+    (`proyeccion.queSeUsa`), que no sabe de puertas: la pantalla le dice qué
+    mueble tiene acción (hoy, el que trae la marca `puerta`). `queSeToco` es la
+    del modo construcción.
+  - Un mueble sin acción no deja pasar el toque al suelo que tenga detrás:
+    tocarlo no hace nada, ni siquiera caminar.
+  - Dónde se ofrece la puerta al moverla lo filtra el cliente
+    (`casillas.conLaEntradaLibre`); el servidor sigue aceptando cualquier tramo
+    libre.
+  - El botón del modo es siempre el mismo nodo (cambia lo que dice), para que el
+    foco no se pierda; «✔ Listo» va resaltado. No se puede usar, y lo dice con
+    `aria-disabled`, hasta que la pieza está lista para tocarse.
+  - El marco del modo es un trazo discontinuo con los colores de aviso del tema.
+  - Con algo en la mano (un gachamon que se mueve), el toque sigue siendo el
+    sitio adonde va, también en el modo normal: por eso a un gachamon no se le
+    puede llevar a la puerta ni se sale sin querer al soltarlo sobre ella.
+  - Dentro del modo, bajo la pieza, van por este orden: el botón con «Modo
+    construcción», la bandeja de guardados con «Ampliar» y la línea del tamaño.
+    En el computador la bandeja y «Ampliar» van lado a lado.
+  - Al entrar al modo, la bandeja y «Ampliar» se traen a la vista, sin
+    animación, dejando sitio al aviso del pie.
+  - Si al terminar el modo el foco quedó en algo que se esconde, pasa al botón
+    del modo.
+  - Fuera del modo, las secciones de muebles de la lista se esconden, no se
+    destruyen.
+  - Qué cancela una salida en curso, una sola regla: cualquier otra cosa que
+    toques o abras. Son tocar la pieza (salvo la propia puerta), tomar algo en la
+    mano, cualquier petición (cuidar, acariciar, «A todos», salir con otro),
+    elegir a un gachamon desde la lista y entrar al modo. «Ver ficha», «Mochila»
+    y «Pueblo» dejan la pantalla.
+
+### Lo que resolvió de la puerta
+
+- La puerta que no se podía tocar con un mueble delante: en el modo normal, lo
+  que no tiene acción ya no le quita el toque.
+- Qué cancela una salida ya no es dispar: es la regla de arriba.
+- Al mover la puerta ya no se ofrecen los tramos con la entrada tapada.
+- Se sale tocando la puerta, no desde su menú; «Salir» ya no está en los menús
+  ni en la lista.
+
+### Pendiente
+
+- Quien está en la puerta queda tapado por un mueble alto que tenga delante (se
+  pinta detrás); con el arte de relleno, del todo.
+- El toque sobre un mueble va por la silueta de su caja, tan alta como la pared,
+  y no por lo que se ve de su dibujo: en el modo normal, tocar el suelo que se ve
+  detrás de un mueble bajo no hace nada.
+- Un gachamon parado delante de la puerta se lleva el toque antes que ella: es
+  el orden aprobado (los gachamones primero).
+- Hoy la única acción propia de un mueble es la de la puerta. Las demás llegan
+  con los muebles que se usan solos y con los objetos para jugar.
+- El modo no se recuerda entre visitas.
+- Lo de «Ampliar» anotado en el rework 5b (un clic ignorado no avisa; el doble
+  toque en un teléfono) sigue igual.
+- El sitio que se le deja al aviso del pie al entrar al modo es una medida fija:
+  en un teléfono con barra de inicio, con el aviso en dos líneas, puede tapar la
+  parte de abajo de «Ampliar» un momento.
+- Viviendo y sin gachamones, la lista para teclado queda como una raya suelta.
+- Con muchos tipos de mueble guardados, en el computador el último asoma cortado
+  junto a «Ampliar» (la fila se desliza).
+- Dos pruebas nuevas de la puerta casi repiten dos de antes puestas al día; se
+  pueden fundir en una limpieza.
+
+### Pruebas
+
+- Las pruebas de JavaScript se corren con `node --test tests/js/*.test.mjs`: en
+  este Node, `node --test tests/js/` falla.
 
 ## Para el plan 6 (tu casa)
 
