@@ -812,6 +812,16 @@ def _una_sola_vez(con: sqlite3.Connection, clave: str, ahora: datetime) -> bool:
     ).rowcount == 1
 
 
+def cuando_se_hizo(clave: str) -> datetime | None:
+    """Cuándo se hizo el cambio de una sola vez `clave`, o `None` si en esta base
+    todavía no se ha hecho. Sólo lee."""
+    with conectar() as con:
+        fila = con.execute(
+            "SELECT hecho_en FROM cambios_hechos WHERE clave = ?", (clave,)
+        ).fetchone()
+    return None if fila is None else _fecha(fila["hecho_en"])
+
+
 def _nombrar_a_los_que_lo_esperaban(
     con: sqlite3.Connection, rng: random.Random
 ) -> None:

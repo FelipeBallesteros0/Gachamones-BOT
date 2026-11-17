@@ -1,5 +1,6 @@
 """La primera aventura: quien no tiene ningún gachamon gana al primero en «Aventura»."""
 from dataclasses import replace
+from datetime import datetime, timedelta
 
 import db
 import economia
@@ -233,6 +234,34 @@ def test_con_dos_gachamones_aunque_uno_espere_nombre_la_primera_aventura_no_cobr
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
     assert economia.saldos(YO, G) == antes and db.logros_de_persona(YO, G) == {}
+
+
+def test_uno_de_antes_del_cambio_sin_bautizar_no_cobra_nada_al_pedir_la_primera_aventura(cliente, monkeypatch):
+    """Alguien de Discord de antes del cambio, con un único gachamon vivo que nunca
+    bautizó, se parece al reintento (uno solo, sin nombre), pero nació antes del día
+    del cambio: no es un primero de la primera aventura y no cobra nada."""
+    reloj = poner_reloj(monkeypatch)
+    entrar(cliente, 2)
+    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
+    assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
+    with db.conectar() as con:
+        marca = datetime.fromisoformat(con.execute(
+            "SELECT hecho_en FROM cambios_hechos WHERE clave = ?", (db.CAMBIO_DE_LA_VIVIENDA,)
+        ).fetchone()[0])
+    antes_del_cambio = marca - timedelta(days=30)
+    # Una rara que se le murió (su medalla, cumplida y sin cobrar) y el único vivo, sin bautizar.
+    rara = db.crear(ANA_DISCORD, G, "dragoncito", "Brasa", (10, 10, 10, 10), antes_del_cambio, activa=False)
+    db.guardar(replace(rara, muerta_en=antes_del_cambio, causa_muerte="hambre"))
+    unico = db.crear(ANA_DISCORD, G, "pollito", esp.ESPECIES["pollito"].nombre, (10, 10, 10, 10), antes_del_cambio)
+    diez_reclutados_sin_cobrar(ANA_DISCORD)
+    assert [c.id for c in db.plantel(ANA_DISCORD, G)] == [unico.id] and nacer.espera_nombre(unico)
+    antes = economia.saldos(ANA_DISCORD, G)
+    ir(cliente, "aventura")
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == {"clave": "ya_tienes", "mensaje": YA_TIENES}
+    assert economia.saldos(ANA_DISCORD, G) == antes and db.logros_de_persona(ANA_DISCORD, G) == {}
 
 
 def test_si_algo_falla_despues_del_encuentro_el_gachamon_ya_es_tuyo(cliente, monkeypatch):

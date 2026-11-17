@@ -19,12 +19,14 @@ import simulacion as sim
 class YaTieneGachamon(Exception):
     """El de partida es sólo uno: el de la primera aventura.
 
-    `solo_el_primero_sin_nombre` dice si lo único que tiene es ese primero,
-    todavía sin nombre (un solo gachamon vivo, que espera el suyo): la ventana
-    entre encontrarlo y ponerle nombre.
+    `solo_el_primero_sin_nombre` dice si lo único que tiene es un primero de la
+    primera aventura que todavía espera nombre: un solo gachamon vivo, sin
+    nombre propio y nacido después del día del cambio (antes no había primera
+    aventura). Es la ventana entre encontrarlo y ponerle nombre. Sólo se da por
+    nombre, para que ningún argumento suelto la encienda.
     """
 
-    def __init__(self, solo_el_primero_sin_nombre: bool = False) -> None:
+    def __init__(self, *, solo_el_primero_sin_nombre: bool = False) -> None:
         super().__init__()
         self.solo_el_primero_sin_nombre = solo_el_primero_sin_nombre
 
@@ -121,6 +123,20 @@ def unir_recluta(
     )
 
 
+def es_el_primero_sin_nombre(plantel: list[sim.Criatura]) -> bool:
+    """Si ese plantel vivo es sólo un primero de la primera aventura que todavía
+    espera nombre: un único gachamon, sin nombre propio y nacido después del día
+    del cambio. Quien era de antes —también uno que nunca bautizó al suyo— no lo
+    es, y en una base sin el día del cambio no lo es nadie.
+
+    Sólo lee la marca del cambio cuando hay un único vivo sin nombre.
+    """
+    if len(plantel) != 1 or not espera_nombre(plantel[0]):
+        return False
+    cambio = db.cuando_se_hizo(db.CAMBIO_DE_LA_VIVIENDA)
+    return cambio is not None and plantel[0].nacida_en > cambio
+
+
 def encontrar_al_primero(
     usuario_id: str,
     guild_id: str,
@@ -133,8 +149,8 @@ def encontrar_al_primero(
     activo y con el nombre de su especie, provisional hasta que su dueño le
     ponga uno (por eso lo espera). La hace cualquiera sin ningún gachamon vivo,
     también quien se quedó sin ninguno antes del día del cambio; con alguno vivo
-    levanta `YaTieneGachamon`, que dice si ese alguno es sólo el primero, todavía
-    sin nombre (lo mira en el plantel que ya leyó).
+    levanta `YaTieneGachamon`, que dice si ese alguno es sólo un primero de la
+    primera aventura todavía sin nombre (`es_el_primero_sin_nombre`).
 
     Pide una cama libre, como todos: sin ella deja pasar `db.SinCamaLibre` y no
     crea nada. Si la cuenta se vinculó mientras tanto, `YaNoEsSuIdentidad`.
@@ -147,9 +163,7 @@ def encontrar_al_primero(
     db.activa_al_dia(usuario_id, guild_id, ahora)
     plantel = db.plantel(usuario_id, guild_id)
     if plantel:
-        raise YaTieneGachamon(
-            solo_el_primero_sin_nombre=len(plantel) == 1 and espera_nombre(plantel[0])
-        )
+        raise YaTieneGachamon(solo_el_primero_sin_nombre=es_el_primero_sin_nombre(plantel))
     especie = esp.elegir_del_huevo(rng)
     try:
         return db.crear(

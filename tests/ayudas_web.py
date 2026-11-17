@@ -1,6 +1,6 @@
 """Lo que comparten las pruebas del servicio web."""
 import sqlite3
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -17,6 +17,10 @@ CLAVE = "clave-de-prueba"
 PUEBLO = 777
 ESCRIBIR = {"X-Gachamon": "1"}
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+# Cuándo arranca el servicio de las pruebas, y con él el día del cambio: antes de
+# todo reloj de las pruebas (`T0` y lo que sigue), como en producción, donde el
+# cambio es anterior a todo primero que se encuentre en la primera aventura.
+ARRANQUE = T0 - timedelta(days=1)
 USUARIOS = ((1, "felipe", 0), (2, "ana", 0), (3, "bloqueada", 1))
 
 
@@ -62,7 +66,11 @@ def servicio(tmp_path, monkeypatch):
     crear_rowino(tmp_path / "rowino.db")
     from web.app import crear_app
 
-    with TestClient(crear_app()) as cliente:
+    with ExitStack() as pila:
+        # Sólo el arranque va con `ARRANQUE`; después, el reloj vuelve a ser el que era.
+        with pytest.MonkeyPatch.context() as parche:
+            parche.setattr(db, "ahora_utc", lambda: ARRANQUE)
+            cliente = pila.enter_context(TestClient(crear_app()))
         yield cliente
 
 

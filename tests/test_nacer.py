@@ -102,6 +102,33 @@ def test_el_primero_no_nace_si_la_cuenta_se_vinculo_mientras_tanto():
     assert not db.tiene_gachamones(web, G)
 
 
+def la_marca_al_volver(usuario):
+    """Lo que dice `YaTieneGachamon` a quien vuelve a la primera aventura con un gachamon vivo."""
+    with pytest.raises(nacer.YaTieneGachamon) as ya:
+        nacer.encontrar_al_primero(usuario, G, T0)
+    return ya.value.solo_el_primero_sin_nombre
+
+
+def test_ya_tiene_gachamon_marca_solo_al_primero_sin_nombre_de_despues_del_cambio():
+    el_primero("nuevo")                                                  # nace en T0, sin nombre
+    db.crear("viejo", G, "pulpo", esp.ESPECIES["pulpo"].nombre, STATS, T0 - timedelta(days=2))
+    el_primero("con_otro")
+    db.crear("con_otro", G, "pulpo", "Nube", STATS, T0, activa=False)
+    # Sin la marca del día del cambio, nadie es un primero de la primera aventura.
+    assert [la_marca_al_volver(u) for u in ("nuevo", "viejo", "con_otro")] == [False, False, False]
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        assert db._una_sola_vez(con, db.CAMBIO_DE_LA_VIVIENDA, T0 - timedelta(days=1))
+    # Con la marca: sólo el único vivo, sin nombre y nacido después de ella.
+    assert [la_marca_al_volver(u) for u in ("nuevo", "viejo", "con_otro")] == [True, False, False]
+    nacer.bautizar("nuevo", G, "Pelusa", T0)
+    assert la_marca_al_volver("nuevo") is False
+    # La marca sólo se da por nombre: un argumento suelto no la enciende.
+    with pytest.raises(TypeError):
+        nacer.YaTieneGachamon(True)
+    assert nacer.YaTieneGachamon().solo_el_primero_sin_nombre is False
+
+
 def test_el_mismo_azar_da_el_mismo_gachamon():
     a = el_primero("a", rng=random.Random(5))
     b = el_primero("b", rng=random.Random(5))

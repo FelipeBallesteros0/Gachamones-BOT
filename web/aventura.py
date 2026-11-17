@@ -73,8 +73,9 @@ def la_primera_aventura(jugador: Jugador = Depends(jugador_actual)) -> dict:
         primero = nacer.encontrar_al_primero(jugador.usuario_id, jugador.guild_id, ahora)
     except nacer.YaTieneGachamon as ya:
         # Si el pago de las medallas se cortó tras el encuentro, el reintento llega
-        # aquí con sólo ese primero, todavía sin nombre: se pagan ahora (lo ya
-        # pagado no se paga dos veces). Quien ya tenía gachamones no cobra nada aquí.
+        # aquí con un único vivo, sin nombre y nacido después del día del cambio
+        # (`nacer.es_el_primero_sin_nombre`): se pagan ahora, y lo ya pagado no se
+        # paga dos veces. A cualquier otro con gachamon, aquí no se le paga nada.
         if ya.solo_el_primero_sin_nombre:
             economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
         raise problema(409, MOTIVO_YA_TIENES, _YA_TIENES) from None
