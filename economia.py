@@ -345,8 +345,9 @@ def el_dia_del_cambio(
     `operaciones_economia`: una devolución no es una ganancia.
 
     A cada persona le entrega el buzón, le cosecha lo plantado, le devuelve los
-    tickets y las casas, le crea el departamento con sus camas, le guarda los
-    muebles y le escribe la carta del alcalde (`_mudar_a`). Y a todos los
+    tickets y las casas, le paga las medallas suyas que tenía ganadas y sin
+    cobrar, le crea el departamento con sus camas, le guarda los muebles y le
+    escribe la carta del alcalde (`_mudar_a`). Y a todos los
     gachamones vivos el reloj les parte de `ahora`: a nadie se le cobra el
     tiempo que pasó desde la última vez que se guardó.
 
@@ -399,6 +400,11 @@ def _mudar_a(
     cambio ya está escrita a estas alturas, y sin él nacería en cero, como el
     de quien empieza. El buzón va antes que los tickets, para que un ticket
     regalado también se devuelva.
+
+    Las medallas de la persona que tenía ganadas y nadie le pagó se le pagan
+    aquí, una sola vez y como cualquier otra (`_pagar_logros_de_persona_en`),
+    tenga o no gachamones vivos. Van después de asegurarle el monedero: si no lo
+    tuviera, el pago le crearía el de quien empieza, en cero.
     """
     _asegurar_monedero(con, usuario_id, guild_id, ya_estaba=True)
     regalos = _entregar_el_buzon(con, usuario_id, guild_id)
@@ -413,6 +419,7 @@ def _mudar_a(
             "WHERE usuario_id = ? AND guild_id = ?",
             (devueltas, usuario_id, guild_id),
         )
+    medallas = _pagar_logros_de_persona_en(con, usuario_id, guild_id, ahora)
     vivos = db.plantel_en(con, usuario_id, guild_id)
     ancho, fondo, puestas, regaladas = _departamento_del_alcalde(
         con, usuario_id, guild_id, len(vivos), ahora
@@ -423,7 +430,7 @@ def _mudar_a(
         "casas": casas, "monedas_por_casas": monedas_por_casas,
         "muebles": muebles, "cosecha": cosecha,
         "tickets": tickets, "monedas_por_tickets": monedas_por_tickets,
-        "regalos": regalos,
+        "regalos": regalos, "gemas_por_medallas": medallas.asciigems,
         # Como todo se publica junto, ese día los que se pusieron el nombre
         # solos son justo los reclutas que lo esperaban.
         "nombres": [
@@ -662,17 +669,30 @@ def pagar_logros_de_persona(
     """
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        hechos = lgr.hechos_de_la_persona(
-            db._marcador_de_persona(con, usuario_id, guild_id),
-            db._especies_de(con, usuario_id, guild_id),
+        return _pagar_logros_de_persona_en(con, usuario_id, guild_id, ahora)
+
+
+def _pagar_logros_de_persona_en(
+    con, usuario_id: str, guild_id: str, ahora: datetime
+) -> ReciboLogros:
+    """Lo mismo, dentro de la transacción que ya abrió quien llama.
+
+    La abre `pagar_logros_de_persona` o el día del cambio, que paga con ella lo
+    que cada quien tenía ganado y sin cobrar: si el cambio se deshace, el pago
+    también. A quien no tiene monedero, `_cobrar_logros` le crea el de quien
+    empieza; por eso el día del cambio le asegura el suyo antes de pagarle.
+    """
+    hechos = lgr.hechos_de_la_persona(
+        db._marcador_de_persona(con, usuario_id, guild_id),
+        db._especies_de(con, usuario_id, guild_id),
+    )
+    nuevos = tuple(
+        logro for logro in lgr.cumplidos(hechos, lgr.PERSONA)
+        if db.anotar_logro_de_persona_en(
+            con, usuario_id, guild_id, logro.clave, ahora
         )
-        nuevos = tuple(
-            logro for logro in lgr.cumplidos(hechos, lgr.PERSONA)
-            if db.anotar_logro_de_persona_en(
-                con, usuario_id, guild_id, logro.clave, ahora
-            )
-        )
-        return _cobrar_logros(con, usuario_id, guild_id, nuevos)
+    )
+    return _cobrar_logros(con, usuario_id, guild_id, nuevos)
 
 
 def _cobrar_logros(

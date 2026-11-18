@@ -15,6 +15,7 @@ import pytest
 import db
 import economia
 import huerto as hue
+import logros as lgr
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 T1 = T0 + timedelta(days=30)
@@ -374,7 +375,7 @@ def test_la_carta_cuenta_lo_que_le_toco_a_cada_quien():
     assert db.carta_sin_ver("u1", "g1", CAMBIO) == {
         "ancho": 3, "fondo": 3, "camas": 2, "vivos": 1, "casas": ["mediana"], "monedas_por_casas": 640,
         "muebles": 1, "cosecha": {}, "tickets": 1, "monedas_por_tickets": 40, "regalos": 1,
-        "nombres": [{"especie": "pulpo", "nombre": "Ana"}],
+        "gemas_por_medallas": 0, "nombres": [{"especie": "pulpo", "nombre": "Ana"}],
     }
     db.marcar_carta_vista("u1", "g1", CAMBIO, T1)
     assert db.carta_sin_ver("u1", "g1", CAMBIO) is None
@@ -396,6 +397,110 @@ def test_una_carta_vista_se_queda_con_la_primera_vez_que_se_vio():
     db.marcar_carta_vista("u1", "g1", CAMBIO, T1)
     db.marcar_carta_vista("u1", "g1", CAMBIO, T1 + timedelta(days=1))
     assert [(f["carta"], f["vista_en"]) for f in filas("cartas")] == [(CAMBIO, T1.isoformat())]
+
+
+# --- Las medallas ganadas y sin cobrar ------------------------------------------
+
+def con_gemas(cuantas, usuario="u1", guild="g1"):
+    with db.conectar() as con:
+        economia._asegurar_monedero(con, usuario, guild)
+        con.execute(
+            "UPDATE monederos SET asciigems = ? WHERE usuario_id = ? AND guild_id = ?",
+            (cuantas, usuario, guild),
+        )
+
+
+def reclutados(cuantos, usuario="u1"):
+    """Su marcador de salvajes convencidos, sin haber cobrado lo que vale."""
+    with db.conectar() as con:
+        db.apuntar_persona_en(con, usuario, "g1", lgr.RECLUTADOS, cuantos)
+
+
+def una_rara(muerta, usuario="u1"):
+    rara = db.crear(usuario, "g1", "dragoncito", "Rara", STATS, T0, activa=False)
+    if muerta:
+        escribir("UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?", (T0.isoformat(), rara.id))
+
+
+def ya_cobrada(clave, usuario="u1"):
+    with db.conectar() as con:
+        db.anotar_logro_de_persona_en(con, usuario, "g1", clave, T0)
+
+
+def valen(*claves):
+    return sum(lgr.POR_CLAVE[clave].gemas for clave in claves)
+
+
+def gemas(usuario="u1"):
+    return economia.saldos(usuario, "g1").asciigems
+
+
+LAS_TRES = ("domador", "flautista", "uno_entre_veinticinco")
+
+
+@pytest.mark.parametrize("muerta", [False, True], ids=["viva", "muerta"])
+def test_el_cambio_paga_las_medallas_de_persona_ganadas_y_sin_cobrar(muerta):
+    nacer("Ana"); una_rara(muerta); reclutados(10); con_gemas(12)
+    el_cambio()
+    assert gemas() == 12 + valen(*LAS_TRES)
+    assert db.logros_de_persona("u1", "g1") == {clave: T1 for clave in LAS_TRES}
+    assert db.carta_sin_ver("u1", "g1", CAMBIO)["gemas_por_medallas"] == gemas() - 12 == valen(*LAS_TRES)
+
+
+def test_quien_no_tenia_medallas_pendientes_queda_como_quedaba():
+    nacer("Ana"); con_gemas(12)                                    # nunca ganó ninguna
+    db.crear("u2", "g1", "pulpo", "Bea", STATS, T0); reclutados(1, usuario="u2")
+    ya_cobrada("domador", usuario="u2"); con_gemas(30, usuario="u2")   # la ganó y ya la cobró
+    el_cambio()
+    assert (gemas("u1"), gemas("u2")) == (12, 30)
+    assert db.logros_de_persona("u1", "g1") == {} and db.logros_de_persona("u2", "g1") == {"domador": T0}
+    assert [db.carta_sin_ver(u, "g1", CAMBIO)["gemas_por_medallas"] for u in ("u1", "u2")] == [0, 0]
+
+
+def test_las_ya_anotadas_no_se_vuelven_a_pagar():
+    nacer("Ana"); reclutados(10); ya_cobrada("domador"); con_gemas(12)
+    el_cambio()
+    assert gemas() == 12 + valen("flautista")
+    assert db.logros_de_persona("u1", "g1") == {"domador": T0, "flautista": T1}
+    assert db.carta_sin_ver("u1", "g1", CAMBIO)["gemas_por_medallas"] == valen("flautista")
+
+
+def test_tambien_cobra_quien_no_tiene_ningun_gachamon_vivo():
+    una_rara(muerta=True); reclutados(1)                           # ni un vivo, y todavía sin monedero
+    assert monedero("u1") is None
+    el_cambio()
+    assert monedero("u1") == (MONEDAS_DE_ANTES, GEMAS_DE_ANTES + valen("domador", "uno_entre_veinticinco"), 50)
+    carta = db.carta_sin_ver("u1", "g1", CAMBIO)
+    assert (carta["vivos"], carta["gemas_por_medallas"]) == (0, valen("domador", "uno_entre_veinticinco"))
+
+
+def test_correr_el_cambio_otra_vez_no_paga_las_medallas_otra_vez():
+    nacer("Ana"); una_rara(muerta=True); reclutados(10); con_gemas(12)
+    el_cambio()
+    antes = (monedero("u1"), db.logros_de_persona("u1", "g1"))
+    assert antes == ((MONEDAS_DE_ANTES, 12 + valen(*LAS_TRES), 50), {clave: T1 for clave in LAS_TRES})
+    assert economia.el_dia_del_cambio(T1 + timedelta(hours=1)) == economia.ResumenDelCambio()
+    economia.poner_al_dia(T1 + timedelta(hours=2))                 # y el arranque entero
+    assert (monedero("u1"), db.logros_de_persona("u1", "g1")) == antes
+
+
+def test_despues_del_cambio_pedir_las_medallas_no_paga_nada_mas():
+    nacer("Ana"); una_rara(muerta=False); reclutados(10); con_gemas(12)
+    el_cambio()
+    assert economia.pagar_logros_de_persona("u1", "g1", T1 + timedelta(days=1)) == economia.ReciboLogros()
+    assert gemas() == 12 + valen(*LAS_TRES)
+
+
+@pytest.mark.parametrize("donde", ["BEFORE INSERT ON logros_persona", "BEFORE INSERT ON cartas"])
+def test_si_el_cambio_falla_a_medias_las_medallas_tampoco_quedan_pagadas(donde):
+    nacer("Ana"); una_rara(muerta=True); reclutados(10); con_gemas(12)
+    con_monedas(0); casa_de_antes("u1", "pequena")
+    rompe(donde)
+    borrar_la_marca(CAMBIO)
+    with pytest.raises(sqlite3.DatabaseError):
+        economia.el_dia_del_cambio(T1, random.Random(1))
+    assert economia.saldos("u1", "g1") == economia.Saldos(0, 12) and db.logros_de_persona("u1", "g1") == {}
+    assert len(filas("casas_propias")) == 1 and filas("departamentos") == [] and CAMBIO not in marcas()
 
 
 # --- Una sola vez, y entero o nada ----------------------------------------------

@@ -24,6 +24,10 @@ def _monedas(n: int) -> str:
     return f"{n} {obj.nombre_de_monedas(n)}"
 
 
+def _gemas(n: int) -> str:
+    return f"{n} {obj.nombre_de_gemas(n)}"
+
+
 def lineas_de(contenido: dict) -> list[str]:
     """Las frases de la carta, en su orden y sólo las que le tocan a esa persona."""
     lineas = [
@@ -63,6 +67,11 @@ def lineas_de(contenido: dict) -> list[str]:
         )
     if contenido.get("regalos", 0) > 0:
         lineas.append("Lo que te esperaba en el buzón ya está en tu mochila.")
+    # Una carta guardada antes de que el cambio pagara las medallas no trae la clave.
+    if contenido.get("gemas_por_medallas", 0) > 0:
+        lineas.append(
+            f"Tenías medallas ganadas y sin cobrar: te pagué {_gemas(contenido['gemas_por_medallas'])}."
+        )
 
     for recluta in contenido.get("nombres") or []:
         especie = esp.ESPECIES.get(recluta["especie"])

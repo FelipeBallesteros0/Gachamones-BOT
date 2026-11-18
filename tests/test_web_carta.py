@@ -6,7 +6,9 @@ from web import carta
 API = "/gachamon/api"
 
 TODO = {"ancho": 4, "fondo": 3, "camas": 3, "vivos": 2, "casas": ["mediana", "grande"], "monedas_por_casas": 1700, "muebles": 2,
-        "cosecha": {"poroto_rojo": 3}, "tickets": 1, "monedas_por_tickets": 40, "regalos": 1, "nombres": [{"especie": "pulpo", "nombre": "Brisa"}]}
+        "cosecha": {"poroto_rojo": 3}, "tickets": 1, "monedas_por_tickets": 40, "regalos": 1, "gemas_por_medallas": 70,
+        "nombres": [{"especie": "pulpo", "nombre": "Brisa"}]}
+MEDALLAS = "Tenías medallas ganadas y sin cobrar: te pagué 70 gemas."
 
 
 def test_la_carta_dice_todo_lo_que_toco_en_su_orden():
@@ -19,13 +21,15 @@ def test_la_carta_dice_todo_lo_que_toco_en_su_orden():
         "Coseché lo que tenías plantado y lo dejé en tu mochila. El huerto vuelve más adelante.",
         "El refugio cerró. Te devolví 40 monedas por tu ticket.",
         "Lo que te esperaba en el buzón ya está en tu mochila.",
+        "Tenías medallas ganadas y sin cobrar: te pagué 70 gemas.",
         "Tu Octopul ahora se llama Brisa. Se puso el nombre solo, y se lo puedes cambiar una vez.",
         "Y dos cosas más: ya ningún gachamon muere, y a todos les pasa el tiempo, no sólo al que sale contigo.",
     ]
 
 
 def test_a_quien_no_le_toco_nada_la_carta_le_dice_lo_justo():
-    nada = {**TODO, "ancho": 3, "camas": 1, "vivos": 0, "casas": [], "monedas_por_casas": 0, "muebles": 0, "cosecha": {}, "tickets": 0, "monedas_por_tickets": 0, "regalos": 0, "nombres": []}
+    nada = {**TODO, "ancho": 3, "camas": 1, "vivos": 0, "casas": [], "monedas_por_casas": 0, "muebles": 0, "cosecha": {}, "tickets": 0, "monedas_por_tickets": 0, "regalos": 0,
+            "gemas_por_medallas": 0, "nombres": []}
     assert carta.lineas_de(nada) == [
         "El pueblo cambió, y vengo a contarte qué te toca.",
         "Desde hoy todos vivimos en el mismo edificio. Tu departamento mide 3 × 3 casillas, y lo puedes ampliar.",
@@ -73,7 +77,7 @@ def test_la_carta_se_ve_una_vez(cliente):
     assert cliente.get(f"{API}/carta").json() == {"carta": None} and cliente.get(f"{API}/estado").json()["carta"] is False
     con_carta(cliente, TODO)                                    # la escribe en la base para esa cuenta
     vista = cliente.get(f"{API}/carta").json()["carta"]
-    assert (vista["titulo"], vista["firma"], len(vista["lineas"])) == ("Carta del alcalde", "El alcalde", 10)
+    assert (vista["titulo"], vista["firma"], len(vista["lineas"])) == ("Carta del alcalde", "El alcalde", 11)
     assert cliente.get(f"{API}/estado").json()["carta"] is True
     assert cliente.post(f"{API}/carta/vista", headers=CABECERA).json() == {"carta": None}
     assert cliente.get(f"{API}/carta").json() == {"carta": None}
@@ -107,6 +111,28 @@ def test_con_un_solo_ticket_la_carta_lo_dice_en_singular():
     assert "El refugio cerró. Te devolví 40 monedas por tu ticket." in lineas
     assert "El refugio cerró. Te devolví 80 monedas por tus tickets." in carta.lineas_de(
         {**TODO, "tickets": 2, "monedas_por_tickets": 80})
+
+
+def test_las_medallas_cobradas_van_tras_las_devoluciones_y_antes_de_los_nombres():
+    lineas = carta.lineas_de(TODO)
+    medallas = lineas.index(MEDALLAS)
+    assert lineas[medallas - 1] == "Lo que te esperaba en el buzón ya está en tu mochila."
+    assert lineas[medallas + 1].startswith("Tu Octopul ahora se llama")
+    solas = carta.lineas_de({**TODO, "casas": [], "muebles": 0, "cosecha": {}, "tickets": 0, "regalos": 0})
+    assert solas[3:] == [MEDALLAS, *lineas[medallas + 1:]]
+
+
+def test_una_gema_va_en_singular():
+    lineas = carta.lineas_de({**TODO, "gemas_por_medallas": 1})
+    assert "Tenías medallas ganadas y sin cobrar: te pagué 1 gema." in lineas
+
+
+def test_sin_medallas_cobradas_la_carta_no_las_nombra_y_una_carta_de_antes_tampoco():
+    de_antes = {clave: valor for clave, valor in TODO.items() if clave != "gemas_por_medallas"}
+    for contenido in ({**TODO, "gemas_por_medallas": 0}, de_antes):
+        lineas = carta.lineas_de(contenido)
+        assert not [l for l in lineas if "medallas" in l]
+        assert lineas == [l for l in carta.lineas_de(TODO) if l != MEDALLAS]
 
 
 def test_la_especie_del_recluta_va_con_su_mayuscula():
