@@ -54,6 +54,27 @@ def ver_estado(jugador: Jugador = Depends(jugador_actual)) -> dict:
     return estado.armar(jugador, db.ahora_utc())
 
 
+def _pagar_las_medallas_del_primero(jugador: Jugador, ahora) -> None:
+    """Las medallas de la persona, si lo que tiene es el primero de la primera
+    aventura y todavía espera nombre (`nacer.es_el_primero_sin_nombre`, sobre el
+    plantel vivo de ahora: la misma guarda que el reintento del encuentro).
+
+    Las paga el encuentro; esto cubre a quien, con ese pago cortado, recargó en
+    vez de reintentar: por el paso del nombre pasa todo el mundo, y lo ya pagado
+    no se paga dos veces. A cualquier otro —quien ya jugaba, también con un único
+    gachamon sin bautizar, o con dos— no se le paga nada por aquí. Va antes del
+    nombre, porque después ya no lo espera y, si algo cortara entre las dos
+    cosas, la vuelta siguiente lo pagaría igual; y si el pago falla se dice en
+    el registro y el nombre se pone igual.
+    """
+    if not nacer.es_el_primero_sin_nombre(db.plantel(jugador.usuario_id, jugador.guild_id)):
+        return
+    try:
+        economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
+    except Exception:
+        log.warning("no se pudieron pagar las medallas al ponerle nombre al primero", exc_info=True)
+
+
 @router.post("/bautizar", dependencies=[Depends(con_cabecera)])
 def bautizar(
     cuerpo: Any = Body(default=None),
@@ -70,6 +91,7 @@ def bautizar(
     if "gachamon_id" in datos and not es_un_id(gachamon_id):
         raise problema(422, "peticion", "La petición no se entiende.")
     ahora = db.ahora_utc()
+    _pagar_las_medallas_del_primero(jugador, ahora)
     try:
         if gachamon_id is None:
             nacer.bautizar(jugador.usuario_id, jugador.guild_id, nombre, ahora)

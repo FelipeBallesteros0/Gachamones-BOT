@@ -236,11 +236,11 @@ def test_con_dos_gachamones_aunque_uno_espere_nombre_la_primera_aventura_no_cobr
     assert economia.saldos(YO, G) == antes and db.logros_de_persona(YO, G) == {}
 
 
-def test_uno_de_antes_del_cambio_sin_bautizar_no_cobra_nada_al_pedir_la_primera_aventura(cliente, monkeypatch):
-    """Alguien de Discord de antes del cambio, con un único gachamon vivo que nunca
-    bautizó, se parece al reintento (uno solo, sin nombre), pero nació antes del día
-    del cambio: no es un primero de la primera aventura y no cobra nada."""
-    reloj = poner_reloj(monkeypatch)
+def de_antes_del_cambio_sin_bautizar(cliente, reloj):
+    """Alguien de Discord de antes del cambio que vincula su cuenta web (uid 2): una
+    rara que se le murió (su medalla, cumplida y sin cobrar), diez reclutados sin
+    cobrar y un único gachamon vivo que nunca bautizó. Se parece al primero de la
+    primera aventura (uno solo, sin nombre), pero nació antes del día del cambio."""
     entrar(cliente, 2)
     codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
@@ -250,12 +250,19 @@ def test_uno_de_antes_del_cambio_sin_bautizar_no_cobra_nada_al_pedir_la_primera_
             "SELECT hecho_en FROM cambios_hechos WHERE clave = ?", (db.CAMBIO_DE_LA_VIVIENDA,)
         ).fetchone()[0])
     antes_del_cambio = marca - timedelta(days=30)
-    # Una rara que se le murió (su medalla, cumplida y sin cobrar) y el único vivo, sin bautizar.
     rara = db.crear(ANA_DISCORD, G, "dragoncito", "Brasa", (10, 10, 10, 10), antes_del_cambio, activa=False)
     db.guardar(replace(rara, muerta_en=antes_del_cambio, causa_muerte="hambre"))
     unico = db.crear(ANA_DISCORD, G, "pollito", esp.ESPECIES["pollito"].nombre, (10, 10, 10, 10), antes_del_cambio)
     diez_reclutados_sin_cobrar(ANA_DISCORD)
     assert [c.id for c in db.plantel(ANA_DISCORD, G)] == [unico.id] and nacer.espera_nombre(unico)
+
+
+def test_uno_de_antes_del_cambio_sin_bautizar_no_cobra_nada_al_pedir_la_primera_aventura(cliente, monkeypatch):
+    """Alguien de Discord de antes del cambio, con un único gachamon vivo que nunca
+    bautizó, se parece al reintento (uno solo, sin nombre), pero nació antes del día
+    del cambio: no es un primero de la primera aventura y no cobra nada."""
+    reloj = poner_reloj(monkeypatch)
+    de_antes_del_cambio_sin_bautizar(cliente, reloj)
     antes = economia.saldos(ANA_DISCORD, G)
     ir(cliente, "aventura")
     respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
@@ -279,6 +286,94 @@ def test_si_algo_falla_despues_del_encuentro_el_gachamon_ya_es_tuyo(cliente, mon
     # Al volver a entrar, su gachamon lo espera para que le ponga nombre.
     gachamon = cliente.get(ESTADO).json()["gachamon"]
     assert gachamon["espera_nombre"] is True and len(db.plantel(YO, G)) == 1
+
+
+# --- La medalla del primero, también en el paso del nombre ---------------------------
+
+NOMBRAR = "/gachamon/api/bautizar"
+
+
+def se_corta_el_pago_tras_el_encuentro(cliente, monkeypatch):
+    """La primera aventura con una rara, con el pago de las medallas cortado justo
+    después del encuentro: el gachamon ya es tuyo y su medalla está sin pagar. Deja
+    `pagar_logros_de_persona` fallando; devuelve el de verdad."""
+    from fastapi.testclient import TestClient
+
+    lista_para_la_aventura(cliente)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["dragoncito"])
+    pagar = economia.pagar_logros_de_persona
+
+    def falla(*_):
+        raise RuntimeError("se cortó")
+
+    monkeypatch.setattr(economia, "pagar_logros_de_persona", falla)
+    sin_trampa = TestClient(cliente.app, raise_server_exceptions=False, cookies=cliente.cookies)
+    assert sin_trampa.post(PRIMERA, headers=ESCRIBIR).status_code == 500
+    assert economia.saldos(YO, G).asciigems == 0 and db.logros_de_persona(YO, G) == {}
+    return pagar
+
+
+def test_si_el_pago_fallo_y_recargas_ponerle_nombre_paga_la_medalla_una_sola_vez(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pagar = se_corta_el_pago_tras_el_encuentro(cliente, monkeypatch)
+    monkeypatch.setattr(economia, "pagar_logros_de_persona", pagar)
+    # En vez de reintentar, recarga: le toca el paso del nombre, y al ponérselo se paga.
+    assert cliente.get(ESTADO).json()["gachamon"]["espera_nombre"] is True
+    respuesta = cliente.post(NOMBRAR, json={"nombre": "Brasa"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 200
+    assert respuesta.json()["gachamon"]["nombre"] == "Brasa"
+    assert respuesta.json()["saldos"] == {"monedas": 0, "gemas": 20}       # ya en el estado que contesta
+    assert set(db.logros_de_persona(YO, G)) == {"uno_entre_veinticinco"}
+    # Una sola vez: ni otro nombre ni otro encuentro la vuelven a pagar.
+    assert cliente.post(NOMBRAR, json={"nombre": "Ceniza"}, headers=ESCRIBIR).status_code == 409
+    ir(cliente, "aventura")
+    assert cliente.post(PRIMERA, headers=ESCRIBIR).status_code == 409
+    assert economia.saldos(YO, G) == economia.Saldos(0, 20)
+
+
+def test_si_el_pago_vuelve_a_fallar_el_nombre_se_pone_igual(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    se_corta_el_pago_tras_el_encuentro(cliente, monkeypatch)       # y sigue fallando
+    respuesta = cliente.post(NOMBRAR, json={"nombre": "Brasa"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 200
+    assert respuesta.json()["gachamon"]["nombre"] == "Brasa" and db.criatura_activa(YO, G).nombre == "Brasa"
+    assert economia.saldos(YO, G).asciigems == 0
+
+
+def test_en_el_recorrido_de_siempre_ponerle_nombre_no_paga_nada_mas(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    lista_para_la_aventura(cliente)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["dragoncito"])
+    assert cliente.post(PRIMERA, headers=ESCRIBIR).status_code == 200      # el encuentro ya pagó
+    assert economia.saldos(YO, G) == economia.Saldos(0, 20)
+    assert cliente.post(NOMBRAR, json={"nombre": "Brasa"}, headers=ESCRIBIR).status_code == 200
+    assert economia.saldos(YO, G) == economia.Saldos(0, 20)
+    assert set(db.logros_de_persona(YO, G)) == {"uno_entre_veinticinco"}
+
+
+def test_a_quien_ya_jugaba_ponerle_nombre_a_su_unico_sin_bautizar_no_le_cambia_el_saldo(cliente, monkeypatch):
+    """Sus medallas están cumplidas y sin anotar (la rara, la del primer salvaje y la
+    de los diez), pero su único gachamon nació antes del día del cambio: no es el
+    primero de la primera aventura, y ponerle nombre no le paga nada."""
+    reloj = poner_reloj(monkeypatch)
+    de_antes_del_cambio_sin_bautizar(cliente, reloj)
+    antes = economia.saldos(ANA_DISCORD, G)
+    respuesta = cliente.post(NOMBRAR, json={"nombre": "Pipo"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Pipo"
+    assert economia.saldos(ANA_DISCORD, G) == antes and db.logros_de_persona(ANA_DISCORD, G) == {}
+
+
+def test_con_dos_gachamones_ponerle_nombre_al_que_lo_espera_no_cobra(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["pollito"])
+    alta(cliente)
+    ganar_el_primero(cliente)                   # el primero, todavía sin nombre
+    db.crear(YO, G, "pulpo", "Nube", (10, 10, 10, 10), reloj.ahora, activa=False)
+    diez_reclutados_sin_cobrar()
+    antes = economia.saldos(YO, G)
+    respuesta = cliente.post(NOMBRAR, json={"nombre": "Pipo"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Pipo"
+    assert economia.saldos(YO, G) == antes and db.logros_de_persona(YO, G) == {}
 
 
 def test_lo_que_dice_el_lugar(cliente, monkeypatch):
