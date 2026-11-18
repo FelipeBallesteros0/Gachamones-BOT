@@ -544,6 +544,10 @@ Felipe el 2026-11-17 al escribir su plan.
 - Vincular Discord sigue como hoy (sólo sin gachamones): quien amuebló sin
   gachamon y después vincula deja ese departamento atrás **[propuesta,
   aceptada]**.
+- **[Felipe, 2026-11-18]** El día del cambio paga las medallas de persona que
+  cada quien ya tenía ganadas y sin cobrar, una sola vez, y la carta lo dice:
+  «Tenías medallas ganadas y sin cobrar: te pagué {gemas}.» **[propuesta,
+  aceptada]**.
 
 ## 9. Restricciones
 

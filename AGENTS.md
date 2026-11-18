@@ -106,12 +106,14 @@ Instala el hook local cuando prepares el entorno:
 - El modo construcción es del cliente: no se guarda ni se manda, y siempre se entra en el normal. Viviendo, de los muebles sólo recibe el toque el que tiene acción propia (`proyeccion.queSeUsa`); construyendo, a los gachamones no se les toca (`proyeccion.queSeToco`).
 - Al mover la puerta, el cliente sólo propone los tramos con la entrada libre (`casillas.conLaEntradaLibre`).
 - Tener un mueble no es tenerlo puesto; guardar nunca destruye, y se puede tener más de uno de cada.
-- Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Mientras exista el huevo, el gachamon que nace de él no la pide.
+- Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Todo gachamon pide cama, también el primero.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.
 - El ritmo y la comodidad salen del departamento de la persona: frenan el ánimo de todos sus gachamones vivos y no tocan el hambre.
 - Antes de cambiar lo que fija el ritmo (poner o guardar un mueble, ampliar) se pone al día y se guarda a todos los vivos, en la misma transacción (`db.asentar_el_plantel_en`).
 - Ampliar se compra estando en el departamento; lo demás, en la Tienda. El mueble que se compra llega a guardados.
-- El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, y deja a cada persona una carta que la página enseña una vez.
+- El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, paga a cada persona las medallas de persona que ya tenía ganadas y sin cobrar (`economia._pagar_logros_de_persona_en`) y le deja una carta que la página enseña una vez.
+- Se parte sin gachamon y sin huevo: el primero lo crea `nacer.encontrar_al_primero`, detrás de la ruta de la primera aventura (`web/aventura.py`), y ninguna ruta de la web crea un gachamon sin pedir cama.
+- Un monedero nace con 50 monedas y 50 gemas antes del día del cambio y con 0 y 0 después; lo anota en `monederos.partida`, y la regla vive en `db` (`db.PARTIDA_DE_UN_MONEDERO_NUEVO`).
 - Las casas, el refugio, la intemperie y el huerto por casa ya no existen; sus tablas siguen en el esquema, sin uso.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.
