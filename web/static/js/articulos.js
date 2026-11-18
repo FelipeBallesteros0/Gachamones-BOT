@@ -28,6 +28,14 @@ export function hayQueDecidirDeNuevo(error) {
   return Boolean(error) && (error.estado === 401 || error.estado === 409);
 }
 
+// Salvo este «no»: a quien no tiene ningún gachamon (`conGachamon` falso), un
+// 409 `sin_gachamon` no quiere decir que su gachamon cambió, sino que eso pide
+// uno. No hay otra pantalla que decidir: se dice la frase del servidor, como
+// cualquier otro «no», y la lista se queda.
+export function pideUnGachamon(error, conGachamon) {
+  return !conGachamon && Boolean(error) && error.estado === 409 && error.clave === 'sin_gachamon';
+}
+
 // Mientras se está en la pantalla de `vista` hay sesión y la cuenta ya no es
 // nueva, así que la pantalla la decide sólo el estado, con la regla de siempre.
 export function pideOtraPantalla(estado, vista) {

@@ -8,10 +8,11 @@
 // juega igual: no hay nada que hacer antes. `vista` es lo que se pidió ver
 // cuando todo está en orden: con `'pueblo'`, el mapa en vez del lugar donde
 // estás; con `'tienda'`, `'incubadora'` o `'aventura'`, esa pantalla, si el
-// lugar donde estás la ofrece (si no, el lugar); con `'mochila'`, esa
-// pantalla, estés donde estés, y con `'ficha'` o `'ropero'`, igual, si tienes
-// un gachamon (si no, el lugar). Con otra, el lugar. Donde el lugar ofrece el
-// departamento («Tu casa»), lo que sería el lugar es el departamento.
+// lugar donde estás la ofrece (si no, el lugar), y la incubadora, además, sólo
+// si tienes un gachamon; con `'mochila'`, esa pantalla, estés donde estés, y
+// con `'ficha'` o `'ropero'`, igual, si tienes un gachamon (si no, el lugar).
+// Con otra, el lugar. Donde el lugar ofrece el departamento («Tu casa»), lo
+// que sería el lugar es el departamento.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
@@ -21,7 +22,7 @@ export function siguiente(sesion, cuenta, estado, vista) {
   if (vista === 'pueblo') return 'pueblo';
   const aqui = ofreceElDepartamento(estado.lugar) ? 'departamento' : 'lugar';
   if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : aqui;
-  if (vista === 'incubadora') return ofreceLaIncubadora(estado.lugar) ? 'incubadora' : aqui;
+  if (vista === 'incubadora') return estado.gachamon && ofreceLaIncubadora(estado.lugar) ? 'incubadora' : aqui;
   if (vista === 'aventura') return ofreceLaAventura(estado.lugar) ? 'aventura' : aqui;
   if (vista === 'mochila') return 'mochila';
   if (vista === 'ficha') return estado.gachamon ? 'ficha' : aqui;

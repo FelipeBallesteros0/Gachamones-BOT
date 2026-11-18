@@ -11,7 +11,8 @@
 // el estado al día, con los que se repinta. Si un uso se queda sin respuesta
 // pudo haberse hecho igual: lo que se veía ya no vale, y la lista se vuelve a
 // pedir. Si lo que contesta pide otra pantalla (sin sesión, tu gachamon
-// cambió) se vuelve a decidir con `seguir`. Al salir se deja de temporizar, y
+// cambió) se vuelve a decidir con `seguir`; pero sin ningún gachamon, que lo
+// que se usa pide uno se dice y se queda. Al salir se deja de temporizar, y
 // una respuesta que llega tarde no pinta ni llama a `seguir`. La cabecera, las
 // filas, la pregunta, el aviso y la espera son los de `articulos.js`, como en
 // la tienda. Todo texto entra por `el` o por `textContent`.
@@ -20,7 +21,7 @@ import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { olvidarLasQueFaltan } from './arte.js';
 import {
   cabeceraConSaldos, cajaDePregunta, filaDeArticulo, hayQueDecidirDeNuevo, linea, listaQueSePide,
-  mensajeDe, pideOtraPantalla, zonaDeAviso,
+  mensajeDe, pideOtraPantalla, pideUnGachamon, zonaDeAviso,
 } from './articulos.js';
 import { el } from './dom.js';
 
@@ -136,6 +137,14 @@ export function mochila(contenedor, estado, seguir) {
     enfocarLaFila(clave);
   }
 
+  // Un uso que el juego rechazó sin mandar la lista, que sigue valiendo: la
+  // fila deja de esperar, los botones vuelven y la pregunta se cierra.
+  function dejarDeEsperar(usable) {
+    usable.sitio.closest('[data-fila]').classList.remove('en-camino');
+    for (const boton of filas.querySelectorAll('.boton-usar')) boton.removeAttribute('aria-disabled');
+    cerrarLaPregunta();
+  }
+
   const laLista = listaQueSePide({
     ruta: 'mochila',
     espera,
@@ -229,6 +238,12 @@ export function mochila(contenedor, estado, seguir) {
     } catch (error) {
       if (!sigueAqui()) return;
       enCamino = false;
+      if (pideUnGachamon(error, gachamonId !== null)) {
+        dejarDeEsperar(usable);
+        avisar(mensajeDe(error), true);
+        enfocarLaFila(clave);
+        return;
+      }
       if (hayQueDecidirDeNuevo(error)) {
         irse();
         return;

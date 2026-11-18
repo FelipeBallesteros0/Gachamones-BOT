@@ -46,7 +46,7 @@ globalThis.window = { isSecureContext: true };
 
 const entrada = await import('../../web/static/js/entrada.js');
 const {
-  bautizo, bienvenida, cajaDelCodigo, MUESTRAS,
+  avatar, bautizo, bienvenida, cajaDelCodigo, MUESTRAS,
 } = entrada;
 
 function textos(nodo) {
@@ -107,6 +107,23 @@ test('la bienvenida dice «Empezar de cero», con su casa y su nota nueva', () =
   const todo = textos(contenedor).join(' ');
   assert.ok(!todo.includes('🥚'), todo);
   assert.ok(!todo.includes('nace tu gachamon'), todo);
+});
+
+test('la pantalla del avatar dice cómo te verán en el pueblo, sin dar por hecho un gachamon', { timeout: 2000 }, async () => {
+  // Las opciones no llegan (sin sesión): lo de arriba ya está pintado y se vuelve a decidir.
+  globalThis.fetch = async () => ({
+    ok: false, status: 401, headers: { get: () => null },
+    json: async () => ({ detail: { clave: 'sin_sesion', mensaje: 'Entra a Rowino para jugar.' } }),
+  });
+  const contenedor = new Elemento('main');
+  const seguidos = [];
+  await avatar(contenedor, async (...argumentos) => { seguidos.push(argumentos); }, {
+    sesion: { usuario: 'ana' }, cuenta: { estado: 'web', tiene_gachamones: false },
+  });
+  const entradillas = buscar(contenedor, 'p').filter((p) => p.atributos.class === 'entradilla');
+  assert.deepEqual(entradillas.map((p) => textos(p).join('')), ['Así te verán en el pueblo.']);
+  assert.ok(!textos(contenedor).join(' ').includes('gachamon'));
+  assert.deepEqual(seguidos, [[]]);
 });
 
 test('no existe la pantalla del huevo', async () => {

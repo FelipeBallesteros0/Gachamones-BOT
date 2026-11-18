@@ -9,8 +9,10 @@
 // compra se queda sin respuesta pudo haber llegado igual: lo que se veía ya no
 // vale, y el catálogo se vuelve a pedir; si tampoco llega, la tienda no carga.
 // Si lo que contesta pide otra pantalla (sin sesión, ya no estás en la tienda,
-// tu gachamon cambió) se vuelve a decidir con `seguir`. Al salir se deja de
-// temporizar, y una respuesta que llega tarde no pinta ni llama a `seguir`.
+// tu gachamon cambió) se vuelve a decidir con `seguir`; pero a quien abrió la
+// tienda sin ningún gachamon, que lo que compra pide uno se le dice y se queda.
+// Al salir se deja de temporizar, y una respuesta que llega tarde no pinta ni
+// llama a `seguir`.
 // La cabecera, las filas, la pregunta, el aviso y la espera del catálogo son
 // los de `articulos.js`, que comparte con la mochila. Todo texto entra por
 // `el` o por `textContent`.
@@ -19,7 +21,7 @@ import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { olvidarLasQueFaltan } from './arte.js';
 import {
   GEMAS, MONEDAS, cabeceraConSaldos, cajaDePregunta, filaDeArticulo as fila, hayQueDecidirDeNuevo,
-  linea, listaQueSePide, mensajeDe, pideOtraPantalla, zonaDeAviso,
+  linea, listaQueSePide, mensajeDe, pideOtraPantalla, pideUnGachamon, zonaDeAviso,
 } from './articulos.js';
 import { preguntaDeCompra } from './compras.js';
 import { el } from './dom.js';
@@ -45,6 +47,8 @@ export function tienda(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   let vivo = true;
+  // Si se abrió con un gachamon: sin ninguno, comprar lo que pide uno se dice aquí.
+  const conGachamon = Boolean(estado.gachamon);
   // Lo que contesta la tienda, abajo de lo que se ve.
   const aviso = zonaDeAviso();
   const { avisar } = aviso;
@@ -245,6 +249,14 @@ export function tienda(contenedor, estado, seguir) {
     enfocarLaFila(id);
   }
 
+  // Una compra que el juego rechazó sin mandar el catálogo, que sigue valiendo:
+  // la fila deja de esperar, los botones vuelven y la pregunta se cierra.
+  function dejarDeEsperar(oferta) {
+    oferta.sitio.closest('[data-fila]').classList.remove('en-camino');
+    for (const boton of estante.querySelectorAll('.boton-precio')) boton.removeAttribute('aria-disabled');
+    cerrarLaPregunta();
+  }
+
   // El segundo toque: manda la compra. Mientras va, esa fila espera y ningún
   // otro botón compra. Un toque, un evento: sus reintentos llevan el mismo.
   async function mandar(oferta, si, no) {
@@ -266,6 +278,12 @@ export function tienda(contenedor, estado, seguir) {
     } catch (error) {
       if (!sigueAqui()) return;
       enCamino = false;
+      if (pideUnGachamon(error, conGachamon)) {
+        dejarDeEsperar(oferta);
+        avisar(mensajeDe(error), true);
+        enfocarLaFila(id);
+        return;
+      }
       if (hayQueDecidirDeNuevo(error)) {
         irse();
         return;

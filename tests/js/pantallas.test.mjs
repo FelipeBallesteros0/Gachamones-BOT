@@ -71,6 +71,16 @@ test('sin gachamon, la ficha y el ropero dejan donde estás', () => {
   }
 });
 
+test('sin gachamon, la incubadora deja donde estás, como la ficha y el ropero', () => {
+  const laIncubadora = { clave: 'incubadora', nombre: 'Incubadora', ofrece: ['incubadora'] };
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laIncubadora), 'incubadora'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laIncubadora)), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(casa), 'incubadora'), 'departamento');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laTienda), 'incubadora'), 'lugar');
+  // Con gachamon se abre, como siempre.
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, lugar: laIncubadora }, 'incubadora'), 'incubadora');
+});
+
 test('la aventura se abre sólo donde se ofrece', () => {
   assert.equal(siguiente(sesion, cuenta, sinGachamon(laAventura), 'aventura'), 'aventura');
   // Sin pedirla, el lugar.
@@ -252,8 +262,8 @@ test('lo que va antes del juego gana a la incubadora', () => {
   assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida');
   assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ avatar: null }), vista), 'avatar');
   assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ avatar: null, gachamon: null }), vista), 'avatar');
-  // Sin gachamon ya no hay huevo antes: se abre.
-  assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ gachamon: null }), vista), 'incubadora');
+  // Sin gachamon ya no hay huevo antes, y la incubadora no se abre: el lugar.
+  assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ gachamon: null }), vista), 'lugar');
   assert.equal(
     siguiente(sesion, cuenta, enLaIncubadora({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
     'bautizo',
@@ -271,14 +281,17 @@ test('un `sin_nombre` que todavía mande un servidor viejo no abre ninguna panta
   assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: null })), 'lugar');
   // Con un gachamon activo, nada cambia.
   assert.equal(siguiente(sesion, cuenta, estado({ sin_nombre: recluta })), 'lugar');
-  // Ninguna vista lleva al bautizo: cada una abre lo suyo, y sin gachamon la ficha y el ropero no se abren.
+  // Ninguna vista lleva al bautizo: cada una abre lo suyo, y sin gachamon la
+  // ficha, el ropero y la incubadora no se abren.
   const enLaIncubadora = estado({
     gachamon: null, sin_nombre: recluta, lugar: { clave: 'x', nombre: 'X', ofrece: ['incubadora', 'tienda'] },
   });
-  for (const vista of ['pueblo', 'tienda', 'mochila', 'incubadora']) {
+  for (const vista of ['pueblo', 'tienda', 'mochila']) {
     assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), vista, vista);
   }
-  for (const vista of ['ficha', 'ropero']) assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), 'lugar', vista);
+  for (const vista of ['ficha', 'ropero', 'incubadora']) {
+    assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), 'lugar', vista);
+  }
   // Y el avatar, antes que todo.
   assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: recluta, avatar: null })), 'avatar');
 });

@@ -1135,16 +1135,17 @@ a { color: var(--principal-hundido); font-weight: 600; }
   }
 
   /* Sin gachamon no hay ficha ni cuidados: al lado de la escena, el aviso del
-     lugar y, debajo, las salidas, en el orden en que se leen. */
+     lugar (si lo hay) y, debajo, las salidas, en el orden en que se leen y sin
+     dejar el hueco del aviso que no está. */
   .cuerpo-lugar.sin-gachamon {
     grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      "escena avisos"
-      "escena salidas"
-      "escena .";
+    grid-template-areas: none;
   }
 
-  .cuerpo-lugar.sin-gachamon > .salidas-lugar { grid-area: salidas; }
+  .cuerpo-lugar.sin-gachamon > .escena-lugar { grid-area: 1 / 1 / 4 / 2; }
+
+  .cuerpo-lugar.sin-gachamon > .bajo-la-ficha,
+  .cuerpo-lugar.sin-gachamon > .salidas-lugar { grid-area: auto / 2; }
 
   .escena-lugar {
     grid-area: escena;

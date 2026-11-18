@@ -27,6 +27,8 @@ class Elemento extends Nodo {
 
   setAttribute(nombre, valor) { this.atributos[nombre] = valor; }
 
+  removeAttribute(nombre) { delete this.atributos[nombre]; }
+
   addEventListener(tipo, oyente) { (this.oyentes[tipo] ||= []).push(oyente); }
 
   append(...nodos) {
@@ -100,14 +102,24 @@ function catalogo(felpudos) {
   };
 }
 
+// Un «no» del juego, para que el servidor de mentira lo conteste con su código.
+const NO = Symbol('no');
+const noDelJuego = (estado, clave, mensaje) => ({ [NO]: { estado, clave, mensaje } });
+
 // Un servidor de mentira para `pedir`: apunta cada petición y contesta lo que
-// diga `contestar(peticion)`.
+// diga `contestar(peticion)` (o, con `noDelJuego`, ese error).
 function servidor(contestar) {
   const pedidas = [];
   globalThis.fetch = async (url, opciones) => {
     const pedida = { url, metodo: opciones.method, cuerpo: opciones.body ? JSON.parse(opciones.body) : null };
     pedidas.push(pedida);
     const datos = contestar(pedida);
+    if (datos && datos[NO]) {
+      const { estado, clave, mensaje } = datos[NO];
+      return {
+        ok: false, status: estado, headers: { get: () => null }, json: async () => ({ detail: { clave, mensaje } }),
+      };
+    }
     return { ok: true, status: 200, headers: { get: () => null }, json: async () => datos };
   };
   return pedidas;
@@ -169,4 +181,63 @@ test('comprar otro del que ya tienes manda el mueble y su evento, y la fila cuen
   assert.ok(textos(despues).includes('Tienes 3'));
   assert.equal(despues.querySelectorAll('.boton-precio').length, 1);
   assert.equal(contenedor.querySelector('.aviso-tienda').textContent, mensaje);
+});
+
+// --- lo que pide un gachamon --------------------------------------------------------
+
+// El catálogo con una poción que se vende, en la pestaña de objetos, que es la
+// primera que se ve.
+const conUnaPocion = () => ({
+  ...catalogo(0),
+  objetos: [{
+    clave: 'pocion_comida', nombre: 'Poción de comida', precio: 10, descripcion: 'Deja la comida a 100.',
+    icono: 'iconos/objetos/pocion_comida.png', se_vende: true, tienes: 0, nota: null,
+  }],
+});
+
+// Abre la tienda con `estado`, toca la poción y confirma. Lo que pide pasar a
+// otra pantalla queda en `seguidos`.
+async function comprarLaPocion(estado) {
+  const contenedor = new Elemento('main');
+  const seguidos = [];
+  assert.equal(await tienda(contenedor, estado, (...argumentos) => { seguidos.push(argumentos); }), true);
+  const filaDeLaPocion = () => contenedor.querySelectorAll('section')
+    .find((s) => s.atributos.id === 'tienda-objetos').querySelectorAll('li')[0];
+  filaDeLaPocion().querySelector('.boton-precio').oyentes.click[0]();
+  const [si] = filaDeLaPocion().querySelectorAll('.principal');
+  await si.oyentes.click[0]();
+  return { contenedor, seguidos, fila: filaDeLaPocion() };
+}
+
+const PIDE_UN_GACHAMON = 'Para comprar hace falta un gachamon.';
+
+test('sin gachamon, lo que pide uno dice la frase del servidor y te deja en la tienda', { timeout: 2000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pedidas = servidor((pedida) => (pedida.metodo === 'GET'
+    ? conUnaPocion()
+    : noDelJuego(409, 'sin_gachamon', PIDE_UN_GACHAMON)));
+  const { contenedor, seguidos, fila } = await comprarLaPocion({ saldos: { monedas: 0, gemas: 0 }, gachamon: null });
+  // No se vuelve a decidir: se dice la frase, como un «no».
+  assert.deepEqual(seguidos, []);
+  const aviso = contenedor.querySelector('.aviso-tienda');
+  assert.equal(aviso.textContent, PIDE_UN_GACHAMON);
+  assert.ok(aviso.classList.contains('es-error'));
+  // La lista se queda (no se vuelve a pedir) y la fila vuelve a tener su botón, sin nada esperando.
+  assert.deepEqual(pedidas.map((p) => p.metodo), ['GET', 'POST']);
+  assert.equal(fila.querySelectorAll('.boton-precio').length, 1);
+  assert.equal(fila.querySelectorAll('.pregunta').length, 0);
+  assert.ok(!fila.classList.contains('en-camino'));
+  for (const boton of contenedor.querySelectorAll('.boton-precio')) {
+    assert.ok(!Object.hasOwn(boton.atributos, 'aria-disabled'));
+  }
+});
+
+test('con gachamon, ese mismo «no» quiere decir que tu gachamon cambió: se vuelve a decidir', { timeout: 2000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  servidor((pedida) => (pedida.metodo === 'GET'
+    ? conUnaPocion()
+    : noDelJuego(409, 'sin_gachamon', 'Tu gachamon ya no es el mismo. Mira otra vez.')));
+  const { contenedor, seguidos } = await comprarLaPocion({ saldos: { monedas: 40, gemas: 0 }, gachamon: { id: 5 } });
+  assert.deepEqual(seguidos, [[undefined]]);
+  assert.ok(!contenedor.querySelector('.aviso-tienda').textContent);
 });

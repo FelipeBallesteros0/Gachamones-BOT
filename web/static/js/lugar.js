@@ -284,8 +284,11 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     const avisoDelLugar = actual.lugar.aviso || '';
     if (franjaDelLugar.textContent !== avisoDelLugar) franjaDelLugar.textContent = avisoDelLugar;
     franjaDelLugar.hidden = !avisoDelLugar;
+    // Sin gachamon, lo de bajo la escena es sólo el aviso: sin él, no queda un hueco.
+    bajoLaFicha.hidden = !g && !avisoDelLugar;
     aComprar.hidden = !ofreceLaTienda(actual.lugar);
-    aTuPlantel.hidden = !ofreceLaIncubadora(actual.lugar);
+    // Sin gachamon no hay plantel que ver.
+    aTuPlantel.hidden = !g || !ofreceLaIncubadora(actual.lugar);
 
     const { monedas, gemas } = actual.saldos;
     monedasVisibles.textContent = `🪙 ${monedas}`;

@@ -428,7 +428,7 @@ function grupoDeOpciones(campo, leyenda, lista, muestras) {
 export async function avatar(contenedor, seguir, { sesion: quien, cuenta }) {
   const cuerpo = el('div', { class: 'cuerpo' },
     titulo('Crea tu avatar'),
-    el('p', { class: 'entradilla' }, 'Así te verán en el pueblo, al lado de tu gachamon.'));
+    el('p', { class: 'entradilla' }, 'Así te verán en el pueblo.'));
   const cargando = el('p', { class: 'cargando', role: 'status' }, 'Cargando las opciones…');
   cuerpo.append(cargando);
   contenedor.append(barra(quien.usuario), cuerpo);

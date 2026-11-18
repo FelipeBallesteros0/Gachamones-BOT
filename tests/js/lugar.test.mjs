@@ -143,19 +143,22 @@ globalThis.Image = class {
   }
 };
 
-// Lo que corre con el tiempo se apunta y no corre.
+// Lo que corre con el tiempo se apunta y no corre: lo de `setTimeout` como
+// `'reloj'` y lo de `setInterval` como `'intervalo'`, con sus milisegundos.
 let marcas = 0;
 const pendientes = new Map();
-const apuntar = (hacer, ms = 0) => {
+const apuntar = (tipo) => (hacer, ms = 0) => {
   marcas += 1;
-  pendientes.set(marcas, { hacer, ms });
+  pendientes.set(marcas, { tipo, hacer, ms });
   return marcas;
 };
 const olvidar = (marca) => { pendientes.delete(marca); };
-globalThis.setTimeout = apuntar;
+globalThis.setTimeout = apuntar('reloj');
 globalThis.clearTimeout = olvidar;
-globalThis.setInterval = apuntar;
+globalThis.setInterval = apuntar('intervalo');
 globalThis.clearInterval = olvidar;
+// Los milisegundos de lo que hay programado con `setTimeout`.
+const relojes = () => [...pendientes.values()].filter(({ tipo }) => tipo === 'reloj').map(({ ms }) => ms);
 
 globalThis.ResizeObserver = class {
   observe() {}
@@ -256,13 +259,16 @@ const conPelusa = (lugarDondeEsta, segundos = 0, cambios = {}) => sinGachamon(lu
   ...cambios,
 });
 
-// Abre la pantalla con ese estado. Lo que pide pasar a otra pantalla queda en `seguidos`.
-async function abrir(estado) {
+// Abre la pantalla con ese estado (con `llegando`, como si se acabara de
+// llegar caminando). Lo que pide pasar a otra pantalla queda en `seguidos`; lo
+// que programaron las pantallas de antes se olvida.
+async function abrir(estado, llegando = false) {
+  pendientes.clear();
   const documento = nuevoDocumento();
   const servidor = crearServidor();
   const contenedor = new Elemento('main');
   const seguidos = [];
-  assert.doesNotThrow(() => lugar(contenedor, estado, (...argumentos) => { seguidos.push(argumentos); }));
+  assert.doesNotThrow(() => lugar(contenedor, estado, (...argumentos) => { seguidos.push(argumentos); }, llegando));
   await asentar();
   return {
     contenedor, seguidos, servidor, documento,
@@ -335,6 +341,45 @@ test('sin gachamon, lo que se relee se pinta, y si llega uno se vuelve a decidir
   servidor.responde('GET estado', conUno);
   await documento.dispara('visibilitychange');
   assert.deepEqual(seguidos, [[conUno]]);
+});
+
+const INCUBADORA = { clave: 'incubadora', nombre: 'Incubadora', abre: 'ya', aviso: null, ofrece: ['incubadora'] };
+
+test('sin gachamon, en la Incubadora no hay botón de plantel; con gachamon, sí', { timeout: 2000 }, async () => {
+  const sinUno = await abrir(sinGachamon(INCUBADORA));
+  assert.equal(sinUno.contenedor.querySelector('.boton-plantel').hidden, true);
+  assert.deepEqual(visibles(sinUno.contenedor.querySelector('.salidas-lugar')), ['🎒Mochila', '🗺️Pueblo']);
+  const conUno = await abrir(conPelusa(INCUBADORA));
+  assert.deepEqual(visibles(conUno.contenedor.querySelector('.salidas-lugar')), ['🥚Tu plantel', '🎒Mochila', '🗺️Pueblo']);
+  await conUno.contenedor.querySelector('.boton-plantel').tocar();
+  assert.deepEqual(conUno.seguidos[0][1], { vista: 'incubadora' });
+});
+
+test('sin gachamon no se programa ningún globo; con gachamon, el primero', { timeout: 2000 }, async () => {
+  for (const llegando of [false, true]) {
+    await abrir(sinGachamon(ESTADIO), llegando);
+    assert.deepEqual(relojes(), [], `llegando: ${llegando}`);
+  }
+  await abrir(conPelusa(ESTADIO));
+  assert.deepEqual(relojes(), [2500]);
+  await abrir(conPelusa(ESTADIO), true);
+  assert.deepEqual(relojes(), [600]);
+});
+
+test('sin gachamon y sin aviso no queda hueco bajo la escena', { timeout: 2000 }, async () => {
+  // En la Tienda no hay aviso: bajo la escena no queda nada que se vea.
+  const enLaTienda = await abrir(sinGachamon(TIENDA));
+  assert.equal(enLaTienda.contenedor.querySelector('.bajo-la-ficha').hidden, true);
+  // Con aviso, se ve.
+  const enElEstadio = await abrir(sinGachamon(ESTADIO));
+  assert.equal(enElEstadio.contenedor.querySelector('.bajo-la-ficha').hidden, false);
+  // Si el aviso llega o se va con una relectura, la franja sale o se esconde.
+  enElEstadio.servidor.responde('GET estado', sinGachamon({ ...ESTADIO, aviso: null }, 30));
+  await enElEstadio.documento.dispara('visibilitychange');
+  assert.equal(enElEstadio.contenedor.querySelector('.bajo-la-ficha').hidden, true);
+  // Con gachamon, la franja de abajo está siempre, como hoy (lleva lo que contesta el juego).
+  const conUno = await abrir(conPelusa(TIENDA));
+  assert.equal(conUno.contenedor.querySelector('.bajo-la-ficha').hidden, false);
 });
 
 // --- con gachamon, como siempre -------------------------------------------------------------
