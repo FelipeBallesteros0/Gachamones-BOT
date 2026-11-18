@@ -251,6 +251,21 @@ def test_una_casa_de_clave_desconocida_deja_un_aviso_sin_ids(caplog):
     assert db.carta_sin_ver("u1", "g1", CAMBIO)["casas"] == []
 
 
+def de_una_especie_que_ya_no_existe(muerta):
+    bicho = db.crear("u1", "g1", "pulpo", "Nube", STATS, T0, activa=not muerta)
+    escribir("UPDATE criaturas SET especie = 'ya_no_existe' WHERE id = ?", (bicho.id,))
+    if muerta:
+        escribir("UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?", (T0.isoformat(), bicho.id))
+
+
+@pytest.mark.parametrize("muerta", [True, False], ids=["muerta", "viva"])
+def test_una_especie_desconocida_no_cuenta_como_rara_y_no_tumba_el_cambio(muerta):
+    de_una_especie_que_ya_no_existe(muerta); reclutados(1)
+    assert el_cambio().personas == 1
+    assert CAMBIO in marcas() and [f["usuario_id"] for f in filas("departamentos")] == ["u1"]
+    assert db.carta_sin_ver("u1", "g1", CAMBIO)["gemas_por_medallas"] == valen("domador")
+
+
 def test_cada_ticket_del_refugio_vuelve_en_40_monedas():
     con_monedas(0); en_la_mochila("u1", "ticket_refugio", 2)
     el_cambio()

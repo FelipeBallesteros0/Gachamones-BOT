@@ -170,8 +170,12 @@ def hechos_de_la_persona(
     salido una rara no deja de haber pasado.
     """
     hechos = dict(marcador)
+    # Una especie que ya no esté en el catálogo no cuenta como rara: buscarla
+    # con `[]` tiraría a quien mira las medallas, y el día del cambio las mira
+    # de todos al arrancar (como en `db`: lo desconocido no paga ni tumba nada).
     hechos[TUVO_RARA] = 1 if any(
-        esp.ESPECIES[clave].rareza == esp.RARA for clave in especies
+        clave in esp.ESPECIES and esp.ESPECIES[clave].rareza == esp.RARA
+        for clave in especies
     ) else 0
     return hechos
 

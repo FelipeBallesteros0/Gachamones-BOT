@@ -165,6 +165,16 @@ def test_uno_entre_veinticinco_es_de_la_persona_y_cuenta_las_muertas():
         )
 
 
+def test_una_especie_desconocida_no_cuenta_como_rara_y_no_revienta():
+    """Una especie que ya no esté en el catálogo no tumba a quien mira tus
+    medallas (el día del cambio las mira de todos al arrancar)."""
+    assert "ya_no_existe" not in esp.ESPECIES
+    rara = next(c for c, d in esp.ESPECIES.items() if d.rareza == esp.RARA)
+    assert logros.hechos_de_la_persona({}, ("ya_no_existe",))[logros.TUVO_RARA] == 0
+    for especies in (("ya_no_existe", rara), (rara, "ya_no_existe")):
+        assert logros.hechos_de_la_persona({}, especies)[logros.TUVO_RARA] == 1
+
+
 def test_un_jugador_que_lo_ha_hecho_todo_gana_las_tres():
     conseguidos = cumplidos_de_persona(
         {logros.RECLUTADOS: 10}, especies=("dragoncito",)

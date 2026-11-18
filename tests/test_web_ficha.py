@@ -127,6 +127,21 @@ def test_mirar_la_ficha_no_escribe(cliente, monkeypatch):
     assert db.logros_de(activa().id) == {}
 
 
+def test_una_especie_desconocida_en_el_historial_no_rompe_la_ficha(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    vieja = db.crear(YO, G, "pulpo", "Nube", STATS, T0, activa=False)
+    with db.conectar() as con:
+        con.execute(
+            "UPDATE criaturas SET especie = 'ya_no_existe', muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?",
+            (T0.isoformat(), vieja.id),
+        )
+    respuesta = cliente.get(FICHA)
+    assert respuesta.status_code == 200
+    tuyas = {m["clave"]: m for m in respuesta.json()["medallas"]["tuyas"]}
+    assert tuyas["uno_entre_veinticinco"]["tiene"] is False
+
+
 def test_sin_gachamon_es_un_409(cliente):
     entrar(cliente, 1)
     cliente.post("/gachamon/api/cuenta/empezar", headers={"X-Gachamon": "1"})

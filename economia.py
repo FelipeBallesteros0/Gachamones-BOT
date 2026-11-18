@@ -342,7 +342,8 @@ def el_dia_del_cambio(
     dentro: o se hace entero, marca incluida, o no queda nada hecho, y de dos
     arranques a la vez sólo el primero encuentra algo que hacer. Como en
     `devolver_cosmeticos_retirados`, lo devuelto no pasa por
-    `operaciones_economia`: una devolución no es una ganancia.
+    `operaciones_economia`: una devolución no es una ganancia. El pago de las
+    medallas tampoco, como el de cualquier medalla (ver `pagar_logros`).
 
     A cada persona le entrega el buzón, le cosecha lo plantado, le devuelve los
     tickets y las casas, le paga las medallas suyas que tenía ganadas y sin
