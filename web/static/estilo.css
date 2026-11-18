@@ -271,13 +271,11 @@ a { color: var(--principal-hundido); font-weight: 600; }
   50% { transform: scale(1.02, 0.97); }
 }
 
-/* --- el huevo --- */
+/* --- el huevo de la pantalla de entrar, que se mece --- */
 
 .huevo { transform-origin: 50% 92%; }
 
 .huevo.meciendose { animation: mece 3.2s ease-in-out infinite; }
-
-.huevo.temblando { animation: tiembla 0.45s ease-in-out infinite; }
 
 @keyframes mece {
   0%, 70%, 100% { transform: rotate(0); }
@@ -285,12 +283,6 @@ a { color: var(--principal-hundido); font-weight: 600; }
   82% { transform: rotate(4deg); }
   88% { transform: rotate(-2deg); }
   94% { transform: rotate(1deg); }
-}
-
-@keyframes tiembla {
-  0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-7deg); }
-  75% { transform: rotate(7deg); }
 }
 
 /* --- botones --- */
@@ -1141,6 +1133,18 @@ a { color: var(--principal-hundido); font-weight: 600; }
     gap: 16px 28px;
     padding: 28px 28px 36px;
   }
+
+  /* Sin gachamon no hay ficha ni cuidados: al lado de la escena, el aviso del
+     lugar y, debajo, las salidas, en el orden en que se leen. */
+  .cuerpo-lugar.sin-gachamon {
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "escena avisos"
+      "escena salidas"
+      "escena .";
+  }
+
+  .cuerpo-lugar.sin-gachamon > .salidas-lugar { grid-area: salidas; }
 
   .escena-lugar {
     grid-area: escena;

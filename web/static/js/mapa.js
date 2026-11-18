@@ -1,5 +1,6 @@
 // El pueblo: un mapa en un <canvas> por el que tu avatar camina, con tu
-// gachamon detrás, hasta el lugar que toques, y entra.
+// gachamon detrás (si tienes uno; si no, tú solo), hasta el lugar que toques,
+// y entra.
 //
 // `pueblo(contenedor, estado, seguir)` pinta la pantalla y la mantiene viva
 // hasta que se sale. No decide nada del pueblo: lee `datos/pueblo.json`, le
@@ -331,18 +332,18 @@ export function pueblo(contenedor, estado, seguir) {
 
     // El de más abajo tapa al otro; si están a la par, el avatar va delante.
     // El gachamon pisa su sombra, que se queda en el suelo cuando él salta (la
-    // del avatar ya viene en su dibujo).
+    // del avatar ya viene en su dibujo). Sin gachamon, el avatar va solo.
     const figuras = [
-      [paseo.gy, () => {
+      [paseo.gy, estado.gachamon ? () => {
         pintarPieza(ctx, piezas.sombra, ...caja(
           paseo.gx - LADO_DE_LA_SOMBRA / 2, paseo.gy - LADO_DE_LA_SOMBRA / 2,
           LADO_DE_LA_SOMBRA, LADO_DE_LA_SOMBRA,
         ));
         dibujarGachamon(ctx, enX(paseo.gx), enY(paseo.gy), u);
-      }],
+      } : null],
       [paseo.y, () => dibujarAvatar(ctx, piezas.capas, estado.avatar, poseAlCaminar(paseo.t, paseo.caminando),
         enX(paseo.x), enY(paseo.y), ALTO_DEL_AVATAR * u, paseo.mira < 0)],
-    ];
+    ].filter(([, figura]) => figura);
     figuras.sort((a, b) => a[0] - b[0]);
     for (const [, figura] of figuras) figura();
   }
@@ -640,7 +641,7 @@ export function pueblo(contenedor, estado, seguir) {
       cargar(SOMBRA),
       Promise.all(claves.map((clave) => cargar(dibujoDelLugar(clave)))),
       cargarAvatar(estado.avatar),
-      cargarRetrato(estado.gachamon.retrato),
+      estado.gachamon ? cargarRetrato(estado.gachamon.retrato) : null,
     ]);
     if (!sigueAqui()) return;
     piezas = {

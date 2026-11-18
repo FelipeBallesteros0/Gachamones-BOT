@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {
+import * as pantallas from '../../web/static/js/pantallas.js';
+
+const {
   cambioLaCuenta, hayQueRecargar, ofreceLaIncubadora, puedeTraerDeDiscord, siguiente, trasFallarLaLlegada,
   trasUnFalloAlArrancar,
-} from '../../web/static/js/pantallas.js';
+} = pantallas;
 
 const sesion = { usuario: 'felipe' };
 const gachamon = { nombre: 'Pelusa', espera_nombre: false };
@@ -13,6 +15,15 @@ const estado = (cambios = {}) => ({ avatar, gachamon, ...cambios });
 // Un jugador con su gachamon, listo para ver el lugar.
 const cuenta = { estado: 'web' };
 const jugando = estado();
+
+// Los lugares, como los manda el servidor: tu casa, la Tienda, uno cerrado y
+// «Aventura» a quien no tiene gachamon (con la primera aventura).
+const casa = { clave: 'casa', nombre: 'Tu casa', ofrece: ['departamento'] };
+const laTienda = { clave: 'tienda', nombre: 'Tienda', ofrece: ['tienda'] };
+const cerrado = { clave: 'estadio', nombre: 'Estadio', ofrece: [] };
+const laAventura = { clave: 'aventura', nombre: 'Aventura', ofrece: ['aventura'] };
+// Quien todavía no tiene ningún gachamon, parado en `lugar`.
+const sinGachamon = (lugar, cambios = {}) => estado({ gachamon: null, globos: [], lugar, ...cambios });
 
 test('sin sesión, a entrar', () => {
   assert.equal(siguiente(null, null, null), 'sesion');
@@ -33,8 +44,97 @@ test('el avatar va antes que cualquier otra cosa del juego', () => {
   assert.equal(siguiente(sesion, { estado: 'vinculada' }, todo), 'avatar');
 });
 
-test('sin gachamon, al huevo', () => {
-  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ gachamon: null })), 'huevo');
+test('sin gachamon ya no se va al huevo: se sigue al departamento', () => {
+  for (const laCuenta of [cuenta, { estado: 'vinculada' }]) {
+    assert.equal(siguiente(sesion, laCuenta, sinGachamon(casa)), 'departamento');
+  }
+  // En la Tienda: su lugar, o la tienda si se pide.
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laTienda)), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laTienda), 'tienda'), 'tienda');
+  // Un lugar cerrado se ve como cualquiera.
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(cerrado)), 'lugar');
+  // El pueblo y la mochila, estés donde estés.
+  for (const lugar of [casa, laTienda, cerrado]) {
+    assert.equal(siguiente(sesion, cuenta, sinGachamon(lugar), 'pueblo'), 'pueblo', lugar.clave);
+    assert.equal(siguiente(sesion, cuenta, sinGachamon(lugar), 'mochila'), 'mochila', lugar.clave);
+  }
+});
+
+test('sin gachamon, la ficha y el ropero dejan donde estás', () => {
+  for (const vista of ['ficha', 'ropero']) {
+    assert.equal(siguiente(sesion, cuenta, sinGachamon(casa), vista), 'departamento', vista);
+    assert.equal(siguiente(sesion, cuenta, sinGachamon(laTienda), vista), 'lugar', vista);
+    assert.equal(siguiente(sesion, cuenta, sinGachamon(cerrado), vista), 'lugar', vista);
+    assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null }), vista), 'lugar', vista);
+    // Con gachamon se abren, como siempre.
+    assert.equal(siguiente(sesion, cuenta, { ...jugando, lugar: casa }, vista), vista, vista);
+  }
+});
+
+test('la aventura se abre sólo donde se ofrece', () => {
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laAventura), 'aventura'), 'aventura');
+  // Sin pedirla, el lugar.
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laAventura)), 'lugar');
+  // Donde no se ofrece, el lugar (o tu departamento).
+  assert.equal(siguiente(sesion, cuenta, sinGachamon({ ...laAventura, ofrece: [] }), 'aventura'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laTienda), 'aventura'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(cerrado), 'aventura'), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(casa), 'aventura'), 'departamento');
+  assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null }), 'aventura'), 'lugar');
+  // A quien tiene gachamon el servidor no se la ofrece: «Aventura» es su lugar de siempre.
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, lugar: { ...laAventura, ofrece: [] } }, 'aventura'), 'lugar');
+  // Lo de antes del juego va antes.
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laAventura, { carta: true }), 'aventura'), 'carta');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(laAventura, { avatar: null }), 'aventura'), 'avatar');
+  // Lo que la ofrece, como la tienda y la incubadora.
+  const { ofreceLaAventura } = pantallas;
+  assert.equal(ofreceLaAventura(laAventura), true);
+  assert.equal(ofreceLaAventura({ ofrece: ['tienda', 'aventura'] }), true);
+  assert.equal(ofreceLaAventura({ ofrece: [] }), false);
+  assert.equal(ofreceLaAventura(laTienda), false);
+  assert.equal(ofreceLaAventura({ clave: 'aventura', nombre: 'Aventura' }), false);
+  assert.equal(ofreceLaAventura(null), false);
+  assert.equal(ofreceLaAventura(undefined), false);
+});
+
+test('el que espera nombre va al nombre antes que a nada', () => {
+  const esperando = { nombre: 'Pollito', espera_nombre: true };
+  const vistas = [undefined, 'pueblo', 'tienda', 'incubadora', 'aventura', 'mochila', 'ficha', 'ropero', 'departamento'];
+  for (const lugar of [undefined, casa, laTienda, cerrado, laAventura, { clave: 'x', nombre: 'X', ofrece: ['incubadora'] }]) {
+    for (const vista of vistas) {
+      assert.equal(siguiente(sesion, cuenta, estado({ gachamon: esperando, lugar }), vista), 'bautizo',
+        `${lugar && lugar.clave} ${vista}`);
+    }
+  }
+});
+
+test('el huevo no sale nunca', () => {
+  // Los casos de las pruebas de hoy, cruzados: sin sesión, cuentas de cada
+  // tipo, estados con y sin cada cosa, en cada lugar y pidiendo cada vista.
+  const recluta = { id: 7, nombre_especie: 'Pulpito', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png' };
+  const difunto = { nombre: 'Viejo', nombre_especie: 'Pollito', dias: 3 };
+  const gachamones = [gachamon, null, { nombre: 'Piollito', espera_nombre: true }];
+  const lugares = [undefined, casa, laTienda, cerrado, laAventura, { clave: 'x', nombre: 'X', ofrece: ['incubadora', 'tienda'] }];
+  const extras = [{}, { carta: true }, { avatar: null }, { sin_nombre: recluta }, { difunto }, { sin_nombre: null }];
+  const estados = [null];
+  for (const g of gachamones) for (const lugar of lugares) for (const extra of extras) estados.push(estado({ gachamon: g, lugar, ...extra }));
+  const vistas = [undefined, 'lugar', 'pueblo', 'tienda', 'incubadora', 'aventura', 'mochila', 'ficha', 'ropero', 'departamento', 'huevo', 'otra cosa'];
+  const pantallas = new Set(['sesion', 'bienvenida', 'avatar', 'carta', 'bautizo', 'pueblo', 'departamento', 'lugar',
+    'tienda', 'incubadora', 'aventura', 'mochila', 'ficha', 'ropero']);
+  let vistos = 0;
+  for (const laSesion of [null, sesion]) {
+    for (const laCuenta of [null, { estado: 'nueva' }, cuenta, { estado: 'vinculada' }]) {
+      for (const elEstado of estados) {
+        for (const vista of vistas) {
+          const toca = siguiente(laSesion, laCuenta, elEstado, vista);
+          assert.notEqual(toca, 'huevo');
+          assert.ok(pantallas.has(toca), toca);
+          vistos += 1;
+        }
+      }
+    }
+  }
+  assert.ok(vistos > 1000, vistos);
 });
 
 test('el que espera nombre va al bautizo', () => {
@@ -50,7 +150,9 @@ test('con todo en su sitio, al lugar', () => {
 test('el pueblo sólo se ve cuando todo lo demás está en orden', () => {
   assert.equal(siguiente(sesion, { estado: 'web' }, estado(), 'pueblo'), 'pueblo');
   assert.equal(siguiente(sesion, { estado: 'web' }, estado()), 'lugar');
-  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ gachamon: null }), 'pueblo'), 'huevo');
+  // Sin gachamon ya no hay huevo antes: también se ve.
+  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ gachamon: null }), 'pueblo'), 'pueblo');
+  assert.equal(siguiente(sesion, { estado: 'web' }, estado({ avatar: null, gachamon: null }), 'pueblo'), 'avatar');
   assert.equal(siguiente(null, null, null, 'pueblo'), 'sesion');
 });
 
@@ -83,7 +185,9 @@ test('lo que va antes del juego gana a la tienda y a la mochila', () => {
     assert.equal(siguiente(null, null, null, vista), 'sesion', vista);
     assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida', vista);
     assert.equal(siguiente(sesion, cuenta, enLaTienda({ avatar: null }), vista), 'avatar', vista);
-    assert.equal(siguiente(sesion, cuenta, enLaTienda({ gachamon: null }), vista), 'huevo', vista);
+    assert.equal(siguiente(sesion, cuenta, enLaTienda({ avatar: null, gachamon: null }), vista), 'avatar', vista);
+    // Sin gachamon ya no hay huevo antes: se abre.
+    assert.equal(siguiente(sesion, cuenta, enLaTienda({ gachamon: null }), vista), vista, vista);
     assert.equal(
       siguiente(sesion, cuenta, enLaTienda({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
       'bautizo', vista,
@@ -106,7 +210,9 @@ test('lo que va antes del juego gana a la ficha y al ropero', () => {
     assert.equal(siguiente(null, null, null, vista), 'sesion', vista);
     assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida', vista);
     assert.equal(siguiente(sesion, cuenta, estado({ avatar: null }), vista), 'avatar', vista);
-    assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null }), vista), 'huevo', vista);
+    assert.equal(siguiente(sesion, cuenta, estado({ avatar: null, gachamon: null }), vista), 'avatar', vista);
+    // Sin gachamon ya no hay huevo antes, y no hay ficha ni ropero que abrir: el lugar.
+    assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null }), vista), 'lugar', vista);
     assert.equal(
       siguiente(sesion, cuenta, estado({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
       'bautizo', vista,
@@ -145,30 +251,34 @@ test('lo que va antes del juego gana a la incubadora', () => {
   assert.equal(siguiente(null, null, null, vista), 'sesion');
   assert.equal(siguiente(sesion, { estado: 'nueva' }, null, vista), 'bienvenida');
   assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ avatar: null }), vista), 'avatar');
-  assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ gachamon: null }), vista), 'huevo');
+  assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ avatar: null, gachamon: null }), vista), 'avatar');
+  // Sin gachamon ya no hay huevo antes: se abre.
+  assert.equal(siguiente(sesion, cuenta, enLaIncubadora({ gachamon: null }), vista), 'incubadora');
   assert.equal(
     siguiente(sesion, cuenta, enLaIncubadora({ gachamon: { nombre: 'Piollito', espera_nombre: true } }), vista),
     'bautizo',
   );
 });
 
-// El recluta que espera nombre cuando no queda ninguna activa (`estado.sin_nombre`).
+// El recluta que esperaba nombre cuando no quedaba ninguna activa (`estado.sin_nombre`).
 const recluta = { id: 7, nombre_especie: 'Pulpito', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png' };
 
-test('sin gachamon y con un recluta sin nombre, al bautizo y no al huevo', () => {
-  assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: recluta })), 'bautizo');
-  assert.equal(siguiente(sesion, { estado: 'vinculada' }, estado({ gachamon: null, sin_nombre: recluta })), 'bautizo');
-  // Sin recluta, el huevo de siempre.
-  assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: null })), 'huevo');
-  // Con un gachamon activo, el recluta espera en la incubadora sin cambiar nada.
+test('un `sin_nombre` que todavía mande un servidor viejo no abre ninguna pantalla', () => {
+  // Sin gachamon, como cualquiera que no tiene ninguno: el lugar o tu departamento.
+  assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: recluta })), 'lugar');
+  assert.equal(siguiente(sesion, { estado: 'vinculada' }, estado({ gachamon: null, sin_nombre: recluta })), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, sinGachamon(casa, { sin_nombre: recluta })), 'departamento');
+  assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: null })), 'lugar');
+  // Con un gachamon activo, nada cambia.
   assert.equal(siguiente(sesion, cuenta, estado({ sin_nombre: recluta })), 'lugar');
-  // Ninguna vista se salta el bautizo.
-  for (const vista of ['pueblo', 'tienda', 'mochila', 'ficha', 'ropero', 'incubadora']) {
-    const enLaIncubadora = estado({
-      gachamon: null, sin_nombre: recluta, lugar: { clave: 'x', nombre: 'X', ofrece: ['incubadora', 'tienda'] },
-    });
-    assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), 'bautizo', vista);
+  // Ninguna vista lleva al bautizo: cada una abre lo suyo, y sin gachamon la ficha y el ropero no se abren.
+  const enLaIncubadora = estado({
+    gachamon: null, sin_nombre: recluta, lugar: { clave: 'x', nombre: 'X', ofrece: ['incubadora', 'tienda'] },
+  });
+  for (const vista of ['pueblo', 'tienda', 'mochila', 'incubadora']) {
+    assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), vista, vista);
   }
+  for (const vista of ['ficha', 'ropero']) assert.equal(siguiente(sesion, cuenta, enLaIncubadora, vista), 'lugar', vista);
   // Y el avatar, antes que todo.
   assert.equal(siguiente(sesion, cuenta, estado({ gachamon: null, sin_nombre: recluta, avatar: null })), 'avatar');
 });
@@ -176,9 +286,9 @@ test('sin gachamon y con un recluta sin nombre, al bautizo y no al huevo', () =>
 test('un `difunto` que todavía mande un servidor viejo no abre ninguna pantalla', () => {
   const viejo = { difunto: { nombre: 'Viejo', nombre_especie: 'Pollito', dias: 3 } };
   const lugar = { clave: 'x', nombre: 'X', ofrece: ['tienda', 'incubadora'] };
-  // Sin nadie más, al huevo; con un recluta, a su bautizo; con el relevo, al lugar.
-  assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, gachamon: null })), 'huevo');
-  assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, gachamon: null, sin_nombre: recluta })), 'bautizo');
+  // Sin nadie más, o con un recluta sin nombre, al lugar; con el relevo, también.
+  assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, gachamon: null })), 'lugar');
+  assert.equal(siguiente(sesion, cuenta, estado({ ...viejo, gachamon: null, sin_nombre: recluta })), 'lugar');
   assert.equal(
     siguiente(sesion, cuenta, estado({ ...viejo, gachamon: { nombre: 'Piollito', espera_nombre: true } })),
     'bautizo',
@@ -191,7 +301,7 @@ test('un `difunto` que todavía mande un servidor viejo no abre ninguna pantalla
 
 test('lo que el cliente ofrece en un lugar lleva la clave de un lugar del pueblo', () => {
   const pueblo = JSON.parse(readFileSync(new URL('../../web/static/datos/pueblo.json', import.meta.url), 'utf8'));
-  for (const clave of ['tienda', 'incubadora']) assert.ok(Object.hasOwn(pueblo.lugares, clave), clave);
+  for (const clave of ['tienda', 'incubadora', 'aventura']) assert.ok(Object.hasOwn(pueblo.lugares, clave), clave);
 });
 
 test('si falla la llegada: si el servidor dice que no se decide de nuevo; lo demás se reintenta', () => {
@@ -265,7 +375,7 @@ test('la carta se ve antes que nada', () => {
   for (const vista of [undefined, 'tienda', 'mochila', 'pueblo']) {
     assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true }, vista), 'carta');
   }
-  assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true, gachamon: null }, undefined), 'carta');   // antes que el huevo
+  assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true, gachamon: null }, undefined), 'carta');   // también sin gachamon
   assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: false }, undefined), 'lugar');
   assert.equal(siguiente(sesion, cuenta, { ...jugando, carta: true, avatar: null }, undefined), 'avatar');   // primero, tener avatar
 });

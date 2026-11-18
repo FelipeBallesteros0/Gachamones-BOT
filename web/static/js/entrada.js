@@ -1,5 +1,5 @@
-// Las pantallas de la entrada: desde que se abre la página hasta tener un
-// gachamon con nombre.
+// Las pantallas de la entrada: desde que se abre la página hasta tener tu
+// avatar; y la del nombre, para el gachamon que todavía lo espera.
 //
 // Cada una recibe el contenedor (ya vacío), `seguir` y lo que se leyó del
 // servidor (`{sesion, cuenta, estado}`). `seguir()` pide que se vuelva a
@@ -11,7 +11,7 @@ import { pedir } from './api.js';
 import { lienzoDelAvatar } from './avatar.js';
 import { dibujarHuevo } from './dibujo.js';
 import { el } from './dom.js';
-import { cambioLaCuenta, puedeTraerDeDiscord, siguiente } from './pantallas.js';
+import { cambioLaCuenta, puedeTraerDeDiscord } from './pantallas.js';
 
 const PREGUNTAR_CADA_MS = 3000;
 const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
@@ -75,10 +75,6 @@ async function conEspera(pulsado, trabajo) {
   }
 }
 
-function pausa(ms) {
-  return new Promise((listo) => { setTimeout(listo, ms); });
-}
-
 function boton(texto, clase, accion) {
   const nodo = el('button', { type: 'button', class: clase }, texto);
   nodo.addEventListener('click', () => conEspera(nodo, accion));
@@ -113,15 +109,16 @@ function pintarLienzo(nodo, unidad, pie, dibujar) {
   ctx.restore();
 }
 
-function pintarHuevo(nodo, roto) {
-  pintarLienzo(nodo, 4, 8, (ctx, escala) => dibujarHuevo(ctx, escala, roto));
+// El huevo de la pantalla de entrar: un adorno, entero.
+function pintarHuevo(nodo) {
+  pintarLienzo(nodo, 4, 8, (ctx, escala) => dibujarHuevo(ctx, escala, false));
 }
 
 // --- sesion: hay que entrar a Rowino ------------------------------------------
 
 export function sesion(contenedor) {
   const dibujo = lienzo(112, 140, 'huevo meciendose');
-  pintarHuevo(dibujo, false);
+  pintarHuevo(dibujo);
   contenedor.append(
     barra(null),
     el('div', { class: 'cuerpo' },
@@ -169,7 +166,7 @@ export function bienvenida(contenedor, seguir, { sesion: quien, cuenta }) {
 
   function elegir() {
     const aviso = avisoVacio();
-    const empezar = opcion('🥚', 'Empezar de cero', 'Nunca jugué, o quiero empezar de nuevo aquí.');
+    const empezar = opcion('🏠', 'Empezar de cero', 'Nunca jugué, o quiero empezar de nuevo aquí.');
     const traer = opcion('💬', 'Ya jugaba en Discord', 'Trae tus gachamones con un código.');
     empezar.addEventListener('click', () => conEspera(empezar, async () => {
       callar(aviso);
@@ -184,7 +181,7 @@ export function bienvenida(contenedor, seguir, { sesion: quien, cuenta }) {
     zona.replaceChildren(
       el('div', { class: 'opciones' }, empezar, traer),
       el('p', { class: 'nota' },
-        'Si empiezas de cero y nace tu gachamon, ya no podrás traer los de Discord.'),
+        'Si empiezas de cero y un gachamon se va contigo, ya no podrás traer los de Discord.'),
       aviso,
     );
   }
@@ -200,8 +197,8 @@ export function bienvenida(contenedor, seguir, { sesion: quien, cuenta }) {
 // --- traer los de Discord: el paso del código -----------------------------------
 
 // Pedir el código, enseñarlo con su aviso y esperar a que se escriba en
-// Discord. Es uno solo para la bienvenida y para el enlace de las pantallas del
-// avatar y del huevo: `mostrar(...nodos)` pone lo suyo en pantalla, y el botón
+// Discord. Es uno solo para la bienvenida y para el enlace de la pantalla del
+// avatar: `mostrar(...nodos)` pone lo suyo en pantalla, y el botón
 // `textoVolver` llama a `volver()`, que deja la de antes. Si mientras tanto la
 // cuenta deja de ser `cuenta` (se vinculó, o cambió en otra pestaña), se vuelve
 // a decidir con `seguir()`. Devuelve `pedirCodigo(aviso)`; en `aviso` se dice
@@ -312,9 +309,9 @@ function pasoDelCodigo({ mostrar, volver, textoVolver, seguir, cuenta }) {
   return pedirCodigo;
 }
 
-// El enlace discreto de las pantallas del avatar y del huevo: quien tocó
-// «Empezar de cero» viniendo de Discord todavía puede traer los suyos mientras
-// no le nazca nada aquí. Abre el mismo paso del código en lugar de `cuerpo`, y
+// El enlace discreto de la pantalla del avatar: quien tocó «Empezar de cero»
+// viniendo de Discord todavía puede traer los suyos mientras no tenga ningún
+// gachamon aquí. Abre el mismo paso del código en lugar de `cuerpo`, y
 // «Volver» lo deja todo como estaba (también lo que se hubiera elegido).
 function enlaceADiscord(cuerpo, seguir, cuenta) {
   if (!puedeTraerDeDiscord(cuenta)) return null;
@@ -515,88 +512,18 @@ function reintento(texto, seguir) {
     boton('Volver a intentarlo', 'boton principal', () => seguir()));
 }
 
-// --- huevo: el gachamon de partida ----------------------------------------------
+// --- bautizo: el recién llegado y su nombre --------------------------------------
 
-// Si la cuenta cambió entre medias (se vinculó en otra pestaña) o si le falta el
-// avatar, no es un error que enseñar: hay que volver a decidir.
-const HUEVO_YA_NO_TOCA = new Set(['cuenta_cambio', 'sin_avatar']);
-
-export function huevo(contenedor, seguir, { sesion: quien, cuenta }) {
-  const dibujo = lienzo(112, 140, 'huevo meciendose');
-  pintarHuevo(dibujo, false);
-  const aviso = avisoVacio();
-  const romper = el('button', { type: 'button', class: 'boton principal' }, 'Romper el huevo');
-  romper.addEventListener('click', () => conEspera(romper, async () => {
-    callar(aviso);
-    dibujo.classList.replace('meciendose', 'temblando');
-    try {
-      const estado = await pedir('POST', 'huevo');
-      pintarHuevo(dibujo, true);
-      await pausa(700);
-      await seguir(estado);
-    } catch (error) {
-      dibujo.classList.replace('temblando', 'meciendose');
-      if (error && error.clave === 'ya_tienes') {
-        await yaTiene(error);
-        return;
-      }
-      if (error && HUEVO_YA_NO_TOCA.has(error.clave)) {
-        await seguir();
-        return;
-      }
-      await fallo(error, aviso, seguir);
-    }
-  }));
-
-  // Ya tiene uno: se mira el estado otra vez. Si ahora toca otra pantalla (ya
-  // tiene gachamon o un recluta espera nombre en la incubadora), se sigue con
-  // él; si no, el huevo se queda con la frase del servidor y el botón listo, en
-  // vez de volver a pintarse en silencio.
-  async function yaTiene(error) {
-    let estado;
-    try {
-      estado = await pedir('GET', 'estado');
-    } catch (otro) {
-      await fallo(otro, aviso, seguir);
-      return;
-    }
-    if (siguiente(quien, cuenta, estado) !== 'huevo') {
-      await seguir(estado);
-      return;
-    }
-    avisar(aviso, mensajeDe(error));
-  }
-
-  const cuerpo = el('div', { class: 'cuerpo' },
-    titulo('Un huevo para ti'),
-    el('p', { class: 'entradilla' }, 'Algo se mueve dentro. ¿Qué gachamon saldrá?'),
-    el('div', { class: 'escena', 'aria-hidden': 'true' }, ventana(), dibujo),
-    aviso,
-    romper,
-  );
-  const traer = enlaceADiscord(cuerpo, seguir, cuenta);
-  if (traer) cuerpo.append(traer);
-  contenedor.append(barra(quien.usuario), cuerpo);
-}
-
-// --- bautizo: el recién nacido, o un recluta, y su nombre -----------------------
-
-// Si ya tiene nombre, si ya no está o si ya no hay a quién bautizar, no es un
-// error que enseñar: hay que volver a decidir.
-const BAUTIZO_YA_NO_TOCA = new Set(['sin_gachamon', 'ya_bautizado', 'no_esta']);
+// Si ya tiene nombre o ya no hay a quién bautizar, no es un error que enseñar:
+// hay que volver a decidir.
+const BAUTIZO_YA_NO_TOCA = new Set(['sin_gachamon', 'ya_bautizado']);
 
 function conMayuscula(texto) {
   return texto ? texto[0].toUpperCase() + texto.slice(1) : '';
 }
 
-// El de siempre es el activo recién nacido, y se bautiza sin decir cuál. Sin
-// activo, es el recluta que espera en la incubadora (`estado.sin_nombre`), y
-// con el nombre va su `gachamon_id`.
+// Es el activo, el que espera nombre, y se bautiza sin decir cuál.
 export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
-  if (!estado.gachamon && estado.sin_nombre) {
-    bautizoDeUnRecluta(contenedor, seguir, quien, estado.sin_nombre);
-    return;
-  }
   const nacido = estado.gachamon;
   const retrato = el('img', {
     class: 'retrato', src: nacido.retrato, alt: `Tu gachamon recién nacido, ${nacido.nombre_especie}`,
@@ -613,30 +540,14 @@ export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
         el('p', { class: 'nacido-especie' },
           el('span', { 'aria-hidden': 'true' }, nacido.emoji), ' ', nacido.nombre_especie),
         el('p', { class: 'nacido-detalle' }, `${conMayuscula(nacido.nombre_etapa)} · ${nacido.genero}`)),
-      formularioDelNombre(seguir, {}),
+      formularioDelNombre(seguir),
     ),
   );
 }
 
-// El recluta no trae más que su especie y su retrato: el retrato no se lee,
-// porque la frase de arriba ya dice quién es.
-function bautizoDeUnRecluta(contenedor, seguir, quien, recluta) {
-  const retrato = el('img', { class: 'retrato', src: recluta.retrato, alt: '' });
-  retrato.addEventListener('error', () => { retrato.hidden = true; });
-  contenedor.append(
-    barra(quien.usuario),
-    el('div', { class: 'cuerpo' },
-      titulo(`Este ${recluta.nombre_especie} espera en la incubadora y todavía no tiene nombre.`),
-      el('div', { class: 'escena' }, ventana(), retrato),
-      formularioDelNombre(seguir, { gachamon_id: recluta.id }),
-    ),
-  );
-}
-
-// El campo del nombre y su botón. Con el nombre se manda `cual` (nada para el
-// activo; `{gachamon_id}` para un recluta). Lo que contesta es el estado, con
-// el que se decide la pantalla.
-function formularioDelNombre(seguir, cual) {
+// El campo del nombre y su botón. El nombre va al activo; lo que contesta es
+// el estado, con el que se decide la pantalla.
+function formularioDelNombre(seguir) {
   const nombre = el('input', {
     id: 'bautizo-nombre', class: 'texto', name: 'nombre', type: 'text', maxlength: 24,
     required: true, autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false',
@@ -656,7 +567,7 @@ function formularioDelNombre(seguir, cual) {
     conEspera(bautizar, async () => {
       callar(aviso);
       try {
-        await seguir(await pedir('POST', 'bautizar', { nombre: nombre.value, ...cual }));
+        await seguir(await pedir('POST', 'bautizar', { nombre: nombre.value }));
       } catch (error) {
         if (error && BAUTIZO_YA_NO_TOCA.has(error.clave)) {
           await seguir();

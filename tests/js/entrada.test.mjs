@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-// Lo justo de un navegador para armar la caja del código y el bautizo sin
-// pantalla: elementos que apuntan sus hijos, sus clases y sus oyentes, y un
-// portapapeles que anota lo que se le manda.
+// Lo justo de un navegador para armar la caja del código, la bienvenida y el
+// bautizo sin pantalla: elementos que apuntan sus hijos, sus clases y sus
+// oyentes, y un portapapeles que anota lo que se le manda.
 class Nodo {}
 class Elemento extends Nodo {
   constructor(etiqueta) {
@@ -28,6 +28,8 @@ class Elemento extends Nodo {
 
   append(...nodos) { this.hijos.push(...nodos); }
 
+  replaceChildren(...nodos) { this.hijos = [...nodos]; }
+
   focus() {}
 }
 globalThis.Node = Nodo;
@@ -42,7 +44,10 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 globalThis.window = { isSecureContext: true };
 
-const { bautizo, cajaDelCodigo, MUESTRAS } = await import('../../web/static/js/entrada.js');
+const entrada = await import('../../web/static/js/entrada.js');
+const {
+  bautizo, bienvenida, cajaDelCodigo, MUESTRAS,
+} = entrada;
 
 function textos(nodo) {
   if (!(nodo instanceof Elemento)) return [nodo.texto];
@@ -83,6 +88,39 @@ test('dice cuánto dura, en singular cuando es un minuto', () => {
   assert.ok(textos(deUno).some((texto) => texto.startsWith('Dura 1 minuto ')));
 });
 
+// --- la bienvenida y el huevo, que ya no está ----------------------------------------
+
+const NOTA_DE_EMPEZAR = 'Si empiezas de cero y un gachamon se va contigo, ya no podrás traer los de Discord.';
+
+test('la bienvenida dice «Empezar de cero», con su casa y su nota nueva', () => {
+  const contenedor = new Elemento('main');
+  bienvenida(contenedor, async () => {}, {
+    sesion: { usuario: 'ana' }, cuenta: { estado: 'nueva', tiene_gachamones: false },
+  });
+  const [empezar, traer, ...otros] = buscar(contenedor, 'button');
+  assert.deepEqual(otros, []);
+  assert.deepEqual(textos(empezar), ['🏠', 'Empezar de cero', 'Nunca jugué, o quiero empezar de nuevo aquí.']);
+  assert.deepEqual(textos(traer), ['💬', 'Ya jugaba en Discord', 'Trae tus gachamones con un código.']);
+  const notas = buscar(contenedor, 'p').filter((p) => p.atributos.class === 'nota');
+  assert.deepEqual(notas.map((p) => textos(p).join('')), [NOTA_DE_EMPEZAR]);
+  // Ni el huevo ni la nota de antes.
+  const todo = textos(contenedor).join(' ');
+  assert.ok(!todo.includes('🥚'), todo);
+  assert.ok(!todo.includes('nace tu gachamon'), todo);
+});
+
+test('no existe la pantalla del huevo', async () => {
+  assert.ok(!Object.hasOwn(entrada, 'huevo'));
+  for (const pantalla of ['sesion', 'bienvenida', 'avatar', 'bautizo', 'noCarga']) {
+    assert.equal(typeof entrada[pantalla], 'function', pantalla);
+  }
+  // Y nada de la entrada pide romper un huevo ni lo ofrece.
+  const { readFileSync } = await import('node:fs');
+  const codigo = readFileSync(new URL('../../web/static/js/entrada.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(codigo, /pedir\(\s*'POST',\s*'huevo'/);
+  for (const frase of ['Romper el huevo', 'Un huevo para ti']) assert.ok(!codigo.includes(frase), frase);
+});
+
 // --- el bautizo -------------------------------------------------------------------
 
 // Un servidor de mentira para `pedir`: apunta cada petición y contesta lo que
@@ -117,20 +155,20 @@ const nacido = {
   id: 3, nombre: 'Pulpito', espera_nombre: true, nombre_especie: 'Pulpito', nombre_etapa: 'bebé',
   genero: 'hembra', emoji: '🐙', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png',
 };
+// El recluta que esperaba nombre sin ninguna activa: un servidor viejo lo mandaba en `sin_nombre`.
 const recluta = { id: 7, nombre_especie: 'Pollito', retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png' };
-const conRecluta = { avatar: {}, gachamon: null, sin_nombre: recluta };
 const ESPERA_EN_LA_INCUBADORA = 'Este Pollito espera en la incubadora y todavía no tiene nombre.';
 
-test('el bautizo de un recluta dice que espera en la incubadora, enseña su retrato y manda su id', { timeout: 2000 }, async () => {
-  const despues = { ...conRecluta, gachamon: { ...nacido, id: 7, nombre: 'Bruma', espera_nombre: false } };
+test('el bautizo es siempre el del activo: un `sin_nombre` de un servidor viejo no lo cambia', { timeout: 2000 }, async () => {
+  const despues = { avatar: {}, gachamon: { ...nacido, nombre: 'Bruma', espera_nombre: false } };
   const pedidas = servidor(() => ({ estado: 200, datos: despues }));
-  const { contenedor, seguido } = await bautizarCon(conRecluta, 'Bruma');
-  assert.ok(textos(contenedor).includes(ESPERA_EN_LA_INCUBADORA));
-  assert.deepEqual(buscar(contenedor, 'img').map((img) => img.atributos.src), [recluta.retrato]);
+  const { contenedor, seguido } = await bautizarCon({ avatar: {}, gachamon: nacido, sin_nombre: recluta }, 'Bruma');
+  assert.ok(!textos(contenedor).includes(ESPERA_EN_LA_INCUBADORA));
+  assert.deepEqual(buscar(contenedor, 'img').map((img) => img.atributos.src), [nacido.retrato]);
   assert.equal(pedidas.length, 1);
   assert.equal(pedidas[0].metodo, 'POST');
   assert.ok(pedidas[0].url.endsWith('/bautizar'), pedidas[0].url);
-  assert.deepEqual(pedidas[0].cuerpo, { nombre: 'Bruma', gachamon_id: 7 });
+  assert.deepEqual(pedidas[0].cuerpo, { nombre: 'Bruma' });
   // Lo que contesta es el estado: con él se decide la pantalla.
   assert.deepEqual(seguido, [despues]);
 });
@@ -143,10 +181,10 @@ test('el bautizo del recién nacido no manda gachamon_id: es el de la activa, co
   assert.ok(!Object.hasOwn(pedidas[0].cuerpo, 'gachamon_id'));
 });
 
-test('si el recluta ya tiene nombre o ya no está, se vuelve a decidir sin enseñar un error', { timeout: 2000 }, async () => {
-  for (const [clave, mensaje] of [['ya_bautizado', 'Ese gachamon ya tiene nombre.'], ['no_esta', 'Ese gachamon ya no está.']]) {
+test('si ya tiene nombre o ya no hay a quién bautizar, se vuelve a decidir sin enseñar un error', { timeout: 2000 }, async () => {
+  for (const [clave, mensaje] of [['ya_bautizado', 'Tu gachamon ya tiene nombre.'], ['sin_gachamon', 'No tienes ningún gachamon vivo.']]) {
     servidor(() => ({ estado: 409, datos: { detail: { clave, mensaje } } }));
-    const { contenedor, seguido } = await bautizarCon(conRecluta, 'Bruma');
+    const { contenedor, seguido } = await bautizarCon({ avatar: {}, gachamon: nacido }, 'Bruma');
     assert.deepEqual(seguido, [], clave);
     assert.ok(!textos(contenedor).includes(mensaje), clave);
   }

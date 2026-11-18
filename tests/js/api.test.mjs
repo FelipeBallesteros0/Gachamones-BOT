@@ -39,23 +39,24 @@ test('lo que cambia algo lleva la cabecera del juego y el cuerpo en JSON', async
   const llamadas = conFetch(() => respuesta(200, { ok: true }));
   await pedir('POST', 'bautizar', { nombre: 'Pelusa' });
   await pedir('PUT', 'avatar', { nombre: 'Feli' });
-  await pedir('POST', 'huevo');
+  await pedir('POST', 'cuenta/empezar');
   for (const { opciones } of llamadas) {
     assert.equal(new Headers(opciones.headers).get('X-Gachamon'), '1', opciones.method);
   }
-  const [bautizo, avatar, huevo] = llamadas;
+  const [bautizo, avatar, empezar] = llamadas;
   assert.equal(bautizo.url, '/gachamon/api/bautizar');
   assert.equal(new Headers(bautizo.opciones.headers).get('Content-Type'), 'application/json');
   assert.deepEqual(JSON.parse(bautizo.opciones.body), { nombre: 'Pelusa' });
   assert.equal(avatar.opciones.method, 'PUT');
-  assert.equal(huevo.opciones.body, undefined);
+  assert.equal(empezar.url, '/gachamon/api/cuenta/empezar');
+  assert.equal(empezar.opciones.body, undefined);
 });
 
 test('un error del servidor llega con su estado, su clave y su mensaje', async () => {
   conFetch(() => respuesta(409, {
     detail: { clave: 'cuenta_cambio', mensaje: 'Tu cuenta cambió mientras tanto. Vuelve a entrar.' },
   }));
-  await assert.rejects(pedir('POST', 'huevo'), {
+  await assert.rejects(pedir('POST', 'aventura/primera'), {
     estado: 409, clave: 'cuenta_cambio', mensaje: 'Tu cuenta cambió mientras tanto. Vuelve a entrar.',
   });
 });

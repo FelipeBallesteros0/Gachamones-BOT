@@ -496,7 +496,9 @@ def test_las_frases_de_la_incubadora_y_del_recluta_son_las_del_plan():
     lugar = _guion("lugar.js")
     for frase in ("'Tu plantel'", "vista: 'incubadora'", "ofreceLaIncubadora("):
         assert frase in lugar, frase
-    assert "} espera en la incubadora y todavía no tiene nombre.`" in _guion("entrada.js")
+    # El bautizo del recluta que esperaba nombre sin ninguna activa era una rama
+    # muerta (el servidor ya no manda `sin_nombre`) y se fue con el huevo.
+    assert "espera en la incubadora y todavía no tiene nombre" not in _guion("entrada.js")
 
 
 def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():

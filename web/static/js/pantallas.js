@@ -2,36 +2,42 @@
 //
 // `sesion` es lo de /api/sesion (null sin sesión), `cuenta` lo de /api/cuenta y
 // `estado` lo de /api/estado (null mientras la cuenta sea nueva). El orden de
-// las preguntas es el del juego: sin avatar no se ve nada más. Sin gachamon
-// activo, un recluta que espera nombre (`estado.sin_nombre`) se bautiza antes
-// que romper un huevo. Quien tiene una carta sin leer la ve antes que nada (menos
-// el avatar). `vista` es lo que se pidió ver cuando todo está en orden:
-// con `'pueblo'`, el mapa en vez del lugar donde estás; con `'tienda'` o
-// `'incubadora'`, esa pantalla, si el lugar donde estás la ofrece (si no, el
-// lugar); con `'mochila'`, `'ficha'` o `'ropero'`, esa pantalla, estés donde
-// estés. Con otra, el lugar. Donde el lugar ofrece el departamento («Tu
-// casa»), lo que sería el lugar es el departamento.
+// las preguntas es el del juego: sin avatar no se ve nada más. Quien tiene una
+// carta sin leer la ve antes que nada (menos el avatar), y el gachamon que
+// espera nombre lo recibe antes que todo lo demás. Sin ningún gachamon se
+// juega igual: no hay nada que hacer antes. `vista` es lo que se pidió ver
+// cuando todo está en orden: con `'pueblo'`, el mapa en vez del lugar donde
+// estás; con `'tienda'`, `'incubadora'` o `'aventura'`, esa pantalla, si el
+// lugar donde estás la ofrece (si no, el lugar); con `'mochila'`, esa
+// pantalla, estés donde estés, y con `'ficha'` o `'ropero'`, igual, si tienes
+// un gachamon (si no, el lugar). Con otra, el lugar. Donde el lugar ofrece el
+// departamento («Tu casa»), lo que sería el lugar es el departamento.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';
   if (!estado || !estado.avatar) return 'avatar';
   if (estado.carta) return 'carta';
-  if (!estado.gachamon && estado.sin_nombre) return 'bautizo';
-  if (!estado.gachamon) return 'huevo';
-  if (estado.gachamon.espera_nombre) return 'bautizo';
+  if (estado.gachamon && estado.gachamon.espera_nombre) return 'bautizo';
   if (vista === 'pueblo') return 'pueblo';
   const aqui = ofreceElDepartamento(estado.lugar) ? 'departamento' : 'lugar';
   if (vista === 'tienda') return ofreceLaTienda(estado.lugar) ? 'tienda' : aqui;
   if (vista === 'incubadora') return ofreceLaIncubadora(estado.lugar) ? 'incubadora' : aqui;
+  if (vista === 'aventura') return ofreceLaAventura(estado.lugar) ? 'aventura' : aqui;
   if (vista === 'mochila') return 'mochila';
-  if (vista === 'ficha') return 'ficha';
-  if (vista === 'ropero') return 'ropero';
+  if (vista === 'ficha') return estado.gachamon ? 'ficha' : aqui;
+  if (vista === 'ropero') return estado.gachamon ? 'ropero' : aqui;
   return aqui;
 }
 
 // Si en ese lugar (`estado.lugar`) se puede comprar.
 export function ofreceLaTienda(lugar) {
   return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('tienda');
+}
+
+// Si en ese lugar (`estado.lugar`) se sale a la primera aventura: el servidor
+// se la ofrece sólo a quien todavía no tiene ningún gachamon.
+export function ofreceLaAventura(lugar) {
+  return Boolean(lugar) && Array.isArray(lugar.ofrece) && lugar.ofrece.includes('aventura');
 }
 
 // Si en ese lugar (`estado.lugar`) se ve el plantel y se saca a otro.
@@ -75,8 +81,8 @@ export function trasUnFalloAlArrancar(error) {
   return { pantalla: 'noCarga', mensaje };
 }
 
-// Quien empezó de cero puede traer todavía los de Discord, mientras no le
-// nazca nada aquí: el servidor da el código hasta entonces.
+// Quien empezó de cero puede traer todavía los de Discord, mientras no tenga
+// ningún gachamon aquí: el servidor da el código hasta entonces.
 export function puedeTraerDeDiscord(cuenta) {
   return Boolean(cuenta) && cuenta.estado === 'web' && !cuenta.tiene_gachamones;
 }

@@ -2,7 +2,9 @@
 // fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
 // un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo, abres su ficha
 // completa o la mochila o, donde el lugar tiene la tienda, entras a comprar, y
-// donde tiene la incubadora, a tu plantel.
+// donde tiene la incubadora, a tu plantel. Sin ningún gachamon, el lugar se
+// ve con tu avatar solo, su aviso y sus salidas: sin ficha, sin globo y sin
+// cuidados, y dónde estás es el título de la pantalla.
 //
 // `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
 // estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
@@ -10,8 +12,9 @@
 // cuidados y hace hablar al gachamon de vez en cuando. Con `llegando` (se
 // acaba de llegar caminando), su primer globo sale enseguida y habla del
 // lugar, salvo que necesite algo. Si lo que llega pide otra pantalla (hay uno
-// sin nombre, ya no es el mismo) se lo pasa a `seguir`. Todo lo que temporiza
-// se detiene en cuanto la pantalla deja de estar en la página.
+// sin nombre, ya no es el mismo, llegó uno o ya no está) se lo pasa a
+// `seguir`. Todo lo que temporiza se detiene en cuanto la pantalla deja de
+// estar en la página.
 //
 // Las reglas son del servidor: en qué lugar estás y qué se avisa ahí, y las
 // barras, que se pintan con lo que dice el estado sin simular el paso del
@@ -63,6 +66,11 @@ function pideOtraPantalla(estado) {
   return siguiente(true, { estado: 'en juego' }, estado) !== 'lugar';
 }
 
+// De qué gachamon es la pantalla: el que sale contigo, o `null` sin ninguno.
+function idDelGachamon(estado) {
+  return estado.gachamon ? estado.gachamon.id : null;
+}
+
 // Vuelve a lanzar una animación de CSS aunque ya estuviera puesta.
 function animar(nodo, clase) {
   nodo.classList.remove(clase);
@@ -73,7 +81,9 @@ function animar(nodo, clase) {
 export function lugar(contenedor, estado, seguir, llegando = false) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
-  const id = estado.gachamon.id;
+  const id = idDelGachamon(estado);
+  // Sin gachamon no se arma nada de lo suyo: si llega uno, es otra pantalla.
+  const conGachamon = Boolean(estado.gachamon);
   let actual = estado;
   let ultimoAhora = -Infinity;
   let vivo = true;
@@ -124,8 +134,11 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   const gemasVisibles = el('span', { 'aria-hidden': 'true' });
   const gemasLeidas = el('span', { class: 'solo-lector' });
   const ganancia = el('span', { class: 'ganancia', role: 'status' });
+  // Con gachamon, el título de la pantalla es su nombre, en la ficha; sin él,
+  // dónde estás.
   const cabecera = el('header', { class: 'barra barra-lugar' },
-    el('span', { class: 'donde' }, el('span', { 'aria-hidden': 'true' }, '📍'), donde),
+    el(conGachamon ? 'span' : 'h1', { class: 'donde', tabindex: conGachamon ? null : '-1' },
+      el('span', { 'aria-hidden': 'true' }, '📍'), donde),
     el('span', { class: 'saldos' },
       el('span', { class: 'saldo saldo-monedas' }, monedasVisibles, monedasLeidas, ganancia),
       el('span', { class: 'saldo' }, gemasVisibles, gemasLeidas)));
@@ -136,10 +149,11 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   // siempre, y debajo de todo lo demás.
   const fondo = el('canvas', { class: 'escena-fondo', 'aria-hidden': 'true' });
   const monigote = el('canvas', { class: 'monigote-lugar', 'aria-hidden': 'true' });
+  const primero = estado.gachamon;
   const retrato = el('img', {
-    class: 'retrato', src: estado.gachamon.retrato, alt: estado.gachamon.nombre, draggable: 'false',
+    class: 'retrato', src: primero && primero.retrato, alt: primero && primero.nombre, draggable: 'false',
   });
-  const sinRetrato = el('span', { class: 'retrato-sin', 'aria-hidden': 'true', hidden: true }, estado.gachamon.emoji);
+  const sinRetrato = el('span', { class: 'retrato-sin', 'aria-hidden': 'true', hidden: true }, primero && primero.emoji);
   retrato.addEventListener('error', () => {
     retrato.hidden = true;
     sinRetrato.hidden = false;
@@ -158,10 +172,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     fondo,
     el('span', { class: 'ventana', 'aria-hidden': 'true' }),
     monigote,
-    gachamon,
-    globo,
-    celebracion,
-    medallas);
+    conGachamon ? [gachamon, globo, celebracion, medallas] : null);
 
   // --- la ficha -------------------------------------------------------------------
 
@@ -194,7 +205,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   const aviso = el('p', { class: 'aviso-lugar', 'aria-live': 'polite' });
   const pista = el('p', { class: 'pista-lugar' });
   const avisos = el('div', { class: 'avisos-lugar' }, aviso, pista);
-  const bajoLaFicha = el('div', { class: 'bajo-la-ficha' }, franjaDelLugar, avisos);
+  const bajoLaFicha = el('div', { class: 'bajo-la-ficha' }, franjaDelLugar, conGachamon ? avisos : null);
 
   // --- los cuidados ---------------------------------------------------------------
 
@@ -237,11 +248,13 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     seguir(actual, { vista: 'mochila' });
   });
 
-  const cuerpo = el('div', { class: 'cuerpo cuerpo-lugar' },
+  const cuerpo = el('div', { class: conGachamon ? 'cuerpo cuerpo-lugar' : 'cuerpo cuerpo-lugar sin-gachamon' },
     escena,
-    ficha,
+    conGachamon ? ficha : null,
     bajoLaFicha,
-    el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo)),
+    conGachamon
+      ? el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo))
+      : null,
     el('div', { class: 'salidas-lugar' }, aComprar, aTuPlantel, aLaMochila, alPueblo));
   contenedor.append(cabecera, cuerpo);
 
@@ -255,7 +268,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     const cuando = Date.parse(nuevo.ahora);
     // Llegó después que otro más nuevo (una lectura que se cruzó con una acción).
     if (cuando < ultimoAhora) return;
-    if (pideOtraPantalla(nuevo) || nuevo.gachamon.id !== id) {
+    if (pideOtraPantalla(nuevo) || idDelGachamon(nuevo) !== id) {
       irse(nuevo);
       return;
     }
@@ -273,13 +286,16 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     franjaDelLugar.hidden = !avisoDelLugar;
     aComprar.hidden = !ofreceLaTienda(actual.lugar);
     aTuPlantel.hidden = !ofreceLaIncubadora(actual.lugar);
-    escena.dataset.etapa = g.etapa;
 
     const { monedas, gemas } = actual.saldos;
     monedasVisibles.textContent = `🪙 ${monedas}`;
     monedasLeidas.textContent = cuantasMonedas(monedas);
     gemasVisibles.textContent = `💎 ${gemas}`;
     gemasLeidas.textContent = cuantasGemas(gemas);
+
+    // Lo demás es del gachamon: sin él, no hay más que pintar.
+    if (!g) return;
+    escena.dataset.etapa = g.etapa;
 
     // Sólo si cambió: volver a poner la misma dirección haría parpadear.
     if (retrato.getAttribute('src') !== g.retrato) retrato.setAttribute('src', g.retrato);
@@ -366,8 +382,9 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       parar();
       return;
     }
-    for (const c of cuidados) contarCuidado(c, faltaPara(hasta, c.accion));
     const g = actual.gachamon;
+    if (!g) return;
+    for (const c of cuidados) contarCuidado(c, faltaPara(hasta, c.accion));
     const sePuede = faltaPara(hasta, 'acariciar') === 0;
     const texto = sePuede ? `Toca a ${g.nombre} para acariciar${segun(g.genero, 'lo', 'la')}.` : '';
     if (pista.textContent !== texto) pista.textContent = texto;
@@ -616,6 +633,8 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   repintarMonigote();
   cadaSegundo = setInterval(contar, 1000);
   cadaTanto = setInterval(releer, PEDIR_ESTADO_CADA_MS);
+  // Sin gachamon no hay quién hable.
+  if (!conGachamon) return;
   if (llegando) luego(PRIMER_GLOBO_AL_LLEGAR_MS, () => hablar(true));
   else luego(PRIMER_GLOBO_MS, hablar);
 }
