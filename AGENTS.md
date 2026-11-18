@@ -113,7 +113,7 @@ Instala el hook local cuando prepares el entorno:
 - Ampliar se compra estando en el departamento; lo demás, en la Tienda. El mueble que se compra llega a guardados.
 - El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, paga a cada persona las medallas de persona que ya tenía ganadas y sin cobrar (`economia._pagar_logros_de_persona_en`) y le deja una carta que la página enseña una vez.
 - Se parte sin gachamon y sin huevo: el primero lo crea `nacer.encontrar_al_primero`, detrás de la ruta de la primera aventura (`web/aventura.py`), y ninguna ruta de la web crea un gachamon sin pedir cama.
-- Un monedero nace con 50 monedas y 50 gemas antes del día del cambio y con 0 y 0 después; lo anota en `monederos.partida`, y la regla vive en `db` (`db.PARTIDA_DE_UN_MONEDERO_NUEVO`).
+- Un monedero nace con 50 monedas y 50 gemas antes del día del cambio y con 0 y 0 después; lo anota en `monederos.partida`, y la regla vive en `db` (`db.PARTIDA_DE_UN_MONEDERO_NUEVO`). El propio día del cambio le crea el suyo con 50 y 50 a quien ya estaba (`ya_estaba`), aunque la marca ya esté escrita, y todo lo que cree monederos dentro del cambio va después de esa llamada.
 - Las casas, el refugio, la intemperie y el huerto por casa ya no existen; sus tablas siguen en el esquema, sin uso.
 - Un regalo sale de una mochila y entra en un buzón en la misma transacción.
 - El buzón guarda el nombre de quien regala, nunca su id.

@@ -831,11 +831,11 @@ Son observaciones, no decisiones.
 - **Partir sin gachamon** (el plan siguiente): el huevo sigue existiendo y el
   que nace de él no pide cama; el monedero de quien empieza sigue naciendo con
   lo de hoy; comprar en la Tienda, usar la mochila y abrir el ropero siguen
-  pidiendo un gachamon. (Hecho en el rework 6; mira abajo cómo quedó: sin
-  huevo, el primero pide cama, el monedero de quien empieza nace en 0, y comprar
-  muebles ya no pide gachamon.) Quien sólo tenía un regalo en el buzón y nunca jugó
+  pidiendo un gachamon. Quien sólo tenía un regalo en el buzón y nunca jugó
   recibió también su monedero el día del cambio: cuenta como alguien que ya
-  estaba.
+  estaba. (Hecho en el rework 6, más abajo: ya no hay huevo, el primero pide
+  cama, el monedero de quien empieza nace en 0 y comprar muebles ya no pide
+  gachamon.)
   - Cuando el huevo se vaya, quitar el «nunca menos que los que ya tiene» de lo
     que caben en la Incubadora. (Hecho en el rework 6: se quitó.)
   - Vincular después de haber amueblado deja atrás el departamento de la
@@ -1301,6 +1301,10 @@ Son observaciones, no decisiones.
     sola vez, y la carta lo dice («Pagarlas el día del cambio»; se le
     propusieron tres opciones: pagarlas ese día, dejarlo para más adelante o no
     pagarlas).
+  - Tras la revisión final, el enlace para traer los de Discord se ofrece en tu
+    departamento mientras no tengas ningún gachamon: el mismo de la pantalla del
+    avatar, sin frases nuevas («En tu departamento, sin gachamon»; eligió entre
+    opciones que se le propusieron).
 - **Lo que el plan propuso y el dueño aprobó** (se le enseñó con el plan:
   «Apruebo, ejecútalo»; las frases, «Apruebo todas»):
   - Quién hace la primera aventura: cualquiera que no tenga ningún gachamon
@@ -1352,8 +1356,10 @@ Son observaciones, no decisiones.
     aventura.` (lo que contesta la ruta de la primera aventura si no estás en el
     lugar), `Así te verán en el pueblo.` (en la pantalla donde se crea el avatar)
     y `Tenías medallas ganadas y sin cobrar: te pagué {gemas}.` (en la carta del
-    alcalde, sólo para quien cobre algo). En las tres eligió entre opciones que
-    se le propusieron.
+    alcalde, sólo para quien cobre algo). Y, tras la revisión final, `Tu nuevo
+    gachamon, {especie}` (el texto alternativo del retrato en el paso del
+    nombre) y `Cargando la aventura…` (mientras carga la primera aventura). En
+    todas eligió entre opciones que se le propusieron.
 - **Lo que se decidió al construir** (se puede cambiar):
   - Con cuánto se empieza:
     - La marca del día del cambio se escribe al empezar su transacción; por eso
@@ -1392,7 +1398,9 @@ Son observaciones, no decisiones.
       se corta y la persona reintenta, se le paga entonces, pero sólo si lo que
       tiene es un único gachamon vivo, sin nombre y nacido después del día del
       cambio (`nacer.es_el_primero_sin_nombre`): quien ya jugaba no cobra nada por
-      pedir esa ruta.
+      pedir esa ruta. Y si en vez de reintentar recarga, se le pagan al ponerle
+      nombre (`POST /bautizar`), con la misma guarda, antes de poner el nombre
+      (después ya no lo espera); si ese pago falla, el nombre se pone igual.
     - En las pruebas web, el servicio hace el día del cambio un día antes de la
       fecha de las pruebas, como en producción, donde el cambio es anterior a
       todo.
@@ -1407,6 +1415,11 @@ Son observaciones, no decisiones.
       lo tiene y las salidas; sin ficha, sin cuidados y sin globo. En el mapa,
       caminas tú solo.
     - `lugar.js` y `mapa.js` ganaron sus primeras pruebas de JavaScript.
+    - El enlace a Discord de tu departamento es el de la pantalla del avatar,
+      que vive en un solo sitio (`entrada.js` lo exporta). Va bajo la guía; su
+      paso del código ocupa el lugar de lo de tu casa y «Volver» lo deja como
+      estaba. Mientras se ofrece, el dibujo de la pieza le deja su sitio, para
+      que lo de debajo siga a la vista en un teléfono.
   - La primera aventura en pantalla:
     - El botón que lleva a la aventura desde su lugar dice `La primera aventura`,
       con un ícono de brújula, y sólo se ofrece con la cama puesta; sin ella, el
@@ -1416,8 +1429,9 @@ Son observaciones, no decisiones.
       se lee la frase del servidor, con «Volver».
     - El segundo clic de un doble clic no avanza el diálogo (así no se salta la
       frase que dice qué gachamon es); el teclado y un clic suelto, sí.
-    - Mientras carga la aventura se ve el aro de espera de la página (no hay
-      frase de carga).
+    - Mientras carga la aventura, la tarjeta dice su frase de carga con el aro
+      de espera, como la carga de las demás pantallas: se anuncia, sin un
+      `aria-busy` alrededor que la calle.
     - Para salir antes del encuentro y para reintentar se usan «Volver» y «Volver
       a intentarlo», que ya existían.
     - La escena de la aventura es la del lugar: el dibujo del fondo y del avatar
@@ -1430,7 +1444,9 @@ Son observaciones, no decisiones.
       después de asegurarle el monedero y de devolverle lo de casas y tickets. La
       lógica vive en un solo sitio (`economia._pagar_logros_de_persona_en`), que
       usan el día del cambio y la ruta de la primera aventura.
-    - Cuánto se le pagó queda en lo que guarda su carta (`gemas_por_medallas`).
+    - Cuánto se le pagó queda en lo que guarda su carta (`gemas_por_medallas`),
+      y el resumen del cambio, que el arranque deja en el registro, suma lo que
+      se pagó a todos.
     - Este pago no queda en el registro de operaciones, igual que cualquier otra
       medalla: queda la medalla anotada y la suma en la carta.
     - Una especie que no esté en el catálogo no cuenta como rara y no tumba nada
@@ -1456,16 +1472,27 @@ Son observaciones, no decisiones.
   - **Volver atrás tras el primer arranque exige restaurar la copia de la base,
     no sólo el código**: después del primer arranque con este código, el código
     de antes ya no arranca sobre esa base (no conoce la forma nueva de
-    `monederos`).
+    `monederos`). Y la columna `partida` se confirma al preparar la base, antes
+    de la transacción del cambio: aunque el cambio fallara y se deshiciera
+    entero, la base ya no le sirve al código de antes.
   - **La conciliación no cuadra tras el día del cambio**, por algo anterior a
     este plan: lo que el cambio devuelve por casas y tickets no queda en el
     registro de operaciones. Cuadra sumándole lo que dicen las cartas del alcalde.
     Hay que resolverlo, o dejarlo dicho en el reporte, antes de publicar.
   - **En el ensayo sobre la copia de la base**, contar quién tiene 21 o 24
-    gachamones vivos (el día del cambio corre una cama para dejar la entrada
-    libre) y comparar las especies que hay en la base con el catálogo.
-- El aviso del arranque (el resumen del cambio) no dice cuántas gemas se pagaron
-  por medallas.
+    gachamones vivos: son los planteles en que el alcalde tuvo que correr una
+    cama para dejar la entrada libre. Y comparar las especies que hay en la base
+    con el catálogo.
+  - **Las gemas pagadas por medallas** se sacan de las cartas
+    (`gemas_por_medallas`) y del aviso del arranque; como mucho, lo que valen
+    las tres medallas de la persona, por persona.
+  - **El cambio lo hace el bot**, que es el que se reinicia primero: su aviso
+    sale en el registro del bot, no en el de la web.
+  - **Quien tenga la página abierta en la pantalla del huevo** mientras se
+    despliega verá «Eso no existe.» al romperlo, hasta que recargue.
+  - **Antes de publicar tiene que estar hecho el cambio de nombre de «Tu
+    casa»**, que es del plan del pueblo: las frases nuevas dicen «tu
+    departamento».
 - Fuera del arranque quedan sitios que buscan una especie en el catálogo dando
   por hecho que está (la simulación, las aventuras, competir, los retratos…):
   con una especie que se quitara del catálogo fallarían. Hoy no hay ninguna
@@ -1473,28 +1500,25 @@ Son observaciones, no decisiones.
 - Quien sólo tuviera cosas en el ropero y ningún monedero nacería en 0 al
   devolvérsele un cosmético retirado; en producción esa devolución ya corrió y no
   puede darse.
-- Si el pago de las medallas del primero se corta y la persona recarga la página
-  en vez de reintentar, esa medalla queda sin pagar (la misma ventana que tenía
-  el huevo).
 - La comprobación «estás en el lugar» está ya copiada en cuatro rutas (tienda,
   incubadora, departamento, aventura).
+- `dejarDeEsperar` está casi igual en la Tienda y en la mochila.
+- El botón que lleva a la primera aventura deduce que hay cama libre de que el
+  lugar «Aventura» no traiga aviso: si otro plan le pone un aviso, el botón
+  desaparece y quien empieza se queda sin camino. Conviene que el servidor lo
+  diga a las claras cuando se toque.
+- Vincular: una cuenta web de antes del cambio, sin gachamon, que vincula
+  después con una identidad de Discord que nunca jugó deja atrás sus 50 monedas
+  y 50 gemas, como su departamento. Así lo decidió el dueño (ver arriba).
 - La Tienda, sin gachamon, enseña los objetos con su precio activo aunque no se
   puedan comprar; y sus descripciones hablan de «tu gachamon activo».
 - El dibujo del huevo sigue en la pantalla de inicio de sesión y en la marca de
   la barra, como adorno.
-- El texto alternativo del retrato en el paso del nombre sigue diciendo «Tu
-  gachamon recién nacido, …» (no hay frase aprobada).
-- No hay frase de carga para la aventura.
 - Quien pulse «Seguir» muy rápido pierde el clic repetido.
 - Qué se pinta en los lienzos (la escena, el fondo) no lo cubre ninguna prueba de
   JavaScript.
 - La Incubadora entera se retira en un plan posterior; hasta entonces, sin
   gachamon, no se abre.
-
-### Pruebas
-
-- Las pruebas de JavaScript se corren con `node --test tests/js/*.test.mjs`: en
-  este Node, `node --test tests/js/` falla.
 
 ## Para el plan 6 (tu casa)
 

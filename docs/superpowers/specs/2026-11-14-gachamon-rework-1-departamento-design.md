@@ -398,7 +398,8 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
   5 × 4… con al menos `2 × camas + 5` casillas, hasta 8 × 8. A quien no le
   quede ningún gachamon le deja lo que a quien empieza: su cama puesta, otra
   guardada y la primera aventura por hacer. Las monedas y las gemas que cada
-  uno tenía no se tocan.
+  uno tenía no se tocan; las medallas ganadas y sin cobrar se pagan ese día
+  (sección 8.1).
 - **Las casas compradas se devuelven enteras en monedas** (lo que cuesta cada
   una en el catálogo), y **cada casa mediana o grande devuelve 140 monedas más**
   (pequeña 200, mediana 640, grande 1340) **[Felipe, 2026-11-16]**. Es una
@@ -543,7 +544,8 @@ Felipe el 2026-11-17 al escribir su plan.
   ahí te espera un gachamon.» **[propuesta, aceptada]**.
 - Vincular Discord sigue como hoy (sólo sin gachamones): quien amuebló sin
   gachamon y después vincula deja ese departamento atrás **[propuesta,
-  aceptada]**.
+  aceptada]**. El enlace para traer los de Discord se ofrece en tu
+  departamento mientras no tengas gachamon **[Felipe, 2026-11-19]**.
 - **[Felipe, 2026-11-18]** El día del cambio paga las medallas de persona que
   cada quien ya tenía ganadas y sin cobrar, una sola vez, y la carta lo dice:
   «Tenías medallas ganadas y sin cobrar: te pagué {gemas}.» **[propuesta,

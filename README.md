@@ -3,10 +3,11 @@
 Un tamagotchi que se juega en una página web: **rowino.online/gachamon**. Se
 empieza sin gachamon: el primero se gana en la primera aventura y es uno de 10
 al azar —hay 25 en total; los otros 15 se encuentran por ahí—; se cuida, se
-viste, vive en un departamento y se pasea por un pueblo. Nació como bot de Discord, y por eso este repositorio todavía lleva
-el bot: **el juego de Discord está en pausa**. Hoy el bot sólo atiende
-`/vincular`, que es la forma de llevar a la página los gachamones de quien
-jugaba allí, y a todo lo demás contesta que el juego se mudó.
+viste, vive en un departamento y se pasea por un pueblo. Nació como bot de
+Discord, y por eso este repositorio todavía lleva el bot: **el juego de Discord
+está en pausa**. Hoy el bot sólo atiende `/vincular`, que es la forma de llevar
+a la página los gachamones de quien jugaba allí, y a todo lo demás contesta que
+el juego se mudó.
 
 Son **cuatro estadísticas** —fuerza, velocidad, salud e ingenio— y se tiran al
 nacer, sobre la base de la especie.
@@ -139,30 +140,30 @@ Rowino.
 El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
 tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy
 están abiertos tu casa, la Incubadora, la tienda y, para quien aún no tiene
-gachamon, la primera aventura, y los demás avisan de que abren más adelante (el Refugio sigue en el mapa, cerrado: ya nadie vive en él).
-En la Tienda del pueblo se compran objetos, cosméticos (con gemas) y muebles,
-con el mismo dinero de siempre; lo que todavía no se puede usar en la página no
-se le vende a nadie. La mochila se abre desde cualquier lugar y sirve para usar
-lo que llevas, menos lo que sólo sirve para competir (las pociones de fuerza, de
-velocidad y de descanso rápido y las sopaipillas), que dice lo mismo que la
-Tienda y no se gasta. Desde cualquier lugar también se abre la ficha completa
-de tu gachamon, con sus medallas y los efectos que lleva activos, y el ropero,
-donde le pones y le quitas el sombrero y el título. La Incubadora enseña tu
-plantel: ahí sacas a otro gachamon para que sea el activo, y dice cuántos caben
-según las camas.
+gachamon, la primera aventura, y los demás avisan de que abren más adelante (el
+Refugio sigue en el mapa, cerrado: ya nadie vive en él). En la Tienda del pueblo
+se compran objetos, cosméticos (con gemas) y muebles, con el mismo dinero de
+siempre; lo que todavía no se puede usar en la página no se le vende a nadie. La
+mochila se abre desde cualquier lugar y sirve para usar lo que llevas, menos lo
+que sólo sirve para competir (las pociones de fuerza, de velocidad y de descanso
+rápido y las sopaipillas), que dice lo mismo que la Tienda y no se gasta. Desde
+cualquier lugar también se abre la ficha completa de tu gachamon, con sus
+medallas y los efectos que lleva activos, y el ropero, donde le pones y le
+quitas el sombrero y el título. La Incubadora enseña tu plantel: ahí sacas a
+otro gachamon para que sea el activo, y dice cuántos caben según las camas.
 
 **Cómo se empieza.** Quien llega nuevo crea su avatar y entra a su departamento
 sin gachamon y con el monedero en cero. Ahí la pantalla le dice siempre el paso
-que toca, bajo la pieza: poner su segunda cama (entrando a «Construir», tocándola
-en los guardados y después una casilla) y, con la cama puesta, salir al pueblo y
-ir a «Aventura». Ahí va solo con su avatar: algo se mueve entre los matorrales,
-se queda a su lado y es su primer gachamon, uno de los diez de partida sorteados
-con sus pesos. Entonces le pone nombre (se le sugiere uno, que puede dejar o
-cambiar) y vuelve a su departamento con él. El primero no cuesta nada, pero
-pide cama como todos. Mientras no tiene gachamon, el pueblo y los lugares se ven
-con el avatar solo y sin cuidados, la mochila se ve, la ficha y el ropero no se
-abren y la Tienda vende muebles. Quien ya jugaba conserva todo lo suyo; el
-huevo ya no existe en la página.
+que toca, bajo la pieza: poner su segunda cama (entrando a «Construir»,
+tocándola en los guardados y después una casilla) y, con la cama puesta, salir
+al pueblo y ir a «Aventura». Ahí va solo con su avatar: algo se mueve entre los
+matorrales, se queda a su lado y es su primer gachamon, uno de los diez de
+partida sorteados con sus pesos. Entonces le pone nombre (se le sugiere uno, que
+puede dejar o cambiar) y vuelve a su departamento con él. El primero no cuesta
+nada, pero pide cama como todos. Mientras no tiene gachamon, el pueblo y los
+lugares se ven con el avatar solo y sin cuidados, la mochila se ve, la ficha y
+el ropero no se abren y la Tienda vende muebles. Quien ya jugaba conserva todo
+lo suyo; el huevo ya no existe en la página.
 
 **Tu casa** es la pieza de tu departamento, en vista isométrica y por casillas,
 con tus muebles y todos tus gachamones. Siempre entras en el modo normal, el de
@@ -281,11 +282,11 @@ cada gachamon que puede recibirlo y paga como esos mismos cuidados hechos de a
 uno. Esa regla vive en el servidor de la web, que todavía no tiene el botón.
 
 La primera aventura da **sólo el de partida**: los demás hay que ganárselos en
-las aventuras, que están en pausa. Si una persona se quedó sin activo vivo porque el
-suyo murió antes, el primero que siga vivo sale solo al arrancar el bot o la web.
-El remiendo de antes sigue ahí por si acaso: también sale al entrar a la web, al
-ganar al primero, al poner nombre o al cambiar de activo. Sólo cambia la marca de
-quién sale contigo: su reloj sigue donde estaba.
+las aventuras, que están en pausa. Si una persona se quedó sin activo vivo
+porque el suyo murió antes, el primero que siga vivo sale solo al arrancar el
+bot o la web. El remiendo de antes sigue ahí por si acaso: también sale al
+entrar a la web, al ganar al primero, al poner nombre o al cambiar de activo.
+Sólo cambia la marca de quién sale contigo: su reloj sigue donde estaba.
 
 **El departamento.** Cada persona tiene **uno solo** por servidor, hecho de
 casillas: parte en 3 × 3 y se amplía por una fila o una columna, a 15 monedas
@@ -295,23 +296,24 @@ posiciones; puede haber varios iguales, y cada uno está puesto o guardado
 guardados, y ampliar se compra estando en tu departamento. Las **camas** son el
 límite de gachamones: hacen falta tantas camas puestas como gachamones vivos más
 una, la tuya; reclutar pide una cama libre (también el primero) y una cama que
-hace falta no se guarda. La **comodidad** es una puntuación (no un porcentaje): parte de 80, cada
-tipo de mueble puesto suma una vez y el tope crece con las casillas. Frena el
-ánimo de todos los que viven ahí y no toca el hambre. Las casas, el refugio, la
-intemperie y el huerto se fueron: el día del cambio se convierte una sola vez lo
-que cada persona tenía (se le devuelve lo que costaron sus casas, con 140 monedas
-más por cada una mediana o grande, y sus tickets, y se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El
-huerto está cerrado hasta que vuelva con el balcón. La pantalla del
-departamento es «Tu casa» (ver «La web»).
+hace falta no se guarda. La **comodidad** es una puntuación (no un porcentaje):
+parte de 80, cada tipo de mueble puesto suma una vez y el tope crece con las
+casillas. Frena el ánimo de todos los que viven ahí y no toca el hambre. Las
+casas, el refugio, la intemperie y el huerto se fueron: el día del cambio se
+convierte una sola vez lo que cada persona tenía (se le devuelve lo que costaron
+sus casas, con 140 monedas más por cada una mediana o grande, y sus tickets, y
+se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El huerto
+está cerrado hasta que vuelva con el balcón. La pantalla del departamento es «Tu
+casa» (ver «La web»).
 
 **Nacer.** La especie sale por rareza: 12 % cada una de las siete comunes, 6 %
 las dos poco comunes y 4 % el dragón. Las estadísticas al nacer son **la base de
 la especie + 2d6** tirado por separado en cada una.
 
-Al ganar al primero en la primera aventura ves primero **qué ha salido y con qué
-estadísticas**, y sólo después le pones nombre, con uno sugerido. La criatura
-nace en la base de datos en ese mismo momento, con el nombre de su especie como
-provisional: si te vas sin bautizarla sigue siendo tuya.
+Al ganar al primero en la primera aventura ves primero **qué ha salido**, y sólo
+después le pones nombre, con uno sugerido. La criatura nace en la base de datos
+en ese mismo momento, con el nombre de su especie como provisional: si te vas
+sin bautizarla sigue siendo tuya.
 
 **Cuidar.** Tres barras bajan con el tiempo, en todos los gachamones vivos. Si
 **COMIDA** llega a 0, la criatura **no se muere**: se queda en 0 hasta que le
@@ -340,16 +342,16 @@ que machacar el botón no compense: el segundo punto cuesta 4 sesiones, el
 tercero 9, el décimo 100.
 
 **Consumibles.** La Mochila y la Tienda de la página guardan y venden lo que
-usas. Quien ya jugaba conserva **sus 50 monedas y 50 gemas** de partida; quien empieza
-ahora parte con **0 y 0**. En la tienda se compra
-todo, cada moneda en lo suyo: los consumibles con monedas y los cosméticos con
-gemas, sin conversión entre las dos. Los cosméticos van a tu **ropero**. El
-monedero es **suyo, no de la criatura**: lo comprado es de la persona y sirve
-para cualquiera de sus gachamones. Hay pociones de fuerza y de velocidad de 1d4
-a 1d12 que duran cinco minutos y sirven para competir, que está
-[en pausa](#en-pausa); una que llena el hambre saltándose el empacho, y
-dos que borran un enfriamiento. Lo que todavía no se puede usar en la página (lo
-que sirve para competir) no se vende a nadie, y la semilla ya no se vende.
+usas. Quien ya jugaba conserva **las monedas y las gemas que tenga**; quien
+empieza ahora parte con **0 y 0**. En la tienda se compra todo, cada moneda en
+lo suyo: los consumibles con monedas y los cosméticos con gemas, sin conversión
+entre las dos. Los cosméticos van a tu **ropero**. El monedero es **suyo, no de
+la criatura**: lo comprado es de la persona y sirve para cualquiera de sus
+gachamones. Hay pociones de fuerza y de velocidad de 1d4 a 1d12 que duran cinco
+minutos y sirven para competir, que está [en pausa](#en-pausa); una que llena el
+hambre saltándose el empacho, y dos que borran un enfriamiento. Lo que todavía
+no se puede usar en la página (lo que sirve para competir) no se vende a nadie,
+y la semilla ya no se vende.
 
 **Economía.** Un cuidado válido da +1 moneda (hasta 12 al día UTC), cada
 competencia resuelta da +4 a cada participante y +2 extra a quien gana (hasta
@@ -480,20 +482,20 @@ en Python puro y 72 ms con Pillow**. Encima hay una caché en memoria de los
 
 **El catálogo.** Veinticinco especies repartidas en diez biomas, pero **el
 primero que te encuentras en la primera aventura sale sólo de diez**: las de
-siempre (el sorteo se sigue llamando `elegir_del_huevo`). Las quince nuevas hay que
-encontrárselas en las aventuras (hoy en pausa), para que el comienzo sea conocido
-y el catálogo grande sea lo que se descubre jugando.
+siempre (el sorteo se sigue llamando `elegir_del_huevo`). Las quince nuevas hay
+que encontrárselas en las aventuras (hoy en pausa), para que el comienzo sea
+conocido y el catálogo grande sea lo que se descubre jugando.
 
-**El peso es la probabilidad en ese primer encuentro, y sólo eso.** Las quince que no salen
-de él llevan peso 0 en vez de arrastrar un número que no significa nada, y las
-diez que sí salen suman 100 entre ellas — cada peso se lee como un porcentaje,
-y el Tsushimon es uno de cada veinticinco primeros gachamones.
+**El peso es la probabilidad en ese primer encuentro, y sólo eso.** Las quince
+que no salen de él llevan peso 0 en vez de arrastrar un número que no significa
+nada, y las diez que sí salen suman 100 entre ellas — cada peso se lee como un
+porcentaje, y el Tsushimon es uno de cada veinticinco primeros gachamones.
 
-**En el campo pesa la rareza, no el peso del primer encuentro.** `tirar_salvaje` sortea
-dentro del bioma con `PESO_EN_EL_CAMPO`, que reparte 12/6/4 — el mismo reparto
-que el primer encuentro, para que «raro» signifique lo mismo en los dos sitios. No puede
-leer `Especie.peso` justamente porque vale 0 en quince especies: las dejaría sin
-aparecer nunca en ningún sitio.
+**En el campo pesa la rareza, no el peso del primer encuentro.** `tirar_salvaje`
+sortea dentro del bioma con `PESO_EN_EL_CAMPO`, que reparte 12/6/4 — el mismo
+reparto que el primer encuentro, para que «raro» signifique lo mismo en los dos
+sitios. No puede leer `Especie.peso` justamente porque vale 0 en quince
+especies: las dejaría sin aparecer nunca en ningún sitio.
 
 Antes era uniforme y una rara salía tanto como sus vecinas: su rareza sólo se
 notaba en los 30 puntos de estadísticas. Ahora un Tsushimon pasa del 33 % al
