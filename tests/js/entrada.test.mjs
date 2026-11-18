@@ -240,6 +240,12 @@ test('el paso del nombre trae el sugerido escrito y dice que se puede dejar', ()
   assert.deepEqual(buscar(sinSugerido.contenedor, 'h1').map((h) => textos(h).join('')), ['¡Se vino contigo!']);
 });
 
+test('el retrato del paso del nombre se lee como «Tu nuevo gachamon», con su especie', () => {
+  const { contenedor } = pasoDelNombre({ ...nacido, sugerido: 'Bruma' });
+  const [retrato] = buscar(contenedor, 'img');
+  assert.equal(retrato.atributos.alt, 'Tu nuevo gachamon, Pulpito');
+});
+
 test('con el sugerido tal cual, «Ponerle este nombre» lo manda', { timeout: 2000 }, async () => {
   const despues = { avatar: {}, gachamon: { ...nacido, nombre: 'Bruma', espera_nombre: false, sugerido: null } };
   const pedidas = servidor(() => ({ estado: 200, datos: despues }));

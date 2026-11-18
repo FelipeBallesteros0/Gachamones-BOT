@@ -6,8 +6,8 @@
 // con tu avatar (el fondo y el monigote son los de la escena del lugar, que
 // exporta `lugar.js`), y pide lo que dice la aventura (`GET aventura`): si se
 // puede y las frases de antes. Las frases las manda el servidor y entran tal
-// cual. Mientras llegan, el diálogo espera (el aro de siempre en la tarjeta, y
-// `aria-busy`); si no llegan, se dice por qué y el botón la vuelve a pedir. Si
+// cual. Mientras llegan, la tarjeta dice «Cargando la aventura…», con el aro de
+// siempre; si no llegan, se dice por qué y el botón la vuelve a pedir. Si
 // al llegar ya no se puede (ya tienes uno, o la cama ya no está libre), se
 // vuelve a decidir la pantalla: el lugar lo dice.
 //
@@ -41,6 +41,7 @@ const SEGUIR = 'Seguir';
 const ACERCARTE = 'Acercarte';
 const VOLVER_A_CASA = 'Volver a casa';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
+const CARGANDO = 'Cargando la aventura…';
 
 export function aventura(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
@@ -113,7 +114,7 @@ export function aventura(contenedor, estado, seguir) {
   volver.addEventListener('click', () => {
     if (!enCamino) irse();
   }, { signal: oyentes.signal });
-  const dialogo = el('div', { class: 'aventura-dialogo', 'aria-busy': 'true' }, frase, avanzar, volver);
+  const dialogo = el('div', { class: 'aventura-dialogo' }, frase, avanzar, volver);
 
   const cuerpo = el('div', { class: 'cuerpo cuerpo-aventura' }, escena, dialogo, aviso.nodo);
   contenedor.append(cabecera, cuerpo);
@@ -161,18 +162,14 @@ export function aventura(contenedor, estado, seguir) {
 
   // --- lo que dice la aventura -----------------------------------------------------------
 
-  // Mientras llega, el diálogo espera: se ve en la tarjeta (el aro de siempre,
-  // sin frase) y lo sabe el lector de pantalla (`aria-busy`).
+  // Mientras llega, la tarjeta lo dice como lo dicen las demás pantallas su
+  // carga, con el aro de siempre: se lee y se anuncia (la frase está en la zona
+  // que se anuncia, y nada alrededor la calla). Al llegar o al fallar, se va.
   function esperarLaAventura(si) {
     frase.classList.toggle('esperando', si);
-    if (si) {
-      // Al volver a intentarlo, lo que decía por qué no llegó ya no vale.
-      frase.textContent = '';
-      frase.classList.remove('es-error');
-      dialogo.setAttribute('aria-busy', 'true');
-    } else {
-      dialogo.removeAttribute('aria-busy');
-    }
+    // Al volver a intentarlo, lo que decía por qué no llegó ya no vale.
+    frase.classList.remove('es-error');
+    frase.textContent = si ? CARGANDO : '';
   }
 
   async function leer() {

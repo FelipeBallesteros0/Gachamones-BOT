@@ -1760,8 +1760,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   overflow-wrap: anywhere;
 }
 
-/* Mientras llega la aventura, en la tarjeta sólo el aro de lo que espera. */
-.aventura-frase.esperando { justify-items: center; }
+/* Mientras llega la aventura, en la tarjeta «Cargando la aventura…», suave como
+   la carga de las demás pantallas, y debajo el aro de lo que espera. */
+.aventura-frase.esperando { justify-items: center; gap: 8px; color: var(--texto-suave); }
 
 .aventura-frase.es-error {
   border-color: var(--error-texto);

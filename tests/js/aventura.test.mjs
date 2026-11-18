@@ -549,24 +549,31 @@ test('la escena es la del lugar: la primera aventura la pinta con lo que exporta
   }
 });
 
-test('mientras llega la aventura, la tarjeta espera con el aro de siempre, y deja de esperar al llegar', { timeout: 2000 }, async () => {
+const CARGANDO = 'Cargando la aventura…';
+
+test('mientras llega la aventura, la tarjeta dice «Cargando la aventura…» con el aro de siempre, y deja de esperar al llegar', { timeout: 2000 }, async () => {
   let soltar;
   const { contenedor, servidor } = await abrir({ antes: (s) => { soltar = s.retiene('GET aventura'); } });
   const dialogo = contenedor.querySelector('.aventura-dialogo');
   assert.ok(frase(contenedor).classList.contains('esperando'));
-  assert.equal(dialogo.getAttribute('aria-busy'), 'true');
-  assert.equal(frase(contenedor).textContent, '');                      // ninguna frase nueva
+  // Se lee y se anuncia, como la carga de las demás pantallas: en la zona que se
+  // anuncia, y sin nada alrededor que la calle mientras tanto (`aria-busy`).
+  assert.equal(frase(contenedor).textContent, CARGANDO);
+  assert.equal(frase(contenedor).getAttribute('role'), 'status');
+  assert.equal(dialogo.getAttribute('aria-busy'), null);
   assert.equal(avanza(contenedor).seVe, false);
   await soltar(SE_PUEDE);
   assert.ok(!frase(contenedor).classList.contains('esperando'));
-  assert.equal(dialogo.getAttribute('aria-busy'), null);
   assert.equal(frase(contenedor).textContent, ANTES[0]);
-  // Si no llega, deja de esperar y dice por qué; al volver a intentarlo, espera otra vez.
+  // Si no llega, deja de esperar y dice por qué (la carga se va); al volver a
+  // intentarlo, espera otra vez y lo dice otra vez.
   const sinRed = await abrir({ antes: (s) => s.falla('GET aventura') });
   assert.ok(!frase(sinRed.contenedor).classList.contains('esperando'));
+  assert.equal(frase(sinRed.contenedor).textContent, 'No hay conexión con el juego. Revisa tu internet y vuelve a intentarlo.');
   const otraVez = sinRed.servidor.retiene('GET aventura');
   await avanza(sinRed.contenedor).tocar();
   assert.ok(frase(sinRed.contenedor).classList.contains('esperando'));
+  assert.equal(frase(sinRed.contenedor).textContent, CARGANDO);
   await otraVez(SE_PUEDE);
   assert.ok(!frase(sinRed.contenedor).classList.contains('esperando'));
   assert.equal(frase(sinRed.contenedor).textContent, ANTES[0]);

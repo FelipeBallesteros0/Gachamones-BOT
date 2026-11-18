@@ -533,7 +533,7 @@ function conMayuscula(texto) {
 export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
   const nacido = estado.gachamon;
   const retrato = el('img', {
-    class: 'retrato', src: nacido.retrato, alt: `Tu gachamon recién nacido, ${nacido.nombre_especie}`,
+    class: 'retrato', src: nacido.retrato, alt: `Tu nuevo gachamon, ${nacido.nombre_especie}`,
   });
   retrato.addEventListener('error', () => {
     retrato.replaceWith(el('span', { class: 'retrato-sin', role: 'img', 'aria-label': nacido.nombre_especie }, nacido.emoji));
