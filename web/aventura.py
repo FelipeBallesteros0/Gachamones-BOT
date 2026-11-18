@@ -89,8 +89,8 @@ def la_primera_aventura(jugador: Jugador = Depends(jugador_actual)) -> dict:
     # sigue fallara, al volver a entrar te esperaría para que le pongas nombre.
     # Al llegar el primero se miran las medallas de la persona (una rara).
     economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
-    # Vuelves a tu casa con él.
-    db.poner_lugar(jugador.persona.rowino_uid, "casa")
+    # Vuelves a tu casa con él: el lugar del que se parte.
+    db.poner_lugar(jugador.persona.rowino_uid, pueblo.de_partida())
     especie = primero.def_especie.nombre
     return {
         "estado": estado.armar(jugador, ahora),

@@ -111,7 +111,7 @@ function pintarLienzo(nodo, unidad, pie, dibujar) {
 
 // El huevo de la pantalla de entrar: un adorno, entero.
 function pintarHuevo(nodo) {
-  pintarLienzo(nodo, 4, 8, (ctx, escala) => dibujarHuevo(ctx, escala, false));
+  pintarLienzo(nodo, 4, 8, (ctx, escala) => dibujarHuevo(ctx, escala));
 }
 
 // --- sesion: hay que entrar a Rowino ------------------------------------------

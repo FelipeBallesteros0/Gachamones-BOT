@@ -1019,7 +1019,8 @@ def tirar_salvaje(bioma: Bioma, rng: random.Random | None = None) -> Salvaje:
 
     Antes era uniforme y una rara salía tanto como sus vecinas comunes: su
     rareza sólo se notaba en las estadísticas y en la etiqueta de la ficha. El
-    peso sale de `esp.PESO_EN_EL_CAMPO`, el mismo reparto que usa el huevo.
+    peso sale de `esp.PESO_EN_EL_CAMPO`, el mismo reparto que tenía el huevo y
+    que hoy tiene el primero de la primera aventura.
     """
     rng = rng or random.Random()
     pesos = [esp.PESO_EN_EL_CAMPO[esp.ESPECIES[e].rareza] for e in bioma.especies]
@@ -1028,7 +1029,7 @@ def tirar_salvaje(bioma: Bioma, rng: random.Random | None = None) -> Salvaje:
     ]
     return Salvaje(
         especie=definicion.clave,
-        nombre=definicion.nombre,  # provisional, como el del huevo
+        nombre=definicion.nombre,  # provisional, como el del primero de la primera aventura
         genero=esp.tirar_genero(rng),
         caracter=per.tirar_caracter(rng),
         stats=esp.tirar_stats_iniciales(definicion, rng),

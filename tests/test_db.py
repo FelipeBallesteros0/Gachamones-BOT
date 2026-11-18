@@ -72,8 +72,8 @@ def test_por_id_de_uno_que_no_existe_es_nada():
 
 
 def test_crear_deja_siempre_una_sola_activa():
-    """Lo impone el índice único de SQLite, no el código: dos `/huevo` a la vez
-    no pueden dejar dos criaturas recibiendo los comandos.
+    """Lo impone el índice único de SQLite, no el código: dos encuentros de la
+    primera aventura a la vez no pueden dejar dos criaturas activas.
 
     Antes el índice prohibía una segunda criatura *viva*; desde el plantel de
     tres prohíbe una segunda *activa*, que es lo que de verdad no puede pasar."""
