@@ -23,7 +23,9 @@
 // tiempo; lo único que corre aquí son las cuentas de espera. Todo texto entra
 // por `el` o por `textContent`. Lo que hace igual que tu departamento (los
 // cuidados, las barras, las esperas y qué se celebra y qué se avisa tras un
-// cuidado o una caricia) está en `cuidados.js`.
+// cuidado o una caricia) está en `cuidados.js`. La escena (el fondo del lugar
+// y tu monigote) la comparte con la pantalla de la primera aventura: por eso
+// se exporta (`fondoDeLaEscena`, `monigoteDeLaEscena`).
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { cargar, faltante, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
@@ -50,15 +52,106 @@ const CELEBRACION_DURA_MS = 4500;
 const MEDALLA_DURA_MS = 6000;
 const CORAZONES = 6;
 const CORAZON_DURA_MS = 1600;
+const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
+
+// --- la escena de un lugar: la de esta pantalla y la de la primera aventura -----------
+
 // Lo que mide de alto el avatar en la escena, en píxeles de pantalla: en el
 // computador se ve más grande.
 const ALTO_DEL_AVATAR = 126;
 const ALTO_DEL_AVATAR_EN_COMPUTADOR = 168;
-const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
 const DENSIDAD_MAXIMA = 3;
 
 // El fondo de la escena de cada lugar, una pieza del contrato del arte.
 const escenaDe = (clave) => `escenas/${clave}.png`;
+
+// El dibujo del lugar en el lienzo `lienzo` del fondo de la escena.
+// `poner(clave)` pone el de ese lugar: si cambió el lugar, el dibujo del
+// anterior se quita en el acto y el nuevo se pinta en cuanto llega; uno que
+// llega tarde, de un lugar que ya no es, o cuando `sigue()` ya es falso (se
+// dejó la pantalla), no se pinta. El dibujo cubre toda la escena sin
+// deformarse: si la escena no tiene su forma, se recorta lo que sobra por los
+// lados o por arriba y abajo, por igual. Con los píxeles de la pantalla y sin
+// suavizar, que es un dibujo de cuadros. Si no cargó, su recuadro deja ver la
+// pared y el piso de debajo. La escena cambia de tamaño al girar el teléfono
+// o la ventana: el fondo se vuelve a pintar a su medida (lo que escucha para
+// eso se deja con `signal` o con `parar()`).
+export function fondoDeLaEscena(lienzo, { sigue, signal }) {
+  // La pieza del lugar donde estás, cuando ya llegó: `{ruta, imagen}`, con
+  // `imagen` en `null` si no se pudo cargar.
+  let rutaDelFondo = null;
+  let piezaDelFondo = null;
+  let observador = null;
+
+  function dibujar() {
+    const ancho = lienzo.clientWidth;
+    const alto = lienzo.clientHeight;
+    if (!ancho || !alto) return;
+    const densidad = Math.min(Math.max(window.devicePixelRatio || 1, 1), DENSIDAD_MAXIMA);
+    const anchoReal = Math.round(ancho * densidad);
+    const altoReal = Math.round(alto * densidad);
+    // Cambiar el tamaño borra el lienzo: sólo si de verdad cambia.
+    if (lienzo.width !== anchoReal) lienzo.width = anchoReal;
+    if (lienzo.height !== altoReal) lienzo.height = altoReal;
+    const ctx = lienzo.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, anchoReal, altoReal);
+    if (!piezaDelFondo) return;
+    const { imagen } = piezaDelFondo;
+    if (!imagen) {
+      faltante(ctx, 0, 0, anchoReal, altoReal, piezaDelFondo.ruta);
+      return;
+    }
+    const escala = Math.max(anchoReal / imagen.naturalWidth, altoReal / imagen.naturalHeight);
+    const anchoVisto = anchoReal / escala;
+    const altoVisto = altoReal / escala;
+    ctx.drawImage(imagen,
+      (imagen.naturalWidth - anchoVisto) / 2, (imagen.naturalHeight - altoVisto) / 2, anchoVisto, altoVisto,
+      0, 0, anchoReal, altoReal);
+  }
+
+  function poner(clave) {
+    const ruta = escenaDe(clave);
+    if (ruta === rutaDelFondo) return;
+    rutaDelFondo = ruta;
+    piezaDelFondo = null;
+    dibujar();
+    cargar(ruta).then((cargada) => {
+      if (!sigue() || cargada.ruta !== rutaDelFondo) return;
+      piezaDelFondo = cargada;
+      dibujar();
+    });
+  }
+
+  if (typeof ResizeObserver === 'function') {
+    observador = new ResizeObserver(dibujar);
+    observador.observe(lienzo);
+  } else {
+    window.addEventListener('resize', dibujar, { signal });
+  }
+
+  return {
+    poner,
+    parar() {
+      if (observador) observador.disconnect();
+    },
+  };
+}
+
+// Tu avatar quieto en el lienzo `lienzo` de la escena, con el avatar que dé
+// `avatarDe()`; en el computador, más grande. Devuelve con qué pintarlo, y se
+// vuelve a pintar solo al cruzar el ancho del computador (lo que escucha para
+// eso se deja con `signal`).
+export function monigoteDeLaEscena(lienzo, avatarDe, signal) {
+  const ancho = window.matchMedia('(min-width: 900px)');
+  const pintar = () => lienzoDelAvatar(
+    lienzo, avatarDe(), ancho.matches ? ALTO_DEL_AVATAR_EN_COMPUTADOR : ALTO_DEL_AVATAR,
+  );
+  ancho.addEventListener('change', pintar, { signal });
+  return pintar;
+}
+
+// --- la pantalla del lugar ---------------------------------------------------------------
 
 function mensajeDe(error) {
   return error && typeof error.mensaje === 'string' && error.mensaje ? error.mensaje : ALGO_SALIO_MAL;
@@ -104,7 +197,8 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   const oyentes = new AbortController();
   let cadaSegundo = null;
   let cadaTanto = null;
-  let observador = null;
+  // El fondo de la escena (se pone al pintar el lugar).
+  let elFondo = null;
 
   function luego(ms, hacer) {
     const marca = setTimeout(() => {
@@ -127,7 +221,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     clearInterval(cadaSegundo);
     clearInterval(cadaTanto);
     oyentes.abort();
-    if (observador) observador.disconnect();
+    if (elFondo) elFondo.parar();
   }
 
   // Deja la pantalla y que se decida otra: con el estado que llegó, o
@@ -226,7 +320,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     return cuidado;
   });
 
-  // --- comprar, tu plantel o la primera aventura, donde el lugar lo ofrece, la mochila e ir al pueblo ----
+  // --- comprar, tu plantel o la aventura (donde se ofrece), la mochila e ir al pueblo ----
 
   // Se ve sólo mientras el lugar donde estás tenga la tienda.
   const aComprar = el('button', { type: 'button', class: 'boton principal boton-comprar', hidden: true },
@@ -299,7 +393,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   function pintar() {
     const g = actual.gachamon;
     donde.textContent = actual.lugar.nombre;
-    ponerFondo(actual.lugar.clave);
+    elFondo.poner(actual.lugar.clave);
     const avisoDelLugar = actual.lugar.aviso || '';
     if (franjaDelLugar.textContent !== avisoDelLugar) franjaDelLugar.textContent = avisoDelLugar;
     franjaDelLugar.hidden = !avisoDelLugar;
@@ -342,60 +436,6 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
       callarGlobo();
     }
     contar();
-  }
-
-  // --- el fondo de la escena ----------------------------------------------------------
-
-  // La pieza del lugar donde estás, cuando ya llegó: `{ruta, imagen}`, con
-  // `imagen` en `null` si no se pudo cargar.
-  let rutaDelFondo = null;
-  let piezaDelFondo = null;
-
-  // Si cambió el lugar, el dibujo del anterior se quita en el acto y el nuevo
-  // se pinta en cuanto llega; uno que llega tarde, de un lugar que ya no es,
-  // no se pinta.
-  function ponerFondo(clave) {
-    const ruta = escenaDe(clave);
-    if (ruta === rutaDelFondo) return;
-    rutaDelFondo = ruta;
-    piezaDelFondo = null;
-    dibujarFondo();
-    cargar(ruta).then((cargada) => {
-      if (!vivo || cargada.ruta !== rutaDelFondo) return;
-      piezaDelFondo = cargada;
-      dibujarFondo();
-    });
-  }
-
-  // El dibujo cubre toda la escena sin deformarse: si la escena no tiene su
-  // forma, se recorta lo que sobra por los lados o por arriba y abajo, por
-  // igual. Con los píxeles de la pantalla y sin suavizar, que es un dibujo de
-  // cuadros. Si no cargó, su recuadro deja ver la pared y el piso de debajo.
-  function dibujarFondo() {
-    const ancho = fondo.clientWidth;
-    const alto = fondo.clientHeight;
-    if (!ancho || !alto) return;
-    const densidad = Math.min(Math.max(window.devicePixelRatio || 1, 1), DENSIDAD_MAXIMA);
-    const anchoReal = Math.round(ancho * densidad);
-    const altoReal = Math.round(alto * densidad);
-    // Cambiar el tamaño borra el lienzo: sólo si de verdad cambia.
-    if (fondo.width !== anchoReal) fondo.width = anchoReal;
-    if (fondo.height !== altoReal) fondo.height = altoReal;
-    const ctx = fondo.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, anchoReal, altoReal);
-    if (!piezaDelFondo) return;
-    const { imagen } = piezaDelFondo;
-    if (!imagen) {
-      faltante(ctx, 0, 0, anchoReal, altoReal, piezaDelFondo.ruta);
-      return;
-    }
-    const escala = Math.max(anchoReal / imagen.naturalWidth, altoReal / imagen.naturalHeight);
-    const anchoVisto = anchoReal / escala;
-    const altoVisto = altoReal / escala;
-    ctx.drawImage(imagen,
-      (imagen.naturalWidth - anchoVisto) / 2, (imagen.naturalHeight - altoVisto) / 2, anchoVisto, altoVisto,
-      0, 0, anchoReal, altoReal);
   }
 
   // Cada segundo: las cuentas de los cuidados y la pista de la caricia.
@@ -636,21 +676,10 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     releer();
   }, { signal: oyentes.signal });
 
-  // En el computador el monigote se ve más grande.
-  const ancho = window.matchMedia('(min-width: 900px)');
-  const repintarMonigote = () => lienzoDelAvatar(
-    monigote, actual.avatar, ancho.matches ? ALTO_DEL_AVATAR_EN_COMPUTADOR : ALTO_DEL_AVATAR,
-  );
-  ancho.addEventListener('change', repintarMonigote, { signal: oyentes.signal });
-
-  // La escena cambia de tamaño al girar el teléfono o la ventana: el fondo se
-  // vuelve a pintar a su medida.
-  if (typeof ResizeObserver === 'function') {
-    observador = new ResizeObserver(dibujarFondo);
-    observador.observe(fondo);
-  } else {
-    window.addEventListener('resize', dibujarFondo, { signal: oyentes.signal });
-  }
+  // Tu avatar, que en el computador se ve más grande, y el fondo de la escena,
+  // que se vuelve a pintar a su medida: los de la escena de un lugar.
+  const repintarMonigote = monigoteDeLaEscena(monigote, () => actual.avatar, oyentes.signal);
+  elFondo = fondoDeLaEscena(fondo, { sigue: () => vivo, signal: oyentes.signal });
 
   aplicar(estado);
   repintarMonigote();

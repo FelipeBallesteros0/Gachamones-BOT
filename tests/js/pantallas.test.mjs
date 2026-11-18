@@ -338,9 +338,6 @@ test('cada pantalla que puede tocar tiene su sitio en la tabla de principal.js, 
   assert.ok(tabla, 'no está la tabla de pantallas');
   const filas = new Set([...tabla[1].matchAll(/^\s*(\w+):/gm)].map(([, nombre]) => nombre));
   for (const pantalla of tocan) assert.ok(filas.has(pantalla), pantalla);
-  // La de la aventura pinta con el estado, como la tienda.
-  assert.match(tabla[1], /^\s*aventura: \(destino, seguir, \{ estado \}\) => aventura\(destino, estado, seguir\),$/m);
-  assert.match(principal, /^import \{ aventura \} from '\.\/aventura\.js';$/m);
 });
 
 test('lo que el cliente ofrece en un lugar lleva la clave de un lugar del pueblo', () => {

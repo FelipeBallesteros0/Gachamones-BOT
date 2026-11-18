@@ -129,6 +129,13 @@ class Elemento extends Nodo {
     for (const oyente of [...(this.oyentes.click || [])]) oyente({ type: 'click' });
     await asentar();
   }
+
+  // Un clic con su `detail`, como lo cuenta un navegador: 1, un clic suelto; 2, el
+  // segundo de un doble clic en el mismo sitio; 0, el que hace el teclado.
+  async clicar(detail) {
+    for (const oyente of [...(this.oyentes.click || [])]) oyente({ type: 'click', detail });
+    await asentar();
+  }
 }
 globalThis.Node = Nodo;
 
@@ -516,4 +523,91 @@ test('si la aventura no carga, lo dice y deja volver a intentarlo', { timeout: 2
   assert.equal(frase(contenedor).textContent, ANTES[0]);
   assert.equal(queDice(contenedor), 'Seguir');
   assert.deepEqual(seguidos, []);
+});
+
+// --- ronda 1 de arreglos ------------------------------------------------------------------
+
+const leerElCodigo = (nombre) => readFileSync(new URL(`../../web/static/js/${nombre}`, import.meta.url), 'utf8');
+
+test('la escena es la del lugar: la primera aventura la pinta con lo que exporta lugar.js, sin copiarlo', () => {
+  const deLaAventura = leerElCodigo('aventura.js');
+  const delLugar = leerElCodigo('lugar.js');
+  // El fondo y el monigote de la escena viven en lugar.js, que los usa él mismo…
+  for (const nombre of ['fondoDeLaEscena', 'monigoteDeLaEscena']) {
+    assert.ok(new RegExp(`^export function ${nombre}\\(`, 'm').test(delLugar), `lugar.js no exporta ${nombre}`);
+    assert.ok(delLugar.match(new RegExp(`\\b${nombre}\\(`, 'g')).length >= 2, `lugar.js no usa ${nombre}`);
+    // …y la aventura los toma de ahí.
+    assert.ok(deLaAventura.match(new RegExp(`\\b${nombre}\\(`, 'g')), `aventura.js no usa ${nombre}`);
+  }
+  const importa = deLaAventura.match(/^import \{([^}]*)\} from '\.\/lugar\.js';$/m);
+  assert.ok(importa, 'aventura.js no importa nada de lugar.js');
+  for (const nombre of ['fondoDeLaEscena', 'monigoteDeLaEscena']) assert.ok(importa[1].includes(nombre), nombre);
+  // La aventura no lleva por su cuenta ni los altos del avatar, ni el dibujo del fondo, ni su pieza.
+  for (const copia of ['ALTO_DEL_AVATAR', 'DENSIDAD_MAXIMA', 'escenas/', 'drawImage', 'matchMedia', 'ResizeObserver',
+    'lienzoDelAvatar', 'faltante(']) {
+    assert.ok(!deLaAventura.includes(copia), copia);
+  }
+});
+
+test('mientras llega la aventura, la tarjeta espera con el aro de siempre, y deja de esperar al llegar', { timeout: 2000 }, async () => {
+  let soltar;
+  const { contenedor, servidor } = await abrir({ antes: (s) => { soltar = s.retiene('GET aventura'); } });
+  const dialogo = contenedor.querySelector('.aventura-dialogo');
+  assert.ok(frase(contenedor).classList.contains('esperando'));
+  assert.equal(dialogo.getAttribute('aria-busy'), 'true');
+  assert.equal(frase(contenedor).textContent, '');                      // ninguna frase nueva
+  assert.equal(avanza(contenedor).seVe, false);
+  await soltar(SE_PUEDE);
+  assert.ok(!frase(contenedor).classList.contains('esperando'));
+  assert.equal(dialogo.getAttribute('aria-busy'), null);
+  assert.equal(frase(contenedor).textContent, ANTES[0]);
+  // Si no llega, deja de esperar y dice por qué; al volver a intentarlo, espera otra vez.
+  const sinRed = await abrir({ antes: (s) => s.falla('GET aventura') });
+  assert.ok(!frase(sinRed.contenedor).classList.contains('esperando'));
+  const otraVez = sinRed.servidor.retiene('GET aventura');
+  await avanza(sinRed.contenedor).tocar();
+  assert.ok(frase(sinRed.contenedor).classList.contains('esperando'));
+  await otraVez(SE_PUEDE);
+  assert.ok(!frase(sinRed.contenedor).classList.contains('esperando'));
+  assert.equal(frase(sinRed.contenedor).textContent, ANTES[0]);
+  assert.deepEqual(servidor.pedidos, ['GET aventura']);
+});
+
+test('un doble clic no se salta ninguna frase: el segundo clic no cuenta, tampoco tras el encuentro', { timeout: 2000 }, async () => {
+  const { contenedor, servidor } = await abrir();
+  servidor.responde('POST aventura/primera', ENCONTRADO);
+  // En «Seguir»: el segundo clic de un doble clic no pasa a la frase siguiente.
+  await avanza(contenedor).clicar(1);
+  assert.equal(frase(contenedor).textContent, ANTES[1]);
+  await avanza(contenedor).clicar(2);
+  assert.equal(frase(contenedor).textContent, ANTES[1]);
+  await avanza(contenedor).clicar(1);
+  assert.equal(queDice(contenedor), 'Acercarte');
+  // En «Acercarte»: la respuesta llega antes que el segundo clic, que ya caería en «Seguir»; no cuenta,
+  // y la frase que dice quién es se lee.
+  await avanza(contenedor).clicar(1);
+  assert.equal(frase(contenedor).textContent, DESPUES[0]);
+  await avanza(contenedor).clicar(2);
+  assert.equal(frase(contenedor).textContent, DESPUES[0]);
+  assert.deepEqual(posts(servidor), ['POST aventura/primera']);
+  // Un clic suelto y el teclado (que no cuenta clics), como siempre.
+  await avanza(contenedor).clicar(1);
+  assert.equal(frase(contenedor).textContent, DESPUES[1]);
+  await avanza(contenedor).clicar(0);
+  assert.equal(frase(contenedor).textContent, DESPUES[2]);
+});
+
+test('si al releer tras un «no» el servidor también dice que no (409) o no hay sesión (401), se vuelve a decidir', { timeout: 2000 }, async () => {
+  for (const [codigo, clave] of [[409, 'cuenta_cambio'], [401, 'sin_sesion']]) {
+    const { contenedor, servidor, seguidos } = await abrir();
+    servidor.responde('POST aventura/primera', {
+      estado: 409, clave: 'no_estas_ahi', mensaje: 'Para eso tienes que estar en la aventura.',
+    });
+    servidor.responde('GET estado', { estado: codigo, clave, mensaje: 'Eso no.' });
+    await hastaAcercarte(contenedor);
+    await avanza(contenedor).tocar();
+    assert.deepEqual(servidor.pedidos, ['GET aventura', 'POST aventura/primera', 'GET estado'], clave);
+    assert.deepEqual(seguidos, [[undefined]], clave);
+    assert.equal(contenedor.querySelector('.aviso-tienda').textContent, '', clave);
+  }
 });

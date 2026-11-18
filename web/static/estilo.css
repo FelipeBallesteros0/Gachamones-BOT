@@ -718,8 +718,10 @@ a { color: var(--principal-hundido); font-weight: 600; }
   bottom: 14%;
 }
 
-/* El gachamon es un botón: tocarlo es acariciarlo. */
-.gachamon {
+/* Dónde está el gachamon en la escena, del alto de su etapa: en el lugar y
+   en la primera aventura, al salir de su escondite. */
+.gachamon,
+.aventura-gachamon {
   position: absolute;
   z-index: 2;
   left: 63%;
@@ -727,6 +729,10 @@ a { color: var(--principal-hundido); font-weight: 600; }
   height: var(--alto);
   aspect-ratio: 1;
   translate: -50% 0;
+}
+
+/* En el lugar es un botón: tocarlo es acariciarlo. */
+.gachamon {
   display: block;
   padding: 0;
   border: 0;
@@ -1726,19 +1732,10 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .cuerpo-aventura { gap: 12px; padding-top: 12px; }
 
-/* Tu gachamon, cuando sale de su escondite: donde estaría en el lugar, del
-   alto de su etapa (su sombra y su retrato son los del lugar). Entra subiendo
-   desde los matorrales; con menos movimiento, aparece ya quieto. */
-.aventura-gachamon {
-  position: absolute;
-  z-index: 2;
-  left: 63%;
-  bottom: 6%;
-  height: var(--alto);
-  aspect-ratio: 1;
-  translate: -50% 0;
-  animation: sale-del-escondite 0.7s ease-out both;
-}
+/* Tu gachamon, cuando sale de su escondite (dónde está, su sombra y su
+   retrato son los del lugar): entra subiendo desde los matorrales; con menos
+   movimiento, aparece ya quieto. */
+.aventura-gachamon { animation: sale-del-escondite 0.7s ease-out both; }
 
 @keyframes sale-del-escondite {
   from { opacity: 0; transform: translateY(14%) scale(0.9); }
@@ -1762,6 +1759,9 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-align: center;
   overflow-wrap: anywhere;
 }
+
+/* Mientras llega la aventura, en la tarjeta sólo el aro de lo que espera. */
+.aventura-frase.esperando { justify-items: center; }
 
 .aventura-frase.es-error {
   border-color: var(--error-texto);
@@ -2551,8 +2551,10 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
     height: clamp(420px, calc(100dvh - 190px), 640px);
   }
 
-  /* Mientras se lee la guía bajo el dibujo, el dibujo le deja su sitio: el
-     botón del modo y la línea siguen cabiendo en la ventana. */
+  /* Mientras se lee la guía bajo el dibujo, el dibujo le deja su sitio (una
+     línea de la guía y su hueco): el botón del modo y la línea siguen cabiendo
+     en la ventana. Entre 900 y 1200 de ancho la guía de la cama parte en dos
+     líneas, y la segunda cabe en el respiro que ya dejaba la línea de abajo. */
   .pieza:has(> .pieza-guia:not([hidden])) .pieza-lienzo {
     height: clamp(420px, calc(100vh - 230px), 640px);
     height: clamp(420px, calc(100dvh - 230px), 640px);

@@ -3,54 +3,50 @@
 // desde el suyo (`seguir` con la vista `'aventura'`).
 //
 // `aventura(contenedor, estado, seguir)` pinta la escena del lugar donde estás,
-// con tu avatar, y pide lo que dice la aventura (`GET aventura`): si se puede y
-// las frases de antes. Las frases las manda el servidor y entran tal cual.
-// Mientras llegan, el diálogo espera (`aria-busy`); si no llegan, se dice por
-// qué y el botón la vuelve a pedir. Si al llegar ya no se puede (ya tienes uno,
-// o la cama ya no está libre), se vuelve a decidir la pantalla: el lugar lo dice.
+// con tu avatar (el fondo y el monigote son los de la escena del lugar, que
+// exporta `lugar.js`), y pide lo que dice la aventura (`GET aventura`): si se
+// puede y las frases de antes. Las frases las manda el servidor y entran tal
+// cual. Mientras llegan, el diálogo espera (el aro de siempre en la tarjeta, y
+// `aria-busy`); si no llegan, se dice por qué y el botón la vuelve a pedir. Si
+// al llegar ya no se puede (ya tienes uno, o la cama ya no está libre), se
+// vuelve a decidir la pantalla: el lugar lo dice.
 //
 // El diálogo va de a una frase, en una zona que se anuncia (`role="status"`),
 // con un solo botón que avanza y que se queda con el foco: «Seguir» y, tras la
 // tercera, «Acercarte», que manda el encuentro (`POST aventura/primera`) una
 // sola vez: mientras va, otro toque no manda nada (no se apaga con `disabled`,
-// para no perder el foco). Con la respuesta se ve a tu gachamon (su retrato:
-// quién es lo dice la frase) y las frases de después, y tras la última,
-// «Volver a casa», que sigue con el estado que llegó (toca el paso del nombre).
-// Sin respuesta se dice lo de siempre y «Acercarte» se puede volver a pulsar.
-// Ante cualquier «no» del encuentro (un 409) se vuelve a leer el estado y se
-// sigue con él: lo normal es que ya lo tengas (un doble clic, otra pestaña: el
-// encuentro ya te llevó a casa). Sólo si sigues sin ninguno se dice la frase
-// del servidor y queda «Volver». Antes del encuentro, «Volver» deja la aventura
-// sin guardar nada. Lo que entra en la escena lo anima el estilo, que con
+// para no perder el foco), y el segundo clic de un doble clic no cuenta (así
+// ninguno se salta una frase). Con la respuesta se ve a tu gachamon (su
+// retrato: quién es lo dice la frase) y las frases de después, y tras la
+// última, «Volver a casa», que sigue con el estado que llegó (toca el paso del
+// nombre). Sin respuesta se dice lo de siempre y «Acercarte» se puede volver a
+// pulsar. Ante cualquier «no» del encuentro (un 409) se vuelve a leer el
+// estado y se sigue con él: lo normal es que ya lo tengas (un doble clic, otra
+// pestaña: el encuentro ya te llevó a casa); si tampoco se deja leer (un 401 o
+// un 409), se vuelve a decidir. Sólo si sigues sin ninguno se dice la frase del
+// servidor y queda «Volver». Antes del encuentro, «Volver» deja la aventura sin
+// guardar nada. Lo que entra en la escena lo anima el estilo, que con
 // movimiento reducido no anima nada. Al salir se deja de escuchar, y una
 // respuesta que llega tarde no pinta ni llama a `seguir`. Todo texto entra por
 // `el` o por `textContent`.
 
 import { pedir } from './api.js';
-import { cargar, faltante, olvidarLasQueFaltan } from './arte.js';
+import { olvidarLasQueFaltan } from './arte.js';
 import { hayQueDecidirDeNuevo, mensajeDe, zonaDeAviso } from './articulos.js';
-import { lienzoDelAvatar } from './avatar.js';
 import { el } from './dom.js';
+import { fondoDeLaEscena, monigoteDeLaEscena } from './lugar.js';
 
 const TITULO = 'La primera aventura';
 const SEGUIR = 'Seguir';
 const ACERCARTE = 'Acercarte';
 const VOLVER_A_CASA = 'Volver a casa';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
-// Lo que mide de alto el avatar en la escena, en píxeles de pantalla, como en el lugar.
-const ALTO_DEL_AVATAR = 126;
-const ALTO_DEL_AVATAR_EN_COMPUTADOR = 168;
-const DENSIDAD_MAXIMA = 3;
-
-// El fondo de la escena de cada lugar, una pieza del contrato del arte (el mismo del lugar).
-const escenaDe = (clave) => `escenas/${clave}.png`;
 
 export function aventura(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   let vivo = true;
   const oyentes = new AbortController();
-  let observador = null;
 
   // Lo que se lee: las frases de antes o, tras el encuentro, las de después, y
   // en cuál vas. `encontrado` es el estado que contestó el encuentro.
@@ -70,7 +66,7 @@ export function aventura(contenedor, estado, seguir) {
     vivo = false;
     aviso.parar();
     oyentes.abort();
-    if (observador) observador.disconnect();
+    elFondo.parar();
   }
 
   // Deja la aventura y que se decida otra pantalla: con el estado que llegó, o
@@ -97,12 +93,20 @@ export function aventura(contenedor, estado, seguir) {
     fondo,
     el('span', { class: 'ventana', 'aria-hidden': 'true' }),
     monigote);
+  // El fondo del lugar y tu avatar, los mismos de la escena del lugar.
+  const elFondo = fondoDeLaEscena(fondo, { sigue: sigueAqui, signal: oyentes.signal });
+  elFondo.poner(estado.lugar.clave);
+  monigoteDeLaEscena(monigote, () => estado.avatar, oyentes.signal)();
 
   // --- el diálogo ---------------------------------------------------------------------
 
   const frase = el('p', { class: 'aventura-frase', role: 'status' });
   const avanzar = el('button', { type: 'button', class: 'boton principal boton-avanzar', hidden: true });
-  avanzar.addEventListener('click', () => {
+  // El segundo clic de un doble clic no cuenta, como en tu departamento: si no,
+  // tras «Seguir» o tras el encuentro, cuando el botón ya dice otra cosa, se
+  // saltaría una frase. Un clic suelto y el teclado (que no cuenta clics), sí.
+  avanzar.addEventListener('click', (evento) => {
+    if (evento && evento.detail > 1) return;
     if (alAvanzar) alAvanzar();
   }, { signal: oyentes.signal });
   const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
@@ -157,17 +161,31 @@ export function aventura(contenedor, estado, seguir) {
 
   // --- lo que dice la aventura -----------------------------------------------------------
 
+  // Mientras llega, el diálogo espera: se ve en la tarjeta (el aro de siempre,
+  // sin frase) y lo sabe el lector de pantalla (`aria-busy`).
+  function esperarLaAventura(si) {
+    frase.classList.toggle('esperando', si);
+    if (si) {
+      // Al volver a intentarlo, lo que decía por qué no llegó ya no vale.
+      frase.textContent = '';
+      frase.classList.remove('es-error');
+      dialogo.setAttribute('aria-busy', 'true');
+    } else {
+      dialogo.removeAttribute('aria-busy');
+    }
+  }
+
   async function leer() {
     if (leyendo) return;
     leyendo = true;
-    dialogo.setAttribute('aria-busy', 'true');
+    esperarLaAventura(true);
     let leida;
     try {
       leida = await pedir('GET', 'aventura');
     } catch (error) {
       leyendo = false;
       if (!sigueAqui()) return;
-      dialogo.removeAttribute('aria-busy');
+      esperarLaAventura(false);
       if (hayQueDecidirDeNuevo(error)) {
         irse();
         return;
@@ -180,7 +198,7 @@ export function aventura(contenedor, estado, seguir) {
     }
     leyendo = false;
     if (!sigueAqui()) return;
-    dialogo.removeAttribute('aria-busy');
+    esperarLaAventura(false);
     const primera = leida && leida.primera;
     // Ya tienes uno, o la cama ya no está libre: lo dice el lugar.
     if (!primera || !primera.puede) {
@@ -239,7 +257,8 @@ export function aventura(contenedor, estado, seguir) {
     } catch (error) {
       if (!sigueAqui()) return;
       dejarDeEsperar();
-      if (error && error.estado === 401) {
+      // Sin sesión, o el servidor tampoco deja leer: se vuelve a decidir.
+      if (hayQueDecidirDeNuevo(error)) {
         irse();
         return;
       }
@@ -274,60 +293,6 @@ export function aventura(contenedor, estado, seguir) {
     });
     escena.append(el('div', { class: 'aventura-gachamon', 'aria-hidden': 'true' }, retrato, sinRetrato));
   }
-
-  // --- el fondo de la escena y tu avatar ----------------------------------------------------
-
-  // La pieza del lugar, cuando ya llegó: `{ruta, imagen}`, con `imagen` en
-  // `null` si no se pudo cargar (se ve su recuadro).
-  let piezaDelFondo = null;
-
-  // El dibujo cubre toda la escena sin deformarse, como en el lugar: se
-  // recorta por igual lo que sobra; sin suavizar, que es un dibujo de cuadros.
-  function dibujarFondo() {
-    const ancho = fondo.clientWidth;
-    const alto = fondo.clientHeight;
-    if (!ancho || !alto || !piezaDelFondo) return;
-    const densidad = Math.min(Math.max(window.devicePixelRatio || 1, 1), DENSIDAD_MAXIMA);
-    const anchoReal = Math.round(ancho * densidad);
-    const altoReal = Math.round(alto * densidad);
-    if (fondo.width !== anchoReal) fondo.width = anchoReal;
-    if (fondo.height !== altoReal) fondo.height = altoReal;
-    const ctx = fondo.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, anchoReal, altoReal);
-    const { imagen } = piezaDelFondo;
-    if (!imagen) {
-      faltante(ctx, 0, 0, anchoReal, altoReal, piezaDelFondo.ruta);
-      return;
-    }
-    const escala = Math.max(anchoReal / imagen.naturalWidth, altoReal / imagen.naturalHeight);
-    const anchoVisto = anchoReal / escala;
-    const altoVisto = altoReal / escala;
-    ctx.drawImage(imagen,
-      (imagen.naturalWidth - anchoVisto) / 2, (imagen.naturalHeight - altoVisto) / 2, anchoVisto, altoVisto,
-      0, 0, anchoReal, altoReal);
-  }
-
-  cargar(escenaDe(estado.lugar.clave)).then((cargada) => {
-    if (!sigueAqui()) return;
-    piezaDelFondo = cargada;
-    dibujarFondo();
-  });
-  // La escena cambia de tamaño al girar el teléfono o la ventana.
-  if (typeof ResizeObserver === 'function') {
-    observador = new ResizeObserver(dibujarFondo);
-    observador.observe(fondo);
-  } else {
-    window.addEventListener('resize', dibujarFondo, { signal: oyentes.signal });
-  }
-
-  // En el computador el monigote se ve más grande.
-  const ancho = window.matchMedia('(min-width: 900px)');
-  const repintarMonigote = () => lienzoDelAvatar(
-    monigote, estado.avatar, ancho.matches ? ALTO_DEL_AVATAR_EN_COMPUTADOR : ALTO_DEL_AVATAR,
-  );
-  ancho.addEventListener('change', repintarMonigote, { signal: oyentes.signal });
-  repintarMonigote();
 
   return leer();
 }
