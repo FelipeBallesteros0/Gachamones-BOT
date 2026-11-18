@@ -506,6 +506,20 @@ def test_despues_del_cambio_pedir_las_medallas_no_paga_nada_mas():
     assert gemas() == 12 + valen(*LAS_TRES)
 
 
+def test_el_resumen_del_cambio_dice_las_gemas_que_pago_por_medallas():
+    nacer("Ana"); una_rara(muerta=True); reclutados(10); con_gemas(12)            # las tres
+    una_rara(muerta=True, usuario="u2"); reclutados(1, usuario="u2")             # dos, y sin monedero
+    db.crear("u3", "g1", "pulpo", "Cy", STATS, T0); con_gemas(5, usuario="u3")    # ninguna
+    resumen = el_cambio()
+    cartas = [db.carta_sin_ver(u, "g1", CAMBIO)["gemas_por_medallas"] for u in ("u1", "u2", "u3")]
+    assert cartas == [valen(*LAS_TRES), valen("domador", "uno_entre_veinticinco"), 0]
+    assert (resumen.personas, resumen.monedas, resumen.gemas) == (3, 0, sum(cartas))
+    # Y es lo que de verdad subieron las gemas de cada quien.
+    assert [gemas(u) for u in ("u1", "u2", "u3")] == [12 + cartas[0], GEMAS_DE_ANTES + cartas[1], 5]
+    # El de un arranque que no cambia a nadie sigue siendo el vacío.
+    assert economia.el_dia_del_cambio(T1 + timedelta(hours=1)) == economia.ResumenDelCambio()
+
+
 @pytest.mark.parametrize("donde", ["BEFORE INSERT ON logros_persona", "BEFORE INSERT ON cartas"])
 def test_si_el_cambio_falla_a_medias_las_medallas_tampoco_quedan_pagadas(donde):
     nacer("Ana"); una_rara(muerta=True); reclutados(10); con_gemas(12)
@@ -581,13 +595,15 @@ def test_el_arranque_hace_el_cambio():
     assert economia.saldos("u1", "g1").asciicoins == 200
 
 
-def test_el_arranque_apunta_las_tres_cifras_del_cambio_y_ningun_id(caplog):
-    casa_de_antes("u1", "pequena"); con_monedas(0); borrar_la_marca(CAMBIO)
+def test_el_arranque_apunta_las_cuatro_cifras_del_cambio_y_ningun_id(caplog):
+    casa_de_antes("u1", "pequena"); con_monedas(0); una_rara(muerta=True); borrar_la_marca(CAMBIO)
     with caplog.at_level(logging.INFO, logger="economia"):
         economia.poner_al_dia(T1)
         economia.poner_al_dia(T1 + timedelta(hours=1))    # el segundo no cambia a nadie: no apunta
     lineas = [r for r in caplog.records if r.name == "economia"]
-    assert [r.args for r in lineas] == [(1, 2, 200)]
+    # Personas, camas regaladas, monedas devueltas y gemas pagadas por medallas (la rara).
+    assert [r.args for r in lineas] == [(1, 2, 200, valen("uno_entre_veinticinco"))]
+    assert "gemas pagadas por medallas" in lineas[0].getMessage()
     assert "u1" not in lineas[0].getMessage()
     assert lineas[0].levelno >= logging.WARNING        # la web no configura el registro: un info se perdería
 

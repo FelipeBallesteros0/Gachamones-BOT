@@ -9,7 +9,8 @@ import identidad
 import logros as lgr
 import nacer
 from ayudas_web import (
-    AVATAR, ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, ganar_el_primero, ir, poner_la_segunda_cama, poner_reloj,
+    AVATAR, ESCRIBIR, PUEBLO, alta, con_gachamon, con_monedas_web, entrar, ganar_el_primero, ir, poner_la_segunda_cama,
+    poner_reloj,
 )
 
 AVENTURA, PRIMERA = "/gachamon/api/aventura", "/gachamon/api/aventura/primera"
@@ -361,6 +362,38 @@ def test_a_quien_ya_jugaba_ponerle_nombre_a_su_unico_sin_bautizar_no_le_cambia_e
     respuesta = cliente.post(NOMBRAR, json={"nombre": "Pipo"}, headers=ESCRIBIR)
     assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Pipo"
     assert economia.saldos(ANA_DISCORD, G) == antes and db.logros_de_persona(ANA_DISCORD, G) == {}
+
+
+def test_quien_se_quedo_sin_ninguno_antes_del_cambio_conserva_lo_suyo_y_no_vuelve_a_cobrar_la_rara(cliente, monkeypatch):
+    """De punta a punta, por las rutas: una cuenta de antes del día del cambio sin
+    ningún gachamon vivo (con una rara que se le murió en su historial) pasa por el
+    día del cambio, que le paga esa medalla; después hace la primera aventura y le
+    pone nombre al primero: conserva las monedas y las gemas de después del cambio,
+    y la medalla de la rara no se le vuelve a pagar."""
+    reloj = poner_reloj(monkeypatch)
+    with db.conectar() as con:                  # el servicio hizo el cambio al arrancar: se deshace la marca
+        con.execute("DELETE FROM cambios_hechos WHERE clave = ?", (db.CAMBIO_DE_LA_VIVIENDA,))
+    alta(cliente)                               # antes del cambio su monedero nace con 50 y 50
+    con_monedas_web(cliente, 80)
+    rara = db.crear(YO, G, "dragoncito", "Brasa", (10, 10, 10, 10), reloj.ahora - timedelta(days=30))
+    db.guardar(replace(rara, hambre=0.0, muerta_en=reloj.ahora - timedelta(days=20), causa_muerte="hambre"))
+    assert db.plantel(YO, G) == [] and economia.saldos(YO, G) == economia.Saldos(80, 50)
+
+    economia.poner_al_dia(reloj.ahora)          # el arranque que hace el día del cambio
+    despues_del_cambio = economia.saldos(YO, G)
+    assert despues_del_cambio == economia.Saldos(80, 50 + lgr.POR_CLAVE["uno_entre_veinticinco"].gemas)
+    medallas = db.logros_de_persona(YO, G)
+    assert set(medallas) == {"uno_entre_veinticinco"}
+
+    # Como quien empieza: la segunda cama, la primera aventura (con otra rara) y el nombre.
+    reloj.pasar(hours=1)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["dragoncito"])
+    ganar_el_primero(cliente)
+    respuesta = cliente.post(NOMBRAR, json={"nombre": "Chispa"}, headers=ESCRIBIR)
+    assert respuesta.status_code == 200 and respuesta.json()["gachamon"]["nombre"] == "Chispa"
+    assert economia.saldos(YO, G) == despues_del_cambio
+    assert respuesta.json()["saldos"] == {"monedas": despues_del_cambio.asciicoins, "gemas": despues_del_cambio.asciigems}
+    assert db.logros_de_persona(YO, G) == medallas
 
 
 def test_con_dos_gachamones_ponerle_nombre_al_que_lo_espera_no_cobra(cliente, monkeypatch):

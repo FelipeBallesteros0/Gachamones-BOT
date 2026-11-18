@@ -326,11 +326,12 @@ _LO_DE_CADA_QUIEN = (
 @dataclass(frozen=True)
 class ResumenDelCambio:
     """A cuántas personas tocó, cuántas camas regaló entre puestas y guardadas,
-    y cuántas monedas devolvió."""
+    cuántas monedas devolvió y cuántas gemas pagó por medallas."""
 
     personas: int = 0
     camas: int = 0
     monedas: int = 0
+    gemas: int = 0
 
 
 def el_dia_del_cambio(
@@ -357,7 +358,7 @@ def el_dia_del_cambio(
     quien publica, que detiene el arranque.
     """
     rng = rng or random.Random()
-    personas = camas = monedas = 0
+    personas = camas = monedas = gemas = 0
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         if not db._una_sola_vez(con, CAMBIO_DE_LA_VIVIENDA, ahora):
@@ -370,15 +371,16 @@ def el_dia_del_cambio(
                 "de arrancar."
             )
         for usuario_id, guild_id in _quienes_ya_estaban(con):
-            regaladas, devueltas = _mudar_a(con, usuario_id, guild_id, ahora, rng)
+            regaladas, devueltas, pagadas = _mudar_a(con, usuario_id, guild_id, ahora, rng)
             personas += 1
             camas += regaladas
             monedas += devueltas
+            gemas += pagadas
         con.execute(
             "UPDATE criaturas SET actualizada_en = ? WHERE muerta_en IS NULL",
             (ahora.isoformat(),),
         )
-    return ResumenDelCambio(personas, camas, monedas)
+    return ResumenDelCambio(personas, camas, monedas, gemas)
 
 
 def _quienes_ya_estaban(con) -> list[tuple[str, str]]:
@@ -391,9 +393,9 @@ def _quienes_ya_estaban(con) -> list[tuple[str, str]]:
 
 def _mudar_a(
     con, usuario_id: str, guild_id: str, ahora: datetime, rng: random.Random
-) -> tuple[int, int]:
-    """El cambio de una persona. Devuelve cuántas camas le regaló y cuántas
-    monedas le devolvió.
+) -> tuple[int, int, int]:
+    """El cambio de una persona. Devuelve cuántas camas le regaló, cuántas
+    monedas le devolvió y cuántas gemas le pagó por medallas.
 
     El monedero se le asegura le toque o no una devolución: quien ya jugaba lo
     conserva tal cual, y si todavía no tenía fila lo recibe con 50 y 50, como
@@ -439,7 +441,7 @@ def _mudar_a(
             for c in vivos if c.se_nombro_solo
         ],
     }, ahora)
-    return regaladas, devueltas
+    return regaladas, devueltas, medallas.asciigems
 
 
 def _entregar_el_buzon(con, usuario_id: str, guild_id: str) -> int:
@@ -603,15 +605,16 @@ def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
 
     Lo llaman el bot y la web, y nadie más prepara la base fuera de las pruebas.
     El día del cambio sólo hace algo la primera vez; si toca a alguien, lo deja
-    en el registro con sus tres cifras y sin decir a quién.
+    en el registro con sus cuatro cifras y sin decir a quién.
     """
     db.inicializar(ahora)
     cambio = el_dia_del_cambio(ahora)
     if cambio.personas:
         # Aviso y no info: la web no configura el registro, y ahí un info se pierde.
         logger.warning(
-            "El día del cambio: %d personas, %d camas regaladas, %d monedas devueltas",
-            cambio.personas, cambio.camas, cambio.monedas,
+            "El día del cambio: %d personas, %d camas regaladas, %d monedas devueltas, "
+            "%d gemas pagadas por medallas",
+            cambio.personas, cambio.camas, cambio.monedas, cambio.gemas,
         )
     return devolver_cosmeticos_retirados(ahora)
 

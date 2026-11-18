@@ -108,9 +108,9 @@ def test_rellena_monederos_de_criaturas_e_inventario(tmp_path, monkeypatch):
     db.inicializar()
     with db.conectar() as con:
         filas = con.execute(
-            "SELECT usuario_id, asciicoins, asciigems FROM monederos"
+            "SELECT usuario_id, asciicoins, asciigems, partida FROM monederos"
         ).fetchall()
-    assert [tuple(fila) for fila in filas] == [("solo-inventario", 50, 50)]
+    assert [tuple(fila) for fila in filas] == [("solo-inventario", 50, 50, 50)]
 
 
 def test_forma_desconocida_falla_sin_tocar_datos(tmp_path, monkeypatch):
