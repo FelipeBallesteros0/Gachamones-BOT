@@ -545,7 +545,7 @@ def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
     import departamento
 
     for nombre in ("departamento.js", "flotantes.js", "lista.js", "plantel.js", "pieza.js", "casillas.js",
-                   "proyeccion.js"):
+                   "proyeccion.js", "caminantes.js"):
         codigo = _sin_comentarios(_guion(nombre))
         for clave in departamento.MUEBLES:
             assert f"'{clave}'" not in codigo and f'"{clave}"' not in codigo, (nombre, clave)
@@ -553,7 +553,8 @@ def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
 
 
 def test_el_cliente_reconoce_la_puerta_por_su_marca_y_no_por_su_clave():
-    for nombre in ("departamento.js", "pieza.js", "lista.js", "casillas.js", "proyeccion.js", "plantel.js", "flotantes.js"):
+    for nombre in ("departamento.js", "pieza.js", "lista.js", "casillas.js", "proyeccion.js", "plantel.js", "flotantes.js",
+                   "caminantes.js"):
         codigo = _sin_comentarios(_guion(nombre))
         assert "'puerta'" not in codigo and '"puerta"' not in codigo, nombre
     assert ".puerta" in _guion("casillas.js")
