@@ -20,7 +20,7 @@
 - Los módulos de juego no importan `discord`; `web/` no importa `discord` ni nada que lo importe; `db.py` no importa `economia.py`; `departamento.py` es puro. Cada cambio de estado va en su transacción `BEGIN IMMEDIATE`. El servicio web no guarda estado del juego en memoria. El reloj es `db.ahora_utc()`; en las pruebas, el tiempo y el azar se inyectan.
 - **Quién eres sale sólo de la cookie de Rowino.** Toda ruta que cambia algo es `POST` o `PUT` y exige la cabecera `X-Gachamon: 1`; las rutas se declaran con `def`. Un error se contesta `{"detail": {"clave": …, "mensaje": …}}`.
 - **El dinero**: quien ya tiene monedero no pierde ni gana nada con este plan. El primer gachamon no cuesta nada. Las medallas de la persona que tocaba pagar al nacer el primero se siguen pagando, una sola vez.
-- **El día del cambio no cambia lo que deja** (corre una sola vez sobre producción): este plan sólo cambia una frase de su carta.
+- **El día del cambio no cambia lo que deja** (corre una sola vez sobre producción): este plan sólo cambia una frase de su carta. La única excepción la decidió Felipe el 2026-11-18 y es la Task 7: ese día se pagan las medallas de persona que cada quien ya tenía ganadas.
 - El cliente: sin frameworks ni compilación, sin `innerHTML`, sin direcciones `http`, módulos con rutas relativas terminadas en `.js`. Ninguna clave ni precio del catálogo escritos en el JavaScript. **El pueblo vive en datos** (`web/static/datos/pueblo.json`).
 - Accesibilidad, como en el resto de la página: todo se puede hacer con botones de verdad; lo que cambia se anuncia; lo que no se puede usar lleva `aria-disabled`; con movimiento reducido nada se mueve solo; el foco no se pierde.
 - A quien juega se le dice «monedas» y «gemas». Las frases nuevas son **sólo** las de este plan, letra por letra.
@@ -34,6 +34,7 @@
   5. **La guía es el paso que toca, bajo la pieza**: mientras no tengas gachamon, en tu departamento se lee siempre el paso siguiente (2026-11-17).
   6. **El nombre: un campo con un nombre sugerido**, que cambias o dejas (2026-11-17).
   7. **Los muebles se pueden comprar sin gachamon**; objetos y cosméticos siguen pidiendo uno (2026-11-17).
+  8. Después de aprobar el plan (2026-11-17 y 2026-11-18): vincular con Discord una cuenta web de antes del cambio se queda como está (sus 50 monedas y 50 gemas de partida se quedan atrás, como su departamento); y **las medallas de persona ganadas y sin pagar se pagan el día del cambio**, una sola vez, y la carta lo dice (Task 7).
 - **Lo que este plan decidió en nombre de Felipe** (se le enseñó con el plan y lo aprobó el 2026-11-17: «Apruebo, ejecútalo»):
   1. **Quién hace la primera aventura**: cualquiera que no tenga ningún gachamon vivo. Quien empieza; quien tenía una cuenta con avatar y el huevo sin romper; y quien se quedó sin ninguno antes del día del cambio. Estos dos últimos conservan sus monedas y sus gemas.
   2. **Quién «empieza»**: aquel cuyo monedero nace después del día del cambio. El día del cambio le deja monedero a todo el que ya estaba, así que desde entonces monedero nuevo es persona nueva: nace en 0 y 0.
@@ -55,6 +56,7 @@
   - El nombre: el título `¡Se vino contigo!` (en lugar de «¡Nació tu gachamon!») y, bajo el campo, `Le puedes dejar este nombre o escribir otro.` La etiqueta `¿Cómo se va a llamar?` y el botón `Ponerle este nombre` son los de hoy.
   - La bienvenida: `🏠 Empezar de cero` (cambia el ícono) y la nota `Si empiezas de cero y un gachamon se va contigo, ya no podrás traer los de Discord.`
   - La carta del alcalde, a quien no le queda ninguno: `Te dejé tu cama puesta y otra guardada: ponla y ve a «Aventura», que ahí te espera un gachamon.`
+  - Aprobadas después, el 2026-11-17 y el 2026-11-18: lo que contesta la ruta de la primera aventura si no estás en el lugar, `Para eso tienes que estar en la aventura.`; en la pantalla del avatar, `Así te verán en el pueblo.`; y en la carta del alcalde, sólo a quien cobre algo, `Tenías medallas ganadas y sin cobrar: te pagué {gemas}.`
 
 ## Review Focus
 
@@ -307,3 +309,51 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 `docs: partir sin gachamon, en la política, el README y los pendientes`
+
+---
+
+### Task 7: Las medallas ganadas se pagan el día del cambio
+
+Añadida el 2026-11-18. Al revisar el pago de las medallas del primero salió algo anterior a este plan: hay personas con medallas **de persona** ganadas y sin pagar (la de un recluta, la de diez y la de haber tenido una rara). En Discord se cobraban al usar `/logros`, al reclutar o al nacer un gachamon; con el bot en pausa, ninguna ruta de la web se las paga a quien ya tiene gachamones. **Felipe decidió (2026-11-18) que se paguen el día del cambio**, una sola vez, y que la carta lo diga. Es la única excepción a «el día del cambio no cambia lo que deja».
+
+**Files:**
+- Modify: `economia.py` (`pagar_logros_de_persona`, `_mudar_a`), `web/carta.py`
+- Test: `tests/test_dia_del_cambio.py`, `tests/test_web_carta.py`, y el archivo que ya prueba `pagar_logros_de_persona`
+
+**Interfaces:**
+- Consumes: `lgr.hechos_de_la_persona`, `lgr.cumplidos(…, lgr.PERSONA)`, `db.anotar_logro_de_persona_en`, `_cobrar_logros` (lo que usa hoy `pagar_logros_de_persona`).
+- Produces: en lo que guarda la carta de cada persona (`db.guardar_carta_en`), la clave `gemas_por_medallas` (un entero; 0 si no cobró nada). `economia.pagar_logros_de_persona(usuario_id, guild_id, ahora)` conserva su firma y lo que devuelve.
+
+Lo que tiene que quedar:
+
+- El pago de las medallas de la persona se puede hacer **dentro de una transacción que ya está abierta** (la del día del cambio): lo que hoy hace `pagar_logros_de_persona` con su propia conexión pasa a una función que recibe la conexión, y `pagar_logros_de_persona` la llama con la suya. No se copia la lógica: queda en un solo sitio.
+- `_mudar_a` (el cambio de cada persona) paga con ella las medallas de persona que esa persona tenga cumplidas y sin anotar, **dentro de la misma transacción del cambio**, y guarda en su carta cuántas gemas fueron. Tenga o no gachamones vivos. Las medallas quedan anotadas como cualquier otra (no se pagan dos veces, ni ese día ni después).
+- La carta, sólo a quien cobró algo, junto a las devoluciones y antes de lo de los nombres: `Tenías medallas ganadas y sin cobrar: te pagué {gemas}.` (con las gemas dichas como siempre: `70 gemas`, `1 gema`).
+- **Nada más del día del cambio cambia**: ni su orden, ni la marca, ni lo que devuelve por casas y tickets, ni las camas, ni la puerta. Quien no tenía ninguna medalla pendiente queda exactamente como quedaba, carta incluida.
+- Las medallas **de un gachamon** (las que necesitan una criatura viva delante) no entran: sólo las tres de la persona.
+
+- [ ] **Step 1: Write the failing tests**
+  - `test_el_cambio_paga_las_medallas_de_persona_ganadas_y_sin_cobrar` (`tests/test_dia_del_cambio.py`): una persona con el marcador de reclutados en 10 y una rara en su historial (viva o muerta), sin ninguna medalla de persona anotada, con 12 gemas: tras el cambio tiene 12 más lo que valen `domador`, `flautista` y `uno_entre_veinticinco` (los valores, de `logros`, no escritos a mano), las tres quedan anotadas, y su carta guarda ese total en `gemas_por_medallas`.
+  - `test_quien_no_tenia_medallas_pendientes_queda_como_quedaba`: su saldo de gemas no cambia y su carta trae `gemas_por_medallas == 0`.
+  - `test_las_ya_anotadas_no_se_vuelven_a_pagar`: con `domador` ya anotada y cumplida también `flautista`, cobra sólo `flautista`.
+  - `test_tambien_cobra_quien_no_tiene_ningun_gachamon_vivo`.
+  - `test_correr_el_cambio_otra_vez_no_paga_las_medallas_otra_vez` (o, si la prueba de hoy de la segunda corrida ya lo cubre al comparar saldos, se le añaden las gemas y las medallas anotadas).
+  - `test_despues_del_cambio_pedir_las_medallas_no_paga_nada_mas`: tras el cambio, `economia.pagar_logros_de_persona` de esa persona devuelve un recibo vacío.
+  - `tests/test_web_carta.py`: con `gemas_por_medallas` de 70, la carta trae `Tenías medallas ganadas y sin cobrar: te pagué 70 gemas.` en su sitio; con 1, `…te pagué 1 gema.`; con 0 o sin la clave (una carta guardada antes de este cambio), no la trae. La prueba que fija la carta entera se pone al día.
+  - Las pruebas de hoy de `pagar_logros_de_persona` pasan sin tocarlas.
+
+- [ ] **Step 2: Run them to make sure they fail**
+
+Run: `./venv/bin/python -m pytest -q tests/test_dia_del_cambio.py tests/test_web_carta.py`
+Expected: FAIL en las nuevas.
+
+- [ ] **Step 3: Implement**
+
+- [ ] **Step 4: Run everything**
+
+Run: `./venv/bin/python -m pytest -q`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+`feat(economia): el día del cambio paga las medallas de persona ganadas y sin cobrar`
