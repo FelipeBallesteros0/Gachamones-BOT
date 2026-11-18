@@ -382,6 +382,39 @@ test('sin gachamon y sin aviso no queda hueco bajo la escena', { timeout: 2000 }
   assert.equal(conUno.contenedor.querySelector('.bajo-la-ficha').hidden, false);
 });
 
+// --- «Aventura», a quien todavía no tiene ningún gachamon -----------------------------------
+
+const SIN_CAMA = 'Antes pon tu segunda cama en tu departamento: sin cama, nadie se queda contigo.';
+// «Aventura» como la ve quien no tiene gachamon: con la cama libre, sin aviso; sin ella, con el suyo.
+const AVENTURA = { clave: 'aventura', nombre: 'Aventura', abre: 'despues', aviso: null, ofrece: ['aventura'] };
+const AVENTURA_SIN_CAMA = { ...AVENTURA, aviso: SIN_CAMA };
+
+test('en «Aventura», con la cama libre, se sale a la primera aventura como a comprar en la Tienda', { timeout: 2000 }, async () => {
+  const { contenedor, seguidos } = await abrir(sinGachamon(AVENTURA));
+  assert.deepEqual(visibles(contenedor.querySelector('.salidas-lugar')), ['🧭La primera aventura', '🎒Mochila', '🗺️Pueblo']);
+  await contenedor.querySelector('.boton-aventura').tocar();
+  assert.equal(seguidos.length, 1);
+  assert.equal(seguidos[0][0].lugar, AVENTURA);
+  assert.deepEqual(seguidos[0][1], { vista: 'aventura' });
+});
+
+test('en «Aventura», sin la cama, el lugar dice su aviso y no hay a qué salir', { timeout: 2000 }, async () => {
+  const { contenedor, servidor, documento, seguidos } = await abrir(sinGachamon(AVENTURA_SIN_CAMA, 0, {
+    guia: { clave: 'cama', texto: 'Pon tu segunda cama: entra a «Construir», tócala en los guardados y después toca una casilla.' },
+  }));
+  assert.equal(contenedor.querySelector('.franja-del-lugar').textContent, SIN_CAMA);
+  assert.deepEqual(visibles(contenedor.querySelector('.salidas-lugar')), ['🎒Mochila', '🗺️Pueblo']);
+  // La pusiste en otra pestaña: con la relectura, el aviso se va y se puede salir.
+  servidor.responde('GET estado', sinGachamon(AVENTURA, 30));
+  await documento.dispara('visibilitychange');
+  assert.equal(contenedor.querySelector('.franja-del-lugar').hidden, true);
+  assert.deepEqual(visibles(contenedor.querySelector('.salidas-lugar')), ['🧭La primera aventura', '🎒Mochila', '🗺️Pueblo']);
+  assert.deepEqual(seguidos, []);
+  // Con gachamon, «Aventura» es un lugar cerrado más: no ofrece nada.
+  const conUno = await abrir(conPelusa({ ...AVENTURA, aviso: 'Esto se abre más adelante.', ofrece: [] }));
+  assert.deepEqual(visibles(conUno.contenedor.querySelector('.salidas-lugar')), ['🎒Mochila', '🗺️Pueblo']);
+});
+
 // --- con gachamon, como siempre -------------------------------------------------------------
 
 test('con gachamon, el lugar trae su ficha, sus cuidados y su globo, como siempre', { timeout: 2000 }, async () => {

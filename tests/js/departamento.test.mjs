@@ -1293,6 +1293,69 @@ test('sin ningún gachamon la pieza se ve igual y lo dice', async () => {
   assert.equal(seVe(boton(pantalla, 'Ampliar')), true);
 });
 
+// --- la guía: el paso que le toca a quien todavía no tiene ningún gachamon --------------
+
+const GUIA_CAMA = {
+  clave: 'cama', texto: 'Pon tu segunda cama: entra a «Construir», tócala en los guardados y después toca una casilla.',
+};
+const GUIA_AVENTURA = { clave: 'aventura', texto: 'Ya hay cama para un gachamon. Sal al pueblo y ve a «Aventura».' };
+// El 3 × 3 de siempre sin ningún gachamon (la segunda cama, guardada), y el mismo con ella puesta.
+const SIN_GACHAMONES = { ...DEPTO, gachamones: 0, plantel: [] };
+const CON_LAS_DOS_CAMAS = {
+  ...SIN_GACHAMONES, camas: 2, cabe_otro: true, guardados: [],
+  puestos: [...DEPTO.puestos, { id: GUARDADA_ID, ...CAMA, x: 0, y: 1, giro: 0, casillas: [[0, 1], [1, 1]] }],
+};
+const sinGachamon = (guia) => ({ ...ESTADO, gachamon: null, globos: [], guia });
+const laGuia = (pantalla) => uno(pantalla, '.pieza-guia');
+
+test('sin gachamon se lee el paso que toca, y cambia al poner la cama', async () => {
+  const { pantalla, pedidos, servidor } = await abrir(SIN_GACHAMONES, sinGachamon(GUIA_CAMA));
+  // Justo bajo el dibujo de la pieza (antes de «Construir», que nombra), y se anuncia cuando cambia.
+  assert.equal(seVe(laGuia(pantalla)), true);
+  assert.equal(texto(laGuia(pantalla)), GUIA_CAMA.texto);
+  assert.equal(laGuia(pantalla).getAttribute('role'), 'status');
+  const enLaPieza = uno(pantalla, '.pieza').children;
+  assert.equal(enLaPieza.indexOf(laGuia(pantalla)), enLaPieza.indexOf(uno(pantalla, '.pieza-escenario')) + 1);
+  // Se pone la cama guardada, como dice la guía; la respuesta trae el estado nuevo.
+  servidor.responde('POST departamento/poner', {
+    ok: true, clave: null, mensaje: null, departamento: CON_LAS_DOS_CAMAS, estado: sinGachamon(GUIA_AVENTURA),
+  });
+  await construir(pantalla);
+  await tocar(boton(uno(pantalla, '.bandeja'), 'Cama sencilla'));
+  await tocarCasilla(pantalla, 0, 1);
+  // La guía pasa al paso siguiente sin volver a leer nada.
+  assert.deepEqual(pedidos.map(([ruta]) => ruta), ['GET departamento', 'POST departamento/poner']);
+  assert.equal(texto(laGuia(pantalla)), GUIA_AVENTURA.texto);
+  assert.equal(seVe(laGuia(pantalla)), true);
+  // No es un aviso que se borra solo: al rato sigue ahí.
+  await correrReloj(60_000);
+  assert.equal(texto(laGuia(pantalla)), GUIA_AVENTURA.texto);
+  assert.equal(seVe(laGuia(pantalla)), true);
+});
+
+test('con gachamon no hay guía', async () => {
+  const { pantalla } = await abrir(DEPTO, { ...ESTADO, guia: null });
+  assert.equal(seVe(laGuia(pantalla)), false);
+  // Y si llega uno mientras estás aquí (lo trajiste en otra pestaña y ya tiene nombre), la guía se va.
+  const sinUno = await abrir(SIN_GACHAMONES, sinGachamon(GUIA_AVENTURA));
+  assert.equal(seVe(laGuia(sinUno.pantalla)), true);
+  sinUno.servidor.responde('GET estado', { ...ESTADO, guia: null });
+  sinUno.servidor.responde('GET departamento', DEPTO);
+  await sinUno.documento.dispara('visibilitychange');
+  assert.deepEqual(sinUno.seguido, []);
+  assert.equal(seVe(laGuia(sinUno.pantalla)), false);
+});
+
+test('la guía se lee también construyendo', async () => {
+  const { pantalla } = await abrir(SIN_GACHAMONES, sinGachamon(GUIA_CAMA));
+  await construir(pantalla);
+  assert.equal(seVe(laGuia(pantalla)), true);
+  assert.equal(texto(laGuia(pantalla)), GUIA_CAMA.texto);
+  await terminar(pantalla);
+  assert.equal(seVe(laGuia(pantalla)), true);
+  assert.equal(texto(laGuia(pantalla)), GUIA_CAMA.texto);
+});
+
 // --- lo que el encargo dice de los gachamones y no prueba lo de arriba -----------------
 
 test('cada gachamon está en la pieza donde entró, y sólo el que sale contigo lleva su marca', async () => {

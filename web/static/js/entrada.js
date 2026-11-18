@@ -522,7 +522,9 @@ function conMayuscula(texto) {
   return texto ? texto[0].toUpperCase() + texto.slice(1) : '';
 }
 
-// Es el activo, el que espera nombre, y se bautiza sin decir cuál.
+// Es el activo, el que espera nombre (el que se vino contigo de la primera
+// aventura), y se bautiza sin decir cuál. El campo trae ya escrito el nombre
+// que sugiere el servidor, que se deja o se cambia.
 export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
   const nacido = estado.gachamon;
   const retrato = el('img', {
@@ -534,31 +536,38 @@ export function bautizo(contenedor, seguir, { sesion: quien, estado }) {
   contenedor.append(
     barra(quien.usuario),
     el('div', { class: 'cuerpo' },
-      titulo('¡Nació tu gachamon!'),
+      titulo('¡Se vino contigo!'),
       el('div', { class: 'escena' }, ventana(), retrato),
       el('div', { class: 'nacido' },
         el('p', { class: 'nacido-especie' },
           el('span', { 'aria-hidden': 'true' }, nacido.emoji), ' ', nacido.nombre_especie),
         el('p', { class: 'nacido-detalle' }, `${conMayuscula(nacido.nombre_etapa)} · ${nacido.genero}`)),
-      formularioDelNombre(seguir),
+      formularioDelNombre(seguir, nacido.sugerido),
     ),
   );
 }
 
-// El campo del nombre y su botón. El nombre va al activo; lo que contesta es
-// el estado, con el que se decide la pantalla.
-function formularioDelNombre(seguir) {
+// El campo del nombre y su botón. Con `sugerido`, el campo lo trae escrito y
+// debajo dice que se puede dejar (y se le lee a quien está en el campo); sin
+// él, vacío. El nombre va al activo; lo que contesta es el estado, con el que
+// se decide la pantalla.
+function formularioDelNombre(seguir, sugerido) {
   const nombre = el('input', {
     id: 'bautizo-nombre', class: 'texto', name: 'nombre', type: 'text', maxlength: 24,
     required: true, autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false',
-    enterkeyhint: 'done',
+    enterkeyhint: 'done', 'aria-describedby': sugerido ? 'bautizo-nota' : null,
   });
+  if (sugerido) nombre.value = sugerido;
+  const nota = sugerido
+    ? el('p', { id: 'bautizo-nota', class: 'nota' }, 'Le puedes dejar este nombre o escribir otro.')
+    : null;
   const aviso = avisoVacio();
   const bautizar = el('button', { type: 'submit', class: 'boton principal' }, 'Ponerle este nombre');
   const formulario = el('form', { class: 'formulario' },
     el('div', { class: 'campo' },
       el('label', { class: 'etiqueta', for: 'bautizo-nombre' }, '¿Cómo se va a llamar?'),
-      nombre),
+      nombre,
+      nota),
     aviso,
     bautizar,
   );

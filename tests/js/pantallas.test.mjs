@@ -312,6 +312,37 @@ test('un `difunto` que todavía mande un servidor viejo no abre ninguna pantalla
   }
 });
 
+test('cada pantalla que puede tocar tiene su sitio en la tabla de principal.js, también la de la aventura', () => {
+  // Lo que `siguiente` puede devolver, recorriendo cuentas, estados, lugares y vistas.
+  const gachamones = [gachamon, null, { nombre: 'Piollito', espera_nombre: true }];
+  const lugares = [undefined, casa, laTienda, cerrado, laAventura, { clave: 'x', nombre: 'X', ofrece: ['incubadora'] }];
+  const extras = [{}, { carta: true }, { avatar: null }];
+  const vistas = [undefined, 'pueblo', 'tienda', 'incubadora', 'aventura', 'mochila', 'ficha', 'ropero', 'departamento'];
+  const tocan = new Set();
+  for (const laSesion of [null, sesion]) {
+    for (const laCuenta of [null, { estado: 'nueva' }, cuenta]) {
+      tocan.add(siguiente(laSesion, laCuenta, null));
+      for (const g of gachamones) {
+        for (const lugar of lugares) {
+          for (const extra of extras) {
+            for (const vista of vistas) tocan.add(siguiente(laSesion, laCuenta, estado({ gachamon: g, lugar, ...extra }), vista));
+          }
+        }
+      }
+    }
+  }
+  assert.ok(tocan.has('aventura'));
+  // Las filas de la tabla de pantallas de `principal.js`.
+  const principal = readFileSync(new URL('../../web/static/js/principal.js', import.meta.url), 'utf8');
+  const tabla = principal.match(/const PANTALLAS = \{([\s\S]*?)\n\};/);
+  assert.ok(tabla, 'no está la tabla de pantallas');
+  const filas = new Set([...tabla[1].matchAll(/^\s*(\w+):/gm)].map(([, nombre]) => nombre));
+  for (const pantalla of tocan) assert.ok(filas.has(pantalla), pantalla);
+  // La de la aventura pinta con el estado, como la tienda.
+  assert.match(tabla[1], /^\s*aventura: \(destino, seguir, \{ estado \}\) => aventura\(destino, estado, seguir\),$/m);
+  assert.match(principal, /^import \{ aventura \} from '\.\/aventura\.js';$/m);
+});
+
 test('lo que el cliente ofrece en un lugar lleva la clave de un lugar del pueblo', () => {
   const pueblo = JSON.parse(readFileSync(new URL('../../web/static/datos/pueblo.json', import.meta.url), 'utf8'));
   for (const clave of ['tienda', 'incubadora', 'aventura']) assert.ok(Object.hasOwn(pueblo.lugares, clave), clave);

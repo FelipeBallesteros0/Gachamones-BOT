@@ -2,6 +2,7 @@
 // pinta la pantalla que toque.
 
 import { pedir, versiones } from './api.js';
+import { aventura } from './aventura.js';
 import { carta } from './carta.js';
 import { departamento } from './departamento.js';
 import * as entrada from './entrada.js';
@@ -29,6 +30,7 @@ const PANTALLAS = {
   departamento: (destino, seguir, { estado, llegando }) => departamento(destino, estado, seguir, { llegando }),
   pueblo: (destino, seguir, { estado }) => pueblo(destino, estado, seguir),
   tienda: (destino, seguir, { estado }) => tienda(destino, estado, seguir),
+  aventura: (destino, seguir, { estado }) => aventura(destino, estado, seguir),
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),
   ficha: (destino, seguir, { estado, gachamonId }) => ficha(destino, estado, seguir, gachamonId),
   ropero: (destino, seguir, { estado }) => ropero(destino, estado, seguir),
@@ -91,8 +93,8 @@ function recargarSiEsDeOtraVersion() {
 let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
-// `opciones.vista` (`'pueblo'`, `'tienda'`, `'mochila'`, `'ficha'`, `'ropero'`,
-// `'incubadora'` o nada) es lo que se quiere ver si todo está en orden;
+// `opciones.vista` (`'pueblo'`, `'tienda'`, `'aventura'`, `'mochila'`, `'ficha'`,
+// `'ropero'`, `'incubadora'` o nada) es lo que se quiere ver si todo está en orden;
 // `opciones.llegando`, que se acaba de llegar caminando; y
 // `opciones.gachamonId`, de qué gachamon tuyo es la ficha (sin él, la del que
 // sale contigo). Valen sólo para esta llamada: `seguir()` a secas vuelve al lugar.

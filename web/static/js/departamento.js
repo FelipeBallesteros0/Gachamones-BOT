@@ -17,7 +17,8 @@
 // llevas algo en la mano. Dónde está parado cada uno es sólo del dibujo: no
 // se guarda ni se manda. Si lo que llega pide otra pantalla (ya no estás en
 // tu casa, ya no hay sesión) se lo pasa a `seguir`; sin ningún gachamon, tu
-// casa se sigue viendo.
+// casa se sigue viendo, y justo bajo el dibujo se lee la guía (`estado.guia`):
+// el paso que te toca, en los dos modos, al día con cada estado que llega.
 //
 // La pieza tiene dos modos, y siempre se entra en el normal: el modo es de la
 // pantalla, no se guarda ni se manda. El botón de bajo el dibujo, «🔨
@@ -108,7 +109,7 @@ import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
 import { loQueFlota } from './flotantes.js';
 import { cuantoOcupa, listaDelDepartamento } from './lista.js';
-import { ofreceElDepartamento, siguiente } from './pantallas.js';
+import { siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
 import {
@@ -171,13 +172,10 @@ function porTipo(guardados) {
 }
 
 // Mientras se está aquí hay sesión y la cuenta ya no es nueva, así que la
-// pantalla la decide sólo el estado, con la regla de siempre; pero sin ningún
-// gachamon tu casa se sigue viendo mientras estés en ella: el huevo es cosa de
-// la entrada, y a esta pantalla se llega con uno.
+// pantalla la decide sólo el estado, con la regla de siempre (sin ningún
+// gachamon, tu casa se sigue viendo mientras estés en ella).
 function pideOtraPantalla(estado) {
-  const toca = siguiente(true, { estado: 'en juego' }, estado, VISTA);
-  if (toca === 'huevo') return !ofreceElDepartamento(estado.lugar);
-  return toca !== VISTA;
+  return siguiente(true, { estado: 'en juego' }, estado, VISTA) !== VISTA;
 }
 
 // El retrato de un gachamon no es una pieza del contrato: es la dirección que
@@ -276,8 +274,12 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // está en su pregunta).
   const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar', { 'aria-expanded': 'false' });
   const herramientas = el('div', { class: 'obra-herramientas', hidden: true }, bandeja, alAmpliar);
+  // Justo bajo el dibujo, a quien todavía no tiene ningún gachamon, la guía:
+  // el paso que le toca, como lo dice el servidor. Se queda (no se borra sola),
+  // en los dos modos, y cambia con cada estado que llega; se anuncia cuando cambia.
+  const guia = el('p', { class: 'pieza-guia', role: 'status', hidden: true });
   // Mientras no llega, en su lugar se lee la espera (o por qué no llegó).
-  const pieza = el('div', { class: 'pieza', hidden: true }, escenario, obra, herramientas, linea);
+  const pieza = el('div', { class: 'pieza', hidden: true }, escenario, guia, obra, herramientas, linea);
   const espera = el('div', { class: 'espera-tienda' });
 
   const aviso = zonaDeAviso();
@@ -382,7 +384,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // Cada estado que llega se pregunta lo mismo que al entrar: si ya no toca
   // esta pantalla, se va. Un globo no dice lo que ya no pasa: si lo que pedía
-  // ya no está, se calla.
+  // ya no está, se calla. La guía dice lo que diga el estado, o se va.
   function aplicarEstado(nuevo) {
     if (pideOtraPantalla(nuevo)) {
       irse(nuevo);
@@ -391,7 +393,15 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     actual = nuevo;
     ponerSaldos(nuevo.saldos);
     flota.callarSiYaNoPasa(Array.isArray(nuevo.globos) ? nuevo.globos : []);
+    ponerGuia(nuevo.guia);
     return true;
+  }
+
+  // Sólo si cambió: volver a poner el mismo texto lo anunciaría otra vez.
+  function ponerGuia(laQueToca) {
+    const dice = laQueToca && typeof laQueToca.texto === 'string' ? laQueToca.texto : '';
+    if (guia.textContent !== dice) guia.textContent = dice;
+    guia.hidden = !dice;
   }
 
   // --- lo que hay en la pieza ------------------------------------------------------------

@@ -198,6 +198,59 @@ test('el bautizo del recién nacido no manda gachamon_id: es el de la activa, co
   assert.ok(!Object.hasOwn(pedidas[0].cuerpo, 'gachamon_id'));
 });
 
+// --- el paso del nombre del que se vino contigo de la primera aventura -------------
+
+const ETIQUETA = '¿Cómo se va a llamar?';
+const SE_PUEDE_DEJAR = 'Le puedes dejar este nombre o escribir otro.';
+
+// Pinta el paso del nombre con ese gachamon y da el campo, su formulario y lo
+// que se pasó a `seguir` cuando se mande.
+function pasoDelNombre(gachamon) {
+  const contenedor = new Elemento('main');
+  let seguir;
+  const seguido = new Promise((listo) => { seguir = async (...args) => listo(args); });
+  bautizo(contenedor, seguir, { sesion: { usuario: 'ana' }, estado: { avatar: {}, gachamon } });
+  const [campo] = buscar(contenedor, 'input');
+  const [formulario] = buscar(contenedor, 'form');
+  return { contenedor, campo, formulario, seguido };
+}
+
+test('el paso del nombre trae el sugerido escrito y dice que se puede dejar', () => {
+  const { contenedor, campo, formulario } = pasoDelNombre({ ...nacido, sugerido: 'Bruma' });
+  const todo = textos(contenedor);
+  assert.deepEqual(buscar(contenedor, 'h1').map((h) => textos(h).join('')), ['¡Se vino contigo!']);
+  assert.ok(!todo.includes('¡Nació tu gachamon!'));
+  // El campo, con el sugerido ya escrito.
+  assert.equal(campo.value, 'Bruma');
+  assert.deepEqual(buscar(formulario, 'label').map((l) => textos(l).join('')), [ETIQUETA]);
+  // Debajo del campo, la nota, que se le lee a quien está en el campo.
+  const [nota] = buscar(formulario, 'p').filter((p) => textos(p).join('') === SE_PUEDE_DEJAR);
+  assert.ok(nota, todo.join(' | '));
+  const campoYSuNota = buscar(formulario, 'div').find((d) => d.hijos.includes(campo));
+  assert.ok(campoYSuNota.hijos.indexOf(nota) > campoYSuNota.hijos.indexOf(campo));
+  assert.equal(campo.atributos['aria-describedby'], nota.atributos.id);
+  // El botón de siempre.
+  assert.deepEqual(buscar(formulario, 'button').map((b) => textos(b).join('')), ['Ponerle este nombre']);
+
+  // Sin nombre sugerido, el campo vacío, como antes, y sin la nota.
+  const sinSugerido = pasoDelNombre({ ...nacido, sugerido: null });
+  assert.ok(!sinSugerido.campo.value);
+  assert.ok(!textos(sinSugerido.contenedor).includes(SE_PUEDE_DEJAR));
+  assert.equal(sinSugerido.campo.atributos['aria-describedby'], undefined);
+  assert.deepEqual(buscar(sinSugerido.contenedor, 'h1').map((h) => textos(h).join('')), ['¡Se vino contigo!']);
+});
+
+test('con el sugerido tal cual, «Ponerle este nombre» lo manda', { timeout: 2000 }, async () => {
+  const despues = { avatar: {}, gachamon: { ...nacido, nombre: 'Bruma', espera_nombre: false, sugerido: null } };
+  const pedidas = servidor(() => ({ estado: 200, datos: despues }));
+  const { formulario, seguido } = pasoDelNombre({ ...nacido, sugerido: 'Bruma' });
+  formulario.oyentes.submit[0]({ preventDefault() {} });                 // sin tocar el campo
+  assert.deepEqual(await seguido, [despues]);
+  assert.equal(pedidas.length, 1);
+  assert.ok(pedidas[0].url.endsWith('/bautizar'), pedidas[0].url);
+  assert.deepEqual(pedidas[0].cuerpo, { nombre: 'Bruma' });
+});
+
 test('si ya tiene nombre o ya no hay a quién bautizar, se vuelve a decidir sin enseñar un error', { timeout: 2000 }, async () => {
   for (const [clave, mensaje] of [['ya_bautizado', 'Tu gachamon ya tiene nombre.'], ['sin_gachamon', 'No tienes ningún gachamon vivo.']]) {
     servidor(() => ({ estado: 409, datos: { detail: { clave, mensaje } } }));

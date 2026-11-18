@@ -740,7 +740,8 @@ a { color: var(--principal-hundido); font-weight: 600; }
   -webkit-user-select: none;
 }
 
-.gachamon::before {
+.gachamon::before,
+.aventura-gachamon::before {
   content: "";
   position: absolute;
   z-index: -1;
@@ -752,7 +753,8 @@ a { color: var(--principal-hundido); font-weight: 600; }
   background: rgba(0, 0, 0, 0.16);
 }
 
-.gachamon > .retrato {
+.gachamon > .retrato,
+.aventura-gachamon > .retrato {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -764,7 +766,8 @@ a { color: var(--principal-hundido); font-weight: 600; }
   -webkit-touch-callout: none;
 }
 
-.gachamon > .retrato-sin {
+.gachamon > .retrato-sin,
+.aventura-gachamon > .retrato-sin {
   position: absolute;
   left: 0;
   right: 0;
@@ -1196,17 +1199,20 @@ a { color: var(--principal-hundido); font-weight: 600; }
   .cuidado-espera { font-size: 0.875rem; }
 }
 
-/* Bajo los cuidados, entrar a comprar o a tu plantel (donde se puede) a lo
-   ancho, y debajo la mochila y la salida al pueblo, las dos en una fila. */
+/* Bajo los cuidados, entrar a comprar, a tu plantel o a la primera aventura
+   (donde se puede) a lo ancho, y debajo la mochila y la salida al pueblo, las
+   dos en una fila. */
 .salidas-lugar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
 .boton-comprar,
-.boton-plantel { grid-column: 1 / -1; }
+.boton-plantel,
+.boton-aventura { grid-column: 1 / -1; }
 
 .boton-pueblo > span,
 .boton-mochila > span,
 .boton-comprar > span,
-.boton-plantel > span { font-size: 1.25rem; line-height: 1; }
+.boton-plantel > span,
+.boton-aventura > span { font-size: 1.25rem; line-height: 1; }
 
 /* --- el pueblo --- */
 
@@ -1716,6 +1722,77 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .carta .boton[aria-busy="true"] { cursor: progress; opacity: 0.75; }
 
+/* --- la primera aventura: la escena del lugar y, debajo, el diálogo --- */
+
+.cuerpo-aventura { gap: 12px; padding-top: 12px; }
+
+/* Tu gachamon, cuando sale de su escondite: donde estaría en el lugar, del
+   alto de su etapa (su sombra y su retrato son los del lugar). Entra subiendo
+   desde los matorrales; con menos movimiento, aparece ya quieto. */
+.aventura-gachamon {
+  position: absolute;
+  z-index: 2;
+  left: 63%;
+  bottom: 6%;
+  height: var(--alto);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  animation: sale-del-escondite 0.7s ease-out both;
+}
+
+@keyframes sale-del-escondite {
+  from { opacity: 0; transform: translateY(14%) scale(0.9); }
+}
+
+.aventura-dialogo { display: grid; gap: 12px; }
+
+/* La frase en que vas: una tarjeta que no cambia de alto entre una frase de
+   una línea y otra de dos. */
+.aventura-frase {
+  display: grid;
+  align-content: center;
+  min-height: calc(2 * 1.45em + 32px);
+  padding: 16px 18px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-grande);
+  background: var(--tarjeta);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.aventura-frase.es-error {
+  border-color: var(--error-texto);
+  background: var(--error-fondo);
+  color: var(--error-texto);
+}
+
+.boton-avanzar[aria-busy="true"] { cursor: progress; }
+
+/* En un computador, como el lugar: la escena a un lado y el diálogo al otro. */
+@media (min-width: 900px) {
+  #juego[data-pantalla="aventura"] { max-width: 1120px; }
+
+  .cuerpo-aventura {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: 16px 28px;
+    padding: 28px 28px 36px;
+  }
+
+  .cuerpo-aventura > .escena-lugar { grid-area: 1 / 1 / 3 / 2; }
+
+  .cuerpo-aventura > .aventura-dialogo { grid-area: 1 / 2; }
+
+  .cuerpo-aventura > .aviso-tienda { grid-area: 2 / 2; }
+
+  .aventura-frase { font-size: 1.125rem; }
+}
+
 /* --- la mochila: las filas, la pregunta y el aviso son los de la tienda --- */
 
 /* Sin nada que llevar (o que ponerse): la frase en un hueco, donde estaría la
@@ -2068,6 +2145,20 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   color: var(--texto-suave);
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* La guía de quien todavía no tiene ningún gachamon, justo bajo el dibujo: un
+   cartel quieto (ni un error ni un aviso que se va), con la letra justa para
+   que en el teléfono no empuje lo de abajo más de lo necesario. */
+.pieza-guia {
+  padding: 6px 12px;
+  border-radius: var(--radio);
+  background: var(--elegido);
+  color: var(--elegido-texto);
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.35;
   text-align: center;
 }
 
@@ -2458,6 +2549,13 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
     aspect-ratio: auto;
     height: clamp(420px, calc(100vh - 190px), 640px);
     height: clamp(420px, calc(100dvh - 190px), 640px);
+  }
+
+  /* Mientras se lee la guía bajo el dibujo, el dibujo le deja su sitio: el
+     botón del modo y la línea siguen cabiendo en la ventana. */
+  .pieza:has(> .pieza-guia:not([hidden])) .pieza-lienzo {
+    height: clamp(420px, calc(100vh - 230px), 640px);
+    height: clamp(420px, calc(100dvh - 230px), 640px);
   }
 }
 
