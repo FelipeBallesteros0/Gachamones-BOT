@@ -119,6 +119,9 @@ class Elemento extends Nodo {
   // Sus hijos que son elementos, como en un navegador.
   get children() { return this.hijos.filter((h) => h instanceof Elemento); }
 
+  // Todos sus hijos, también los de texto.
+  get childNodes() { return this.hijos; }
+
   addEventListener(tipo, oyente, opciones) { escuchar(this.oyentes, tipo, oyente, opciones); }
 
   append(...nodos) {
@@ -317,6 +320,7 @@ globalThis.window = {
     matches: reducido && consulta.includes('reduce'), media: consulta, addEventListener() {}, removeEventListener() {},
   }),
   addEventListener() {},
+  scrollTo() {},
 };
 
 // Deja correr todo lo que ya está en camino (respuestas, promesas encadenadas).
@@ -505,8 +509,9 @@ const CON_RULO_ACTIVO = { ...CON_DOS, plantel: [{ ...PELUSA, activo: false }, { 
 // (lo que `principal.js` manda a la avería si falla). `azar` es el de la
 // pantalla (cuándo y hacia dónde caminan solos, qué dice el globo): fijo, para
 // que cada prueba dé siempre lo mismo. `llegando`, que se llegó caminando.
+// `cuenta`, la que lleva `principal.js` (sin ella, la pantalla no la conoce).
 async function abrir(depto, estado = ESTADO, {
-  movimientoReducido = false, antes = () => {}, azar = () => 0.5, llegando = false,
+  movimientoReducido = false, antes = () => {}, azar = () => 0.5, llegando = false, cuenta,
 } = {}) {
   const documento = nuevoDocumento();
   reducido = movimientoReducido;
@@ -520,7 +525,7 @@ async function abrir(depto, estado = ESTADO, {
   antes(servidor);
   const pantalla = new Elemento('main');
   const seguido = [];
-  const hecho = departamento(pantalla, estado, (...argumentos) => { seguido.push(argumentos); }, { azar, llegando });
+  const hecho = departamento(pantalla, estado, (...argumentos) => { seguido.push(argumentos); }, { azar, llegando, cuenta });
   if (hecho && typeof hecho.catch === 'function') hecho.catch(() => {});
   await asentar();
   return { pantalla, pedidos: servidor.pedidos, servidor, seguido, documento, hecho };
@@ -1354,6 +1359,115 @@ test('la guía se lee también construyendo', async () => {
   await terminar(pantalla);
   assert.equal(seVe(laGuia(pantalla)), true);
   assert.equal(texto(laGuia(pantalla)), GUIA_CAMA.texto);
+});
+
+// --- traer los de Discord: el enlace de la pantalla del avatar, mientras no tengas ninguno ----
+
+const ENLACE_A_DISCORD = '¿Ya jugabas en Discord? Trae tus gachamones.';
+// Una cuenta que empezó de cero aquí y todavía no tiene ningún gachamon: puede traerlos.
+const PUEDE_TRAERLOS = { usuario: 'feli', estado: 'web', tiene_gachamones: false };
+const elEnlace = (pantalla) => boton(pantalla, ENLACE_A_DISCORD);
+const elCuerpo = (pantalla) => uno(pantalla, '.cuerpo-departamento');
+
+test('sin gachamon y con una cuenta que puede traerlos, el enlace a Discord está bajo la guía', async () => {
+  const { pantalla } = await abrir(SIN_GACHAMONES, sinGachamon(GUIA_CAMA), { cuenta: PUEDE_TRAERLOS });
+  const enlace = elEnlace(pantalla);
+  assert.equal(seVe(enlace), true);
+  // Justo bajo la guía, y «Construir» justo después, a la vista y para usarse.
+  const enLaPieza = uno(pantalla, '.pieza').children;
+  const suyo = enlace.closest('.traer');
+  assert.equal(enLaPieza.indexOf(suyo), enLaPieza.indexOf(laGuia(pantalla)) + 1);
+  assert.equal(enLaPieza.indexOf(uno(pantalla, '.pieza-obra')), enLaPieza.indexOf(suyo) + 1);
+  assert.equal(seVe(boton(pantalla, 'Construir')), true);
+  assert.equal(boton(pantalla, 'Construir').getAttribute('aria-disabled'), null);
+  // Como la guía, también construyendo.
+  await construir(pantalla);
+  assert.equal(seVe(elEnlace(pantalla)), true);
+});
+
+test('con gachamon, o con una cuenta que ya no puede traerlos, no hay enlace a Discord', async () => {
+  // Con gachamon el departamento no cambia en nada, aunque la cuenta pudiera.
+  const conUno = await abrir(DEPTO, ESTADO, { cuenta: PUEDE_TRAERLOS });
+  assert.equal(elEnlace(conUno.pantalla), null);
+  assert.equal(uno(conUno.pantalla, '.traer'), null);
+  // Ya vinculada, con gachamones aquí (aunque sean los que murieron antes), o sin saber la cuenta.
+  for (const cuenta of [{ ...PUEDE_TRAERLOS, estado: 'vinculada' }, { ...PUEDE_TRAERLOS, tiene_gachamones: true }, undefined]) {
+    const { pantalla } = await abrir(SIN_GACHAMONES, sinGachamon(GUIA_CAMA), { cuenta });
+    assert.equal(elEnlace(pantalla), null, JSON.stringify(cuenta));
+    assert.equal(seVe(laGuia(pantalla)), true);
+  }
+});
+
+test('al llegar un estado con gachamon, el enlace a Discord se va', async () => {
+  const { pantalla, servidor, documento, seguido } = await abrir(
+    SIN_GACHAMONES, sinGachamon(GUIA_AVENTURA), { cuenta: PUEDE_TRAERLOS },
+  );
+  assert.equal(seVe(elEnlace(pantalla)), true);
+  // Lo trajiste en otra pestaña y ya tiene nombre: sigues aquí, con él y sin el enlace.
+  servidor.responde('GET estado', { ...ESTADO, guia: null });
+  servidor.responde('GET departamento', DEPTO);
+  await documento.dispara('visibilitychange');
+  assert.deepEqual(seguido, []);
+  assert.equal(seVe(elEnlace(pantalla)), false);
+  assert.equal(seVe(laGuia(pantalla)), false);
+});
+
+test('pulsar el enlace hace lo de la pantalla del avatar: pide el código, lo enseña, y «Volver» deja tu departamento como estaba', async () => {
+  const { pantalla, pedidos, servidor, documento, seguido } = await abrir(
+    SIN_GACHAMONES, sinGachamon(GUIA_CAMA), { cuenta: PUEDE_TRAERLOS },
+  );
+  servidor.responde('POST cuenta/codigo', { codigo: 'AXF55QQU', minutos: 10 });
+  const cuerpo = elCuerpo(pantalla);
+  const antes = [...cuerpo.children];
+  await tocar(elEnlace(pantalla));
+  assert.deepEqual(pedidos.map(([ruta]) => ruta), ['GET departamento', 'POST cuenta/codigo']);
+  // En lugar de tu departamento, el paso del código: su título, que se queda con el
+  // foco, el código, que no se le pasa a nadie, y la espera.
+  const titulo = uno(cuerpo, 'h1');
+  assert.equal(texto(titulo), 'Trae tus gachamones');
+  assert.equal(documento.activeElement, titulo);
+  assert.equal(texto(cuerpo, '.codigo'), 'AXF55QQU');
+  assert.match(texto(cuerpo, '[role=note]'), /^No se lo pases a nadie\. /);
+  assert.equal(texto(cuerpo, '.esperando-vinculo'), 'Esperando a que lo escribas en Discord…');
+  assert.equal(uno(pantalla, '.pieza'), null);
+  assert.ok(cuerpo.classList.contains('trayendo'));
+  // «Volver»: todo como estaba, con el foco en el enlace, y la pantalla sigue.
+  await tocar(boton(cuerpo, 'Volver'));
+  assert.deepEqual(cuerpo.children, antes);
+  assert.ok(!cuerpo.classList.contains('trayendo'));
+  assert.equal(documento.activeElement, elEnlace(pantalla));
+  assert.equal(seVe(laGuia(pantalla)), true);
+  assert.deepEqual(seguido, []);
+});
+
+test('tras vincular en Discord, la pantalla se va y se vuelve a decidir, como en la del avatar', async () => {
+  const { pantalla, servidor, seguido, hecho } = await abrir(
+    SIN_GACHAMONES, sinGachamon(GUIA_CAMA), { cuenta: PUEDE_TRAERLOS },
+  );
+  servidor.responde('POST cuenta/codigo', { codigo: 'AXF55QQU', minutos: 10 });
+  servidor.responde('GET cuenta', PUEDE_TRAERLOS);
+  await tocar(elEnlace(pantalla));
+  await correrReloj(3_000);                                     // todavía no lo escribiste
+  assert.deepEqual(seguido, []);
+  servidor.responde('GET cuenta', { usuario: 'feli', estado: 'vinculada', tiene_gachamones: true });
+  await correrReloj(3_000);
+  assert.deepEqual(seguido, [[undefined]]);                     // sin estado: se pregunta todo otra vez
+  assert.equal(await comoAcaba(hecho), 'bien');
+});
+
+test('si la cuenta ya no puede traerlos, se dice y «Seguir» vuelve a decidir, como en la del avatar', async () => {
+  const { pantalla, servidor, seguido, hecho } = await abrir(
+    SIN_GACHAMONES, sinGachamon(GUIA_CAMA), { cuenta: PUEDE_TRAERLOS },
+  );
+  const yaNoPuede = 'Ya empezaste a jugar aquí, y dos grupos de gachamones no se pueden juntar.';
+  servidor.responde('POST cuenta/codigo', { estado: 409, clave: 'con_gachamones', mensaje: yaNoPuede });
+  await tocar(elEnlace(pantalla));
+  const cuerpo = elCuerpo(pantalla);
+  assert.equal(texto(cuerpo, '[role=alert]'), yaNoPuede);
+  assert.deepEqual(seguido, []);
+  await tocar(boton(cuerpo, 'Seguir'));
+  assert.deepEqual(seguido, [[undefined]]);
+  assert.equal(await comoAcaba(hecho), 'bien');
 });
 
 // --- lo que el encargo dice de los gachamones y no prueba lo de arriba -----------------

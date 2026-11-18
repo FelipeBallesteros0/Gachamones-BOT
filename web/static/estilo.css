@@ -2162,6 +2162,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-align: center;
 }
 
+/* Bajo la guía, a quien todavía puede traer los de Discord, el enlace de la
+   pantalla del avatar. Mientras se ve, el dibujo le deja su sitio (lo que mide
+   el enlace y su hueco): «Construir» y lo de debajo de la pieza siguen donde
+   estaban, también en el teléfono. */
+.pieza:has(> .traer:not([hidden])) .pieza-lienzo { aspect-ratio: 380 / 255; }
+
+/* Mientras se ve el paso del código que abre ese enlace, el cuerpo es el de
+   cualquier pantalla de la entrada, en una columna. */
+.cuerpo-departamento.trayendo { gap: 14px; padding-top: 20px; }
+
 /* Bajo el dibujo, el botón del modo («Construir» o, dentro, «Listo», que
    resalta) y, mientras dura, «Modo construcción» a su lado. Construyendo, el
    dibujo se enmarca, a rayas, como una obra. */
@@ -2558,6 +2568,22 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .pieza:has(> .pieza-guia:not([hidden])) .pieza-lienzo {
     height: clamp(420px, calc(100vh - 230px), 640px);
     height: clamp(420px, calc(100dvh - 230px), 640px);
+  }
+
+  /* Con el enlace a Discord bajo la guía, el dibujo le deja también el suyo. */
+  .pieza:has(> .traer:not([hidden])) .pieza-lienzo {
+    aspect-ratio: auto;
+    height: clamp(420px, calc(100vh - 282px), 640px);
+    height: clamp(420px, calc(100dvh - 282px), 640px);
+  }
+
+  /* El paso del código, en la columna de la entrada y al centro. */
+  .cuerpo-departamento.trayendo {
+    display: flex;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px var(--margen) calc(28px + env(safe-area-inset-bottom));
   }
 }
 

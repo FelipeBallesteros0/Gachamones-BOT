@@ -1,7 +1,7 @@
 // Tu casa: la pieza de tu departamento, en vista isométrica por casillas, con
 // sus muebles, tu avatar y tus gachamones, que caminan por ella.
 //
-// `departamento(contenedor, estado, seguir, { azar, llegando })` pide la pieza
+// `departamento(contenedor, estado, seguir, { azar, llegando, cuenta })` pide la pieza
 // al servidor (`GET departamento`) al entrar, y la pinta en su lienzo; debajo,
 // una línea dice cómo está. Cada 30 segundos y al volver a la pestaña la
 // vuelve a pedir, y con ella el estado (`GET estado`), como el lugar: con él
@@ -19,6 +19,12 @@
 // tu casa, ya no hay sesión) se lo pasa a `seguir`; sin ningún gachamon, tu
 // casa se sigue viendo, y justo bajo el dibujo se lee la guía (`estado.guia`):
 // el paso que te toca, en los dos modos, al día con cada estado que llega.
+// Bajo la guía, si tu cuenta (`cuenta`, la que lleva `principal.js`; sin ella,
+// nada) todavía puede traer los de Discord, el mismo enlace de la pantalla del
+// avatar (`enlaceADiscord`, de `entrada.js`): su paso del código va en lugar
+// de todo lo de tu casa, «Volver» lo deja como estaba y, si la cuenta cambia
+// (se vinculó), se deja la pantalla y se vuelve a decidir. Se va en cuanto
+// llega un estado con gachamon.
 //
 // La pieza tiene dos modos, y siempre se entra en el normal: el modo es de la
 // pantalla, no se guarda ni se manda. El botón de bajo el dibujo, «🔨
@@ -107,6 +113,7 @@ import {
 } from './casillas.js';
 import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
+import { enlaceADiscord } from './entrada.js';
 import { loQueFlota } from './flotantes.js';
 import { cuantoOcupa, listaDelDepartamento } from './lista.js';
 import { siguiente } from './pantallas.js';
@@ -197,7 +204,7 @@ function caminanteEn(sitio, porSegundo) {
   return sitio ? { i: sitio[0], j: sitio[1], ruta: [], espejo: false, porSegundo } : null;
 }
 
-export function departamento(contenedor, estado, seguir, { azar = Math.random, llegando = false } = {}) {
+export function departamento(contenedor, estado, seguir, { azar = Math.random, llegando = false, cuenta = null } = {}) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -322,6 +329,12 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     espera, pieza, derecha, panelAmpliar, lista.nodo, aviso.nodo);
   contenedor.append(cabecera, cuerpo);
 
+  // Bajo la guía, a quien todavía no tiene ningún gachamon y puede traer los de
+  // Discord, el enlace de la pantalla del avatar: su paso del código va en
+  // lugar de lo que hay en el cuerpo. Si la cuenta cambia, se deja la pantalla.
+  const traer = estado.gachamon ? null : enlaceADiscord(cuerpo, () => irse(), cuenta);
+  if (traer) pieza.insertBefore(traer, obra);
+
   function parar() {
     vivo = false;
     if (cuadroPedido !== null) cancelAnimationFrame(cuadroPedido);
@@ -384,7 +397,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // Cada estado que llega se pregunta lo mismo que al entrar: si ya no toca
   // esta pantalla, se va. Un globo no dice lo que ya no pasa: si lo que pedía
-  // ya no está, se calla. La guía dice lo que diga el estado, o se va.
+  // ya no está, se calla. La guía dice lo que diga el estado, o se va; el
+  // enlace a Discord se va si ya tienes un gachamon.
   function aplicarEstado(nuevo) {
     if (pideOtraPantalla(nuevo)) {
       irse(nuevo);
@@ -394,6 +408,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     ponerSaldos(nuevo.saldos);
     flota.callarSiYaNoPasa(Array.isArray(nuevo.globos) ? nuevo.globos : []);
     ponerGuia(nuevo.guia);
+    if (traer) traer.hidden = Boolean(nuevo.gachamon);
     return true;
   }
 

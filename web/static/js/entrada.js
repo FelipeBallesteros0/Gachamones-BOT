@@ -197,8 +197,8 @@ export function bienvenida(contenedor, seguir, { sesion: quien, cuenta }) {
 // --- traer los de Discord: el paso del código -----------------------------------
 
 // Pedir el código, enseñarlo con su aviso y esperar a que se escriba en
-// Discord. Es uno solo para la bienvenida y para el enlace de la pantalla del
-// avatar: `mostrar(...nodos)` pone lo suyo en pantalla, y el botón
+// Discord. Es uno solo para la bienvenida y para el enlace que lo ofrece
+// (`enlaceADiscord`): `mostrar(...nodos)` pone lo suyo en pantalla, y el botón
 // `textoVolver` llama a `volver()`, que deja la de antes. Si mientras tanto la
 // cuenta deja de ser `cuenta` (se vinculó, o cambió en otra pestaña), se vuelve
 // a decidir con `seguir()`. Devuelve `pedirCodigo(aviso)`; en `aviso` se dice
@@ -309,11 +309,14 @@ function pasoDelCodigo({ mostrar, volver, textoVolver, seguir, cuenta }) {
   return pedirCodigo;
 }
 
-// El enlace discreto de la pantalla del avatar: quien tocó «Empezar de cero»
-// viniendo de Discord todavía puede traer los suyos mientras no tenga ningún
-// gachamon aquí. Abre el mismo paso del código en lugar de `cuerpo`, y
-// «Volver» lo deja todo como estaba (también lo que se hubiera elegido).
-function enlaceADiscord(cuerpo, seguir, cuenta) {
+// El enlace discreto que ofrece traer los de Discord: quien tocó «Empezar de
+// cero» viniendo de allí todavía puede traer los suyos mientras no tenga ningún
+// gachamon aquí. Es uno solo para la pantalla del avatar y para tu
+// departamento. Abre el mismo paso del código en lugar de lo que hay en
+// `cuerpo` (que mientras tanto lleva la clase `trayendo`), y «Volver» lo deja
+// todo como estaba (también lo que se hubiera elegido). Con `seguir()` se
+// vuelve a decidir la pantalla.
+export function enlaceADiscord(cuerpo, seguir, cuenta) {
   if (!puedeTraerDeDiscord(cuenta)) return null;
   const aviso = avisoVacio();
   const enlace = el('button', { type: 'button', class: 'enlace' },
@@ -324,11 +327,13 @@ function enlaceADiscord(cuerpo, seguir, cuenta) {
       if (!antes) antes = [...cuerpo.childNodes];
       const cabeza = titulo('Trae tus gachamones');
       cuerpo.replaceChildren(cabeza, ...nodos);
+      cuerpo.classList.add('trayendo');
       window.scrollTo(0, 0);
       cabeza.focus({ preventScroll: true });
     },
     volver: () => {
       cuerpo.replaceChildren(...antes);
+      cuerpo.classList.remove('trayendo');
       antes = null;
       enlace.focus();
     },
