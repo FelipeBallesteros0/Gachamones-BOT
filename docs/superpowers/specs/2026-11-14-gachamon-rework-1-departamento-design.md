@@ -220,21 +220,37 @@ tomar comida de ahí y recuperarán cierta cantidad de hambre, lo mismo para el
 ánimo con una consola de videojuegos, y una ducha para la higiene, podrán
 entrenar solos si les compras pesas» **[Felipe]**.
 
-Cómo lo propongo **[propuesta]**:
+Cómo queda **[propuesta, aceptada, salvo lo que se marca]**:
 
 | Mueble | Casillas | Precio | Con él puesto |
 |---|---|---|---|
-| Refrigerador | 1 | 300 | la comida de quienes viven ahí no baja de 30 |
-| Consola | 1 | 300 | el ánimo no baja de 30 |
-| Ducha | 1 | 300 | el aseo no baja de 30 |
+| Refrigerador | 1 | 300 | la comida de quienes viven ahí no baja de 40 |
+| Consola | 1 | 300 | el ánimo no baja de 40 |
+| Ducha | 1 | 300 | el aseo no baja de 40 |
 | Pesas | 1 | 300 | cada gachamon gana 1 punto de entrenamiento de fuerza por día |
 
+- **El mínimo es 40** **[Felipe, 2026-11-18]** (este documento decía 30): por
+  debajo de 40 el gachamon pide lo que le falta, y con 30 pediría siempre lo
+  que el mueble le sostiene.
+- **«No baja de 40» vale siempre**, también contra lo que gastan los cuidados:
+  con el mueble puesto, un cuidado que dejaría la barra por debajo la deja en
+  40 **[Felipe, 2026-11-18]**. Y si al ponerlo la barra ya está por debajo,
+  sube a 40.
+- **Las pesas dan 1 punto por día** y gachamon **[Felipe, 2026-11-18]**. Llega
+  al pasar la medianoche UTC, el mismo día de los topes diarios; guardarlas y
+  volver a ponerlas no da puntos de más **[propuesta, aceptada]**.
 - No hay que llenarlos ni cuestan por uso. Tener dos no hace más.
-- Si al ponerlo la barra ya está por debajo de 30, sube a 30.
 - No dan experiencia ni monedas: eso sólo lo da cuidar uno mismo.
+- **Quitan crecimiento, y se acepta** **[Felipe, 2026-11-18]**: cuidar a un
+  gachamon que está muy mal lo hace crecer más, y con la ducha y el
+  refrigerador ya no llega a estarlo. Es el precio de la comodidad; no hay
+  regla que lo compense.
 - Suman 3 de comodidad cada uno, como cualquier mueble.
-- En pantalla se ve a los gachamones acercarse a usarlos de vez en cuando; es
-  adorno, la regla la lleva el servidor.
+- **Lo que hacen se dice en una línea de la Tienda**, bajo el nombre de cada
+  uno, y en ningún otro sitio por ahora **[Felipe, 2026-11-18]**.
+- En pantalla se ve a los gachamones acercarse a ellos de vez en cuando: uno
+  que está quieto camina hasta su lado y se queda unos segundos
+  **[propuesta, aceptada]**. Es adorno; la regla la lleva el servidor.
 
 ### 4.5 La puerta
 
