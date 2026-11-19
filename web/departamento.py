@@ -65,6 +65,7 @@ def vista(jugador: Jugador, depto: dep.Departamento) -> dict:
             "id": pieza.id, "clave": mueble.clave, "nombre": mueble.nombre,
             "icono": _icono(mueble), "x": pieza.x, "y": pieza.y, "giro": pieza.giro,
             "capa": mueble.capa, "cama": mueble.cama, "puerta": mueble.puerta,
+            "uso": mueble.uso,   # el cliente reconoce por esta marca los que se usan solos
             "ancho": mueble.ancho, "fondo": mueble.fondo,
             "casillas": [list(c) for c in sorted(dep.huella(mueble, pieza.x, pieza.y, pieza.giro))],
         })

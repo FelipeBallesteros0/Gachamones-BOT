@@ -326,3 +326,146 @@ def test_la_puerta_se_mueve_como_cualquier_cosa_de_pared():
     nacer("Ana"); puerta = next(p for p in db.departamento_de("u1", "g1", T0).puestas if p.clave == dep.PUERTA)
     hecho = economia.poner_mueble("u1", "g1", puerta.id, 1, -1, 0, T0)
     assert hecho.ok and (hecho.departamento.pieza(puerta.id).x, hecho.departamento.pieza(puerta.id).y) == (1, -1)
+
+
+# --- Los muebles que se usan solos -----------------------------------------
+#
+# Con el refrigerador, la consola o la ducha puestos, su barra no baja de 40 y,
+# si estaba más abajo, sube a 40 al ponerlo; con unas pesas puestas, cada
+# medianoche UTC suma un punto de fuerza. Todo sale del ritmo del departamento
+# al leer: aquí se lee como la página, con `db.plantel_al_dia`.
+
+def con_barras(criatura, **barras):
+    """Le guarda esas barras sin mover cuándo se puso al día, y la devuelve como quedó."""
+    db.guardar(replace(criatura, **barras))
+    return db.por_id(criatura.id)
+
+
+def al_dia(ahora):
+    return db.plantel_al_dia("u1", "g1", ahora)
+
+
+def test_al_poner_el_refrigerador_la_comida_sube_al_minimo():
+    con_barras(nacer("Ana"), hambre=10.0)
+    refrigerador = guardado("u1", "refrigerador")
+    luego = T0 + timedelta(hours=1)
+    [sin_mueble] = al_dia(luego)
+    assert sin_mueble.hambre < 10.0 and sin_mueble.animo < 100.0 and sin_mueble.limpieza < 100.0
+    assert economia.poner_mueble("u1", "g1", refrigerador, 2, 2, 0, luego).ok
+    [con_mueble] = al_dia(luego)                                              # el mismo instante
+    assert con_mueble.hambre == 40.0
+    assert (con_mueble.animo, con_mueble.limpieza) == (sin_mueble.animo, sin_mueble.limpieza)
+
+
+def test_al_guardarlo_la_barra_vuelve_a_bajar_desde_el_minimo():
+    ana = nacer("Ana")
+    refrigerador = puesto("u1", "refrigerador", 2, 2)
+    cien = T0 + timedelta(hours=100)
+    assert [c.hambre for c in al_dia(cien)] == [40.0]
+    assert economia.guardar_mueble("u1", "g1", refrigerador, cien).ok
+    [luego] = al_dia(cien + timedelta(hours=10))
+    assert luego.hambre < 40.0
+    assert luego.hambre == pytest.approx(40.0 - 10 * sim.tasa_hambre_por_hora(ana.salud))
+
+
+def test_con_dos_refrigeradores_guardar_uno_no_quita_el_minimo():
+    nacer("Ana")
+    uno = puesto("u1", "refrigerador", 2, 2)
+    puesto("u1", "refrigerador", 2, 1)
+    cien = T0 + timedelta(hours=100)
+    assert economia.guardar_mueble("u1", "g1", uno, cien).ok
+    assert [c.hambre for c in al_dia(cien + timedelta(hours=100))] == [40.0]
+
+
+def fuerza_a_las(ahora):
+    return [c.ent_fuerza for c in al_dia(ahora)]
+
+
+def test_las_pesas_entrenan_a_todos_un_punto_por_dia():
+    assert (T0.hour, T0.minute) == (12, 0)
+    ana = nacer("Ana")
+    beto = db.crear("u1", "g1", "pulpo", "Beto", STATS, T0, activa=False)
+    pesas = guardado("u1", "pesas")
+    assert economia.poner_mueble("u1", "g1", pesas, 2, 2, 0, T0).ok
+    antes = [ana.ent_fuerza, beto.ent_fuerza]
+    assert fuerza_a_las(T0 + timedelta(hours=11, minutes=59)) == antes                # todavía es el mismo día
+    assert fuerza_a_las(T0 + timedelta(hours=12)) == [f + 1 for f in antes]           # la primera medianoche
+    assert fuerza_a_las(T0 + timedelta(days=3)) == [f + 3 for f in antes]
+
+
+def test_guardar_y_volver_a_poner_las_pesas_el_mismo_dia_no_da_puntos():
+    ana = nacer("Ana")
+    pesas = puesto("u1", "pesas", 2, 2)
+    for hora in range(1, 6):                                                    # de las 13:00 a las 17:30
+        assert economia.guardar_mueble("u1", "g1", pesas, T0 + timedelta(hours=hora)).ok
+        assert economia.poner_mueble("u1", "g1", pesas, 2, 2, 0, T0 + timedelta(hours=hora, minutes=30)).ok
+    assert db.por_id(ana.id).ent_fuerza == ana.ent_fuerza
+    assert fuerza_a_las(T0 + timedelta(hours=11, minutes=59)) == [ana.ent_fuerza]
+    assert fuerza_a_las(T0 + timedelta(hours=12)) == [ana.ent_fuerza + 1]       # y la medianoche cuenta una vez
+
+
+def test_la_medianoche_con_las_pesas_guardadas_no_cuenta():
+    ana = nacer("Ana")
+    pesas = puesto("u1", "pesas", 2, 2)
+    assert economia.guardar_mueble("u1", "g1", pesas, T0 + timedelta(hours=11)).ok          # a las 23:00
+    assert economia.poner_mueble("u1", "g1", pesas, 2, 2, 0, T0 + timedelta(hours=13)).ok    # a la 1:00 del otro día
+    assert db.por_id(ana.id).ent_fuerza == ana.ent_fuerza
+    assert fuerza_a_las(T0 + timedelta(hours=35)) == [ana.ent_fuerza]
+    assert fuerza_a_las(T0 + timedelta(hours=36)) == [ana.ent_fuerza + 1]       # la medianoche siguiente, sí
+
+
+def test_quien_nace_con_las_pesas_ya_puestas_no_gana_nada_hasta_su_primera_medianoche():
+    pesas = guardado("u1", "pesas")
+    assert economia.poner_mueble("u1", "g1", pesas, 2, 2, 0, T0 - timedelta(days=3)).ok
+    ana = db.crear("u1", "g1", "pulpo", "Ana", STATS, T0)                       # nace a las 12:00 UTC
+    assert fuerza_a_las(T0) == [ana.ent_fuerza]
+    assert fuerza_a_las(T0 + timedelta(hours=11, minutes=59)) == [ana.ent_fuerza]
+    assert fuerza_a_las(T0 + timedelta(hours=12)) == [ana.ent_fuerza + 1]
+
+
+def test_mover_o_girar_el_refrigerador_no_cambia_la_comida_ni_da_puntos():
+    ana = nacer("Ana"); con_monedas(100)
+    refrigerador = puesto("u1", "refrigerador", 2, 2)
+    puesto("u1", "pesas", 2, 1)
+    tarde = T0 + timedelta(hours=100)                                           # el 5 de enero a las 16:00
+    [antes] = al_dia(tarde)
+    assert (antes.hambre, antes.ent_fuerza) == (40.0, ana.ent_fuerza + 4)
+    for minutos, (x, y, giro) in enumerate(((1, 2, 0), (1, 2, 1), (2, 2, 3)), 1):   # lo mueve, lo gira, lo devuelve
+        assert economia.poner_mueble("u1", "g1", refrigerador, x, y, giro, tarde + timedelta(minutes=minutos)).ok
+    [despues] = al_dia(tarde + timedelta(minutes=3))
+    assert (despues.hambre, despues.ent_fuerza, despues.xp, despues.nivel) == (40.0, antes.ent_fuerza, antes.xp, antes.nivel)
+    assert economia.saldos("u1", "g1").asciicoins == 100 and filas("operaciones_economia") == []
+
+
+def lo_del_dinero():
+    """Todo lo que ni los mínimos ni las pesas pueden tocar: el dinero, su libro, los marcadores y las medallas."""
+    return {tabla: filas(tabla) for tabla in (
+        "monederos", "operaciones_economia", "marcador", "logros", "marcador_persona", "logros_persona")}
+
+
+def lo_que_no_es_de_las_pesas(c):
+    """Experiencia, nivel y crecimiento: lo que sólo dan los cuidados, competir y las aventuras."""
+    return (c.xp, c.nivel, c.niv_fuerza, c.niv_velocidad, c.niv_salud, c.niv_ingenio,
+            c.ent_velocidad, c.ent_salud, c.ent_ingenio,
+            c.ten_fuerza, c.ten_velocidad, c.ten_salud, c.ten_ingenio, c.historial_vetas)
+
+
+def test_los_muebles_que_se_usan_solos_no_mueven_el_dinero():
+    con_monedas(1500)
+    ana = con_barras(nacer("Ana"), hambre=5.0, animo=5.0, limpieza=5.0)
+    beto = db.crear("u1", "g1", "pulpo", "Beto", STATS, T0, activa=False)
+    cuatro = [economia.comprar_mueble("u1", "g1", dep.MUEBLES[clave], T0, evento_id=f"compra-{clave}").mueble_id
+              for clave in ("refrigerador", "consola", "ducha", "pesas")]
+    antes = lo_del_dinero()
+    assert economia.saldos("u1", "g1").asciicoins == 300
+    for mueble_id, (x, y) in zip(cuatro, ((2, 0), (2, 1), (2, 2), (1, 1))):
+        assert economia.poner_mueble("u1", "g1", mueble_id, x, y, 0, T0).ok
+    # Treinta días, y cada uno asentado y guardado: mover las pesas pone al día a todos.
+    for dia in range(1, 31):
+        x = 0 if dia % 2 else 1
+        assert economia.poner_mueble("u1", "g1", cuatro[3], x, 1, 0, T0 + timedelta(days=dia)).ok
+    final = al_dia(T0 + timedelta(days=30))
+    assert [(c.hambre, c.animo, c.limpieza) for c in final] == [(40.0, 40.0, 40.0)] * 2   # los mínimos, puestos
+    assert [c.ent_fuerza for c in final] == [ana.ent_fuerza + 30, beto.ent_fuerza + 30]   # y las pesas, también
+    assert lo_del_dinero() == antes
+    assert [lo_que_no_es_de_las_pesas(c) for c in final] == [lo_que_no_es_de_las_pesas(c) for c in (ana, beto)]

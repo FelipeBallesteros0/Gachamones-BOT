@@ -41,7 +41,7 @@ def test_la_puerta_tiene_sus_dos_dibujos_y_ningun_icono():
     assert (se.ancho, se.alto) == (256, 640) and (so.ancho, so.alto) == (256, 640)
     assert "pieza/muebles/puerta-no.png" not in rutas and "pieza/muebles/puerta-ne.png" not in rutas
     assert "iconos/muebles/puerta.png" not in rutas
-    assert len(arte.piezas()) == 255
+    assert len(arte.piezas()) == 275
 
 
 def test_el_relleno_de_la_puerta_no_es_el_de_un_cuadro():

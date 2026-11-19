@@ -1,9 +1,11 @@
+from dataclasses import replace
+
 import pytest
 
 import db
 import identidad
 from web import pueblo
-from ayudas_web import PUEBLO, CABECERA, alta, con_gachamon, con_monedas_web, en_casa, entrar, ir
+from ayudas_web import PUEBLO, CABECERA, alta, con_gachamon, con_monedas_web, en_casa, entrar, ir, poner_reloj
 
 API = "/gachamon/api"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
@@ -244,3 +246,52 @@ def test_la_puerta_no_se_guarda_desde_la_pagina(cliente):
     r = cliente.post(f"{API}/departamento/guardar", json={"mueble_id": puerta["id"]}, headers=CABECERA).json()
     assert (r["ok"], r["clave"], r["mensaje"]) == (False, "no_se_guarda", "La puerta no se guarda.")
     assert any(p["puerta"] for p in r["departamento"]["puestos"])
+
+
+# --- Los muebles que se usan solos -------------------------------------------------
+
+def un_mueble(clave, x=None, y=None, giro=0, uid=1):
+    """Le da a esa cuenta un mueble, puesto en (x, y) o guardado, sin pasar por la Tienda."""
+    cuenta = db.cuenta_web(uid)
+    with db.conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        return db.anadir_mueble_en(con, cuenta.usuario_id, cuenta.guild_id, clave, x, y, giro)
+
+
+def con_comida(comida, ahora):
+    """Le deja esa comida al gachamon que sale contigo, puesta al día en `ahora`."""
+    db.guardar(replace(db.criatura_activa(YO, G), hambre=comida, actualizada_en=ahora))
+
+
+def test_cada_puesto_dice_si_se_usa_solo_y_para_que(cliente):
+    con_gachamon(cliente); en_casa(cliente)                   # sus dos camas, en (0, 0) y en (0, 1)
+    ids = {clave: un_mueble(clave, x, y) for clave, x, y in (
+        ("refrigerador", 2, 0), ("consola", 2, 1), ("ducha", 2, 2), ("pesas", 1, 2), ("maceta", 0, 2))}
+    usos = {p["id"]: p["uso"] for p in cliente.get(f"{API}/departamento").json()["puestos"]}
+    assert {clave: usos[i] for clave, i in ids.items()} == {
+        "refrigerador": "comida", "consola": "animo", "ducha": "aseo", "pesas": "fuerza", "maceta": None}
+    assert [uso for i, uso in usos.items() if i not in ids.values()] == [None, None, None]   # las camas y la puerta
+
+
+def test_al_poner_el_refrigerador_la_comida_es_40_en_esa_misma_respuesta(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente); en_casa(cliente)
+    refrigerador = un_mueble("refrigerador")
+    con_comida(10.0, reloj.ahora)
+    reloj.pasar(hours=1)
+    assert cliente.get(f"{API}/estado").json()["gachamon"]["barras"]["comida"] < 40
+    r = cliente.post(f"{API}/departamento/poner", json={"mueble_id": refrigerador, "x": 2, "y": 2, "giro": 0},
+                     headers=CABECERA).json()
+    assert r["ok"]
+    assert [g["barras"]["comida"] for g in r["departamento"]["plantel"]] == [40]
+    assert r["estado"]["gachamon"]["barras"]["comida"] == 40
+
+
+def test_con_el_refrigerador_puesto_entrenar_no_baja_la_comida_de_40(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente); en_casa(cliente)
+    un_mueble("refrigerador", 2, 2)
+    con_comida(40.0, reloj.ahora)
+    r = cliente.post(f"{API}/cuidar", json={"accion": "entrenar", "evento_id": "evento-entrenar"}, headers=CABECERA).json()
+    assert r["ok"]
+    assert (r["gachamon"]["barras"]["comida"], r["estado"]["gachamon"]["barras"]["comida"]) == (40, 40)

@@ -94,7 +94,7 @@ def test_el_ritmo_multiplica_lo_que_cae_cada_barra():
 
 def test_el_suelo_de_hambre_frena_la_caida():
     """Por debajo del suelo el hambre no baja; sin él, lo de siempre, llega a 0.
-    Hoy no lo pone nadie (era de la intemperie), pero `Ritmo` lo sigue teniendo."""
+    Lo pone el refrigerador puesto (`departamento.ritmo_de`)."""
     un_mes = T0 + timedelta(days=30)
     con_suelo = sim.avanzar(criatura(hambre=30.0), un_mes, sim.Ritmo(suelo_de_hambre=25.0))
     assert con_suelo.hambre == 25.0 and con_suelo.viva

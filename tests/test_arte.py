@@ -11,10 +11,10 @@ import objetos
 from web import arte, pueblo
 
 
-def test_el_contrato_tiene_sus_255_piezas():
+def test_el_contrato_tiene_sus_275_piezas():
     piezas = arte.piezas()
     assert Counter(p.familia for p in piezas) == {
-        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4, "iconos": 59, "pieza": 59,
+        "pueblo": 1, "lugares": 9, "escenas": 9, "avatar": 114, "efectos": 4, "iconos": 63, "pieza": 75,
     }
     assert len({p.ruta for p in piezas}) == len(piezas)
     rutas = {p.ruta: (p.ancho, p.alto) for p in piezas}
@@ -72,14 +72,14 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     monkeypatch.setattr(arte, "RAIZ", tmp_path / "arte")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 255
+    assert len(escritas) == 275
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
     assert rellenos.generar() == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 255
+    assert len(rellenos.generar(todo=True)) == 275
 
 
 def _relleno(ruta: str) -> Image.Image:
@@ -130,7 +130,7 @@ def _rutas_de_iconos():
 def test_cada_cosa_que_se_compra_o_se_lleva_tiene_su_icono():
     rutas = {p.ruta: p for p in arte.piezas()}
     esperadas = _rutas_de_iconos()
-    assert len(esperadas) == 59
+    assert len(esperadas) == 63
     for ruta in esperadas:
         assert (rutas[ruta].ancho, rutas[ruta].alto, rutas[ruta].familia) == (48, 48, "iconos")
 

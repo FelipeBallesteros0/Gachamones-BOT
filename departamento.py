@@ -26,6 +26,17 @@ OCUPADO = "ocupado"
 
 PUERTA = "puerta"
 
+# Lo que cuida solo un mueble mientras está puesto (`Mueble.uso`), a todos los
+# gachamones del departamento: los tres primeros no dejan que su barra baje de
+# `MINIMO_SOSTENIDO`, y las pesas suman `FUERZA_POR_DIA` puntos de entrenamiento
+# de fuerza por cada medianoche UTC.
+COMIDA = "comida"
+ANIMO = "animo"
+ASEO = "aseo"
+FUERZA = "fuerza"
+MINIMO_SOSTENIDO = 40.0
+FUERZA_POR_DIA = 1
+
 ANCHO = "ancho"
 FONDO = "fondo"
 
@@ -55,6 +66,7 @@ class Mueble:
     capa: str = BULTO
     cama: bool = False
     puerta: bool = False   # la entrada: va en la pared, no se guarda ni se vende
+    uso: str | None = None   # COMIDA, ANIMO, ASEO o FUERZA: lo que cuida solo mientras está puesto
 
 
 MUEBLES: dict[str, Mueble] = {
@@ -75,6 +87,10 @@ MUEBLES: dict[str, Mueble] = {
         Mueble("ventanal", "Ventanal", "🏞️", 280, 7, ancho=2, capa=PARED),
         Mueble("biblioteca", "Biblioteca", "📚", 280, 7, ancho=2),
         Mueble("cama_sencilla", "Cama sencilla", "🛏️", 85, 2, ancho=2, cama=True),
+        Mueble("refrigerador", "Refrigerador", "🧊", 300, 3, uso=COMIDA),
+        Mueble("consola", "Consola", "🎮", 300, 3, uso=ANIMO),
+        Mueble("ducha", "Ducha", "🚿", 300, 3, uso=ASEO),
+        Mueble("pesas", "Pesas", "🏋️", 300, 3, uso=FUERZA),
         Mueble(PUERTA, "Puerta", "🚪", 0, 0, capa=PARED, puerta=True),
     )
 }
@@ -251,7 +267,22 @@ def alivio_de_animo(comodidad: int) -> float:
 
 
 def ritmo_de(depto: Departamento) -> sim.Ritmo:
-    return sim.Ritmo(animo=alivio_de_animo(depto.comodidad))
+    """Cómo les pasa el tiempo a todos los gachamones de este departamento.
+
+    La comodidad alivia el ánimo. Cada mueble que se usa solo, si está puesto,
+    sostiene su barra en `MINIMO_SOSTENIDO` (las pesas, en cambio, suman
+    `FUERZA_POR_DIA`). Cuenta el tipo, como la comodidad: dos refrigeradores no
+    hacen más que uno, uno guardado no hace nada y una pieza que ya no está en
+    el catálogo tampoco. Sin ninguno puesto, el ritmo es el de siempre.
+    """
+    usos = {MUEBLES[p.clave].uso for p in depto.puestas if p.clave in MUEBLES}
+    return sim.Ritmo(
+        animo=alivio_de_animo(depto.comodidad),
+        suelo_de_hambre=MINIMO_SOSTENIDO if COMIDA in usos else 0.0,
+        suelo_de_animo=MINIMO_SOSTENIDO if ANIMO in usos else 0.0,
+        suelo_de_limpieza=MINIMO_SOSTENIDO if ASEO in usos else 0.0,
+        fuerza_por_dia=FUERZA_POR_DIA if FUERZA in usos else 0,
+    )
 
 
 def coste_de_ampliar(depto: Departamento, eje: str) -> int | None:

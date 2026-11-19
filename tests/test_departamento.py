@@ -25,6 +25,10 @@ FORMAS = [
     ("ventanal", 2, 1, dep.PARED),
     ("biblioteca", 2, 1, dep.BULTO),
     ("cama_sencilla", 2, 1, dep.BULTO),
+    ("refrigerador", 1, 1, dep.BULTO),
+    ("consola", 1, 1, dep.BULTO),
+    ("ducha", 1, 1, dep.BULTO),
+    ("pesas", 1, 1, dep.BULTO),
     ("puerta", 1, 1, dep.PARED),
 ]
 
@@ -52,8 +56,18 @@ LOS_CATORCE = [
 ]
 
 
-def test_el_catalogo_son_los_catorce_de_siempre_la_cama_sencilla_y_la_puerta():
-    assert set(dep.MUEBLES) == {fila[0] for fila in LOS_CATORCE} | {"cama_sencilla", "puerta"}
+# Los cuatro que cuidan solos a todos los gachamones del departamento: (clave, nombre, emoji, uso).
+LOS_QUE_SE_USAN_SOLOS = [
+    ("refrigerador", "Refrigerador", "🧊", dep.COMIDA),
+    ("consola", "Consola", "🎮", dep.ANIMO),
+    ("ducha", "Ducha", "🚿", dep.ASEO),
+    ("pesas", "Pesas", "🏋️", dep.FUERZA),
+]
+
+
+def test_el_catalogo_son_los_catorce_de_siempre_la_cama_sencilla_los_cuatro_que_se_usan_solos_y_la_puerta():
+    assert set(dep.MUEBLES) == (
+        {fila[0] for fila in LOS_CATORCE} | {"cama_sencilla", "puerta"} | {fila[0] for fila in LOS_QUE_SE_USAN_SOLOS})
     for clave, nombre, emoji, precio, comodidad in LOS_CATORCE:
         nuevo = dep.MUEBLES[clave]
         assert (nuevo.nombre, nuevo.emoji, nuevo.precio, nuevo.comodidad) == (nombre, emoji, precio, comodidad), clave
@@ -61,7 +75,18 @@ def test_el_catalogo_son_los_catorce_de_siempre_la_cama_sencilla_y_la_puerta():
     assert (sencilla.nombre, sencilla.precio, sencilla.comodidad) == ("Cama sencilla", 85, 2)
     assert {c for c, m in dep.MUEBLES.items() if m.cama} == {"cama", "cama_sencilla"}
 
-@pytest.mark.parametrize("clave, ancho, fondo, capa", FORMAS)   # la tabla de arriba, las quince filas
+def test_los_cuatro_que_se_usan_solos_cuestan_300_suman_3_y_dicen_su_uso():
+    assert (dep.COMIDA, dep.ANIMO, dep.ASEO, dep.FUERZA) == ("comida", "animo", "aseo", "fuerza")
+    for clave, nombre, emoji, uso in LOS_QUE_SE_USAN_SOLOS:
+        m = dep.MUEBLES[clave]
+        assert (m.nombre, m.emoji, m.precio, m.comodidad, m.uso) == (nombre, emoji, 300, 3, uso), clave
+        assert not m.cama and not m.puerta, clave
+    assert {c for c, m in dep.MUEBLES.items() if m.uso is not None} == {fila[0] for fila in LOS_QUE_SE_USAN_SOLOS}
+
+def test_en_la_tienda_los_cuatro_van_tras_la_cama_sencilla():
+    assert [m.clave for m in dep.a_la_venta()][-5:] == ["cama_sencilla", "refrigerador", "consola", "ducha", "pesas"]
+
+@pytest.mark.parametrize("clave, ancho, fondo, capa", FORMAS)   # la tabla de arriba, las veinte filas
 def test_cada_mueble_ocupa_lo_que_dice_el_diseno(clave, ancho, fondo, capa):
     m = dep.MUEBLES[clave]
     assert (m.ancho, m.fondo, m.capa) == (ancho, fondo, capa)
@@ -159,6 +184,30 @@ def test_la_comodidad_alivia_el_animo_como_siempre():
     for comodidad, alivio in ((75, 1.0), (80, 59 / 60), (100, 11 / 12), (125, 5 / 6), (150, 0.75)):
         assert dep.alivio_de_animo(comodidad) == pytest.approx(alivio)
     assert dep.ritmo_de(depto()) == sim.Ritmo(animo=dep.alivio_de_animo(80))
+
+def _alivio(d):
+    return dep.alivio_de_animo(d.comodidad)
+
+def test_el_ritmo_lleva_el_minimo_de_cada_mueble_puesto():
+    con_refrigerador = depto(P(1, "refrigerador", 0, 0))
+    assert dep.ritmo_de(con_refrigerador) == sim.Ritmo(animo=_alivio(con_refrigerador), suelo_de_hambre=40.0)
+    guardado = depto(P(1, "refrigerador"))
+    assert dep.ritmo_de(guardado) == sim.Ritmo(animo=_alivio(guardado))           # guardado no cuenta
+    dos = depto(P(1, "refrigerador", 0, 0), P(2, "refrigerador", 1, 0))
+    assert dep.ritmo_de(dos) == dep.ritmo_de(con_refrigerador)                     # dos no hacen más
+    cuatro = depto(P(1, "refrigerador", 0, 0), P(2, "consola", 1, 0), P(3, "ducha", 2, 0), P(4, "pesas", 0, 1))
+    assert dep.ritmo_de(cuatro) == sim.Ritmo(
+        animo=_alivio(cuatro), suelo_de_hambre=40.0, suelo_de_animo=40.0, suelo_de_limpieza=40.0, fuerza_por_dia=1)
+    sin = depto(P(1, "maceta", 0, 0), P(2, "cama_sencilla", 1, 1), P(3, "ya_no_existe", 2, 2), P(4, "pesas"))
+    assert dep.ritmo_de(sin) == sim.Ritmo(animo=_alivio(sin))                      # exactamente el de hoy
+
+@pytest.mark.parametrize("clave, lo_que_pone", [
+    ("refrigerador", {"suelo_de_hambre": 40.0}), ("consola", {"suelo_de_animo": 40.0}),
+    ("ducha", {"suelo_de_limpieza": 40.0}), ("pesas", {"fuerza_por_dia": 1}),
+])
+def test_cada_uno_sostiene_lo_suyo_y_nada_mas(clave, lo_que_pone):
+    d = depto(P(1, clave, 2, 2))
+    assert dep.ritmo_de(d) == sim.Ritmo(animo=_alivio(d), **lo_que_pone)
 
 def test_ampliar_cuesta_15_por_casilla_y_para_en_8():
     assert dep.coste_de_ampliar(depto(), dep.ANCHO) == 45 == dep.coste_de_ampliar(depto(), dep.FONDO)

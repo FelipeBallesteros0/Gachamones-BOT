@@ -1177,6 +1177,30 @@
    "familia": "iconos"
   },
   {
+   "ruta": "iconos/muebles/refrigerador.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/consola.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/ducha.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
+   "ruta": "iconos/muebles/pesas.png",
+   "ancho": 48,
+   "alto": 48,
+   "familia": "iconos"
+  },
+  {
    "ruta": "pieza/suelo.png",
    "ancho": 512,
    "alto": 256,
@@ -1516,6 +1540,102 @@
    "ruta": "pieza/muebles/cama_sencilla-ne.png",
    "ancho": 768,
    "alto": 896,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/refrigerador-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/refrigerador-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/refrigerador-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/refrigerador-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/consola-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/consola-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/consola-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/consola-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/ducha-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/ducha-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/ducha-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/ducha-ne.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/pesas-se.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/pesas-so.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/pesas-no.png",
+   "ancho": 512,
+   "alto": 768,
+   "familia": "pieza"
+  },
+  {
+   "ruta": "pieza/muebles/pesas-ne.png",
+   "ancho": 512,
+   "alto": 768,
    "familia": "pieza"
   },
   {
