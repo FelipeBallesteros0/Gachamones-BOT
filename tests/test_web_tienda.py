@@ -11,7 +11,8 @@ import identidad
 import nacer
 import objetos
 from ayudas_web import (
-    AVATAR, CABECERA, ESCRIBIR, PUEBLO, alta, con_gachamon, con_monedas_web, entrar, ganar_el_primero, poner_reloj,
+    AVATAR, CABECERA, ESCRIBIR, PUEBLO, alta, con_gachamon, con_monedas_web, entrar, ganar_el_primero,
+    poner_la_segunda_cama, poner_reloj,
 )
 from web import tienda
 
@@ -440,6 +441,70 @@ def test_un_mueble_se_compra_sin_gachamon(cliente, monkeypatch):
     assert cuerpo["estado"]["gachamon"] is None and cuerpo["estado"]["saldos"]["monedas"] == 0
     assert [p.clave for p in db.departamento_leido(YO, G).guardadas] == ["cama_sencilla", "felpudo"]
     assert economia.saldos(YO, G).asciicoins == 0 and db.plantel(YO, G) == []
+
+
+# --- La nota de quien no tiene gachamon ------------------------------------------------
+
+# La frase que aprobó el dueño, letra por letra.
+AVISO_SIN_GACHAMON = "Para comprar objetos y cosméticos hace falta un gachamon. Los muebles sí los puedes comprar."
+PIDE_UN_GACHAMON = {"clave": "sin_gachamon", "mensaje": "Para comprar hace falta un gachamon."}
+
+
+def test_sin_gachamon_la_tienda_trae_la_nota_y_comprar_un_objeto_lo_pide(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)   # con avatar y sin gachamon
+    dar(monedas=500, gemas=500)
+    ir(cliente, "tienda")
+    assert cliente.get(TIENDA).json()["aviso"] == AVISO_SIN_GACHAMON
+    # La nota dice lo mismo que contesta la compra: un objeto pide un gachamon…
+    assert comprar(cliente, "objeto", "pocion_comida", "evento-nota-1").json()["detail"] == PIDE_UN_GACHAMON
+    # …y un mueble no, y lo que contesta trae el catálogo con la nota.
+    mueble = comprar(cliente, "mueble", "felpudo", "evento-nota-2").json()
+    assert mueble["ok"] is True and mueble["tienda"]["aviso"] == AVISO_SIN_GACHAMON
+
+
+def test_con_gachamon_la_tienda_no_trae_la_nota(cliente, monkeypatch):
+    en_la_tienda_con(cliente, monkeypatch, monedas=50)
+    assert cliente.get(TIENDA).json()["aviso"] is None
+    respuesta = comprar(cliente, "objeto", "pocion_comida", "evento-sin-nota").json()
+    assert respuesta["ok"] is True and respuesta["tienda"]["aviso"] is None
+
+
+def test_al_ganar_al_primero_la_nota_se_va(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    alta(cliente)
+    ir(cliente, "tienda")
+    assert cliente.get(TIENDA).json()["aviso"] == AVISO_SIN_GACHAMON
+    ganar_el_primero(cliente)
+    ir(cliente, "tienda")
+    assert cliente.get(TIENDA).json()["aviso"] is None
+
+
+def test_con_gachamones_pero_ninguno_vivo_la_tienda_trae_la_nota(cliente, monkeypatch):
+    """Quien sólo tiene gachamones en el cementerio (de antes, cuando se morían)
+    tiene gachamones, pero ninguno vivo: la compra le pide uno, y la nota sale."""
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    dar(monedas=500)
+    viejo = db.crear(YO, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
+    db.guardar(replace(viejo, hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+    assert db.tiene_gachamones(YO, G) and db.plantel(YO, G) == []
+    ir(cliente, "tienda")
+    assert cliente.get(TIENDA).json()["aviso"] == AVISO_SIN_GACHAMON
+    assert comprar(cliente, "objeto", "pocion_comida", "evento-cementerio").json()["detail"] == PIDE_UN_GACHAMON
+
+
+def test_con_un_vivo_que_todavia_no_es_el_activo_la_tienda_no_trae_la_nota(cliente, monkeypatch):
+    """Un vivo sin activa es el caso del remiendo (`db.activa_al_dia` lo hace el
+    activo): la compra no dice que haga falta un gachamon, y la nota no sale."""
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    poner_la_segunda_cama(cliente)
+    ir(cliente, "tienda")
+    db.crear(YO, G, "pulpo", "Nube", (10, 10, 10, 10), reloj.ahora, activa=False)
+    assert db.criatura_activa(YO, G) is None and len(db.plantel(YO, G)) == 1
+    assert cliente.get(TIENDA).json()["aviso"] is None
+    assert db.criatura_activa(YO, G) is None        # mirar la tienda sólo lee: no hace el remiendo
 
 
 def test_un_objeto_sigue_pidiendo_gachamon(cliente, monkeypatch):

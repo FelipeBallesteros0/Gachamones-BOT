@@ -258,8 +258,9 @@ const ANTES = [
   'Entre los matorrales, algo se mueve.',
   'No huye. Se queda mirándote.',
 ];
+// Pollito es hembra: el servidor ya manda la frase concordada.
 const DESPUES = [
-  'Sale de su escondite: es Pollito.',
+  'Sale de su escondite: es una Pollito.',
   'Le tiendes la mano. La huele… y se queda a tu lado.',
   'Desde hoy vive contigo.',
 ];
@@ -408,6 +409,28 @@ test('tras el encuentro se ve al gachamon, sus tres frases y «Volver a tu depar
   assert.equal(seguidos[0][0], CON_EL_PRIMERO);
   assert.equal(seguidos[0][1], undefined);
   assert.deepEqual(servidor.pedidos, ['GET aventura', 'POST aventura/primera']);
+});
+
+test('la frase del encuentro se dice tal como la manda el servidor, con «un» o con «una»', { timeout: 2000 }, async () => {
+  // El género lo resuelve el servidor: el cliente no toca la frase.
+  const OCTOPUL = {
+    ...POLLITO, id: 10, nombre: 'Octopul', especie: 'pulpo', nombre_especie: 'Octopul', genero: 'macho',
+  };
+  for (const [gachamon, primera] of [
+    [OCTOPUL, 'Sale de su escondite: es un Octopul.'],
+    [{ ...OCTOPUL, genero: 'hembra' }, 'Sale de su escondite: es una Octopul.'],
+  ]) {
+    const { contenedor, servidor } = await abrir();
+    servidor.responde('POST aventura/primera', {
+      estado: sinGachamon({ gachamon, lugar: CASA, guia: null }), despues: [primera, ...DESPUES.slice(1)],
+    });
+    await hastaAcercarte(contenedor);
+    await avanza(contenedor).tocar();
+    assert.equal(frase(contenedor).textContent, primera, gachamon.genero);
+  }
+  // Y no lleva escrita ninguna forma de la frase ni marca de género.
+  const codigo = readFileSync(new URL('../../web/static/js/aventura.js', import.meta.url), 'utf8');
+  for (const escrita of ['escondite', ': es un', ': es una', '{un/una}']) assert.ok(!codigo.includes(escrita), escrita);
 });
 
 test('sin cama se dice y no se manda nada más', { timeout: 2000 }, async () => {

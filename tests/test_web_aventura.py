@@ -2,6 +2,8 @@
 from dataclasses import replace
 from datetime import datetime, timedelta
 
+import pytest
+
 import db
 import economia
 import especies as esp
@@ -26,12 +28,16 @@ SIN_CAMA = "Antes pon tu segunda cama en tu departamento: sin cama, nadie se que
 YA_TIENES = "Ya tienes un gachamon. La primera aventura es sólo la de partida."
 
 
-def despues(especie):
-    return [
-        f"Sale de su escondite: es {especie}.",
-        "Le tiendes la mano. La huele… y se queda a tu lado.",
-        "Desde hoy vive contigo.",
-    ]
+# Lo que se dice tras el encuentro: la primera frase concuerda con el género del
+# que nació (las dos formas, escritas a mano en sus pruebas); las otras dos no cambian.
+DE_UN_MACHO = "Sale de su escondite: es un Octopul."
+DE_UNA_HEMBRA = "Sale de su escondite: es una Octopul."
+LAS_OTRAS_DOS = ["Le tiendes la mano. La huele… y se queda a tu lado.", "Desde hoy vive contigo."]
+
+
+def despues(especie, genero):
+    articulo = {esp.MACHO: "un", esp.HEMBRA: "una"}[genero]
+    return [f"Sale de su escondite: es {articulo} {especie}.", *LAS_OTRAS_DOS]
 
 
 def lista_para_la_aventura(cliente):
@@ -64,11 +70,59 @@ def test_el_encuentro_deja_un_gachamon_y_te_lleva_a_casa(cliente, monkeypatch):
     assert gachamon["espera_nombre"] is True and gachamon["nombre"] == gachamon["nombre_especie"]
     assert gachamon["especie"] in esp.DEL_HUEVO and gachamon["etapa"] == "bebe"
     assert estado["lugar"]["clave"] == "casa" and estado["guia"] is None
-    assert cuerpo["despues"] == despues(gachamon["nombre_especie"])
+    assert cuerpo["despues"] == despues(gachamon["nombre_especie"], gachamon["genero"])
     # Es el que sale contigo, y la vuelta a casa quedó guardada.
     assert [c.id for c in db.plantel(YO, G)] == [gachamon["id"]]
     assert db.criatura_activa(YO, G).id == gachamon["id"]
     assert cliente.get(ESTADO).json()["lugar"]["clave"] == "casa"
+
+
+def encontrar_un_octopul(cliente, monkeypatch, genero):
+    """El encuentro de la primera aventura con un Octopul de ese género; devuelve lo que contesta."""
+    lista_para_la_aventura(cliente)
+    monkeypatch.setattr(nacer.esp, "elegir_del_huevo", lambda rng: esp.ESPECIES["pulpo"])
+    monkeypatch.setattr(nacer.esp, "tirar_genero", lambda rng: genero)
+    respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["estado"]["gachamon"]["genero"] == genero     # el que nació en esta misma petición
+    return cuerpo
+
+
+def test_con_un_macho_el_encuentro_dice_es_un(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    cuerpo = encontrar_un_octopul(cliente, monkeypatch, esp.MACHO)
+    assert cuerpo["despues"] == [DE_UN_MACHO, *LAS_OTRAS_DOS]
+
+
+def test_con_una_hembra_el_encuentro_dice_es_una(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    cuerpo = encontrar_un_octopul(cliente, monkeypatch, esp.HEMBRA)
+    assert cuerpo["despues"] == [DE_UNA_HEMBRA, *LAS_OTRAS_DOS]
+
+
+def _textos(dato):
+    """Todas las cadenas de una respuesta, por dentro de sus listas y diccionarios."""
+    if isinstance(dato, str):
+        yield dato
+    elif isinstance(dato, dict):
+        for valor in dato.values():
+            yield from _textos(valor)
+    elif isinstance(dato, list):
+        for valor in dato:
+            yield from _textos(valor)
+
+
+@pytest.mark.parametrize("genero", [esp.MACHO, esp.HEMBRA])
+def test_en_lo_que_contesta_el_encuentro_no_queda_ninguna_marca_sin_resolver(cliente, monkeypatch, genero):
+    poner_reloj(monkeypatch)
+    cuerpo = encontrar_un_octopul(cliente, monkeypatch, genero)
+    # Ni una marca de género ni una llave en ninguna cadena (las rutas del arte sí llevan «/»)…
+    for texto in _textos(cuerpo):
+        assert "{" not in texto and "}" not in texto and not esp.MARCA_GENERO.search(texto), texto
+    # …y en las frases del diálogo, tampoco una barra.
+    for frase in cuerpo["despues"]:
+        assert "/" not in frase, frase
 
 
 def test_el_segundo_encuentro_se_rechaza(cliente, monkeypatch):
@@ -163,7 +217,8 @@ def test_al_encontrarlo_se_pagan_las_medallas_de_la_persona(cliente, monkeypatch
     # «Uno entre veinticinco»: veinte gemas, ya en el saldo del estado (se parte de cero).
     assert respuesta.json()["estado"]["saldos"] == {"monedas": 0, "gemas": 20}
     assert economia.saldos(YO, G).asciigems == 20
-    assert respuesta.json()["despues"][0] == f"Sale de su escondite: es {rara.nombre}."
+    genero = respuesta.json()["estado"]["gachamon"]["genero"]
+    assert respuesta.json()["despues"] == despues(rara.nombre, genero)
 
 
 def test_un_segundo_encuentro_no_vuelve_a_pagar_las_medallas(cliente, monkeypatch):

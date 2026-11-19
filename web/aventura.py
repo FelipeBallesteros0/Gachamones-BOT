@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 
 import db
 import economia
+import especies as esp
 import nacer
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
@@ -19,14 +20,15 @@ from web.sesion import con_cabecera, problema
 
 router = APIRouter()
 
-# El diálogo, de a una frase: antes del encuentro, y después, con su especie.
+# El diálogo, de a una frase: antes del encuentro, y después, con su especie y
+# concordado con el género del que nació (la marca «{un/una}», de `esp.concordar`).
 ANTES = (
     "Sales del pueblo por el sendero. Hoy vas tú solo.",
     "Entre los matorrales, algo se mueve.",
     "No huye. Se queda mirándote.",
 )
 DESPUES = (
-    "Sale de su escondite: es {especie}.",
+    "Sale de su escondite: es {un/una} {especie}.",
     "Le tiendes la mano. La huele… y se queda a tu lado.",
     "Desde hoy vive contigo.",
 )
@@ -92,7 +94,9 @@ def la_primera_aventura(jugador: Jugador = Depends(jugador_actual)) -> dict:
     # Vuelves a tu departamento con él: el lugar del que se parte.
     db.poner_lugar(jugador.persona.rowino_uid, pueblo.de_partida())
     especie = primero.def_especie.nombre
+    # Primero se concuerda y después se pone la especie: las llaves de la marca
+    # de género no son campos de `format`, y el nombre ya no pasa por `concordar`.
     return {
         "estado": estado.armar(jugador, ahora),
-        "despues": [frase.format(especie=especie) for frase in DESPUES],
+        "despues": [esp.concordar(frase, primero.genero).format(especie=especie) for frase in DESPUES],
     }

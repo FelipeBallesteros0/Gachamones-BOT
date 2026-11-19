@@ -11,8 +11,9 @@
 // Si lo que contesta pide otra pantalla (sin sesión, ya no estás en la tienda,
 // tu gachamon cambió) se vuelve a decidir con `seguir`; pero a quien abrió la
 // tienda sin ningún gachamon, que lo que compra pide uno se le dice y se queda.
-// Al salir se deja de temporizar, y una respuesta que llega tarde no pinta ni
-// llama a `seguir`.
+// A ese, el catálogo le trae además una nota (`aviso`), que va arriba de los
+// objetos y de los cosméticos. Al salir se deja de temporizar, y una respuesta
+// que llega tarde no pinta ni llama a `seguir`.
 // La cabecera, las filas, la pregunta, el aviso y la espera del catálogo son
 // los de `articulos.js`, que comparte con la mochila. Todo texto entra por
 // `el` o por `textContent`.
@@ -29,10 +30,12 @@ import { el } from './dom.js';
 const CARGANDO = 'Cargando la tienda…';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 
+// `pideGachamon`: lo que se compra para un gachamon. Ahí, a quien no tiene
+// ninguno, va arriba de la lista la nota que manda el servidor (`aviso`).
 const SECCIONES = [
-  { clave: 'objetos', nombre: 'Objetos' },
-  { clave: 'cosmeticos', nombre: 'Cosméticos' },
-  { clave: 'muebles', nombre: 'Muebles' },
+  { clave: 'objetos', nombre: 'Objetos', pideGachamon: true },
+  { clave: 'cosmeticos', nombre: 'Cosméticos', pideGachamon: true },
+  { clave: 'muebles', nombre: 'Muebles', pideGachamon: false },
 ];
 
 // Lo que se dice de cada cosmético bajo su nombre, según su tipo.
@@ -77,9 +80,10 @@ export function tienda(contenedor, estado, seguir) {
 
   // --- las pestañas y sus secciones ------------------------------------------------
 
-  const secciones = new Map(SECCIONES.map(({ clave, nombre }) => [clave, {
+  const secciones = new Map(SECCIONES.map(({ clave, nombre, pideGachamon }) => [clave, {
     pestana: el('button', { type: 'button', class: 'pestana', 'aria-controls': `tienda-${clave}` }, nombre),
     nodo: el('section', { class: 'seccion-tienda', id: `tienda-${clave}`, 'aria-label': nombre }),
+    pideGachamon,
   }]));
   if (!secciones.has(seccionVista)) seccionVista = SECCIONES[0].clave;
   for (const [clave, { pestana }] of secciones) pestana.addEventListener('click', () => elegir(clave));
@@ -185,6 +189,22 @@ export function tienda(contenedor, estado, seguir) {
     return fila({ id, icono: m.icono, nombre: m.nombre, lineas, accion });
   }
 
+  // Una sección: su lista y, si lo que vende pide un gachamon y no tienes
+  // ninguno, arriba la nota que manda el servidor (`aviso`). La nota es quieta y
+  // no se enfoca: la lee quien llega a la pestaña, porque es su descripción.
+  function ponerSeccion(clave, filas, aviso) {
+    const { pestana, nodo, pideGachamon } = secciones.get(clave);
+    const id = `tienda-${clave}-nota`;
+    const hijos = [lista(filas)];
+    if (aviso && pideGachamon) {
+      hijos.unshift(el('p', { class: 'alerta', role: 'note', id }, aviso));
+      pestana.setAttribute('aria-describedby', id);
+    } else {
+      pestana.removeAttribute('aria-describedby');
+    }
+    nodo.replaceChildren(...hijos);
+  }
+
   // Pinta el catálogo entero, las tres secciones: las que no se ven también,
   // para que cambiar de pestaña no pierda nada. Cierra la pregunta abierta. El
   // foco que estaba en una fila vuelve a esa misma fila.
@@ -196,9 +216,9 @@ export function tienda(contenedor, estado, seguir) {
     // Primero lo que se te vende, cada grupo en el orden del catálogo: lo que
     // todavía no se vende aquí no tapa lo que sí.
     const objetos = [...nuevo.objetos.filter((o) => o.se_vende), ...nuevo.objetos.filter((o) => !o.se_vende)];
-    secciones.get('objetos').nodo.replaceChildren(lista(objetos.map(filaDeObjeto)));
-    secciones.get('cosmeticos').nodo.replaceChildren(lista(nuevo.cosmeticos.map(filaDeCosmetico)));
-    secciones.get('muebles').nodo.replaceChildren(lista(nuevo.muebles.lista.map(filaDeMueble)));
+    ponerSeccion('objetos', objetos.map(filaDeObjeto), nuevo.aviso);
+    ponerSeccion('cosmeticos', nuevo.cosmeticos.map(filaDeCosmetico), nuevo.aviso);
+    ponerSeccion('muebles', nuevo.muebles.lista.map(filaDeMueble), nuevo.aviso);
     if (conFoco) volverALaFila(conFoco.dataset.fila);
   }
 

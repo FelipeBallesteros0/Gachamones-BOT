@@ -115,11 +115,30 @@ def _muebles(jugador: Jugador) -> dict:
     }
 
 
+# La nota de quien no tiene gachamon: se le enseña todo, y lo que no puede comprar se le dice.
+_AVISO_SIN_GACHAMON = "Para comprar objetos y cosméticos hace falta un gachamon. Los muebles sí los puedes comprar."
+
+
+def _aviso(jugador: Jugador) -> str | None:
+    """La nota, a quien comprar un objeto o un cosmético le diría `_SIN_GACHAMON`;
+    `None` a los demás.
+
+    Es la misma comprobación de la compra (`la_misma_activa`): esa frase sale
+    cuando no hay activa ni vivo que pueda serlo, es decir, cuando no queda
+    ningún gachamon vivo. Aquí se mira con `db.plantel_al_dia`, que sólo lee,
+    y no con `db.activa_al_dia`, que puede hacer el remiendo: mirar el catálogo
+    sólo lee.
+    """
+    vivos = db.plantel_al_dia(jugador.usuario_id, jugador.guild_id, db.ahora_utc())
+    return None if vivos else _AVISO_SIN_GACHAMON
+
+
 def catalogo(jugador: Jugador) -> dict:
     """Lo que pinta la pantalla de la tienda, tal como se le ve a esta cuenta."""
     saldos = economia.saldos(jugador.usuario_id, jugador.guild_id)
     return {
         "saldos": {"monedas": saldos.asciicoins, "gemas": saldos.asciigems},
+        "aviso": _aviso(jugador),
         "objetos": _objetos(jugador),
         "cosmeticos": _cosmeticos(jugador),
         "muebles": _muebles(jugador),

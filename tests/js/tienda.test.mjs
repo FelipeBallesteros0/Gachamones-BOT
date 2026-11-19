@@ -264,6 +264,118 @@ test('sin gachamon, lo que pide uno dice la frase del servidor y te deja en la t
   }
 });
 
+// --- la nota de quien no tiene gachamon ------------------------------------------------
+
+// La frase la manda el servidor (`aviso`); la prueba sólo necesita una cualquiera.
+const AVISO = 'Para comprar objetos y cosméticos hace falta un gachamon. Los muebles sí los puedes comprar.';
+
+// Un catálogo con algo en cada sección: la poción, la corona y los muebles.
+const deTodo = (aviso) => ({
+  ...conUnaPocion(),
+  aviso,
+  cosmeticos: [{
+    clave: 'corona', tipo: 'sombrero', nombre: 'Corona', precio: 60, icono: 'iconos/cosmeticos/corona.png', tuyo: false,
+  }],
+});
+
+const seccion = (contenedor, clave) => contenedor.querySelectorAll('section')
+  .find((s) => s.atributos.id === `tienda-${clave}`);
+const pestanaDe = (contenedor, clave) => contenedor.querySelectorAll('.pestana')
+  .find((p) => p.atributos['aria-controls'] === `tienda-${clave}`);
+// Las notas de una sección: lo que tiene la clase de la nota.
+const notasDe = (contenedor, clave) => seccion(contenedor, clave).querySelectorAll('.alerta');
+// Cómo se ve cada fila de una sección: su texto, sus botones y si está apagada.
+const filasVistas = (contenedor, clave) => seccion(contenedor, clave).querySelectorAll('li').map((fila) => ({
+  fila: fila.dataset.fila, clase: fila.atributos.class, lineas: lineasDe(fila),
+  botones: fila.querySelectorAll('button').map((b) => textos(b).join('')),
+}));
+
+// Abre la tienda con el catálogo que diga `contestar`, apuntando a qué se le da el foco.
+async function tiendaConFoco(contestar, estado = { saldos: { monedas: 200, gemas: 0 }, gachamon: null }) {
+  servidor(contestar);
+  const enfocados = [];
+  const focoDeVerdad = Elemento.prototype.focus;
+  Elemento.prototype.focus = function enfocar() { enfocados.push(this); };
+  try {
+    const contenedor = new Elemento('main');
+    assert.equal(await tienda(contenedor, estado, () => {}), true);
+    return { contenedor, enfocados };
+  } finally {
+    Elemento.prototype.focus = focoDeVerdad;
+  }
+}
+
+test('sin gachamon, la nota sale arriba de la lista en objetos y en cosméticos, y no en muebles', { timeout: 2000 }, async () => {
+  const { contenedor, enfocados } = await tiendaConFoco(() => deTodo(AVISO));
+  for (const clave of ['objetos', 'cosmeticos']) {
+    const [nota, ...otras] = notasDe(contenedor, clave);
+    assert.deepEqual(otras, [], clave);
+    assert.equal(textos(nota).join(''), AVISO, clave);
+    // Arriba de la lista: el primer hijo de la sección, y la lista justo después.
+    const [primero, segundo] = seccion(contenedor, clave).hijos;
+    assert.equal(primero, nota, clave);
+    assert.equal(segundo.atributos.class, 'articulos', clave);
+    // Es una nota y la lee quien llega a la pestaña: es su descripción. No se enfoca.
+    assert.equal(nota.atributos.role, 'note', clave);
+    assert.ok(nota.atributos.id, clave);
+    assert.equal(pestanaDe(contenedor, clave).atributos['aria-describedby'], nota.atributos.id, clave);
+    assert.ok(!Object.hasOwn(nota.atributos, 'tabindex'), clave);
+    assert.ok(!enfocados.includes(nota), clave);
+  }
+  // Los dos ids son distintos: cada pestaña lee la suya.
+  assert.notEqual(notasDe(contenedor, 'objetos')[0].atributos.id, notasDe(contenedor, 'cosmeticos')[0].atributos.id);
+  // Los muebles se compran sin gachamon: ahí no hay nota.
+  assert.equal(notasDe(contenedor, 'muebles').length, 0);
+  assert.ok(!Object.hasOwn(pestanaDe(contenedor, 'muebles').atributos, 'aria-describedby'));
+  assert.equal(textos(contenedor).filter((t) => t === AVISO).length, 2);
+});
+
+test('la nota no cambia cómo se ven ni cómo se compran los objetos y los cosméticos', { timeout: 2000 }, async () => {
+  const { contenedor: conNota } = await tiendaConFoco(() => deTodo(AVISO));
+  const { contenedor: sinNota } = await tiendaConFoco(() => deTodo(null));
+  for (const clave of ['objetos', 'cosmeticos', 'muebles']) {
+    assert.deepEqual(filasVistas(conNota, clave), filasVistas(sinNota, clave), clave);
+  }
+  // Y el botón del precio de la poción sigue preguntando.
+  const [pocion] = seccion(conNota, 'objetos').querySelectorAll('li');
+  pocion.querySelector('.boton-precio').oyentes.click[0]();
+  assert.equal(pocion.querySelectorAll('.pregunta').length, 1);
+});
+
+test('con gachamon la nota no se ve en ninguna pestaña', { timeout: 2000 }, async () => {
+  const { contenedor } = await tiendaConFoco(() => deTodo(null), { saldos: { monedas: 200, gemas: 0 }, gachamon: { id: 5 } });
+  for (const clave of ['objetos', 'cosmeticos', 'muebles']) {
+    assert.equal(notasDe(contenedor, clave).length, 0, clave);
+    assert.ok(!Object.hasOwn(pestanaDe(contenedor, clave).atributos, 'aria-describedby'), clave);
+  }
+});
+
+test('la nota se queda mientras el catálogo la traiga y se va cuando llega uno sin ella', { timeout: 2000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // El catálogo que trae cada compra: la primera todavía con la nota, la segunda ya sin ella.
+  const conCadaCompra = [deTodo(AVISO), deTodo(null)];
+  const { contenedor } = await tiendaConFoco((pedida) => (pedida.metodo === 'GET'
+    ? deTodo(AVISO)
+    : {
+      ok: true, clave: null, mensaje: 'Compraste Felpudo.', tienda: conCadaCompra.shift(),
+    }));
+  async function comprarUnFelpudo() {
+    const [felpudo] = filasDeMuebles(contenedor);
+    felpudo.querySelector('.boton-precio').oyentes.click[0]();
+    const [si] = felpudo.querySelectorAll('.principal');
+    await si.oyentes.click[0]();
+  }
+  await comprarUnFelpudo();
+  // Repintada con la nota: una sola en cada sección que la lleva, ninguna en muebles.
+  assert.deepEqual(['objetos', 'cosmeticos', 'muebles'].map((clave) => notasDe(contenedor, clave).length), [1, 1, 0]);
+  await comprarUnFelpudo();
+  for (const clave of ['objetos', 'cosmeticos', 'muebles']) {
+    assert.equal(notasDe(contenedor, clave).length, 0, clave);
+    assert.ok(!Object.hasOwn(pestanaDe(contenedor, clave).atributos, 'aria-describedby'), clave);
+  }
+  assert.ok(!textos(contenedor).includes(AVISO));
+});
+
 test('con gachamon, ese mismo «no» quiere decir que tu gachamon cambió: se vuelve a decidir', { timeout: 2000 }, async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   servidor((pedida) => (pedida.metodo === 'GET'
