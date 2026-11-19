@@ -8,10 +8,11 @@ from dataclasses import replace
 import db
 import especies as esp
 import identidad
-from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon, ganar_el_primero, poner_la_segunda_cama, poner_reloj
+from ayudas_web import (
+    ESCRIBIR, FUERA_DE_RANGO, OTRA_PERSONA, PUEBLO, STATS, alta, con_gachamon, con_plantel, ganar_el_primero,
+    poner_la_segunda_cama, poner_reloj,
+)
 
-OTRA_PERSONA = "333333333333333333"
-STATS = (10, 10, 10, 10)
 ESTADO = "/gachamon/api/estado"
 HUEVO, BAUTIZAR = "/gachamon/api/huevo", "/gachamon/api/bautizar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
@@ -163,20 +164,8 @@ def test_bautizar_con_el_nombre_de_su_especie_no_vale(cliente, monkeypatch):
 
 # --- Ponerle nombre a un recluta por su id (la regla se queda en el servidor, sin pantalla) ---
 
-FUERA_DE_RANGO = (2**70, 2**63, 0, -1)
-
-
 def bautizar_a(cliente, gachamon_id, nombre):
     return cliente.post(BAUTIZAR, json={"nombre": nombre, "gachamon_id": gachamon_id}, headers=ESCRIBIR)
-
-
-def con_plantel(cliente):
-    """La cuenta 1 con Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
-    con_gachamon(cliente)
-    pelusa = db.criatura_activa(YO, G)
-    nube = db.crear(YO, G, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
-    recluta = db.crear(YO, G, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True)
-    return pelusa, nube, recluta
 
 
 def test_bautizar_a_un_recluta_por_su_id(cliente, monkeypatch):

@@ -11,6 +11,7 @@ import config
 import db
 import economia
 import especies as esp
+import identidad
 import nacer
 
 CLAVE = "clave-de-prueba"
@@ -122,6 +123,23 @@ def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
     hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
     return hecho.json()
+
+
+# Para las rutas que eligen a un gachamon por su id: el dueño de uno ajeno y los
+# ids que ni siquiera se pueden buscar (más allá de lo que cabe en SQLite sería un 500).
+OTRA_PERSONA = "333333333333333333"
+STATS = (10, 10, 10, 10)
+FUERA_DE_RANGO = (2**70, 2**63, 0, -1)
+
+
+def con_plantel(cliente):
+    """La cuenta 1 con Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
+    con_gachamon(cliente)
+    yo, guild = identidad.de_cuenta_web(1), str(PUEBLO)
+    pelusa = db.criatura_activa(yo, guild)
+    nube = db.crear(yo, guild, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
+    recluta = db.crear(yo, guild, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True)
+    return pelusa, nube, recluta
 
 
 CABECERA = ESCRIBIR

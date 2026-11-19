@@ -4,12 +4,15 @@ import pytest
 
 import db
 import identidad
+import retrato
 from web import pueblo
-from ayudas_web import PUEBLO, CABECERA, alta, con_gachamon, con_monedas_web, en_casa, entrar, ir, poner_reloj
+from ayudas_web import (
+    FUERA_DE_RANGO, OTRA_PERSONA, PUEBLO, CABECERA, STATS, T0, alta, con_gachamon, con_monedas_web, con_plantel,
+    en_casa, entrar, ir, poner_reloj,
+)
 
 API = "/gachamon/api"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
-STATS = (10, 10, 10, 10)
 
 
 def ancho_y_fondo(uid, ancho, fondo):
@@ -197,6 +200,22 @@ def test_el_departamento_trae_a_todos_con_sus_barras(cliente):
         assert g["retrato"] and g["nombre_especie"] and g["nombre_etapa"]
 
 
+def test_el_plantel_del_departamento_ensena_a_cada_uno_con_la_cara_de_ahora_y_mirar_no_guarda(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    otro = con_otro(cliente); en_casa(cliente)                 # Rulo no sale contigo
+    pelusa = db.criatura_activa(YO, G)
+    reloj.pasar(days=3)
+    plantel = cliente.get(f"{API}/departamento").json()["plantel"]
+    rulo = next(g for g in plantel if g["id"] == otro.id)
+    assert rulo["activo"] is False
+    # Su cara es la de ahora (al día con el ritmo de su departamento), no la de su fila.
+    cara = db.avanzar(db.por_id(otro.id), reloj.ahora).animo_visual
+    assert cara != "feliz"
+    assert rulo["retrato"] == f"/gachamon/retrato/pollito/bebe/{cara}/sin.png?v={retrato.version()}"
+    # Y mirar no le guarda a nadie el paso del tiempo.
+    assert db.por_id(otro.id).actualizada_en == db.por_id(pelusa.id).actualizada_en == T0
+
+
 def test_cada_mueble_puesto_dice_su_forma(cliente):
     con_gachamon(cliente); en_casa(cliente)
     cama = cliente.get(f"{API}/departamento").json()["puestos"][0]
@@ -221,20 +240,6 @@ def test_salir_pide_estar_en_el_departamento_y_un_id_de_verdad(cliente):
         assert salir(cliente, malo).status_code == 422
     ajeno = salir(cliente, 999999).json()
     assert (ajeno["ok"], ajeno["clave"], ajeno["mensaje"]) == (False, "no_esta", "Ese gachamon ya no está.")
-
-
-OTRA_PERSONA = "333333333333333333"
-# Más allá de lo que cabe en SQLite, ni siquiera se puede buscar: sería un 500.
-FUERA_DE_RANGO = (2**70, 2**63, 0, -1)
-
-
-def con_plantel(cliente):
-    """La cuenta 1 con Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
-    con_gachamon(cliente)
-    pelusa = db.criatura_activa(YO, G)
-    nube = db.crear(YO, G, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
-    recluta = db.crear(YO, G, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True)
-    return pelusa, nube, recluta
 
 
 def test_salir_con_uno_ajeno_es_no_esta_y_no_cambia_nada(cliente, monkeypatch):
