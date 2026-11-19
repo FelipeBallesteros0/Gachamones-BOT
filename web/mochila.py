@@ -11,6 +11,7 @@ Ojo: este módulo es `web.mochila`; no importa `discord` ni nada que lo importe.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends
@@ -173,6 +174,12 @@ def usar_de_la_mochila(
             hecho = economia.usar_objeto(evento, usuario, guild, objeto, ahora, criatura_id=gachamon_id)
     except RuntimeError:
         raise evento_usado(evento) from None
+    # La frase dice cómo queda la comida, y tiene que ser lo que enseña la barra.
+    # En un replay la regla devuelve la fila tal cual, que con un mueble que pone
+    # un mínimo puede estar por debajo: se pone al día como toda lectura. Al que
+    # acaba de comer no le cambia nada, porque ya está al día en `ahora`.
+    if hecho.criatura is not None:
+        hecho = replace(hecho, criatura=db.avanzar(hecho.criatura, ahora))
     return {
         **frase(objeto, hecho, propuesto),
         "mochila": lo_que_llevas(jugador), "estado": estado.armar(jugador, ahora),

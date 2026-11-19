@@ -4,11 +4,12 @@ import db
 import identidad
 import objetos
 import simulacion as sim
-from ayudas_web import ESCRIBIR, PUEBLO, con_gachamon, entrar, poner_reloj
+from ayudas_web import ESCRIBIR, PUEBLO, con_gachamon, en_casa, entrar, poner_reloj
+from test_web_departamento import con_comida, un_mueble
 from test_web_tienda import LA_DE_DISCORD, con_vinculo
 
 MOCHILA, USAR = "/gachamon/api/mochila", "/gachamon/api/mochila/usar"
-ESTADO = "/gachamon/api/estado"
+ESTADO, CUIDAR = "/gachamon/api/estado", "/gachamon/api/cuidar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 
@@ -81,6 +82,28 @@ def test_usar_dos_veces_con_el_mismo_evento_gasta_una(cliente, monkeypatch):
     assert primera["mensaje"] == segunda["mensaje"] == "Pelusa come. Comida +25 (ahora 75)."
     assert [o["cantidad"] for o in segunda["mochila"]["objetos"]] == [1]
     assert segunda["estado"]["gachamon"]["barras"]["comida"] == primera["estado"]["gachamon"]["barras"]["comida"]
+
+
+def test_con_el_refrigerador_el_replay_de_la_comida_dice_la_barra_que_se_ve(cliente, monkeypatch):
+    # Con el refrigerador, un cuidado que gasta comida deja la fila por debajo de
+    # 40 y la barra en 40. El replay contesta lo de la primera vez (el +25, sin
+    # gastar otra vez), pero el «ahora» es el de la barra, nunca el de la fila.
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente); en_casa(cliente)
+    un_mueble("refrigerador", 2, 2)
+    con_comida(40.0, reloj.ahora)
+    dar(YO, "golosinas")
+    primera = usar(cliente, "golosinas", evento="evento-mochila-r1").json()
+    assert primera["mensaje"] == "Pelusa come. Comida +25 (ahora 65)."
+    for n in range(2):                        # cada entrenamiento gasta 15 de comida
+        reloj.pasar(hours=2)                  # lo que espera entrenar
+        entrenar = {"accion": "entrenar", "evento_id": f"evento-entrenar-{n}"}
+        assert cliente.post(CUIDAR, json=entrenar, headers=ESCRIBIR).json()["ok"]
+    assert db.criatura_activa(YO, G).hambre < 40                   # la fila
+    replay = usar(cliente, "golosinas", evento="evento-mochila-r1").json()
+    assert replay["estado"]["gachamon"]["barras"]["comida"] == 40  # la barra
+    assert replay["mensaje"] == "Pelusa come. Comida +25 (ahora 40)."
+    assert db.inventario(YO, G) == {}
 
 
 def test_la_placa_con_un_nombre_que_vale_renombra(cliente, monkeypatch):
