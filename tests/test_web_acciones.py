@@ -145,7 +145,7 @@ def test_las_dos_piden_la_cabecera(cliente, monkeypatch):
 
 # --- Las medallas: las mismas reglas que en Discord ----------------------------
 
-ALFA = {"nombre": "De la alfa", "gemas": 25}
+ALFA = {"nombre": "De la alfa", "gemas": 5}
 
 
 def test_un_cuidado_que_desbloquea_una_medalla_la_trae_y_sube_las_gemas(cliente, monkeypatch):
@@ -156,7 +156,7 @@ def test_un_cuidado_que_desbloquea_una_medalla_la_trae_y_sube_las_gemas(cliente,
     reloj.pasar(hours=6)
     cuerpo = cuidar(cliente, "jugar", "evento-alfa").json()
     assert cuerpo["ok"] is True and cuerpo["logros"] == [ALFA]
-    assert cuerpo["estado"]["saldos"] == {"monedas": 1, "gemas": 25}
+    assert cuerpo["estado"]["saldos"] == {"monedas": 1, "gemas": 5}
 
 
 def test_repetir_el_mismo_evento_no_paga_la_medalla_otra_vez(cliente, monkeypatch):
@@ -166,8 +166,8 @@ def test_repetir_el_mismo_evento_no_paga_la_medalla_otra_vez(cliente, monkeypatc
     assert cuidar(cliente, "jugar", "evento-alfa").json()["logros"] == [ALFA]
     repetido = cuidar(cliente, "jugar", "evento-alfa").json()
     assert repetido["ok"] is True and repetido["logros"] == []
-    assert repetido["estado"]["saldos"]["gemas"] == 25
-    assert economia.saldos(YO, G).asciigems == 25
+    assert repetido["estado"]["saldos"]["gemas"] == 5
+    assert economia.saldos(YO, G).asciigems == 5
 
 
 def test_un_cuidado_normal_no_trae_medallas(cliente, monkeypatch):
@@ -177,7 +177,7 @@ def test_un_cuidado_normal_no_trae_medallas(cliente, monkeypatch):
     cuidar(cliente, "jugar", "evento-alfa")
     normal = cuidar(cliente, "limpiar", "evento-normal").json()
     assert normal["ok"] is True and normal["logros"] == []
-    assert normal["estado"]["saldos"]["gemas"] == 25
+    assert normal["estado"]["saldos"]["gemas"] == 5
 
 
 def test_un_cuidado_que_no_sale_no_mira_las_medallas(cliente, monkeypatch):

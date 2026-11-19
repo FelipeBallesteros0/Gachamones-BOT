@@ -61,7 +61,7 @@ export function seCelebraLaEvolucion(respuesta, etapaAntes) {
   return Boolean(g && etapaAntes && g.etapa !== etapaAntes);
 }
 
-// Un aviso por cada medalla nueva que trae un cuidado: «🏅 De la alfa · +25
+// Un aviso por cada medalla nueva que trae un cuidado: «🏅 De la alfa · +5
 // gemas». Lo que no tenga nombre y gemas no se dice.
 export function avisosDeMedallas(respuesta) {
   const logros = respuesta && Array.isArray(respuesta.logros) ? respuesta.logros : [];

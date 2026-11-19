@@ -118,7 +118,7 @@ LOGROS: tuple[Logro, ...] = (
     Logro("malcriado", "Malcriado", "recibe 500 cuidados", CUIDADOS, 500, 30),
     # --- De los que no se repiten -----------------------------------------
     Logro("de_la_alfa", "De la alfa", "haber estado aquí desde el principio",
-          NACIO_EN_LA_ALFA, 1, 25),
+          NACIO_EN_LA_ALFA, 1, 5),
     Logro("uno_entre_veinticinco", "Uno entre veinticinco",
           "que te salga una especie rara", TUVO_RARA, 1, 20, PERSONA),
     Logro("superviviente", "Superviviente", "100 aventuras",
