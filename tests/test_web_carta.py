@@ -179,6 +179,11 @@ def test_con_tres_reclutas_las_tres_lineas_y_las_placas_en_plural():
     assert lineas[-6] == MEDALLAS                       # y las de los reclutas, tras las medallas
 
 
+def test_con_diez_placas_el_plural_lleva_el_numero():
+    lineas = carta.lineas_de({**TODO, "placas": 10})
+    assert lineas[-2:] == ["Te dejé 10 placas con nombre en tu mochila, por si les quieres cambiar el nombre.", Y_DOS_COSAS_MAS]
+
+
 def test_sin_reclutas_ni_lineas_de_nombre_ni_de_placas():
     lineas = carta.lineas_de({**TODO, "nombres": [], "placas": 0})
     assert not [l for l in lineas if "ahora se llama" in l or "placa" in l]

@@ -669,6 +669,12 @@ def placas_de_la_carta(usuario="u1"):
     return db.carta_sin_ver(usuario, "g1", CAMBIO)["placas"]
 
 
+def filas_de_la_placa(usuario):
+    """Las filas crudas de la placa en su mochila, también una con cantidad 0, que
+    `db.inventario` no enseña porque sólo saca las positivas."""
+    return [f for f in filas("inventario") if (f["usuario_id"], f["guild_id"], f["objeto"]) == (usuario, "g1", "placa")]
+
+
 @pytest.mark.parametrize("cuantos", [1, 3])
 def test_una_placa_por_cada_recluta_vivo_que_se_puso_el_nombre_solo(cuantos):
     nacer("Ana"); en_la_mochila("u1", "golosinas", 2)            # Ana: el nombre se lo puso su dueño
@@ -683,6 +689,7 @@ def test_sin_reclutas_que_se_nombraran_solos_ninguna_placa_y_la_mochila_como_est
     nacer("Ana"); en_la_mochila("u1", "golosinas", 2)
     el_cambio()
     assert mochila("u1") == {"golosinas": 2} and placas_de_la_carta() == 0
+    assert filas_de_la_placa("u1") == []                            # ni una fila con 0
 
 
 def test_una_placa_que_ya_tenia_se_suma_a_las_que_le_regalan():
@@ -697,6 +704,7 @@ def test_un_recluta_muerto_que_se_puso_el_nombre_solo_no_cuenta():
     el_cambio()
     assert mochila("u1") == {"placa": 1} and placas_de_la_carta() == 1
     assert "placa" not in mochila("u2") and placas_de_la_carta("u2") == 0
+    assert filas_de_la_placa("u2") == []                            # ni una fila con 0
 
 
 def test_una_especie_que_ya_no_existe_tambien_recibe_su_placa():
@@ -736,6 +744,8 @@ def test_el_resumen_suma_las_placas_de_todos():
     resumen = el_cambio()
     assert [placas_de_la_carta(u) for u in ("u1", "u2", "u3")] == [2, 1, 0]
     assert (resumen.personas, resumen.placas) == (3, 3)
+    # A u3 no le tocó ninguna: el cambio no deja en ninguna mochila una fila vacía.
+    assert [f for f in filas("inventario") if f["cantidad"] <= 0] == []
 
 
 def una_base_de_antes_con_de_todo():
