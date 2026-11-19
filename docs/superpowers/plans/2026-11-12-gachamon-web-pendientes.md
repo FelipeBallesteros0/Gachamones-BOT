@@ -1872,7 +1872,9 @@ estaban bien.
   la web, las aventuras de siempre, competir, conversar, el huerto, el cementerio
   como lugar para explorar, los lugares cerrados, el arte de verdad, sacar el
   «transporte» de `departamento.js` y decir junto a la barra que un mueble la
-  sostiene.
+  sostiene. **El orden de todo eso, y lo que el dueño añadió y cambió el
+  2026-11-19, está en la hoja de ruta**
+  (`docs/superpowers/specs/2026-11-19-monsteropolis-hoja-de-ruta.md`).
 - **No ponerle aviso al lugar «Aventura»**: el botón de la primera aventura
   deduce que hay cama libre de que ese lugar no traiga aviso (ver el rework 6).
 - **El huevo con la página vieja abierta no se cura solo**: quien tenga abierta

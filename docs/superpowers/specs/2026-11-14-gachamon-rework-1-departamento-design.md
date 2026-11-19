@@ -660,6 +660,11 @@ como siempre); el orden y el tamaño de las tareas.
 
 ## 12. Lo que Felipe ya dijo de los proyectos que siguen
 
+> **Corregida el 2026-11-19.** El orden y el alcance de lo que sigue los fija
+> ahora `2026-11-19-monsteropolis-hoja-de-ruta.md`, escrita a partir del
+> documento de diseño del dueño. Esta sección se queda como estaba; donde las dos
+> digan cosas distintas, vale la hoja de ruta.
+
 - **Balcón y huerto (2).** El 3 × 3 no puede tener balcón; con la primera
   ampliación llega el objeto balcón, que se coloca como las ventanas. Son 4
   casillas y va pegado a una pared. Sin balcón no hay huerto.
