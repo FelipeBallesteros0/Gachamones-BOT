@@ -166,3 +166,101 @@ test('con gachamon, ese mismo «no» quiere decir que tu gachamon cambió: se vu
   assert.deepEqual(seguidos, [[undefined]]);
   assert.ok(!contenedor.querySelector('.aviso-tienda').textContent);
 });
+
+// --- la placa: la pregunta dice de quién es el nombre que cambia ---------------------
+
+// Lo que llevas: la poción y dos placas, que se usan escribiendo un nombre.
+const PLACA = {
+  clave: 'placa', nombre: 'Placa con nombre', descripcion: 'Le cambia el nombre a tu gachamon activo.',
+  icono: 'iconos/objetos/placa.png', cantidad: 2, uso: 'con_nombre', nota: null,
+};
+const CON_LA_PLACA = { objetos: [...LLEVAS.objetos, PLACA] };
+
+// El estado de quien sale con `gachamon` (o con nadie), en la mochila.
+const conGachamon = (gachamon) => ({ saldos: { monedas: 40, gemas: 0 }, avatar: { nombre: 'Feli' }, gachamon });
+
+// El texto que se ve dentro de un elemento, con el de sus hijos.
+const textoDe = (nodo) => nodo.hijos.map((h) => (h instanceof Elemento ? textoDe(h) : h.texto)).join('');
+
+// Abre la mochila con `estado` y devuelve cómo tocar «Usar» en una fila y la
+// pregunta que abre esa fila.
+async function abrirLaMochila(estado) {
+  const contenedor = new Elemento('main');
+  assert.equal(await mochila(contenedor, estado, () => {}), true);
+  const fila = (clave) => contenedor.querySelector('ul').querySelectorAll('li')
+    .find((li) => li.atributos['data-fila'] === clave);
+  const tocarUsar = (clave) => fila(clave).querySelector('.boton-usar').oyentes.click[0]();
+  const pregunta = (clave) => fila(clave).querySelector('.pregunta');
+  return { contenedor, tocarUsar, pregunta };
+}
+
+test('la placa pregunta el nombre nuevo del que sale contigo, y lo demás de la pregunta sigue igual', { timeout: 2000 }, async () => {
+  servidor(() => CON_LA_PLACA);
+  const { tocarUsar, pregunta } = await abrirLaMochila(conGachamon({ id: 5, nombre: 'Pelusa' }));
+  tocarUsar('placa');
+  const caja = pregunta('placa');
+  const etiqueta = caja.querySelector('label');
+  assert.equal(textoDe(etiqueta), 'Nuevo nombre de Pelusa');
+  assert.equal(etiqueta.atributos.for, 'mochila-nombre');
+  // El campo, vacío y con el foco; el botón que confirma, «Cambiar nombre»; y «No».
+  const campo = caja.querySelector('input');
+  assert.equal(campo.atributos.id, 'mochila-nombre');
+  assert.equal(campo.value, '');
+  assert.equal(document.activeElement, campo);
+  assert.deepEqual(caja.querySelectorAll('button').map(textoDe), ['Cambiar nombre', 'No']);
+});
+
+test('sin gachamon la pregunta de la placa sigue diciendo sólo «Nuevo nombre»', { timeout: 2000 }, async () => {
+  servidor(() => CON_LA_PLACA);
+  const { tocarUsar, pregunta } = await abrirLaMochila(conGachamon(null));
+  tocarUsar('placa');
+  assert.equal(textoDe(pregunta('placa').querySelector('label')), 'Nuevo nombre');
+});
+
+test('si llega un estado con otro saliendo contigo, la placa pregunta por el nombre de ése', { timeout: 2000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // Mientras tanto, en otra pestaña, sales con Rulo: el estado que trae la
+  // poción ya lo dice. Y después, la placa le cambia el nombre a Rulo.
+  let respuestas = 0;
+  const pedidas = servidor((pedida) => {
+    if (pedida.metodo === 'GET') return CON_LA_PLACA;
+    respuestas += 1;
+    if (respuestas === 1) {
+      return {
+        ok: true, clave: null, mensaje: 'Rulo come. Comida +40 (ahora 100).',
+        estado: conGachamon({ id: 7, nombre: 'Rulo' }), mochila: CON_LA_PLACA,
+      };
+    }
+    return {
+      ok: true, clave: null, mensaje: 'Rulo pasa a llamarse Nube.',
+      estado: conGachamon({ id: 7, nombre: 'Nube' }), mochila: CON_LA_PLACA,
+    };
+  });
+  const { tocarUsar, pregunta } = await abrirLaMochila(conGachamon({ id: 5, nombre: 'Pelusa' }));
+  tocarUsar('pocion_comida');
+  await pregunta('pocion_comida').querySelector('.principal').oyentes.click[0]();
+  tocarUsar('placa');
+  assert.equal(textoDe(pregunta('placa').querySelector('label')), 'Nuevo nombre de Rulo');
+  // Lo que se escribe va al que dice la pregunta.
+  pregunta('placa').querySelector('input').value = 'Nube';
+  await pregunta('placa').querySelector('.principal').oyentes.click[0]();
+  assert.equal(pedidas.at(-1).cuerpo.gachamon_id, 7);
+  // Y la siguiente placa ya dice su nombre nuevo.
+  tocarUsar('placa');
+  assert.equal(textoDe(pregunta('placa').querySelector('label')), 'Nuevo nombre de Nube');
+});
+
+test('un «no» a la placa deja la pregunta abierta con el nombre del que sale contigo según el estado que llegó', { timeout: 2000 }, async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  servidor((pedida) => (pedida.metodo === 'GET' ? CON_LA_PLACA : {
+    ok: false, clave: 'mismo_nombre', mensaje: 'Ya se llama así.',
+    estado: conGachamon({ id: 7, nombre: 'Rulo' }), mochila: CON_LA_PLACA,
+  }));
+  const { tocarUsar, pregunta } = await abrirLaMochila(conGachamon({ id: 5, nombre: 'Pelusa' }));
+  tocarUsar('placa');
+  pregunta('placa').querySelector('input').value = 'Pelusa';
+  await pregunta('placa').querySelector('.principal').oyentes.click[0]();
+  const abierta = pregunta('placa');
+  assert.equal(textoDe(abierta.querySelector('label')), 'Nuevo nombre de Rulo');
+  assert.equal(abierta.querySelector('input').value, 'Pelusa');     // con lo que se escribió
+});

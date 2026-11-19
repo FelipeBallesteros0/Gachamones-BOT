@@ -88,6 +88,13 @@ def lineas_de(contenido: dict) -> list[str]:
         lineas.append(
             f"Te dejé {placas} placas con nombre en tu mochila, por si les quieres cambiar el nombre."
         )
+    # La placa le cambia el nombre al que sale contigo, que casi nunca es el
+    # recluta: la carta dice cómo elegirlo.
+    if placas > 0:
+        lineas.append(
+            "La placa es para el que sale contigo: en tu departamento, toca al que quieras "
+            "y elige «Salir con…»."
+        )
 
     lineas.append(
         "Y dos cosas más: ya ningún gachamon muere, y a todos les pasa el tiempo, "

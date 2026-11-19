@@ -36,6 +36,10 @@ function idDelGachamon(estado) {
   return estado && estado.gachamon ? estado.gachamon.id : null;
 }
 
+function nombreDelGachamon(estado) {
+  return estado && estado.gachamon ? estado.gachamon.nombre : null;
+}
+
 export function mochila(contenedor, estado, seguir) {
   // El arte que no cargó en otra pantalla se pide de nuevo.
   olvidarLasQueFaltan();
@@ -85,7 +89,9 @@ export function mochila(contenedor, estado, seguir) {
   // Mientras un uso está en camino no sale otro.
   let enCamino = false;
   // El gachamon que enseña el estado, al que va cada uso; sin gachamon, nadie.
+  // Su nombre lo dice la pregunta de la placa: es el que va a cambiar.
   let gachamonId = idDelGachamon(estado);
+  let gachamonNombre = nombreDelGachamon(estado);
 
   // «Poción de comida × 2», con espacios que no se cortan: la cantidad no se
   // queda sola en otra línea. Debajo, lo que hace o, si no se usa desde aquí,
@@ -170,7 +176,9 @@ export function mochila(contenedor, estado, seguir) {
   // «No», y el foco va a la pregunta, que se lee; no al botón que confirma,
   // para que una tecla que se queda apretada no lo gaste. Con la placa, en vez
   // de la pregunta, el campo del nombre nuevo (con `nombre` ya escrito, si lo
-  // hay), que es donde va el foco; Enter en él también lo confirma.
+  // hay), que es donde va el foco; Enter en él también lo confirma. Su
+  // etiqueta dice de quién es el nombre: del que sale contigo según el último
+  // estado que llegó.
   function preguntar(usable, nombre = '') {
     if (enCamino) return;
     cerrarLaPregunta();
@@ -189,8 +197,9 @@ export function mochila(contenedor, estado, seguir) {
         autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false', enterkeyhint: 'done',
       });
       campo.value = nombre;
+      const etiqueta = gachamonNombre === null ? 'Nuevo nombre' : `Nuevo nombre de ${gachamonNombre}`;
       pregunta = el('form', { class: 'campo pregunta-campo' },
-        el('label', { class: 'etiqueta', for: 'mochila-nombre' }, 'Nuevo nombre'),
+        el('label', { class: 'etiqueta', for: 'mochila-nombre' }, etiqueta),
         campo);
       pregunta.addEventListener('submit', (evento) => {
         evento.preventDefault();
@@ -263,6 +272,7 @@ export function mochila(contenedor, estado, seguir) {
     if (respuesta.estado) {
       ponerSaldos(respuesta.estado.saldos);
       gachamonId = idDelGachamon(respuesta.estado);
+      gachamonNombre = nombreDelGachamon(respuesta.estado);
     }
     ponerLaLista(respuesta.mochila.objetos);
     avisar(respuesta.mensaje, !respuesta.ok);
