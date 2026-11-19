@@ -77,9 +77,16 @@ def lineas_de(contenido: dict) -> list[str]:
         especie = esp.ESPECIES.get(recluta["especie"])
         if especie is None:   # la especie ya no está en el catálogo
             continue
+        lineas.append(f"Tu {especie.nombre} ahora se llama {recluta['nombre']}. Se puso el nombre solo.")
+    # Las placas las cuenta la carta: la de un recluta cuya especie ya no está en el
+    # catálogo se le dejó igual, aunque su línea no salga. Una carta guardada antes
+    # de que el cambio las regalara no trae la clave.
+    placas = contenido.get("placas", 0)
+    if placas == 1:
+        lineas.append("Te dejé una placa con nombre en tu mochila, por si le quieres cambiar el nombre.")
+    elif placas > 1:
         lineas.append(
-            f"Tu {especie.nombre} ahora se llama {recluta['nombre']}. "
-            "Se puso el nombre solo, y se lo puedes cambiar una vez."
+            f"Te dejé {placas} placas con nombre en tu mochila, por si les quieres cambiar el nombre."
         )
 
     lineas.append(

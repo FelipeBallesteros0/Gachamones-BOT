@@ -310,6 +310,9 @@ _CASAS_QUE_SE_MEJORAN = ("mediana", "grande")
 PRECIO_DEL_TICKET_DE_ANTES = 40
 _TICKET_DE_ANTES = "ticket_refugio"
 _CAMA_SENCILLA = "cama_sencilla"
+# La que se regala por cada gachamon vivo que se puso el nombre solo: con ella,
+# su dueño se lo cambia desde la mochila, como con una comprada.
+_PLACA = "placa"
 # Las que caben en el departamento más grande, el de 8 × 8.
 _CAMAS_QUE_CABEN = dep.MAXIMO_DE_GACHAMONES + 1
 # Dónde puede tener filas cada quien, y con qué columna: tener alguna en
@@ -326,12 +329,14 @@ _LO_DE_CADA_QUIEN = (
 @dataclass(frozen=True)
 class ResumenDelCambio:
     """A cuántas personas tocó, cuántas camas regaló entre puestas y guardadas,
-    cuántas monedas devolvió y cuántas gemas pagó por medallas."""
+    cuántas monedas devolvió, cuántas gemas pagó por medallas y cuántas placas
+    con nombre regaló."""
 
     personas: int = 0
     camas: int = 0
     monedas: int = 0
     gemas: int = 0
+    placas: int = 0
 
 
 def el_dia_del_cambio(
@@ -348,7 +353,8 @@ def el_dia_del_cambio(
 
     A cada persona le entrega el buzón, le cosecha lo plantado, le devuelve los
     tickets y las casas, le paga las medallas suyas que tenía ganadas y sin
-    cobrar, le crea el departamento con sus camas, le guarda los muebles y le
+    cobrar, le crea el departamento con sus camas, le guarda los muebles, le deja
+    una placa con nombre por cada gachamon vivo que se puso el nombre solo y le
     escribe la carta del alcalde (`_mudar_a`). Y a todos los
     gachamones vivos el reloj les parte de `ahora`: a nadie se le cobra el
     tiempo que pasó desde la última vez que se guardó.
@@ -358,7 +364,7 @@ def el_dia_del_cambio(
     quien publica, que detiene el arranque.
     """
     rng = rng or random.Random()
-    personas = camas = monedas = gemas = 0
+    personas = camas = monedas = gemas = placas = 0
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         if not db._una_sola_vez(con, CAMBIO_DE_LA_VIVIENDA, ahora):
@@ -371,16 +377,18 @@ def el_dia_del_cambio(
                 "de arrancar."
             )
         for usuario_id, guild_id in _quienes_ya_estaban(con):
-            regaladas, devueltas, pagadas = _mudar_a(con, usuario_id, guild_id, ahora, rng)
+            regaladas, devueltas, pagadas, sus_placas = _mudar_a(
+                con, usuario_id, guild_id, ahora, rng)
             personas += 1
             camas += regaladas
             monedas += devueltas
             gemas += pagadas
+            placas += sus_placas
         con.execute(
             "UPDATE criaturas SET actualizada_en = ? WHERE muerta_en IS NULL",
             (ahora.isoformat(),),
         )
-    return ResumenDelCambio(personas, camas, monedas, gemas)
+    return ResumenDelCambio(personas, camas, monedas, gemas, placas)
 
 
 def _quienes_ya_estaban(con) -> list[tuple[str, str]]:
@@ -393,9 +401,10 @@ def _quienes_ya_estaban(con) -> list[tuple[str, str]]:
 
 def _mudar_a(
     con, usuario_id: str, guild_id: str, ahora: datetime, rng: random.Random
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, int]:
     """El cambio de una persona. Devuelve cuántas camas le regaló, cuántas
-    monedas le devolvió y cuántas gemas le pagó por medallas.
+    monedas le devolvió, cuántas gemas le pagó por medallas y cuántas placas
+    con nombre le dejó.
 
     El monedero se le asegura le toque o no una devolución: quien ya jugaba lo
     conserva tal cual, y si todavía no tenía fila lo recibe con 50 y 50, como
@@ -408,6 +417,11 @@ def _mudar_a(
     aquí, una sola vez y como cualquier otra (`_pagar_logros_de_persona_en`),
     tenga o no gachamones vivos. Van después de asegurarle el monedero: si no lo
     tuviera, el pago le crearía el de quien empieza, en cero.
+
+    Por cada gachamon vivo que se puso el nombre solo le deja en la mochila una
+    placa con nombre, para que se lo cambie. Es un regalo, como lo del buzón: no
+    toca el monedero ni pasa por `operaciones_economia`. Cuenta también la de un
+    gachamon cuya especie ya no está en el catálogo, aunque la carta no lo nombre.
     """
     _asegurar_monedero(con, usuario_id, guild_id, ya_estaba=True)
     regalos = _entregar_el_buzon(con, usuario_id, guild_id)
@@ -428,6 +442,9 @@ def _mudar_a(
         con, usuario_id, guild_id, len(vivos), ahora
     )
     muebles = _guardar_los_muebles_de_antes(con, usuario_id, guild_id)
+    placas = sum(1 for c in vivos if c.se_nombro_solo)
+    if placas:
+        db.guardar_en_la_mochila_en(con, usuario_id, guild_id, _PLACA, placas)
     db.guardar_carta_en(con, usuario_id, guild_id, CAMBIO_DE_LA_VIVIENDA, {
         "ancho": ancho, "fondo": fondo, "camas": puestas, "vivos": len(vivos),
         "casas": casas, "monedas_por_casas": monedas_por_casas,
@@ -440,8 +457,9 @@ def _mudar_a(
             {"especie": c.especie, "nombre": c.nombre}
             for c in vivos if c.se_nombro_solo
         ],
+        "placas": placas,
     }, ahora)
-    return regaladas, devueltas, medallas.asciigems
+    return regaladas, devueltas, medallas.asciigems, placas
 
 
 def _entregar_el_buzon(con, usuario_id: str, guild_id: str) -> int:
@@ -605,7 +623,7 @@ def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
 
     Lo llaman el bot y la web, y nadie más prepara la base fuera de las pruebas.
     El día del cambio sólo hace algo la primera vez; si toca a alguien, lo deja
-    en el registro con sus cuatro cifras y sin decir a quién.
+    en el registro con sus cinco cifras y sin decir a quién.
     """
     db.inicializar(ahora)
     cambio = el_dia_del_cambio(ahora)
@@ -613,8 +631,8 @@ def poner_al_dia(ahora: datetime) -> ResumenDevolucion:
         # Aviso y no info: la web no configura el registro, y ahí un info se pierde.
         logger.warning(
             "El día del cambio: %d personas, %d camas regaladas, %d monedas devueltas, "
-            "%d gemas pagadas por medallas",
-            cambio.personas, cambio.camas, cambio.monedas, cambio.gemas,
+            "%d gemas pagadas por medallas, %d placas con nombre regaladas",
+            cambio.personas, cambio.camas, cambio.monedas, cambio.gemas, cambio.placas,
         )
     return devolver_cosmeticos_retirados(ahora)
 

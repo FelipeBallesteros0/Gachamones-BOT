@@ -8,6 +8,7 @@ import random
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -390,7 +391,7 @@ def test_la_carta_cuenta_lo_que_le_toco_a_cada_quien():
     assert db.carta_sin_ver("u1", "g1", CAMBIO) == {
         "ancho": 3, "fondo": 3, "camas": 2, "vivos": 1, "casas": ["mediana"], "monedas_por_casas": 640,
         "muebles": 1, "cosecha": {}, "tickets": 1, "monedas_por_tickets": 40, "regalos": 1,
-        "gemas_por_medallas": 0, "nombres": [{"especie": "pulpo", "nombre": "Ana"}],
+        "gemas_por_medallas": 0, "nombres": [{"especie": "pulpo", "nombre": "Ana"}], "placas": 1,
     }
     db.marcar_carta_vista("u1", "g1", CAMBIO, T1)
     assert db.carta_sin_ver("u1", "g1", CAMBIO) is None
@@ -595,14 +596,15 @@ def test_el_arranque_hace_el_cambio():
     assert economia.saldos("u1", "g1").asciicoins == 200
 
 
-def test_el_arranque_apunta_las_cuatro_cifras_del_cambio_y_ningun_id(caplog):
+def test_el_arranque_apunta_las_cinco_cifras_del_cambio_y_ningun_id(caplog):
     casa_de_antes("u1", "pequena"); con_monedas(0); una_rara(muerta=True); borrar_la_marca(CAMBIO)
     with caplog.at_level(logging.INFO, logger="economia"):
         economia.poner_al_dia(T1)
         economia.poner_al_dia(T1 + timedelta(hours=1))    # el segundo no cambia a nadie: no apunta
     lineas = [r for r in caplog.records if r.name == "economia"]
-    # Personas, camas regaladas, monedas devueltas y gemas pagadas por medallas (la rara).
-    assert [r.args for r in lineas] == [(1, 2, 200, valen("uno_entre_veinticinco"))]
+    # Personas, camas regaladas, monedas devueltas, gemas pagadas por medallas (la rara)
+    # y placas con nombre regaladas (ninguna: no le queda ningún vivo).
+    assert [r.args for r in lineas] == [(1, 2, 200, valen("uno_entre_veinticinco"), 0)]
     assert "gemas pagadas por medallas" in lineas[0].getMessage()
     assert "u1" not in lineas[0].getMessage()
     assert lineas[0].levelno >= logging.WARNING        # la web no configura el registro: un info se perdería
@@ -648,3 +650,166 @@ def test_con_21_o_24_vivos_el_alcalde_no_deja_la_entrada_tapada_por_una_de_sus_c
         bajo_las_camas = {c for p in d.puestas if dep.MUEBLES[p.clave].cama
                           for c in dep.huella(dep.MUEBLES[p.clave], p.x, p.y, p.giro)}
         assert dep.frente_a(puertas[0].x, puertas[0].y) not in bajo_las_camas
+
+
+# --- Las placas con nombre --------------------------------------------------------
+#
+# El cambio le deja a cada quien una placa con nombre por cada gachamon vivo que se
+# puso el nombre solo, para que se lo pueda cambiar.
+
+def recluta(nombre, usuario="u1", muerto=False):
+    """Un recluta que se puso el nombre solo, vivo o muerto antes del cambio."""
+    bicho = db.crear(usuario, "g1", "pulpo", nombre, STATS, T0, activa=False, se_nombro_solo=True)
+    if muerto:
+        escribir("UPDATE criaturas SET muerta_en = ?, causa_muerte = 'hambre' WHERE id = ?", (T0.isoformat(), bicho.id))
+    return bicho
+
+
+def placas_de_la_carta(usuario="u1"):
+    return db.carta_sin_ver(usuario, "g1", CAMBIO)["placas"]
+
+
+@pytest.mark.parametrize("cuantos", [1, 3])
+def test_una_placa_por_cada_recluta_vivo_que_se_puso_el_nombre_solo(cuantos):
+    nacer("Ana"); en_la_mochila("u1", "golosinas", 2)            # Ana: el nombre se lo puso su dueño
+    for i in range(cuantos):
+        recluta(f"R{i}")
+    el_cambio()
+    assert mochila("u1") == {"golosinas": 2, "placa": cuantos}
+    assert placas_de_la_carta() == cuantos
+
+
+def test_sin_reclutas_que_se_nombraran_solos_ninguna_placa_y_la_mochila_como_estaba():
+    nacer("Ana"); en_la_mochila("u1", "golosinas", 2)
+    el_cambio()
+    assert mochila("u1") == {"golosinas": 2} and placas_de_la_carta() == 0
+
+
+def test_una_placa_que_ya_tenia_se_suma_a_las_que_le_regalan():
+    nacer("Ana"); recluta("Rulo"); recluta("Copo"); en_la_mochila("u1", "placa", 1)
+    el_cambio()
+    assert mochila("u1") == {"placa": 3} and placas_de_la_carta() == 2
+
+
+def test_un_recluta_muerto_que_se_puso_el_nombre_solo_no_cuenta():
+    nacer("Ana"); recluta("Rulo"); recluta("Cy", muerto=True)
+    recluta("Bea", usuario="u2", muerto=True)                       # a u2 no le queda ningún vivo
+    el_cambio()
+    assert mochila("u1") == {"placa": 1} and placas_de_la_carta() == 1
+    assert "placa" not in mochila("u2") and placas_de_la_carta("u2") == 0
+
+
+def test_una_especie_que_ya_no_existe_tambien_recibe_su_placa():
+    nacer("Ana"); recluta("Rulo")
+    nube = recluta("Nube")
+    escribir("UPDATE criaturas SET especie = 'ya_no_existe' WHERE id = ?", (nube.id,))
+    el_cambio()
+    carta = db.carta_sin_ver("u1", "g1", CAMBIO)
+    assert mochila("u1") == {"placa": 2} and carta["placas"] == 2
+    assert carta["nombres"] == [{"especie": "pulpo", "nombre": "Rulo"}, {"especie": "ya_no_existe", "nombre": "Nube"}]
+
+
+def test_correr_el_arranque_otra_vez_no_deja_mas_placas():
+    nacer("Ana"); recluta("Rulo"); recluta("Copo")
+    el_cambio()
+    assert mochila("u1") == {"placa": 2}
+    assert economia.el_dia_del_cambio(T1 + timedelta(hours=1)) == economia.ResumenDelCambio()
+    economia.poner_al_dia(T1 + timedelta(hours=2))                 # y el arranque entero
+    assert mochila("u1") == {"placa": 2}
+
+
+def test_quien_llega_despues_del_cambio_no_recibe_placas():
+    nacer("Ana")
+    el_cambio()
+    # Una cuenta nueva, o alguien de Discord que nunca jugó y vincula después: el
+    # día del cambio no tenía ninguna fila. Y un recluta que llega después, tampoco.
+    db.crear("u2", "g1", "pulpo", "Rulo", STATS, T1, se_nombro_solo=True)
+    db.crear("u1", "g1", "pulpo", "Copo", STATS, T1, activa=False, se_nombro_solo=True)
+    economia.poner_al_dia(T1 + timedelta(hours=1))
+    assert "placa" not in mochila("u1") and "placa" not in mochila("u2")
+
+
+def test_el_resumen_suma_las_placas_de_todos():
+    nacer("Ana"); recluta("Rulo"); recluta("Copo")
+    db.crear("u2", "g1", "pulpo", "Bea", STATS, T0, se_nombro_solo=True)
+    db.crear("u3", "g1", "pulpo", "Cy", STATS, T0)                      # se lo puso su dueño
+    resumen = el_cambio()
+    assert [placas_de_la_carta(u) for u in ("u1", "u2", "u3")] == [2, 1, 0]
+    assert (resumen.personas, resumen.placas) == (3, 3)
+
+
+def una_base_de_antes_con_de_todo():
+    """Tres personas con casas, tickets, buzón, lo plantado, medallas sin cobrar y
+    reclutas que se pusieron el nombre solos, vivos y muertos."""
+    ana = nacer("Ana"); recluta("Rulo"); recluta("Copo"); recluta("Cy", muerto=True)
+    con_monedas(10); con_gemas(12); reclutados(10)
+    casa = casa_de_antes("u1", "mediana"); vive_en(ana, casa); plantado("u1", casa, 1, "poroto_rojo")
+    en_la_mochila("u1", "ticket_refugio", 2); en_la_mochila("u1", "placa", 1); regalo("u1", "ticket_refugio", "Bea")
+    db.crear("u2", "g1", "dragoncito", "Brasa", STATS, T0, se_nombro_solo=True)   # una rara, y sin monedero
+    reclutados(1, usuario="u2")
+    casa_de_antes("u3", "grande"); con_monedas(0, usuario="u3")
+
+
+def copiar_la_base(destino):
+    with db.conectar() as origen, closing(sqlite3.connect(destino)) as copia:
+        origen.backup(copia)
+
+
+def lo_del_dinero():
+    """Los monederos y el libro de cuentas, cada fila entera y en un orden fijo."""
+    def orden(fila):
+        return fila["usuario_id"], fila["guild_id"], fila.get("evento_id", "")
+    return sorted(filas("monederos"), key=orden), sorted(filas("operaciones_economia"), key=orden)
+
+
+def test_las_placas_no_tocan_ni_las_monedas_ni_las_gemas_ni_el_libro_de_cuentas(tmp_path, monkeypatch):
+    una_base_de_antes_con_de_todo()
+    sin_placas = tmp_path / "sin_placas.db"
+    copiar_la_base(sin_placas)
+    el_cambio()
+    con_placas = lo_del_dinero()
+    assert (mochila("u1")["placa"], mochila("u2")["placa"]) == (1 + 2, 1)      # sí que las dejó
+    assert con_placas[1] == []                                                  # y ninguna fila de cuentas
+    # La misma base sin ningún recluta que se nombrara solo: ahí no deja ninguna.
+    monkeypatch.setattr(db, "RUTA", sin_placas)
+    escribir("UPDATE criaturas SET se_nombro_solo = 0")
+    el_cambio()
+    assert (mochila("u1")["placa"], "placa" in mochila("u2")) == (1, False)
+    assert lo_del_dinero() == con_placas
+
+
+@pytest.mark.parametrize("donde", ["BEFORE INSERT ON cartas", "BEFORE INSERT ON inventario WHEN NEW.objeto = 'placa'"])
+def test_si_el_cambio_falla_a_medias_no_queda_ninguna_placa_ni_nada_hecho(donde):
+    nacer("Ana"); recluta("Rulo"); con_monedas(0); casa_de_antes("u1", "pequena")
+    rompe(donde)
+    borrar_la_marca(CAMBIO)
+    with pytest.raises(sqlite3.DatabaseError):
+        economia.el_dia_del_cambio(T1, random.Random(1))
+    assert mochila("u1") == {} and economia.saldos("u1", "g1").asciicoins == 0
+    assert len(filas("casas_propias")) == 1 and filas("departamentos") == [] and CAMBIO not in marcas()
+
+
+def test_el_arranque_entero_nombra_a_los_que_lo_esperaban_y_les_deja_su_placa(caplog):
+    """`poner_al_dia` sobre una base de antes con reclutas sin nombre: el paso de los
+    nombres corre antes que el cambio, así que el cambio los ve como que se lo
+    pusieron solos. Un muerto sin nombre también se nombra, pero no da placa."""
+    nacer("Ana")
+    esperaban = [nacer(n, activa=False) for n in ("X", "Y")]
+    muerto = nacer("Z", activa=False)
+    escribir("UPDATE criaturas SET muerta_en = ? WHERE id = ?", (T0.isoformat(), muerto.id))
+    for bicho in (*esperaban, muerto):
+        escribir("UPDATE criaturas SET nombre = '' WHERE id = ?", (bicho.id,))
+    borrar_la_marca(CAMBIO)
+    with caplog.at_level(logging.WARNING, logger="economia"):
+        economia.poner_al_dia(T1)
+    nombrados = [db.por_id(b.id) for b in esperaban]
+    assert all(b.nombre and b.se_nombro_solo for b in nombrados)
+    assert mochila("u1") == {"placa": 2}
+    carta = db.carta_sin_ver("u1", "g1", CAMBIO)
+    assert carta["placas"] == 2
+    assert carta["nombres"] == [{"especie": "pulpo", "nombre": b.nombre} for b in nombrados]
+    # Y el aviso del registro las cuenta junto a lo demás: una persona, cuatro camas,
+    # ninguna moneda devuelta, ninguna gema pagada y dos placas.
+    avisos = [r for r in caplog.records if r.name == "economia"]
+    assert [r.args for r in avisos] == [(1, 4, 0, 0, 2)]
+    assert "2 placas con nombre regaladas" in avisos[0].getMessage()
