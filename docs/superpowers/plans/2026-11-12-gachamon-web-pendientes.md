@@ -5,7 +5,9 @@ encontró y no le tocaba arreglar, y cada plan y cada rework añadió después s
 sección («Salió al ejecutar…»). Quien escriba el plan siguiente parte de aquí. La
 lista para el día de publicar el rediseño, juntando lo de todas las secciones,
 es **«Para publicar»**, justo después de la sección del rework 8; las secciones
-«para el día de publicar» de cada plan se quedan donde están, como historia.
+«para el día de publicar» de cada plan se quedan donde están, como historia. El
+rediseño se publicó el 2026-11-19 siguiendo esa lista; cómo salió está al
+principio de ella.
 
 ## Para el plan 2 (servidor web y pantalla principal)
 
@@ -1863,9 +1865,9 @@ estaban bien.
 - La prueba de «ninguna marca de género sin resolver» en el encuentro usa una
   sola especie.
 - Queda un comentario de prueba que dice «su casa» (`tests/test_web_nacer.py`).
-- **El dueño todavía no ha probado este plan en una página viva** (sí probó el
-  modo construcción y la partida sin gachamon el 2026-11-18, y los muebles que se
-  usan solos el 2026-11-19).
+- ~~El dueño todavía no ha probado este plan en una página viva.~~ Lo probó el
+  2026-11-19 y lo dio por bueno (el modo construcción y la partida sin gachamon,
+  el 2026-11-18; los muebles que se usan solos, el 2026-11-19).
 - Siguen sin hacer, de planes anteriores y de fuera de este rediseño: reclutar en
   la web, las aventuras de siempre, competir, conversar, el huerto, el cementerio
   como lugar para explorar, los lugares cerrados, el arte de verdad, sacar el
@@ -1892,6 +1894,38 @@ estaban bien.
 - Para el día de publicar: ver **«Para publicar»**, abajo.
 
 ## Para publicar
+
+**Publicado el 2026-11-19.** El rediseño entero se publicó siguiendo esta lista,
+en su orden. La lista se queda como se escribió, con las respuestas del dueño
+anotadas en los pasos 1 y 2, porque es el registro de cómo se hizo y porque su
+paso 19 (volver atrás) sigue siendo el procedimiento mientras exista la copia de
+antes del cambio.
+
+Cómo salió:
+
+- **Los permisos.** El dueño dio su permiso expreso, cada uno por separado y en
+  su momento, para subir la rama sin fusionar (paso 3), para copiar la base y
+  ensayar (paso 4), para fusionar y subir (paso 7) y para desplegar (paso 8).
+  Volver atrás (paso 19) no se pidió ni se dio.
+- **El ensayo** (pasos 4 a 6) cuadró entero: nadie con menos monedas ni gemas;
+  cada persona con su departamento, su carta, su puerta y sus camas; la línea
+  del día del cambio una sola vez y sin avisos; un segundo arranque sin cambios;
+  y la conciliación subiendo exactamente lo devuelto. La vuelta atrás también se
+  ensayó y salió como dice el paso 5. La copia se sacó con los servicios en
+  marcha, con la API de copia de SQLite, y se borró al terminar: la de la
+  Raspberry, nada más traerla, y la de fuera, con el ensayo hecho.
+- **Una desviación del paso 6.** La copia ensayada se recorrió por las rutas con
+  un guion (el estado, la carta, el departamento, la mochila, la ficha, la
+  Tienda y el mapa de cada cuenta vinculada), no en un navegador, para no
+  manejar a mano el número de cuenta de nadie. La placa quedó vista en el paso
+  1, como prevé ese paso cuando ninguna cuenta vinculada tiene placas.
+- **El día** (pasos 8 a 13). La página estuvo parada menos de un minuto; la
+  línea del día del cambio salió una sola vez y con las mismas cifras del
+  ensayo; el registro no trajo avisos de arranque ni errores; los comandos y el
+  manual quedaron al día; y el dueño entró con su cuenta y lo dio por bueno.
+- **Lo que sigue vivo de la lista.** La copia de antes del cambio se guarda en
+  la Raspberry, fuera de la carpeta del repo, hasta que el dueño diga: borrarla
+  es renunciar al paso 19. Los pasos 15 a 18 son para tenerlos presentes.
 
 La lista única para el día de publicar el rediseño entero (los reworks 1 a 8), en
 orden y sin repetir. Cada paso dice qué se hace y con qué orden, cómo se
@@ -1926,8 +1960,9 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
    partida sin gachamon ya los probó (2026-11-18) y los muebles que se usan solos
    también (2026-11-19); el rework 8, no. Si algo falla o no le gusta, se arregla
    antes de seguir.
+   **Respuesta del dueño (2026-11-19):** lo probó y lo dio por bueno.
 2. **Decidir con el dueño lo que el ensayo no resuelve.** Son tres decisiones
-   suyas y ninguna está tomada:
+   suyas; las tomó el 2026-11-19 y su respuesta está junto a cada una:
    - **La integración continua no ha corrido nunca** sobre los commits del
      rediseño, y esta lista la mira por primera vez después de fusionar (paso 7).
      Se puede ver antes subiendo la rama sin fusionar (paso 3, opcional y con su
@@ -1938,14 +1973,21 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
      acepta dicho, o se despliega sin `SIN_TESTS=1`: el guion corre entonces la
      suite en la Raspberry, con la web parada unos minutos, y si sale en rojo
      vuelve solo al commit en el que estaba.
+     **Respuesta del dueño:** subir la rama sin fusionar y mirarla antes de tocar
+     `main`; salió en verde en las dos versiones. La Raspberry corre 3.12, una de
+     las dos que prueba la integración continua, y se desplegó con `SIN_TESTS=1`.
    - **El arranque nuevo del bot contra Discord no se ensaya** con este
      procedimiento, a propósito (el paso 5 no arranca el bot): sincronizar sus
      comandos, editar la primera página del manual y borrar las otras siete se
      ve por primera vez el día. Sus fallos no tumban nada y quedan en el
      registro. O se acepta dicho, o se ensaya antes con otra aplicación de
      Discord y un servidor de prueba.
+     **Respuesta del dueño:** aceptarlo así. El día, el registro no trajo ningún
+     fallo de esa parte.
    - **Avisar a quienes juegan en Discord** de que ese día el juego se muda a la
      página: no es técnico; si se avisa, cuándo y cómo, lo decide el dueño.
+     **Respuesta del dueño:** basta con el aviso que el propio bot deja en los
+     canales; no se publicó nada más.
 
    Se espera: una respuesta suya a cada una, anotada junto a su punto. Sin ella,
    no se sigue al paso 5.
