@@ -223,6 +223,76 @@ def test_salir_pide_estar_en_el_departamento_y_un_id_de_verdad(cliente):
     assert (ajeno["ok"], ajeno["clave"], ajeno["mensaje"]) == (False, "no_esta", "Ese gachamon ya no está.")
 
 
+OTRA_PERSONA = "333333333333333333"
+# Más allá de lo que cabe en SQLite, ni siquiera se puede buscar: sería un 500.
+FUERA_DE_RANGO = (2**70, 2**63, 0, -1)
+
+
+def con_plantel(cliente):
+    """La cuenta 1 con Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
+    con_gachamon(cliente)
+    pelusa = db.criatura_activa(YO, G)
+    nube = db.crear(YO, G, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
+    recluta = db.crear(YO, G, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True)
+    return pelusa, nube, recluta
+
+
+def test_salir_con_uno_ajeno_es_no_esta_y_no_cambia_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, _, _ = con_plantel(cliente)
+    ajeno = db.crear(OTRA_PERSONA, G, "pulpo", "Ajeno", STATS, db.ahora_utc())
+    en_casa(cliente)
+    for gachamon_id in (ajeno.id, 999_999):
+        hecho = salir(cliente, gachamon_id)
+        assert hecho.status_code == 200
+        cuerpo = hecho.json()
+        assert (cuerpo["ok"], cuerpo["clave"], cuerpo["mensaje"]) == (False, "no_esta", "Ese gachamon ya no está.")
+    assert db.criatura_activa(YO, G).id == pelusa.id
+    assert db.criatura_activa(OTRA_PERSONA, G).id == ajeno.id
+
+
+def test_si_el_activo_ya_estaba_muerto_salir_con_otro_sigue_funcionando(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    viejo = db.crear(YO, G, "pollito", "Viejo", STATS, reloj.ahora)
+    db.crear(YO, G, "pulpo", "Nube", STATS, reloj.ahora, activa=False)
+    bruma = db.crear(YO, G, "pulpo", "Bruma", STATS, reloj.ahora, activa=False)
+    en_casa(cliente)
+    reloj.pasar(days=5)
+    # Viejo murió cuando todavía se moría de hambre, y nadie sacó todavía al relevo.
+    db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+    cuerpo = salir(cliente, bruma.id).json()
+    assert (cuerpo["ok"], cuerpo["mensaje"]) == (True, "Ahora sales con Bruma.")
+    assert cuerpo["estado"]["gachamon"]["id"] == bruma.id
+    assert not db.por_id(viejo.id).viva
+
+
+def test_salir_con_un_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, nube, _ = con_plantel(cliente)
+    en_casa(cliente)
+    for cuerpo in ({}, {"gachamon_id": str(nube.id)}, {"gachamon_id": None}, {"gachamon_id": True},
+                   {"gachamon_id": float(nube.id)}, [nube.id], nube.id):
+        hecho = cliente.post(f"{API}/departamento/salir", json=cuerpo, headers=CABECERA)
+        assert hecho.status_code == 422, cuerpo
+        assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert cliente.post(f"{API}/departamento/salir", json={"gachamon_id": nube.id}).status_code == 403
+    assert db.criatura_activa(YO, G).id == pelusa.id
+
+
+def test_salir_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, nube, recluta = con_plantel(cliente)
+    en_casa(cliente)
+    antes = [db.por_id(c.id) for c in (pelusa, nube, recluta)]
+    for gachamon_id in FUERA_DE_RANGO:
+        hecho = salir(cliente, gachamon_id)
+        assert hecho.status_code == 422, gachamon_id
+        assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert db.criatura_activa(YO, G).id == pelusa.id
+    assert [db.por_id(c.id) for c in (pelusa, nube, recluta)] == antes
+
+
 def test_el_departamento_dice_cual_es_la_puerta(cliente):
     alta(cliente); en_casa(cliente)   # con su cama guardada: guardados no queda vacío
     d = cliente.get(f"{API}/departamento").json()

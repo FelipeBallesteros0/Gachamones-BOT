@@ -3,10 +3,16 @@
 El primero se gana en la primera aventura: sus pruebas están en
 `test_web_aventura.py`.
 """
-import db
-import identidad
-from ayudas_web import ESCRIBIR, PUEBLO, alta, ganar_el_primero, poner_la_segunda_cama, poner_reloj
+from dataclasses import replace
 
+import db
+import especies as esp
+import identidad
+from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon, ganar_el_primero, poner_la_segunda_cama, poner_reloj
+
+OTRA_PERSONA = "333333333333333333"
+STATS = (10, 10, 10, 10)
+ESTADO = "/gachamon/api/estado"
 HUEVO, BAUTIZAR = "/gachamon/api/huevo", "/gachamon/api/bautizar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
@@ -153,3 +159,73 @@ def test_bautizar_con_el_nombre_de_su_especie_no_vale(cliente, monkeypatch):
         "clave": "nombre", "mensaje": "Ese es el nombre de su especie. Ponle uno propio.",
     }
     assert cliente.get("/gachamon/api/estado").json()["gachamon"]["espera_nombre"] is True
+
+
+# --- Ponerle nombre a un recluta por su id (la regla se queda en el servidor, sin pantalla) ---
+
+FUERA_DE_RANGO = (2**70, 2**63, 0, -1)
+
+
+def bautizar_a(cliente, gachamon_id, nombre):
+    return cliente.post(BAUTIZAR, json={"nombre": nombre, "gachamon_id": gachamon_id}, headers=ESCRIBIR)
+
+
+def con_plantel(cliente):
+    """La cuenta 1 con Pelusa activa, Nube y un recluta que se puso nombre solo, en ese orden."""
+    con_gachamon(cliente)
+    pelusa = db.criatura_activa(YO, G)
+    nube = db.crear(YO, G, "pulpo", "Nube", STATS, db.ahora_utc(), activa=False)
+    recluta = db.crear(YO, G, "pollito", "Brote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True)
+    return pelusa, nube, recluta
+
+
+def test_bautizar_a_un_recluta_por_su_id(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, _, recluta = con_plantel(cliente)
+    especie = esp.ESPECIES["pollito"].nombre
+    hecho = bautizar_a(cliente, recluta.id, especie.upper())
+    assert hecho.status_code == 422
+    assert hecho.json()["detail"] == {"clave": "nombre", "mensaje": "Ese es el nombre de su especie. Ponle uno propio."}
+    assert db.por_id(recluta.id).nombre == "Brote"
+
+    hecho = bautizar_a(cliente, recluta.id, " Bruma ")
+    assert hecho.status_code == 200
+    assert db.por_id(recluta.id).nombre == "Bruma" and not db.por_id(recluta.id).activa
+    assert hecho.json()["gachamon"]["id"] == pelusa.id and db.criatura_activa(YO, G).id == pelusa.id
+
+    hecho = bautizar_a(cliente, recluta.id, "Otra")
+    assert hecho.status_code == 409
+    assert hecho.json()["detail"] == {"clave": "ya_bautizado", "mensaje": "Ese gachamon ya tiene nombre."}
+
+    ajeno = db.crear(OTRA_PERSONA, G, "pulpo", "Mote", STATS, db.ahora_utc(), activa=False, se_nombro_solo=True)
+    hecho = bautizar_a(cliente, ajeno.id, "Mío")
+    assert hecho.status_code == 409
+    assert hecho.json()["detail"] == {"clave": "no_esta", "mensaje": "Ese gachamon ya no está."}
+    assert db.por_id(ajeno.id).nombre == "Mote" and db.por_id(recluta.id).nombre == "Bruma"
+
+
+def test_bautizar_con_un_id_fuera_de_rango_es_un_422_y_no_cambia_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    pelusa, nube, recluta = con_plantel(cliente)
+    antes = [db.por_id(c.id) for c in (pelusa, nube, recluta)]
+    for gachamon_id in FUERA_DE_RANGO:
+        hecho = bautizar_a(cliente, gachamon_id, "Bruma")
+        assert hecho.status_code == 422, gachamon_id
+        assert hecho.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
+    assert db.criatura_activa(YO, G).id == pelusa.id and db.por_id(recluta.id).nombre == "Brote"
+    assert [db.por_id(c.id) for c in (pelusa, nube, recluta)] == antes
+
+
+def test_si_solo_queda_un_recluta_el_remiendo_lo_pone_de_activo(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    alta(cliente)
+    viejo = db.crear(YO, G, "pollito", "Viejo", STATS, reloj.ahora)
+    recluta = db.crear(YO, G, "pulpo", "Brote", STATS, reloj.ahora, activa=False, se_nombro_solo=True)
+    reloj.pasar(days=5)
+    # Viejo murió cuando todavía se moría de hambre, y nadie lo relevó.
+    db.guardar(replace(db.por_id(viejo.id), hambre=0.0, muerta_en=reloj.ahora, causa_muerte="hambre"))
+
+    estado = cliente.get(ESTADO).json()
+    assert estado["gachamon"]["id"] == recluta.id and estado["gachamon"]["nombre"] == "Brote"
+    assert "sin_nombre" not in estado
+    assert db.criatura_activa(YO, G).id == recluta.id
