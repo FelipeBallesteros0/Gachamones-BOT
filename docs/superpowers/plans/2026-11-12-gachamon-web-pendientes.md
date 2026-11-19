@@ -1952,8 +1952,8 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
 3. **(Opcional) Pedir el permiso expreso del dueño para subir la rama sin
    fusionar** y ver la integración continua antes de tocar `main`. Sólo si él lo
    elige en el paso 2: el repo es público, y subir la rama es publicar su código.
-   Se hace: pedirlo y esperar el sí; después, `git push origin
-   rework/1-departamento` (sólo esa rama; `main` no se toca). La integración
+   Se hace: pedirlo y esperar el sí; después,
+   `git push origin rework/1-departamento` (sólo esa rama; `main` no se toca). La integración
    continua corre con cada subida a cualquier rama (`.github/workflows/tests.yml`),
    en 3.12 y 3.14. Se espera: las dos en verde. Si sale en rojo, se arregla en la
    rama y se vuelve a mirar: no se llega al paso 7 en rojo.
@@ -1963,7 +1963,7 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
    la API de copia de SQLite, desde la carpeta del repo,
 
    ```bash
-   ./venv/bin/python -c "import sqlite3, sys; d = sqlite3.connect(sys.argv[2]); sqlite3.connect(sys.argv[1]).backup(d); d.close()" tamagotchi.db <una carpeta fuera del repo>/ensayo.db
+   ./venv/bin/python -c "import sqlite3, sys; o = sqlite3.connect('file:' + sys.argv[1] + '?mode=ro', uri=True); d = sqlite3.connect(sys.argv[2]); o.backup(d); d.close()" tamagotchi.db <una carpeta fuera del repo>/ensayo.db
    ```
 
    o con `cp` y los dos servicios parados. Se trae a la máquina del ensayo (por
@@ -1972,21 +1972,26 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
    traída con **la comprobación de integridad** (la misma de los pasos 10 y 19):
 
    ```bash
-   ./venv/bin/python -c "import sqlite3, sys; print(sqlite3.connect(sys.argv[1]).execute('PRAGMA integrity_check').fetchone()[0])" <la copia>
+   ./venv/bin/python -c "import sqlite3, sys; print(sqlite3.connect('file:' + sys.argv[1] + '?mode=ro', uri=True).execute('PRAGMA integrity_check').fetchone()[0])" <la copia>
    ```
 
-   Se espera: un sí o un no explícitos y, con el sí, `ok`. Sin el sí, no hay
-   ensayo y se vuelve a decidir con el dueño; si la comprobación no da `ok`, se
-   saca otra. La copia no entra al repo y se borra al terminar el ensayo.
+   Las dos órdenes abren lo que leen en sólo lectura: con una ruta mal escrita
+   fallan («unable to open database file») en vez de crear un archivo vacío y
+   decir `ok`. Se mira además que la copia traída mida lo mismo que la que se
+   sacó (`ls -l`). Se espera: un sí o un no explícitos y, con el sí, el mismo
+   tamaño y `ok`. Sin el sí, no hay ensayo y se vuelve a decidir con el dueño;
+   si la comprobación no da `ok`, se saca otra. La copia no entra al repo y se
+   borra al terminar el ensayo.
 5. **El ensayo.** Se hace **fuera de la Raspberry**, sobre **la copia** del paso
    4, **sin el token de Discord y sin arrancar el bot** (`bot.py`): un bot
    arrancado con las credenciales de producción sincroniza comandos y edita o
    borra el manual en los canales de verdad, y eso ya no es un ensayo. Todo corre
-   desde una copia del repo sacada con `git archive` (que no trae `.env`), con el
-   Python del entorno del repo. En este orden:
+   desde una copia del repo sacada con `git archive` de la rama del rediseño
+   (`rework/1-departamento`; no trae `.env`), con el Python del entorno del
+   repo. En este orden:
    1. el informe de conciliación sobre la copia, **antes** del arranque:
-      `python economia_reporte.py --db <la copia> --desde <una fecha> --hasta
-      <otra> --json` (las fechas son obligatorias, pero la conciliación es de toda la
+      `python economia_reporte.py --db <la copia> --desde <una fecha> --hasta <otra> --json`
+      (las fechas son obligatorias, pero la conciliación es de toda la
       historia y no depende de ellas); se apuntan `reconciliacion.saldos` y
       `reconciliacion.esperado`;
    2. el arranque del rediseño:
@@ -2074,9 +2079,11 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
      `URLSafeSerializer(<la clave de prueba>, salt="session").dumps({"uid": <ese número>})`.
 
    Se mira el mapa, la Tienda, la carta y la mochila, y **se usa una placa** con
-   un recluta que no sale con esa persona: primero, «Usar» en la mochila sin
-   cambiar de activo; después, en su departamento, tocar al recluta y «Salir
-   con…», y usar la placa. Se espera: siete lugares, sin Refugio ni Incubadora;
+   un recluta que no sale con esa persona: primero, abrir «Usar» en la mochila
+   sin cambiar de activo y leer la pregunta (nombra al que sale con ella); si
+   sólo tiene una placa, cancelar ahí, para no gastarla en quien no era;
+   después, en su departamento, tocar al recluta y «Salir con…», y usar la
+   placa. Se espera: siete lugares, sin Refugio ni Incubadora;
    la Tienda con sus muebles y objetos; la carta con sus frases y, si tenía
    reclutas que se nombraron solos, la línea de las placas, la que dice para
    quién son y esas placas en su mochila; la pregunta de la placa dice «Nuevo
@@ -2086,11 +2093,18 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
    hasta saber por qué. Al terminar se apaga la web y se borran la base de
    mentira y la clave de prueba.
 7. **Pedir el permiso expreso del dueño para fusionar `rework/1-departamento` en
-   `main` y subirla.** Se hace: pedirlo, y esperar el sí; después, `git fetch
-   origin main` y comprobar que es un avance rápido (`git merge-base
-   --is-ancestor origin/main rework/1-departamento`), fusionar sólo así (`git
-   checkout main`, `git merge --ff-only rework/1-departamento`) y subir (`git
-   push origin main`). Se espera: la comprobación sin error y la integración
+   `main` y subirla.** Se hace: pedirlo, y esperar el sí; después, una orden por
+   renglón:
+
+   ```bash
+   git fetch origin main
+   git merge-base --is-ancestor origin/main rework/1-departamento   # sin salida y sin error: es un avance rápido
+   git checkout main
+   git merge --ff-only rework/1-departamento
+   git push origin main
+   ```
+
+   Se espera: la comprobación sin error y la integración
    continua en verde en las dos versiones de Python, 3.12 y 3.14. Si no es un
    avance rápido, no se fusiona: alguien subió algo a `main` y se mira con el
    dueño. Sin ese verde, no se despliega: se arregla en `main` antes del paso 8.
@@ -2103,8 +2117,9 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
    un sí explícito, antes de seguir.
 9. **Parar el bot y la web.** `actualizar-pi.sh` saca su copia al principio con el
    bot de antes todavía en marcha, y copiar una base en uso no garantiza una copia
-   sana. Se hace: `sudo systemctl stop tamagotchi gachamon-web`. Se comprueba:
-   `systemctl is-active tamagotchi gachamon-web`. Se espera: `inactive` dos veces.
+   sana. Se hace, por SSH, en la Raspberry: `sudo systemctl stop tamagotchi gachamon-web`.
+   Se comprueba: `systemctl is-active tamagotchi gachamon-web`. Se espera:
+   `inactive` dos veces.
    **Desde aquí el juego de Discord y `/vincular` están apagados** (en producción
    los atiende el bot de hoy) y la página no contesta, hasta el paso 11 o, si
    algo falla, hasta que se vuelvan a arrancar. Si alguno sigue `active`, no se
@@ -2131,8 +2146,14 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
     despliega: la base está intacta, se vuelve a intentar o se arrancan los dos
     (`sudo systemctl start tamagotchi gachamon-web`) y se decide con el dueño.
 11. **Desplegar con `actualizar-pi.sh`**, no con `deploy.sh` (éste copia la
-    carpeta local en vez de lo que hay en `main`). Se hace: `SIN_TESTS=1
-    ./actualizar-pi.sh` (o sin `SIN_TESTS=1`, si en el paso 2 se decidió correr
+    carpeta local en vez de lo que hay en `main`). Se hace, **desde el clon
+    local del repo y en `main`** (el guion entra él solo a la Raspberry):
+
+    ```bash
+    SIN_TESTS=1 ./actualizar-pi.sh
+    ```
+
+    (o `./actualizar-pi.sh` a secas, sin `SIN_TESTS=1`, si en el paso 2 se decidió correr
     la suite en la Raspberry), con la integración continua ya en verde. El guion
     despliega `main` por defecto, avisa si tienes commits sin subir, saca además
     su propia copia `tamagotchi.db.<fecha>.bak`, deja apuntado el commit anterior
@@ -2152,9 +2173,9 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
 
     **Si el guion falla**, su última línea dice «La web puede haber quedado
     parada» y cómo arrancar **la web**; del bot no dice nada (el guion, por su
-    cuenta, sólo sabe volver a arrancar la web), y el bot sigue parado desde el
-    paso 9. Qué hacer depende de si el guion llegó a escribir «==> Reiniciando
-    los servicios»:
+    cuenta, sólo sabe volver a arrancar la web), y, si no llegó al reinicio del
+    final, el bot sigue parado desde el paso 9. Qué hacer depende de si el
+    guion llegó a escribir «==> Reiniciando los servicios»:
     - **Si no llegó** (falló su copia de la base, `git fetch`, el `git reset`,
       `pip` o, sin `SIN_TESTS=1`, la suite), lo normal es que ningún servicio
       haya arrancado con el código nuevo y que la base no haya cambiado: si ya
@@ -2163,10 +2184,10 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
       vuelve a…») y la volvió a arrancar con él. Pero esa vuelta atrás del guion
       también puede fallar, y aun así arranca la web. Se comprueba, en la carpeta del repo, que `git rev-parse HEAD` es el commit
       anotado en el paso 10 y que el registro (paso 12) no trae la línea del día
-      del cambio. Con las dos cosas así, se arrancan a mano **los dos** (`sudo
-      systemctl start tamagotchi gachamon-web`; a uno que ya esté en marcha no le
-      hace nada) y se comprueba con `systemctl is-active tamagotchi
-      gachamon-web` y la salud de la web. Se espera: `active` dos veces y el
+      del cambio. Con las dos cosas así, se arrancan a mano **los dos**
+      (`sudo systemctl start tamagotchi gachamon-web`; a uno que ya esté en marcha no le
+      hace nada) y se comprueba con
+      `systemctl is-active tamagotchi gachamon-web` y la salud de la web. Se espera: `active` dos veces y el
       juego de antes en marcha. No se reintenta sin saber por qué falló. Si el
       commit no es el anotado o la línea está, no se arranca nada: se decide con
       el dueño (con la línea, la base ya está convertida, como en el caso
@@ -2211,11 +2232,11 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
 
 ### Después
 
-15. **Quien tenga la página abierta** en la Incubadora (o en el huevo) verá «Eso no
-    existe.» hasta que recargue; quien estaba parado en el Refugio o en la
-    Incubadora aparece en su departamento; el mapa tiene siete lugares. No es un
-    fallo (la ruta de la Incubadora ya no existe: 404). Se espera: tras recargar,
-    todo normal.
+15. **Quien tenga la página abierta** en la Incubadora verá «Eso no existe.» y,
+    al primer «Volver», la página se recarga sola; en el huevo lo verá hasta que
+    recargue a mano. Quien estaba parado en el Refugio o en la Incubadora
+    aparece en su departamento; el mapa tiene siete lugares. No es un fallo (esas
+    rutas ya no existen: 404). Se espera: tras recargar, todo normal.
 16. **Quien jugaba sólo en Discord ve su carta al vincular**; quien ya había abierto
     la página sin vincular ve dos: la de su identidad web y, al vincular, la suya.
 17. **Limpiar a mano** el manual que haya quedado en canales que ya no estén
