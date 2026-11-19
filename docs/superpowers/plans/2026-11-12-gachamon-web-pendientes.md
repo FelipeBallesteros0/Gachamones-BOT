@@ -887,11 +887,15 @@ Son observaciones, no decisiones.
     «Lo decidido» del rework 5).
   - La comodidad de todos queda en 82 hasta que cada quien ponga sus muebles, y
     el tope ahora depende de las casillas.
-  - El reloj de todos parte del día del cambio, que es más generoso que «con la
+  - ~~El reloj de todos parte del día del cambio, que es más generoso que «con la
     comida en 0». **Sigue abierta.** Que parta de ese momento fue una propuesta
     del plan de la vivienda, que el dueño aprobó con ese plan el 2026-11-15; la
     revisión final anotó que es más generoso que el diseño, y sobre ese matiz el
-    dueño no ha elegido.
+    dueño no ha elegido.~~ **Cerrada:** el dueño eligió, el 2026-11-19, «Sí, que
+    parta para todos» entre dos opciones que se le propusieron: que el tiempo de
+    todos los gachamones empiece a contar ese día, también el del que salía
+    contigo, o que al que salía contigo sí se le descontara lo que llevara sin
+    cuidar.
   - ~~La carta dice «por tus tickets» también cuando era uno.~~ **Cerrada:** dice
     «por tu ticket» cuando era uno (el dueño, rework 5).
 
@@ -1728,6 +1732,17 @@ estaban bien.
   pantalla para cambiarles el nombre; se les regala una placa.
 - **Lo que aprobó el dueño** (2026-11-19): el plan («Apruebo, ejecútalo») y las
   tres frases de la carta del alcalde sobre las placas («Apruebo las tres»).
+- **Lo que decidió el dueño a lo que dejó la revisión final** (2026-11-19, las
+  dos eligiendo entre opciones que se le propusieron):
+  - La placa: «Las dos cosas». La pregunta de la placa en la mochila dice de
+    quién es el nombre, `Nuevo nombre de {nombre}` (antes `Nuevo nombre`), con
+    el gachamon que sale contigo; y la carta añade, tras la línea de las placas y
+    sólo si hay placas, `La placa es para el que sale contigo: en tu
+    departamento, toca al que quieras y elige «Salir con…».` La placa le cambia
+    el nombre al que sale contigo, que casi nunca es el recluta que se nombró
+    solo.
+  - El reloj desde el día del cambio: «Sí, que parta para todos» (ver el rework
+    4). Queda cerrada.
 - **Lo que el plan propuso y el dueño aprobó con él** (no son decisiones suyas):
   - La pantalla de la Incubadora se borra entera, con su botón «Tu plantel»:
     ver a todos y elegir con quién sales ya se hace en tu departamento.
@@ -1789,11 +1804,13 @@ estaban bien.
 - **El nombre de los reclutas**: la regla de cambiarlo una vez sigue en el
   servidor (`nacer.bautizar_a`, `POST /bautizar` con `gachamon_id`) y ninguna
   pantalla la ofrece. En la página se cambia con la placa con nombre de la
-  mochila, que cambia el del gachamon que sale contigo.
+  mochila, que cambia el del gachamon que sale contigo; su pregunta dice de
+  quién es el nombre.
 - **El día del cambio regala una placa con nombre por cada recluta vivo que se
   puso el nombre solo**, en la mochila y dentro de la misma transacción del
-  cambio. La carta guarda `placas` y lo dice, y el resumen del cambio, que el
-  arranque deja en el registro, lleva la cifra. No toca monedas ni gemas ni
+  cambio. La carta guarda `placas` y lo dice, con cómo elegir al que sale
+  contigo, y el resumen del cambio, que el arranque deja en el registro, lleva
+  la cifra. No toca monedas ni gemas ni
   escribe en el libro de operaciones.
 - **La Tienda sin gachamon** enseña todo y lleva una nota arriba de los objetos y
   de los cosméticos (no de los muebles); el servidor la manda en `aviso` mientras
@@ -1826,16 +1843,17 @@ estaban bien.
   los reclutas. Y las que seguían escritas como abiertas y ya estaban
   decididas: vincular con plantel propio (se queda como está), los textos en
   pausa (se reescriben con cada pantalla), el aviso del bot a quien ya vinculó, y
-  la casa mejorada y «por tu ticket». El reloj desde el día del cambio **sigue
-  abierto** (ver el rework 4).
+  la casa mejorada y «por tu ticket». Y el reloj desde el día del cambio, que
+  cerró el dueño el 2026-11-19 (ver el rework 4).
 
 ### Lo que queda
 
-- Con la letra agrandada (desde un 115 %, más o menos) el 📍 de la lista del mapa
-  pisaría la primera letra de «Cementerio»; y en `estilo.css` quedaron dos
-  propiedades de ese botón que ya no hacen nada.
-- La cabecera «📍 Tu departamento» no se midió por debajo de 390 px (a 320 se
-  recortaría con puntos suspensivos).
+- La cabecera «📍 Tu departamento», medida en la revisión final: a 375 y a 390 px
+  cabe también con cinco cifras; a 360 se recorta con puntos suspensivos sólo si
+  las monedas y las gemas tienen cinco cifras a la vez, y a 320 casi siempre.
+- Con la letra agrandada, en un teléfono, «departamento» no cabe en su botón de
+  la lista del mapa: al 115 % pisa sus bordes y al 130 % se sale de ellos (el
+  nombre se sigue leyendo). El 📍 ya no pisa ningún nombre.
 - `web/ficha.py` importa `NO_ESTA` de `web/departamento.py`: un router importa de
   otro (sin ciclo; podría vivir en `web/estado.py`).
 - La regla de cambiarle el nombre una vez a un recluta sigue en el servidor sin
@@ -1844,7 +1862,7 @@ estaban bien.
   (barato con planteles chicos).
 - La prueba de «ninguna marca de género sin resolver» en el encuentro usa una
   sola especie.
-- Comentarios de pruebas que todavía dicen «tu casa».
+- Queda un comentario de prueba que dice «su casa» (`tests/test_web_nacer.py`).
 - **El dueño todavía no ha probado este plan en una página viva** (sí probó el
   modo construcción y la partida sin gachamon el 2026-11-18, y los muebles que se
   usan solos el 2026-11-19).
@@ -1855,6 +1873,22 @@ estaban bien.
   sostiene.
 - **No ponerle aviso al lugar «Aventura»**: el botón de la primera aventura
   deduce que hay cama libre de que ese lugar no traiga aviso (ver el rework 6).
+- **El huevo con la página vieja abierta no se cura solo**: quien tenga abierta
+  la pantalla del huevo al publicar ve «Eso no existe.» cada vez que intenta
+  romperlo, hasta recargar a mano (en la Incubadora, en cambio, la página se
+  recarga sola al primer «Volver»). Se podría evitar haciendo que esa ruta
+  conteste lo que el cliente de antes entiende como «vuelve a decidir» (un 409
+  con la clave `cuenta_cambio`); no se probó.
+- La carta dice «Lo que te esperaba en el buzón ya está en tu mochila.» también
+  cuando lo que esperaba era un ticket, que ese mismo día se devolvió en monedas:
+  en la mochila no está (las monedas sí llegan, y la línea de los tickets lo
+  cuenta).
+- En el repo, que es público, siguen versionados unos documentos generados por
+  una herramienta (`.claude/skills/generated/`) que nombran funciones que ya no
+  existen.
+- Lo mínimo para entrar a una página sobre una base temporal (una base de Rowino
+  de mentira y la cookie firmada con una clave de prueba) se rehace en cada
+  tarea: convendría conservarlo en el repo, entre las herramientas.
 - Para el día de publicar: ver **«Para publicar»**, abajo.
 
 ## Para publicar

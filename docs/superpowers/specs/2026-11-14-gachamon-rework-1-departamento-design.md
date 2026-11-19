@@ -438,7 +438,10 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
 - **Cada ticket del refugio se devuelve en sus 40 monedas** y deja de venderse
   y de salir como botín.
 - A los gachamones que estaban en la incubadora el tiempo les empieza a correr
-  ese día: no se les viene encima lo que durmieron.
+  ese día: no se les viene encima lo que durmieron. Y a todos los demás
+  también: el tiempo de todos los gachamones empieza a contar ese día, también
+  el del que salía contigo, a quien no se le descuenta lo que llevara sin cuidar
+  **[Felipe, 2026-11-19]**.
 - El logro «Superviviente» pasa a ser sólo «100 aventuras».
 - Cada persona ve **una vez** una carta del alcalde que cuenta qué le tocó, en
   la página, la primera vez que entra después del cambio, antes que nada, y se
@@ -450,7 +453,11 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
   La carta lo dice: la línea de cada recluta termina en «Se puso el nombre
   solo.» y después va «Te dejé una placa con nombre en tu mochila, por si le
   quieres cambiar el nombre.» (o «Te dejé {n} placas… por si les quieres
-  cambiar el nombre.») **[propuesta, aceptada]**.
+  cambiar el nombre.») **[propuesta, aceptada]**. La placa le cambia el nombre
+  al que sale contigo, así que la carta añade después «La placa es para el que
+  sale contigo: en tu departamento, toca al que quieras y elige «Salir con…».»,
+  y la pregunta de la placa en la mochila dice de quién es el nombre («Nuevo
+  nombre de {nombre}») **[Felipe, 2026-11-19]**.
 - **Los regalos que esperaban en el buzón se entregan solos** a la mochila de
   cada quien **[propuesta]**: el buzón era de Discord, y el juego de Discord se
   pausa ese día.
