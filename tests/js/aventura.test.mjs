@@ -510,7 +510,7 @@ test('el foco queda en el botón que avanza', { timeout: 2000 }, async () => {
 // --- lo que el encargo no nombra y la decisión 14 pide ------------------------------------
 
 test('un «no» del encuentro cuando ya lo tienes (doble clic, otra pestaña) relee el estado y sigue con él', { timeout: 2000 }, async () => {
-  // El primero ya terminó (en otra pestaña): el encuentro te llevó a casa, y
+  // El primero ya terminó (en otra pestaña): el encuentro te llevó a tu departamento, y
   // este llega tarde. No se enseña la frase: se sigue al nombre.
   const { contenedor, servidor, seguidos } = await abrir();
   servidor.responde('POST aventura/primera', {

@@ -86,7 +86,7 @@ Hay **dos scripts y no hacen lo mismo**:
 
 | | De dónde saca el código | Cuándo usarlo |
 |---|---|---|
-| `actualizar-pi.sh` | **De GitHub**, con un `git pull` en la propia Pi | Lo normal |
+| `actualizar-pi.sh` | **De GitHub**: la propia Pi lo baja (`git fetch`) y queda exactamente en eso (`git reset --hard`) | Lo normal |
 | `deploy.sh` | De la carpeta desde la que lo lanzas | Probar en la Pi algo sin commitear |
 
 `actualizar-pi.sh` es el que evita el desfase de desplegar una copia local que no

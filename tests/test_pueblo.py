@@ -70,6 +70,8 @@ def test_el_aviso_ya_no_conoce_el_refugio(monkeypatch):
     # Se fue del mapa con su aviso: un lugar abierto que se llamara así no avisaría nada.
     monkeypatch.setitem(pueblo.LUGARES, "refugio", pueblo.Lugar("refugio", "Refugio", "A", pueblo.YA))
     assert pueblo.aviso("refugio") is None
+    # Y abierto pero sin entrada en `OFRECE`, no ofrece nada: ni la Incubadora ni otra cosa.
+    assert pueblo.ofrece("refugio") == () and pueblo.ofrece("refugio", sin_gachamon=True) == ()
     for clave in pueblo.LUGARES:
         for sin_gachamon in (False, True):
             for cama_libre in (False, True):

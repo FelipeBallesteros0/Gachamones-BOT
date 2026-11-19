@@ -1354,7 +1354,6 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   width: 100%;
   min-height: 48px;
   padding: 8px 6px;
@@ -1380,13 +1379,14 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 }
 
 /* Su 📍, en la esquina de arriba y fuera del flujo: el nombre se centra en
-   todo el ancho del botón, como en los demás. */
+   todo el ancho del botón, como en los demás. Va más chico que el nombre para
+   no rozar su primera letra, también con la letra agrandada. */
 .lugar-del-pueblo-aqui {
   position: absolute;
   top: 3px;
   left: 6px;
+  font-size: 0.75em;
   line-height: 1;
-  pointer-events: none;
 }
 
 @media (hover: hover) {

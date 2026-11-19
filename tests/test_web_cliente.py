@@ -474,8 +474,8 @@ def test_el_departamento_esta_montado_y_tiene_su_ancho_en_el_computador():
 
 
 def test_al_departamento_se_le_dice_si_se_llega_caminando_como_al_lugar():
-    # Al llegar caminando, el gachamon dice algo del lugar: también en tu casa.
-    # Y tu casa recibe la cuenta, para el enlace a Discord de quien no tiene gachamon.
+    # Al llegar caminando, el gachamon dice algo del lugar: también en tu departamento.
+    # Y tu departamento recibe la cuenta, para el enlace a Discord de quien no tiene gachamon.
     principal = _guion("principal.js")
     assert re.search(r"^\s*lugar:\s*\(destino, seguir, \{ estado, llegando \}\)", principal, re.M)
     assert re.search(

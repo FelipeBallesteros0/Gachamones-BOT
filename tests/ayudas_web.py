@@ -94,7 +94,7 @@ def alta(cliente, uid: int = 1, nombre: str = "Feli") -> None:
 def ganar_el_primero(cliente) -> dict:
     """La primera aventura de la cuenta de la cookie, por las rutas, como la juega
     quien empieza: pone la segunda cama, va a «Aventura» y se encuentra al primero,
-    que todavía espera nombre. El encuentro la deja en su casa.
+    que todavía espera nombre. El encuentro la deja en su departamento.
 
     Devuelve lo que contesta el encuentro (`estado` y `despues`).
     """
@@ -109,7 +109,7 @@ def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
     """Una cuenta con avatar y su primer gachamon, ya con nombre. Devuelve el estado.
 
     Lo gana por las rutas (`ganar_el_primero`) y le pone nombre, así que queda
-    en su casa, con sus dos camas puestas y ninguna guardada.
+    en su departamento, con sus dos camas puestas y ninguna guardada.
 
     El primero sale siempre de una especie común: con una rara (una de cada
     veinticinco) pagaría «Uno entre veinticinco» y habría 20 gemas más según la
@@ -158,7 +158,7 @@ def en_casa(cliente):
 def poner_la_segunda_cama(cliente) -> None:
     """Pone la cama que el departamento de partida trae guardada, como en «Construir».
 
-    Deja a la cuenta en su casa, que es donde se pone.
+    Deja a la cuenta en su departamento, que es donde se pone.
     """
     en_casa(cliente)
     depto = cliente.get("/gachamon/api/departamento").json()

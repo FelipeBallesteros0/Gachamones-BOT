@@ -126,7 +126,7 @@ def test_con_el_refrigerador_la_consola_y_la_ducha_ninguna_ruta_ensena_una_barra
     assert pedir("ropero/poner", {"clave": titulo.clave, "gachamon_id": pelusa.id})["ok"]
     assert pedir("ropero/quitar", {"tipo": cos.TITULO, "gachamon_id": pelusa.id})["ok"]
 
-    # En tu casa: salir con otro, ampliar, poner y guardar.
+    # En tu departamento: salir con otro, ampliar, poner y guardar.
     assert pedir("departamento/salir", {"gachamon_id": rulo.id})["ok"]
     assert pedir("departamento/salir", {"gachamon_id": pelusa.id})["ok"]
     assert pedir("departamento/ampliar", {"eje": "ancho", "evento_id": next(eventos)})["ok"]
