@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+import departamento as dep
 import especies as esp
 import globos
 import simulacion as sim
@@ -65,6 +66,13 @@ def test_por_debajo_de_cuarenta_pide_lo_que_le_falta(barras, clave):
 
 def test_justo_en_cuarenta_todavia_no_pide():
     assert textos(criatura(hambre=40.0, limpieza=40.0, animo=40.0), globos.NECESIDAD) == []
+
+
+def test_lo_que_sostiene_un_mueble_no_queda_bajo_el_umbral_de_pedir():
+    """Si el mínimo de los muebles quedara bajo el umbral, el gachamon pediría siempre lo que su mueble le sostiene."""
+    assert dep.MINIMO_SOSTENIDO >= globos.UMBRAL_NECESIDAD
+    sostenida = criatura(hambre=dep.MINIMO_SOSTENIDO, limpieza=dep.MINIMO_SOSTENIDO, animo=dep.MINIMO_SOSTENIDO)
+    assert [g for g in globos.de(sostenida) if g.tipo == globos.NECESIDAD] == []
 
 
 def test_con_la_comida_en_cero_esta_desfallecida_y_no_solo_con_hambre():

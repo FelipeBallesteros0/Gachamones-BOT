@@ -263,6 +263,11 @@ def con_comida(comida, ahora):
     db.guardar(replace(db.criatura_activa(YO, G), hambre=comida, actualizada_en=ahora))
 
 
+def con_animo(animo, ahora):
+    """Le deja ese ánimo al gachamon que sale contigo, puesto al día en `ahora`."""
+    db.guardar(replace(db.criatura_activa(YO, G), animo=animo, actualizada_en=ahora))
+
+
 def test_cada_puesto_dice_si_se_usa_solo_y_para_que(cliente):
     con_gachamon(cliente); en_casa(cliente)                   # sus dos camas, en (0, 0) y en (0, 1)
     ids = {clave: un_mueble(clave, x, y) for clave, x, y in (
@@ -295,3 +300,13 @@ def test_con_el_refrigerador_puesto_entrenar_no_baja_la_comida_de_40(cliente, mo
     r = cliente.post(f"{API}/cuidar", json={"accion": "entrenar", "evento_id": "evento-entrenar"}, headers=CABECERA).json()
     assert r["ok"]
     assert (r["gachamon"]["barras"]["comida"], r["estado"]["gachamon"]["barras"]["comida"]) == (40, 40)
+
+
+def test_con_la_consola_puesta_entrenar_no_baja_el_animo_de_40(cliente, monkeypatch):
+    reloj = poner_reloj(monkeypatch)
+    con_gachamon(cliente); en_casa(cliente)
+    un_mueble("consola", 2, 2)
+    con_animo(40.0, reloj.ahora)
+    r = cliente.post(f"{API}/cuidar", json={"accion": "entrenar", "evento_id": "evento-entrenar"}, headers=CABECERA).json()
+    assert r["ok"]
+    assert (r["gachamon"]["barras"]["animo"], r["estado"]["gachamon"]["barras"]["animo"]) == (40, 40)
