@@ -1338,10 +1338,11 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-transform: uppercase;
 }
 
-/* Un botón por lugar: lo mismo que tocarlo en el mapa. */
+/* Un botón por lugar: lo mismo que tocarlo en el mapa. La celda mínima deja
+   entero el nombre más largo («Tu departamento», en dos líneas) con holgura. */
 .lugares-del-pueblo {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -1349,6 +1350,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 }
 
 .lugar-del-pueblo {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1375,6 +1377,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   border-color: var(--elegido-borde);
   background: var(--elegido);
   color: var(--elegido-texto);
+}
+
+/* Su 📍, en la esquina de arriba y fuera del flujo: el nombre se centra en
+   todo el ancho del botón, como en los demás. */
+.lugar-del-pueblo-aqui {
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  line-height: 1;
+  pointer-events: none;
 }
 
 @media (hover: hover) {

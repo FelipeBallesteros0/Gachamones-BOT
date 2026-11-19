@@ -255,9 +255,23 @@ test('sin gachamon, el pueblo se abre y caminas tú solo', { timeout: 5000 }, as
   assert.equal(contenedor.querySelector('h1').textContent, '🗺️Pueblo');
   assert.equal(contenedor.querySelector('.ir-a').hidden, false);
   assert.equal(contenedor.querySelectorAll('.lugar-del-pueblo').length, Object.keys(DATOS_DEL_PUEBLO.lugares).length);
-  // Estás en tu departamento: «Volver» dice adónde, y en la lista está marcado con el 📍.
+  // Estás en tu departamento: «Volver» dice adónde, y en la lista está marcado con el 📍, que va en su
+  // propia marca (el estilo la pone en la esquina, fuera del nombre) y que el lector no lee: sólo el nombre
+  // y que es donde estás.
   assert.equal(contenedor.querySelector('.boton-volver').textContent, 'Volver a tu departamento');
-  assert.equal(contenedor.querySelectorAll('.lugar-del-pueblo')[0].textContent, '📍Tu departamento');
+  const [aqui, ...losDemas] = contenedor.querySelectorAll('.lugar-del-pueblo');
+  assert.equal(aqui.textContent, '📍Tu departamento');
+  assert.equal(aqui.getAttribute('aria-current'), 'location');
+  const [marca, nombre] = aqui.hijos;
+  assert.equal(marca.etiqueta, 'span');
+  assert.equal(marca.getAttribute('class'), 'lugar-del-pueblo-aqui');
+  assert.equal(marca.getAttribute('aria-hidden'), 'true');
+  assert.equal(marca.textContent, '📍');
+  assert.equal(nombre.textContent, 'Tu departamento');
+  for (const otro of losDemas) {
+    assert.equal(otro.getAttribute('aria-current'), null);
+    assert.equal(otro.querySelectorAll('.lugar-del-pueblo-aqui').length, 0);
+  }
   assert.ok(pintadas.some(delAvatar), 'no se pintó el avatar');
   // Ningún retrato que pedir ni que pintar, ni la sombra del que camina detrás.
   assert.deepEqual(pedidas.filter(delRetrato), []);

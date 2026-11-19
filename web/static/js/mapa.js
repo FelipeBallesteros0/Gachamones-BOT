@@ -584,9 +584,11 @@ export function pueblo(contenedor, estado, seguir) {
     }
     lista.replaceChildren(...claves.map((clave) => {
       const estasAqui = clave === aqui.clave;
+      // El 📍 de donde estás va en su marca, que el estilo pone en la esquina.
+      const marca = estasAqui ? el('span', { class: 'lugar-del-pueblo-aqui', 'aria-hidden': 'true' }, '📍') : null;
       const boton = el('button', {
         type: 'button', class: 'lugar-del-pueblo', 'aria-current': estasAqui ? 'location' : null,
-      }, estasAqui ? el('span', { 'aria-hidden': 'true' }, '📍') : null, datos.lugares[clave].nombre);
+      }, marca, datos.lugares[clave].nombre);
       boton.addEventListener('click', () => tocarLugar(clave), { signal });
       return el('li', {}, boton);
     }));
