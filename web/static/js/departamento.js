@@ -28,36 +28,36 @@
 // Construir», entra al de construcción (mientras llega el arte de la pieza no
 // se puede usar, y lo dice); dentro, ese mismo botón dice «✔ Listo», a su lado
 // se lee «Modo construcción», la pieza se enmarca y debajo quedan abiertas la
-// bandeja de los guardados (`bandeja.js`) y «Ampliar», que fuera del modo no se ven: viviendo,
-// la pantalla es para cuidar, caminar y salir. Con una petición en camino no
-// se cambia de modo. Viviendo (el normal), un toque sobre un
+// bandeja de los guardados (`bandeja.js`) y «Ampliar», que fuera del modo no se
+// ven: viviendo, la pantalla es para cuidar, caminar y salir. Con una petición
+// en camino no se cambia de modo. Viviendo (el normal), un toque sobre un
 // mueble hace su acción y nada más (`queSeUsa`): hoy la única es la de la
 // puerta, que te lleva caminando hasta ella y, al llegar, al pueblo, como
 // «Pueblo» (si ya estás en ella, al momento; sin camino no se sale y se dice);
-// un mueble sin acción no hace nada, y lo que se pisa se camina; un toque
-// sobre lo que flota (el globo, la evolución, las medallas) no hace la acción
-// de ningún mueble. Tocar a un
-// gachamon lo elige (se marca dónde está) y encima sale su menú (`menu.js`), con «Mover» y
-// «Acariciar». Construyendo, a los gachamones no se les toca (el toque va a lo
-// que tienen detrás, `queSeToco`): tocar un mueble lo elige y encima sale su
-// menú, con «Mover», «Girar» (no lo de pared) y «Guardar» (no la puerta), y al
-// mover la puerta sólo se ofrecen los tramos con la entrada libre. En los dos
-// modos, tocar el suelo es caminar. Entrar al modo suelta lo que llevas en la
-// mano, deja de elegir al gachamon y cancela la salida; «Listo» lo deja todo
-// recogido: suelta lo que llevas, deja de elegir el mueble y cierra lo de
-// ampliar (con su pregunta, sin cobrar nada) y el «¿Dónde?» de la lista. Al
-// pulsar el botón del modo el foco acaba en él, y lo que se esconde no se lo
-// lleva. Ir a salir se cancela con cualquier clic fuera de la pieza, tocando
-// la pieza (salvo otra vez la puerta) o mandando una petición. Lo que llevas
-// en la mano (el mueble que mueves, el que sacas de la bandeja, o el gachamon
-// que mueves, que va sólo adonde tiene camino) marca dónde va, y el toque
-// siguiente dice dónde: en un sitio marcado se pone (el gachamon camina hasta
-// ahí, y eso no se manda); en cualquier otro, se suelta. En la bandeja y en
-// el «Ampliar» que abre lo de ampliar (que dice si está abierto), el segundo
-// clic de un doble clic no cuenta. «Ampliar» cambia lo de la derecha por lo
-// que cuesta crecer por cada lado (`ampliar.js`), y lo trae a la vista; tocar un lado no
-// cobra: pregunta antes (y la trae a la vista), como la Tienda, el segundo
-// clic de un doble clic no confirma, y sólo cobra con su pregunta a la vista.
+// un mueble sin acción no hace nada, y lo que se pisa se camina; un toque sobre
+// lo que flota (el globo, la evolución, las medallas) no hace la acción de
+// ningún mueble. Tocar a un gachamon lo elige (se marca dónde está) y encima
+// sale su menú (`menu.js`), con «Mover» y «Acariciar». Construyendo, a los
+// gachamones no se les toca (el toque va a lo que tienen detrás, `queSeToco`):
+// tocar un mueble lo elige y encima sale su menú, con «Mover», «Girar» (no lo
+// de pared) y «Guardar» (no la puerta), y al mover la puerta sólo se ofrecen
+// los tramos con la entrada libre. En los dos modos, tocar el suelo es caminar.
+// Entrar al modo suelta lo que llevas en la mano, deja de elegir al gachamon y
+// cancela la salida; «Listo» lo deja todo recogido: suelta lo que llevas, deja
+// de elegir el mueble y cierra lo de ampliar (con su pregunta, sin cobrar nada)
+// y el «¿Dónde?» de la lista. Al pulsar el botón del modo el foco acaba en él,
+// y lo que se esconde no se lo lleva. Ir a salir se cancela con cualquier clic
+// fuera de la pieza, tocando la pieza (salvo otra vez la puerta) o mandando una
+// petición. Lo que llevas en la mano (el mueble que mueves, el que sacas de la
+// bandeja, o el gachamon que mueves, que va sólo adonde tiene camino) marca
+// dónde va, y el toque siguiente dice dónde: en un sitio marcado se pone (el
+// gachamon camina hasta ahí, y eso no se manda); en cualquier otro, se suelta.
+// En la bandeja y en el «Ampliar» que abre lo de ampliar (que dice si está
+// abierto), el segundo clic de un doble clic no cuenta. «Ampliar» cambia lo de
+// la derecha por lo que cuesta crecer por cada lado (`ampliar.js`), y lo trae a
+// la vista; tocar un lado no cobra: pregunta antes (y la trae a la vista), como
+// la Tienda, el segundo clic de un doble clic no confirma, y sólo cobra con su
+// pregunta a la vista.
 //
 // A la derecha (`plantel.js`), la ficha del último gachamon que tocaste —al
 // entrar, la del que sale contigo—, con sus cuidados, «Acariciar», «Ver

@@ -11,10 +11,10 @@
 // al día con lo que le pasa la pantalla: no habla con el servidor, ni decide
 // qué está elegido ni si el menú va abierto. `lienzo` es el lienzo de la
 // pieza, junto al que va; lo demás, lo que hace la pantalla con cada botón y
-// con Escape: `mover()` y `moverGachamon()`, lo elegido; `girar(id, boton)`,
-// `guardar(id, boton)` y `acariciar(id, boton)`, ese mueble o ese gachamon,
-// desde ese botón; `soltarElegido()`, que deje de estar elegido. Lo deja de
-// oír la `signal` de la pantalla, al dejarla.
+// con Escape: `mover(boton)` y `moverGachamon(boton)`, lo elegido, desde ese
+// botón; `girar(id, boton)`, `guardar(id, boton)` y `acariciar(id, boton)`,
+// ese mueble o ese gachamon, desde ese botón; `soltarElegido()`, que deje de
+// estar elegido. Lo deja de oír la `signal` de la pantalla, al dejarla.
 //
 // `pintar({puesto, caja})` o `pintar({gachamon, caja})` lo abre sobre ese
 // mueble puesto o ese gachamon, cuya caja (`caja`, donde se pinta) le dice
