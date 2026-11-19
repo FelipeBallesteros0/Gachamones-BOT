@@ -1,6 +1,8 @@
+import ast
 import os
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -106,6 +108,82 @@ def test_la_web_no_arrastra_discord(tmp_path):
         capture_output=True, text=True,
     )
     assert hecho.returncode == 0, hecho.stderr
+
+
+# Con los muebles que se usan solos, la fila de un gachamon puede tener una barra
+# por debajo de su mínimo: el mínimo se aplica al leer, en `db.avanzar`. Las
+# funciones de `db` que devuelven gachamones dan la fila tal cual, salvo éstas,
+# que los ponen al día (`crear` devuelve uno que acaba de nacer en `ahora`).
+DE_DB_AL_DIA = {"avanzar", "_avanzar_en", "activa_al_dia", "plantel_al_dia", "asentar_el_plantel_en", "crear"}
+
+# Las lecturas crudas de gachamones que hay en `web/` —archivo, función que la
+# hace y función de `db`— y por qué valen: ninguna mira barras. Lo que devuelven
+# las reglas (`economia`, `db.acariciar`) lo vigila `tests/test_web_minimos.py`.
+LECTURAS_CRUDAS_EN_LA_WEB = {
+    ("aventura.py", "ver_la_aventura", "plantel"): "sólo mira si ya tienes alguno",
+    ("cuenta.py", "la_misma_activa", "criatura_activa"): "sólo compara su id con el de la activa al día",
+    ("juego.py", "_pagar_las_medallas_del_primero", "plantel"): "sólo mira cuántos hay, su nombre y cuándo nació",
+}
+
+
+def _de_db_crudas() -> set[str]:
+    """Las funciones de `db` que dicen devolver gachamones y no los ponen al día."""
+    arbol = ast.parse((RAIZ / "db.py").read_text(encoding="utf-8"))
+    return {
+        nodo.name for nodo in arbol.body
+        if isinstance(nodo, ast.FunctionDef) and nodo.returns is not None
+        and "sim.Criatura" in ast.unparse(nodo.returns) and nodo.name not in DE_DB_AL_DIA
+    }
+
+
+def _lecturas_crudas(ruta: Path, crudas: set[str]) -> list[tuple[str, str, str]]:
+    """Cada uso en ese archivo de una de esas funciones: (archivo, función que la usa, cuál).
+
+    Lee el árbol del código, así que un comentario o un docstring que las nombre no cuenta.
+    """
+    arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+    como_se_llama_db = {
+        alias.asname or alias.name
+        for nodo in ast.walk(arbol) if isinstance(nodo, ast.Import)
+        for alias in nodo.names if alias.name == "db"
+    }
+    halladas = []
+
+    def visitar(nodo, funcion):
+        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            funcion = nodo.name
+        if (isinstance(nodo, ast.Attribute) and isinstance(nodo.value, ast.Name)
+                and nodo.value.id in como_se_llama_db and nodo.attr in crudas):
+            halladas.append((ruta.name, funcion, nodo.attr))
+        if isinstance(nodo, ast.ImportFrom) and nodo.module == "db":
+            halladas.extend((ruta.name, funcion, alias.name) for alias in nodo.names if alias.name in crudas)
+        for hijo in ast.iter_child_nodes(nodo):
+            visitar(hijo, funcion)
+
+    visitar(arbol, "<módulo>")
+    return halladas
+
+
+def test_en_la_web_ninguna_lectura_de_gachamones_se_salta_db_avanzar():
+    crudas = _de_db_crudas()
+    assert {"criatura_activa", "plantel", "por_id"} <= crudas
+    halladas = Counter(
+        lectura
+        for ruta in sorted((RAIZ / "web").glob("*.py"))
+        for lectura in _lecturas_crudas(ruta, crudas)
+    )
+    nuevas = sorted(
+        lectura for lectura, veces in halladas.items()
+        if veces > (1 if lectura in LECTURAS_CRUDAS_EN_LA_WEB else 0)
+    )
+    assert not nuevas, (
+        f"Lecturas crudas de gachamones nuevas en web/: {nuevas}. Con un mueble que pone "
+        "un mínimo, la fila puede tener una barra por debajo de la que se ve: pásala por "
+        "`db.avanzar`, `db.activa_al_dia` o `db.plantel_al_dia`, o, si no mira barras, "
+        "añádela a LECTURAS_CRUDAS_EN_LA_WEB con su porqué."
+    )
+    sobran = sorted(set(LECTURAS_CRUDAS_EN_LA_WEB) - set(halladas))
+    assert not sobran, f"Ya no están en web/: {sobran}. Quítalas de LECTURAS_CRUDAS_EN_LA_WEB."
 
 
 def test_una_direccion_que_no_existe_contesta_con_clave(cliente):
