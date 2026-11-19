@@ -10,7 +10,9 @@
 // cambian a él mismo (`reubicar` además lo devuelve, o `null` si no le queda
 // casilla); `reubicarte` y `repartir` pueden dar uno nuevo (al entrar, o en la
 // puerta si dentro no queda sitio). Lo que sólo cuenta (`rutaHasta`, `unPaseo`,
-// `unPaseoAUnMueble`) no mueve a nadie: lo mueve quien llama.
+// `unPaseoAUnMueble`) no mueve a nadie: lo mueve quien llama. `repartir` lee el
+// plantel del departamento; `unPaseo` y `unPaseoAUnMueble` lo reciben aparte
+// porque la pantalla se lo pasa sin los que se quedan junto a un mueble.
 //
 // Al entrar apareces en la puerta, una casilla más, fuera de la pieza (sin
 // puerta, en el primero de los sitios de entrada), y tus gachamones se

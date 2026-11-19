@@ -16,15 +16,14 @@
 // algo en la mano. Quién está en qué casilla y por dónde camina lo cuenta
 // `caminantes.js`; aquí se guarda y se anima. Si lo que llega pide otra
 // pantalla (ya no estás en tu casa, ya no hay sesión) se lo pasa a `seguir`;
-// sin ningún gachamon, tu
-// casa se sigue viendo, y justo bajo el dibujo se lee la guía (`estado.guia`):
-// el paso que te toca, en los dos modos, al día con cada estado que llega.
-// Bajo la guía, si tu cuenta (`cuenta`, la que lleva `principal.js`; sin ella,
-// nada) todavía puede traer los de Discord, el mismo enlace de la pantalla del
-// avatar (`enlaceADiscord`, de `entrada.js`): su paso del código va en lugar
-// de todo lo de tu casa, «Volver» lo deja como estaba y, si la cuenta cambia
-// (se vinculó), se deja la pantalla y se vuelve a decidir. Se va en cuanto
-// llega un estado con gachamon.
+// sin ningún gachamon, tu casa se sigue viendo, y justo bajo el dibujo se lee
+// la guía (`estado.guia`): el paso que te toca, en los dos modos, al día con
+// cada estado que llega. Bajo la guía, si tu cuenta (`cuenta`, la que lleva
+// `principal.js`; sin ella, nada) todavía puede traer los de Discord, el mismo
+// enlace de la pantalla del avatar (`enlaceADiscord`, de `entrada.js`): su paso
+// del código va en lugar de todo lo de tu casa, «Volver» lo deja como estaba y,
+// si la cuenta cambia (se vinculó), se deja la pantalla y se vuelve a decidir.
+// Se va en cuanto llega un estado con gachamon.
 //
 // La pieza tiene dos modos, y siempre se entra en el normal: el modo es de la
 // pantalla, no se guarda ni se manda. El botón de bajo el dibujo, «🔨

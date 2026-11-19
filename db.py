@@ -2140,8 +2140,13 @@ def avanzar(criatura: sim.Criatura, ahora: datetime) -> sim.Criatura:
 
     Existe para que **no haya catorce sitios** teniendo que acordarse de mirar
     el departamento antes de hacer pasar el tiempo. Quien llame a `sim.avanzar`
-    a secas se queda con el ritmo de siempre, que es el de quien tiene techo: el
-    fallo por olvido es el comportamiento anterior y nunca uno peor.
+    a secas se queda sin ese ritmo (sin el alivio de la comodidad, sin los
+    mínimos de los muebles que se usan solos y sin las pesas), y si guarda lo
+    que sale, el olvido no es inocuo: se come el punto de las pesas de cada
+    medianoche UTC que cruza (mueve `actualizada_en` sin sumarlo) y deja
+    guardada una barra por debajo de su mínimo. Por eso nadie mueve
+    `actualizada_en` ni guarda el paso del tiempo sin pasar por aquí (o por
+    `_avanzar_en`).
     """
     with conectar() as con:
         return _avanzar_en(con, criatura, ahora)
