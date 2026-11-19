@@ -146,6 +146,19 @@ def test_una_barra_bajo_su_suelo_sube_aunque_no_pase_el_tiempo():
     assert sim.avanzar(c, c.actualizada_en) is c
 
 
+def test_cada_suelo_sube_su_barra_sin_que_pase_el_tiempo():
+    """Cada mueble por su lado: con sólo uno puesto, su barra sube en el acto
+    aunque las otras estén bien, y las otras no se tocan."""
+    for suelo, barra in (
+        ("suelo_de_hambre", "hambre"),
+        ("suelo_de_animo", "animo"),
+        ("suelo_de_limpieza", "limpieza"),
+    ):
+        c = criatura(**{barra: 5.0})
+        ritmo = sim.Ritmo(**{suelo: 40.0})
+        assert sim.avanzar(c, c.actualizada_en, ritmo) == replace(c, **{barra: 40.0}), suelo
+
+
 def test_con_el_suelo_del_aseo_el_animo_no_cae_como_sucio():
     """El castigo por sucia se decide con el aseo ya subido a su suelo: con la
     ducha puesta, lo guardado por debajo de 30 no le amarga el ánimo."""
@@ -174,6 +187,7 @@ def test_las_pesas_dan_un_punto_por_medianoche_utc():
     assert entrena(noche, madrugada) == 1
     assert entrena(madrugada, madrugada.replace(hour=23, minute=59)) == 0
     assert entrena(noche, noche + timedelta(days=10)) == 10
+    assert entrena(noche, noche + timedelta(days=10), sim.Ritmo(fuerza_por_dia=2)) == 20
     assert entrena(noche, madrugada, sim.Ritmo()) == 0
     assert entrena(madrugada, noche) == 0
     # En Chile (UTC−3) las dos son del mismo día, pero cuenta la medianoche UTC.

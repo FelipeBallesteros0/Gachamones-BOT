@@ -926,8 +926,8 @@ def avanzar(
 
     Los suelos valen siempre, también sin que pase el tiempo: una barra por
     debajo de su suelo sube a él en el acto, sin mover `actualizada_en`, y
-    desde ahí baja como siempre sin cruzarlo. Si no hay nada que subir,
-    devuelve la misma criatura.
+    desde ahí baja como siempre sin cruzarlo. Sin tiempo transcurrido y sin
+    nada que subir, devuelve la misma criatura.
 
     Las pesas suman `ritmo.fuerza_por_dia` a `ent_fuerza` por cada medianoche
     UTC que cruza el tramo, y nada más: ni experiencia, ni nivel, ni tensiones.
