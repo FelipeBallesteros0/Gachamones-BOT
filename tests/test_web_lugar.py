@@ -19,7 +19,9 @@ def test_quien_llega_esta_en_su_casa(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     alta(cliente)   # recién llegada: ganar al primero ya la habría llevado a «Aventura» y de vuelta
     lugar = cliente.get(ESTADO).json()["lugar"]
-    assert lugar == {"clave": "casa", "nombre": "Tu casa", "abre": "ya", "aviso": None, "ofrece": ["departamento"]}
+    assert lugar == {
+        "clave": "casa", "nombre": "Tu departamento", "abre": "ya", "aviso": None, "ofrece": ["departamento"],
+    }
     assert db.lugar_de_cuenta(1) is None
 
 
@@ -64,6 +66,20 @@ def test_si_el_lugar_guardado_ya_no_esta_en_el_pueblo_vuelves_a_tu_casa(cliente,
     sin_plaza = {c: l for c, l in pueblo.LUGARES.items() if c != "plaza"}
     monkeypatch.setattr(pueblo, "LUGARES", sin_plaza)
     assert cliente.get(ESTADO).json()["lugar"]["clave"] == "casa"
+
+
+@pytest.mark.parametrize("se_fue", ["refugio", "incubadora"])
+def test_quien_se_quedo_en_el_refugio_o_la_incubadora_aparece_en_su_departamento(cliente, monkeypatch, se_fue):
+    # Como quien estaba parado ahí el día de publicar: la fila sigue diciendo ese lugar, y no hay migración.
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    db.poner_lugar(1, se_fue)
+    assert db.lugar_de_cuenta(1) == se_fue
+    lugar = cliente.get(ESTADO).json()["lugar"]
+    assert (lugar["clave"], lugar["nombre"], lugar["ofrece"]) == ("casa", "Tu departamento", ["departamento"])
+    depto = cliente.get(f"{API}/departamento")
+    assert depto.status_code == 200, depto.text
+    assert [g["nombre"] for g in depto.json()["plantel"]] == ["Pelusa"]
 
 
 def test_el_lugar_es_de_cada_cuenta(cliente, monkeypatch):

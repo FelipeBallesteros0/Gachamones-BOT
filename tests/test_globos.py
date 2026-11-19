@@ -149,16 +149,22 @@ def test_ningun_modulo_de_globos_importa_lo_prohibido():
         assert prohibido not in fuente
 
 
-def test_hay_frases_para_los_nueve_lugares_y_solo_para_ellos():
-    # El refugio sigue en el mapa, pero cerró: su clave está y no dice nada.
+def test_hay_frases_para_los_siete_lugares_y_solo_para_ellos():
     assert set(globos.DEL_LUGAR) == set(pueblo.LUGARES)
-    assert all(len(frases) >= 2 for clave, frases in globos.DEL_LUGAR.items() if clave != "refugio")
+    assert all(len(frases) >= 2 for frases in globos.DEL_LUGAR.values())
     assert set(globos.PROPIAS_DEL_LUGAR["pollito"]) == set(pueblo.LUGARES)
-    assert globos.PROPIAS_DEL_LUGAR["pollito"]["refugio"] == ()
+    assert all(globos.PROPIAS_DEL_LUGAR["pollito"].values())
 
 
-def test_en_el_refugio_cerrado_el_gachamon_no_dice_frases_de_refugio():
-    assert "refugio" in globos.DEL_LUGAR and not globos.DEL_LUGAR["refugio"]
+def test_en_tu_departamento_se_oye_el_silencio_del_edificio():
+    # Ya no hay casas: cada quien vive en su departamento, en un edificio.
+    assert globos.DEL_LUGAR["casa"] == (
+        "Qué calentito se está aquí.", "Este rincón me da sueño.", "Aquí se oye el silencio del edificio.",
+    )
+    assert globos.PROPIAS_DEL_LUGAR["pollito"]["casa"] == ("Pío, qué calentito se está.", "Pío… este rincón me da sueño.")
+    frases = [f for fs in globos.DEL_LUGAR.values() for f in fs]
+    frases += [f for lugares in globos.PROPIAS_DEL_LUGAR.values() for fs in lugares.values() for f in fs]
+    assert not [f for f in frases if "casas" in f]
 
 
 def test_al_estar_en_un_lugar_dice_algo_de_ese_lugar():

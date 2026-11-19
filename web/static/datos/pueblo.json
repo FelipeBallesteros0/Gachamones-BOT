@@ -4,9 +4,7 @@
   "velocidad": 115,
   "hueco": 26,
   "lugares": {
-    "casa": {"nombre": "Tu casa", "parte": "A", "abre": "ya", "hacia": "a tu casa"},
-    "refugio": {"nombre": "Refugio", "parte": "A", "abre": "ya", "hacia": "al refugio"},
-    "incubadora": {"nombre": "Incubadora", "parte": "A", "abre": "ya", "hacia": "a la incubadora"},
+    "casa": {"nombre": "Tu departamento", "parte": "A", "abre": "ya", "hacia": "a tu departamento"},
     "tienda": {"nombre": "Tienda", "parte": "A", "abre": "ya", "hacia": "a la tienda"},
     "plaza": {"nombre": "Plaza", "parte": "B", "abre": "despues", "hacia": "a la plaza"},
     "barrio": {"nombre": "Barrio", "parte": "B", "abre": "despues", "hacia": "al barrio"},
@@ -15,17 +13,17 @@
     "aventura": {"nombre": "Aventura", "parte": "B", "abre": "despues", "hacia": "a la aventura"}
   },
   "nodos": {
-    "incubadora": [75, 170], "u1": [165, 170], "tienda": [220, 170], "ptop": [300, 170],
+    "u1": [165, 170], "tienda": [220, 170], "ptop": [300, 170],
     "estadio": [390, 170], "u3": [485, 170], "cementerio": [545, 170], "aventura": [640, 170],
     "afuera": [640, 62],
     "borde": [30, 330], "casa": [75, 330], "l1": [165, 330], "l2": [300, 330],
-    "barrio": [395, 330], "l3": [485, 330], "refugio": [575, 330],
+    "barrio": [395, 330], "l3": [485, 330],
     "plaza": [300, 250]
   },
   "aristas": [
-    ["incubadora", "u1"], ["u1", "tienda"], ["tienda", "ptop"], ["ptop", "estadio"],
+    ["u1", "tienda"], ["tienda", "ptop"], ["ptop", "estadio"],
     ["estadio", "u3"], ["u3", "cementerio"], ["cementerio", "aventura"], ["aventura", "afuera"],
-    ["borde", "casa"], ["casa", "l1"], ["l1", "l2"], ["l2", "barrio"], ["barrio", "l3"], ["l3", "refugio"],
+    ["borde", "casa"], ["casa", "l1"], ["l1", "l2"], ["l2", "barrio"], ["barrio", "l3"],
     ["u1", "l1"], ["ptop", "plaza"], ["plaza", "l2"], ["u3", "l3"]
   ]
 }

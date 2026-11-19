@@ -13,18 +13,6 @@
    "familia": "lugares"
   },
   {
-   "ruta": "pueblo/lugares/refugio.png",
-   "ancho": 160,
-   "alto": 160,
-   "familia": "lugares"
-  },
-  {
-   "ruta": "pueblo/lugares/incubadora.png",
-   "ancho": 160,
-   "alto": 160,
-   "familia": "lugares"
-  },
-  {
    "ruta": "pueblo/lugares/tienda.png",
    "ancho": 160,
    "alto": 160,
@@ -62,18 +50,6 @@
   },
   {
    "ruta": "escenas/casa.png",
-   "ancho": 720,
-   "alto": 480,
-   "familia": "escenas"
-  },
-  {
-   "ruta": "escenas/refugio.png",
-   "ancho": 720,
-   "alto": 480,
-   "familia": "escenas"
-  },
-  {
-   "ruta": "escenas/incubadora.png",
    "ancho": 720,
    "alto": 480,
    "familia": "escenas"

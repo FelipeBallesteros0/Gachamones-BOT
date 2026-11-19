@@ -183,8 +183,8 @@ export function pueblo(contenedor, estado, seguir) {
 
   // --- debajo: volver sin moverse, o ir a un lugar ------------------------------------
 
-  // Dice adónde («Volver al refugio») cuando llegan los datos del pueblo; hasta
-  // entonces, o si no llegan, «Volver» a secas.
+  // Dice adónde («Volver a tu departamento») cuando llegan los datos del
+  // pueblo; hasta entonces, o si no llegan, «Volver» a secas.
   const volver = el('button', { type: 'button', class: 'boton boton-volver' }, 'Volver');
   const lista = el('ul', { class: 'lugares-del-pueblo' });
   // Sin los datos del pueblo no hay lugares que listar.

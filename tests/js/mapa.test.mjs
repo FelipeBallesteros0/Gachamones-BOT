@@ -216,7 +216,7 @@ function crearServidor(alLlegar) {
 const AVATAR = {
   nombre: 'Ana', genero: 'hembra', piel: 'clara', pelo: 'largo', color_de_pelo: 'rojo', ropa: 'camisa',
 };
-const CASA = { clave: 'casa', nombre: 'Tu casa', abre: 'ya', aviso: null, ofrece: ['departamento'] };
+const CASA = { clave: 'casa', nombre: 'Tu departamento', abre: 'ya', aviso: null, ofrece: ['departamento'] };
 const RETRATO = '/gachamon/retrato/pollito/bebe/feliz/sin.png';
 const PELUSA = {
   id: 5, nombre: 'Pelusa', emoji: '🐤', retrato: RETRATO, etapa: 'bebe', espera_nombre: false,
@@ -255,6 +255,9 @@ test('sin gachamon, el pueblo se abre y caminas tú solo', { timeout: 5000 }, as
   assert.equal(contenedor.querySelector('h1').textContent, '🗺️Pueblo');
   assert.equal(contenedor.querySelector('.ir-a').hidden, false);
   assert.equal(contenedor.querySelectorAll('.lugar-del-pueblo').length, Object.keys(DATOS_DEL_PUEBLO.lugares).length);
+  // Estás en tu departamento: «Volver» dice adónde, y en la lista está marcado con el 📍.
+  assert.equal(contenedor.querySelector('.boton-volver').textContent, 'Volver a tu departamento');
+  assert.equal(contenedor.querySelectorAll('.lugar-del-pueblo')[0].textContent, '📍Tu departamento');
   assert.ok(pintadas.some(delAvatar), 'no se pintó el avatar');
   // Ningún retrato que pedir ni que pintar, ni la sombra del que camina detrás.
   assert.deepEqual(pedidas.filter(delRetrato), []);

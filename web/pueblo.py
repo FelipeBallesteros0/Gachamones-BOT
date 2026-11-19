@@ -78,10 +78,9 @@ def aviso(
 ) -> str | None:
     """Lo que la pantalla del lugar avisa, o `None` si no hay nada que avisar.
 
-    El Refugio sigue en el mapa, pero cerró: lo dice a quien llega. En
-    «Aventura», a quien no tiene ningún gachamon (`sin_gachamon`) le dice lo que
-    le falta para la primera, la cama; con ella libre, nada. Sin decirlo, todo
-    lugar avisa lo de siempre.
+    En «Aventura», a quien no tiene ningún gachamon (`sin_gachamon`) le dice lo
+    que le falta para la primera, la cama; con ella libre, nada. Sin decirlo,
+    todo lugar avisa lo de siempre.
     """
     if _la_primera_aventura(clave, sin_gachamon):
         return None if cama_libre else SIN_CAMA
@@ -90,8 +89,6 @@ def aviso(
         return "Esto se abre más adelante."
     if abre == PRONTO:
         return "Aquí todavía no hay nada que hacer. Abre pronto."
-    if clave == "refugio":
-        return "El refugio cerró. Ahora cada quien vive en su departamento."
     return None
 
 

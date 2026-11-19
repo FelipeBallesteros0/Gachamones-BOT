@@ -301,8 +301,8 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     el('div', { class: 'medidores' }, medidores.map((m) => m.nodo)));
 
   // Bajo la ficha, primero lo que hay que saber de este lugar (que abre más
-  // adelante, que cerró…), en su franja: no es un error, y se queda mientras el
-  // servidor lo diga; sin aviso, no hay franja.
+  // adelante, lo que falta para la primera aventura…), en su franja: no es un
+  // error, y se queda mientras el servidor lo diga; sin aviso, no hay franja.
   const franjaDelLugar = el('p', { class: 'franja-del-lugar', hidden: true });
 
   // Después, lo que contesta el juego, o, si no hay nada que decir, la pista de

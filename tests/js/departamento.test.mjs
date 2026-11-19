@@ -425,7 +425,7 @@ const ESTADO = {
   gachamon: PELUSA,
   saldos: { monedas: 130, gemas: 2 },
   globos: [],
-  lugar: { clave: 'casa', nombre: 'Tu casa', abre: null, aviso: null, ofrece: ['departamento'] },
+  lugar: { clave: 'casa', nombre: 'Tu departamento', abre: null, aviso: null, ofrece: ['departamento'] },
 };
 
 // Un 3 × 3 con la cama sencilla en (0, 0), a lo ancho, y otra guardada; y la
@@ -805,7 +805,7 @@ test('al entrar pide el departamento y dice cómo está', async () => {
   assert.deepEqual(pedidos.map(([ruta]) => ruta), ['GET departamento']);
   assert.equal(texto(pantalla, '.pieza-linea'), '3 × 3 · 2 de 9 casillas · camas 1 · gachamones 1 · comodidad 82 de 100');
   assert.equal(uno(pantalla, 'canvas').getAttribute('aria-hidden'), 'true');
-  assert.match(texto(pantalla, 'h1'), /Tu casa/);
+  assert.match(texto(pantalla, 'h1'), /Tu departamento/);
 });
 
 test('si no carga lo dice y deja volver a intentarlo', async () => {

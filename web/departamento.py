@@ -182,7 +182,7 @@ def dicho_de_salir(hecho: economia.ResultadoCambio) -> dict:
     if hecho.motivo == "no_esta":
         return {"ok": False, "clave": "no_esta", "mensaje": NO_ESTA}
     # Un motivo que no conocemos es un fallo nuestro y no se disfraza.
-    raise RuntimeError(f"sacar sin frase: {hecho.motivo!r}")
+    raise RuntimeError(f"salir sin frase: {hecho.motivo!r}")
 
 
 @router.post("/departamento/salir", dependencies=[Depends(con_cabecera)])

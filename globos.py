@@ -96,19 +96,12 @@ PROPIAS: dict[str, dict[str, tuple[str, ...]]] = {
 
 # Lo que dice de cada lugar del pueblo: cómo es, a qué huele, qué se oye. Nada de
 # lo que se hace ahí ni de quién hay. Las claves son las de `web/pueblo.py`
-# (una prueba vigila que coincidan); este módulo no lo importa. El refugio sigue
-# en el mapa, pero cerró: ahí no se dice nada del lugar.
+# (una prueba vigila que coincidan); este módulo no lo importa.
 DEL_LUGAR: dict[str, tuple[str, ...]] = {
     "casa": (
         "Qué calentito se está aquí.",
         "Este rincón me da sueño.",
-        "Aquí se oye el silencio de las casas.",
-    ),
-    "refugio": (),
-    "incubadora": (
-        "Aquí hace un calorcito muy suave.",
-        "Huele a cáscara tibia.",
-        "Se oye un zumbido tibio, muy bajito.",
+        "Aquí se oye el silencio del edificio.",
     ),
     "tienda": (
         "Cuántas cosas hay en los estantes.",
@@ -146,8 +139,6 @@ DEL_LUGAR: dict[str, tuple[str, ...]] = {
 PROPIAS_DEL_LUGAR: dict[str, dict[str, tuple[str, ...]]] = {
     "pollito": {
         "casa": ("Pío, qué calentito se está.", "Pío… este rincón me da sueño."),
-        "refugio": (),
-        "incubadora": ("Pío, huele a cáscara tibia.", "Pío… qué calorcito."),
         "tienda": ("Pío, cuántas cosas.", "Pío… huele a madera nueva."),
         "plaza": ("¡Pío! Qué amplia es la plaza.", "Pío, pío… aquí hay mucho sol."),
         "barrio": ("Pío, huele a pan recién hecho.", "Pío… qué tranquilo está."),

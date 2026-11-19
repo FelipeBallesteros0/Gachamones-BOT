@@ -18,17 +18,17 @@
 // para no perder el foco), y el segundo clic de un doble clic no cuenta (así
 // ninguno se salta una frase). Con la respuesta se ve a tu gachamon (su
 // retrato: quién es lo dice la frase) y las frases de después, y tras la
-// última, «Volver a casa», que sigue con el estado que llegó (toca el paso del
-// nombre). Sin respuesta se dice lo de siempre y «Acercarte» se puede volver a
-// pulsar. Ante cualquier «no» del encuentro (un 409) se vuelve a leer el
-// estado y se sigue con él: lo normal es que ya lo tengas (un doble clic, otra
-// pestaña: el encuentro ya te llevó a casa); si tampoco se deja leer (un 401 o
-// un 409), se vuelve a decidir. Sólo si sigues sin ninguno se dice la frase del
-// servidor y queda «Volver». Antes del encuentro, «Volver» deja la aventura sin
-// guardar nada. Lo que entra en la escena lo anima el estilo, que con
-// movimiento reducido no anima nada. Al salir se deja de escuchar, y una
-// respuesta que llega tarde no pinta ni llama a `seguir`. Todo texto entra por
-// `el` o por `textContent`.
+// última, «Volver a tu departamento», que sigue con el estado que llegó (toca
+// el paso del nombre). Sin respuesta se dice lo de siempre y «Acercarte» se
+// puede volver a pulsar. Ante cualquier «no» del encuentro (un 409) se vuelve
+// a leer el estado y se sigue con él: lo normal es que ya lo tengas (un doble
+// clic, otra pestaña: el encuentro ya te llevó a tu departamento); si tampoco
+// se deja leer (un 401 o un 409), se vuelve a decidir. Sólo si sigues sin
+// ninguno se dice la frase del servidor y queda «Volver». Antes del encuentro,
+// «Volver» deja la aventura sin guardar nada. Lo que entra en la escena lo
+// anima el estilo, que con movimiento reducido no anima nada. Al salir se deja
+// de escuchar, y una respuesta que llega tarde no pinta ni llama a `seguir`.
+// Todo texto entra por `el` o por `textContent`.
 
 import { pedir } from './api.js';
 import { olvidarLasQueFaltan } from './arte.js';
@@ -39,7 +39,7 @@ import { fondoDeLaEscena, monigoteDeLaEscena } from './lugar.js';
 const TITULO = 'La primera aventura';
 const SEGUIR = 'Seguir';
 const ACERCARTE = 'Acercarte';
-const VOLVER_A_CASA = 'Volver a casa';
+const VOLVER_A_TU_DEPARTAMENTO = 'Volver a tu departamento';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 const CARGANDO = 'Cargando la aventura…';
 
@@ -128,13 +128,13 @@ export function aventura(contenedor, estado, seguir) {
   }
 
   // La frase en la que vas y, en el botón, lo que sigue: otra frase o, tras la
-  // última, el encuentro (antes) o volver a casa (después).
+  // última, el encuentro (antes) o volver a tu departamento (después).
   function mostrar() {
     const ultima = cual >= frases.length - 1;
     frase.textContent = frases[cual] || '';
     frase.classList.remove('es-error');
     if (!ultima) boton(SEGUIR, otraFrase);
-    else if (encontrado) boton(VOLVER_A_CASA, () => irse(encontrado));
+    else if (encontrado) boton(VOLVER_A_TU_DEPARTAMENTO, () => irse(encontrado));
     else boton(ACERCARTE, acercarte);
   }
 

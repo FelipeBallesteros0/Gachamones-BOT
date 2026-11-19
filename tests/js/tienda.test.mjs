@@ -194,7 +194,7 @@ test('el mueble que se usa solo dice lo que hace justo bajo el nombre; el que no
 
 test('comprar otro del que ya tienes manda el mueble y su evento, y la fila cuenta uno más', { timeout: 2000 }, async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const mensaje = 'Compraste Felpudo. Quedó en tus guardados: en tu casa, entra a «Construir».';
+  const mensaje = 'Compraste Felpudo. Quedó en tus guardados: en tu departamento, entra a «Construir».';
   const pedidas = servidor((pedida) => (pedida.metodo === 'GET'
     ? catalogo(2)
     : { ok: true, clave: null, mensaje, tienda: catalogo(3) }));

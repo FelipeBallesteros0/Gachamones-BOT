@@ -228,7 +228,7 @@ def test_salir_con_otro_desde_el_departamento(cliente):
     assert (r["ok"], r["clave"], r["mensaje"]) == (True, None, "Ahora sales con Rulo.")
     assert r["estado"]["gachamon"]["nombre"] == "Rulo"
     assert [(g["nombre"], g["activo"]) for g in r["departamento"]["plantel"]] == [("Rulo", True), ("Pelusa", False)]
-    otra_vez = salir(cliente, otro.id).json()                  # con el que ya sale: un sí, como en la Incubadora
+    otra_vez = salir(cliente, otro.id).json()                  # con el que ya sale: un sí, no un error
     assert (otra_vez["ok"], otra_vez["mensaje"]) == (True, "Rulo ya es tu gachamon activo.")
 
 

@@ -6,7 +6,7 @@ import pytest
 
 from web import pueblo
 
-NUEVE = ("casa", "refugio", "incubadora", "tienda", "plaza", "barrio", "estadio", "cementerio", "aventura")
+SIETE = ("casa", "tienda", "plaza", "barrio", "estadio", "cementerio", "aventura")
 
 
 def test_el_archivo_es_el_del_boceto_y_no_tiene_problemas():
@@ -16,14 +16,25 @@ def test_el_archivo_es_el_del_boceto_y_no_tiene_problemas():
     assert pueblo.problemas(datos) == []
 
 
-def test_son_los_nueve_lugares_en_su_orden_con_su_parte():
-    assert tuple(pueblo.LUGARES) == NUEVE
-    assert [l.parte for l in pueblo.LUGARES.values()] == ["A"] * 4 + ["B"] * 5
-    assert pueblo.LUGARES["casa"] == pueblo.Lugar("casa", "Tu casa", "A", pueblo.YA)
+def test_son_los_siete_lugares_en_su_orden_con_su_parte():
+    # Tu departamento, el primero: el mapa arranca en el primero si el estado trae un lugar que no conoce.
+    assert tuple(pueblo.LUGARES) == SIETE
+    assert [l.parte for l in pueblo.LUGARES.values()] == ["A"] * 2 + ["B"] * 5
+    assert pueblo.LUGARES["casa"] == pueblo.Lugar("casa", "Tu departamento", "A", pueblo.YA)
     assert pueblo.LUGARES["tienda"].abre == pueblo.YA
-    assert pueblo.LUGARES["incubadora"].abre == pueblo.YA
-    assert all(pueblo.LUGARES[c].abre == pueblo.DESPUES for c in NUEVE[4:])
+    assert all(pueblo.LUGARES[c].abre == pueblo.DESPUES for c in SIETE[2:])
     assert pueblo.DATOS["nodos"]["casa"] == [75, 330] and pueblo.DATOS["nodos"]["aventura"] == [640, 170]
+
+
+def test_el_refugio_y_la_incubadora_se_fueron_con_sus_caminos_y_no_queda_ninguno_a_ninguna_parte():
+    nodos, aristas = pueblo.DATOS["nodos"], pueblo.DATOS["aristas"]
+    for clave in ("refugio", "incubadora"):
+        assert clave not in pueblo.LUGARES and clave not in nodos
+        assert not [a for a in aristas if clave in a], clave
+    grado = {nodo: sum(nodo in a for a in aristas) for nodo in nodos}
+    # Todo nodo está en algún camino, y las únicas puntas son las dos salidas del pueblo, que ya lo eran.
+    assert min(grado.values()) >= 1
+    assert {nodo for nodo, cuantos in grado.items() if cuantos == 1} == {"afuera", "borde"}
 
 
 @pytest.mark.parametrize("clave, vale", [
@@ -46,14 +57,24 @@ def test_el_aviso_de_un_lugar_ya_no_mira_el_hogar():
 
 @pytest.mark.parametrize("clave, frase", [
     ("casa", None),
-    ("refugio", "El refugio cerró. Ahora cada quien vive en su departamento."),
-    ("incubadora", None),
     ("tienda", None),
+    ("cementerio", "Esto se abre más adelante."),
     ("estadio", "Esto se abre más adelante."),
     ("aventura", "Esto se abre más adelante."),
 ])
 def test_cada_lugar_avisa_lo_suyo(clave, frase):
     assert pueblo.aviso(clave) == frase
+
+
+def test_el_aviso_ya_no_conoce_el_refugio(monkeypatch):
+    # Se fue del mapa con su aviso: un lugar abierto que se llamara así no avisaría nada.
+    monkeypatch.setitem(pueblo.LUGARES, "refugio", pueblo.Lugar("refugio", "Refugio", "A", pueblo.YA))
+    assert pueblo.aviso("refugio") is None
+    for clave in pueblo.LUGARES:
+        for sin_gachamon in (False, True):
+            for cama_libre in (False, True):
+                frase = pueblo.aviso(clave, sin_gachamon=sin_gachamon, cama_libre=cama_libre) or ""
+                assert "refugio" not in frase.lower(), clave
 
 
 def test_un_lugar_que_abre_pronto_lo_avisa(monkeypatch):
@@ -86,7 +107,7 @@ def test_una_clave_que_falta_es_un_problema_y_no_una_excepcion(clave):
 
 def test_cada_lugar_dice_como_se_va_hacia_el():
     assert {clave: lugar["hacia"] for clave, lugar in pueblo.DATOS["lugares"].items()} == {
-        "casa": "a tu casa", "refugio": "al refugio", "incubadora": "a la incubadora",
+        "casa": "a tu departamento",
         "tienda": "a la tienda", "plaza": "a la plaza", "barrio": "al barrio",
         "estadio": "al estadio", "cementerio": "al cementerio", "aventura": "a la aventura",
     }
@@ -122,7 +143,8 @@ def test_ningun_lugar_ofrece_la_incubadora():
 
 def test_quien_no_tiene_lugar_guardado_o_ya_no_existe_esta_en_su_casa():
     assert pueblo.donde_esta("tienda") == "tienda"
-    for clave in (None, "", "no_existe", 7):
+    # También quien se quedó parado en el Refugio o en la Incubadora, que ya no existen.
+    for clave in (None, "", "no_existe", 7, "refugio", "incubadora"):
         assert pueblo.donde_esta(clave) == pueblo.de_partida() == "casa"
 
 

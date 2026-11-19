@@ -46,12 +46,12 @@ test('con una ruta de arte, el ícono es su lienzo, como siempre', () => {
 });
 
 test('con un nodo ya hecho por ícono, la fila lo usa tal cual', () => {
-  const retrato = el('img', { class: 'articulo-icono retrato-plantel', src: '/gachamon/retrato/pulpo.png', alt: '' });
+  const retrato = el('img', { class: 'articulo-icono retrato-de-prueba', src: '/gachamon/retrato/pulpo.png', alt: '' });
   const fila = filaDeArticulo({ id: 7, icono: retrato, nombre: 'Bruma', lineas: [], accion: null });
   const [primero, texto] = fila.hijos;
   assert.equal(primero, retrato);
   assert.deepEqual(retrato.clases, []);
-  assert.deepEqual(retrato.atributos, { class: 'articulo-icono retrato-plantel', src: '/gachamon/retrato/pulpo.png', alt: '' });
+  assert.deepEqual(retrato.atributos, { class: 'articulo-icono retrato-de-prueba', src: '/gachamon/retrato/pulpo.png', alt: '' });
   assert.equal(texto.atributos.class, 'articulo-texto');
   assert.equal(fila.atributos['data-fila'], '7');
 });

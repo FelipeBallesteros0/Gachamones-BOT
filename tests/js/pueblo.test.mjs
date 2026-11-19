@@ -50,8 +50,8 @@ test('a medio camino va por el camino, a su velocidad, y el gachamon por el mism
 });
 
 test('mira hacia donde camina', () => {
-  const paseo = p.crearPaseo(datos, grafo, 'refugio');
-  p.ir(paseo, 'barrio');
+  const paseo = p.crearPaseo(datos, grafo, 'cementerio');
+  p.ir(paseo, 'tienda');
   caminar(paseo, 0.5);
   assert.equal(paseo.mira, -1);
   assert.equal(paseo.gmira, -1);
@@ -61,11 +61,11 @@ test('cambiar de rumbo a mitad de camino: seguir o volver, lo más corto', () =>
   const sigue = p.crearPaseo(datos, grafo, 'casa');
   p.ir(sigue, 'tienda');
   caminar(sigue, 0.5);
-  assert.equal(p.ir(sigue, 'refugio'), 'camina');
+  assert.equal(p.ir(sigue, 'barrio'), 'camina');
   caminar(sigue, 0.1);
   assert.ok(sigue.x > 132.5 && sigue.y === 330);
   assert.equal(caminar(sigue, 10), 1);
-  assert.deepEqual([sigue.x, sigue.y, sigue.en], [575, 330, 'refugio']);
+  assert.deepEqual([sigue.x, sigue.y, sigue.en], [395, 330, 'barrio']);
 
   const vuelve = p.crearPaseo(datos, grafo, 'casa');
   p.ir(vuelve, 'tienda');
@@ -281,12 +281,12 @@ test('el rastro no crece aunque se camine mucho ni se dé la vuelta mil veces', 
 });
 
 test('al llegar de inmediato, los dos miran hacia donde iban y el gachamon está quieto', () => {
-  const paseo = p.crearPaseo(datos, grafo, 'refugio');
-  p.ir(paseo, 'barrio');
+  const paseo = p.crearPaseo(datos, grafo, 'cementerio');
+  p.ir(paseo, 'tienda');
   assert.equal(p.llegarYa(paseo), true);
-  assert.deepEqual([paseo.x, paseo.y, paseo.mira, paseo.gmira, paseo.gcaminando], [395, 330, -1, -1, false]);
-  cerca(paseo.gx, 395 + 26);
-  cerca(paseo.gy, 330);
+  assert.deepEqual([paseo.x, paseo.y, paseo.mira, paseo.gmira, paseo.gcaminando], [220, 170, -1, -1, false]);
+  cerca(paseo.gx, 220 + 26);
+  cerca(paseo.gy, 170);
 });
 
 test('si se toca entre dos lugares, es el más cercano; la cámara no se sale aunque el pueblo quepa entero', () => {

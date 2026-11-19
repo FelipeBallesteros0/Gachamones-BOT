@@ -15,9 +15,9 @@ const estado = (cambios = {}) => ({ avatar, gachamon, ...cambios });
 const cuenta = { estado: 'web' };
 const jugando = estado();
 
-// Los lugares, como los manda el servidor: tu casa, la Tienda, uno cerrado y
+// Los lugares, como los manda el servidor: tu departamento, la Tienda, uno cerrado y
 // «Aventura» a quien no tiene gachamon (con la primera aventura).
-const casa = { clave: 'casa', nombre: 'Tu casa', ofrece: ['departamento'] };
+const casa = { clave: 'casa', nombre: 'Tu departamento', ofrece: ['departamento'] };
 const laTienda = { clave: 'tienda', nombre: 'Tienda', ofrece: ['tienda'] };
 const cerrado = { clave: 'estadio', nombre: 'Estadio', ofrece: [] };
 const laAventura = { clave: 'aventura', nombre: 'Aventura', ofrece: ['aventura'] };
@@ -180,9 +180,9 @@ test('la tienda sólo se abre donde el lugar la ofrece', () => {
   assert.equal(siguiente(sesion, cuenta, en(['tienda']), 'otra cosa'), 'lugar');
 });
 
-test('en «Tu casa» la pantalla es el departamento', () => {
+test('en «Tu departamento» la pantalla es el departamento', () => {
   const en = (ofrece) => ({ ...jugando, lugar: { clave: 'x', nombre: 'X', ofrece } });
-  const enCasa = { ...jugando, lugar: { clave: 'casa', nombre: 'Tu casa', ofrece: ['departamento'] } };
+  const enCasa = { ...jugando, lugar: { clave: 'casa', nombre: 'Tu departamento', ofrece: ['departamento'] } };
   for (const vista of [undefined, 'lugar', 'tienda', 'incubadora', 'departamento', 'otra cosa']) {
     assert.equal(siguiente(sesion, cuenta, enCasa, vista), 'departamento');
   }

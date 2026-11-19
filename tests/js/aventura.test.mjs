@@ -252,7 +252,7 @@ const AVATAR = {
   nombre: 'Ana', genero: 'hembra', piel: 'clara', pelo: 'largo', color_de_pelo: 'rojo', ropa: 'camisa',
 };
 const AVENTURA = { clave: 'aventura', nombre: 'Aventura', abre: 'despues', aviso: null, ofrece: ['aventura'] };
-const CASA = { clave: 'casa', nombre: 'Tu casa', abre: 'ya', aviso: null, ofrece: ['departamento'] };
+const CASA = { clave: 'casa', nombre: 'Tu departamento', abre: 'ya', aviso: null, ofrece: ['departamento'] };
 const ANTES = [
   'Sales del pueblo por el sendero. Hoy vas tú solo.',
   'Entre los matorrales, algo se mueve.',
@@ -287,7 +287,7 @@ const POLLITO = {
   barras: { comida: 100, animo: 100, aseo: 100 }, cara: 'feliz', desfallecido: false,
   retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png', esperas: {}, titulo: null,
 };
-// Y el estado que contesta el encuentro: con él, en tu casa y sin guía.
+// Y el estado que contesta el encuentro: con él, en tu departamento y sin guía.
 const CON_EL_PRIMERO = sinGachamon({ gachamon: POLLITO, lugar: CASA, guia: null });
 const ENCONTRADO = { estado: CON_EL_PRIMERO, despues: DESPUES };
 
@@ -380,7 +380,7 @@ test('acercarte manda el encuentro una sola vez', { timeout: 2000 }, async () =>
   assert.equal(frase(contenedor).textContent, DESPUES[0]);
 });
 
-test('tras el encuentro se ve al gachamon, sus tres frases y «Volver a casa», que sigue con el estado recibido', { timeout: 2000 }, async () => {
+test('tras el encuentro se ve al gachamon, sus tres frases y «Volver a tu departamento», que sigue con el estado recibido', { timeout: 2000 }, async () => {
   const { contenedor, servidor, seguidos } = await abrir();
   servidor.responde('POST aventura/primera', ENCONTRADO);
   await hastaAcercarte(contenedor);
@@ -390,7 +390,7 @@ test('tras el encuentro se ve al gachamon, sus tres frases y «Volver a casa», 
   assert.ok(suyo);
   assert.equal(suyo.querySelector('img').getAttribute('src'), POLLITO.retrato);
   assert.equal(contenedor.querySelector('.escena-lugar').dataset.etapa, 'bebe');
-  // Las tres frases de después, con «Seguir», y tras la última «Volver a casa».
+  // Las tres frases de después, con «Seguir», y tras la última «Volver a tu departamento».
   assert.equal(frase(contenedor).textContent, DESPUES[0]);
   assert.equal(queDice(contenedor), 'Seguir');
   await avanza(contenedor).tocar();
@@ -398,7 +398,7 @@ test('tras el encuentro se ve al gachamon, sus tres frases y «Volver a casa», 
   assert.equal(queDice(contenedor), 'Seguir');
   await avanza(contenedor).tocar();
   assert.equal(frase(contenedor).textContent, DESPUES[2]);
-  assert.equal(queDice(contenedor), 'Volver a casa');
+  assert.equal(queDice(contenedor), 'Volver a tu departamento');
   // Ya no se vuelve al lugar: el gachamon ya es tuyo.
   assert.equal(volver(contenedor).seVe, false);
   assert.deepEqual(seguidos, []);
@@ -474,13 +474,13 @@ test('el foco queda en el botón que avanza', { timeout: 2000 }, async () => {
   await avanza(contenedor).tocar();
   assert.equal(documento.activeElement, avanza(contenedor));
   assert.equal(queDice(contenedor), 'Acercarte');
-  // …y con ella, en el que sigue con lo de después, hasta «Volver a casa».
+  // …y con ella, en el que sigue con lo de después, hasta «Volver a tu departamento».
   servidor.responde('POST aventura/primera', ENCONTRADO);
   await avanza(contenedor).tocar();
   assert.equal(documento.activeElement, avanza(contenedor));
   await avanza(contenedor).tocar();
   await avanza(contenedor).tocar();
-  assert.equal(queDice(contenedor), 'Volver a casa');
+  assert.equal(queDice(contenedor), 'Volver a tu departamento');
   assert.equal(documento.activeElement, avanza(contenedor));
 });
 
