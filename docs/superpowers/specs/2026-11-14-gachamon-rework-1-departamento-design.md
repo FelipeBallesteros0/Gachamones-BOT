@@ -244,7 +244,10 @@ Cómo queda **[propuesta, aceptada, salvo lo que se marca]**:
 - **Quitan crecimiento, y se acepta** **[Felipe, 2026-11-18]**: cuidar a un
   gachamon que está muy mal lo hace crecer más, y con la ducha y el
   refrigerador ya no llega a estarlo. Es el precio de la comodidad; no hay
-  regla que lo compense.
+  regla que lo compense. Simulando un mes, a quien entra unas tres veces al día
+  el refrigerador le deja cerca de la mitad de los saltos de estadística por
+  cuidar; con ese dato delante, Felipe eligió dejarlo como está y no avisarlo
+  en la Tienda **[Felipe, 2026-11-19]**.
 - Suman 3 de comodidad cada uno, como cualquier mueble.
 - **Lo que hacen se dice en una línea de la Tienda**, bajo el nombre de cada
   uno, y en ningún otro sitio por ahora **[Felipe, 2026-11-18]**.

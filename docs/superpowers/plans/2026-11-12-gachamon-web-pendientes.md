@@ -1538,6 +1538,13 @@ Son observaciones, no decisiones.
   - «No baja de 40» vale siempre, también contra lo que gastan los cuidados
     (entrenar o jugar gastan comida y ánimo): con el mueble puesto, la barra
     queda en 40 («Sí, vale siempre»).
+- **Lo que decidió el dueño** (2026-11-19, eligiendo entre opciones que se le
+  propusieron: avisarlo en la Tienda, dejarlo como está o que no quiten
+  crecimiento): «Dejarlo como está». Se le enseñó lo que salió de simular un mes
+  sobre el código del plan: a quien entra unas tres veces al día, el
+  refrigerador le deja 6 saltos de estadística por cuidar en vez de 11 (al mes,
+  salud 22 en vez de 26); a quien entra cada hora o una vez al día no le cambia;
+  monedas y experiencia, iguales. La regla no cambia y la Tienda no lo avisa.
 - **Las frases que aprobó** (2026-11-18, «Apruebo todas»): los nombres
   `Refrigerador`, `Consola`, `Ducha` y `Pesas`, y las cuatro líneas de la
   Tienda, que dicen que, con el mueble puesto, la comida, el ánimo o el aseo de
@@ -1585,14 +1592,25 @@ Son observaciones, no decisiones.
     `bandeja.js` y `ampliar.js`; la pantalla sigue guardando el estado y
     hablando con el servidor. Las pruebas del cliente vigilan listas de archivos
     escritas a mano: un módulo nuevo de la pieza se añade a ellas.
+  - La frase de usar comida de la mochila dice la comida que enseña la barra
+    también en el replay: la ruta pone al día la criatura que trae el resultado,
+    que la regla devuelve tal como está en la fila.
+  - Que ninguna barra se vea por debajo de su mínimo lo sujetan dos pruebas: una
+    recorre todas las rutas que enseñan barras con las filas por debajo de 40, y
+    una guarda lee el código de `web/` y sólo deja pasar las lecturas crudas de
+    gachamones que no miran barras, cada una con su porqué.
 
 ### Lo que resuelve de lo que dejaron pendiente los planes anteriores
 
-- Partir `departamento.js` (queda el transporte) y poner al día y guardar a todos
-  antes de cambiar lo que fija el ritmo.
-- Que el dueño viera el modo construcción (rework 5c) y la partida sin gachamon
-  (rework 6) en una página viva: ya pasó, el 2026-11-18, y dijo que estaban
-  bien.
+- Partir `departamento.js` (queda el transporte).
+
+Lo aprovecha, sin ser obra suya: poner al día y guardar a todos antes de cambiar
+lo que fija el ritmo ya lo hacía el plan de la vivienda; por eso poner o guardar
+uno de estos muebles parte el tiempo donde toca.
+
+Aparte, y no por este plan: el dueño probó el modo construcción (rework 5c) y la
+partida sin gachamon (rework 6) en una página viva el 2026-11-18 y dijo que
+estaban bien.
 
 ### Lo que queda
 
@@ -1613,11 +1631,35 @@ Son observaciones, no decisiones.
 - El caso de un mueble sin línea en la Tienda se prueba sólo con `null`.
 - La prueba que vigila que `caminantes.js` es puro sólo quita los comentarios
   `//`.
-- **Para el día de publicar:** este plan no trae migración ni cambia el día del
-  cambio: nadie tiene ninguno de los cuatro muebles ese día, así que nada cambia
-  para nadie hasta que compre y ponga uno. Llegan 20 archivos de arte nuevos (un
-  ícono y cuatro dibujos por mueble) y cambia `arte.json`; van con el despliegue
-  de siempre.
+- La pantalla apaga por nombre de clase (`queMandan`) botones que ya viven en
+  `menu.js`, `bandeja.js` y `ampliar.js`, junto a los `ocupar()` de otros
+  módulos: dos mecanismos para lo mismo, hasta que salga el transporte y cada
+  módulo tenga su `ocupar()`.
+- A qué lado del mueble va el gachamon se sortea entre todos los alcanzables:
+  uno que ya está pegado al mueble puede rodearlo.
+- La Tienda no avisa de que estos muebles cuestan crecimiento: así lo decidió el
+  dueño (ver arriba). Y no es sólo el refrigerador: la consola y la ducha
+  también recortan lo que deja cada cuidado (bañar con la ducha puesta ya no
+  hace crecer; jugar con la consola deja menos), aunque en esa simulación lo que
+  se nota es el refrigerador.
+- **Cuando vuelvan la aventura y competir:** con el refrigerador la comida nunca
+  baja de 40, así que el mínimo de comida para salir o competir deja de atar y
+  lo que gasta cada viaje o pelea se repone solo. Habrá que mirarlo entonces, y
+  sus comprobaciones tienen que leer por `db.avanzar`.
+- **Para el día de publicar:**
+  - Este plan no trae migración ni cambia el día del cambio: nadie tiene ninguno
+    de los cuatro muebles ese día, así que nada cambia para nadie hasta que
+    compre y ponga uno. Llegan 20 archivos de arte nuevos (un ícono y cuatro
+    dibujos por mueble), cambia `arte.json` y llegan cuatro módulos de
+    JavaScript nuevos (`caminantes.js`, `menu.js`, `bandeja.js` y `ampliar.js`);
+    van con el despliegue de siempre.
+  - El día del cambio deja estos muebles al alcance desde el primer día a quien
+    tenía una casa, por lo que se le devuelve.
+  - En la base, una barra por debajo de 40 con el mueble puesto es normal, y los
+    puntos de las pesas aparecen en la fila sólo tras el siguiente guardado:
+    nada que lea `criaturas` a mano vale para contestarle a un jugador.
+  - Volver atrás es restaurar la copia de la base, no mezclar versiones: el
+    código de antes no ve estos muebles y deja poner otro en su casilla.
 - Siguen sin decidir, de planes anteriores: la Tienda sin gachamon enseña textos
   que hablan de «tu gachamon activo»; «es {especie}» suena raro con algunas
   especies; y el mapa dice «Tu casa» mientras las frases dicen «tu
