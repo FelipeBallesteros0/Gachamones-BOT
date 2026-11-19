@@ -137,20 +137,25 @@ mismos módulos y la misma base `tamagotchi.db`; no importa `discord`, no guarda
 estado del juego en memoria y sabe quién eres sólo por la cookie de sesión de
 Rowino.
 
-El juego se ve como un pueblo: un mapa con nueve lugares por el que caminas con
-tu avatar y tu gachamon detrás. En todos puedes cuidarlo y acariciarlo; hoy
-están abiertos tu casa, la Incubadora, la tienda y, para quien aún no tiene
-gachamon, la primera aventura, y los demás avisan de que abren más adelante (el
-Refugio sigue en el mapa, cerrado: ya nadie vive en él). En la Tienda del pueblo
-se compran objetos, cosméticos (con gemas) y muebles, con el mismo dinero de
-siempre; lo que todavía no se puede usar en la página no se le vende a nadie. La
+El juego se ve como un pueblo: un mapa con siete lugares —tu departamento, la
+Tienda, la Plaza, el Barrio, el Estadio, el Cementerio y la Aventura— por el que
+caminas con tu avatar y tu gachamon detrás. En todos puedes cuidarlo y
+acariciarlo; hoy están abiertos tu departamento y la Tienda y, para quien aún no
+tiene gachamon, la primera aventura, y los demás avisan de que abren más
+adelante. El pueblo no tiene Refugio ni Incubadora: ya nadie vive en un refugio
+y lo que hacía la Incubadora se hace en tu departamento. Los lugares viven en
+`web/static/datos/pueblo.json`: qué hay, cómo se llaman, dónde están y por dónde
+se llega. En la Tienda del pueblo se compran objetos, cosméticos (con gemas) y
+muebles, con el mismo dinero de siempre; sin gachamon se ve igual, con una nota de
+que los objetos y los cosméticos piden uno, y lo que todavía no se puede usar en
+la página no se le vende a nadie. La
 mochila se abre desde cualquier lugar y sirve para usar lo que llevas, menos lo
 que sólo sirve para competir (las pociones de fuerza, de velocidad y de descanso
 rápido y las sopaipillas), que dice lo mismo que la Tienda y no se gasta. Desde
 cualquier lugar también se abre la ficha completa de tu gachamon, con sus
 medallas y los efectos que lleva activos, y el ropero, donde le pones y le
-quitas el sombrero y el título. La Incubadora enseña tu plantel: ahí sacas a
-otro gachamon para que sea el activo, y dice cuántos caben según las camas.
+quitas el sombrero y el título. Con quién sales se elige en tu departamento
+(«Salir con…»), donde ves a todo tu plantel; cuántos caben lo dicen las camas.
 
 **Cómo se empieza.** Quien llega nuevo crea su avatar y entra a su departamento
 sin gachamon y con el monedero en cero. Ahí la pantalla le dice siempre el paso
@@ -165,8 +170,8 @@ lugares se ven con el avatar solo y sin cuidados, la mochila se ve, la ficha y
 el ropero no se abren y la Tienda vende muebles. Quien ya jugaba conserva todo
 lo suyo; el huevo ya no existe en la página.
 
-**Tu casa** es la pieza de tu departamento, en vista isométrica y por casillas,
-con tus muebles y todos tus gachamones. Siempre entras en el modo normal, el de
+**Tu departamento** es una pieza en vista isométrica y por casillas, con tus
+muebles y todos tus gachamones. Siempre entras en el modo normal, el de
 vivir: tocas el suelo y tu avatar camina hasta ahí; tocas a un gachamon y abajo
 queda su ficha, con sus cuidados y «Salir con él»; «A todos» le hace un cuidado
 a cada uno de una vez. Para mover muebles, poner los que tienes guardados o
@@ -282,7 +287,7 @@ Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
 activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo
 por persona. Existe también cuidar **a todos** de una vez: le hace un cuidado a
 cada gachamon que puede recibirlo y paga como esos mismos cuidados hechos de a
-uno. En la web es el botón «A todos» de tu casa.
+uno. En la web es el botón «A todos» de tu departamento.
 
 La primera aventura da **sólo el de partida**: los demás hay que ganárselos en
 las aventuras, que están en pausa. Si una persona se quedó sin activo vivo
@@ -315,8 +320,8 @@ casas, el refugio, la intemperie y el huerto se fueron: el día del cambio se
 convierte una sola vez lo que cada persona tenía (se le devuelve lo que costaron
 sus casas, con 140 monedas más por cada una mediana o grande, y sus tickets, y
 se cosecha lo plantado), y una carta del alcalde se lo cuenta una vez. El huerto
-está cerrado hasta que vuelva con el balcón. La pantalla del departamento es «Tu
-casa» (ver «La web»).
+está cerrado hasta que vuelva con el balcón. En la página, la pantalla del
+departamento es «Tu departamento» (ver «La web»).
 
 **Nacer.** La especie sale por rareza: 12 % cada una de las siete comunes, 6 %
 las dos poco comunes y 4 % el dragón. Las estadísticas al nacer son **la base de
@@ -411,7 +416,9 @@ en ningún sitio: esperan su pantalla en la página. Volverán.
   hablarle, darle golosinas, presumir o esperar quieto. Cada opción suma a la
   confianza según el carácter de ambos más 1d8; a 100 se une, y a paciencia 0 se
   larga. Los dados deciden y el modelo sólo narra. Al unirse se pone un nombre él
-  solo (`nombres.py`) y su dueño se lo puede cambiar una vez.
+  solo (`nombres.py`) y su dueño se lo puede cambiar una vez: la regla sigue en el
+  servidor (`nacer.bautizar_a`) y ninguna pantalla la ofrece; en la página el
+  nombre se cambia con la placa con nombre de la mochila.
 - **Competir.** Tres tramos, cada uno `estadística + 1d20`; gana quien sume más.
   Hay cuatro modalidades: la carrera (de dos a cinco), el sumo (de dos o de
   cuatro, con torneo), el asalto al tótem (de dos a cinco) y el laberinto de
@@ -447,14 +454,40 @@ vincula, es otro (`cogs/mudanza.py`).
 | `objetos.py` | El catálogo de consumibles: precios, dados y qué hace cada uno. |
 | `departamento.py` | El departamento por casillas: los muebles, dónde cabe cada uno, las camas y la comodidad. |
 | `pantalla.py` | Los marcos de texto que usan `aventura.py` y `competir.py`. |
-| `db.py` | SQLite. |
-| `economia.py` | Monederos, topes UTC y operaciones económicas atómicas. |
+| `nacer.py` | Nacer: encontrar al primero, unirse un recluta y ponerle nombre. |
+| `nombres.py` | Los nombres que se pone un recluta él solo al unirse. |
+| `globos.py` | Lo que el gachamon dice por su cuenta: frases escritas, nunca la IA. |
+| `logros.py` | Las medallas, las del gachamon y las de la persona, y cuándo se cumplen. |
+| `cosmeticos.py` | Lo que se le pone encima a un gachamon: sombreros y títulos. |
+| `avatar.py` | El avatar de la persona: nombre, género, piel, pelo y ropa. |
+| `huerto.py` | Los porotos y las sopaipillas; el huerto está cerrado. |
+| `identidad.py` | Quién es quién en `usuario_id`: ids de Discord e identidades web. |
+| `vinculo.py` | Los códigos para vincular una cuenta de Rowino con una persona de Discord. |
+| `db.py` | SQLite: el esquema, las conexiones y las transacciones. |
+| `config.py` | La configuración que se lee del `.env`. |
+| `economia.py` | Monederos, topes UTC y operaciones económicas atómicas, y lo que corre una sola vez al arrancar (`poner_al_dia`). |
 | `economia_reporte.py` | Informe local agregado y reconciliación histórica. |
 | `aventura.py` | Biomas, el árbol de decisiones, hallazgos y las reacciones de un salvaje (en pausa). |
 | `retrato.py` | Qué criaturas tienen retrato en imagen y cuál les toca. |
+| `bot.py`, `comun.py` | El arranque del bot y lo que comparte. |
 | `cogs/mudanza.py` | El bot: `/vincular`, los avisos y la página del manual. |
-| `web/` | El servicio de la página. |
-| `fuentes/` | Las capas de los retratos: cuerpos, caras y sombreros. |
+| `web/` | El servicio de la página: cada pantalla es un router y un módulo de `web/static/js/` (ver abajo). |
+| `web/static/` | El cliente (JavaScript sin frameworks ni compilación), el pueblo en `datos/pueblo.json` y el arte. |
+| `fuentes/` | Las capas de los retratos (cuerpos, caras y sombreros) y los originales de la pieza del departamento. |
+| `herramientas/` | `rellenos` (los dibujos de relleno) y `pieza` (las copias reducidas de la pieza). |
+| `docs/` | `arte/contrato.md` (qué piezas de arte hacen falta) y `superpowers/` (diseños, planes y los pendientes). |
+| `tests/` | La suite de Python y, en `tests/js/`, las pruebas del cliente. |
+
+**`web/`, por dentro.** Cada pantalla tiene su router, que es un adaptador fino, y
+su módulo de JavaScript: la Tienda (`tienda.py`, `tienda.js`), la mochila, el
+ropero, la ficha, tu departamento (`departamento.py`, `departamento.js` y los
+módulos de la pieza), la carta del alcalde, la primera aventura, la cuenta y el
+juego del día a día. Lo común está aparte: `app.py` arma el servicio y monta los
+routers, `sesion.py` sabe quién eres, `estado.py` arma el estado que lee la
+pantalla, `pueblo.py` lee los datos del pueblo, `arte.py` es el contrato del arte
+y `retratos.py` sirve los retratos. El mapa y el lugar donde estás son del
+cliente (`mapa.js`, `lugar.js`), y lo puro de la pieza (`casillas.js`,
+`proyeccion.js`, `caminantes.js`) se prueba con Node.
 
 **Cómo se guarda el arte.** Cinco etapas por veinticinco especies, con tres
 estados de ánimo cada una, serían 375 dibujos. Pero casi todos se diferencian
@@ -581,8 +614,20 @@ Para comprobar manualmente los mismos gates del hook sobre todo el repositorio:
 GitHub Actions ejecuta la suite completa con las dos versiones soportadas de
 Python, 3.12 y 3.14, en cada `push` y `pull_request`.
 
+El cliente tiene sus propias pruebas, que corren con Node sin abrir ninguna
+pantalla:
+
+```bash
+node --test tests/js/*.test.mjs
+```
+
+(`node --test tests/js/` a secas falla en este Node: hay que pasar los archivos.)
+`tests/test_web_js.py` las corre dentro de la suite cuando hay Node, y se salta
+si no lo hay.
+
 Cubren la distribución de rarezas y del 2d6, la curva de decaimiento, las
 estadísticas, la resolución de competencias con dados fijos, la ida y vuelta
-contra SQLite, y que **ningún marco se descuadre** en las 60 combinaciones de
-especie, ánimo y etapa. El último es el que más veces ha salvado el proyecto: el
-ASCII se rompe con una facilidad asombrosa.
+contra SQLite, el servicio web ruta por ruta, el pueblo y el arte (si falta una
+pieza o no mide lo que dice el contrato), los textos que ve quien juega y que **ningún marco de texto se descuadre** en
+todas las combinaciones de especie, ánimo y etapa. Este último es el que más
+veces ha salvado el proyecto: el ASCII se rompe con una facilidad asombrosa.

@@ -1,7 +1,11 @@
-# Gachamon web — pendientes que dejó el plan 1
+# Gachamon web — pendientes y lo que salió de cada plan
 
-Lo que el plan 1 («reglas y bot») encontró y no le tocaba arreglar. Quien
-escriba el plan 2 o el proyecto 2 parte de aquí.
+El registro de todos los planes: empezó con lo que el plan 1 («reglas y bot»)
+encontró y no le tocaba arreglar, y cada plan y cada rework añadió después su
+sección («Salió al ejecutar…»). Quien escriba el plan siguiente parte de aquí. La
+lista para el día de publicar el rediseño, juntando lo de todas las secciones,
+es **«Para publicar»**, justo después de la sección del rework 8; las secciones
+«para el día de publicar» de cada plan se quedan donde están, como historia.
 
 ## Para el plan 2 (servidor web y pantalla principal)
 
@@ -486,14 +490,20 @@ sobre la misma base.
   pero la página todavía no tiene botones para ellas: llegan con el
   departamento en pantalla. Ahí también se decide si hay que estar en el
   departamento para cuidar a los que no salen contigo.
-- Cambiarle el nombre a un recluta desde su ficha de la web no existe todavía:
+- ~~Cambiarle el nombre a un recluta desde su ficha de la web no existe todavía:
   el servidor ya lo permite (`POST bautizar` con su `gachamon_id`) y la ficha
-  ya dice si se nombró solo.
-- El cliente de la web todavía sabe qué hacer con un recluta sin nombre
+  ya dice si se nombró solo.~~ **Cerrado en el rework 8:** no se construye esa
+  pantalla; el día del cambio se le regala una placa con nombre a cada quien por
+  cada recluta que se puso el nombre solo (decisión del dueño, 2026-11-19). La
+  regla del servidor sigue, sin pantalla.
+- ~~El cliente de la web todavía sabe qué hacer con un recluta sin nombre
   (`pantallas.js`, `entrada.js`, `incubadora.js`), aunque el servidor ya no
-  manda ninguno. Se va cuando se rehaga la entrada.
-- El lugar «Incubadora» de la web sigue existiendo, con su nombre: ahí se
-  elige con quién sales. Se va con el pueblo sin Refugio ni Incubadora.
+  manda ninguno. Se va cuando se rehaga la entrada.~~ **Hecho:** `incubadora.js` se
+  borró en el rework 8 y ningún módulo del cliente lee ya `sin_nombre`.
+- ~~El lugar «Incubadora» de la web sigue existiendo, con su nombre: ahí se
+  elige con quién sales. Se va con el pueblo sin Refugio ni Incubadora.~~
+  **Hecho en el rework 8:** la Incubadora ya no existe; con quién sales se elige
+  en tu departamento.
 - La mochila y el ropero siguen siendo sólo para el activo.
 - El monedero de quien empieza sigue siendo de 50 monedas y 50 gemas, y el
   huevo sigue existiendo: partir sin gachamon y con el monedero en 0 es del
@@ -529,7 +539,8 @@ sobre la misma base.
   misma transacción. Hoy mudar, comprar o vender una casa y el ticket del
   refugio no lo hacen; no le llega a nadie porque las casas y el refugio se van
   antes de publicar. (Hecho para los muebles: poner, guardar y ampliar ya
-  asientan al plantel; ver el rework 7.)
+  asientan al plantel, desde el plan de la vivienda, el rework 4; el rework 7 lo
+  aprovecha.)
 - **Para el plan de la vivienda:** el día del cambio grande tiene que salir con
   su propia sección de vuelta atrás desde el principio: cada paso de una sola
   vez con marca tiene la misma segunda trampa. Y cuando una regla diga que «la
@@ -678,11 +689,15 @@ Son observaciones, no decisiones.
   llama «Bañar»; los textos de la semilla, los porotos y la nota de la mochila
   dicen que el huerto vuelve más adelante.
 - **Por decidir (de producto, lo decide el dueño):**
-  - Quien ya tiene plantel propio en la página no puede vincular, y su plantel
-    de Discord queda guardado sin dónde jugarlo.
-  - El aviso le explica cómo vincular también a quien ya vinculó.
+  - ~~Quien ya tiene plantel propio en la página no puede vincular, y su plantel
+    de Discord queda guardado sin dónde jugarlo.~~ **Cerrada:** «Vincular se
+    queda como está» (el dueño, 2026-11-17, rework 6).
+  - ~~El aviso le explica cómo vincular también a quien ya vinculó.~~
+    **Cerrada:** el aviso se deja como está (el dueño, 2026-11-16, rework 5).
   - La descripción de las golosinas anuncia la aventura.
-  - Frases y textos en código en pausa que nombran comandos que ya no existen.
+  - ~~Frases y textos en código en pausa que nombran comandos que ya no
+    existen.~~ **Cerrada:** se reescriben con cada pantalla, cuando vuelva (el
+    dueño, 2026-11-16, rework 5).
 
 ### Pruebas
 
@@ -848,10 +863,12 @@ Son observaciones, no decisiones.
   y todo lo que vende la Tienda ya se puede poner. Cambiar de activo se hace
   ahora también desde el departamento; la Incubadora sigue sirviendo para lo
   mismo hasta el plan del pueblo, y dice cuántos caben por las camas.
-- **El pueblo**: el lugar «Refugio» sigue en el mapa, cerrado y con su aviso, y
-  «Tu casa» todavía no se llama «Tu departamento».
-  - La Incubadora dice «Caben 1 gachamones.» cuando cabe uno (antes siempre
-    eran 25); se va con esa pantalla.
+- ~~**El pueblo**: el lugar «Refugio» sigue en el mapa, cerrado y con su aviso, y
+  «Tu casa» todavía no se llama «Tu departamento».~~ **Hecho en el rework 8:** el
+  pueblo tiene siete lugares, sin Refugio ni Incubadora, y se llama «Tu
+  departamento».
+  - ~~La Incubadora dice «Caben 1 gachamones.» cuando cabe uno (antes siempre
+    eran 25); se va con esa pantalla.~~ **Hecho:** la pantalla se borró.
 - **Las aventuras y reclutar** siguen sin pantalla. Cuando vuelvan, el «hay
   sitio para un recluta» tiene que salir de las camas (`db.hay_cama_libre`).
 - **El huerto** está cerrado hasta el balcón. Los textos de la semilla y de los
@@ -863,14 +880,18 @@ Son observaciones, no decisiones.
 - En la carta, el nombre de la especie de un recluta sale en minúsculas («Tu
   octopul ahora se llama…»): si se prefiere con mayúscula es una palabra.
 - **Por decidir (de producto, lo decide el dueño):**
-  - Una casa **mejorada** costó más de lo que vuelve: se devuelve el precio de
+  - ~~Una casa **mejorada** costó más de lo que vuelve: se devuelve el precio de
     catálogo de la casa de hoy, y mejorar cobraba el precio nuevo menos el 80 %
-    de la vieja; hasta 140 monedas de diferencia por casa.
+    de la vieja; hasta 140 monedas de diferencia por casa.~~ **Cerrada:** el
+    dueño decidió que cada casa mediana o grande devuelva 140 monedas más (ver
+    «Lo decidido» del rework 5).
   - La comodidad de todos queda en 82 hasta que cada quien ponga sus muebles, y
     el tope ahora depende de las casillas.
-  - El reloj de todos parte del día del cambio, que es más generoso que «con la
-    comida en 0».
-  - La carta dice «por tus tickets» también cuando era uno.
+  - ~~El reloj de todos parte del día del cambio, que es más generoso que «con la
+    comida en 0».~~ **Cerrada:** se queda como está (la revisión final del
+    rework 4 lo juzgó bien, y sólo beneficia).
+  - ~~La carta dice «por tus tickets» también cuando era uno.~~ **Cerrada:** dice
+    «por tu ticket» cuando era uno (el dueño, rework 5).
 
 ### Pruebas
 
@@ -968,11 +989,13 @@ Son observaciones, no decisiones.
   huevo). Quitar la Incubadora de «cuántos caben». (Hecho en el rework 6: a la
   pantalla se llega sin gachamon y sin huevo, y el «nunca menos» de lo que
   caben en la Incubadora se quitó.)
-- **El pueblo** (el último plan): la Incubadora sigue sirviendo para cambiar de
+- ~~**El pueblo** (el último plan): la Incubadora sigue sirviendo para cambiar de
   activo, además del departamento, y «Tu casa» todavía no se llama «Tu
   departamento». `escenas/casa.png` sigue en el contrato del arte aunque ya no
   la pinta ninguna pantalla (en tu casa se ve la pieza): se saca con las del
-  Refugio y la Incubadora.
+  Refugio y la Incubadora.~~ **Hecho en el rework 8:** cambiar de activo se hace
+  sólo en tu departamento, el lugar se llama «Tu departamento» y la escena de la
+  casa salió del contrato del arte junto con las del Refugio y la Incubadora.
 - **El arte es de relleno**: cajas de color tan altas como la pared, que tapan
   mucho de la pieza. Con el arte del dibujante no pasará.
   - Lo primero al llegar arte más bajo que su caja: el toque sobre un mueble va
@@ -1488,9 +1511,9 @@ Son observaciones, no decisiones.
     sale en el registro del bot, no en el de la web.
   - **Quien tenga la página abierta en la pantalla del huevo** mientras se
     despliega verá «Eso no existe.» al romperlo, hasta que recargue.
-  - **Antes de publicar tiene que estar hecho el cambio de nombre de «Tu
+  - ~~**Antes de publicar tiene que estar hecho el cambio de nombre de «Tu
     casa»**, que es del plan del pueblo: las frases nuevas dicen «tu
-    departamento».
+    departamento».~~ **Hecho en el rework 8.**
 - Fuera del arranque quedan sitios que buscan una especie en el catálogo dando
   por hecho que está (la simulación, las aventuras, competir, los retratos…):
   con una especie que se quitara del catálogo fallarían. Hoy no hay ninguna
@@ -1498,8 +1521,9 @@ Son observaciones, no decisiones.
 - Quien sólo tuviera cosas en el ropero y ningún monedero nacería en 0 al
   devolvérsele un cosmético retirado; en producción esa devolución ya corrió y no
   puede darse.
-- La comprobación «estás en el lugar» está ya copiada en cuatro rutas (tienda,
-  incubadora, departamento, aventura).
+- La comprobación «estás en el lugar» está ya copiada en tres rutas (tienda,
+  departamento, aventura): la cuarta, la de la Incubadora, se fue con ella en el
+  rework 8.
 - `dejarDeEsperar` está casi igual en la Tienda y en la mochila.
 - El botón que lleva a la primera aventura deduce que hay cama libre de que el
   lugar «Aventura» no traiga aviso: si otro plan le pone un aviso, el botón
@@ -1508,15 +1532,17 @@ Son observaciones, no decisiones.
 - Vincular: una cuenta web de antes del cambio, sin gachamon, que vincula
   después con una identidad de Discord que nunca jugó deja atrás sus 50 monedas
   y 50 gemas, como su departamento. Así lo decidió el dueño (ver arriba).
-- La Tienda, sin gachamon, enseña los objetos con su precio activo aunque no se
-  puedan comprar; y sus descripciones hablan de «tu gachamon activo».
+- ~~La Tienda, sin gachamon, enseña los objetos con su precio activo aunque no se
+  puedan comprar; y sus descripciones hablan de «tu gachamon activo».~~
+  **Cerrada en el rework 8:** el dueño eligió enseñarlo todo con una nota (ver
+  abajo).
 - El dibujo del huevo sigue en la pantalla de inicio de sesión y en la marca de
   la barra, como adorno.
 - Quien pulse «Seguir» muy rápido pierde el clic repetido.
 - Qué se pinta en los lienzos (la escena, el fondo) no lo cubre ninguna prueba de
   JavaScript.
-- La Incubadora entera se retira en un plan posterior; hasta entonces, sin
-  gachamon, no se abre.
+- ~~La Incubadora entera se retira en un plan posterior; hasta entonces, sin
+  gachamon, no se abre.~~ **Hecho en el rework 8.**
 
 ## Salió al ejecutar el rework 7 (los muebles que se usan solos)
 
@@ -1571,7 +1597,9 @@ Son observaciones, no decisiones.
     los puntos de fuerza por día.
   - `sim.avanzar` los aplica, también sin tiempo transcurrido (sin tocar
     `actualizada_en`), y toda lectura de un gachamon pasa por ahí. Por eso no
-    hizo falta tocar `db.py` ni `economia.py`: poner, guardar y ampliar ya
+    hizo falta cambiar ninguna regla de `db.py` ni de `economia.py` (de `db.py`
+    sólo cambió el docstring de `db.avanzar`, que ahora dice lo que pasa si se
+    olvida): poner, guardar y ampliar ya
     asientan antes de cambiar el ritmo. En la base puede quedar guardado un valor
     por debajo de 40 hasta el siguiente guardado, pero ninguna lectura lo enseña
     ni decide con él.
@@ -1660,10 +1688,305 @@ estaban bien.
     nada que lea `criaturas` a mano vale para contestarle a un jugador.
   - Volver atrás es restaurar la copia de la base, no mezclar versiones: el
     código de antes no ve estos muebles y deja poner otro en su casilla.
-- Siguen sin decidir, de planes anteriores: la Tienda sin gachamon enseña textos
+- ~~Siguen sin decidir, de planes anteriores: la Tienda sin gachamon enseña textos
   que hablan de «tu gachamon activo»; «es {especie}» suena raro con algunas
   especies; y el mapa dice «Tu casa» mientras las frases dicen «tu
-  departamento» (es del plan del pueblo, y tiene que estar antes de publicar).
+  departamento» (es del plan del pueblo, y tiene que estar antes de publicar).~~
+  **Las tres quedaron cerradas en el rework 8** (ver su sección).
+
+## Salió al ejecutar el rework 8 (el pueblo sin Refugio ni Incubadora, y los documentos)
+
+### Lo decidido
+
+- **Lo que decidió el dueño** (2026-11-14, en el diseño): que el mapa pierda el
+  Refugio y la Incubadora, que «Tu casa» pase a llamarse «Tu departamento» y que
+  lo que hacían se haga en el departamento (aceptó la propuesta).
+- **Lo que decidió el dueño** (2026-11-19, eligiendo entre opciones que se le
+  propusieron):
+  - Las tres frases que nombraban la casa pasan a decir «tu departamento»
+    («Apruebo las tres»): la de la Tienda al comprar un mueble, el botón del mapa
+    y el último botón de la primera aventura.
+  - El globo del lugar: «Aquí se oye el silencio del edificio.»
+  - La Tienda sin gachamon: «Enseñarlo todo con una nota», y aprobó la frase de
+    la nota.
+  - La frase del encuentro concuerda con el género: «es un…» para un macho y
+    «es una…» para una hembra.
+  - Las placas con nombre: «Una por cada recluta».
+- **Lo que escribió el dueño** (2026-11-19, no era una de las opciones): sobre el
+  cambio de nombre de los reclutas que se nombraron solos, «les regalas una placa
+  con nombre en su lugar, es mas sencillo». Es decir: no se construye una
+  pantalla para cambiarles el nombre; se les regala una placa.
+- **Lo que aprobó el dueño** (2026-11-19): el plan («Apruebo, ejecútalo») y las
+  tres frases de la carta del alcalde sobre las placas («Apruebo las tres»).
+- **Lo que el plan propuso y el dueño aprobó con él** (no son decisiones suyas):
+  - La pantalla de la Incubadora se borra entera, con su botón «Tu plantel»:
+    ver a todos y elegir con quién sales ya se hace en tu departamento.
+  - Quien se quedó parado en el Refugio o en la Incubadora aparece en su
+    departamento.
+  - La regla del servidor que deja cambiarle el nombre una vez a un recluta se
+    queda como está, sin pantalla.
+  - Las placas se regalan el día del cambio, a los reclutas vivos, y la carta lo
+    dice.
+  - La nota de la Tienda sale sobre las pestañas de objetos y de cosméticos
+    mientras no tengas ningún gachamon; la de muebles no la lleva.
+  - El dibujo de relleno de la escena de la casa, que ninguna pantalla pinta,
+    sale del contrato del arte.
+- **Las frases** (letra por letra; las del dueño de arriba y estas, que aprobó el
+  2026-11-19):
+  - El lugar: `Tu departamento`, y su «hacia», `a tu departamento` (el botón del
+    mapa lee «Volver a tu departamento»).
+  - La Tienda, al comprar un mueble: `Compraste {nombre}. Quedó en tus guardados:
+    en tu departamento, entra a «Construir».`
+  - La nota de la Tienda sin gachamon: `Para comprar objetos y cosméticos hace
+    falta un gachamon. Los muebles sí los puedes comprar.`
+  - El encuentro: `Sale de su escondite: es un {especie}.` y `Sale de su
+    escondite: es una {especie}.`
+  - La carta, por cada recluta que se nombró solo: `Tu {especie} ahora se llama
+    {nombre}. Se puso el nombre solo.` (pierde «, y se lo puedes cambiar una
+    vez»); y después, una línea más: `Te dejé una placa con nombre en tu mochila,
+    por si le quieres cambiar el nombre.` o, con varias, `Te dejé {n} placas con
+    nombre en tu mochila, por si les quieres cambiar el nombre.`
+  - Se van con sus pantallas todas las frases de la Incubadora y el aviso del
+    Refugio. La línea de la carta sobre los tickets del refugio se queda: habla
+    del pasado y es cierta.
+- **Decisiones técnicas** (se pueden cambiar):
+  - La clave interna del lugar sigue siendo `casa` (datos, código, pruebas y
+    arte): sólo cambian su nombre y su «hacia».
+  - Los dos lugares salieron de `web/static/datos/pueblo.json` con sus nodos y
+    sus aristas, y el fondo del pueblo se rehízo sin los caminos hacia ellos.
+  - Sin migración de `cuentas_web.lugar`: quien tenía guardado un lugar que ya no
+    existe cae a su departamento (`pueblo.donde_esta`), y la fila conserva la
+    clave vieja hasta que la persona camine, sin hacer daño.
+  - `dicho_de_salir` y `NO_ESTA` viven en `web/departamento.py`; las dos rutas de
+    la Incubadora contestan el 404 de siempre.
+  - Lo que las pruebas de la Incubadora comprobaban de otras cosas se mudó antes
+    de borrarlas.
+  - La conciliación tras el día del cambio no se arregla en el código: queda dicho
+    en «Para publicar» cómo cuadrarla.
+
+### Cómo quedó
+
+- **El pueblo tiene siete lugares**: tu departamento, la Tienda, la Plaza, el
+  Barrio, el Estadio, el Cementerio y la Aventura. Hoy están abiertos tu
+  departamento y la Tienda; «Aventura» abre sólo la primera aventura de quien no
+  tiene gachamon (y no lleva aviso: ver más abajo); los demás siguen cerrados.
+- **«Tu departamento»** es el nombre en todo lo que lee quien juega: el mapa, la
+  cabecera de la pieza, el botón de volver, la Tienda al comprar un mueble y el
+  último botón de la primera aventura.
+- **La Incubadora no existe**: ni su router, ni su módulo de JavaScript, ni el
+  botón «Tu plantel». Con quién sales se elige en tu departamento
+  («Salir con…», `POST /departamento/salir`).
+- **El nombre de los reclutas**: la regla de cambiarlo una vez sigue en el
+  servidor (`nacer.bautizar_a`, `POST /bautizar` con `gachamon_id`) y ninguna
+  pantalla la ofrece. En la página se cambia con la placa con nombre de la
+  mochila, que cambia el del gachamon que sale contigo.
+- **El día del cambio regala una placa con nombre por cada recluta vivo que se
+  puso el nombre solo**, en la mochila y dentro de la misma transacción del
+  cambio. La carta guarda `placas` y lo dice, y el resumen del cambio, que el
+  arranque deja en el registro, lleva la cifra. No toca monedas ni gemas ni
+  escribe en el libro de operaciones.
+- **La Tienda sin gachamon** enseña todo y lleva una nota arriba de los objetos y
+  de los cosméticos (no de los muebles); el servidor la manda en `aviso` mientras
+  la persona no tenga ningún gachamon vivo.
+- **El encuentro** de la primera aventura concuerda con el género.
+- **Los globos del lugar** (`DEL_LUGAR` y `PROPIAS_DEL_LUGAR`) tienen las mismas
+  claves que el pueblo.
+- **El arte** sigue siendo de relleno; el contrato ya está al día.
+- **La lista «¿Adónde vamos?» del mapa**: el 📍 del lugar donde estás va pegado a
+  la esquina del botón y las celdas son algo más anchas, para que quepa «Tu
+  departamento»; en pantallas de menos de unos 384 px de ancho la lista pasa a dos
+  columnas.
+- **Los documentos**: el README cuenta el juego como es hoy, `AGENTS.md` tiene al
+  día los tres invariantes que cambiaron, este registro tiene su título y su
+  lista para publicar, y el diseño de la parte A lleva una nota arriba.
+
+### Lo que resuelve de lo que dejaron pendiente los planes anteriores
+
+- Quitar el lugar «Incubadora» y el Refugio del mapa; «Tu casa» → «Tu
+  departamento» (lo que había que hacer antes de publicar).
+- El cambio de nombre de los reclutas desde una pantalla: cerrado con la placa.
+- Lo del recluta sin nombre en el cliente, y «Caben 1 gachamones.».
+- `escenas/casa.png` fuera del contrato del arte.
+- La comprobación «estás en el lugar» copiada en cuatro rutas: quedan tres.
+- Los dos menores de documentos que dejó el rework 7: la sección del rework 2 ya
+  no le atribuye al rework 7 algo que hizo el plan de la vivienda, y la del 7
+  dice que de `db.py` sólo cambió un docstring.
+- Decisiones de producto que quedan cerradas: «Tu casa» frente a «tu
+  departamento», la Tienda sin gachamon, «es {especie}», y el cambio de nombre de
+  los reclutas. Y las que seguían escritas como abiertas: vincular con plantel
+  propio («se queda como está»), los textos en pausa (se reescriben con cada
+  pantalla), el aviso del bot a quien ya vinculó, la casa mejorada y «por tu
+  ticket», y el reloj desde el día del cambio.
+
+### Lo que queda
+
+- Con la letra agrandada (desde un 115 %, más o menos) el 📍 de la lista del mapa
+  pisaría la primera letra de «Cementerio»; y en `estilo.css` quedaron dos
+  propiedades de ese botón que ya no hacen nada.
+- La cabecera «📍 Tu departamento» no se midió por debajo de 390 px (a 320 se
+  recortaría con puntos suspensivos).
+- `web/ficha.py` importa `NO_ESTA` de `web/departamento.py`: un router importa de
+  otro (sin ciclo; podría vivir en `web/estado.py`).
+- La regla de cambiarle el nombre una vez a un recluta sigue en el servidor sin
+  pantalla: decidir qué se hace con ella cuando vuelva reclutar.
+- La Tienda mira «no tiene ningún gachamon» poniendo al día a todo el plantel
+  (barato con planteles chicos).
+- La prueba de «ninguna marca de género sin resolver» en el encuentro usa una
+  sola especie.
+- Comentarios de pruebas que todavía dicen «tu casa».
+- **El dueño todavía no ha probado este plan en una página viva** (sí probó el
+  modo construcción y la partida sin gachamon el 2026-11-18, y los muebles que se
+  usan solos el 2026-11-19).
+- Siguen sin hacer, de planes anteriores y de fuera de este rediseño: reclutar en
+  la web, las aventuras de siempre, competir, conversar, el huerto, el cementerio
+  como lugar para explorar, los lugares cerrados, el arte de verdad, sacar el
+  «transporte» de `departamento.js` y decir junto a la barra que un mueble la
+  sostiene.
+- **No ponerle aviso al lugar «Aventura»**: el botón de la primera aventura
+  deduce que hay cama libre de que ese lugar no traiga aviso (ver el rework 6).
+- Para el día de publicar: ver **«Para publicar»**, abajo.
+
+## Para publicar
+
+La lista única para el día de publicar el rediseño entero (los reworks 1 a 8), en
+orden y sin repetir. Cada paso dice qué se hace, cómo se comprueba y qué se
+espera ver. Se contrastó con los guiones `actualizar-pi.sh` y `deploy.sh`, con
+`economia.poner_al_dia` y con `economia_reporte.py`; el porqué de cada punto está
+en las secciones «Al publicar», «Si hubiera que volver atrás» y «Lo que queda» de
+cada rework, donde se quedan como historia.
+
+**Tres pasos necesitan el permiso expreso del dueño y no se dan por concedidos:**
+copiar la base de producción para el ensayo (paso 3), fusionar y subir (paso 6) y
+desplegar (paso 9). Sin una respuesta suya a cada uno, no se hace. Y mirar la base
+de producción por cualquier otra razón (por ejemplo, contar cartas) también
+pide permiso.
+
+### Antes (en local, sin tocar producción)
+
+1. **Cerrar el rework 8 y que el dueño lo pruebe.** Se hace: la suite entera
+   (`./venv/bin/python -m pre_commit run --all-files`, que incluye las pruebas de
+   JavaScript, y `git diff --check`) y una página viva con bases temporales para
+   que el dueño recorra el mapa de siete lugares, tu departamento, la Tienda sin
+   gachamon y la primera aventura. Se espera: todo en verde y el visto bueno del
+   dueño. El modo construcción y la partida sin gachamon ya los probó (2026-11-18)
+   y los muebles que se usan solos también (2026-11-19); el rework 8, no.
+2. **Dejar dicha la conciliación.** Tras el día del cambio, el informe de
+   conciliación (`economia_reporte.py`) no cuadra: lo que el cambio devuelve por
+   casas y tickets no pasa por el registro de operaciones (a propósito: una
+   devolución no es una ganancia). No se arregla en el código. Se hace: tenerlo
+   presente al leer el informe del paso 4 (y, después, el del día). Se espera: que
+   la diferencia entre los saldos y lo esperado sea justo la suma de lo devuelto
+   por casas y tickets que dicen las cartas (`monedas_por_casas` y
+   `monedas_por_tickets`). Las gemas de las medallas tampoco pasan por el registro,
+   pero el informe sólo mira monedas: se cuadran con `gemas_por_medallas`.
+3. **Pedir el permiso expreso del dueño para copiar la base de producción y
+   ensayar con ella.** Se hace: pedirlo, y esperar el sí. Se espera: un sí o un no
+   explícitos. Sin él, el ensayo no se hace y se vuelve a decidir con el dueño.
+4. **El ensayo sobre la copia** (fuera de la Pi, nunca contra la base viva).
+   Se hace: arrancar el código nuevo sobre la copia (`RUTA_BD` apunta a ella; el
+   arranque corre `economia.poner_al_dia`) y mirar:
+   - monedas devueltas = la suma de los precios de catálogo de las casas, más 140
+     por cada casa mediana o grande, más 40 por ticket (los de las mochilas y los
+     del buzón sin recoger); y monedas y gemas de cada persona = las de antes más
+     lo devuelto y lo pagado: nadie con menos;
+   - las tablas de casas, muebles de antes y huerto, vacías; tantos departamentos
+     y cartas como personas;
+   - quién tiene 21 o 24 gachamones vivos: son los planteles donde el alcalde
+     corrió una cama para dejar libre la puerta;
+   - las especies que hay en la base contra el catálogo: fuera del arranque hay
+     sitios que dan por hecho que la especie existe, y con una quitada fallarían;
+   - las gemas por medallas, en las cartas (`gemas_por_medallas`): como mucho lo
+     que valen las tres medallas de la persona, por persona;
+   - que ninguna tabla vieja guarde ids con otro tipo (si no, una misma persona
+     saldría dos veces y el cambio entero se desharía);
+   - las placas regaladas: el aviso del arranque da la cifra, y tiene que
+     coincidir con la suma de `placas` de las cartas y con los reclutas vivos que
+     se nombraron solos;
+   - la línea del día del cambio en el registro: **cinco cifras** (personas,
+     camas, monedas devueltas, gemas pagadas por medallas y placas), una sola vez;
+   - la conciliación, con lo del paso 2.
+   Se espera: todo lo anterior cuadra y el arranque no se detiene. Si no cuadra,
+   no se publica.
+5. **Mirar la copia ensayada con un veterano.** Se hace: abrir la página sobre la
+   copia con una cuenta de alguien que ya jugaba (con Rowino de pruebas) y mirar el
+   mapa, la Tienda y la carta. Se espera: siete lugares, sin Refugio ni
+   Incubadora; la Tienda con sus muebles y objetos; la carta con sus frases y, si
+   tenía reclutas que se nombraron solos, la línea de las placas, y esas placas en
+   su mochila.
+6. **Pedir el permiso expreso del dueño para fusionar `rework/1-departamento` en
+   `main` y subirla.** Se hace: pedirlo, y esperar el sí; después, fusionar y
+   subir. Se comprueba: que `origin/main` es ascendiente de la rama (avance rápido:
+   `git merge-base --is-ancestor origin/main HEAD`) y que la integración continua
+   pasa en las dos versiones de Python, 3.12 y 3.14. Se espera: la CI en verde.
+   Sin ese verde, no se despliega.
+
+### El día
+
+7. **Parar el bot y la web** antes de copiar la base: `actualizar-pi.sh` saca su
+   copia al principio, con el bot de antes todavía en marcha, y copiar una base en
+   uso no garantiza una copia sana. Se hace: por SSH, `sudo systemctl stop
+   tamagotchi gachamon-web`. Se comprueba: `systemctl is-active` de los dos. Se
+   espera: `inactive`.
+8. **Copiar la base y guardar la copia fuera de la rotación de cinco**, y apuntar
+   en qué commit está la Pi. El guion conserva sólo las 5 últimas
+   `tamagotchi.db.*.bak`, y cada despliegue añade la suya; una copia con otro
+   nombre o en otra carpeta no se borra. El commit de antes también queda en
+   `.git/gachamon-anterior` de la Pi, pero lo sobrescribe el siguiente
+   despliegue: anótalo. Se espera: la copia aparte y el commit anotado. (Sacar la
+   copia de la Pi pide permiso; dejarla en la Pi, no.)
+9. **Pedir el permiso expreso del dueño y desplegar con `actualizar-pi.sh`**, no
+   con `deploy.sh`: `deploy.sh` copia la carpeta local y no `main`, y deja la web
+   vieja viva unos segundos sobre la base que el bot nuevo ya migró. Se hace:
+   `SIN_TESTS=1 ./actualizar-pi.sh` (la CI ya pasó). El guion reinicia **primero
+   el bot**: el día del cambio lo hace el bot, y su aviso sale en el registro del
+   bot. En el mismo arranque corren antes, en otra transacción, las marcas de
+   nadie muere, el tiempo para todos y los nombres; si el día del cambio se
+   detuviera, esas ya quedaron hechas. Se comprueba: el guion termina con
+   «Listo», con `is-active` de los dos servicios y con la salud de la web
+   (`/gachamon/api/salud`). Se espera: ningún error; si el guion falla, su última
+   línea dice cómo arrancar la web a mano.
+10. **Mirar el registro** (`ssh <la Pi> 'journalctl -u tamagotchi -u
+    gachamon-web'`). Se espera: la línea del día del cambio, una sola vez, con
+    las cifras del ensayo (paso 4); una línea de comandos sincronizados por
+    servidor (desaparecen los de antes y quedan `/vincular`, `/mascota` y
+    `/huevo`); y un «Manual al día» por canal de información (edita la primera
+    página y borra las demás). Contar cartas o mirar `cambios_hechos` en
+    producción pide permiso.
+11. **Si en algún arranque hubiera departamentos sin la marca del cambio** (no
+    debería: sólo pasa en una base de desarrollo, o con una base restaurada a
+    medias), el arranque se detiene a propósito y lo reintenta cada pocos
+    segundos, llenando el registro. No tocar nada; ir al paso 16.
+
+### Después
+
+12. **Quien tenga la página abierta** en la Incubadora (o en el huevo) verá «Eso no
+    existe.» hasta que recargue; quien estaba parado en el Refugio o en la
+    Incubadora aparece en su departamento; el mapa tiene siete lugares. No es un
+    fallo (la ruta de la Incubadora ya no existe: 404). Se espera: tras recargar,
+    todo normal.
+13. **Quien jugaba sólo en Discord ve su carta al vincular**; quien ya había abierto
+    la página sin vincular ve dos: la de su identidad web y, al vincular, la suya.
+14. **Limpiar a mano** el manual que haya quedado en canales que ya no estén
+    configurados y, si hiciera falta, los avisos que el bot dejó en menciones.
+    Se espera: ningún manual viejo suelto.
+15. **Tener presente para leer la base**: una barra por debajo de 40 con su mueble
+    puesto es normal (toda lectura pasa por `db.avanzar`), y los puntos de las
+    pesas aparecen en la fila sólo tras el siguiente guardado. Nada que lea
+    `criaturas` a mano vale para contestarle a un jugador. No hay migraciones
+    nuevas por los reworks 7 y 8, y la columna `monederos.partida` (del rework 6)
+    se confirma antes de la transacción del cambio.
+
+### Si hubiera que volver atrás
+
+16. **La única vuelta es restaurar la copia de la base de antes y el código de
+    antes, las dos cosas juntas** (con el bot y la web parados); no se mezclan
+    versiones. Lo jugado desde el cambio se pierde. Desde el rework 6, el código de
+    antes no arranca sobre la base ya preparada, así que las recetas SQL de los
+    reworks 1 y 2 no bastan solas. Si el guion falla después del reinicio (la base
+    ya está convertida), no se vuelve al commit anterior sin restaurar la copia;
+    si falla antes, él mismo vuelve al commit en el que estaba. Se comprueba: los
+    dos servicios activos y la salud de la web. Se espera: el juego de antes, con
+    la gente como estaba en la copia.
 
 ## Para el plan 6 (tu casa)
 

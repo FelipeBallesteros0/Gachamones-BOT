@@ -75,7 +75,7 @@ Instala el hook local cuando prepares el entorno:
 - El activo es el que sale contigo: el que compite, va de aventura y conversa. Cambiar de activo no duerme ni despierta a nadie, ni le borra el tiempo a ninguno.
 - Cada cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo por persona.
 - «A todos» le hace un cuidado a cada gachamon que puede recibirlo —le serviría y no está esperando— y paga como esos mismos cuidados hechos de a uno.
-- Un recluta llega con un nombre que se pone él solo, de `nombres.py`, y su dueño se lo puede cambiar una vez. Ningún gachamon está sin nombre.
+- Un recluta llega con un nombre que se pone él solo, de `nombres.py`, y su dueño se lo puede cambiar una vez: esa regla vive en el servidor (`nacer.bautizar_a`, `POST /bautizar` con `gachamon_id`) y ninguna pantalla la ofrece; en la página el nombre se cambia con la placa con nombre. Ningún gachamon está sin nombre.
 - Lo que se hace una sola vez al arrancar deja su marca en `cambios_hechos`, en la misma transacción que el cambio.
 - Cada estadística se entrena por su vía —alimentar la salud, jugar la velocidad, entrenar la fuerza y conversar bien el ingenio—, salvo la fuerza, que tiene otra: las pesas del departamento.
 - El techo de una estadística lo fija `sim.MAXIMO_STAT` y se aplica en `stat_final`, el embudo por el que pasan las cuatro.
@@ -114,7 +114,7 @@ Instala el hook local cuando prepares el entorno:
 - El cliente reconoce esos muebles por la marca `uso` que manda el servidor, nunca por su clave; que un gachamon se acerque a uno es sólo de la pantalla: no se guarda ni se manda.
 - Antes de cambiar lo que fija el ritmo (poner o guardar un mueble, ampliar) se pone al día y se guarda a todos los vivos, en la misma transacción (`db.asentar_el_plantel_en`).
 - Ampliar se compra estando en el departamento; lo demás, en la Tienda. El mueble que se compra llega a guardados.
-- El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, paga a cada persona las medallas de persona que ya tenía ganadas y sin cobrar (`economia._pagar_logros_de_persona_en`) y le deja una carta que la página enseña una vez.
+- El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, paga a cada persona las medallas de persona que ya tenía ganadas y sin cobrar (`economia._pagar_logros_de_persona_en`), le regala una placa con nombre por cada recluta vivo que se puso el nombre solo y le deja una carta que la página enseña una vez.
 - Se parte sin gachamon y sin huevo: el primero lo crea `nacer.encontrar_al_primero`, detrás de la ruta de la primera aventura (`web/aventura.py`), y ninguna ruta de la web crea un gachamon sin pedir cama.
 - Un monedero nace con 50 monedas y 50 gemas antes del día del cambio y con 0 y 0 después; lo anota en `monederos.partida`, y la regla vive en `db` (`db.PARTIDA_DE_UN_MONEDERO_NUEVO`). El propio día del cambio le crea el suyo con 50 y 50 a quien ya estaba (`ya_estaba`), aunque la marca ya esté escrita, y todo lo que cree monederos dentro del cambio va después de esa llamada.
 - Las casas, el refugio, la intemperie y el huerto por casa ya no existen; sus tablas siguen en el esquema, sin uso.
@@ -163,7 +163,7 @@ Instala el hook local cuando prepares el entorno:
 - Usar un objeto que no haría nada —comida con la barra llena, un reinicio sin espera que borrar— se rechaza sin gastarlo.
 - Cambiar de gachamon activo es una regla del juego (`economia.cambiar_de_activo`): sólo cambia quién sale contigo, y elegir a la que ya es la activa no cambia nada.
 - Ponerle nombre a un gachamon concreto es una regla (`nacer.bautizar_a`): sólo a uno tuyo y vivo que todavía lo espere o que se lo haya puesto él solo, nunca con el nombre de su especie.
-- En la web se cambia de activo estando en la Incubadora o en tu departamento (`POST /departamento/salir`); vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
+- En la web se cambia de activo sólo en tu departamento (`POST /departamento/salir`); vestir, desvestir y usar le caen sólo al gachamon que enseña la pantalla.
 
 ## Arte de texto
 

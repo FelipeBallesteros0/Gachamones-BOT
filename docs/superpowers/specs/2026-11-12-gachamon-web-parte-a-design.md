@@ -1,5 +1,11 @@
 # Gachamon en la web — Parte A: cuidar y pasear
 
+> **Nota (2026-11-19):** este diseño describe el pueblo de antes del rediseño:
+> nueve lugares, casas, Refugio e Incubadora. Ya no es así: hoy el pueblo tiene
+> siete lugares y cada persona tiene un solo departamento por casillas. Lo que
+> rige está en
+> `docs/superpowers/specs/2026-11-14-gachamon-rework-1-departamento-design.md`.
+
 Diseño acordado con Felipe el 2026-11-12. Describe **qué** se construye y
 **por qué**; el plan de tareas se escribe después, a partir de este documento.
 
