@@ -1,5 +1,6 @@
 """Reglas del juego: decaimiento, muerte, acciones, stats y niveles."""
 import random
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -111,6 +112,106 @@ def test_la_suciedad_amarga_el_animo_pero_no_mata():
     assert b.animo < a.animo
     # Lo que no hace la suciedad es tocar el hambre.
     assert abs(a.hambre - b.hambre) < 0.001
+
+
+# --- Los muebles que cuidan solos: suelos y pesas ---------------------------
+
+def test_cada_suelo_frena_su_barra_y_no_las_otras():
+    """El refrigerador sostiene la comida, la consola el ánimo y la ducha el
+    aseo; cada uno la suya y ninguna otra, aunque pase un mes."""
+    un_mes = T0 + timedelta(days=30)
+    for suelo, barra in (
+        ("suelo_de_hambre", "hambre"),
+        ("suelo_de_animo", "animo"),
+        ("suelo_de_limpieza", "limpieza"),
+    ):
+        c = sim.avanzar(criatura(), un_mes, sim.Ritmo(**{suelo: 40.0}))
+        barras = {"hambre": c.hambre, "animo": c.animo, "limpieza": c.limpieza}
+        assert barras == {b: (40.0 if b == barra else 0.0) for b in barras}, suelo
+
+
+def test_una_barra_bajo_su_suelo_sube_aunque_no_pase_el_tiempo():
+    """Al poner el mueble, la barra sube a su suelo en el acto, sin esperar a
+    que pase el tiempo y sin moverle el reloj. Sin nada que subir, la misma."""
+    suelos = sim.Ritmo(suelo_de_hambre=40.0, suelo_de_animo=40.0, suelo_de_limpieza=40.0)
+    c = criatura(hambre=10.0, animo=5.0, limpieza=0.0)
+
+    subida = sim.avanzar(c, c.actualizada_en, suelos)
+    assert (subida.hambre, subida.animo, subida.limpieza) == (40.0, 40.0, 40.0)
+    assert subida.actualizada_en == c.actualizada_en
+    assert subida == replace(c, hambre=40.0, animo=40.0, limpieza=40.0)
+
+    assert sim.avanzar(subida, subida.actualizada_en, suelos) is subida
+    assert sim.avanzar(c, c.actualizada_en - timedelta(minutes=5), suelos) == subida
+    assert sim.avanzar(c, c.actualizada_en) is c
+
+
+def test_con_el_suelo_del_aseo_el_animo_no_cae_como_sucio():
+    """El castigo por sucia se decide con el aseo ya subido a su suelo: con la
+    ducha puesta, lo guardado por debajo de 30 no le amarga el ánimo."""
+    diez_horas = T0 + timedelta(hours=10)
+    con_ducha = sim.avanzar(
+        criatura(limpieza=10.0), diez_horas, sim.Ritmo(suelo_de_limpieza=40.0)
+    )
+    limpia = sim.avanzar(criatura(limpieza=100.0), diez_horas)
+    sucia = sim.avanzar(criatura(limpieza=10.0), diez_horas)
+    assert con_ducha.animo == pytest.approx(limpia.animo)
+    assert con_ducha.animo > sucia.animo
+
+
+def test_las_pesas_dan_un_punto_por_medianoche_utc():
+    """El punto llega al pasar la medianoche UTC, el mismo día de los topes:
+    se cuentan medianoches y no tramos de 24 h, así que da igual en cuántos
+    tramos se parta el tiempo."""
+    pesas = sim.Ritmo(fuerza_por_dia=1)
+    noche = datetime(2026, 1, 1, 23, 59, tzinfo=timezone.utc)
+    madrugada = datetime(2026, 1, 2, 0, 1, tzinfo=timezone.utc)
+
+    def entrena(desde: datetime, hasta: datetime, ritmo: sim.Ritmo = pesas) -> int:
+        c = criatura(actualizada_en=desde, ent_fuerza=7)
+        return sim.avanzar(c, hasta, ritmo).ent_fuerza - 7
+
+    assert entrena(noche, madrugada) == 1
+    assert entrena(madrugada, madrugada.replace(hour=23, minute=59)) == 0
+    assert entrena(noche, noche + timedelta(days=10)) == 10
+    assert entrena(noche, madrugada, sim.Ritmo()) == 0
+    assert entrena(madrugada, noche) == 0
+    # En Chile (UTC−3) las dos son del mismo día, pero cuenta la medianoche UTC.
+    chile = timezone(timedelta(hours=-3))
+    assert entrena(noche.astimezone(chile), madrugada.astimezone(chile)) == 1
+
+    medio = datetime(2026, 1, 2, 12, 0, tzinfo=timezone.utc)
+    fin = datetime(2026, 1, 4, 0, 1, tzinfo=timezone.utc)
+    de_una = sim.avanzar(criatura(actualizada_en=noche), fin, pesas)
+    en_dos = sim.avanzar(sim.avanzar(criatura(actualizada_en=noche), medio, pesas), fin, pesas)
+    assert de_una.ent_fuerza == en_dos.ent_fuerza == 3
+
+
+def test_las_pesas_solo_tocan_el_entrenamiento_de_fuerza():
+    """Ni experiencia, ni nivel, ni la fuerza de los niveles, ni tensiones, ni
+    barras: las pesas no son un cuidado."""
+    c = criatura(
+        ent_fuerza=5, niv_fuerza=2, xp=40, nivel=2, ten_fuerza=3.0, ten_salud=1.5,
+        hambre=80.0, animo=70.0, limpieza=60.0,
+    )
+    tres_dias = T0 + timedelta(days=3)
+    sin = sim.avanzar(c, tres_dias)
+    con = sim.avanzar(c, tres_dias, sim.Ritmo(fuerza_por_dia=1))
+    assert con.ent_fuerza == sin.ent_fuerza + 3
+    assert replace(con, ent_fuerza=sin.ent_fuerza) == sin
+
+
+def test_una_muerta_no_sube_ni_entrena():
+    """Las que murieron antes siguen como quedaron, aunque su dueño tenga los
+    cuatro muebles puestos."""
+    muerta = criatura(
+        muerta_en=T0, causa_muerte="hambre", hambre=0.0, animo=0.0, limpieza=0.0
+    )
+    todo = sim.Ritmo(
+        suelo_de_hambre=40.0, suelo_de_animo=40.0, suelo_de_limpieza=40.0, fuerza_por_dia=1
+    )
+    assert sim.avanzar(muerta, T0, todo) is muerta
+    assert sim.avanzar(muerta, T0 + timedelta(days=30), todo) is muerta
 
 
 # --- Etapas y cara ---------------------------------------------------------

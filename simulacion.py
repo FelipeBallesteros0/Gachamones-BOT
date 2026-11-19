@@ -21,7 +21,7 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from random import Random as _RandomImpronta
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import especies as esp
 
@@ -888,18 +888,25 @@ class Ritmo:
     """Cuánto más rápido o más lento pasa el tiempo para una criatura.
 
     Lo trae el departamento de su dueño, y se le pasa a `avanzar` ya calculado:
-    este módulo no sabe de departamentos, sólo de multiplicadores.
-    `departamento.ritmo_de` es quien los saca de la comodidad.
+    este módulo no sabe de departamentos, sólo de multiplicadores, suelos y
+    puntos. `departamento.ritmo_de` es quien los saca de lo que hay puesto.
 
-    `suelo_de_hambre`: por debajo de ahí el hambre no baja. Era de la intemperie,
-    que se fue; hoy no lo pone nadie y vale 0, así que la comida sí llega a 0 (lo
-    que tampoco mata: no se muere nadie).
+    `suelo_de_hambre`, `suelo_de_animo` y `suelo_de_limpieza`: por debajo de ahí
+    esa barra no baja, y si estaba por debajo sube hasta ahí. Los ponen los
+    muebles del departamento que cuidan solos; sin ellos valen 0, así que la
+    barra sí llega a 0 (lo que tampoco mata: no se muere nadie).
+
+    `fuerza_por_dia`: los puntos de entrenamiento de fuerza que suma cada
+    medianoche UTC. Los ponen las pesas; sin ellas, 0.
     """
 
     hambre: float = 1.0
     animo: float = 1.0
     limpieza: float = 1.0
     suelo_de_hambre: float = 0.0
+    suelo_de_animo: float = 0.0
+    suelo_de_limpieza: float = 0.0
+    fuerza_por_dia: int = 0
 
 
 RITMO_BAJO_TECHO = Ritmo()
@@ -914,7 +921,16 @@ def avanzar(
     cómo le corre el reloj.
 
     `ritmo` es lo que aporta el departamento: quien lo tiene lo calcula y lo
-    pasa (`db.avanzar`). Por defecto va el de siempre, sin alivio de ánimo.
+    pasa (`db.avanzar`). Por defecto va el de siempre, sin alivio de ánimo, sin
+    suelos y sin pesas.
+
+    Los suelos valen siempre, también sin que pase el tiempo: una barra por
+    debajo de su suelo sube a él en el acto, sin mover `actualizada_en`, y
+    desde ahí baja como siempre sin cruzarlo. Si no hay nada que subir,
+    devuelve la misma criatura.
+
+    Las pesas suman `ritmo.fuerza_por_dia` a `ent_fuerza` por cada medianoche
+    UTC que cruza el tramo, y nada más: ni experiencia, ni nivel, ni tensiones.
 
     El tiempo no mata a nadie: con la comida en 0 se queda en 0 y sigue viva
     hasta que le den de comer. Una que ya estaba muerta no cambia.
@@ -922,30 +938,49 @@ def avanzar(
     if not criatura.viva:
         return criatura
 
+    # Los valores de partida del tramo, ya subidos a su suelo.
+    hambre = max(ritmo.suelo_de_hambre, criatura.hambre)
+    animo = max(ritmo.suelo_de_animo, criatura.animo)
+    limpieza = max(ritmo.suelo_de_limpieza, criatura.limpieza)
+
     horas = (ahora - criatura.actualizada_en).total_seconds() / 3600.0
     if horas <= 0:
-        return criatura
+        if (hambre, animo, limpieza) == (criatura.hambre, criatura.animo, criatura.limpieza):
+            return criatura
+        return replace(criatura, hambre=hambre, animo=animo, limpieza=limpieza)
 
     caida = tasa_hambre_por_hora(criatura.salud) * ritmo.hambre * horas
-    hambre = max(ritmo.suelo_de_hambre, criatura.hambre - caida)
-    limpieza = max(
-        0.0, criatura.limpieza - (100.0 / HORAS_VACIAR_LIMPIEZA) * ritmo.limpieza * horas
+    hambre_final = max(ritmo.suelo_de_hambre, hambre - caida)
+    limpieza_final = max(
+        ritmo.suelo_de_limpieza,
+        limpieza - (100.0 / HORAS_VACIAR_LIMPIEZA) * ritmo.limpieza * horas,
     )
 
     # El ánimo cae más rápido si está sucia. Se decide con la limpieza al
-    # principio del intervalo: es una aproximación, pero el ánimo no mata, así
-    # que un error de unos puntos no tiene consecuencias.
+    # principio del intervalo, ya subida a su suelo: es una aproximación, pero
+    # el ánimo no mata, así que un error de unos puntos no tiene consecuencias.
     ritmo_animo = 100.0 / HORAS_VACIAR_ANIMO * ritmo.animo
-    if criatura.limpieza < LIMPIEZA_SUCIA:
+    if limpieza < LIMPIEZA_SUCIA:
         ritmo_animo *= MULTIPLICADOR_ANIMO_SUCIO
-    animo = max(0.0, criatura.animo - ritmo_animo * horas)
+    animo_final = max(ritmo.suelo_de_animo, animo - ritmo_animo * horas)
     factor_tension = 0.5 ** (horas / SEMIVIDA_TENSION)
+
+    # Las pesas: medianoches UTC y no tramos de 24 h, como el día de los topes;
+    # así da lo mismo en cuántos tramos se parta el tiempo.
+    ent_fuerza = criatura.ent_fuerza
+    if ritmo.fuerza_por_dia:
+        medianoches = (
+            ahora.astimezone(timezone.utc).date()
+            - criatura.actualizada_en.astimezone(timezone.utc).date()
+        ).days
+        ent_fuerza += ritmo.fuerza_por_dia * medianoches
 
     return replace(
         criatura,
-        hambre=hambre,
-        animo=animo,
-        limpieza=limpieza,
+        hambre=hambre_final,
+        animo=animo_final,
+        limpieza=limpieza_final,
+        ent_fuerza=ent_fuerza,
         ten_fuerza=max(0.0, criatura.ten_fuerza * factor_tension),
         ten_velocidad=max(0.0, criatura.ten_velocidad * factor_tension),
         ten_salud=max(0.0, criatura.ten_salud * factor_tension),
