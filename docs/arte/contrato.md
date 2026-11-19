@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (255)
+## Los dibujos de ahora (275)
 
 ### Pueblo (`pueblo/`)
 
@@ -112,7 +112,7 @@ su ícono con el mismo nombre.
 |---|---|---|
 | `iconos/objetos/<clave>.png` | 32 | Cada objeto: pociones, golosinas, porotos, sopaipillas, placa, silbato, semilla. También los que no se venden, porque se ven en la mochila. |
 | `iconos/cosmeticos/<clave>.png` | 12 | Cada cosmético del gachamon: sombreros y títulos. |
-| `iconos/muebles/<clave>.png` | 15 | Cada mueble del departamento que se vende, la cama sencilla incluida. La puerta no lleva ícono: no se vende ni se guarda. |
+| `iconos/muebles/<clave>.png` | 19 | Cada mueble del departamento que se vende, la cama sencilla incluida. La puerta no lleva ícono: no se vende ni se guarda. |
 
 Cada ícono ya tiene su relleno en `web/static/arte/iconos/`, con el nombre
 exacto de su archivo: dibuja el tuyo y guárdalo encima. Por ejemplo:
@@ -162,8 +162,9 @@ el felpudo y la alfombra, que miden sólo `(a + f) × 256` de alto). Por ejemplo
 `<clave>` es el nombre del mueble en el juego, el mismo del ícono
 (`iconos/muebles/<clave>.png`): `felpudo`, `maceta`, `cuadro`, `estanteria`,
 `lampara`, `alfombra`, `cortinas`, `cojines`, `fuente`, `chimenea`,
-`calefactor`, `cama`, `ventanal`, `biblioteca` y `cama_sencilla`. La puerta
-(`puerta`) tiene sus dibujos de pieza, pero ningún ícono.
+`calefactor`, `cama`, `ventanal`, `biblioteca`, `cama_sencilla`,
+`refrigerador`, `consola`, `ducha` y `pesas`. La puerta (`puerta`) tiene sus
+dibujos de pieza, pero ningún ícono.
 
 ### Las cuatro orientaciones
 
