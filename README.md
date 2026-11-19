@@ -177,7 +177,9 @@ gira— y Guardar), en «Guardados» están los muebles que tienes sin poner, y
 tamaño, las casillas ocupadas, las camas, los gachamones y la comodidad. Todo lo
 que se hace sobre el dibujo se puede hacer también desde una lista con botones,
 pensada para el teclado y el lector de pantalla. El ropero y la mochila
-siguen siendo del gachamon que sale contigo. Dónde está parado cada uno no
+siguen siendo del gachamon que sale contigo. De vez en cuando, uno que está
+quieto camina hasta el lado de uno de esos cuatro muebles y se queda ahí unos
+segundos (con movimiento reducido no pasa). Dónde está parado cada uno no
 se guarda: sólo los muebles. Al entrar apareces en la puerta de tu
 departamento, que se puede mover (en «Construir») de una pared a la otra, y
 tocándola se sale al pueblo.
@@ -279,7 +281,7 @@ Un cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al
 activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo
 por persona. Existe también cuidar **a todos** de una vez: le hace un cuidado a
 cada gachamon que puede recibirlo y paga como esos mismos cuidados hechos de a
-uno. Esa regla vive en el servidor de la web, que todavía no tiene el botón.
+uno. En la web es el botón «A todos» de tu casa.
 
 La primera aventura da **sólo el de partida**: los demás hay que ganárselos en
 las aventuras, que están en pausa. Si una persona se quedó sin activo vivo
@@ -298,7 +300,16 @@ límite de gachamones: hacen falta tantas camas puestas como gachamones vivos m�
 una, la tuya; reclutar pide una cama libre (también el primero) y una cama que
 hace falta no se guarda. La **comodidad** es una puntuación (no un porcentaje):
 parte de 80, cada tipo de mueble puesto suma una vez y el tope crece con las
-casillas. Frena el ánimo de todos los que viven ahí y no toca el hambre. Las
+casillas. Frena el ánimo de todos los que viven ahí. Cuatro muebles, el
+**refrigerador**, la **consola**, la **ducha** y las **pesas** (300 monedas cada
+uno, sin costo por uso), cuidan solos a todos los gachamones del departamento:
+con el refrigerador puesto la comida no baja de 40, con la consola el ánimo, con
+la ducha el aseo, y las pesas les dan un punto de entrenamiento de fuerza por
+día (se nota poco, a propósito). No hay que llenarlos; tener dos iguales no hace
+más; y no dan experiencia ni monedas. Poner uno sube de inmediato la barra a 40
+si estaba más abajo, y el 40 vale también contra lo que gasta un cuidado. Tienen
+un precio en crecimiento: cuidar a un gachamon que está muy mal lo hace crecer
+más, y con estos muebles ya no llega a estarlo. Las
 casas, el refugio, la intemperie y el huerto se fueron: el día del cambio se
 convierte una sola vez lo que cada persona tenía (se le devuelve lo que costaron
 sus casas, con 140 monedas más por cada una mediana o grande, y sus tickets, y

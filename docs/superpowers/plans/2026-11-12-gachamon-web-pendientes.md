@@ -528,7 +528,8 @@ sobre la misma base.
   la ducha), hay que poner al día y guardar a todos los que viven ahí, en esa
   misma transacción. Hoy mudar, comprar o vender una casa y el ticket del
   refugio no lo hacen; no le llega a nadie porque las casas y el refugio se van
-  antes de publicar.
+  antes de publicar. (Hecho para los muebles: poner, guardar y ampliar ya
+  asientan al plantel; ver el rework 7.)
 - **Para el plan de la vivienda:** el día del cambio grande tiene que salir con
   su propia sección de vuelta atrás desde el principio: cada paso de una sola
   vez con marca tiene la misma segunda trampa. Y cuando una regla diga que «la
@@ -994,13 +995,9 @@ Son observaciones, no decisiones.
 - El pegamento de lo que flota sobre la escena (globo, corazones, ganancia,
   celebración, medallas) está en dos sitios: la pantalla del lugar y el
   departamento. Lo que decide qué se dice sí es común (`cuidados.js`).
-- `departamento.js` sigue siendo un archivo grande (cerca de 1400 líneas en una
-  sola función, con una docena de variables que toca todo). Partirlo es el
-  primer paso del plan de los muebles que se usan solos, que va a poner a los
-  gachamones a caminar hacia los muebles, y en este orden: primero los que
-  caminan (casi puros, se pueden probar sin pantalla), después el transporte
-  (mandar, esperar y releer, con sus contadores), la bandeja con lo de
-  ampliar, y el menú de lo elegido; la pantalla queda como coordinadora.
+- `departamento.js` era un archivo grande. Se partió en el rework 7: los
+  caminantes, el menú, la bandeja y lo de ampliar salieron a sus módulos; queda
+  sólo el transporte (ver el rework 7).
 - Un retrato que no cargó (un corte de un segundo) no se vuelve a pedir
   mientras se está en la pantalla: ese gachamon queda como su recuadro hasta
   salir y volver. El arte de la pieza sí se vuelve a pedir.
@@ -1243,10 +1240,11 @@ Son observaciones, no decisiones.
   detrás de un mueble bajo no hace nada.
 - Un gachamon parado delante de la puerta se lleva el toque antes que ella: es
   el orden aprobado (los gachamones primero).
-- Hoy la única acción propia de un mueble es la de la puerta. Las demás llegan
-  con los muebles que se usan solos y con los objetos para jugar. Cuando
-  lleguen: la pantalla trata hoy cualquier acción como la de la puerta, sin
-  mirar de qué mueble es.
+- Hoy la única acción propia de un mueble es la de la puerta. Los muebles que
+  se usan solos (rework 7) no tienen acción: actúan solos, y el cliente los
+  reconoce por la marca `uso`. Las demás acciones llegan con los objetos para
+  jugar. Cuando lleguen: la pantalla trata hoy cualquier acción como la de la
+  puerta, sin mirar de qué mueble es.
 - Construyendo, la puerta con un mueble justo delante no se puede elegir en el
   dibujo: el toque es del mueble. Se elige en la lista, o moviendo antes el
   mueble.
@@ -1519,6 +1517,111 @@ Son observaciones, no decisiones.
   JavaScript.
 - La Incubadora entera se retira en un plan posterior; hasta entonces, sin
   gachamon, no se abre.
+
+## Salió al ejecutar el rework 7 (los muebles que se usan solos)
+
+### Lo decidido
+
+- **Lo que decidió el dueño** (2026-11-14, en el diseño): la idea de los cuatro
+  muebles, refrigerador para la comida, consola para el ánimo, ducha para el
+  aseo y pesas para entrenar solos.
+- **Lo que decidió el dueño** (2026-11-18, eligiendo entre opciones que se le
+  propusieron):
+  - El mínimo es 40 y no 30: por debajo de 40 el gachamon pide, y con 30 pediría
+    siempre lo que el mueble le sostiene («Subir el suelo a 40»).
+  - Se acepta que quiten crecimiento: con la ducha y el refrigerador dejan de
+    salir los crecimientos de cuidar a un gachamon que está muy mal («Sí, es el
+    precio de la comodidad»). Sin regla nueva.
+  - Lo que hacen se dice en una línea de la Tienda y en ningún otro sitio por
+    ahora.
+  - Las pesas dan un punto por día, como decía el diseño.
+  - «No baja de 40» vale siempre, también contra lo que gastan los cuidados
+    (entrenar o jugar gastan comida y ánimo): con el mueble puesto, la barra
+    queda en 40 («Sí, vale siempre»).
+- **Las frases que aprobó** (2026-11-18, «Apruebo todas»): los nombres
+  `Refrigerador`, `Consola`, `Ducha` y `Pesas`, y las cuatro líneas de la
+  Tienda, que dicen que, con el mueble puesto, la comida, el ánimo o el aseo de
+  sus gachamones no baja de 40, y que con las pesas entrenan la fuerza solos, un
+  poco cada día.
+- **Lo que el plan propuso y el dueño aprobó con él** (2026-11-18, «Apruebo,
+  ejecútalo»; no son decisiones suyas):
+  - Al poner el mueble, si la barra estaba por debajo de 40 sube a 40 en ese
+    momento.
+  - El punto de las pesas llega al pasar la medianoche UTC; guardarlas y volver
+    a ponerlas no da puntos de más, y la medianoche que pasan guardadas no
+    cuenta.
+  - Cuestan 300 monedas y suman 3 de comodidad; tener dos no hace más; no hay
+    que llenarlos. En la Tienda van tras la cama sencilla: Refrigerador,
+    Consola, Ducha, Pesas.
+  - El adorno: uno de cada tres paseos, un gachamon quieto camina hasta el lado
+    de uno de esos muebles y se queda unos segundos; sin ícono ni dibujo nuevo.
+  - El arte de los cuatro es de relleno, como el de los demás muebles.
+  - Partir `departamento.js` en módulos sin cambiar nada de lo que se ve.
+- **Lo que se decidió al construir** (técnico, se puede cambiar):
+  - El efecto es el ritmo del departamento: cada mueble trae una marca `uso`
+    (`comida`, `animo`, `aseo`, `fuerza`) y `departamento.ritmo_de` traduce los
+    puestos (por tipo; los guardados no cuentan) en el mínimo de cada barra o en
+    los puntos de fuerza por día.
+  - `sim.avanzar` los aplica, también sin tiempo transcurrido (sin tocar
+    `actualizada_en`), y toda lectura de un gachamon pasa por ahí. Por eso no
+    hizo falta tocar `db.py` ni `economia.py`: poner, guardar y ampliar ya
+    asientan antes de cambiar el ritmo. En la base puede quedar guardado un valor
+    por debajo de 40 hasta el siguiente guardado, pero ninguna lectura lo enseña
+    ni decide con él.
+  - Las pesas suman por cada medianoche UTC entre dos lecturas (no por tramos de
+    24 horas): la cuenta da lo mismo se lea las veces que se lea. La fuerza que
+    se ve sube con la raíz del entrenamiento, así que se nota poco; es a
+    propósito.
+  - El mínimo no puede quedar por debajo del umbral del globo: lo vigila una
+    prueba.
+  - Las frases de la Tienda viven en `web/tienda.py` y su 40 sale del mínimo.
+  - El cliente reconoce estos muebles por la marca `uso` de cada puesto, nunca
+    por su clave.
+  - El paseo hasta un mueble es sólo de la pantalla (`caminantes.js` y
+    `darUnPaseo`): no se guarda ni se manda; con movimiento reducido no pasa;
+    quedarse no bloquea a quien juega. Sin ninguno de los cuatro, se pasea como
+    antes.
+  - `departamento.js` se partió en `caminantes.js` (puro), `menu.js`,
+    `bandeja.js` y `ampliar.js`; la pantalla sigue guardando el estado y
+    hablando con el servidor. Las pruebas del cliente vigilan listas de archivos
+    escritas a mano: un módulo nuevo de la pieza se añade a ellas.
+
+### Lo que resuelve de lo que dejaron pendiente los planes anteriores
+
+- Partir `departamento.js` (queda el transporte) y poner al día y guardar a todos
+  antes de cambiar lo que fija el ritmo.
+- Que el dueño viera el modo construcción (rework 5c) y la partida sin gachamon
+  (rework 6) en una página viva: ya pasó, el 2026-11-18, y dijo que estaban
+  bien.
+
+### Lo que queda
+
+- Sacar el transporte de `departamento.js` (`mandar`, `enviar`, `releer` y sus
+  contadores): es lo más enredado, porque lo que hay en camino se lee en muchos
+  sitios, y se dejó fuera a propósito.
+- `menu.js` repite la clase de pared y el marcado del botón con ícono que
+  también están en `departamento.js`.
+- Decir junto a la barra, o bajo la pieza, que un mueble la sostiene (por ahora
+  el dueño eligió sólo la línea de la Tienda).
+- El arte de verdad de los cuatro muebles. El de relleno son cajones altos que
+  tapan a quien queda detrás; se nota con varios puestos.
+- Que el gachamon se dé vuelta hacia el mueble o tenga un dibujo usándolo.
+- Si guardan el mueble mientras un gachamon va hacia él, al llegar se queda
+  igual unos segundos junto a nada (cosmético).
+- En la Tienda, en un teléfono, el «40.» queda solo en el último renglón de tres
+  de las frases (se lee bien).
+- El caso de un mueble sin línea en la Tienda se prueba sólo con `null`.
+- La prueba que vigila que `caminantes.js` es puro sólo quita los comentarios
+  `//`.
+- **Para el día de publicar:** este plan no trae migración ni cambia el día del
+  cambio: nadie tiene ninguno de los cuatro muebles ese día, así que nada cambia
+  para nadie hasta que compre y ponga uno. Llegan 20 archivos de arte nuevos (un
+  ícono y cuatro dibujos por mueble) y cambia `arte.json`; van con el despliegue
+  de siempre.
+- Siguen sin decidir, de planes anteriores: la Tienda sin gachamon enseña textos
+  que hablan de «tu gachamon activo»; «es {especie}» suena raro con algunas
+  especies; y el mapa dice «Tu casa» mientras las frases dicen «tu
+  departamento» (es del plan del pueblo, y tiene que estar antes de publicar).
 
 ## Para el plan 6 (tu casa)
 

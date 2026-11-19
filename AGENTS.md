@@ -77,7 +77,7 @@ Instala el hook local cuando prepares el entorno:
 - «A todos» le hace un cuidado a cada gachamon que puede recibirlo —le serviría y no está esperando— y paga como esos mismos cuidados hechos de a uno.
 - Un recluta llega con un nombre que se pone él solo, de `nombres.py`, y su dueño se lo puede cambiar una vez. Ningún gachamon está sin nombre.
 - Lo que se hace una sola vez al arrancar deja su marca en `cambios_hechos`, en la misma transacción que el cambio.
-- Cada estadística se entrena por su vía: alimentar la salud, jugar la velocidad, entrenar la fuerza y conversar bien el ingenio.
+- Cada estadística se entrena por su vía —alimentar la salud, jugar la velocidad, entrenar la fuerza y conversar bien el ingenio—, salvo la fuerza, que tiene otra: las pesas del departamento.
 - El techo de una estadística lo fija `sim.MAXIMO_STAT` y se aplica en `stat_final`, el embudo por el que pasan las cuatro.
 - Ese techo recorta lo que se ve, no lo que se guarda: `ent_` y `niv_` siguen subiendo, así que cambiarlo no pierde progreso ni pide migración.
 - Conversar tiene su propio enfriamiento y no es una acción de cuidado: no tiene botón ni da experiencia.
@@ -108,7 +108,10 @@ Instala el hook local cuando prepares el entorno:
 - Tener un mueble no es tenerlo puesto; guardar nunca destruye, y se puede tener más de uno de cada.
 - Hacen falta tantas camas puestas como gachamones vivos más una, la tuya: reclutar pide una cama libre (`db.hay_cama_libre`) y una cama que hace falta no se guarda. Todo gachamon pide cama, también el primero.
 - La comodidad es una puntuación y no un porcentaje: nunca se enseña con `%`. Parte de 80, cada tipo de mueble puesto suma una vez y el tope depende de las casillas.
-- El ritmo y la comodidad salen del departamento de la persona: frenan el ánimo de todos sus gachamones vivos y no tocan el hambre.
+- El ritmo sale del departamento de la persona y se aplica a todos sus gachamones vivos: la comodidad frena el ánimo, y los muebles que se usan solos (refrigerador, consola, ducha y pesas; marca `Mueble.uso`) ponen un mínimo a la comida, al ánimo o al aseo, o suman un punto de entrenamiento de fuerza por día.
+- Esa regla vive en `departamento.ritmo_de` (por tipo de mueble puesto: dos no hacen más) y la aplica `sim.avanzar`, también sin tiempo transcurrido. Toda lectura de las barras pasa por `db.avanzar`; ninguna usa la fila cruda.
+- Esos muebles no dan experiencia, monedas, medallas ni crecimiento, y no pasan por los cuidados. Su mínimo no puede quedar por debajo del umbral del globo (`globos.UMBRAL_NECESIDAD`).
+- El cliente reconoce esos muebles por la marca `uso` que manda el servidor, nunca por su clave; que un gachamon se acerque a uno es sólo de la pantalla: no se guarda ni se manda.
 - Antes de cambiar lo que fija el ritmo (poner o guardar un mueble, ampliar) se pone al día y se guarda a todos los vivos, en la misma transacción (`db.asentar_el_plantel_en`).
 - Ampliar se compra estando en el departamento; lo demás, en la Tienda. El mueble que se compra llega a guardados.
 - El día del cambio (`economia.el_dia_del_cambio`) corre una sola vez, con su marca en `cambios_hechos` en la misma transacción, paga a cada persona las medallas de persona que ya tenía ganadas y sin cobrar (`economia._pagar_logros_de_persona_en`) y le deja una carta que la página enseña una vez.
