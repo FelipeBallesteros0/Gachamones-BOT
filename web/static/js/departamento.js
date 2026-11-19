@@ -37,7 +37,7 @@
 // un mueble sin acción no hace nada, y lo que se pisa se camina; un toque
 // sobre lo que flota (el globo, la evolución, las medallas) no hace la acción
 // de ningún mueble. Tocar a un
-// gachamon lo elige (se marca dónde está) y encima sale su menú, con «Mover» y
+// gachamon lo elige (se marca dónde está) y encima sale su menú (`menu.js`), con «Mover» y
 // «Acariciar». Construyendo, a los gachamones no se les toca (el toque va a lo
 // que tienen detrás, `queSeToco`): tocar un mueble lo elige y encima sale su
 // menú, con «Mover», «Girar» (no lo de pared) y «Guardar» (no la puerta), y al
@@ -111,6 +111,7 @@ import { el } from './dom.js';
 import { enlaceADiscord } from './entrada.js';
 import { loQueFlota } from './flotantes.js';
 import { cuantoOcupa, listaDelDepartamento } from './lista.js';
+import { menuDeLaPieza } from './menu.js';
 import { siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
@@ -135,8 +136,6 @@ const PARED = 'pared';
 const UN_AVISO_DURA_MS = 6_000;
 // El ícono de cada mueble de la bandeja, en píxeles de pantalla.
 const LADO_DEL_ICONO = 40;
-// Lo que el menú deja hasta el mueble y hasta el borde de la pieza, en píxeles.
-const MARGEN_DEL_MENU = 6;
 
 const CARGANDO = 'Cargando tu departamento…';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
@@ -229,11 +228,20 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   const { cabecera, titulo, ponerSaldos } = cabeceraConSaldos('📍', estado.lugar.nombre);
 
   const lienzo = el('canvas', { class: 'pieza-lienzo', 'aria-hidden': 'true' });
-  // El menú de lo elegido va encima del lienzo, junto a él; encima, lo que
-  // flota: el globo, sobre el que sale contigo, y la evolución y las medallas.
-  // La ganancia asoma bajo el saldo.
-  const menu = el('div', { class: 'menu-de-la-pieza', role: 'group', hidden: true });
-  const escenario = el('div', { class: 'pieza-escenario' }, lienzo, menu);
+  // El menú de lo elegido (`menu.js`) va encima del lienzo, junto a él;
+  // encima, lo que flota: el globo, sobre el que sale contigo, y la evolución
+  // y las medallas. La ganancia asoma bajo el saldo.
+  const menu = menuDeLaPieza({
+    lienzo,
+    mover: moverLoElegido,
+    girar,
+    guardar,
+    moverGachamon: moverAlGachamon,
+    acariciar,
+    soltarElegido: () => elegir(null),
+    signal,
+  });
+  const escenario = el('div', { class: 'pieza-escenario' }, lienzo, menu.nodo);
   const flota = loQueFlota({
     escenario,
     luego,
@@ -962,57 +970,6 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // --- el menú de lo elegido -------------------------------------------------------------
 
-  // Para qué está hecho el menú («mueble 21», «gachamon 8»), o `null`.
-  let menuDe = null;
-
-  function botonDelMenu(icono, texto, alTocar) {
-    const boton = icono ? conIcono('boton boton-chico', icono, texto)
-      : el('button', { type: 'button', class: 'boton boton-chico' }, texto);
-    boton.addEventListener('click', () => alTocar(boton), { signal });
-    return boton;
-  }
-
-  function hacerElMenu(puesto) {
-    const botones = [botonDelMenu('✋', 'Mover', moverLoElegido)];
-    // Lo de pared no se gira; la puerta no se guarda.
-    if (puesto.capa !== PARED) botones.push(botonDelMenu('🔄', 'Girar', (boton) => girar(puesto.id, boton)));
-    if (!puesto.puerta) botones.push(botonDelMenu('📦', 'Guardar', (boton) => guardar(puesto.id, boton)));
-    menu.replaceChildren(el('p', { class: 'menu-nombre' }, puesto.nombre), el('div', { class: 'menu-botones' }, botones));
-    menu.setAttribute('aria-label', puesto.nombre);
-    menuDe = `mueble ${puesto.id}`;
-  }
-
-  // El de un gachamon: moverlo (sólo en el dibujo) y acariciarlo.
-  function hacerElMenuDelGachamon(g) {
-    const botones = [
-      botonDelMenu('✋', 'Mover', moverAlGachamon),
-      botonDelMenu(null, 'Acariciar', (boton) => acariciar(g.id, boton)),
-    ];
-    menu.replaceChildren(el('p', { class: 'menu-nombre' }, g.nombre), el('div', { class: 'menu-botones' }, botones));
-    menu.setAttribute('aria-label', g.nombre);
-    menuDe = `gachamon ${g.id}`;
-  }
-
-  // Sobre lo elegido (`caja`, donde se pinta), centrado, y nunca fuera de la
-  // pieza. Si arriba no cabe entero, se queda pegado arriba aunque tape algo;
-  // si así taparía más de la mitad, va debajo.
-  function colocarElMenu(caja) {
-    const lado = lienzo.getBoundingClientRect();
-    const ancho = menu.offsetWidth || 0;
-    const alto = menu.offsetHeight || 0;
-    const izquierda = Math.min(Math.max(caja.x + caja.ancho / 2, ancho / 2 + MARGEN_DEL_MENU),
-      lado.width - ancho / 2 - MARGEN_DEL_MENU);
-    // `top` es el borde de abajo del menú.
-    let abajo = caja.y - MARGEN_DEL_MENU;
-    const pegadoArriba = alto + MARGEN_DEL_MENU;
-    if (abajo < pegadoArriba) {
-      abajo = pegadoArriba - abajo > caja.alto / 2 ? caja.y + caja.alto + MARGEN_DEL_MENU + alto : pegadoArriba;
-    }
-    abajo = Math.max(Math.min(abajo, lado.height - MARGEN_DEL_MENU), pegadoArriba);
-    menu.style.left = `${izquierda}px`;
-    menu.style.top = `${abajo}px`;
-  }
-
   // El menú está abierto sobre lo elegido mientras no llevas nada en la mano
   // (ni va en camino lo que pusiste tocando la pieza). El foco que estaba en un
   // menú que se cierra espera en el título.
@@ -1021,26 +978,15 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     const puesto = cerrado ? null : elPuesto(elegido);
     const quien = cerrado ? null : enPieza.get(elegidoG);
     const g = quien ? depto.plantel.find((p) => p.id === elegidoG) : null;
-    if (!puesto && !g) {
-      if (menu.contains(document.activeElement)) titulo.focus({ preventScroll: true });
-      menu.hidden = true;
-      menuDe = null;
-      return;
-    }
     if (puesto) {
-      if (menuDe !== `mueble ${puesto.id}`) hacerElMenu(puesto);
-      menu.hidden = false;
-      colocarElMenu(cajaDelMueble(m, puesto, puesto.x, puesto.y, puesto.giro));
-      return;
+      menu.pintar({ puesto, caja: cajaDelMueble(m, puesto, puesto.x, puesto.y, puesto.giro) });
+    } else if (g) {
+      menu.pintar({ gachamon: g, caja: cajaDelGachamon(m, quien.i, quien.j) });
+    } else {
+      if (menu.contiene(document.activeElement)) titulo.focus({ preventScroll: true });
+      menu.cerrar();
     }
-    if (menuDe !== `gachamon ${g.id}`) hacerElMenuDelGachamon(g);
-    menu.hidden = false;
-    colocarElMenu(cajaDelGachamon(m, quien.i, quien.j));
   }
-
-  menu.addEventListener('keydown', (evento) => {
-    if (evento.key === 'Escape') elegir(null);
-  }, { signal });
 
   // Mover a un gachamon: lo tomas en la mano y se marcan las casillas que se pisan.
   function moverAlGachamon() {
