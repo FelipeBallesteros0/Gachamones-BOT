@@ -49,12 +49,6 @@
    "familia": "lugares"
   },
   {
-   "ruta": "escenas/casa.png",
-   "ancho": 720,
-   "alto": 480,
-   "familia": "escenas"
-  },
-  {
    "ruta": "escenas/tienda.png",
    "ancho": 720,
    "alto": 480,

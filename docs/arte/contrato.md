@@ -16,7 +16,7 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 - Las partes que no se dibujan se dejan **transparentes**, nunca de un color.
 - Si quieres ver cómo quedaría el relleno de nuevo, borra el archivo y pide que se regenere.
 
-## Los dibujos de ahora (275)
+## Los dibujos de ahora (270)
 
 ### Pueblo (`pueblo/`)
 
@@ -25,14 +25,14 @@ mide lo que dice esta lista, una prueba automática lo avisa.
 | `pueblo/fondo.png` | 1380 × 860 | El suelo del pueblo: pasto y caminos. **Sin lugares encima**: cada lugar va en su archivo. Es el doble del tamaño del mapa (690 × 430), así que un píxel del mapa son dos del dibujo. |
 | `pueblo/lugares/<lugar>.png` | 160 × 160 | La casa o figura de cada lugar. Fondo transparente. Se **apoya en el borde de abajo**: el punto donde el personaje llega es el centro del borde inferior. Sin texto: el nombre lo escribe el mapa. |
 
-Los nueve lugares: `casa`, `refugio`, `incubadora`, `tienda`, `plaza`, `barrio`, `estadio`, `cementerio`, `aventura`.
+Los siete lugares: `casa` (tu departamento), `tienda`, `plaza`, `barrio`, `estadio`, `cementerio`, `aventura`.
 Por ejemplo: `pueblo/lugares/plaza.png`.
 
 ### Escenas (`escenas/`)
 
 | Archivo | Tamaño | Qué es |
 |---|---|---|
-| `escenas/<lugar>.png` | 720 × 480 | El fondo de la pantalla de cada lugar, uno por cada uno de los nueve de arriba. Por ejemplo `escenas/cementerio.png`. Ocupa todo el cuadro, sin transparencia. |
+| `escenas/<lugar>.png` | 720 × 480 | El fondo de la pantalla de cada lugar: seis, uno por cada lugar de arriba menos `casa`, que no lleva escena porque ahí se ve la pieza de tu departamento (más abajo). Por ejemplo `escenas/cementerio.png`. Ocupa todo el cuadro, sin transparencia. |
 
 - **La escena no se ve entera.** En pantalla el cuadro es más cuadrado que el dibujo: se ve todo el alto y se recorta por los dos lados, por igual. En un teléfono se pierde de un décimo a un quinto del ancho; en el computador, de un quinto a un cuarto, y hasta cerca de la mitad si la ventana es angosta. Lo importante va en la mitad central, que se ve siempre. (En algunos teléfonos acostados es al revés: se ve todo el ancho y se pierde un décimo por arriba y otro por abajo.)
 - **Dónde pisan.** Cuando se ve todo el alto, y contando desde abajo:

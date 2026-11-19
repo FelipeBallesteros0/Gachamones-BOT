@@ -11,10 +11,10 @@ import objetos
 from web import arte, pueblo
 
 
-def test_el_contrato_tiene_sus_271_piezas():
+def test_el_contrato_tiene_sus_270_piezas():
     piezas = arte.piezas()
     assert Counter(p.familia for p in piezas) == {
-        "pueblo": 1, "lugares": 7, "escenas": 7, "avatar": 114, "efectos": 4, "iconos": 63, "pieza": 75,
+        "pueblo": 1, "lugares": 7, "escenas": 6, "avatar": 114, "efectos": 4, "iconos": 63, "pieza": 75,
     }
     assert len({p.ruta for p in piezas}) == len(piezas)
     rutas = {p.ruta: (p.ancho, p.alto) for p in piezas}
@@ -31,7 +31,11 @@ def test_el_contrato_tiene_sus_271_piezas():
 def test_el_contrato_sale_de_los_catalogos():
     rutas = {p.ruta for p in arte.piezas()}
     for lugar in pueblo.LUGARES:
-        assert f"pueblo/lugares/{lugar}.png" in rutas and f"escenas/{lugar}.png" in rutas
+        assert f"pueblo/lugares/{lugar}.png" in rutas
+        # La escena es el fondo de la pantalla del lugar: donde se ve el departamento, no hay.
+        con_escena = "departamento" not in pueblo.ofrece(lugar)
+        assert (f"escenas/{lugar}.png" in rutas) is con_escena, lugar
+    assert "escenas/casa.png" not in rutas
     for pose in arte.POSES:
         for piel in avatar.PIELES:
             assert f"avatar/cuerpo/{piel.clave}-{pose}.png" in rutas
@@ -40,6 +44,15 @@ def test_el_contrato_sale_de_los_catalogos():
         for pelo in avatar.PELOS:
             for color in avatar.COLORES_DE_PELO:
                 assert f"avatar/pelo/{pelo.clave}-{color.clave}-{pose}.png" in rutas
+
+
+def test_la_escena_de_un_lugar_sale_de_lo_que_ofrece_y_no_de_una_lista(monkeypatch):
+    # Si la Tienda fuera tu departamento y tu casa dejara de serlo, las escenas se cambiarían solas.
+    monkeypatch.setitem(pueblo.OFRECE, "tienda", ("departamento",))
+    monkeypatch.delitem(pueblo.OFRECE, "casa")
+    rutas = {p.ruta for p in arte.piezas()}
+    assert "escenas/tienda.png" not in rutas and "escenas/casa.png" in rutas
+    assert "pueblo/lugares/tienda.png" in rutas
 
 
 def test_cada_pieza_esta_y_mide_lo_que_debe():
@@ -72,14 +85,14 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     monkeypatch.setattr(arte, "RAIZ", tmp_path / "arte")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 271
+    assert len(escritas) == 270
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
     assert rellenos.generar() == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 271
+    assert len(rellenos.generar(todo=True)) == 270
 
 
 def _relleno(ruta: str) -> Image.Image:
@@ -96,8 +109,8 @@ def _relleno(ruta: str) -> Image.Image:
 
 def test_dos_lugares_no_tienen_el_mismo_relleno():
     lugares = [_relleno(f"pueblo/lugares/{l}.png").tobytes() for l in pueblo.LUGARES]
-    escenas = [_relleno(f"escenas/{l}.png").tobytes() for l in pueblo.LUGARES]
-    assert len(set(lugares)) == 7 and len(set(escenas)) == 7
+    escenas = [_relleno(p.ruta).tobytes() for p in arte.piezas() if p.familia == "escenas"]
+    assert len(set(lugares)) == 7 and len(set(escenas)) == 6
 
 
 def test_el_fondo_de_un_lugar_y_de_una_capa_es_transparente():

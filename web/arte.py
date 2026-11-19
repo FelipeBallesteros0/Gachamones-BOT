@@ -40,11 +40,17 @@ class Pieza:
     familia: str
 
 
+def _con_escena(clave: str) -> bool:
+    """Si la pantalla de ese lugar es la del lugar, la que pinta su escena: donde se
+    ofrece el departamento se ve la pieza, y la escena no la pintaría nadie."""
+    return "departamento" not in pueblo.ofrece(clave)
+
+
 def piezas() -> tuple[Pieza, ...]:
     """Todas las piezas del contrato, en un orden fijo."""
     lista = [Pieza("pueblo/fondo.png", 2 * pueblo.DATOS["ancho"], 2 * pueblo.DATOS["alto"], "pueblo")]
     lista += [Pieza(f"pueblo/lugares/{l}.png", LADO_LUGAR, LADO_LUGAR, "lugares") for l in pueblo.LUGARES]
-    lista += [Pieza(f"escenas/{l}.png", *ESCENA, "escenas") for l in pueblo.LUGARES]
+    lista += [Pieza(f"escenas/{l}.png", *ESCENA, "escenas") for l in pueblo.LUGARES if _con_escena(l)]
     for pose in POSES:
         lista += [Pieza(f"avatar/cuerpo/{p.clave}-{pose}.png", *AVATAR, "avatar") for p in avatar.PIELES]
     for pose in POSES:
