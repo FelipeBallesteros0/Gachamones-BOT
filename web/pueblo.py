@@ -64,12 +64,12 @@ def existe(clave: object) -> bool:
 
 
 def de_partida() -> str:
-    """Dónde está quien no tiene un lugar guardado: en su casa, la de su departamento."""
+    """Dónde está quien no tiene un lugar guardado: en su departamento."""
     return "casa"
 
 
 def donde_esta(clave: object) -> str:
-    """El lugar donde está quien lo tiene guardado, o su casa si no tiene o ya no existe."""
+    """El lugar donde está quien lo tiene guardado, o su departamento si no tiene o ya no existe."""
     return clave if existe(clave) else de_partida()
 
 

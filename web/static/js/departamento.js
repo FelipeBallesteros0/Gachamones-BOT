@@ -1,4 +1,4 @@
-// Tu casa: la pieza de tu departamento, en vista isométrica por casillas, con
+// Tu departamento: su pieza, en vista isométrica por casillas, con
 // sus muebles, tu avatar y tus gachamones, que caminan por ella.
 //
 // `departamento(contenedor, estado, seguir, { azar, llegando, cuenta })` pide la pieza
@@ -15,15 +15,16 @@
 // se guarda ni se manda); nada de eso con menos movimiento o mientras llevas
 // algo en la mano. Quién está en qué casilla y por dónde camina lo cuenta
 // `caminantes.js`; aquí se guarda y se anima. Si lo que llega pide otra
-// pantalla (ya no estás en tu casa, ya no hay sesión) se lo pasa a `seguir`;
-// sin ningún gachamon, tu casa se sigue viendo, y justo bajo el dibujo se lee
-// la guía (`estado.guia`): el paso que te toca, en los dos modos, al día con
-// cada estado que llega. Bajo la guía, si tu cuenta (`cuenta`, la que lleva
-// `principal.js`; sin ella, nada) todavía puede traer los de Discord, el mismo
-// enlace de la pantalla del avatar (`enlaceADiscord`, de `entrada.js`): su paso
-// del código va en lugar de todo lo de tu casa, «Volver» lo deja como estaba y,
-// si la cuenta cambia (se vinculó), se deja la pantalla y se vuelve a decidir.
-// Se va en cuanto llega un estado con gachamon.
+// pantalla (ya no estás en tu departamento, ya no hay sesión) se lo pasa a
+// `seguir`; sin ningún gachamon, tu departamento se sigue viendo, y justo bajo
+// el dibujo se lee la guía (`estado.guia`): el paso que te toca, en los dos
+// modos, al día con cada estado que llega. Bajo la guía, si tu cuenta
+// (`cuenta`, la que lleva `principal.js`; sin ella, nada) todavía puede traer
+// los de Discord, el mismo enlace de la pantalla del avatar (`enlaceADiscord`,
+// de `entrada.js`): su paso del código va en lugar de todo lo de tu
+// departamento, «Volver» lo deja como estaba y, si la cuenta cambia (se
+// vinculó), se deja la pantalla y se vuelve a decidir. Se va en cuanto llega
+// un estado con gachamon.
 //
 // La pieza tiene dos modos, y siempre se entra en el normal: el modo es de la
 // pantalla, no se guarda ni se manda. El botón de bajo el dibujo, «🔨
@@ -161,7 +162,7 @@ const OBRA_TERMINADA = 'Modo construcción terminado.';
 
 // Mientras se está aquí hay sesión y la cuenta ya no es nueva, así que la
 // pantalla la decide sólo el estado, con la regla de siempre (sin ningún
-// gachamon, tu casa se sigue viendo mientras estés en ella).
+// gachamon, tu departamento se sigue viendo mientras estés en él).
 function pideOtraPantalla(estado) {
   return siguiente(true, { estado: 'en juego' }, estado, VISTA) !== VISTA;
 }
@@ -1403,7 +1404,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Cada relectura trae el estado, como en el lugar, y la pieza: si el estado
   // ya pide otra pantalla, se va con él; si no, se pinta la pieza. Una
   // relectura que falla no borra la pieza ni dice nada: la próxima vuelta lo
-  // intenta otra vez. Sin sesión, o si ya no estás en tu casa, se va.
+  // intenta otra vez. Sin sesión, o si ya no estás en tu departamento, se va.
   // Mientras una acción va no se lee: lo que traiga es más nuevo. La de tras
   // una acción sin respuesta sale aunque haya otra en camino. La espera de la
   // red va aparte de lo que se pinta: lo que reviente al pintar no lo calla el
@@ -1477,7 +1478,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // La pieza común de la tienda y la mochila: mientras no llega se lee la
   // espera; si no llega, su mensaje y «Volver a intentarlo». Sin sesión o si ya
-  // no estás en tu casa, se va.
+  // no estás en tu departamento, se va.
   const laPieza = listaQueSePide({
     ruta: 'departamento',
     espera,

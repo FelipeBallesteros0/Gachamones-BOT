@@ -39,7 +39,7 @@ _YA_TIENES = "Ya tienes un gachamon. La primera aventura es sólo la de partida.
 def en_la_aventura(jugador: Jugador) -> None:
     """Para la aventura hay que estar en «Aventura»: lo dice el lugar guardado de la cuenta.
 
-    El lugar que falta o que ya no existe se resuelve como en el estado: tu casa.
+    El lugar que falta o que ya no existe se resuelve como en el estado: tu departamento.
     """
     clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
     if clave != pueblo.AVENTURA:
@@ -89,7 +89,7 @@ def la_primera_aventura(jugador: Jugador = Depends(jugador_actual)) -> dict:
     # sigue fallara, al volver a entrar te esperaría para que le pongas nombre.
     # Al llegar el primero se miran las medallas de la persona (una rara).
     economia.pagar_logros_de_persona(jugador.usuario_id, jugador.guild_id, ahora)
-    # Vuelves a tu casa con él: el lugar del que se parte.
+    # Vuelves a tu departamento con él: el lugar del que se parte.
     db.poner_lugar(jugador.persona.rowino_uid, pueblo.de_partida())
     especie = primero.def_especie.nombre
     return {

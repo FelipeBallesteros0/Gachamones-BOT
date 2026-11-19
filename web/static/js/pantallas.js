@@ -11,7 +11,7 @@
 // la ofrece (si no, el lugar); con `'mochila'`, esa pantalla, estés donde
 // estés, y con `'ficha'` o `'ropero'`, igual, si tienes un gachamon (si no, el
 // lugar). Con otra, el lugar. Donde el lugar ofrece el departamento («Tu
-// casa»), lo que sería el lugar es el departamento.
+// departamento»), lo que sería el lugar es el departamento.
 export function siguiente(sesion, cuenta, estado, vista) {
   if (!sesion) return 'sesion';
   if (!cuenta || cuenta.estado === 'nueva') return 'bienvenida';

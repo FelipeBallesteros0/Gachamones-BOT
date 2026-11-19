@@ -37,7 +37,7 @@ _NO_DEL_DEPARTAMENTO = {
 def en_el_departamento(jugador: Jugador) -> None:
     """Para tocar el departamento hay que estar en él: lo dice el lugar guardado de la cuenta.
 
-    El lugar que falta o que ya no existe se resuelve como en el estado: tu casa.
+    El lugar que falta o que ya no existe se resuelve como en el estado: tu departamento.
     """
     clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
     if "departamento" not in pueblo.ofrece(clave):

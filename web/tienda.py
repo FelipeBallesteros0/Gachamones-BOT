@@ -129,7 +129,7 @@ def catalogo(jugador: Jugador) -> dict:
 def en_la_tienda(jugador: Jugador) -> None:
     """Para entrar a la tienda hay que estar en ella: lo dice el lugar guardado de la cuenta.
 
-    El lugar que falta o que ya no existe se resuelve como en el estado: tu casa.
+    El lugar que falta o que ya no existe se resuelve como en el estado: tu departamento.
     """
     clave = pueblo.donde_esta(db.lugar_de_cuenta(jugador.persona.rowino_uid))
     if "tienda" not in pueblo.ofrece(clave):
@@ -188,8 +188,8 @@ def datos_y_evento(cuerpo: Any) -> tuple[dict, str]:
 
 def _de_la_tienda_y_el_mismo(jugador: Jugador, que: str, ahora: datetime) -> None:
     """Se compra estando en la tienda; un objeto o un cosmético, además, con el
-    mismo gachamon que se estaba viendo. Un mueble es de tu casa y no de un
-    gachamon: se compra también sin ninguno."""
+    mismo gachamon que se estaba viendo. Un mueble es de tu departamento y no
+    de un gachamon: se compra también sin ninguno."""
     en_la_tienda(jugador)
     if que != MUEBLE:
         la_misma_activa(jugador, ahora, _SIN_GACHAMON)
