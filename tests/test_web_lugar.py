@@ -3,7 +3,8 @@ import pytest
 import db
 import especies as esp
 import globos
-from ayudas_web import ESCRIBIR, alta, con_gachamon, entrar, poner_reloj
+import identidad
+from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, poner_reloj
 from web import pueblo
 
 API = "/gachamon/api"
@@ -113,3 +114,21 @@ def test_en_tu_casa_el_gachamon_habla_de_ella(cliente, monkeypatch):
     assert estado["lugar"]["aviso"] is None
     del_lugar = {g["texto"] for g in estado["globos"] if g["tipo"] == "lugar"}
     assert del_lugar and del_lugar <= frases_de_la_casa(estado["gachamon"])
+
+
+# --- La Incubadora se fue: con quién sales se elige en tu departamento ----------------
+
+def test_ningun_lugar_lleva_a_la_incubadora_y_sus_rutas_ya_no_existen(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    yo, guild = identidad.de_cuenta_web(1), str(PUEBLO)
+    rulo = db.crear(yo, guild, "pulpo", "Rulo", (10, 10, 10, 10), db.ahora_utc(), activa=False)
+    for clave in pueblo.LUGARES:
+        assert "incubadora" not in ir(cliente, clave).json()["lugar"]["ofrece"], clave
+    # Quien la tenía abierta el día de publicar oye lo de siempre, y nada cambia.
+    no_existe = {"detail": {"clave": "no_existe", "mensaje": "Eso no existe."}}
+    ver = cliente.get(f"{API}/incubadora")
+    sacar = cliente.post(f"{API}/incubadora/sacar", json={"gachamon_id": rulo.id}, headers=ESCRIBIR)
+    for respuesta in (ver, sacar):
+        assert (respuesta.status_code, respuesta.json()) == (404, no_existe)
+    assert db.criatura_activa(yo, guild).nombre == "Pelusa"

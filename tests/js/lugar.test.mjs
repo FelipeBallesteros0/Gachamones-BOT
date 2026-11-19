@@ -345,14 +345,19 @@ test('sin gachamon, lo que se relee se pinta, y si llega uno se vuelve a decidir
 
 const INCUBADORA = { clave: 'incubadora', nombre: 'Incubadora', abre: 'ya', aviso: null, ofrece: ['incubadora'] };
 
-test('sin gachamon, en la Incubadora no hay botón de plantel; con gachamon, sí', { timeout: 2000 }, async () => {
-  const sinUno = await abrir(sinGachamon(INCUBADORA));
-  assert.equal(sinUno.contenedor.querySelector('.boton-plantel').hidden, true);
-  assert.deepEqual(visibles(sinUno.contenedor.querySelector('.salidas-lugar')), ['🎒Mochila', '🗺️Pueblo']);
-  const conUno = await abrir(conPelusa(INCUBADORA));
-  assert.deepEqual(visibles(conUno.contenedor.querySelector('.salidas-lugar')), ['🥚Tu plantel', '🎒Mochila', '🗺️Pueblo']);
-  await conUno.contenedor.querySelector('.boton-plantel').tocar();
-  assert.deepEqual(conUno.seguidos[0][1], { vista: 'incubadora' });
+test('ningún lugar tiene el botón «Tu plantel»: con quién sales se elige en tu departamento', { timeout: 2000 }, async () => {
+  // Ni la Tienda, ni un lugar que todavía ofreciera la incubadora (lo que
+  // mandaba el servidor de antes), con gachamon o sin él.
+  for (const estado of [conPelusa(TIENDA), conPelusa(INCUBADORA), sinGachamon(INCUBADORA)]) {
+    const { contenedor, seguidos } = await abrir(estado);
+    assert.equal(contenedor.querySelector('.boton-plantel'), null, estado.lugar.clave);
+    assert.ok(!contenedor.textContent.includes('Tu plantel'), estado.lugar.clave);
+    assert.deepEqual(seguidos, []);
+  }
+  const enLaTienda = await abrir(conPelusa(TIENDA));
+  assert.deepEqual(visibles(enLaTienda.contenedor.querySelector('.salidas-lugar')), ['🛒Comprar', '🎒Mochila', '🗺️Pueblo']);
+  const enLaIncubadora = await abrir(conPelusa(INCUBADORA));
+  assert.deepEqual(visibles(enLaIncubadora.contenedor.querySelector('.salidas-lugar')), ['🎒Mochila', '🗺️Pueblo']);
 });
 
 test('sin gachamon no se programa ningún globo; con gachamon, el primero', { timeout: 2000 }, async () => {

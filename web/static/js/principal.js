@@ -7,7 +7,6 @@ import { carta } from './carta.js';
 import { departamento } from './departamento.js';
 import * as entrada from './entrada.js';
 import { ficha } from './ficha.js';
-import { incubadora } from './incubadora.js';
 import { lugar } from './lugar.js';
 import { pueblo } from './mapa.js';
 import { mochila } from './mochila.js';
@@ -34,7 +33,6 @@ const PANTALLAS = {
   mochila: (destino, seguir, { estado }) => mochila(destino, estado, seguir),
   ficha: (destino, seguir, { estado, gachamonId }) => ficha(destino, estado, seguir, gachamonId),
   ropero: (destino, seguir, { estado }) => ropero(destino, estado, seguir),
-  incubadora: (destino, seguir, { estado }) => incubadora(destino, estado, seguir),
   noCarga: entrada.noCarga,
 };
 
@@ -94,7 +92,7 @@ let vuelta = 0;
 let conocido = { sesion: null, cuenta: null };
 
 // `opciones.vista` (`'pueblo'`, `'tienda'`, `'aventura'`, `'mochila'`, `'ficha'`,
-// `'ropero'`, `'incubadora'` o nada) es lo que se quiere ver si todo está en orden;
+// `'ropero'` o nada) es lo que se quiere ver si todo está en orden;
 // `opciones.llegando`, que se acaba de llegar caminando; y
 // `opciones.gachamonId`, de qué gachamon tuyo es la ficha (sin él, la del que
 // sale contigo). Valen sólo para esta llamada: `seguir()` a secas vuelve al lugar.

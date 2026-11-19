@@ -432,70 +432,17 @@ def test_tras_releer_el_ropero_no_enfoca_nada_si_ya_se_fue():
         assert "sigueAqui()" in releida, releida
 
 
-# --- la incubadora ----------------------------------------------------------------
+# --- la incubadora se fue: con quién sales se elige en tu departamento --------------
 
-def test_la_incubadora_esta_y_se_usa():
-    assert "incubadora.js" in {g.name for g in GUIONES}
+def test_la_incubadora_ya_no_esta_ni_se_llega_a_ella():
+    assert "incubadora.js" not in {g.name for g in GUIONES}
     principal = _guion("principal.js")
-    assert "./incubadora.js" in principal
-    # Una fila más en la tabla de las pantallas.
-    assert re.search(r"^\s*incubadora:", principal, re.M)
-
-
-def test_la_incubadora_no_mete_marcado_ni_depende_de_fuera():
-    incubadora = _guion("incubadora.js")
-    assert "innerHTML" not in incubadora
-    assert "http" not in incubadora
-
-
-def test_la_incubadora_manda_el_gachamon_de_la_fila_al_sacar_y_al_bautizar():
-    # El cuerpo se arma una vez, antes de reintentar, y lleva el gachamon de la fila.
-    incubadora = _sin_comentarios(_guion("incubadora.js"))
-    mandadas = set()
-    for llamada in re.finditer(r"\bconReintentos\(", incubadora):
-        reintentado = _argumentos(incubadora, llamada.end())
-        enviado = re.search(r"pedir\('POST',\s*'([\w/]+)',\s*(\w+)\)", reintentado)
-        if not enviado:
-            continue
-        mandadas.add(enviado.group(1))
-        assert "gachamon" not in reintentado, reintentado
-        antes = incubadora[:llamada.start()]
-        funcion = list(re.finditer(r"\bfunction\s+\w+\s*\(", antes))
-        assert funcion
-        dentro = antes[funcion[-1].start():]
-        cuerpo = enviado.group(2)
-        assert re.search(rf"\bconst\s+{cuerpo}\s*=\s*\{{[^;]*\bgachamon_id:", dentro), dentro
-    assert mandadas == {"incubadora/sacar", "bautizar"}
-
-
-def test_un_toque_de_la_incubadora_en_camino_no_deja_salir_otro_y_ya_bautizado_no_es_un_error():
-    incubadora = _sin_comentarios(_guion("incubadora.js"))
-    for nombre in ("sacar", "bautizar"):
-        cuerpo = re.search(rf"async function {nombre}\([^)]*\)\s*\{{\s*if \(enCamino\) return;\s*enCamino = true;", incubadora)
-        assert cuerpo, nombre
-    # Un segundo envío del mismo nombre contesta `ya_bautizado`: ya está hecho.
-    assert "'ya_bautizado'" in incubadora
-
-
-def test_la_incubadora_vuelve_a_decidir_si_llega_otro_gachamon():
-    incubadora = _sin_comentarios(_guion("incubadora.js"))
-    assert re.search(r"\.id\s*!==\s*gachamonId\)\s*\{\s*irse\(\);", incubadora)
-    releidas = re.findall(r"if \(await laLista\.releer\(\)[^)]*\)", incubadora)
-    assert releidas
-    for releida in releidas:
-        assert "sigueAqui()" in releida, releida
-
-
-def test_las_frases_de_la_incubadora_y_del_recluta_son_las_del_plan():
-    incubadora = _guion("incubadora.js")
-    for frase in ("'Incubadora'", "'Sin nombre'", "'Activo'", "'Sacar'", "'Ponerle nombre'",
-                  "'¿Cómo se va a llamar?'", "'Ponerle este nombre'", " · nivel ${",
-                  "`Aquí esperan los gachamones que no son el activo. Ahora sólo tienes a ${",
-                  "`Caben ${", "} gachamones.`"):
-        assert frase in incubadora, frase
+    assert "./incubadora.js" not in principal
+    assert not re.search(r"^\s*incubadora:", principal, re.M)
     lugar = _guion("lugar.js")
-    for frase in ("'Tu plantel'", "vista: 'incubadora'", "ofreceLaIncubadora("):
-        assert frase in lugar, frase
+    for frase in ("'Tu plantel'", "vista: 'incubadora'", "ofreceLaIncubadora"):
+        assert frase not in lugar, frase
+    assert "ofreceLaIncubadora" not in _guion("pantallas.js")
     # El bautizo del recluta que esperaba nombre sin ninguna activa era una rama
     # muerta (el servidor ya no manda `sin_nombre`) y se fue con el huevo.
     assert "espera en la incubadora y todavía no tiene nombre" not in _guion("entrada.js")

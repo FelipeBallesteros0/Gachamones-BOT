@@ -23,7 +23,7 @@ import personalidad as per
 import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual
-from web.salir import NO_ESTA
+from web.departamento import NO_ESTA
 from web.sesion import es_un_id, problema
 
 router = APIRouter()

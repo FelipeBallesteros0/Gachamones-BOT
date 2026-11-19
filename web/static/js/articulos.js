@@ -1,8 +1,8 @@
 // Lo común a las pantallas que enseñan una lista de cosas —la tienda, la
-// mochila, el ropero y la incubadora—: la cabecera con los saldos, la fila de
-// cada cosa, la pregunta del primer toque, la zona donde se dice lo que
-// contestó el juego, la espera de la lista y qué hacer con un error. Cada
-// pantalla pone lo suyo encima. Todo texto entra por `el` o por `textContent`.
+// mochila y el ropero—: la cabecera con los saldos, la fila de cada cosa, la
+// pregunta del primer toque, la zona donde se dice lo que contestó el juego,
+// la espera de la lista y qué hacer con un error. Cada pantalla pone lo suyo
+// encima. Todo texto entra por `el` o por `textContent`.
 
 import { conReintentos, pedir } from './api.js';
 import { lienzoDePieza } from './arte.js';

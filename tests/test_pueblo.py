@@ -105,11 +105,19 @@ def test_un_lugar_sin_su_hacia_es_un_problema(valor):
 def test_lo_que_ofrece_cada_lugar_son_lugares_del_archivo_y_solo_si_ya_abrieron(monkeypatch):
     assert set(pueblo.OFRECE) <= set(pueblo.LUGARES)
     assert pueblo.ofrece("tienda") == ("tienda",)
-    assert pueblo.ofrece("incubadora") == ("incubadora",)
     assert pueblo.ofrece("casa") == ("departamento",)
     assert pueblo.ofrece("refugio") == () and pueblo.ofrece("estadio") == ()
     monkeypatch.setitem(pueblo.LUGARES, "tienda", replace(pueblo.LUGARES["tienda"], abre=pueblo.PRONTO))
     assert pueblo.ofrece("tienda") == ()
+
+
+def test_ningun_lugar_ofrece_la_incubadora():
+    # Con quién sales se elige en tu departamento: la Incubadora ya no se ofrece en ningún sitio.
+    assert "incubadora" not in pueblo.OFRECE
+    for clave in (*pueblo.LUGARES, "incubadora"):
+        for sin_gachamon in (False, True):
+            assert "incubadora" not in pueblo.ofrece(clave, sin_gachamon=sin_gachamon), clave
+    assert pueblo.ofrece("incubadora") == ()
 
 
 def test_quien_no_tiene_lugar_guardado_o_ya_no_existe_esta_en_su_casa():

@@ -19,7 +19,6 @@ import departamento as dep
 import economia
 from web import estado, pueblo
 from web.cuenta import Jugador, jugador_actual
-from web.salir import dicho_de_salir
 from web.sesion import con_cabecera, es_un_id, problema
 from web.tienda import datos_y_evento, dicho_no, evento_usado, no_se_entiende, _faltan_monedas
 
@@ -161,6 +160,29 @@ def guardar_un_mueble(
     ahora = db.ahora_utc()
     hecho = economia.guardar_mueble(jugador.usuario_id, jugador.guild_id, mueble_id, ahora)
     return _respuesta(jugador, ahora, _del_cambio(hecho, None), hecho.departamento)
+
+
+# --- Salir con otro ----------------------------------------------------------------
+#
+# Cambiar de activo es la regla `economia.cambiar_de_activo`; aquí sólo se dice
+# lo que pasó. La ficha usa la misma frase cuando el gachamon ya no está.
+
+NO_ESTA = "Ese gachamon ya no está."
+
+
+def dicho_de_salir(hecho: economia.ResultadoCambio) -> dict:
+    if hecho.ok:
+        return {"ok": True, "clave": None, "mensaje": f"Ahora sales con {hecho.criatura.nombre}."}
+    if hecho.motivo == "ya_es_el_activo":
+        # Lo que ya está como se pidió es un sí: un toque doble no enseña un error.
+        return {
+            "ok": True, "clave": None,
+            "mensaje": f"{hecho.criatura.nombre} ya es tu gachamon activo.",
+        }
+    if hecho.motivo == "no_esta":
+        return {"ok": False, "clave": "no_esta", "mensaje": NO_ESTA}
+    # Un motivo que no conocemos es un fallo nuestro y no se disfraza.
+    raise RuntimeError(f"sacar sin frase: {hecho.motivo!r}")
 
 
 @router.post("/departamento/salir", dependencies=[Depends(con_cabecera)])

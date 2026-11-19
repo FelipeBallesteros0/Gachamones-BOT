@@ -32,9 +32,7 @@ LUGARES: dict[str, Lugar] = {
 
 
 # Lo que se puede hacer en cada lugar, por nombre. Sólo cuenta si el lugar ya abrió.
-OFRECE: dict[str, tuple[str, ...]] = {
-    "casa": ("departamento",), "tienda": ("tienda",), "incubadora": ("incubadora",),
-}
+OFRECE: dict[str, tuple[str, ...]] = {"casa": ("departamento",), "tienda": ("tienda",)}
 
 # «Aventura» abre más adelante, pero a quien no tiene ningún gachamon vivo ya le
 # ofrece la primera aventura, la que lo trae. El dato del lugar no cambia: lo que

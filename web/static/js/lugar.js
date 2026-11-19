@@ -1,12 +1,12 @@
 // La pantalla principal: el lugar del pueblo donde estás, con su dibujo de
 // fondo y, si lo tiene, su aviso. Ahí ves a tu gachamon en grande, te habla en
 // un globo, lo acaricias y lo cuidas, y de ahí sales al pueblo, abres su ficha
-// completa o la mochila o, donde el lugar tiene la tienda, entras a comprar, y
-// donde tiene la incubadora, a tu plantel. Sin ningún gachamon, el lugar se
-// ve con tu avatar solo, su aviso y sus salidas: sin ficha, sin globo y sin
-// cuidados, y dónde estás es el título de la pantalla; y donde el lugar ofrece
-// la primera aventura («Aventura»), se sale a ella como a comprar, salvo
-// mientras el lugar avise de lo que falta para ella (la cama).
+// completa o la mochila o, donde el lugar tiene la tienda, entras a comprar.
+// Sin ningún gachamon, el lugar se ve con tu avatar solo, su aviso y sus
+// salidas: sin ficha, sin globo y sin cuidados, y dónde estás es el título de
+// la pantalla; y donde el lugar ofrece la primera aventura («Aventura»), se
+// sale a ella como a comprar, salvo mientras el lugar avise de lo que falta
+// para ella (la cama).
 //
 // `lugar(contenedor, estado, seguir, llegando)` pinta la pantalla con el
 // estado ya leído y la mantiene al día: vuelve a pedir el estado cada 30
@@ -36,7 +36,7 @@ import {
 } from './cuidados.js';
 import { el } from './dom.js';
 import {
-  ofreceLaAventura, ofreceLaIncubadora, ofreceLaTienda, siguiente,
+  ofreceLaAventura, ofreceLaTienda, siguiente,
 } from './pantallas.js';
 import { cuantasGemas, cuantasMonedas, elegirGlobo } from './tiempo.js';
 
@@ -320,7 +320,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     return cuidado;
   });
 
-  // --- comprar, tu plantel o la aventura (donde se ofrece), la mochila e ir al pueblo ----
+  // --- comprar o la aventura (donde se ofrece), la mochila e ir al pueblo ----
 
   // Se ve sólo mientras el lugar donde estás tenga la tienda.
   const aComprar = el('button', { type: 'button', class: 'boton principal boton-comprar', hidden: true },
@@ -328,14 +328,6 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
   aComprar.addEventListener('click', () => {
     parar();
     seguir(actual, { vista: 'tienda' });
-  });
-
-  // En el mismo sitio, sólo mientras el lugar donde estás tenga la incubadora.
-  const aTuPlantel = el('button', { type: 'button', class: 'boton principal boton-plantel', hidden: true },
-    el('span', { 'aria-hidden': 'true' }, '🥚'), 'Tu plantel');
-  aTuPlantel.addEventListener('click', () => {
-    parar();
-    seguir(actual, { vista: 'incubadora' });
   });
 
   // En el mismo sitio, sólo mientras se pueda salir a la primera aventura.
@@ -368,7 +360,7 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     conGachamon
       ? el('div', { class: 'cuidados', role: 'group', 'aria-label': 'Cuidados' }, cuidados.map((c) => c.nodo))
       : null,
-    el('div', { class: 'salidas-lugar' }, aComprar, aTuPlantel, aLaAventura, aLaMochila, alPueblo));
+    el('div', { class: 'salidas-lugar' }, aComprar, aLaAventura, aLaMochila, alPueblo));
   contenedor.append(cabecera, cuerpo);
 
   // --- pintar lo que dice el estado -----------------------------------------------
@@ -400,8 +392,6 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     // Sin gachamon, lo de bajo la escena es sólo el aviso: sin él, no queda un hueco.
     bajoLaFicha.hidden = !g && !avisoDelLugar;
     aComprar.hidden = !ofreceLaTienda(actual.lugar);
-    // Sin gachamon no hay plantel que ver.
-    aTuPlantel.hidden = !g || !ofreceLaIncubadora(actual.lugar);
     aLaAventura.hidden = !seSaleALaAventura(actual.lugar);
 
     const { monedas, gemas } = actual.saldos;

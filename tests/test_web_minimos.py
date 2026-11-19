@@ -133,10 +133,7 @@ def test_con_el_refrigerador_la_consola_y_la_ducha_ninguna_ruta_ensena_una_barra
     assert pedir("departamento/poner", {"mueble_id": maceta, "x": 3, "y": 0, "giro": 0})["ok"]
     assert pedir("departamento/guardar", {"mueble_id": maceta})["ok"]
 
-    # La Incubadora y la Tienda.
-    pedir("lugar", {"lugar": "incubadora"})
-    pedir("incubadora", metodo="GET")
-    assert pedir("incubadora/sacar", {"gachamon_id": rulo.id})["ok"]
+    # La Tienda.
     pedir("lugar", {"lugar": "tienda"})
     assert pedir("tienda/comprar", {"que": "objeto", "clave": "golosinas", "evento_id": next(eventos)})["ok"]
 
