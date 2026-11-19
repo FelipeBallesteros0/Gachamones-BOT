@@ -170,10 +170,13 @@ export function tienda(contenedor, estado, seguir) {
   }
 
   // Los muebles se tienen de a varios: siempre se puede comprar otro, y el que
-  // ya tienes dice cuántos, puestos o guardados.
+  // ya tienes dice cuántos, puestos o guardados. El que hace algo solo dice qué,
+  // justo bajo el nombre, con la frase que manda el servidor (`detalle`).
   function filaDeMueble(m) {
     const id = `mueble:${m.clave}`;
-    const lineas = [linea(`Comodidad +${m.comodidad}`, 'articulo-detalle')];
+    const lineas = [];
+    if (m.detalle) lineas.push(linea(m.detalle, 'articulo-detalle'));
+    lineas.push(linea(`Comodidad +${m.comodidad}`, 'articulo-detalle'));
     if (m.tienes > 0) lineas.push(linea(`Tienes ${m.tienes}`, 'articulo-tienes'));
     const accion = botonDePrecio(MONEDAS, m.precio, `Comprar ${m.nombre}`, {
       id, ruta: 'tienda/comprar', cuerpo: { que: 'mueble', clave: m.clave },

@@ -203,8 +203,38 @@ def test_cada_mueble_trae_lo_suyo_y_cuantos_tienes_puestos_o_guardados(cliente, 
     lista = cliente.get(TIENDA).json()["muebles"]["lista"]
     assert [m["clave"] for m in lista] == [m.clave for m in dep.a_la_venta()]   # la puerta no se vende
     assert lista[0] == {"clave": "felpudo", "nombre": "Felpudo", "precio": 30, "comodidad": 2,
-                        "icono": "iconos/muebles/felpudo.png", "tienes": 2}
+                        "icono": "iconos/muebles/felpudo.png", "tienes": 2, "detalle": None}
     assert {m["clave"]: m["tienes"] for m in lista if m["tienes"]} == {"felpudo": 2, "cama_sencilla": 2}
+
+
+# Lo que dice la Tienda bajo el nombre de los muebles que se usan solos: las
+# frases que aprobó el dueño, letra por letra.
+LO_QUE_HACEN_SOLOS = {
+    "refrigerador": "Con él puesto, la comida de tus gachamones no baja de 40.",
+    "consola": "Con ella puesta, el ánimo de tus gachamones no baja de 40.",
+    "ducha": "Con ella puesta, el aseo de tus gachamones no baja de 40.",
+    "pesas": "Con ellas puestas, tus gachamones entrenan la fuerza solos, un poco cada día.",
+}
+
+
+def test_los_muebles_que_se_usan_solos_dicen_lo_que_hacen_y_los_demas_nada(cliente, monkeypatch):
+    poner_reloj(monkeypatch)
+    con_gachamon(cliente)
+    ir(cliente, "tienda")
+    lista = cliente.get(TIENDA).json()["muebles"]["lista"]
+    assert {m["clave"]: m["detalle"] for m in lista} == {
+        m.clave: LO_QUE_HACEN_SOLOS.get(m.clave) for m in dep.a_la_venta()}
+    assert {m["clave"] for m in lista if m["detalle"] is not None} == set(LO_QUE_HACEN_SOLOS)
+
+
+def test_el_minimo_que_dice_la_tienda_es_el_de_la_regla(monkeypatch):
+    # Si el mínimo cambia, la frase cambia con él: no puede decir otro número.
+    monkeypatch.setattr(dep, "MINIMO_SOSTENIDO", 55.0)
+    assert [tienda.detalle_de(dep.MUEBLES[clave]) for clave in ("refrigerador", "consola", "ducha")] == [
+        "Con él puesto, la comida de tus gachamones no baja de 55.",
+        "Con ella puesta, el ánimo de tus gachamones no baja de 55.",
+        "Con ella puesta, el aseo de tus gachamones no baja de 55.",
+    ]
 
 
 def test_mirar_el_catalogo_no_crea_el_departamento(cliente, monkeypatch):

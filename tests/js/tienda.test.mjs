@@ -160,6 +160,38 @@ test('cada mueble se puede comprar, también el que ya tienes, y dice cuántos t
   assert.equal(contenedor.querySelectorAll('.aviso-de-seccion').length, 0);
 });
 
+// Lo que se lee en el texto de una fila, línea por línea: su clase y lo que dice.
+const lineasDe = (fila) => fila.querySelector('.articulo-texto').hijos
+  .map((h) => [h.atributos.class, textos(h).join('')]);
+
+test('el mueble que se usa solo dice lo que hace justo bajo el nombre; el que no, se ve como siempre', { timeout: 2000 }, async () => {
+  const LO_QUE_HACE = 'Con él puesto, la comida de tus gachamones no baja de 40.';
+  servidor(() => ({
+    ...catalogo(0),
+    muebles: {
+      lista: [
+        { ...mueble('refrigerador', 'Refrigerador', 300, 1), comodidad: 3, detalle: LO_QUE_HACE },
+        { ...mueble('maceta', 'Maceta', 50, 0), detalle: null },
+      ],
+    },
+  }));
+  const contenedor = await tiendaPintada();
+  const [refrigerador, maceta] = filasDeMuebles(contenedor);
+  assert.deepEqual(lineasDe(refrigerador), [
+    ['articulo-nombre', 'Refrigerador'],
+    ['articulo-detalle', LO_QUE_HACE],
+    ['articulo-detalle', 'Comodidad +3'],
+    ['articulo-tienes', 'Tienes 1'],
+  ]);
+  assert.deepEqual(lineasDe(maceta), [
+    ['articulo-nombre', 'Maceta'],
+    ['articulo-detalle', 'Comodidad +2'],
+  ]);
+  // La frase está una sola vez, en su fila, y el botón del precio sigue ahí.
+  assert.equal(textos(contenedor).filter((t) => t === LO_QUE_HACE).length, 1);
+  assert.equal(refrigerador.querySelectorAll('.boton-precio').length, 1);
+});
+
 test('comprar otro del que ya tienes manda el mueble y su evento, y la fila cuenta uno más', { timeout: 2000 }, async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const mensaje = 'Compraste Felpudo. Quedó en tus guardados: en tu casa, entra a «Construir».';

@@ -81,6 +81,24 @@ def _cosmeticos(jugador: Jugador) -> list[dict]:
     ]
 
 
+# Lo que hace cada mueble que se usa solo (`Mueble.uso`) mientras está puesto,
+# dicho en una línea bajo su nombre en la Tienda. El mínimo sale de la regla
+# (`dep.MINIMO_SOSTENIDO`): la frase no puede decir otro número que el que se aplica.
+_LO_QUE_HACE_SOLO = {
+    dep.COMIDA: "Con él puesto, la comida de tus gachamones no baja de {minimo}.",
+    dep.ANIMO: "Con ella puesta, el ánimo de tus gachamones no baja de {minimo}.",
+    dep.ASEO: "Con ella puesta, el aseo de tus gachamones no baja de {minimo}.",
+    dep.FUERZA: "Con ellas puestas, tus gachamones entrenan la fuerza solos, un poco cada día.",
+}
+
+
+def detalle_de(mueble: dep.Mueble) -> str | None:
+    """Lo que hace solo un mueble mientras está puesto; `None` si no hace nada solo."""
+    if mueble.uso is None:
+        return None
+    return _LO_QUE_HACE_SOLO[mueble.uso].format(minimo=int(dep.MINIMO_SOSTENIDO))
+
+
 def _muebles(jugador: Jugador) -> dict:
     """Cada mueble del catálogo y cuántos tienes, puestos o guardados: se compran de a varios."""
     depto = db.departamento_leido(jugador.usuario_id, jugador.guild_id)
@@ -90,7 +108,7 @@ def _muebles(jugador: Jugador) -> dict:
             {
                 "clave": m.clave, "nombre": m.nombre, "precio": m.precio,
                 "comodidad": m.comodidad, "icono": f"iconos/muebles/{m.clave}.png",
-                "tienes": tienes[m.clave],
+                "tienes": tienes[m.clave], "detalle": detalle_de(m),
             }
             for m in dep.a_la_venta()
         ],
