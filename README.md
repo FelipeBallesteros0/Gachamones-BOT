@@ -55,8 +55,10 @@ registro y sigue funcionando en los demás.
 CANAL_ID=123456789012345678,987654321098765432
 ```
 
-Los comandos funcionan en todos ellos, y cada persona sigue teniendo **un solo
-plantel por servidor**: el bot sólo contesta en esos canales.
+Con el juego en pausa el bot sólo atiende `/vincular` (que sólo vale en el
+servidor de la página) y avisa de que el juego se mudó a lo demás; y cada
+persona sigue teniendo **un solo plantel por servidor**. El bot sólo contesta en
+esos canales.
 
 ### 3. Arrancar en local
 
@@ -479,10 +481,9 @@ vincula, es otro (`cogs/mudanza.py`).
 | `tests/` | La suite de Python y, en `tests/js/`, las pruebas del cliente. |
 
 **`web/`, por dentro.** Cada pantalla tiene su router, que es un adaptador fino, y
-su módulo de JavaScript: la Tienda (`tienda.py`, `tienda.js`), la mochila, el
-ropero, la ficha, tu departamento (`departamento.py`, `departamento.js` y los
-módulos de la pieza), la carta del alcalde, la primera aventura, la cuenta y el
-juego del día a día. Lo común está aparte: `app.py` arma el servicio y monta los
+su cliente en `web/static/js/`: un módulo por pantalla o varios cuando la pantalla
+lo pide (tu departamento se reparte entre la pantalla, la pieza, el plantel y
+otros). Lo común está aparte: `app.py` arma el servicio y monta los
 routers, `sesion.py` sabe quién eres, `estado.py` arma el estado que lee la
 pantalla, `pueblo.py` lee los datos del pueblo, `arte.py` es el contrato del arte
 y `retratos.py` sirve los retratos. El mapa y el lugar donde estás son del

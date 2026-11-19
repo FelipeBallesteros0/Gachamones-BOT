@@ -75,7 +75,7 @@ Instala el hook local cuando prepares el entorno:
 - El activo es el que sale contigo: el que compite, va de aventura y conversa. Cambiar de activo no duerme ni despierta a nadie, ni le borra el tiempo a ninguno.
 - Cada cuidado le cae a un gachamon concreto: al que se elige o, si no se elige, al activo. Las esperas son de cada gachamon; el tope diario de monedas es uno solo por persona.
 - «A todos» le hace un cuidado a cada gachamon que puede recibirlo —le serviría y no está esperando— y paga como esos mismos cuidados hechos de a uno.
-- Un recluta llega con un nombre que se pone él solo, de `nombres.py`, y su dueño se lo puede cambiar una vez: esa regla vive en el servidor (`nacer.bautizar_a`, `POST /bautizar` con `gachamon_id`) y ninguna pantalla la ofrece; en la página el nombre se cambia con la placa con nombre. Ningún gachamon está sin nombre.
+- Un recluta llega con un nombre que se pone él solo, de `nombres.py`, y su dueño se lo puede cambiar una vez: la regla vive en el servidor y ninguna pantalla la ofrece; en la página se cambia con la placa con nombre. Ningún gachamon está sin nombre.
 - Lo que se hace una sola vez al arrancar deja su marca en `cambios_hechos`, en la misma transacción que el cambio.
 - Cada estadística se entrena por su vía —alimentar la salud, jugar la velocidad, entrenar la fuerza y conversar bien el ingenio—, salvo la fuerza, que tiene otra: las pesas del departamento.
 - El techo de una estadística lo fija `sim.MAXIMO_STAT` y se aplica en `stat_final`, el embudo por el que pasan las cuatro.

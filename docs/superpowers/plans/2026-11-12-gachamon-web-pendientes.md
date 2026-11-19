@@ -690,8 +690,8 @@ Son observaciones, no decisiones.
   dicen que el huerto vuelve más adelante.
 - **Por decidir (de producto, lo decide el dueño):**
   - ~~Quien ya tiene plantel propio en la página no puede vincular, y su plantel
-    de Discord queda guardado sin dónde jugarlo.~~ **Cerrada:** «Vincular se
-    queda como está» (el dueño, 2026-11-17, rework 6).
+    de Discord queda guardado sin dónde jugarlo.~~ **Cerrada:** el dueño
+    eligió «Dejarlo así» (2026-11-17, rework 6): vincular se queda como está.
   - ~~El aviso le explica cómo vincular también a quien ya vinculó.~~
     **Cerrada:** el aviso se deja como está (el dueño, 2026-11-16, rework 5).
   - La descripción de las golosinas anuncia la aventura.
@@ -887,9 +887,11 @@ Son observaciones, no decisiones.
     «Lo decidido» del rework 5).
   - La comodidad de todos queda en 82 hasta que cada quien ponga sus muebles, y
     el tope ahora depende de las casillas.
-  - ~~El reloj de todos parte del día del cambio, que es más generoso que «con la
-    comida en 0».~~ **Cerrada:** se queda como está (la revisión final del
-    rework 4 lo juzgó bien, y sólo beneficia).
+  - El reloj de todos parte del día del cambio, que es más generoso que «con la
+    comida en 0». **Sigue abierta.** Que parta de ese momento fue una propuesta
+    del plan de la vivienda, que el dueño aprobó con ese plan el 2026-11-15; la
+    revisión final anotó que es más generoso que el diseño, y sobre ese matiz el
+    dueño no ha elegido.
   - ~~La carta dice «por tus tickets» también cuando era uno.~~ **Cerrada:** dice
     «por tu ticket» cuando era uno (el dueño, rework 5).
 
@@ -1184,7 +1186,7 @@ Son observaciones, no decisiones.
     («Dejarlo como está»).
   - La Tienda nombra «Construir», como la carta: al comprar un mueble dice
     `Compraste {nombre}. Quedó en tus guardados: en tu casa, entra a
-    «Construir».`
+    «Construir».` (Cambiada en el rework 8 a «en tu departamento».)
 - **Lo que el plan propuso y el dueño aprobó** (se le enseñó con el plan):
   - Las frases: `Modo construcción`, `Toca un mueble para moverlo, girarlo o
     guardarlo.` y `Modo construcción terminado.` («Apruebo las tres»).
@@ -1813,10 +1815,11 @@ estaban bien.
   dice que de `db.py` sólo cambió un docstring.
 - Decisiones de producto que quedan cerradas: «Tu casa» frente a «tu
   departamento», la Tienda sin gachamon, «es {especie}», y el cambio de nombre de
-  los reclutas. Y las que seguían escritas como abiertas: vincular con plantel
-  propio («se queda como está»), los textos en pausa (se reescriben con cada
-  pantalla), el aviso del bot a quien ya vinculó, la casa mejorada y «por tu
-  ticket», y el reloj desde el día del cambio.
+  los reclutas. Y las que seguían escritas como abiertas y ya estaban
+  decididas: vincular con plantel propio (se queda como está), los textos en
+  pausa (se reescriben con cada pantalla), el aviso del bot a quien ya vinculó, y
+  la casa mejorada y «por tu ticket». El reloj desde el día del cambio **sigue
+  abierto** (ver el rework 4).
 
 ### Lo que queda
 
@@ -1856,10 +1859,11 @@ en las secciones «Al publicar», «Si hubiera que volver atrás» y «Lo que qu
 cada rework, donde se quedan como historia.
 
 **Tres pasos necesitan el permiso expreso del dueño y no se dan por concedidos:**
-copiar la base de producción para el ensayo (paso 3), fusionar y subir (paso 6) y
-desplegar (paso 9). Sin una respuesta suya a cada uno, no se hace. Y mirar la base
-de producción por cualquier otra razón (por ejemplo, contar cartas) también
-pide permiso.
+copiar la base de producción para el ensayo (paso 2), fusionar y subir (paso 5) y
+desplegar (paso 6, que cubre parar los dos servicios, sacar la copia de la base
+en la propia Raspberry y desplegar). Sin una respuesta suya a cada uno, no se
+hace. Mirar la base de producción por cualquier otra razón (por ejemplo, contar
+cartas) también pide permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
 
 ### Antes (en local, sin tocar producción)
 
@@ -1870,21 +1874,20 @@ pide permiso.
    gachamon y la primera aventura. Se espera: todo en verde y el visto bueno del
    dueño. El modo construcción y la partida sin gachamon ya los probó (2026-11-18)
    y los muebles que se usan solos también (2026-11-19); el rework 8, no.
-2. **Dejar dicha la conciliación.** Tras el día del cambio, el informe de
-   conciliación (`economia_reporte.py`) no cuadra: lo que el cambio devuelve por
-   casas y tickets no pasa por el registro de operaciones (a propósito: una
-   devolución no es una ganancia). No se arregla en el código. Se hace: tenerlo
-   presente al leer el informe del paso 4 (y, después, el del día). Se espera: que
-   la diferencia entre los saldos y lo esperado sea justo la suma de lo devuelto
-   por casas y tickets que dicen las cartas (`monedas_por_casas` y
-   `monedas_por_tickets`). Las gemas de las medallas tampoco pasan por el registro,
-   pero el informe sólo mira monedas: se cuadran con `gemas_por_medallas`.
-3. **Pedir el permiso expreso del dueño para copiar la base de producción y
-   ensayar con ella.** Se hace: pedirlo, y esperar el sí. Se espera: un sí o un no
-   explícitos. Sin él, el ensayo no se hace y se vuelve a decidir con el dueño.
-4. **El ensayo sobre la copia** (fuera de la Pi, nunca contra la base viva).
-   Se hace: arrancar el código nuevo sobre la copia (`RUTA_BD` apunta a ella; el
-   arranque corre `economia.poner_al_dia`) y mirar:
+2. **Pedir el permiso expreso del dueño para copiar la base de producción y
+   ensayar con ella.** Se hace: pedirlo, y acordar con él al pedirlo cómo y cuándo
+   se saca la copia. Tiene que ser consistente: sacada con la API de copia de
+   SQLite, o con los dos servicios parados. La copia no entra al repo y se borra al
+   terminar el ensayo. Se espera: un sí o un no explícitos; sin el sí, no hay
+   ensayo y se vuelve a decidir con el dueño.
+3. **El ensayo.** Se hace **fuera de la Raspberry**, sobre **una copia** de la
+   base, **sin el token de Discord y sin arrancar el bot** (`bot.py`): un bot
+   arrancado con las credenciales de producción sincroniza comandos y edita o
+   borra el manual en los canales de verdad, y eso ya no es un ensayo. Lo que
+   corre es el arranque del rediseño: `economia.poner_al_dia`, llamado desde un
+   intérprete con `RUTA_BD` apuntando a la copia (por ejemplo, desde una copia del
+   repo sacada con `git archive`, que no trae `.env`), o levantando sólo la web
+   sobre la copia, que no habla con Discord. Se mira:
    - monedas devueltas = la suma de los precios de catálogo de las casas, más 140
      por cada casa mediana o grande, más 40 por ticket (los de las mochilas y los
      del buzón sin recoger); y monedas y gemas de cada persona = las de antes más
@@ -1904,54 +1907,65 @@ pide permiso.
      se nombraron solos;
    - la línea del día del cambio en el registro: **cinco cifras** (personas,
      camas, monedas devueltas, gemas pagadas por medallas y placas), una sola vez;
-   - la conciliación, con lo del paso 2.
-   Se espera: todo lo anterior cuadra y el arranque no se detiene. Si no cuadra,
-   no se publica.
-5. **Mirar la copia ensayada con un veterano.** Se hace: abrir la página sobre la
-   copia con una cuenta de alguien que ya jugaba (con Rowino de pruebas) y mirar el
+   - **cómo cuadra la conciliación** (`economia_reporte.py`): tras el día del
+     cambio el informe no cuadra, y no se arregla en el código, porque lo que el
+     cambio devuelve por casas y tickets no pasa por el registro de operaciones (a
+     propósito: una devolución no es una ganancia). Se espera que la diferencia
+     entre los saldos y lo esperado sea justo la suma de lo devuelto por casas y
+     tickets que dicen las cartas (`monedas_por_casas` y `monedas_por_tickets`).
+     Las gemas de las medallas tampoco pasan por el registro, pero el informe sólo
+     mira monedas: se cuadran con `gemas_por_medallas`.
+   Se espera: todo lo anterior cuadra y el arranque no se detiene. Si no cuadra, no
+   se publica. **Conviene ensayar también la vuelta atrás** (paso 16) sobre esa
+   misma copia.
+4. **Mirar la copia ensayada con un veterano.** Se hace: abrir la página sobre la
+   copia (la web sola, sin bot) con una cuenta de alguien que ya jugaba y mirar el
    mapa, la Tienda y la carta. Se espera: siete lugares, sin Refugio ni
    Incubadora; la Tienda con sus muebles y objetos; la carta con sus frases y, si
    tenía reclutas que se nombraron solos, la línea de las placas, y esas placas en
    su mochila.
-6. **Pedir el permiso expreso del dueño para fusionar `rework/1-departamento` en
-   `main` y subirla.** Se hace: pedirlo, y esperar el sí; después, fusionar y
-   subir. Se comprueba: que `origin/main` es ascendiente de la rama (avance rápido:
-   `git merge-base --is-ancestor origin/main HEAD`) y que la integración continua
-   pasa en las dos versiones de Python, 3.12 y 3.14. Se espera: la CI en verde.
-   Sin ese verde, no se despliega.
+5. **Pedir el permiso expreso del dueño para fusionar `rework/1-departamento` en
+   `main` y subirla.** Se hace: pedirlo, y esperar el sí; después, `git fetch origin
+   main` y comprobar que es un avance rápido (`git merge-base --is-ancestor
+   origin/main HEAD`), fusionar y subir. Se espera: la comprobación sin error y la
+   integración continua en verde en las dos versiones de Python, 3.12 y 3.14. Sin
+   ese verde, no se despliega.
 
 ### El día
 
-7. **Parar el bot y la web** antes de copiar la base: `actualizar-pi.sh` saca su
-   copia al principio, con el bot de antes todavía en marcha, y copiar una base en
-   uso no garantiza una copia sana. Se hace: por SSH, `sudo systemctl stop
-   tamagotchi gachamon-web`. Se comprueba: `systemctl is-active` de los dos. Se
-   espera: `inactive`.
-8. **Copiar la base y guardar la copia fuera de la rotación de cinco**, y apuntar
-   en qué commit está la Pi. El guion conserva sólo las 5 últimas
-   `tamagotchi.db.*.bak`, y cada despliegue añade la suya; una copia con otro
-   nombre o en otra carpeta no se borra. El commit de antes también queda en
-   `.git/gachamon-anterior` de la Pi, pero lo sobrescribe el siguiente
-   despliegue: anótalo. Se espera: la copia aparte y el commit anotado. (Sacar la
-   copia de la Pi pide permiso; dejarla en la Pi, no.)
-9. **Pedir el permiso expreso del dueño y desplegar con `actualizar-pi.sh`**, no
-   con `deploy.sh`: `deploy.sh` copia la carpeta local y no `main`, y deja la web
-   vieja viva unos segundos sobre la base que el bot nuevo ya migró. Se hace:
-   `SIN_TESTS=1 ./actualizar-pi.sh` (la CI ya pasó). El guion reinicia **primero
-   el bot**: el día del cambio lo hace el bot, y su aviso sale en el registro del
-   bot. En el mismo arranque corren antes, en otra transacción, las marcas de
+6. **Pedir el permiso expreso del dueño para desplegar.** Ese permiso cubre
+   **parar los dos servicios, sacar la copia de la base en la propia Raspberry y
+   desplegar**: no se da por concedido, y sin él no se toca producción. Se espera:
+   un sí explícito, antes de seguir.
+7. **Parar el bot y la web.** `actualizar-pi.sh` saca su copia al principio con el
+   bot de antes todavía en marcha, y copiar una base en uso no garantiza una copia
+   sana. Se hace: por SSH, `sudo systemctl stop tamagotchi gachamon-web`. Se
+   comprueba: `systemctl is-active` de los dos. Se espera: `inactive`.
+8. **Sacar la copia de la base, guardarla fuera de la rotación de cinco y apuntar
+   el commit en el que está la Raspberry.** Con los servicios parados la copia es
+   consistente. El guion conserva sólo las 5 últimas `tamagotchi.db.*.bak` (y
+   añade la suya en cada despliegue): una copia con otro nombre o en otra carpeta
+   no se borra. Se anota el commit de la Raspberry (`git rev-parse HEAD` allí): el
+   guion lo deja también en `.git/gachamon-anterior`, pero el siguiente
+   despliegue lo sobrescribe. Se espera: la copia aparte, de un tamaño igual al de
+   la base, y el commit anotado.
+9. **Desplegar con `actualizar-pi.sh`**, no con `deploy.sh` (éste copia la carpeta
+   local en vez de lo que hay en `main`). Se hace: `SIN_TESTS=1 ./actualizar-pi.sh`,
+   con la CI ya en verde. El guion despliega `main` por defecto, avisa si tienes
+   commits sin subir, saca además su propia copia `tamagotchi.db.<fecha>.bak`,
+   deja apuntado el commit anterior en `.git/gachamon-anterior`, y **reinicia
+   primero el bot y después la web**: el día del cambio lo hace el bot, que arranca
+   primero. En el mismo arranque corren antes, en otra transacción, las marcas de
    nadie muere, el tiempo para todos y los nombres; si el día del cambio se
    detuviera, esas ya quedaron hechas. Se comprueba: el guion termina con
    «Listo», con `is-active` de los dos servicios y con la salud de la web
    (`/gachamon/api/salud`). Se espera: ningún error; si el guion falla, su última
    línea dice cómo arrancar la web a mano.
-10. **Mirar el registro** (`ssh <la Pi> 'journalctl -u tamagotchi -u
-    gachamon-web'`). Se espera: la línea del día del cambio, una sola vez, con
-    las cifras del ensayo (paso 4); una línea de comandos sincronizados por
-    servidor (desaparecen los de antes y quedan `/vincular`, `/mascota` y
-    `/huevo`); y un «Manual al día» por canal de información (edita la primera
-    página y borra las demás). Contar cartas o mirar `cambios_hechos` en
-    producción pide permiso.
+10. **Mirar el registro** (`journalctl -u tamagotchi -u gachamon-web` en la
+    Raspberry). Se espera: la línea del día del cambio, una sola vez, con las
+    cifras del ensayo (paso 3); una línea de comandos sincronizados por servidor
+    (quedan `/vincular`, `/mascota` y `/huevo`); y un «Manual al día» por canal de
+    información (edita la primera página y borra las demás).
 11. **Si en algún arranque hubiera departamentos sin la marca del cambio** (no
     debería: sólo pasa en una base de desarrollo, o con una base restaurada a
     medias), el arranque se detiene a propósito y lo reintenta cada pocos
@@ -1969,24 +1983,38 @@ pide permiso.
 14. **Limpiar a mano** el manual que haya quedado en canales que ya no estén
     configurados y, si hiciera falta, los avisos que el bot dejó en menciones.
     Se espera: ningún manual viejo suelto.
-15. **Tener presente para leer la base**: una barra por debajo de 40 con su mueble
-    puesto es normal (toda lectura pasa por `db.avanzar`), y los puntos de las
-    pesas aparecen en la fila sólo tras el siguiente guardado. Nada que lea
-    `criaturas` a mano vale para contestarle a un jugador. No hay migraciones
-    nuevas por los reworks 7 y 8, y la columna `monederos.partida` (del rework 6)
-    se confirma antes de la transacción del cambio.
+15. **Tener presente.** Una barra por debajo de 40 con su mueble puesto es normal
+    (toda lectura pasa por `db.avanzar`), y los puntos de las pesas aparecen en la
+    fila sólo tras el siguiente guardado: nada que lea `criaturas` a mano vale
+    para contestarle a un jugador. No hay migraciones nuevas por los reworks 7 y
+    8, y la columna `monederos.partida` (del rework 6) se confirma antes de la
+    transacción del cambio. `URL_GACHAMON` es opcional (sin ella vale la dirección
+    pública) y el `.env` de la Raspberry no cambia. Los botones, menús y
+    formularios de los mensajes viejos de Discord contestan el aviso de que el
+    juego se mudó.
 
 ### Si hubiera que volver atrás
 
-16. **La única vuelta es restaurar la copia de la base de antes y el código de
-    antes, las dos cosas juntas** (con el bot y la web parados); no se mezclan
-    versiones. Lo jugado desde el cambio se pierde. Desde el rework 6, el código de
-    antes no arranca sobre la base ya preparada, así que las recetas SQL de los
-    reworks 1 y 2 no bastan solas. Si el guion falla después del reinicio (la base
-    ya está convertida), no se vuelve al commit anterior sin restaurar la copia;
-    si falla antes, él mismo vuelve al commit en el que estaba. Se comprueba: los
-    dos servicios activos y la salud de la web. Se espera: el juego de antes, con
-    la gente como estaba en la copia.
+16. **Volver atrás** necesita el visto bueno del dueño en ese momento, y se pierde
+    todo lo jugado desde el cambio. La base y el código van **juntos**: la base ya
+    cambiada no arranca con el código de antes (desde el rework 6 no conoce la
+    forma nueva de `monederos`; y las recetas SQL de los reworks 1 y 2 ya no
+    bastan solas), y el código nuevo sobre la base de antes volvería a hacer el
+    cambio. Se hace, en la Raspberry:
+    1. parar los dos servicios (`sudo systemctl stop tamagotchi gachamon-web`);
+    2. reponer la base con la copia sacada **antes** del cambio (la guardada fuera
+       de la rotación del paso 8), quitando los archivos `-wal` y `-shm` que
+       hubiera junto a la base;
+    3. volver el código al commit anotado en el paso 8 (`git reset --hard
+       <commit>`, como hace el propio guion cuando vuelve atrás solo) y reinstalar
+       sus requisitos (`./venv/bin/python -m pip install -r requirements.txt`);
+    4. arrancar el bot y después la web.
+    Se comprueba: `systemctl is-active` de los dos, la salud de la web y que el
+    registro **no** traiga la línea del día del cambio. Se espera: el juego de
+    antes, con la gente como estaba en la copia. Si el guion de despliegue falla
+    antes del reinicio, él mismo vuelve al commit en el que estaba; si falla
+    después (la base ya está convertida), no se vuelve a mano al commit anterior
+    sin reponer la copia.
 
 ## Para el plan 6 (tu casa)
 
