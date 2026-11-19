@@ -1593,6 +1593,20 @@ test('sin ninguno de esos muebles un paseo pide al azar lo de siempre (cuándo, 
   }
 });
 
+test('cada paseo pide primero cuándo es el siguiente y después si va a uno de esos muebles', async () => {
+  // Hasta el primer paseo el azar da 0 (llega a los 4 s); en él, 0,9 y después 0.
+  // En ese orden, el siguiente tarda y éste va al refrigerador; al revés, éste
+  // no iría (0,9 no es menos de un tercio) y daría el paso suelto, a (2, 2).
+  let guion = [];
+  const azar = () => (guion.length ? guion.shift() : 0);
+  const { pantalla } = await abrir(CON_REFRIGERADOR, ESTADO, { azar });
+  await correrReloj(3000);                                               // el globo ya pidió lo suyo
+  guion = [0.9, 0];
+  await correrReloj(1000);
+  await correrCuadros(2000);
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [2, 1]);
+});
+
 test('con menos movimiento nadie va a esos muebles', async () => {
   const { pantalla } = await abrir(CON_REFRIGERADOR, ESTADO, { movimientoReducido: true, azar: () => 0 });
   await correrReloj(20_000);
@@ -1614,6 +1628,13 @@ test('si mientras va llega la pieza sin ese mueble, nada revienta y acaba en una
     assert.equal(await comoAcaba(hecho), 'sigue');
     assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), acaba);
     assert.ok(!noSePisan(nuevo).has(String(acaba)));
+    // Si no acabó en el lado al que iba, (2, 1), no se queda ahí: el paseo
+    // siguiente, el de los 8 s, ya lo mueve.
+    if (String(acaba) !== '2,1') {
+      await correrReloj(4000);
+      await correrCuadros(1000);
+      assert.notDeepEqual(dondeSePinto(pantalla, PELUSA.retrato), acaba);
+    }
     // Y sigue paseando como siempre.
     await correrReloj(20_000);
     await correrCuadros(1000);
