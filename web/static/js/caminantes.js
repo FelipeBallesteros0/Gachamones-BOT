@@ -6,9 +6,11 @@
 //
 // Un caminante es `{i, j, ruta, espejo, porSegundo}`: dónde está (con
 // decimales a medio paso), las casillas que le quedan por pisar, si mira a la
-// izquierda y cuántas casillas anda por segundo. Lo que lo reubica o lo hace
-// andar lo cambia a él mismo y lo devuelve; lo que sólo cuenta (`rutaHasta`,
-// `unPaseo`) no mueve a nadie: lo mueve quien llama.
+// izquierda y cuántas casillas anda por segundo. `reubicar` y `avanzar` lo
+// cambian a él mismo (`reubicar` además lo devuelve, o `null` si no le queda
+// casilla); `reubicarte` y `repartir` pueden dar uno nuevo (al entrar, o en la
+// puerta si dentro no queda sitio). Lo que sólo cuenta (`rutaHasta`, `unPaseo`,
+// `unPaseoAUnMueble`) no mueve a nadie: lo mueve quien llama.
 //
 // Al entrar apareces en la puerta, una casilla más, fuera de la pieza (sin
 // puerta, en el primero de los sitios de entrada), y tus gachamones se
@@ -17,7 +19,9 @@
 // los muebles cierran el paso, no se va. A la puerta sólo vas tú, por la
 // casilla de enfrente. Un gachamon que da un paso solo va a una casilla de al
 // lado que esté libre: ni bajo un mueble, ni donde estáis (o adonde vais) tú
-// y los demás.
+// y los demás. El que va solo a uno de los muebles que se usan solos (los que
+// traen la marca `uso` del servidor) acaba igual en una casilla libre, pegada
+// a ese mueble.
 
 import { camino, laPuerta, libreMasCercana, noSePisan, pasoSuelto, sitiosDeEntrada } from './casillas.js';
 
@@ -167,18 +171,62 @@ export function casillasDelGachamon(depto, quien) {
   return sitios;
 }
 
-// El paso que da solo uno de tus gachamones (los de `plantel` que tienen
-// casilla en `enPieza`) que está quieto, salvo el elegido (`elegidoG`, que
-// tiene su menú abierto): hacia una casilla de al lado que esté libre. A
-// `azar` se le pide quién y, si tiene adónde ir, hacia dónde. `{id, ruta}`, o
-// `null` si nadie está quieto o el que tocó no tiene adónde ir.
+// Uno de la lista, el que diga `azar`.
+const alAzar = (lista, azar) => lista[Math.min(lista.length - 1, Math.floor(azar() * lista.length))];
+
+// Los ids de tus gachamones (los de `plantel` que tienen casilla en `enPieza`)
+// que están quietos, salvo el elegido (`elegidoG`, que tiene su menú abierto).
+const quietosDe = (plantel, enPieza, elegidoG) => plantel.map((g) => g.id)
+  .filter((id) => id !== elegidoG && enPieza.has(id) && enPieza.get(id).ruta.length === 0);
+
+// El paso que da solo uno de tus gachamones que está quieto (`quietosDe`):
+// hacia una casilla de al lado que esté libre. A `azar` se le pide quién y, si
+// tiene adónde ir, hacia dónde. `{id, ruta}`, o `null` si nadie está quieto o
+// el que tocó no tiene adónde ir.
 export function unPaseo(depto, plantel, enPieza, tu, elegidoG, azar) {
-  const quietos = plantel.map((g) => g.id)
-    .filter((id) => id !== elegidoG && enPieza.has(id) && enPieza.get(id).ruta.length === 0);
+  const quietos = quietosDe(plantel, enPieza, elegidoG);
   if (!quietos.length) return null;
-  const id = quietos[Math.min(quietos.length - 1, Math.floor(azar() * quietos.length))];
+  const id = alAzar(quietos, azar);
   const quien = enPieza.get(id);
   const [i, j] = pasoSuelto(depto.ancho, depto.fondo, noSePisanConGente(depto, tu, enPieza, id), [quien.i, quien.j], azar);
   if (i === quien.i && j === quien.j) return null;
   return { id, ruta: [[i, j]] };
+}
+
+const LADOS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+
+// Las casillas pegadas por un lado (no en diagonal) a las de ese mueble, en
+// ese orden. Salen también las que quedan fuera de la pieza (la de la puerta,
+// entre ellas) y, si tiene más de una, las suyas: quien las pide se queda sólo
+// con las que se pisan y tienen camino.
+const ladosDe = (mueble) => mueble.casillas.flatMap(([i, j]) => LADOS.map(([di, dj]) => [i + di, j + dj]));
+
+// Un paseo de uno de tus gachamones que está quieto (`quietosDe`, los mismos
+// que para `unPaseo`) hasta el lado de uno de los muebles que se usan solos
+// (los puestos que traen la marca `uso`): a una casilla pegada a él por un
+// lado, que se pisa, que nadie pisa ni es adonde va nadie
+// (`noSePisanConGente`), que no es donde ya está y a la que tiene camino
+// (`rutaHasta`, sin la puerta: sólo dentro de la pieza y, como cuando lo
+// mueves tú, por el camino sólo estorban los muebles). A `azar` se le pide,
+// en este orden: quién; si tiene adónde ir, a cuál de los muebles a los que
+// puede ir; y a cuál de sus lados. Sin ningún mueble con la marca no se le
+// pide nada. `{id, ruta}`, o `null` si no hay mueble con la marca, nadie está
+// quieto o el que tocó no tiene adónde ir.
+export function unPaseoAUnMueble(depto, plantel, enPieza, tu, elegidoG, azar) {
+  const muebles = depto.puestos.filter((p) => p.uso);
+  if (!muebles.length) return null;
+  const quietos = quietosDe(plantel, enPieza, elegidoG);
+  if (!quietos.length) return null;
+  const id = alAzar(quietos, azar);
+  const quien = enPieza.get(id);
+  const ocupado = noSePisanConGente(depto, tu, enPieza, id);
+  const adonde = muebles
+    .map((mueble) => ladosDe(mueble)
+      .filter(([i, j]) => !ocupado.has(`${i},${j}`))
+      .map((lado) => rutaHasta(depto, quien, lado))
+      .filter((ruta) => ruta !== null && ruta.length > 0))
+    .filter((rutas) => rutas.length > 0);
+  if (!adonde.length) return null;
+  const aEse = alAzar(adonde, azar);
+  return { id, ruta: alAzar(aEse, azar) };
 }

@@ -198,6 +198,15 @@ test('unPaseo: uno que está quieto da un paso a una vecina libre, pidiendo a az
   }
 });
 
+test('unPaseo: a azar se le pide primero quién y después hacia dónde', () => {
+  const d = pieza();
+  const tu = andando(0, -1, [], 3);
+  const losDos = () => new Map([[10, andando(1, 2)], [20, andando(2, 1)]]);
+  // Con valores distintos en cada turno, cambiar el orden cambia a quién le toca y adónde va.
+  assert.deepEqual(c.unPaseo(d, d.plantel, losDos(), tu, null, azarDe(0, 0.99)), { id: 10, ruta: [[0, 2]] });
+  assert.deepEqual(c.unPaseo(d, d.plantel, losDos(), tu, null, azarDe(0.99, 0)), { id: 20, ruta: [[2, 2]] });
+});
+
 test('unPaseo: sin nadie quieto da null sin pedir azar, y sin vecina libre da null', () => {
   const d = pieza();
   const tu = andando(0, -1, [], 3);
@@ -211,6 +220,133 @@ test('unPaseo: sin nadie quieto da null sin pedir azar, y sin vecina libre da nu
   const otro = azarDe(0);
   assert.equal(c.unPaseo(d, d.plantel, encerrado, andando(1, 0, [], 3), null, otro), null);
   assert.equal(otro.veces, 1);
+});
+
+// Uno de los muebles que se usan solos, como lo manda el servidor: con su marca
+// `uso` (la pantalla sólo mira si la trae, no cuál es). Los demás la traen en `null`.
+const queSeUsaSolo = (i, j, id = 4, uso = 'comida') => ({
+  id, clave: 'refrigerador', ancho: 1, fondo: 1, capa: 'bulto', uso, x: i, y: j, giro: 0, casillas: [[i, j]],
+});
+const sinMarca = (puesto) => ({ ...puesto, uso: null });
+
+// Una pieza de 4 × 4 con la puerta en la pared de la derecha, en su primer
+// tramo, dos de los muebles que se usan solos, en (1, 1) y en (2, 3), y una
+// maceta sin marca en (3, 1). Los lados de (1, 1), en el orden en que se
+// cuentan, son (1, 2), (2, 1), (1, 0) y (0, 1); los de (2, 3), (3, 3), (2, 2) y
+// (1, 3):
+//
+//          i=0    i=1    i=2    i=3
+//   j=-1  puerta
+//   j=0    ·      ·      ·      ·
+//   j=1    ·     uso     ·    maceta
+//   j=2    ·      ·      ·      ·
+//   j=3    ·      ·     uso     ·
+function conMuebles(plantel = [{ id: 10 }, { id: 20 }]) {
+  const puestos = [PUERTA, queSeUsaSolo(1, 1, 4), queSeUsaSolo(2, 3, 5, 'fuerza'), sinMarca(maceta(3, 1))];
+  return { ancho: 4, fondo: 4, casillas: 16, puestos, guardados: [], plantel };
+}
+
+// Si esa casilla está pegada por un lado (no en diagonal) a alguno de los muebles marcados.
+const alLadoDeUnoMarcado = (d, [i, j]) => d.puestos.some((p) => p.uso
+  && p.casillas.some(([a, b]) => Math.abs(a - i) + Math.abs(b - j) === 1));
+
+test('unPaseoAUnMueble: uno quieto va hasta el lado de un mueble marcado, pidiendo a azar quién, a cuál y a qué casilla', () => {
+  const d = conMuebles();
+  const tu = andando(0, -1, [], 3);
+  const losDos = () => new Map([[10, andando(0, 3)], [20, andando(3, 0)]]);
+  // Con valores distintos en cada turno, cambiar el orden cambia a quién le toca, a qué mueble o a qué lado.
+  let azar = azarDe(0, 0.99, 0.5);
+  const gente = losDos();
+  assert.deepEqual(c.unPaseoAUnMueble(d, d.plantel, gente, tu, null, azar), { id: 10, ruta: [[1, 3], [1, 2], [2, 2]] });
+  assert.equal(azar.veces, 3);
+  // No mueve a nadie: eso lo hace quien llama.
+  assert.deepEqual([...dondeEsta(gente.get(10)), gente.get(10).ruta], [0, 3, []]);
+  azar = azarDe(0.99, 0, 0.5);
+  assert.deepEqual(c.unPaseoAUnMueble(d, d.plantel, losDos(), tu, null, azar), { id: 20, ruta: [[2, 0], [1, 0]] });
+  assert.equal(azar.veces, 3);
+});
+
+test('unPaseoAUnMueble: con cualquier azar, acaba pegado a un mueble marcado y nunca sobre un mueble, sobre ti, sobre otro ni en la puerta', () => {
+  const d = conMuebles([{ id: 10 }, { id: 20 }, { id: 30 }]);
+  // Tú, a un lado de (1, 1); 20, el elegido, a otro; y 30, camino de un tercero.
+  const tu = andando(1, 0, [], 3);
+  const gente = () => new Map([[10, andando(0, 3)], [20, andando(2, 1)], [30, andando(0, 2, [[0, 1]])]]);
+  const tapadas = noSePisan(d);
+  const valores = [0, 0.3, 0.6, 0.99];
+  const llegadas = new Set();
+  for (const quien of valores) {
+    for (const cual of valores) {
+      for (const donde of valores) {
+        const enPieza = gente();
+        const azar = azarDe(quien, cual, donde);
+        const paseo = c.unPaseoAUnMueble(d, d.plantel, enPieza, tu, 20, azar);
+        assert.equal(paseo.id, 10);
+        assert.equal(azar.veces, 3);
+        const fin = paseo.ruta.at(-1);
+        llegadas.add(String(fin));
+        assert.ok(alLadoDeUnoMarcado(d, fin), String(fin));
+        assert.ok(fin[0] >= 0 && fin[1] >= 0, String(fin));                 // dentro: nunca en la puerta
+        assert.ok(!c.noSePisanConGente(d, tu, enPieza, 10).has(String(fin)), String(fin));
+        // Un camino de verdad: casilla a casilla, desde donde está, sin pisar lo que no se pisa.
+        let antes = [0, 3];
+        for (const paso of paseo.ruta) {
+          assert.equal(Math.abs(paso[0] - antes[0]) + Math.abs(paso[1] - antes[1]), 1, String(paso));
+          assert.ok(!tapadas.has(String(paso)), String(paso));
+          antes = paso;
+        }
+      }
+    }
+  }
+  // Va a los lados libres de los dos: ni a (1, 0) (tú), ni a (2, 1) (el elegido), ni a (0, 1) (adonde va 30).
+  assert.deepEqual([...llegadas].sort(), ['1,2', '1,3', '2,2', '3,3']);
+});
+
+test('unPaseoAUnMueble: un mueble marcado sin un lado adonde ir no se elige', () => {
+  // (0, 0) sólo tiene un lado en la pieza, (1, 0), y estás tú; (2, 2) tiene libres (2, 1) y (1, 2).
+  const d = pieza([CAMA, PUERTA, queSeUsaSolo(0, 0, 4), queSeUsaSolo(2, 2, 5)], [{ id: 10 }]);
+  const tu = andando(1, 0, [], 3);
+  for (const cual of [0, 0.5, 0.99]) {
+    const paseo = c.unPaseoAUnMueble(d, d.plantel, new Map([[10, andando(2, 0)]]), tu, null, azarDe(0, cual, 0));
+    assert.deepEqual(paseo, { id: 10, ruta: [[2, 1]] });
+  }
+});
+
+test('unPaseoAUnMueble: sin muebles marcados o sin nadie quieto da null sin pedir azar', () => {
+  const tu = andando(0, -1, [], 3);
+  const gente = new Map([[10, andando(1, 2)], [20, andando(2, 1)]]);
+  // Ninguno trae la marca: la pieza de siempre, y una maceta con la marca en `null`.
+  for (const d of [pieza(), pieza([CAMA, PUERTA, sinMarca(maceta(2, 2))])]) {
+    const azar = azarDe(0);
+    assert.equal(c.unPaseoAUnMueble(d, d.plantel, gente, tu, null, azar), null);
+    assert.equal(azar.veces, 0);
+  }
+  // 10 ya camina y 20 es el elegido.
+  const d = conMuebles();
+  const azar = azarDe(0);
+  const nadie = new Map([[10, andando(0, 3, [[0, 2]])], [20, andando(3, 0)]]);
+  assert.equal(c.unPaseoAUnMueble(d, d.plantel, nadie, tu, 20, azar), null);
+  assert.equal(azar.veces, 0);
+});
+
+test('unPaseoAUnMueble: con el mueble rodeado, sin camino hasta él o ya a su lado, null tras pedir sólo quién', () => {
+  // (0, 0) sólo tiene un lado en la pieza, (1, 0): la cama, la pared y la puerta le tapan los otros.
+  const rincon = pieza([CAMA, PUERTA, queSeUsaSolo(0, 0)], [{ id: 10 }, { id: 20 }]);
+  const casos = [
+    // Ese lado lo pisas tú.
+    [rincon, andando(1, 0, [], 3), new Map([[10, andando(2, 2)]])],
+    // Ese lado lo pisa otro, o es adonde va.
+    [rincon, andando(0, -1, [], 3), new Map([[10, andando(2, 2)], [20, andando(1, 0)]])],
+    [rincon, andando(0, -1, [], 3), new Map([[10, andando(2, 2)], [20, andando(2, 0, [[1, 0]])]])],
+    // Ya está en él: no cuenta como ir.
+    [rincon, andando(0, -1, [], 3), new Map([[10, andando(1, 0)]])],
+    // La fila del medio, tapada: desde abajo no hay camino a sus lados, (0, 0) y (2, 0).
+    [pieza([CAMA, PUERTA, maceta(2, 1), queSeUsaSolo(1, 0)]), andando(0, -1, [], 3), new Map([[10, andando(1, 2)]])],
+  ];
+  for (const [d, tu, enPieza] of casos) {
+    const azar = azarDe(0);
+    assert.equal(c.unPaseoAUnMueble(d, d.plantel, enPieza, tu, null, azar), null);
+    assert.equal(azar.veces, 1);
+  }
 });
 
 test('es puro: no toca la página, ni la red, ni el reloj, ni Math.random, y sólo importa lo puro', () => {

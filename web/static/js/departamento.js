@@ -9,11 +9,14 @@
 // apareces en la puerta y tus gachamones se reparten por la pieza. Tocar una
 // casilla que se pisa lleva a tu avatar hasta ella, caminando; con menos
 // movimiento, aparece ahí. Tus gachamones dan un paso solos de vez en cuando
-// (cuándo y hacia dónde lo dice `azar`, que se inyecta; si no, `Math.random`),
-// salvo con menos movimiento o mientras llevas algo en la mano. Quién está en
-// qué casilla y por dónde camina lo cuenta `caminantes.js`; aquí se guarda y
-// se anima. Si lo que llega pide otra pantalla (ya no estás en tu casa, ya no
-// hay sesión) se lo pasa a `seguir`; sin ningún gachamon, tu
+// (cuándo y hacia dónde lo dice `azar`, que se inyecta; si no, `Math.random`)
+// y, si tienes puesto alguno de los muebles que se usan solos, a veces uno va
+// hasta el lado de uno de ellos y se queda ahí un rato (es sólo del dibujo: no
+// se guarda ni se manda); nada de eso con menos movimiento o mientras llevas
+// algo en la mano. Quién está en qué casilla y por dónde camina lo cuenta
+// `caminantes.js`; aquí se guarda y se anima. Si lo que llega pide otra
+// pantalla (ya no estás en tu casa, ya no hay sesión) se lo pasa a `seguir`;
+// sin ningún gachamon, tu
 // casa se sigue viendo, y justo bajo el dibujo se lee la guía (`estado.guia`):
 // el paso que te toca, en los dos modos, al día con cada estado que llega.
 // Bajo la guía, si tu cuenta (`cuenta`, la que lleva `principal.js`; sin ella,
@@ -106,7 +109,9 @@ import {
 } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import { bandejaDeGuardados } from './bandeja.js';
-import { avanzar, casillasDelGachamon, repartir, rutaHasta, unPaseo } from './caminantes.js';
+import {
+  avanzar, casillasDelGachamon, repartir, rutaHasta, unPaseo, unPaseoAUnMueble,
+} from './caminantes.js';
 import { conLaEntradaLibre, dondeCabe, giroParaPoner, laPuerta, lineaDeEstado } from './casillas.js';
 import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
@@ -126,6 +131,10 @@ const PEDIR_CADA_MS = 30_000;
 const DENSIDAD_MAXIMA = 3;
 // Cada cuánto da un paso solo alguno de tus gachamones: entre 4 y 9 segundos.
 const UN_PASEO_CADA_MS = [4_000, 9_000];
+// Con alguno de los muebles que se usan solos puesto, la parte de los paseos
+// que van hasta uno de ellos, y lo que se queda a su lado el que llega.
+const A_UN_MUEBLE = 1 / 3;
+const SE_QUEDA_MS = 6_000;
 // El salto de un gachamon al que se cuida: lo que dura y lo que sube, en anchos de casilla.
 const UN_SALTO_DURA_S = 0.45;
 const ALTURA_DEL_SALTO = 0.22;
@@ -419,12 +428,17 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // que se pise) y cuánto lleva andando (para el paso); `saliendo`, si va
   // camino de la puerta a salir por ella. Tus gachamones en la pieza, por id:
   // el que no tiene casilla no está. Los que están saltando, por id: cuánto
-  // llevan del salto, en segundos.
+  // llevan del salto, en segundos. Los que van solos al lado de uno de los
+  // muebles que se usan solos, por id: la casilla adonde van; y los que ya
+  // llegaron y se quedan ahí un rato, por id: `{casilla, marca}`, con el reloj
+  // que los suelta.
   let tu = null;
   let andado = 0;
   let saliendo = false;
   let enPieza = new Map();
   const saltos = new Map();
+  const vanAUnMueble = new Map();
+  const seQuedan = new Map();
 
   // Lo elegido en la pieza: un mueble puesto (su id) o un gachamon (su id), o
   // ninguno; nunca los dos. Su menú sale sobre él.
@@ -666,6 +680,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (tu) avanzar(tu, dt);
     if (salirSiLlegaste()) return;
     for (const quien of enPieza.values()) avanzar(quien, dt);
+    alLlegarAlMueble();
     for (const [id, t] of saltos) {
       if (t + dt >= UN_SALTO_DURA_S) saltos.delete(id);
       else saltos.set(id, t + dt);
@@ -730,6 +745,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // casilla de al lado que esté libre (`unPaseo`); el que tiene su menú
   // abierto se queda. Con menos movimiento, o mientras llevas algo en la mano,
   // nadie se mueve. Aquí se le pide a `azar` cuándo; quién y hacia dónde, allí.
+  // Si hay puesto alguno de los muebles que se usan solos (los que traen la
+  // marca `uso`), tras cuándo se le pide una vez más si este paseo va hasta
+  // uno de ellos (va con menos de `A_UN_MUEBLE`): si va, `unPaseoAUnMueble` le
+  // pide quién, a cuál y a qué lado; si no tiene adónde ir (o no va), el paso
+  // suelto de siempre. Sin ninguno puesto, no se le pide nada más. El que
+  // llega al lado de uno se queda ahí `SE_QUEDA_MS`, sin que le toque ningún
+  // paseo.
   function programarUnPaseo() {
     luego(UN_PASEO_CADA_MS[0] + azar() * (UN_PASEO_CADA_MS[1] - UN_PASEO_CADA_MS[0]), darUnPaseo);
   }
@@ -737,10 +759,40 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   function darUnPaseo() {
     programarUnPaseo();
     if (!listo || quieto() || enLaMano || document.hidden) return;
-    const paseo = unPaseo(depto, depto.plantel, enPieza, tu, elegidoG, azar);
+    const pasean = depto.plantel.filter((g) => !seQueda(g.id));
+    const vaAUnMueble = depto.puestos.some((p) => p.uso) && azar() < A_UN_MUEBLE;
+    const aUnMueble = vaAUnMueble ? unPaseoAUnMueble(depto, pasean, enPieza, tu, elegidoG, azar) : null;
+    const paseo = aUnMueble || unPaseo(depto, pasean, enPieza, tu, elegidoG, azar);
     if (!paseo) return;
     enPieza.get(paseo.id).ruta = paseo.ruta;
+    if (aUnMueble) vanAUnMueble.set(paseo.id, paseo.ruta.at(-1));
     pedirCuadro();
+  }
+
+  // Si se queda junto al mueble al que llegó: mientras dure su rato y siga en
+  // esa casilla. Al que mandas a otro sitio, o el que la pieza que llega
+  // cambia de casilla, ya no se queda.
+  function seQueda(id) {
+    const rato = seQuedan.get(id);
+    const quien = enPieza.get(id);
+    return Boolean(rato && quien) && quien.i === rato.casilla[0] && quien.j === rato.casilla[1];
+  }
+
+  // En cada cuadro, los que iban al lado de un mueble y ya no caminan: el que
+  // llegó se queda ahí un rato; el que acabó en otro sitio (la pieza que llegó
+  // le cortó el paso, o lo mandaste tú a otro) o ya no está, ya no va.
+  function alLlegarAlMueble() {
+    for (const [id, [i, j]] of vanAUnMueble) {
+      const quien = enPieza.get(id);
+      if (quien && quien.ruta.length > 0) continue;
+      vanAUnMueble.delete(id);
+      if (quien && quien.i === i && quien.j === j) quedarseAlLado(id, [i, j]);
+    }
+  }
+
+  function quedarseAlLado(id, casilla) {
+    if (seQuedan.has(id)) cancelar(seQuedan.get(id).marca);
+    seQuedan.set(id, { casilla, marca: luego(SE_QUEDA_MS, () => seQuedan.delete(id)) });
   }
 
   // Un saltito del que recibió lo que le hiciste; con menos movimiento, no.

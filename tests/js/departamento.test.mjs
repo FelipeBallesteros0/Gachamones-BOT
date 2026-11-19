@@ -1520,6 +1520,133 @@ test('con menos movimiento, o con algo en la mano, se quedan quietos', async () 
   assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), dondeEsta(CON_DOS, 0));
 });
 
+// Uno de los muebles que se usan solos, como lo manda el servidor: con su
+// marca `uso`. El 3 × 3 de siempre con él en (2, 0): de sus lados, (1, 0) es
+// la cama y los otros dos dan a las paredes, así que sólo se va a (2, 1).
+// Pelusa entra en (1, 2) y llega por (2, 2).
+const REFRIGERADOR_ID = 28;
+const REFRIGERADOR = {
+  id: REFRIGERADOR_ID, clave: 'refrigerador', nombre: 'Refrigerador', icono: 'iconos/muebles/refrigerador.png',
+  capa: 'bulto', cama: false, uso: 'comida', ancho: 1, fondo: 1,
+};
+const CON_REFRIGERADOR = conPuesto(DEPTO, { ...REFRIGERADOR, x: 2, y: 0, giro: 0, casillas: [[2, 0]] });
+
+// Un azar que da siempre lo mismo y cuenta cuántas veces se le pidió.
+function azarQueCuenta(valor) {
+  const azar = () => {
+    azar.veces += 1;
+    return valor;
+  };
+  azar.veces = 0;
+  return azar;
+}
+
+test('de vez en cuando uno va al lado de un mueble de los que se usan solos y se queda ahí un rato', async () => {
+  // Con 0, un paseo cada 4 s, y cada uno va a ese mueble si se puede.
+  const { pantalla } = await abrir(CON_REFRIGERADOR, ESTADO, { azar: () => 0 });
+  const dondePelusa = () => dondeSePinto(pantalla, PELUSA.retrato);
+  assert.deepEqual(dondePelusa(), [1, 2]);
+  await correrReloj(4000);
+  await correrCuadros(2000);
+  assert.deepEqual(dondePelusa(), [2, 1]);
+  // Llegó a los 4 s: se queda hasta los 10. El paseo de los 8 s no la mueve.
+  await correrReloj(4000);
+  assert.equal(cuadrosPendientes(), 0);
+  assert.deepEqual(dondePelusa(), [2, 1]);
+  // El de los 12 s, sí: el único lado del mueble ya es suyo, así que da el paso suelto de siempre.
+  await correrReloj(4000);
+  await correrCuadros(1000);
+  assert.deepEqual(dondePelusa(), [2, 2]);
+});
+
+test('si un paseo va a uno de esos muebles lo decide el azar una vez más: con menos de un tercio va; si no, el paso suelto de siempre', async () => {
+  const conCada = async (depto, valor) => {
+    const { pantalla } = await abrir(depto, ESTADO, { azar: () => valor });
+    await correrReloj(9000);                                             // un solo paseo, pasados los 5,6 s
+    await correrCuadros(2000);
+    return dondeSePinto(pantalla, PELUSA.retrato);
+  };
+  assert.deepEqual(await conCada(CON_REFRIGERADOR, 0.33), [2, 1]);       // al lado del refrigerador
+  assert.deepEqual(await conCada(CON_REFRIGERADOR, 0.34), [1, 1]);       // de (2, 2), (1, 1) y (0, 2), la del medio
+  // Sin la marca, el refrigerador es un mueble más: los dos dan el paso suelto.
+  const sinMarca = moverPuesto(CON_REFRIGERADOR, REFRIGERADOR_ID, { uso: null });
+  assert.deepEqual(await conCada(sinMarca, 0.33), [2, 2]);
+  assert.deepEqual(await conCada(sinMarca, 0.34), [1, 1]);
+});
+
+test('sin ninguno de esos muebles un paseo pide al azar lo de siempre (cuándo, quién y hacia dónde); con uno, una vez más', async () => {
+  // Con los dos, Rulo entra en (2, 1): el único lado del refrigerador.
+  const tapado = { ...CON_REFRIGERADOR, gachamones: 2, plantel: CON_DOS.plantel };
+  const casos = [
+    ['sin ninguno', DEPTO, 0, 3],                          // cuándo, quién y hacia dónde
+    ['no va', CON_REFRIGERADOR, 0.5, 4],                   // cuándo, si va, quién y hacia dónde
+    ['va', CON_REFRIGERADOR, 0, 5],                        // cuándo, si va, quién, a qué mueble y a qué lado
+    ['va, pero no tiene adónde', tapado, 0, 5],            // cuándo, si va, quién y el paso suelto: quién y hacia dónde
+  ];
+  for (const [caso, depto, valor, veces] of casos) {
+    const azar = azarQueCuenta(valor);
+    await abrir(depto, ESTADO, { azar });
+    await correrReloj(3000);                                             // el globo ya pidió lo suyo
+    const antes = azar.veces;
+    await correrReloj(1000 + valor * 5000);                              // y llega el primer paseo
+    assert.equal(azar.veces - antes, veces, caso);
+  }
+});
+
+test('con menos movimiento nadie va a esos muebles', async () => {
+  const { pantalla } = await abrir(CON_REFRIGERADOR, ESTADO, { movimientoReducido: true, azar: () => 0 });
+  await correrReloj(20_000);
+  assert.equal(cuadrosPendientes(), 0);
+  assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), [1, 2]);
+});
+
+test('si mientras va llega la pieza sin ese mueble, nada revienta y acaba en una casilla libre', async () => {
+  // En otra pestaña lo guardaron; en la segunda, además, pusieron una maceta donde iba.
+  const guardado = { ...DEPTO, guardados: [...DEPTO.guardados, REFRIGERADOR] };
+  const conMacetaDondeIba = conPuesto(guardado, { ...LA_MACETA, x: 2, y: 1, giro: 0, casillas: [[2, 1]] });
+  for (const [nuevo, acaba] of [[guardado, [2, 1]], [conMacetaDondeIba, [2, 2]]]) {
+    const { pantalla, servidor, hecho } = await abrir(CON_REFRIGERADOR, ESTADO, { azar: () => 0 });
+    await correrReloj(4000);
+    await correrCuadros(200);                                            // a medio paso, camino de (2, 2)
+    servidor.responde('GET departamento', nuevo);
+    await releer();
+    await correrCuadros(3000);
+    assert.equal(await comoAcaba(hecho), 'sigue');
+    assert.deepEqual(dondeSePinto(pantalla, PELUSA.retrato), acaba);
+    assert.ok(!noSePisan(nuevo).has(String(acaba)));
+    // Y sigue paseando como siempre.
+    await correrReloj(20_000);
+    await correrCuadros(1000);
+    assert.equal(await comoAcaba(hecho), 'sigue');
+  }
+});
+
+test('a quien se queda junto a uno de esos muebles se le elige y se le mueve como siempre, y si lo mandas a otro sitio vuelve a pasear', async () => {
+  const { pantalla } = await abrir(CON_REFRIGERADOR, ESTADO, { azar: () => 0 });
+  const dondePelusa = () => dondeSePinto(pantalla, PELUSA.retrato);
+  await correrReloj(4000);
+  await correrCuadros(2000);                                             // llegó a (2, 1): se quedaría hasta los 10 s
+  await tocarCasilla(pantalla, 2, 1);
+  assert.ok(menu(pantalla));                                             // se la elige: sale su menú
+  await tocar(boton(menu(pantalla), 'Mover'));
+  await tocarCasilla(pantalla, 1, 1);
+  await correrCuadros(1000);
+  assert.deepEqual(dondePelusa(), [1, 1]);
+  await tocarCasilla(pantalla, 1, 1);                                    // y la dejas de elegir
+  assert.equal(menu(pantalla), null);
+  // A los 8 s pasea: ya no se queda, y vuelve al lado del refrigerador.
+  await correrReloj(4000);
+  await correrCuadros(1000);
+  assert.deepEqual(dondePelusa(), [2, 1]);
+  // Y se queda otra vez sus 6 s enteros: el paseo de los 12 s no la mueve; el de los 16, sí.
+  await correrReloj(4000);
+  assert.equal(cuadrosPendientes(), 0);
+  assert.deepEqual(dondePelusa(), [2, 1]);
+  await correrReloj(4000);
+  await correrCuadros(1000);
+  assert.deepEqual(dondePelusa(), [2, 2]);
+});
+
 test('el globo sale sobre el que sale contigo y se anuncia', async () => {
   const { pantalla } = await abrir(CON_DOS, { ...ESTADO, globos: [{ tipo: 'suelta', texto: '¡Qué día tan bonito!' }] });
   assert.equal(texto(pantalla, '.globo'), '');
