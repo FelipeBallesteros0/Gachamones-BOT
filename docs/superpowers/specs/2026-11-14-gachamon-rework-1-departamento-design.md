@@ -127,7 +127,11 @@ definitivo: todo lo nuevo sale con dibujos de relleno.
   uno él solo** **[Felipe]**. El nombre sale de una lista del juego, nunca es
   el de su especie ni uno que ya tengas, y se le puede cambiar una vez desde su
   ficha **[propuesta]**. Los reclutas que hoy esperan nombre se lo ponen solos
-  el día del cambio **[propuesta]**.
+  el día del cambio **[propuesta]**. Esa pantalla de la ficha **no se
+  construye**: en su lugar, el día del cambio se regala **una placa con nombre
+  por cada recluta** que se puso el nombre solo **[Felipe, 2026-11-19]**
+  (sección 6). La regla del servidor que deja cambiarlo una vez se queda como
+  está, sin pantalla, hasta que vuelva reclutar **[propuesta, aceptada]**.
 - **El plantel ya no tiene un tope propio** **[propuesta]**: el de 25 existía
   sólo porque los menús de Discord no muestran más, y el juego de Discord se
   pausa el día del cambio (sección 7). Desde ese día el único límite son las
@@ -441,6 +445,12 @@ camas» **[Felipe]**. Lo acordado **[propuesta, aceptada]**, y cómo lo completo
   cierra con «Entendido» **[propuesta]**. La carta le dice también cómo se
   llama ahora cada recluta suyo que estaba sin nombre, con la especie con su
   mayúscula, y dice «por tu ticket» cuando era uno **[Felipe, 2026-11-16]**.
+- **Una placa con nombre de regalo por cada recluta vivo que se puso el nombre
+  solo**, en su mochila, para que se lo pueda cambiar **[Felipe, 2026-11-19]**.
+  La carta lo dice: la línea de cada recluta termina en «Se puso el nombre
+  solo.» y después va «Te dejé una placa con nombre en tu mochila, por si le
+  quieres cambiar el nombre.» (o «Te dejé {n} placas… por si les quieres
+  cambiar el nombre.») **[propuesta, aceptada]**.
 - **Los regalos que esperaban en el buzón se entregan solos** a la mochila de
   cada quien **[propuesta]**: el buzón era de Discord, y el juego de Discord se
   pausa ese día.
@@ -492,7 +502,13 @@ riesgo del día del cambio.
   Incubadora**, y «Tu casa» pasa a llamarse **«Tu departamento»**
   **[propuesta, aceptada]**. Quien entra por primera vez parte ahí.
 - La pantalla de la Incubadora y lo del Refugio desaparecen. Lo que hacían se
-  hace en el departamento.
+  hace en el departamento. Quedan siete lugares; quien se quedó parado en uno
+  de los dos aparece en su departamento **[propuesta, aceptada]**.
+- **Todo dice «tu departamento»** **[Felipe, 2026-11-19]**: la Tienda al
+  comprar un mueble («…en tu departamento, entra a «Construir».»), el botón del
+  mapa y el último botón de la primera aventura («Volver a tu departamento»).
+  El globo del lugar dice «Aquí se oye el silencio del edificio.»
+  **[Felipe, 2026-11-19]**.
 - **La entrada cambia**: ya no es avatar → huevo → nombre, sino avatar → tu
   departamento (poner la segunda cama) → la primera aventura → el nombre. El
   lugar «Aventura» del mapa abre sólo esa primera aventura; las demás siguen
@@ -500,7 +516,10 @@ riesgo del día del cambio.
 - **Todo tiene que funcionar sin ningún gachamon**: el estado, el pueblo, cada
   lugar y el departamento se ven y se usan sin activo.
 - **La Tienda** deja de vender casas; los muebles se venden de a varios. Las
-  ampliaciones se compran en el departamento **[propuesta]**.
+  ampliaciones se compran en el departamento **[propuesta]**. **Sin gachamon
+  lo enseña todo, con una nota** arriba de los objetos y de los cosméticos:
+  «Para comprar objetos y cosméticos hace falta un gachamon. Los muebles sí los
+  puedes comprar.» **[Felipe, 2026-11-19]**.
 - **La ficha, el ropero y la mochila** se abren para el gachamon que tengas
   elegido en el departamento; fuera de él, para el activo **[propuesta]**.
   Lo que se decidió después, al construir la pantalla **[Felipe, 2026-11-16]**:
@@ -541,7 +560,9 @@ Felipe el 2026-11-17 al escribir su plan.
   frase («Sales del pueblo por el sendero. Hoy vas tú solo.» · «Entre los
   matorrales, algo se mueve.» · «No huye. Se queda mirándote.» · «Sale de su
   escondite: es {especie}.» · «Le tiendes la mano. La huele… y se queda a tu
-  lado.» · «Desde hoy vive contigo.») **[propuesta, aceptada]**. No guarda nada
+  lado.» · «Desde hoy vive contigo.») **[propuesta, aceptada]**. La del
+  encuentro concuerda con el género del que te tocó: «…es un {especie}.» o
+  «…es una {especie}.» **[Felipe, 2026-11-19]**. No guarda nada
   hasta el encuentro: si cierras la página antes, empieza de nuevo; si la
   cierras después, el gachamon ya es tuyo y vuelves al paso del nombre. Al
   terminar vuelves a tu departamento con él, y es el que sale contigo
