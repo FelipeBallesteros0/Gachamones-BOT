@@ -28,7 +28,7 @@
 // Construir», entra al de construcción (mientras llega el arte de la pieza no
 // se puede usar, y lo dice); dentro, ese mismo botón dice «✔ Listo», a su lado
 // se lee «Modo construcción», la pieza se enmarca y debajo quedan abiertas la
-// bandeja de los guardados y «Ampliar», que fuera del modo no se ven: viviendo,
+// bandeja de los guardados (`bandeja.js`) y «Ampliar», que fuera del modo no se ven: viviendo,
 // la pantalla es para cuidar, caminar y salir. Con una petición en camino no
 // se cambia de modo. Viviendo (el normal), un toque sobre un
 // mueble hace su acción y nada más (`queSeUsa`): hoy la única es la de la
@@ -99,18 +99,19 @@
 // lo que llega lo hace fallar, y `principal.js` lo lleva a la avería.
 
 import { conReintentos, nuevoEvento, pedir } from './api.js';
-import { cargar, lienzoDePieza, olvidarLasQueFaltan } from './arte.js';
+import { cargar, olvidarLasQueFaltan } from './arte.js';
 import {
   MONEDAS, cabeceraConSaldos, cajaDePregunta, hayQueDecidirDeNuevo, listaQueSePide, mensajeDe, zonaDeAviso,
 } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
+import { bandejaDeGuardados } from './bandeja.js';
 import { avanzar, casillasDelGachamon, repartir, rutaHasta, unPaseo } from './caminantes.js';
 import { conLaEntradaLibre, dondeCabe, giroParaPoner, laPuerta, lineaDeEstado } from './casillas.js';
 import { trasAcariciar, trasCuidar } from './cuidados.js';
 import { el } from './dom.js';
 import { enlaceADiscord } from './entrada.js';
 import { loQueFlota } from './flotantes.js';
-import { cuantoOcupa, listaDelDepartamento } from './lista.js';
+import { listaDelDepartamento } from './lista.js';
 import { menuDeLaPieza } from './menu.js';
 import { siguiente } from './pantallas.js';
 import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
@@ -134,16 +135,12 @@ const PARED = 'pared';
 // Lo que dura otro aviso mientras llevas algo en la mano, antes de que vuelva
 // la indicación de dónde tocar: lo mismo que dura cualquier aviso.
 const UN_AVISO_DURA_MS = 6_000;
-// El ícono de cada mueble de la bandeja, en píxeles de pantalla.
-const LADO_DEL_ICONO = 40;
 
 const CARGANDO = 'Cargando tu departamento…';
 const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 const TOCA_LA_CASILLA = 'Toca la casilla donde lo quieres.';
 const TOCA_LA_PARED = 'Toca la pared donde lo quieres.';
 const NO_CABE = 'Ahí no cabe.';
-const ROTULO_DE_GUARDADOS = 'Guardados · toca uno y después una casilla';
-const NADA_GUARDADO = 'No queda nada guardado.';
 const ROTULO_DE_AMPLIAR = 'Ampliar el departamento';
 const YA_NO_CRECE = 'Tu departamento ya no puede crecer más.';
 const NO_HAY_CAMINO = 'No hay camino hasta la puerta.';
@@ -157,17 +154,6 @@ const OBRA_TERMINADA = 'Modo construcción terminado.';
 // La pregunta antes de crecer, como la de la Tienda: el coste es el que manda
 // el servidor, dicho con la palabra («N monedas», «1 moneda»).
 const preguntaDeAmpliar = (coste) => `¿Ampliar por ${MONEDAS.cuantas(coste)}?`;
-
-// Los guardados, uno por tipo de mueble en el orden en que llegan: el primero
-// de cada tipo (el que se pone) y cuántos hay.
-function porTipo(guardados) {
-  const tipos = new Map();
-  for (const guardado of guardados) {
-    if (!tipos.has(guardado.clave)) tipos.set(guardado.clave, { primero: guardado, cuantos: 0 });
-    tipos.get(guardado.clave).cuantos += 1;
-  }
-  return [...tipos.values()];
-}
 
 // Mientras se está aquí hay sesión y la cuenta ya no es nueva, así que la
 // pantalla la decide sólo el estado, con la regla de siempre (sin ningún
@@ -268,12 +254,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   const rotuloDeObra = el('p', { class: 'rotulo-de-obra', hidden: true }, EN_OBRA);
   const obra = el('div', { class: 'pieza-obra' }, alModo, rotuloDeObra);
   // Debajo, y sólo mientras dura el modo, lo que se usa en él: la bandeja de
-  // los guardados, abierta, y «Ampliar».
-  const bandeja = el('div', { class: 'bandeja' });
+  // los guardados (`bandeja.js`), abierta, y «Ampliar». El foco que estaba en
+  // un tipo que se acaba pasa al botón del modo.
+  const bandeja = bandejaDeGuardados({ tomar: tomarDeLaBandeja, focoDeReserva: alModo, signal });
   // El «Ampliar» que abre lo de ampliar dice si está abierto (el que cobra
   // está en su pregunta).
   const alAmpliar = conIcono('boton boton-ampliar', '📐', 'Ampliar', { 'aria-expanded': 'false' });
-  const herramientas = el('div', { class: 'obra-herramientas', hidden: true }, bandeja, alAmpliar);
+  const herramientas = el('div', { class: 'obra-herramientas', hidden: true }, bandeja.nodo, alAmpliar);
   // Justo bajo el dibujo, a quien todavía no tiene ningún gachamon, la guía:
   // el paso que le toca, como lo dice el servidor. Se queda (no se borra sola),
   // en los dos modos, y cambia con cada estado que llega; se anuncia cuando cambia.
@@ -1052,51 +1039,18 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // --- los guardados ---------------------------------------------------------------------
 
-  // El botón de cada tipo de la bandeja, por su clave.
-  const tiposEnLaBandeja = new Map();
-
+  // En la bandeja, cuál llevas en la mano: el tipo que salió de ella, si salió.
   function marcarLoQueLlevas() {
-    for (const [tipo, boton] of tiposEnLaBandeja) {
-      boton.setAttribute('aria-pressed', String(Boolean(enLaMano) && enLaMano.tipo === tipo));
-    }
+    bandeja.marcar(enLaMano ? enLaMano.tipo : null);
   }
 
-  // La bandeja, abierta mientras dura el modo, con un botón por tipo de mueble
-  // guardado. El foco que estaba en uno vuelve al de ese mismo tipo; si ya no
-  // queda, al botón del modo.
+  // La bandeja, abierta mientras dura el modo, al día con los guardados. Antes
+  // de rehacerla se le dice qué llevas en la mano, que puede haber cambiado
+  // con la pieza que llegó: lo marca en lo que rehace.
   function ponerBandeja() {
     if (!construyendo || !depto) return;
-    const conFoco = [...tiposEnLaBandeja].find(([, boton]) => boton === document.activeElement);
-    tiposEnLaBandeja.clear();
-    const rotulo = el('p', { class: 'rotulo', id: 'departamento-guardados' }, ROTULO_DE_GUARDADOS);
-    const tipos = porTipo(depto.guardados);
-    if (!tipos.length) {
-      bandeja.replaceChildren(rotulo, el('p', { class: 'bandeja-vacia' }, NADA_GUARDADO));
-    } else {
-      const botones = tipos.map(({ primero, cuantos }) => {
-        const icono = lienzoDePieza(primero.icono, LADO_DEL_ICONO, LADO_DEL_ICONO);
-        icono.classList.add('bandeja-icono');
-        const boton = el('button', {
-          type: 'button', class: 'bandeja-tipo', 'aria-pressed': 'false', 'aria-disabled': enCamino ? 'true' : null,
-        },
-          icono,
-          el('span', { class: 'bandeja-nombre' }, `${primero.nombre} × ${cuantos}`),
-          el('span', { class: 'bandeja-ocupa' }, cuantoOcupa(primero)));
-        // El segundo clic de un doble clic no cuenta: el primero, en «Construir»,
-        // desliza la página, y el segundo puede caer aquí. Un clic suelto (1) y
-        // el teclado (0), sí.
-        boton.addEventListener('click', (clic) => {
-          if (clic.detail > 1) return;
-          tomarDeLaBandeja(primero.clave);
-        }, { signal });
-        tiposEnLaBandeja.set(primero.clave, boton);
-        return boton;
-      });
-      bandeja.replaceChildren(rotulo,
-        el('div', { class: 'bandeja-tipos', role: 'group', 'aria-labelledby': 'departamento-guardados' }, botones));
-    }
     marcarLoQueLlevas();
-    if (conFoco) (tiposEnLaBandeja.get(conFoco[0]) || alModo).focus({ preventScroll: true });
+    bandeja.pintar(depto.guardados, { enCamino });
   }
 
   // Elegir uno de la bandeja lo pone en la mano, empezando por el giro 0;
