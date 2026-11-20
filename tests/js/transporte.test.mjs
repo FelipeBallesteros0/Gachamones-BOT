@@ -379,6 +379,23 @@ test('mientras va una lectura no sale otra, salvo la de tras una acción sin res
   assert.equal(lecturas(pedidos), 3);
 });
 
+test('sólo la última lectura en camino deja salir otra al volver: si vuelve antes la primera, aún no', async () => {
+  const { envios, pedidos, retiene } = montar();
+  const soltarPrimera = retiene('GET departamento');
+  envios.releer();
+  await asentar();
+  const soltarSegunda = retiene('GET departamento');
+  envios.releer({ trasUnaAccion: true });                                 // tras una acción sin respuesta: sale igual
+  await asentar();
+  assert.equal(lecturas(pedidos), 2);
+  await soltarPrimera(PIEZA);                                             // vuelve la primera; la segunda sigue en camino
+  await envios.releer();                                                  // la de cada 30 segundos: todavía no
+  assert.equal(lecturas(pedidos), 2);
+  await soltarSegunda(OTRA_PIEZA);
+  await envios.releer();                                                  // ya no queda ninguna en camino
+  assert.equal(lecturas(pedidos), 3);
+});
+
 test('si se deja la pantalla mientras va una lectura, lo que llega no se pinta', async () => {
   const {
     envios, hechos, retiene, pantalla,

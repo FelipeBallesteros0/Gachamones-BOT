@@ -3550,3 +3550,49 @@ test('lo que llega con lo mismo elegido no rehace su menú: el botón que tenía
   assert.equal(boton(menu(pantalla), 'Girar'), girarla);
   assert.equal(documento.activeElement, girarla);
 });
+
+// --- el cableado de la pantalla con el transporte -------------------------------------
+// Lo que el transporte le pide a la pantalla (dejar de esperar, el menú mientras va
+// lo que se pone tocando, no leer sin pieza, irse sin sesión), visto desde la pantalla.
+
+test('el botón de un cuidado deja de esperar al volver', async () => {
+  const { pantalla, servidor } = await abrir(CON_DOS);
+  const soltar = servidor.retiene('POST cuidar');
+  const banar = boton(uno(pantalla, '.ficha-elegido'), 'Bañar');
+  await tocar(banar);
+  assert.equal(banar.getAttribute('aria-busy'), 'true');
+  assert.ok(banar.classList.contains('esperando'));
+  await soltar({ ok: true, mensaje: 'Pelusa quedó reluciente.', espera: 600, monedas: 0, evoluciono: false, logros: [], gachamon: PELUSA, estado: ESTADO });
+  assert.equal(banar.getAttribute('aria-busy'), null);
+  assert.ok(!banar.classList.contains('esperando'));
+});
+
+test('sin sesión en un cuidado, la pantalla se va y no relee', async () => {
+  const { pantalla, servidor, seguido, pedidos } = await abrir(CON_DOS);
+  servidor.responde('POST cuidar', { estado: 401, clave: 'sin_sesion', mensaje: 'Tienes que entrar de nuevo.' });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Bañar'));
+  assert.deepEqual(seguido, [[undefined]]);
+  assert.equal(pedidos.filter(([r]) => r === 'GET departamento').length, 1);
+});
+
+test('mover tocando la pieza: el menú se cierra mientras va y se abre al volver', async () => {
+  const { pantalla, servidor } = await abrir(CON_MACETA);
+  const soltar = servidor.retiene('POST departamento/poner');
+  await construir(pantalla);
+  await tocarCasilla(pantalla, 2, 2); await tocar(boton(menu(pantalla), 'Mover'));
+  await tocarCasilla(pantalla, 2, 0);
+  const escena = uno(pantalla, '.pieza-escenario');
+  assert.equal(menu(pantalla), null);
+  assert.ok(escena.classList.contains('en-camino'));
+  await soltar(BIEN(moverPuesto(CON_MACETA, MACETA_ID, { x: 2, y: 0, casillas: [[2, 0]] })));
+  assert.ok(!escena.classList.contains('en-camino'));
+  assert.equal(escena.getAttribute('aria-busy'), null);
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Maceta');
+});
+
+test('sin la primera pieza, volver a la pestaña no lee', async () => {
+  const { pedidos, documento } = await abrir(DEPTO, ESTADO, { antes: (s) => { s.retiene('GET departamento'); } });
+  const antes = pedidos.length;
+  await documento.dispara('visibilitychange');
+  assert.equal(pedidos.length, antes);
+});
