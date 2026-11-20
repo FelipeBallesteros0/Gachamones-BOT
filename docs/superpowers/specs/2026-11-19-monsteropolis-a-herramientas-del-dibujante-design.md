@@ -255,8 +255,8 @@ cómo se parte el trabajo en planes (por lo menos uno por repo).
 
 - El texto del botón de Monsteropolis y de su renglón en la portada.
 - Los grupos y sus nombres, en una página de prueba.
-- Publicar: son dos despliegues, el del sitio y el del juego, y cada uno
-  necesita su permiso expreso.
+- Publicar: la regla del túnel, el despliegue del juego y el del sitio, en ese
+  orden (ver «Para publicar»), y cada uno necesita su permiso expreso.
 
 ## Para publicar
 

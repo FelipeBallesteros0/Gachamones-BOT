@@ -579,8 +579,11 @@ def test_rsync_no_borra_lo_subido_por_el_dibujante():
     subido de la Pi, que vive junto a la base y fuera de git, se borraría o se pisaría."""
     texto = leer("deploy.sh")
     rsync = texto[texto.index("rsync -av --delete"):texto.index('"$ORIGEN/" "$PI:$DEST/"')]
-    # Exacta: `arte_subido.py` sí tiene que viajar.
-    assert re.findall(r"--exclude '([^']*arte_subido[^']*)'", rsync) == ["arte_subido"]
+    # Exactas: `arte_subido.py` sí tiene que viajar; la carpeta y sus copias
+    # comprimidas (las saca `actualizar-pi.sh` en la Pi) no, o `--delete` las borra.
+    assert re.findall(r"--exclude '([^']*arte_subido[^']*)'", rsync) == [
+        "arte_subido", "arte_subido.*.tar.gz",
+    ]
     assert "--delete-excluded" not in texto
 
 
@@ -604,3 +607,10 @@ def test_la_copia_de_seguridad_incluye_lo_subido_y_conserva_las_cinco_ultimas():
     assert re.search(r"ls -1t arte_subido\.\*\.tar\.gz 2>/dev/null \| tail -n \+6 \| xargs -r rm --", bloque)
     # el bloque remoto va en un heredoc sin comillas: ningún `$` de la Pi sin escapar
     assert not re.search(r"(?<!\\)\$(copia_arte|\()", bloque)
+
+
+def test_las_copias_de_lo_subido_no_entran_en_git():
+    """Las copias comprimidas que saca `actualizar-pi.sh` quedan en la carpeta del
+    repo de la Pi: `.gitignore` las cubre, como a las de la base."""
+    lineas = leer(".gitignore").splitlines()
+    assert "/arte_subido.*.tar.gz" in lineas

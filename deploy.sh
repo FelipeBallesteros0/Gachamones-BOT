@@ -32,6 +32,7 @@ rsync -av --delete \
     --exclude '*.db-shm' \
     --exclude '*.bak' \
     --exclude 'arte_subido' \
+    --exclude 'arte_subido.*.tar.gz' \
     --exclude '.pytest_cache' \
     "$ORIGEN/" "$PI:$DEST/"
 
