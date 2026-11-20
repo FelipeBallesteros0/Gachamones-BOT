@@ -719,7 +719,7 @@ def test_las_frases_de_la_pagina_del_dibujante_son_las_del_plan():
     codigo = _guion("dibujante.js")
     for frase in ("Arte de Monsteropolis", "Sólo lo que falta", "Provisional", "Subida por ${", " el ${",
                   " × ${", " px", "} o ${", "'Subir'", "'Historial'", "'Volver a la anterior'",
-                  "'Volver al provisional'", "Descargar todo lo subido", "Listo: ya se ve en el juego.",
+                  "'Volver al provisional'", "Descargar lo que se ve", "Listo: ya se ve en el juego.",
                   "px y esta pieza ahora pide otra medida: se ve el provisional.", "Lo subido mide ${"):
         assert frase in codigo, frase
 

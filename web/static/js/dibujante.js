@@ -258,7 +258,7 @@ export async function montar(raiz) {
   raiz.replaceChildren(
     el('header', { class: 'dib-cabeza' },
       titulo,
-      el('a', { class: 'boton boton-chico', href: `${BASE}copia.zip`, download: true }, 'Descargar todo lo subido')),
+      el('a', { class: 'boton boton-chico', href: `${BASE}copia.zip`, download: true }, 'Descargar lo que se ve')),
     el('label', { class: 'dib-filtro' }, filtro, 'Sólo lo que falta'),
     el('div', { class: 'dib-grupos' }, grupos.map((g) => g.nodo)),
   );

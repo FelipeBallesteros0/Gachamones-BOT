@@ -238,7 +238,7 @@ test('la página tiene su título, la descarga de todo y el filtro de lo que fal
   assert.deepEqual(servidor.pedidos.map((p) => p.ruta), ['GET piezas']);
   assert.equal(raiz.querySelector('h1').textContent, 'Arte de Monsteropolis');
   const descarga = raiz.querySelector('a');
-  assert.equal(descarga.textContent, 'Descargar todo lo subido');
+  assert.equal(descarga.textContent, 'Descargar lo que se ve');
   assert.equal(descarga.getAttribute('href'), '/monsteropolis_dibujante/api/copia.zip');
   assert.ok(descarga.getAttribute('download') !== null);
   const filtro = raiz.querySelector('label');
