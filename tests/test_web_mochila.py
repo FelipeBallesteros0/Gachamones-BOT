@@ -8,8 +8,8 @@ from ayudas_web import ESCRIBIR, PUEBLO, con_gachamon, en_casa, entrar, poner_re
 from test_web_departamento import con_comida, un_mueble
 from test_web_tienda import LA_DE_DISCORD, con_vinculo
 
-MOCHILA, USAR = "/gachamon/api/mochila", "/gachamon/api/mochila/usar"
-ESTADO, CUIDAR = "/gachamon/api/estado", "/gachamon/api/cuidar"
+MOCHILA, USAR = "/monsteropolis/api/mochila", "/monsteropolis/api/mochila/usar"
+ESTADO, CUIDAR = "/monsteropolis/api/estado", "/monsteropolis/api/cuidar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 

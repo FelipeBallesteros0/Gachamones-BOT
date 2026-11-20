@@ -9,7 +9,7 @@ import identidad
 import simulacion as sim
 from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, poner_reloj
 
-CUIDAR, ACARICIAR = "/gachamon/api/cuidar", "/gachamon/api/acariciar"
+CUIDAR, ACARICIAR = "/monsteropolis/api/cuidar", "/monsteropolis/api/acariciar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 
@@ -33,7 +33,7 @@ def test_jugar_sube_el_animo_paga_una_moneda_y_devuelve_el_estado(cliente, monke
     reloj = poner_reloj(monkeypatch)
     con_gachamon(cliente)
     reloj.pasar(hours=6)
-    antes = cliente.get("/gachamon/api/estado").json()["gachamon"]["barras"]["animo"]
+    antes = cliente.get("/monsteropolis/api/estado").json()["gachamon"]["barras"]["animo"]
     respuesta = cuidar(cliente, "jugar")
     cuerpo = respuesta.json()
     assert respuesta.status_code == 200 and cuerpo["ok"] is True
@@ -108,14 +108,14 @@ def test_acariciar_cuenta_una_vez_y_despues_dice_cuanto_falta(cliente, monkeypat
     reloj = poner_reloj(monkeypatch)
     con_gachamon(cliente)
     reloj.pasar(hours=6)
-    antes = cliente.get("/gachamon/api/estado").json()["gachamon"]["barras"]["animo"]
+    antes = cliente.get("/monsteropolis/api/estado").json()["gachamon"]["barras"]["animo"]
     primera = cliente.post(ACARICIAR, headers=ESCRIBIR).json()
     assert primera["ok"] is True and primera["espera"] == 19 * 60
     assert primera["estado"]["gachamon"]["barras"]["animo"] == antes + 5
     reloj.pasar(minutes=4)
     segunda = cliente.post(ACARICIAR, headers=ESCRIBIR).json()
     assert segunda["ok"] is False and segunda["espera"] == 15 * 60
-    assert segunda["estado"]["gachamon"]["barras"] == cliente.get("/gachamon/api/estado").json()["gachamon"]["barras"]
+    assert segunda["estado"]["gachamon"]["barras"] == cliente.get("/monsteropolis/api/estado").json()["gachamon"]["barras"]
     assert segunda["estado"]["saldos"] == {"monedas": 0, "gemas": 0}
 
 
@@ -202,7 +202,7 @@ def _vinculada_con_una_muerta_sin_relevo(cliente, reloj):
     """Ana, vinculada: su activa murió cuando todavía se moría de hambre, y el
     de la incubadora aún no ha salido a relevarla."""
     entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    codigo = cliente.post("/monsteropolis/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
     activa = db.crear(ANA_DISCORD, G, "pollito", "Viejo", STATS, reloj.ahora)
     relevo = db.crear(ANA_DISCORD, G, "pulpo", "Tinta", STATS, reloj.ahora, activa=False)
@@ -417,7 +417,7 @@ def test_acariciar_a_otro_por_su_id(cliente, monkeypatch):
 
 # --- «A todos»: un cuidado a cada uno que puede recibirlo --------------------
 
-TODOS = "/gachamon/api/cuidar/todos"
+TODOS = "/monsteropolis/api/cuidar/todos"
 
 
 def a_todos(cliente, accion, evento="evento-todos"):

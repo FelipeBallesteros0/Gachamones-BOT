@@ -11,7 +11,7 @@ Qué hace, y qué nunca hace:
   la sesión se inventa en cada arranque y no se puede dar de fuera.
 - Por cada cuenta de mentira abre un puerto propio, `127.0.0.1:<puerto>`, que
   reenvía todo a la web y le pone la cookie firmada de esa cuenta: abrir
-  `/gachamon/` en ese puerto es entrar como esa persona.
+  `/monsteropolis/` en ese puerto es entrar como esa persona.
 - Sólo escucha en `127.0.0.1`.
 - Con `--con-gachamones`, antes de levantar la web, a cada cuenta le da avatar,
   monedas, muebles y algunos gachamones usando las reglas del propio juego.
@@ -39,6 +39,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from itsdangerous import URLSafeSerializer
+
+from web import PREFIJO
 
 REPO = Path(__file__).resolve().parent.parent
 DIRECCION = "127.0.0.1"
@@ -355,7 +357,7 @@ def _esperar_a_la_web(puerto: int, web: subprocess.Popen, registro: Path) -> Non
             break
         try:
             conexion = http.client.HTTPConnection(DIRECCION, puerto, timeout=2)
-            conexion.request("GET", "/gachamon/")
+            conexion.request("GET", f"{PREFIJO}/")
             if conexion.getresponse().status == 200:
                 return
         except OSError:
@@ -429,7 +431,7 @@ def ejecutar(argumentos: argparse.Namespace) -> int:
 
     print("Página de prueba lista (bases de mentira, sin tocar las de verdad).")
     for uid in range(1, argumentos.cuentas + 1):
-        print(f"  persona{uid}: http://{DIRECCION}:{argumentos.puerto + uid}/gachamon/")
+        print(f"  persona{uid}: http://{DIRECCION}:{argumentos.puerto + uid}{PREFIJO}/")
     print(f"Carpeta: {carpeta}")
     print(f"Para apagarla: Ctrl-C, cerrar la terminal, o `kill {os.getpid()}` (apaga también la web, pid {web.pid}).")
     print("Los pids quedan en el archivo `pids` de la carpeta.")

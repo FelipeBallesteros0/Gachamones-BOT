@@ -2,14 +2,14 @@ import db
 import identidad
 from ayudas_web import ESCRIBIR, PUEBLO, entrar
 
-AVATAR = "/gachamon/api/avatar"
+AVATAR = "/monsteropolis/api/avatar"
 BUENO = {"nombre": "Feli", "genero": "macho", "piel": "media", "pelo": "corto",
          "color_de_pelo": "castano", "ropa": "poleron"}
 
 
 def empezar(cliente, uid=1):
     entrar(cliente, uid)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers=ESCRIBIR)
 
 
 def test_las_opciones_se_piden_con_sesion(cliente):

@@ -126,7 +126,7 @@ export function sesion(contenedor) {
       titulo('Tu gachamon te espera'),
       el('p', { class: 'entradilla' },
         'Cuídalo, juega con él y míralo crecer, desde el celular o el computador.'),
-      el('p', {}, 'Para jugar, entra con tu cuenta de Rowino. Después, vuelve a rowino.online/gachamon.'),
+      el('p', {}, 'Para jugar, entra con tu cuenta de Rowino. Después, vuelve a rowino.online/monsteropolis.'),
       el('a', { class: 'boton principal', href: '/login' }, 'Entrar a Rowino'),
       el('p', { class: 'nota' }, '¿No tienes cuenta? ', el('a', { href: '/register' }, 'Créala en Rowino'), '.'),
     ),

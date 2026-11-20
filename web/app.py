@@ -1,4 +1,4 @@
-"""El servicio web de Gachamon: todo cuelga de `/gachamon`.
+"""El servicio web de Gachamon: todo cuelga de `/monsteropolis`.
 
 Importar este módulo no hace nada más que definir la fábrica y crear la app: la
 base se prepara en el ciclo de vida de FastAPI, al arrancar el servidor.
@@ -9,6 +9,7 @@ import hashlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -23,7 +24,7 @@ import db
 import economia
 import retrato
 from web import (
-    PREFIJO, aventura, carta, cuenta, departamento, ficha, juego, mochila, retratos, ropero, tienda,
+    PREFIJO, PREFIJO_ANTIGUO, aventura, carta, cuenta, departamento, ficha, juego, mochila, retratos, ropero, tienda,
 )
 from web.sesion import Persona, persona_actual, problema
 
@@ -37,6 +38,7 @@ _ERRORES_CONOCIDOS = {
 }
 
 API = f"{PREFIJO}/api/"
+_METODOS_DEL_JUEGO = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 TOPE_DEL_CUERPO = 16 * 1024
 DEMASIADO = ("demasiado", "Eso es demasiado grande.")
 
@@ -252,6 +254,21 @@ def crear_app() -> FastAPI:
     @app.get(f"{PREFIJO}/api/sesion")
     def sesion(persona: Persona = Depends(persona_actual)) -> dict:
         return {"usuario": persona.usuario}
+
+    # Lo que colgaba de la dirección de antes pasa a la misma ruta de la nueva, con
+    # su consulta. 308 y no 301: un `POST` con cuerpo de una página abierta antes
+    # del cambio llega igual, con el mismo método.
+    @app.api_route(
+        PREFIJO_ANTIGUO, methods=_METODOS_DEL_JUEGO, include_in_schema=False,
+    )
+    @app.api_route(
+        PREFIJO_ANTIGUO + "/{resto:path}", methods=_METODOS_DEL_JUEGO, include_in_schema=False,
+    )
+    def direccion_antigua(request: Request) -> RedirectResponse:
+        destino = PREFIJO + quote(request.url.path[len(PREFIJO_ANTIGUO):], safe="/:@!$&'()*+,;=-._~")
+        if request.url.query:
+            destino += "?" + request.url.query
+        return RedirectResponse(destino, status_code=308)
 
     @app.get(PREFIJO, include_in_schema=False)
     def sin_barra() -> RedirectResponse:

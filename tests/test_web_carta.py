@@ -11,7 +11,7 @@ from ayudas_web import CABECERA, PUEBLO, STATS, alta, con_carta, con_gachamon, e
 from test_web_tienda import LA_DE_DISCORD, con_vinculo
 from web import carta
 
-API = "/gachamon/api"
+API = "/monsteropolis/api"
 
 TODO = {"ancho": 4, "fondo": 3, "camas": 3, "vivos": 2, "casas": ["mediana", "grande"], "monedas_por_casas": 1700, "muebles": 2,
         "cosecha": {"poroto_rojo": 3}, "tickets": 1, "monedas_por_tickets": 40, "regalos": 1, "gemas_por_medallas": 70,

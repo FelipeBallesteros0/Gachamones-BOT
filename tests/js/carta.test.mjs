@@ -105,7 +105,7 @@ function servidorDeMentira() {
   const caidas = new Set();
   const retenidas = new Map();
   globalThis.fetch = async (url, opciones) => {
-    const ruta = `${opciones.method} ${String(url).replace(/^\/gachamon\/api\//, '')}`;
+    const ruta = `${opciones.method} ${String(url).replace(/^\/monsteropolis\/api\//, '')}`;
     pedidos.push([ruta]);
     if (retenidas.has(ruta)) {
       const espera = retenidas.get(ruta);

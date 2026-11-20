@@ -29,7 +29,7 @@ test('leer es un GET a la api del juego, sin la cabecera del juego', async () =>
   const llamadas = conFetch(() => respuesta(200, { usuario: 'felipe' }));
   assert.deepEqual(await pedir('GET', 'sesion'), { usuario: 'felipe' });
   const [{ url, opciones }] = llamadas;
-  assert.equal(url, '/gachamon/api/sesion');
+  assert.equal(url, '/monsteropolis/api/sesion');
   assert.equal(opciones.method, 'GET');
   assert.equal(new Headers(opciones.headers).get('X-Gachamon'), null);
   assert.equal(opciones.body, undefined);
@@ -44,11 +44,11 @@ test('lo que cambia algo lleva la cabecera del juego y el cuerpo en JSON', async
     assert.equal(new Headers(opciones.headers).get('X-Gachamon'), '1', opciones.method);
   }
   const [bautizo, avatar, empezar] = llamadas;
-  assert.equal(bautizo.url, '/gachamon/api/bautizar');
+  assert.equal(bautizo.url, '/monsteropolis/api/bautizar');
   assert.equal(new Headers(bautizo.opciones.headers).get('Content-Type'), 'application/json');
   assert.deepEqual(JSON.parse(bautizo.opciones.body), { nombre: 'Pelusa' });
   assert.equal(avatar.opciones.method, 'PUT');
-  assert.equal(empezar.url, '/gachamon/api/cuenta/empezar');
+  assert.equal(empezar.url, '/monsteropolis/api/cuenta/empezar');
   assert.equal(empezar.opciones.body, undefined);
 });
 
@@ -141,7 +141,7 @@ test('una respuesta a tiempo desarma el corte', { timeout: 5000 }, async (t) => 
 });
 
 test('la versión sale de la dirección del módulo', () => {
-  assert.equal(versionDe('https://ejemplo.invalid/gachamon/static/0a1b2c3d4e5f/js/api.js'), '0a1b2c3d4e5f');
+  assert.equal(versionDe('https://ejemplo.invalid/monsteropolis/static/0a1b2c3d4e5f/js/api.js'), '0a1b2c3d4e5f');
   assert.equal(versionDe('file:///repo/web/static/js/api.js'), null);
   assert.equal(versionDe(''), null);
 });

@@ -16,7 +16,7 @@ from ayudas_web import (
 )
 from web import tienda
 
-API = "/gachamon/api"
+API = "/monsteropolis/api"
 TIENDA, LUGAR = f"{API}/tienda", f"{API}/lugar"
 COMPRAR = f"{TIENDA}/comprar"
 LA_DE_DISCORD = "222222222222222222"
@@ -35,12 +35,12 @@ def mia():
 def con_vinculo(cliente):
     """La cuenta 1 vinculada a un id de Discord sintético, con su primer gachamon ya ganado."""
     entrar(cliente, 1)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers=ESCRIBIR)
+    codigo = cliente.post("/monsteropolis/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, LA_DE_DISCORD, str(PUEBLO), db.ahora_utc()) == "ok"
-    assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
+    assert cliente.put("/monsteropolis/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
     ganar_el_primero(cliente)
-    hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": "Pelusa"}, headers=ESCRIBIR)
+    hecho = cliente.post("/monsteropolis/api/bautizar", json={"nombre": "Pelusa"}, headers=ESCRIBIR)
     assert hecho.status_code == 200
 
 
@@ -583,7 +583,7 @@ def test_con_el_relevo_pendiente_un_mueble_se_compra_igual(cliente, monkeypatch)
 
 def test_el_cosmetico_cobra_gemas_y_el_gachamon_ya_lo_lleva(cliente, monkeypatch):
     en_la_tienda_con(cliente, monkeypatch, monedas=50, gemas=100)
-    antes = cliente.get("/gachamon/api/estado").json()["gachamon"]["retrato"]
+    antes = cliente.get("/monsteropolis/api/estado").json()["gachamon"]["retrato"]
     assert "/sin.png" in antes
     primera = comprar(cliente, "cosmetico", "corona", "evento-corona-1").json()
     segunda = comprar(cliente, "cosmetico", "corona", "evento-corona-1").json()

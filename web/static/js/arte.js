@@ -18,7 +18,7 @@ export function esRutaDeArte(ruta) {
 }
 
 // La dirección se arma desde la de este módulo: así lleva la versión de los
-// estáticos (`/gachamon/static/<versión>/arte/…`) sin escribirla a mano. Con
+// estáticos (`/monsteropolis/static/<versión>/arte/…`) sin escribirla a mano. Con
 // una ruta que no tiene forma de pieza no hay dirección: `null`.
 export function urlDeArte(ruta) {
   if (!esRutaDeArte(ruta)) return null;

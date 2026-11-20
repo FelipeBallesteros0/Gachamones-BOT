@@ -13,8 +13,8 @@ from ayudas_web import (
     poner_la_segunda_cama, poner_reloj,
 )
 
-ESTADO = "/gachamon/api/estado"
-HUEVO, BAUTIZAR = "/gachamon/api/huevo", "/gachamon/api/bautizar"
+ESTADO = "/monsteropolis/api/estado"
+HUEVO, BAUTIZAR = "/monsteropolis/api/huevo", "/monsteropolis/api/bautizar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 
@@ -50,7 +50,7 @@ def test_un_gachamon_id_que_no_es_entero_es_un_422(cliente, monkeypatch):
         respuesta = cliente.post(BAUTIZAR, json={"nombre": "Pelusa", "gachamon_id": gachamon_id}, headers=ESCRIBIR)
         assert respuesta.status_code == 422, gachamon_id
         assert respuesta.json()["detail"] == {"clave": "peticion", "mensaje": "La petición no se entiende."}
-    assert cliente.get("/gachamon/api/estado").json()["gachamon"]["espera_nombre"] is True
+    assert cliente.get("/monsteropolis/api/estado").json()["gachamon"]["espera_nombre"] is True
 
 
 def test_sin_gachamon_id_se_bautiza_a_la_activa_como_siempre(cliente, monkeypatch):
@@ -127,7 +127,7 @@ def test_la_ayuda_con_gachamon_deja_dos_camas_puestas_y_esta_en_casa(cliente, mo
     assert [(c.id, c.nombre, c.activa) for c in db.plantel(YO, G)] == [(estado["gachamon"]["id"], "Pelusa", True)]
     # De vuelta en su departamento, sin guía (ya tiene gachamon) y con el monedero en cero.
     assert estado["lugar"]["clave"] == "casa" and estado["guia"] is None
-    assert cliente.get("/gachamon/api/estado").json()["lugar"]["clave"] == "casa"
+    assert cliente.get("/monsteropolis/api/estado").json()["lugar"]["clave"] == "casa"
     assert estado["saldos"] == {"monedas": 0, "gemas": 0}
 
 
@@ -140,7 +140,7 @@ def test_el_huevo_ya_no_existe(cliente, monkeypatch):
     alta(cliente)
     poner_la_segunda_cama(cliente)          # aun con cama para uno, el huevo no está
     respuesta = cliente.post(HUEVO, headers=ESCRIBIR)
-    nunca_existio = cliente.post("/gachamon/api/nunca-existio", headers=ESCRIBIR)
+    nunca_existio = cliente.post("/monsteropolis/api/nunca-existio", headers=ESCRIBIR)
     assert respuesta.status_code == 404
     assert respuesta.json() == nunca_existio.json() == {
         "detail": {"clave": "no_existe", "mensaje": "Eso no existe."}}
@@ -159,7 +159,7 @@ def test_bautizar_con_el_nombre_de_su_especie_no_vale(cliente, monkeypatch):
     assert respuesta.json()["detail"] == {
         "clave": "nombre", "mensaje": "Ese es el nombre de su especie. Ponle uno propio.",
     }
-    assert cliente.get("/gachamon/api/estado").json()["gachamon"]["espera_nombre"] is True
+    assert cliente.get("/monsteropolis/api/estado").json()["gachamon"]["espera_nombre"] is True
 
 
 # --- Ponerle nombre a un recluta por su id (la regla se queda en el servidor, sin pantalla) ---

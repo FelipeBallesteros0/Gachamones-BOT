@@ -8,7 +8,7 @@ import nombres
 import retrato
 from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, entrar, ganar_el_primero, poner_la_segunda_cama, poner_reloj
 
-ESTADO = "/gachamon/api/estado"
+ESTADO = "/monsteropolis/api/estado"
 STATS = (10, 10, 10, 10)
 G = str(PUEBLO)
 YO = identidad.de_cuenta_web(1)
@@ -38,7 +38,7 @@ def test_recien_llegado_no_tiene_ni_avatar_ni_gachamon(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     sin_el_dia_del_cambio()                     # antes del cambio, un monedero nace con 50 y 50
     entrar(cliente, 1)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers=ESCRIBIR)
     estado = cliente.get(ESTADO).json()
     assert estado["avatar"] is None and estado["gachamon"] is None
     assert estado["globos"] == []
@@ -55,7 +55,7 @@ def test_quien_llega_despues_del_cambio_parte_en_cero(cliente, monkeypatch):
             "SELECT 1 FROM cambios_hechos WHERE clave = ?", (economia.CAMBIO_DE_LA_VIVIENDA,)
         ).fetchone()
     entrar(cliente, 1)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers=ESCRIBIR)
     estado = cliente.get(ESTADO).json()
     assert estado["saldos"] == {"monedas": 0, "gemas": 0}
 
@@ -74,7 +74,7 @@ def test_el_estado_completo_de_un_gachamon_recien_nacido(cliente, monkeypatch):
         "nivel": 1, "genero": "hembra",
         "barras": {"comida": 100, "animo": 100, "aseo": 100},
         "cara": "feliz", "desfallecido": False,
-        "retrato": f"/gachamon/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}",
+        "retrato": f"/monsteropolis/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}",
         "esperas": {"alimentar": 0, "jugar": 0, "entrenar": 0, "limpiar": 0, "acariciar": 0},
         "titulo": None, "sugerido": None,
     }
@@ -202,7 +202,7 @@ def test_difunto_visto_ya_no_existe(cliente, monkeypatch):
     alta(cliente)
     viejo = nace(nombre="Viejo")
     morir_de_antes(viejo, reloj.ahora)
-    respuesta = cliente.post("/gachamon/api/difunto/visto", headers=ESCRIBIR)
+    respuesta = cliente.post("/monsteropolis/api/difunto/visto", headers=ESCRIBIR)
     # Lo mismo que cualquier dirección que no existe.
     assert respuesta.status_code == 404
     assert respuesta.json() == {"detail": {"clave": "no_existe", "mensaje": "Eso no existe."}}
@@ -211,8 +211,8 @@ def test_difunto_visto_ya_no_existe(cliente, monkeypatch):
 def test_cualquiera_con_la_comida_en_cero_esta_desfallecido(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     entrar(cliente, 2)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers=ESCRIBIR)
+    codigo = cliente.post("/monsteropolis/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, T0) == "ok"
     creado = nace(usuario=ANA_DISCORD)
     db.guardar(replace(creado, hambre=0.0))
@@ -228,7 +228,7 @@ def test_el_lugar_dice_lo_que_ofrece_y_el_gachamon_su_titulo(cliente, monkeypatc
     nace(genero="hembra")
     estado = cliente.get(ESTADO).json()
     assert estado["lugar"]["ofrece"] == ["departamento"] and estado["gachamon"]["titulo"] is None
-    cliente.post("/gachamon/api/lugar", json={"lugar": "tienda"}, headers=ESCRIBIR)
+    cliente.post("/monsteropolis/api/lugar", json={"lugar": "tienda"}, headers=ESCRIBIR)
     assert cliente.get(ESTADO).json()["lugar"]["ofrece"] == ["tienda"]
 
 
@@ -287,7 +287,7 @@ def test_aventura_se_ofrece_solo_a_quien_no_tiene_gachamon(cliente, monkeypatch)
     alta(cliente)
 
     def el_lugar(clave):
-        cliente.post("/gachamon/api/lugar", json={"lugar": clave}, headers=ESCRIBIR)
+        cliente.post("/monsteropolis/api/lugar", json={"lugar": clave}, headers=ESCRIBIR)
         lugar = cliente.get(ESTADO).json()["lugar"]
         assert lugar["clave"] == clave
         return lugar["abre"], lugar["ofrece"], lugar["aviso"]

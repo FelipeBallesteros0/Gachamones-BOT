@@ -205,7 +205,7 @@ function crearServidor(alLlegar) {
     if (direccion.endsWith('/datos/pueblo.json')) {
       return { ok: true, status: 200, json: async () => DATOS_DEL_PUEBLO };
     }
-    const ruta = `${opciones.method} ${direccion.replace(/^\/gachamon\/api\//, '')}`;
+    const ruta = `${opciones.method} ${direccion.replace(/^\/monsteropolis\/api\//, '')}`;
     const cuerpo = opciones.body ? JSON.parse(opciones.body) : undefined;
     pedidos.push([ruta, cuerpo]);
     return { ok: true, status: 200, headers: { get: () => null }, json: async () => alLlegar(cuerpo) };
@@ -217,7 +217,7 @@ const AVATAR = {
   nombre: 'Ana', genero: 'hembra', piel: 'clara', pelo: 'largo', color_de_pelo: 'rojo', ropa: 'camisa',
 };
 const CASA = { clave: 'casa', nombre: 'Tu departamento', abre: 'ya', aviso: null, ofrece: ['departamento'] };
-const RETRATO = '/gachamon/retrato/pollito/bebe/feliz/sin.png';
+const RETRATO = '/monsteropolis/retrato/pollito/bebe/feliz/sin.png';
 const PELUSA = {
   id: 5, nombre: 'Pelusa', emoji: '🐤', retrato: RETRATO, etapa: 'bebe', espera_nombre: false,
 };

@@ -370,7 +370,7 @@ function crearServidor() {
   }
 
   globalThis.fetch = async (url, opciones) => {
-    const ruta = `${opciones.method} ${String(url).replace(/^\/gachamon\/api\//, '')}`;
+    const ruta = `${opciones.method} ${String(url).replace(/^\/monsteropolis\/api\//, '')}`;
     pedidos.push([ruta, opciones.body ? JSON.parse(opciones.body) : undefined]);
     if (retenidas.has(ruta)) {
       const espera = retenidas.get(ruta);
@@ -416,7 +416,7 @@ const PELUSA = {
   id: 7, nombre: 'Pelusa', espera_nombre: false, se_nombro_solo: false, especie: 'pollito', nombre_especie: 'Pollito',
   emoji: '🐣', etapa: 'bebe', nombre_etapa: 'cría', nivel: 3, genero: 'hembra',
   barras: { comida: 62, animo: 80, aseo: 45 }, cara: 'feliz', desfallecido: false,
-  retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png', esperas: {}, titulo: null,
+  retrato: '/monsteropolis/retrato/pollito/bebe/feliz/sin.png', esperas: {}, titulo: null,
 };
 
 const ESTADO = {
@@ -494,7 +494,7 @@ const RULO = {
   id: 8, nombre: 'Rulo', espera_nombre: false, se_nombro_solo: false, especie: 'slime', nombre_especie: 'Gelatín',
   emoji: '🟢', etapa: 'bebe', nombre_etapa: 'cría', nivel: 2, genero: 'macho',
   barras: { comida: 50, animo: 70, aseo: 30 }, cara: 'feliz', desfallecido: false,
-  retrato: '/gachamon/retrato/slime/bebe/feliz/sin.png', esperas: {}, titulo: null,
+  retrato: '/monsteropolis/retrato/slime/bebe/feliz/sin.png', esperas: {}, titulo: null,
 };
 
 // El 3 × 3 de siempre con dos gachamones: Pelusa, que sale contigo, y Rulo.
@@ -679,7 +679,7 @@ function dondeEstas(pantalla) {
 // pies están un cuarto de alto de casilla bajo el centro de su casilla.
 function dondeEstanLosGachamones(pantalla) {
   const { m } = medidaDe(pantalla);
-  return pintados(pantalla, '/gachamon/retrato/')
+  return pintados(pantalla, '/monsteropolis/retrato/')
     .map(([, [, x, y, ancho, alto]]) => enLaPieza(pantalla, x + ancho / 2, y + alto - m.th / 4));
 }
 
@@ -771,7 +771,7 @@ function sitiosMarcados(pantalla) {
 function dondeSePintaronLosGachamones(pantalla) {
   const { m } = medidaDe(pantalla);
   return (lienzoDe(pantalla).trazos || [])
-    .filter(([nombre, [imagen]]) => nombre === 'drawImage' && String(imagen && imagen.src).includes('/gachamon/retrato/'))
+    .filter(([nombre, [imagen]]) => nombre === 'drawImage' && String(imagen && imagen.src).includes('/monsteropolis/retrato/'))
     .map(([, [, x, y, ancho, alto]]) => enLaPieza(pantalla, x + ancho / 2, y + alto - m.th / 4));
 }
 
@@ -1832,7 +1832,7 @@ test('al salir con él, el foco que estaba en «Salir con …» pasa a su nombre
 test('al cambiarle la cara se sigue pintando su retrato de antes hasta que llega el nuevo', async () => {
   const { pantalla, servidor } = await abrir(CON_DOS);
   await tocarA(pantalla, CON_DOS, 1);
-  const CONTENTO = { ...RULO, cara: 'contento', retrato: '/gachamon/retrato/slime/bebe/contento/sin.png' };
+  const CONTENTO = { ...RULO, cara: 'contento', retrato: '/monsteropolis/retrato/slime/bebe/contento/sin.png' };
   const soltar = retenerImagenes('/contento/');
   servidor.responde('POST cuidar', { ok: true, mensaje: 'Juegan un rato.', espera: 600, monedas: 0, evoluciono: false, logros: [],
     gachamon: CONTENTO, estado: ESTADO });
@@ -3194,7 +3194,7 @@ test('al terminar el modo, el foco que se quedó en lo que se esconde (hay naveg
 
 test('el botón del modo nace sin poderse usar, y se puede usar cuando la pieza está lista para tocarse', async () => {
   let soltar;
-  const { pantalla } = await abrir(DEPTO, ESTADO, { antes: () => { soltar = retenerImagenes('/gachamon/retrato/'); } });
+  const { pantalla } = await abrir(DEPTO, ESTADO, { antes: () => { soltar = retenerImagenes('/monsteropolis/retrato/'); } });
   const alModo = boton(pantalla, 'Construir');
   assert.equal(seVe(alModo), true);                                      // la pieza ya se ve, y su arte no ha llegado
   assert.equal(alModo.getAttribute('aria-disabled'), 'true');

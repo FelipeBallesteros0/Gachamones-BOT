@@ -3,7 +3,7 @@ import db
 import identidad
 from ayudas_web import ESCRIBIR, PUEBLO, T0, entrar, poner_reloj
 
-CUENTA = "/gachamon/api/cuenta"
+CUENTA = "/monsteropolis/api/cuenta"
 STATS = (10, 10, 10, 10)
 ANA_DISCORD = "222222222222222222"
 

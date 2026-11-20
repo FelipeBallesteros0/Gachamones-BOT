@@ -646,3 +646,32 @@ def test_en_un_computador_el_juego_ocupa_toda_la_ventana():
         for s in selectores.split(",")
     }
     assert usos == {".medidor-pista"}, usos
+
+
+def test_el_cliente_no_nombra_gachamon_como_direccion():
+    culpables = [
+        f"{a.relative_to(ESTATICOS)}:{n}"
+        for a in sorted(ESTATICOS.rglob("*")) if a.is_file() and a.suffix in {".html", ".js", ".css", ".json"}
+        for n, linea in enumerate(a.read_text(encoding="utf-8").splitlines(), 1)
+        if "/gachamon" in linea
+    ]
+    assert not culpables, culpables
+
+
+def test_el_cliente_y_el_servidor_dicen_la_misma_direccion():
+    import web
+
+    api = (ESTATICOS / "js" / "api.js").read_text(encoding="utf-8")
+    assert f"const BASE = '{web.PREFIJO}/api/';" in api
+    portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
+    assert f"{web.PREFIJO}/static/__V__/estilo.css" in portada
+    assert f"{web.PREFIJO}/static/__V__/js/principal.js" in portada
+
+
+def test_la_entrada_manda_a_volver_a_monsteropolis():
+    entrada = (ESTATICOS / "js" / "entrada.js").read_text(encoding="utf-8")
+    assert (
+        "'Para jugar, entra con tu cuenta de Rowino. Después, vuelve a rowino.online/monsteropolis.'"
+        in entrada
+    )
+    assert "rowino.online/gachamon" not in entrada

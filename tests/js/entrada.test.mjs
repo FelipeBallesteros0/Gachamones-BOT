@@ -170,10 +170,10 @@ async function bautizarCon(estado, nombre) {
 
 const nacido = {
   id: 3, nombre: 'Pulpito', espera_nombre: true, nombre_especie: 'Pulpito', nombre_etapa: 'bebé',
-  genero: 'hembra', emoji: '🐙', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png',
+  genero: 'hembra', emoji: '🐙', retrato: '/monsteropolis/retrato/pulpo/bebe/feliz/sin.png',
 };
 // El recluta que esperaba nombre sin ninguna activa: un servidor viejo lo mandaba en `sin_nombre`.
-const recluta = { id: 7, nombre_especie: 'Pollito', retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png' };
+const recluta = { id: 7, nombre_especie: 'Pollito', retrato: '/monsteropolis/retrato/pollito/bebe/feliz/sin.png' };
 const ESPERA_EN_LA_INCUBADORA = 'Este Pollito espera en la incubadora y todavía no tiene nombre.';
 
 test('el bautizo es siempre el del activo: un `sin_nombre` de un servidor viejo no lo cambia', { timeout: 2000 }, async () => {

@@ -36,7 +36,7 @@ const CAJA = { x: 10, y: 20, ancho: 40, alto: 20 };
 
 test('fuera de su caja no se ve; dentro, sólo donde el píxel de su dibujo no es del todo transparente', () => {
   alfaDe = dosPuntos;
-  const dibujo = imagen('/gachamon/retrato/a.png');
+  const dibujo = imagen('/monsteropolis/retrato/a.png');
   assert.equal(seVe(dibujo, CAJA, 15, 25), false);                     // (0, 0): transparente
   assert.equal(seVe(dibujo, CAJA, 25, 25), true);                      // (1, 0): alfa 1 ya se ve
   assert.equal(seVe(dibujo, CAJA, 29.9, 29.9), true);
@@ -47,7 +47,7 @@ test('fuera de su caja no se ve; dentro, sólo donde el píxel de su dibujo no e
 });
 
 test('sin imagen (se ve su recuadro), cuenta su caja entera', () => {
-  for (const sinDibujo of [null, { src: '/gachamon/retrato/vacio.png', naturalWidth: 0, naturalHeight: 0 }]) {
+  for (const sinDibujo of [null, { src: '/monsteropolis/retrato/vacio.png', naturalWidth: 0, naturalHeight: 0 }]) {
     assert.equal(seVe(sinDibujo, CAJA, 15, 25), true);
     assert.equal(seVe(sinDibujo, CAJA, 50, 40), true);
     assert.equal(seVe(sinDibujo, CAJA, 51, 40), false);
@@ -57,19 +57,19 @@ test('sin imagen (se ve su recuadro), cuenta su caja entera', () => {
 test('los píxeles de una imagen se leen una vez, y otra vez sólo si cambia su dibujo', () => {
   alfaDe = dosPuntos;
   leidas.length = 0;
-  const dibujo = imagen('/gachamon/retrato/b.png');
+  const dibujo = imagen('/monsteropolis/retrato/b.png');
   for (let vez = 0; vez < 3; vez += 1) {
     seVe(dibujo, CAJA, 15, 25);
     seVe(dibujo, CAJA, 45, 35);
   }
   seVe(dibujo, CAJA, 5, 5);                                            // fuera de la caja ni se mira
   assert.deepEqual(leidas, [dibujo]);
-  const otro = imagen('/gachamon/retrato/c.png');
+  const otro = imagen('/monsteropolis/retrato/c.png');
   seVe(otro, CAJA, 15, 25);
   assert.deepEqual(leidas, [dibujo, otro]);
   // El mismo `<img>` con otro dibujo: lo que se ve ahora es el nuevo.
   alfaDe = () => 255;
-  dibujo.currentSrc = '/gachamon/retrato/d.png';
+  dibujo.currentSrc = '/monsteropolis/retrato/d.png';
   assert.equal(seVe(dibujo, CAJA, 15, 25), true);
   assert.deepEqual(leidas, [dibujo, otro, dibujo]);
 });
@@ -78,7 +78,7 @@ test('si sus píxeles no se pueden leer, cuenta su caja entera', () => {
   alfaDe = dosPuntos;
   noDejaLeer = true;
   try {
-    const dibujo = imagen('/gachamon/retrato/e.png');
+    const dibujo = imagen('/monsteropolis/retrato/e.png');
     assert.equal(seVe(dibujo, CAJA, 15, 25), true);
     assert.equal(seVe(dibujo, CAJA, 9, 25), false);
   } finally {

@@ -206,7 +206,7 @@ function crearServidor() {
   const pedidos = [];
   const respuestas = new Map();
   globalThis.fetch = async (url, opciones) => {
-    const ruta = `${opciones.method} ${String(url).replace(/^\/gachamon\/api\//, '')}`;
+    const ruta = `${opciones.method} ${String(url).replace(/^\/monsteropolis\/api\//, '')}`;
     pedidos.push([ruta, opciones.body ? JSON.parse(opciones.body) : undefined]);
     if (!respuestas.has(ruta)) {
       return {
@@ -231,7 +231,7 @@ const ESTADIO = {
 const TIENDA = { clave: 'tienda', nombre: 'Tienda', abre: 'ya', aviso: null, ofrece: ['tienda'] };
 const PELUSA = {
   id: 5, nombre: 'Pelusa', titulo: null, nombre_especie: 'Pollito', nombre_etapa: 'bebé', etapa: 'bebe',
-  nivel: 3, genero: 'hembra', emoji: '🐤', retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png',
+  nivel: 3, genero: 'hembra', emoji: '🐤', retrato: '/monsteropolis/retrato/pollito/bebe/feliz/sin.png',
   barras: { comida: 80, animo: 70, aseo: 60 }, esperas: {}, desfallecido: false, espera_nombre: false,
   sugerido: null,
 };

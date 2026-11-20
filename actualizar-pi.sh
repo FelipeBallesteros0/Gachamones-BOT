@@ -187,7 +187,7 @@ ssh $TTY_FLAG "$PI" "sudo cp '$DEST/tamagotchi.service' /etc/systemd/system/tama
     sudo systemctl restart tamagotchi && \
     sudo systemctl restart gachamon-web && \
     sleep 3 && systemctl is-active tamagotchi && systemctl is-active gachamon-web && \
-    curl -fsS --retry 10 --retry-delay 1 --retry-connrefused -o /dev/null http://127.0.0.1:8010/gachamon/api/salud"
+    curl -fsS --retry 10 --retry-delay 1 --retry-connrefused -o /dev/null http://127.0.0.1:8010/monsteropolis/api/salud"
 web_en_marcha=1
 
 echo

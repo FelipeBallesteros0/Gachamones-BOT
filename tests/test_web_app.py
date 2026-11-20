@@ -15,12 +15,80 @@ RAIZ = Path(__file__).resolve().parent.parent
 
 
 def test_la_salud_contesta(cliente):
-    respuesta = cliente.get("/gachamon/api/salud")
+    respuesta = cliente.get("/monsteropolis/api/salud")
     assert respuesta.status_code == 200
     assert respuesta.json() == {"ok": True}
 
 
-@pytest.mark.parametrize("ruta", ["/gachamon", "/gachamon/"])
+def test_el_juego_vive_en_monsteropolis(cliente):
+    import web
+
+    assert web.PREFIJO == "/monsteropolis"
+    version = cliente.app.state.version
+    assert cliente.get("/monsteropolis/", follow_redirects=False).status_code == 200
+    assert cliente.get("/monsteropolis/api/salud", follow_redirects=False).status_code == 200
+    estatico = cliente.get(f"/monsteropolis/static/{version}/estilo.css", follow_redirects=False)
+    assert estatico.status_code == 200
+    assert "immutable" in estatico.headers["cache-control"]
+
+
+@pytest.mark.parametrize("metodo, antigua, nueva", [
+    ("GET", "/gachamon", "/monsteropolis"),
+    ("GET", "/gachamon/", "/monsteropolis/"),
+    ("GET", "/gachamon/api/estado?x=1", "/monsteropolis/api/estado?x=1"),
+    ("GET", "/gachamon/api/estado?a=1&b=dos%20tres", "/monsteropolis/api/estado?a=1&b=dos%20tres"),
+    ("POST", "/gachamon/api/cuidar", "/monsteropolis/api/cuidar"),
+    ("PUT", "/gachamon/api/avatar", "/monsteropolis/api/avatar"),
+    ("GET", "/gachamon/retrato/pollito/bebe/feliz/sin.png?v=3",
+     "/monsteropolis/retrato/pollito/bebe/feliz/sin.png?v=3"),
+    ("GET", "/gachamon//otro.com", "/monsteropolis//otro.com"),
+])
+def test_gachamon_redirige_conservando_la_ruta(cliente, metodo, antigua, nueva):
+    respuesta = cliente.request(metodo, antigua, follow_redirects=False)
+    assert respuesta.status_code == 308
+    assert respuesta.headers["location"] == nueva
+    # Las cabeceras de todo lo que sirve el servicio salen también aquí.
+    assert respuesta.headers["x-content-type-options"] == "nosniff"
+    assert "frame-ancestors" in respuesta.headers["content-security-policy"]
+
+
+@pytest.mark.parametrize("ruta", [
+    "/gachamonx", "/gachamonx/api/salud", "/gachamones", "/monsteropolisx", "/otra/gachamon/",
+])
+def test_la_redireccion_no_toca_lo_que_no_empieza_por_el_prefijo_antiguo(cliente, ruta):
+    assert cliente.get(ruta, follow_redirects=False).status_code == 404
+
+
+def test_un_post_de_una_pagina_vieja_llega_con_su_cuerpo_y_su_cabecera(tmp_path, monkeypatch):
+    import ayudas_web
+
+    with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
+        ayudas_web.entrar(cliente, 1)
+        # El cliente sigue el 308 igual que un navegador: mismo método, mismo cuerpo.
+        viejo = cliente.post(
+            "/gachamon/api/cuenta/empezar", headers=ayudas_web.ESCRIBIR, follow_redirects=True,
+        )
+        assert viejo.status_code == 200
+        assert viejo.url.path == "/monsteropolis/api/cuenta/empezar"
+        viejo = cliente.put(
+            "/gachamon/api/avatar", json={**ayudas_web.AVATAR, "nombre": "Nueva"},
+            headers=ayudas_web.ESCRIBIR, follow_redirects=True,
+        )
+        assert viejo.status_code == 200
+        # El cuerpo llegó entero: el avatar quedó con el nombre mandado.
+        estado = cliente.get("/monsteropolis/api/estado").json()
+        assert estado["avatar"]["nombre"] == "Nueva"
+
+
+def test_una_pagina_vieja_oye_la_version_nueva_tras_la_redireccion(cliente):
+    respuesta = cliente.get("/gachamon/api/salud", follow_redirects=True)
+    assert respuesta.status_code == 200
+    assert respuesta.url.path == "/monsteropolis/api/salud"
+    assert respuesta.headers["x-gachamon-version"] == cliente.app.state.version
+    assert respuesta.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize("ruta", ["/monsteropolis", "/monsteropolis/"])
 def test_la_portada_se_sirve_sin_cache_y_con_la_version_puesta(cliente, ruta):
     respuesta = cliente.get(ruta)
     assert respuesta.status_code == 200
@@ -32,22 +100,22 @@ def test_la_portada_se_sirve_sin_cache_y_con_la_version_puesta(cliente, ruta):
 
 def test_la_portada_pide_sus_archivos_con_rutas_absolutas(cliente):
     version = cliente.app.state.version
-    texto = cliente.get("/gachamon/").text
-    assert f'"/gachamon/static/{version}/estilo.css"' in texto
-    assert f'"/gachamon/static/{version}/js/principal.js"' in texto
+    texto = cliente.get("/monsteropolis/").text
+    assert f'"/monsteropolis/static/{version}/estilo.css"' in texto
+    assert f'"/monsteropolis/static/{version}/js/principal.js"' in texto
 
 
 def test_sin_barra_redirige_a_la_portada(cliente):
-    respuesta = cliente.get("/gachamon", follow_redirects=False)
+    respuesta = cliente.get("/monsteropolis", follow_redirects=False)
     assert respuesta.status_code in (301, 302, 307, 308)
-    assert respuesta.headers["location"].endswith("/gachamon/")
+    assert respuesta.headers["location"].endswith("/monsteropolis/")
 
 
 def test_los_estaticos_cuelgan_de_una_ruta_con_version(cliente):
     version = cliente.app.state.version
     assert len(version) >= 8 and set(version) <= set("0123456789abcdef")
-    assert cliente.get(f"/gachamon/static/{version}/index.html").status_code == 200
-    assert cliente.get("/gachamon/static/otra/index.html").status_code == 404
+    assert cliente.get(f"/monsteropolis/static/{version}/index.html").status_code == 200
+    assert cliente.get("/monsteropolis/static/otra/index.html").status_code == 404
 
 
 def test_la_version_sale_del_contenido_y_no_de_las_fechas(tmp_path):
@@ -65,8 +133,8 @@ def test_la_version_sale_del_contenido_y_no_de_las_fechas(tmp_path):
 
 
 @pytest.mark.parametrize("ruta", [
-    "/", "/api/salud", "/docs", "/openapi.json", "/gachamon/docs",
-    "/gachamon/openapi.json", "/gachamones",
+    "/", "/api/salud", "/docs", "/openapi.json", "/monsteropolis/docs",
+    "/monsteropolis/openapi.json", "/gachamones",
 ])
 def test_fuera_de_lo_suyo_no_hay_nada(cliente, ruta):
     assert cliente.get(ruta).status_code == 404
@@ -187,7 +255,7 @@ def test_en_la_web_ninguna_lectura_de_gachamones_se_salta_db_avanzar():
 
 
 def test_una_direccion_que_no_existe_contesta_con_clave(cliente):
-    respuesta = cliente.get("/gachamon/api/no-hay-nada")
+    respuesta = cliente.get("/monsteropolis/api/no-hay-nada")
     assert respuesta.status_code == 404
     assert respuesta.json() == {
         "detail": {"clave": "no_existe", "mensaje": "Eso no existe."},
@@ -195,14 +263,14 @@ def test_una_direccion_que_no_existe_contesta_con_clave(cliente):
 
 
 def test_un_verbo_que_no_toca_contesta_405_con_clave_y_allow(cliente):
-    respuesta = cliente.post("/gachamon/api/salud")
+    respuesta = cliente.post("/monsteropolis/api/salud")
     assert respuesta.status_code == 405
     assert respuesta.json()["detail"]["clave"] == "metodo"
     assert "GET" in respuesta.headers["allow"]
 
 
 def test_un_error_con_su_propia_clave_la_conserva(cliente):
-    respuesta = cliente.get("/gachamon/api/sesion")
+    respuesta = cliente.get("/monsteropolis/api/sesion")
     assert respuesta.status_code == 401
     assert respuesta.json()["detail"]["clave"] == "sin_sesion"
 
@@ -211,7 +279,7 @@ def test_el_prefijo_vive_en_el_paquete_y_la_app_lo_sigue_exponiendo():
     import web
     import web.app
 
-    assert web.PREFIJO == "/gachamon" == web.app.PREFIJO
+    assert web.PREFIJO == "/monsteropolis" == web.app.PREFIJO
 
 
 def test_un_error_http_sin_forma_propia_no_filtra_su_texto(tmp_path, monkeypatch):
@@ -219,11 +287,11 @@ def test_un_error_http_sin_forma_propia_no_filtra_su_texto(tmp_path, monkeypatch
     from fastapi import HTTPException
 
     with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
-        @cliente.app.get("/gachamon/api/prueba-418")
+        @cliente.app.get("/monsteropolis/api/prueba-418")
         def _rara():
             raise HTTPException(status_code=418, detail="texto interno")
 
-        respuesta = cliente.get("/gachamon/api/prueba-418")
+        respuesta = cliente.get("/monsteropolis/api/prueba-418")
     assert respuesta.status_code == 418
     assert respuesta.json() == {
         "detail": {"clave": "error", "mensaje": "Algo salió mal."},
@@ -295,8 +363,8 @@ def test_el_aviso_nunca_escribe_la_clave(tmp_path, monkeypatch, caplog):
 # --- Un tope para el cuerpo, antes de mirar la cookie -------------------------
 
 DEMASIADO = {"detail": {"clave": "demasiado", "mensaje": "Eso es demasiado grande."}}
-CON_CUERPO = [("PUT", "/gachamon/api/avatar"), ("POST", "/gachamon/api/bautizar"),
-              ("POST", "/gachamon/api/cuidar")]
+CON_CUERPO = [("PUT", "/monsteropolis/api/avatar"), ("POST", "/monsteropolis/api/bautizar"),
+              ("POST", "/monsteropolis/api/cuidar")]
 
 
 @pytest.mark.parametrize("metodo, ruta", CON_CUERPO)
@@ -318,7 +386,7 @@ def test_un_cuerpo_de_17_kib_da_413(cliente, metodo, ruta, con_cookie):
 def test_un_content_length_que_no_es_un_numero_o_se_pasa_da_413(cliente, declarado):
     from ayudas_web import ESCRIBIR
 
-    respuesta = cliente.post("/gachamon/api/cuidar", content=b"{}",
+    respuesta = cliente.post("/monsteropolis/api/cuidar", content=b"{}",
                              headers={**ESCRIBIR, "Content-Length": declarado,
                                       "Content-Type": "application/json"})
     assert respuesta.status_code == 413 and respuesta.json() == DEMASIADO
@@ -327,7 +395,7 @@ def test_un_content_length_que_no_es_un_numero_o_se_pasa_da_413(cliente, declara
 def test_un_content_length_que_miente_por_lo_bajo_tambien_se_corta(cliente):
     from ayudas_web import ESCRIBIR
 
-    respuesta = cliente.post("/gachamon/api/bautizar", content=b"x" * (17 * 1024),
+    respuesta = cliente.post("/monsteropolis/api/bautizar", content=b"x" * (17 * 1024),
                              headers={**ESCRIBIR, "Content-Length": "10",
                                       "Content-Type": "application/json"})
     assert respuesta.status_code == 413 and respuesta.json() == DEMASIADO
@@ -338,13 +406,13 @@ def test_un_cuerpo_normal_pasa_y_el_tope_justo_tambien(cliente, monkeypatch):
 
     poner_reloj(monkeypatch)
     con_gachamon(cliente)
-    normal = cliente.post("/gachamon/api/cuidar", headers=ESCRIBIR,
+    normal = cliente.post("/monsteropolis/api/cuidar", headers=ESCRIBIR,
                           json={"accion": "limpiar", "evento_id": "evento-normal"})
     assert normal.status_code == 200
     # Justo 16 KiB no se pasa: llega a la ruta, que dice lo suyo del nombre.
     relleno = b'{"nombre": "' + b"a" * (16 * 1024 - 14) + b'"}'
     assert len(relleno) == 16 * 1024
-    justo = cliente.post("/gachamon/api/bautizar", content=relleno,
+    justo = cliente.post("/monsteropolis/api/bautizar", content=relleno,
                          headers={**ESCRIBIR, "Content-Type": "application/json"})
     assert justo.status_code != 413
 
@@ -390,7 +458,7 @@ def test_un_cuerpo_troceado_se_corta_en_cuanto_se_pasa(tmp_path, monkeypatch):
 
     with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
         estado, cuerpo, leidos = _pedir_a_trozos(
-            cliente.app, "/gachamon/api/cuidar", [b"x" * (6 * 1024)] * 5)
+            cliente.app, "/monsteropolis/api/cuidar", [b"x" * (6 * 1024)] * 5)
     assert estado == 413 and cuerpo == DEMASIADO
     # Seis, doce, dieciocho: al tercero ya se pasa, y los otros dos no se leen.
     assert leidos == 3
@@ -407,9 +475,9 @@ def _lleva_siempre(respuesta):
 
 
 @pytest.mark.parametrize("ruta, estado", [
-    ("/gachamon/api/salud", 200),
-    ("/gachamon/api/sesion", 401),
-    ("/gachamon/api/no-hay-nada", 404),
+    ("/monsteropolis/api/salud", 200),
+    ("/monsteropolis/api/sesion", 401),
+    ("/monsteropolis/api/no-hay-nada", 404),
 ])
 def test_lo_de_la_api_no_se_guarda_en_ninguna_cache(cliente, ruta, estado):
     respuesta = cliente.get(ruta)
@@ -419,7 +487,7 @@ def test_lo_de_la_api_no_se_guarda_en_ninguna_cache(cliente, ruta, estado):
 
 
 def test_el_413_tambien_lleva_sus_cabeceras(cliente):
-    respuesta = cliente.post("/gachamon/api/cuidar", content=b"x" * (17 * 1024))
+    respuesta = cliente.post("/monsteropolis/api/cuidar", content=b"x" * (17 * 1024))
     assert respuesta.status_code == 413
     assert respuesta.headers["cache-control"] == "no-store" and _lleva_siempre(respuesta)
 
@@ -429,12 +497,12 @@ def test_un_500_tambien_lleva_sus_cabeceras(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     with ayudas_web.servicio(tmp_path, monkeypatch) as cliente:
-        @cliente.app.get("/gachamon/api/prueba-500")
+        @cliente.app.get("/monsteropolis/api/prueba-500")
         def _rota():
             raise RuntimeError("se rompió")
 
         sin_trampa = TestClient(cliente.app, raise_server_exceptions=False)
-        respuesta = sin_trampa.get("/gachamon/api/prueba-500")
+        respuesta = sin_trampa.get("/monsteropolis/api/prueba-500")
         version = cliente.app.state.version
     assert respuesta.status_code == 500
     assert respuesta.headers["cache-control"] == "no-store" and _lleva_siempre(respuesta)
@@ -442,9 +510,9 @@ def test_un_500_tambien_lleva_sus_cabeceras(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("ruta, estado", [
-    ("/gachamon/api/salud", 200),
-    ("/gachamon/api/sesion", 401),
-    ("/gachamon/api/no-hay-nada", 404),
+    ("/monsteropolis/api/salud", 200),
+    ("/monsteropolis/api/sesion", 401),
+    ("/monsteropolis/api/no-hay-nada", 404),
 ])
 def test_lo_de_la_api_dice_de_que_version_es_el_servidor(cliente, ruta, estado):
     respuesta = cliente.get(ruta)
@@ -453,12 +521,12 @@ def test_lo_de_la_api_dice_de_que_version_es_el_servidor(cliente, ruta, estado):
 
 
 def test_el_413_tambien_dice_la_version(cliente):
-    respuesta = cliente.post("/gachamon/api/cuidar", content=b"x" * (17 * 1024))
+    respuesta = cliente.post("/monsteropolis/api/cuidar", content=b"x" * (17 * 1024))
     assert respuesta.status_code == 413
     assert respuesta.headers["x-gachamon-version"] == cliente.app.state.version
 
 
-@pytest.mark.parametrize("ruta", ["/gachamon/", "/", "/gachamon/static/otra/index.html"])
+@pytest.mark.parametrize("ruta", ["/monsteropolis/", "/", "/monsteropolis/static/otra/index.html"])
 def test_fuera_de_la_api_tambien_van_las_de_siempre(cliente, ruta):
     respuesta = cliente.get(ruta)
     assert _lleva_siempre(respuesta)
@@ -467,14 +535,14 @@ def test_fuera_de_la_api_tambien_van_las_de_siempre(cliente, ruta):
 
 def test_los_estaticos_llevan_las_de_siempre(cliente):
     version = cliente.app.state.version
-    respuesta = cliente.get(f"/gachamon/static/{version}/js/principal.js")
+    respuesta = cliente.get(f"/monsteropolis/static/{version}/js/principal.js")
     assert respuesta.status_code == 200 and _lleva_siempre(respuesta)
 
 
 def test_los_estaticos_versionados_se_guardan_para_siempre(cliente):
     version = cliente.app.state.version
     for ruta in ("js/principal.js", "estilo.css", "arte/efectos/corazon.png"):
-        respuesta = cliente.get(f"/gachamon/static/{version}/{ruta}")
+        respuesta = cliente.get(f"/monsteropolis/static/{version}/{ruta}")
         assert respuesta.status_code == 200
         assert respuesta.headers["cache-control"] == "public, max-age=31536000, immutable"
         assert _lleva_siempre(respuesta)
@@ -482,22 +550,22 @@ def test_los_estaticos_versionados_se_guardan_para_siempre(cliente):
 
 def test_un_estatico_que_falta_no_se_guarda(cliente):
     version = cliente.app.state.version
-    respuesta = cliente.get(f"/gachamon/static/{version}/arte/efectos/no-existe.png")
+    respuesta = cliente.get(f"/monsteropolis/static/{version}/arte/efectos/no-existe.png")
     assert respuesta.status_code == 404
     assert "immutable" not in respuesta.headers.get("cache-control", "")
     assert _lleva_siempre(respuesta)
 
 
 def test_la_portada_sigue_sin_guardarse_y_lo_de_otra_version_tampoco(cliente):
-    assert cliente.get("/gachamon/").headers["cache-control"] == "no-cache"
-    otra = cliente.get("/gachamon/static/otra/js/principal.js")
+    assert cliente.get("/monsteropolis/").headers["cache-control"] == "no-cache"
+    otra = cliente.get("/monsteropolis/static/otra/js/principal.js")
     assert otra.status_code == 404 and "immutable" not in otra.headers.get("cache-control", "")
 
 
 def test_un_retrato_conserva_su_cache_de_un_año(cliente):
     import retrato
 
-    respuesta = cliente.get(f"/gachamon/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}")
+    respuesta = cliente.get(f"/monsteropolis/retrato/pollito/bebe/feliz/sin.png?v={retrato.version()}")
     assert respuesta.status_code == 200
     assert respuesta.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert _lleva_siempre(respuesta)
@@ -506,7 +574,7 @@ def test_un_retrato_conserva_su_cache_de_un_año(cliente):
 def test_otro_sitio_no_recibe_permiso_para_escribir(cliente):
     # Fija la defensa contra otros sitios: no hay CORS, así que una pregunta
     # previa del navegador no recibe ninguna cabecera que le abra la puerta.
-    respuesta = cliente.options("/gachamon/api/cuidar", headers={
+    respuesta = cliente.options("/monsteropolis/api/cuidar", headers={
         "Origin": "https://otro-sitio.example", "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "x-gachamon, content-type",
     })

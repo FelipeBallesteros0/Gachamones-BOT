@@ -13,6 +13,7 @@ import economia
 import especies as esp
 import identidad
 import nacer
+from web import PREFIJO
 
 CLAVE = "clave-de-prueba"
 PUEBLO = 777
@@ -86,8 +87,8 @@ AVATAR = {"nombre": "Feli", "genero": "macho", "piel": "media", "pelo": "corto",
 def alta(cliente, uid: int = 1, nombre: str = "Feli") -> None:
     """Deja una cuenta con identidad web y avatar, todavía sin ningún gachamon."""
     entrar(cliente, uid)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
-    hecho = cliente.put("/gachamon/api/avatar", json={**AVATAR, "nombre": nombre}, headers=ESCRIBIR)
+    cliente.post(f"{PREFIJO}/api/cuenta/empezar", headers=ESCRIBIR)
+    hecho = cliente.put(f"{PREFIJO}/api/avatar", json={**AVATAR, "nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
 
 
@@ -100,7 +101,7 @@ def ganar_el_primero(cliente) -> dict:
     """
     poner_la_segunda_cama(cliente)
     assert ir(cliente, "aventura").status_code == 200
-    hecho = cliente.post("/gachamon/api/aventura/primera", headers=ESCRIBIR)
+    hecho = cliente.post(f"{PREFIJO}/api/aventura/primera", headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
     return hecho.json()
 
@@ -120,7 +121,7 @@ def con_gachamon(cliente, uid: int = 1, nombre: str = "Pelusa") -> dict:
     with pytest.MonkeyPatch.context() as parche:
         parche.setattr(nacer.esp, "elegir_del_huevo", lambda rng: comun)
         ganar_el_primero(cliente)
-    hecho = cliente.post("/gachamon/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
+    hecho = cliente.post(f"{PREFIJO}/api/bautizar", json={"nombre": nombre}, headers=ESCRIBIR)
     assert hecho.status_code == 200, hecho.text
     return hecho.json()
 
@@ -143,7 +144,7 @@ def con_plantel(cliente):
 
 
 CABECERA = ESCRIBIR
-LUGAR = "/gachamon/api/lugar"
+LUGAR = f"{PREFIJO}/api/lugar"
 
 
 def ir(cliente, lugar):
@@ -161,10 +162,10 @@ def poner_la_segunda_cama(cliente) -> None:
     Deja a la cuenta en su departamento, que es donde se pone.
     """
     en_casa(cliente)
-    depto = cliente.get("/gachamon/api/departamento").json()
+    depto = cliente.get(f"{PREFIJO}/api/departamento").json()
     cama = next(g["id"] for g in depto["guardados"] if g["cama"])
     hecho = cliente.post(
-        "/gachamon/api/departamento/poner",
+        f"{PREFIJO}/api/departamento/poner",
         json={"mueble_id": cama, "x": 0, "y": 1, "giro": 0}, headers=ESCRIBIR,
     )
     assert hecho.status_code == 200 and hecho.json()["ok"], hecho.text

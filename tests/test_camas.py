@@ -162,12 +162,12 @@ def test_hay_mas_nombres_que_gachamones_caben():
 
 def test_el_departamento_dice_cuantos_caben_por_las_camas(cliente):
     con_gachamon(cliente); en_casa(cliente)
-    d = cliente.get("/gachamon/api/departamento").json()
+    d = cliente.get("/monsteropolis/api/departamento").json()
     # Caben tantos como camas puestas menos la tuya: tu cama y la del primero son dos, y cabe uno.
     assert (d["camas"] - 1, d["gachamones"], d["cabe_otro"]) == (1, 1, False)
     with db.conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         for x, y, giro in SITIOS[1:]:                                        # en (0, 1) está la del primero
             db.anadir_mueble_en(con, USUARIO_WEB, str(PUEBLO), "cama_sencilla", x, y, giro)
-    d = cliente.get("/gachamon/api/departamento").json()
+    d = cliente.get("/monsteropolis/api/departamento").json()
     assert (d["camas"] - 1, d["gachamones"], d["cabe_otro"]) == (3, 1, True)  # ya son cuatro puestas

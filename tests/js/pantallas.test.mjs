@@ -125,7 +125,7 @@ test('el que espera nombre va al nombre antes que a nada', () => {
 test('el huevo no sale nunca', () => {
   // Los casos de las pruebas de hoy, cruzados: sin sesión, cuentas de cada
   // tipo, estados con y sin cada cosa, en cada lugar y pidiendo cada vista.
-  const recluta = { id: 7, nombre_especie: 'Pulpito', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png' };
+  const recluta = { id: 7, nombre_especie: 'Pulpito', retrato: '/monsteropolis/retrato/pulpo/bebe/feliz/sin.png' };
   const difunto = { nombre: 'Viejo', nombre_especie: 'Pollito', dias: 3 };
   const gachamones = [gachamon, null, { nombre: 'Piollito', espera_nombre: true }];
   const lugares = [undefined, casa, laTienda, cerrado, laAventura, { clave: 'x', nombre: 'X', ofrece: ['incubadora', 'tienda'] }];
@@ -236,7 +236,7 @@ test('lo que va antes del juego gana a la ficha y al ropero', () => {
 });
 
 // El recluta que esperaba nombre cuando no quedaba ninguna activa (`estado.sin_nombre`).
-const recluta = { id: 7, nombre_especie: 'Pulpito', retrato: '/gachamon/retrato/pulpo/bebe/feliz/sin.png' };
+const recluta = { id: 7, nombre_especie: 'Pulpito', retrato: '/monsteropolis/retrato/pulpo/bebe/feliz/sin.png' };
 
 test('un `sin_nombre` que todavía mande un servidor viejo no abre ninguna pantalla', () => {
   // Sin gachamon, como cualquiera que no tiene ninguno: el lugar o tu departamento.

@@ -16,7 +16,7 @@ function lienzo() {
 
 const M = medir(380, 310, 3, 3);
 const PIEZA = { ancho: 3, fondo: 3, puestos: [] };
-const RETRATO = '/gachamon/retrato/pollito/bebe/feliz/sin.png';
+const RETRATO = '/monsteropolis/retrato/pollito/bebe/feliz/sin.png';
 // Un retrato más alto que ancho, como los de la página, y otro más ancho que alto.
 const ALTO = { naturalWidth: 48, naturalHeight: 84 };
 const ANCHO = { naturalWidth: 120, naturalHeight: 60 };

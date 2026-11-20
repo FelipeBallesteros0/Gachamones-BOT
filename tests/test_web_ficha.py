@@ -9,7 +9,7 @@ import personalidad as per
 import simulacion as sim
 from ayudas_web import PUEBLO, T0, con_gachamon, entrar, poner_reloj
 
-FICHA = "/gachamon/api/ficha"
+FICHA = "/monsteropolis/api/ficha"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 STATS = (10, 10, 10, 10)
 
@@ -144,7 +144,7 @@ def test_una_especie_desconocida_en_el_historial_no_rompe_la_ficha(cliente, monk
 
 def test_sin_gachamon_es_un_409(cliente):
     entrar(cliente, 1)
-    cliente.post("/gachamon/api/cuenta/empezar", headers={"X-Gachamon": "1"})
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers={"X-Gachamon": "1"})
     respuesta = cliente.get(FICHA)
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == {"clave": "sin_gachamon", "mensaje": "No tienes un gachamon."}

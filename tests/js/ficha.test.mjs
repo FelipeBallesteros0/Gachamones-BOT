@@ -100,7 +100,7 @@ const { ficha } = await import('../../web/static/js/ficha.js');
 function servidor(contestar) {
   const pedidas = [];
   globalThis.fetch = async (url, opciones) => {
-    const ruta = `${opciones.method} ${String(url).replace(/^\/gachamon\/api\//, '')}`;
+    const ruta = `${opciones.method} ${String(url).replace(/^\/monsteropolis\/api\//, '')}`;
     pedidas.push(ruta);
     const datos = contestar(ruta);
     return { ok: true, status: 200, headers: { get: () => null }, json: async () => datos };
@@ -110,11 +110,11 @@ function servidor(contestar) {
 
 const PELUSA = {
   id: 7, nombre: 'Pelusa', especie: 'pollito', nombre_especie: 'Pollito', emoji: '🐣', etapa: 'bebe',
-  nombre_etapa: 'cría', nivel: 3, genero: 'hembra', retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png', titulo: null,
+  nombre_etapa: 'cría', nivel: 3, genero: 'hembra', retrato: '/monsteropolis/retrato/pollito/bebe/feliz/sin.png', titulo: null,
 };
 const RULO = {
   id: 8, nombre: 'Rulo', especie: 'slime', nombre_especie: 'Gelatín', emoji: '🟢', etapa: 'bebe',
-  nombre_etapa: 'cría', nivel: 2, genero: 'macho', retrato: '/gachamon/retrato/slime/bebe/feliz/sin.png', titulo: null,
+  nombre_etapa: 'cría', nivel: 2, genero: 'macho', retrato: '/monsteropolis/retrato/slime/bebe/feliz/sin.png', titulo: null,
 };
 // El estado de la página: sales con Pelusa.
 const ESTADO = { gachamon: PELUSA, saldos: { monedas: 130, gemas: 2 } };

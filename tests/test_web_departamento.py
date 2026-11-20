@@ -11,7 +11,7 @@ from ayudas_web import (
     en_casa, entrar, ir, poner_reloj,
 )
 
-API = "/gachamon/api"
+API = "/monsteropolis/api"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 
@@ -211,7 +211,7 @@ def test_el_plantel_del_departamento_ensena_a_cada_uno_con_la_cara_de_ahora_y_mi
     # Su cara es la de ahora (al día con el ritmo de su departamento), no la de su fila.
     cara = db.avanzar(db.por_id(otro.id), reloj.ahora).animo_visual
     assert cara != "feliz"
-    assert rulo["retrato"] == f"/gachamon/retrato/pollito/bebe/{cara}/sin.png?v={retrato.version()}"
+    assert rulo["retrato"] == f"/monsteropolis/retrato/pollito/bebe/{cara}/sin.png?v={retrato.version()}"
     # Y mirar no le guarda a nadie el paso del tiempo.
     assert db.por_id(otro.id).actualizada_en == db.por_id(pelusa.id).actualizada_en == T0
 

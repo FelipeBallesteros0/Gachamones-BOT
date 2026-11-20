@@ -7,7 +7,7 @@ import identidad
 from ayudas_web import ESCRIBIR, PUEBLO, alta, con_gachamon, entrar, poner_reloj
 from web import pueblo
 
-API = "/gachamon/api"
+API = "/monsteropolis/api"
 ESTADO, LUGAR = f"{API}/estado", f"{API}/lugar"
 
 

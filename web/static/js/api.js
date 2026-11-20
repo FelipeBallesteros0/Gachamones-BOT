@@ -8,7 +8,7 @@
 // Una petición que no termina en 15 segundos se corta y se lanza igual que una
 // red caída: así ningún botón se queda esperando para siempre.
 
-const BASE = '/gachamon/api/';
+const BASE = '/monsteropolis/api/';
 const ESPERA_MAXIMA_MS = 15_000;
 
 const SIN_RED = 'No hay conexión con el juego. Revisa tu internet y vuelve a intentarlo.';

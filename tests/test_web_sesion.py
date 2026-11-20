@@ -10,7 +10,7 @@ import config
 from ayudas_web import CLAVE, ESCRIBIR, entrar, galleta
 from web import sesion
 
-RUTA = "/gachamon/api/sesion"
+RUTA = "/monsteropolis/api/sesion"
 
 
 def firmar(cuerpo) -> str:

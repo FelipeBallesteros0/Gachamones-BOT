@@ -220,7 +220,7 @@ function crearServidor() {
   }
 
   globalThis.fetch = async (url, opciones) => {
-    const ruta = `${opciones.method} ${String(url).replace(/^\/gachamon\/api\//, '')}`;
+    const ruta = `${opciones.method} ${String(url).replace(/^\/monsteropolis\/api\//, '')}`;
     pedidos.push(ruta);
     if (retenidas.has(ruta)) {
       const espera = retenidas.get(ruta);
@@ -286,7 +286,7 @@ const POLLITO = {
   id: 9, nombre: 'Pollito', espera_nombre: true, se_nombro_solo: false, sugerido: 'Bruma', especie: 'pollito',
   nombre_especie: 'Pollito', emoji: '🐤', etapa: 'bebe', nombre_etapa: 'cría', nivel: 1, genero: 'hembra',
   barras: { comida: 100, animo: 100, aseo: 100 }, cara: 'feliz', desfallecido: false,
-  retrato: '/gachamon/retrato/pollito/bebe/feliz/sin.png', esperas: {}, titulo: null,
+  retrato: '/monsteropolis/retrato/pollito/bebe/feliz/sin.png', esperas: {}, titulo: null,
 };
 // Y el estado que contesta el encuentro: con él, en tu departamento y sin guía.
 const CON_EL_PRIMERO = sinGachamon({ gachamon: POLLITO, lugar: CASA, guia: null });

@@ -21,7 +21,7 @@ import simulacion as sim
 from ayudas_web import ESCRIBIR, PUEBLO, con_gachamon, con_monedas_web, en_casa, poner_reloj
 from test_web_departamento import un_mueble
 
-API = "/gachamon/api"
+API = "/monsteropolis/api"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 MINIMO = dep.MINIMO_SOSTENIDO
 # Lo que se deja a mano en la fila: por debajo del mínimo, y también de 30, que

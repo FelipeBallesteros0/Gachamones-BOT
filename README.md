@@ -1,6 +1,6 @@
 # Gachamones BOT
 
-Un tamagotchi que se juega en una página web: **rowino.online/gachamon**. Se
+Un tamagotchi que se juega en una página web: **rowino.online/monsteropolis**. Se
 empieza sin gachamon: el primero se gana en la primera aventura y es uno de 10
 al azar —hay 25 en total; los otros 15 se encuentran por ahí—; se cuida, se
 viste, vive en un departamento y se pasea por un pueblo. Nació como bot de
@@ -122,7 +122,7 @@ Los dos guiones instalan y habilitan las dos unidades (`tamagotchi` y
 `gachamon-web`), reinician **primero el bot y después la web**, y terminan
 comprobando cada servicio por separado (`systemctl is-active tamagotchi` y
 `systemctl is-active gachamon-web`) y preguntándole a la web por su salud
-(`curl` a `/gachamon/api/salud`, con reintentos durante unos diez segundos): si
+(`curl` a `/monsteropolis/api/salud`, con reintentos durante unos diez segundos): si
 algún servicio no queda activo o la web no contesta, el guion falla.
 
 Los dos admiten `PI` y `DEST` como variables de entorno. Para ver el registro:
@@ -134,7 +134,7 @@ ssh $PI 'journalctl -u tamagotchi -u gachamon-web -f'
 ## La web
 
 Junto al bot corre un segundo servicio, la web del juego: una aplicación FastAPI
-(`web.app:app`) que cuelga toda de `/gachamon`. Es otro adaptador fino sobre los
+(`web.app:app`) que cuelga toda de `/monsteropolis` (lo que cuelga de `/gachamon`, la dirección de antes, redirige con 308 a la misma ruta de la nueva). Es otro adaptador fino sobre los
 mismos módulos y la misma base `tamagotchi.db`; no importa `discord`, no guarda
 estado del juego en memoria y sabe quién eres sólo por la cookie de sesión de
 Rowino.
@@ -198,7 +198,7 @@ En local:
 ./venv/bin/python -m uvicorn web.app:app --port 8010
 ```
 
-Se abre en `http://127.0.0.1:8010/gachamon/`. Sin una base de Rowino a mano
+Se abre en `http://127.0.0.1:8010/monsteropolis/`. Sin una base de Rowino a mano
 nadie puede entrar: `RUTA_ROWINO_BD` dice dónde está.
 
 Variables del `.env` (explicadas en `.env.ejemplo`):
@@ -217,8 +217,9 @@ entres: contesta 503 («El juego no está disponible ahora mismo.»), y al
 arrancar deja en el registro un aviso por cada cosa que falta.
 
 En producción lo lleva la unidad `gachamon-web.service`, que escucha sólo en
-`127.0.0.1:8010`, y se publica como `rowino.online/gachamon` detrás del túnel,
-con una regla por ruta. Quien jugaba en Discord entra con su cuenta de Rowino, elige «Ya jugaba en
+`127.0.0.1:8010`, y se publica como `rowino.online/monsteropolis` detrás del túnel,
+con una regla por ruta (`/monsteropolis` y, para que las páginas y enlaces de antes sigan
+llegando a su redirección, también `/gachamon`). Quien jugaba en Discord entra con su cuenta de Rowino, elige «Ya jugaba en
 Discord», pide su código, escribe `/vincular` en el canal del juego y encuentra a
 sus gachamones.
 
@@ -630,7 +631,7 @@ cada arranque, así que no lee el `.env` ni cambios sin confirmar, y se niega a
 correr si `RUTA_BD` o `RUTA_ROWINO_BD` ya están puestas. Por cada cuenta de
 mentira (`persona1`, `persona2`…) imprime una dirección local con su propio
 puerto, que reenvía todo a la web poniendo la cookie de esa cuenta: abrir
-`/gachamon/` en ese puerto es entrar como esa persona. Sólo escucha en
+`/monsteropolis/` en ese puerto es entrar como esa persona. Sólo escucha en
 `127.0.0.1`. Con `--con-gachamones`, cada cuenta empieza con avatar, monedas,
 muebles y tres gachamones, hechos con las reglas del propio juego. Se apaga con
 Ctrl-C o con la orden `kill` que imprime al arrancar.

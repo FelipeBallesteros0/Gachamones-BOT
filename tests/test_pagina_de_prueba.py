@@ -164,10 +164,10 @@ def test_el_intermediario_cambia_la_cookie_y_el_destino_y_deja_pasar_lo_demas():
         "Content-Type": "application/json", "Accept": "*/*", "If-None-Match": '"abc"',
     }
     vuelta = pp.cabeceras_para_el_navegador([
-        ("Location", "/gachamon/"), ("Set-Cookie", "a=1"), ("Content-Type", "text/html"),
+        ("Location", "/monsteropolis/"), ("Set-Cookie", "a=1"), ("Content-Type", "text/html"),
         ("Content-Length", "10"), ("Transfer-Encoding", "chunked"), ("Date", "x"), ("Server", "uvicorn"),
     ])
-    assert vuelta == [("Location", "/gachamon/"), ("Set-Cookie", "a=1"), ("Content-Type", "text/html")]
+    assert vuelta == [("Location", "/monsteropolis/"), ("Set-Cookie", "a=1"), ("Content-Type", "text/html")]
 
 
 # --- Cuentas con algo dentro --------------------------------------------------

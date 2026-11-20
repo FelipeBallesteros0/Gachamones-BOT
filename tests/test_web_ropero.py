@@ -5,7 +5,7 @@ import db
 import identidad
 from ayudas_web import ESCRIBIR, PUEBLO, T0, alta, con_gachamon, poner_reloj
 
-ROPERO = "/gachamon/api/ropero"
+ROPERO = "/monsteropolis/api/ropero"
 PONER, QUITAR = f"{ROPERO}/poner", f"{ROPERO}/quitar"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 STATS = (10, 10, 10, 10)

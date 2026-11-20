@@ -553,7 +553,7 @@ def test_el_aviso_se_arma_antes_de_parar_la_web_y_se_calla_al_final():
 
 SALUD = (
     "curl -fsS --retry 10 --retry-delay 1 --retry-connrefused -o /dev/null "
-    "http://127.0.0.1:8010/gachamon/api/salud"
+    "http://127.0.0.1:8010/monsteropolis/api/salud"
 )
 
 

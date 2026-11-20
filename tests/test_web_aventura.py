@@ -15,8 +15,8 @@ from ayudas_web import (
     poner_reloj,
 )
 
-AVENTURA, PRIMERA = "/gachamon/api/aventura", "/gachamon/api/aventura/primera"
-ESTADO = "/gachamon/api/estado"
+AVENTURA, PRIMERA = "/monsteropolis/api/aventura", "/monsteropolis/api/aventura/primera"
+ESTADO = "/monsteropolis/api/estado"
 YO, G = identidad.de_cuenta_web(1), str(PUEBLO)
 
 ANTES = [
@@ -142,9 +142,9 @@ ANA_DISCORD = "222222222222222222"
 def test_con_la_activa_muerta_y_un_recluta_la_aventura_dice_que_ya_tienes(cliente, monkeypatch):
     reloj = poner_reloj(monkeypatch)
     entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    codigo = cliente.post("/monsteropolis/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
-    assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
+    assert cliente.put("/monsteropolis/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
     viejo = db.crear(ANA_DISCORD, G, "pollito", "Viejo", (10, 10, 10, 10), reloj.ahora)
     recluta = db.crear(ANA_DISCORD, G, "pulpo", "Bruma", (10, 10, 10, 10), reloj.ahora, activa=False)
     reloj.pasar(days=5)
@@ -176,7 +176,7 @@ def test_fuera_del_lugar_no_hay_aventura(cliente, monkeypatch):
 def test_sin_avatar_no_hay_aventura(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     entrar(cliente, 1)
-    cliente.post("/gachamon/api/cuenta/empezar", headers=ESCRIBIR)
+    cliente.post("/monsteropolis/api/cuenta/empezar", headers=ESCRIBIR)
     ir(cliente, "aventura")
     respuesta = cliente.post(PRIMERA, headers=ESCRIBIR)
     assert respuesta.status_code == 409
@@ -298,9 +298,9 @@ def de_antes_del_cambio_sin_bautizar(cliente, reloj):
     cobrar y un único gachamon vivo que nunca bautizó. Se parece al primero de la
     primera aventura (uno solo, sin nombre), pero nació antes del día del cambio."""
     entrar(cliente, 2)
-    codigo = cliente.post("/gachamon/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
+    codigo = cliente.post("/monsteropolis/api/cuenta/codigo", headers=ESCRIBIR).json()["codigo"]
     assert db.canjear_codigo_de_vinculo(codigo, ANA_DISCORD, G, reloj.ahora) == "ok"
-    assert cliente.put("/gachamon/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
+    assert cliente.put("/monsteropolis/api/avatar", json=AVATAR, headers=ESCRIBIR).status_code == 200
     with db.conectar() as con:
         marca = datetime.fromisoformat(con.execute(
             "SELECT hecho_en FROM cambios_hechos WHERE clave = ?", (db.CAMBIO_DE_LA_VIVIENDA,)
@@ -346,7 +346,7 @@ def test_si_algo_falla_despues_del_encuentro_el_gachamon_ya_es_tuyo(cliente, mon
 
 # --- La medalla del primero, también en el paso del nombre ---------------------------
 
-NOMBRAR = "/gachamon/api/bautizar"
+NOMBRAR = "/monsteropolis/api/bautizar"
 
 
 def se_corta_el_pago_tras_el_encuentro(cliente, monkeypatch):

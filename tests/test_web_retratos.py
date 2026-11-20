@@ -22,7 +22,7 @@ def sin_memoria():
 def pedir(cliente, especie, etapa="bebe", animo="feliz", sombrero="sin", v=None, **extra):
     v = retrato.version() if v is None else v
     return cliente.get(
-        f"/gachamon/retrato/{especie}/{etapa}/{animo}/{sombrero}.png?v={v}", **extra)
+        f"/monsteropolis/retrato/{especie}/{etapa}/{animo}/{sombrero}.png?v={v}", **extra)
 
 
 def test_una_especie_dibujada_trae_su_retrato(cliente):
@@ -105,7 +105,7 @@ def test_la_version_es_corta_estable_y_va_en_la_ficha(cliente, monkeypatch):
     poner_reloj(monkeypatch)
     gachamon = con_gachamon(cliente)["gachamon"]
     assert gachamon["retrato"] == (
-        f"/gachamon/retrato/{gachamon['especie']}/bebe/{gachamon['cara']}/sin.png?v={version}"
+        f"/monsteropolis/retrato/{gachamon['especie']}/bebe/{gachamon['cara']}/sin.png?v={version}"
     )
     assert cliente.get(gachamon["retrato"]).status_code == 200
 
@@ -149,7 +149,7 @@ def test_sin_la_version_vigente_redirige_sin_componer(cliente, v):
     def no_debe_componer(*a):
         raise AssertionError("compuso con una versión que no es la vigente")
 
-    ruta = "/gachamon/retrato/pollito/bebe/feliz/sin.png"
+    ruta = "/monsteropolis/retrato/pollito/bebe/feliz/sin.png"
     url = ruta if v is None else f"{ruta}?v={v}"
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(retrato, "armar", no_debe_componer)
@@ -167,7 +167,7 @@ def test_con_algo_mas_en_la_consulta_redirige_sin_componer(cliente, consulta):
     def no_debe_componer(*a):
         raise AssertionError("compuso con una consulta que no es la canónica")
 
-    ruta = "/gachamon/retrato/pollito/bebe/feliz/sin.png"
+    ruta = "/monsteropolis/retrato/pollito/bebe/feliz/sin.png"
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(retrato, "armar", no_debe_componer)
         mp.setattr(retrato, "relleno", no_debe_componer)
@@ -179,7 +179,7 @@ def test_con_algo_mas_en_la_consulta_redirige_sin_componer(cliente, consulta):
 
 
 def test_la_redireccion_de_un_relleno_tambien_va_a_la_vigente(cliente):
-    ruta = f"/gachamon/retrato/{SIN_DIBUJO[0]}/adulto/mal/sin.png"
+    ruta = f"/monsteropolis/retrato/{SIN_DIBUJO[0]}/adulto/mal/sin.png"
     respuesta = cliente.get(f"{ruta}?v=x", follow_redirects=False)
     assert respuesta.status_code == 307
     assert respuesta.headers["location"] == f"{ruta}?v={retrato.version()}"
@@ -188,7 +188,7 @@ def test_la_redireccion_de_un_relleno_tambien_va_a_la_vigente(cliente):
 def test_lo_que_no_existe_es_404_aunque_la_version_sea_cualquiera(cliente):
     for v in ("inventada", retrato.version()):
         respuesta = cliente.get(
-            f"/gachamon/retrato/dinosaurio/bebe/feliz/sin.png?v={v}", follow_redirects=False)
+            f"/monsteropolis/retrato/dinosaurio/bebe/feliz/sin.png?v={v}", follow_redirects=False)
         assert respuesta.status_code == 404
 
 
