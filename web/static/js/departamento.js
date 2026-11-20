@@ -91,7 +91,9 @@
 // mide la pieza: el mismo hasta que crece). Lo que sale bien no se dice: se ve;
 // ampliar, los cuidados, salir y lo que no se puede dicen la frase del
 // servidor; sin respuesta, se dice y la pieza se vuelve a leer. Mientras una
-// petición va, lo que la mandó espera y no sale otra. El lienzo sólo se mira
+// petición va, lo que la mandó espera y no sale otra. Cómo se manda, se espera
+// y se relee lo lleva `transporte.js`; aquí se decide qué se manda (y si se
+// reintenta) y qué se pinta con lo que llega. El lienzo sólo se mira
 // (`aria-hidden`); los menús, la bandeja, la ficha, lo de ampliar y la lista
 // son botones de verdad, y lo que no se puede usar lleva `aria-disabled`. Todo
 // texto entra por `el` o por `textContent`. Lo que corre (el cuadro de
@@ -104,9 +106,7 @@
 import { conReintentos, nuevoEvento, pedir } from './api.js';
 import { panelDeAmpliar } from './ampliar.js';
 import { cargar, olvidarLasQueFaltan } from './arte.js';
-import {
-  cabeceraConSaldos, hayQueDecidirDeNuevo, listaQueSePide, mensajeDe, zonaDeAviso,
-} from './articulos.js';
+import { cabeceraConSaldos, listaQueSePide, zonaDeAviso } from './articulos.js';
 import { cargarAvatar, poseAlCaminar } from './avatar.js';
 import { bandejaDeGuardados } from './bandeja.js';
 import {
@@ -125,6 +125,7 @@ import { panelDelPlantel } from './plantel.js';
 import {
   cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, queSeUsa, tramoEn,
 } from './proyeccion.js';
+import { transporte } from './transporte.js';
 
 const VISTA = 'departamento';
 const PEDIR_CADA_MS = 30_000;
@@ -147,7 +148,6 @@ const PARED = 'pared';
 const UN_AVISO_DURA_MS = 6_000;
 
 const CARGANDO = 'Cargando tu departamento…';
-const SIN_RESPUESTA = 'No hubo respuesta. Revisa tu conexión.';
 const TOCA_LA_CASILLA = 'Toca la casilla donde lo quieres.';
 const TOCA_LA_PARED = 'Toca la pared donde lo quieres.';
 const NO_CABE = 'Ahí no cabe.';
@@ -458,12 +458,23 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Si lo de ampliar está abierto (su pregunta es suya, de `ampliar.js`).
   let ampliando = false;
 
-  // Mientras una petición va no sale otra; lo que la mandó espera hasta que vuelve.
-  let enCamino = false;
-  let origenEnEspera = null;
-  // Cada acción que cambia la pieza suma uno: una lectura que salió antes ya
-  // no se pinta, porque lo que trae la acción es más nuevo.
-  let acciones = 0;
+  // Lo que se manda al servidor y cómo se vuelve a leer la pieza
+  // (`transporte.js`): mientras una petición va (`envios.enCamino`) no sale
+  // otra, y lo que la mandó (`envios.origen`) espera hasta que vuelve.
+  const envios = transporte({
+    pedir,
+    sigueAqui,
+    hayPieza: () => Boolean(depto),
+    esperar,
+    dejarDeEsperar,
+    decir,
+    anunciar: lista.anunciar,
+    irse,
+    pintar: pintarLoQueLlega,
+    aplicarEstado,
+    aplicarDepto,
+  });
+  const { mandar, enviar, releer } = envios;
 
   const elPuesto = (id) => (depto && id !== null ? depto.puestos.find((p) => p.id === id) : null) || null;
 
@@ -722,7 +733,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // y se dice. Mientras una petición va, no se sale.
   function salirPorLaPuerta() {
     const puerta = depto && laPuerta(depto);
-    if (enCamino || !puerta) return;
+    if (envios.enCamino || !puerta) return;
     if (!caminarHasta(tu, puerta.celda, puerta)) {
       decir(NO_HAY_CAMINO, true);
       return;
@@ -939,10 +950,10 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   function tocarViviendo(x, y, sobreLoQueFlota) {
     const tocado = queSeUsa(m, depto, losDeLaPieza(), x, y, (puesto) => Boolean(puesto.puerta));
     if (tocado && tocado.tipo === 'gachamon') {
-      if (!enCamino) elegirGachamon(tocado.id === elegidoG ? null : tocado.id);
+      if (!envios.enCamino) elegirGachamon(tocado.id === elegidoG ? null : tocado.id);
       return;
     }
-    if (!enCamino) elegir(null);
+    if (!envios.enCamino) elegir(null);
     if (!tocado) return;
     if (tocado.tipo !== 'accion') caminarHasta(tu, [tocado.i, tocado.j], laPuerta(depto));
     else if (!sobreLoQueFlota) salirPorLaPuerta();
@@ -956,7 +967,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   function tocarConstruyendo(x, y) {
     const tocado = queSeToco(m, depto, [], x, y);
     const casilla = tocado && tocado.tipo === 'casilla' ? [tocado.i, tocado.j] : null;
-    if (!enCamino) {
+    if (!envios.enCamino) {
       let id = null;
       if (tocado && tocado.tipo === 'mueble') id = tocado.id;
       else if (casilla && tocado.mueble !== undefined) id = tocado.mueble;
@@ -989,7 +1000,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // su pregunta, sin mandar nada) y el «¿Dónde?» de la lista, y se le dice a
   // quien no ve la pieza. Con una petición en camino, nada.
   alModo.addEventListener('click', () => {
-    if (enCamino || !listo) return;
+    if (envios.enCamino || !listo) return;
     soltar();
     construyendo = !construyendo;
     elegidoG = null;
@@ -1018,7 +1029,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // (ni va en camino lo que pusiste tocando la pieza). El foco que estaba en un
   // menú que se cierra espera en el título.
   function ponerMenu() {
-    const cerrado = enLaMano || origenEnEspera === escenario || !listo || !m;
+    const cerrado = enLaMano || envios.origen === escenario || !listo || !m;
     const puesto = cerrado ? null : elPuesto(elegido);
     const quien = cerrado ? null : enPieza.get(elegidoG);
     const g = quien ? depto.plantel.find((p) => p.id === elegidoG) : null;
@@ -1034,13 +1045,13 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // Mover a un gachamon: lo tomas en la mano y se marcan las casillas que se pisan.
   function moverAlGachamon() {
-    if (enCamino || !enPieza.has(elegidoG)) return;
+    if (envios.enCamino || !enPieza.has(elegidoG)) return;
     tomar(manoDelGachamon(elegidoG));
   }
 
   function moverLoElegido() {
     const puesto = elPuesto(elegido);
-    if (enCamino || !puesto) return;
+    if (envios.enCamino || !puesto) return;
     tomar(manoAlDia({ mueble: puesto, tipo: null }));
   }
 
@@ -1049,7 +1060,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // manda nada.
   function girar(id, boton) {
     const puesto = elPuesto(id);
-    if (enCamino || !puesto) return;
+    if (envios.enCamino || !puesto) return;
     const giro = giroParaPoner(depto, puesto, puesto.x, puesto.y, (puesto.giro + 1) % GIROS);
     if (giro === null || giro === puesto.giro) {
       decir(NO_CABE, true);
@@ -1061,7 +1072,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Guardarlo (desde su menú o desde la lista): tras guardar no queda ningún mueble elegido.
   function guardar(id, boton) {
     const puesto = elPuesto(id);
-    if (enCamino || !puesto) return;
+    if (envios.enCamino || !puesto) return;
     enviar(boton, () => pedir('POST', 'departamento/guardar', { mueble_id: puesto.id }), () => { elegido = null; });
   }
 
@@ -1070,7 +1081,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Elegir a un gachamon desde la lista es lo mismo que tocarlo, sin su menú:
   // su ficha queda a la derecha y en la pieza no queda nada elegido.
   function verDesdeLaLista(id) {
-    if (enCamino || !depto || !depto.plantel.some((g) => g.id === id)) return;
+    if (envios.enCamino || !depto || !depto.plantel.some((g) => g.id === id)) return;
     elegido = null;
     elegidoG = null;
     visto = id;
@@ -1090,7 +1101,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Ponerlo en ese sitio, con su giro: lo mismo que tocar ahí con él en la mano.
   function ponerDesdeLaLista(id, sitio, boton) {
     const mueble = elPuesto(id) || (depto && depto.guardados.find((g) => g.id === id));
-    if (enCamino || !mueble) return;
+    if (envios.enCamino || !mueble) return;
     poner(mueble, sitio, boton);
   }
 
@@ -1107,14 +1118,14 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   function ponerBandeja() {
     if (!construyendo || !depto) return;
     marcarLoQueLlevas();
-    bandeja.pintar(depto.guardados, { enCamino });
+    bandeja.pintar(depto.guardados, { enCamino: envios.enCamino });
   }
 
   // Elegir uno de la bandeja lo pone en la mano, empezando por el giro 0;
   // elegir el que ya llevas lo suelta. Si no cabe en ningún sitio no se toma:
   // se dice, y lo elegido y lo que llevabas en la mano quedan como estaban.
   function tomarDeLaBandeja(tipo) {
-    if (enCamino) return;
+    if (envios.enCamino) return;
     if (enLaMano && enLaMano.tipo === tipo) {
       soltar();
       return;
@@ -1174,7 +1185,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // la pregunta abierta, la de ese lado. Mientras va, la pregunta espera; salga
   // como salga, se cierra: para ampliar otra vez se vuelve a preguntar.
   function ampliar(eje, boton) {
-    if (enCamino || !sigueAqui()) return;
+    if (envios.enCamino || !sigueAqui()) return;
     if (!ampliando || !panelAmpliar.preguntaAbiertaEn(eje)) return;
     const evento = eventoDeAmpliar(eje);
     panelAmpliar.cerrarLaPregunta();
@@ -1190,12 +1201,15 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     '.menu-de-la-pieza button, .bandeja-tipo, .boton-lado, .ampliar .pregunta button, .boton-construir',
   );
 
-  // Los de la ficha y «A todos» los pone su panel (`panel.ocupar`), que sabe
-  // además cuáles esperan a que se acabe su espera; los de la lista, la lista.
-  // Lo que aparece mientras tanto nace sin poderse usar.
+  // Lo que pasa en la pantalla cuando sale una petición (`esperar`, que el
+  // transporte llama con lo que la mandó) y cuando vuelve (`dejarDeEsperar`).
+  // Al salir, si ibas a salir por la puerta, ya no; lo que la mandó espera y
+  // lo demás que manda algo no se puede usar. Los de la ficha y «A todos» los
+  // pone su panel (`panel.ocupar`), que sabe además cuáles esperan a que se
+  // acabe su espera; los de la lista, la lista. Lo que aparece mientras tanto
+  // nace sin poderse usar.
   function esperar(origen) {
-    enCamino = true;
-    origenEnEspera = origen;
+    saliendo = false;
     origen.setAttribute('aria-busy', 'true');
     origen.classList.add(origen === escenario ? 'en-camino' : 'esperando');
     for (const boton of queMandan()) if (boton !== origen) boton.setAttribute('aria-disabled', 'true');
@@ -1204,66 +1218,14 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     panelAmpliar.ocupar(origen);
   }
 
-  function dejarDeEsperar() {
-    enCamino = false;
-    origenEnEspera.removeAttribute('aria-busy');
-    origenEnEspera.classList.remove('en-camino', 'esperando');
-    origenEnEspera = null;
+  function dejarDeEsperar(origen) {
+    origen.removeAttribute('aria-busy');
+    origen.classList.remove('en-camino', 'esperando');
     for (const boton of queMandan()) boton.removeAttribute('aria-disabled');
     panel.ocupar(null);
     lista.ocupar(null);
     panelAmpliar.ocupar(null);
     ponerMenu();
-  }
-
-  // Manda lo que hace `hacer()` y, con lo que contesta el servidor, pone el
-  // estado y hace `alContestar(respuesta)`; lo que reviente al pintarlo llega
-  // a la avería. Sin respuesta, pudo haber llegado igual: se dice y la pieza
-  // se vuelve a leer. Al acabar, si se tiró una lectura mientras iba, se pide
-  // otra. Si ibas a salir por la puerta, ya no.
-  async function mandar(origen, hacer, alContestar) {
-    if (enCamino) return;
-    saliendo = false;
-    acciones += 1;
-    esperar(origen);
-    decir('');
-    lista.anunciar('');
-    let respuesta;
-    try {
-      respuesta = await hacer();
-    } catch (error) {
-      if (!sigueAqui()) return;
-      dejarDeEsperar();
-      if (hayQueDecidirDeNuevo(error)) {
-        irse();
-        return;
-      }
-      decir(error && error.clave === null ? SIN_RESPUESTA : mensajeDe(error), true);
-      quedaPorLeer = false;
-      releer({ trasUnaAccion: true });
-      return;
-    }
-    if (!sigueAqui()) return;
-    dejarDeEsperar();
-    pintarLoQueLlega(() => {
-      if (respuesta.estado && !aplicarEstado(respuesta.estado)) return;
-      alContestar(respuesta);
-    });
-    leerLoQueQuedo();
-  }
-
-  // Lo que cambia la pieza: se pinta la que contesta el servidor. `siSaleBien()`
-  // deja elegido lo que toque. Un «no» se dice con su frase y la pieza queda
-  // como dice el servidor. Lo que sale bien sin frase (poner, mover, girar,
-  // guardar) se ve en el dibujo; a quien no lo ve, la lista le vuelve a decir
-  // cómo quedó la pieza.
-  function enviar(origen, hacer, siSaleBien) {
-    return mandar(origen, hacer, (respuesta) => {
-      if (respuesta.ok && siSaleBien) siSaleBien();
-      aplicarDepto(respuesta.departamento);
-      decir(respuesta.mensaje, !respuesta.ok);
-      if (respuesta.ok && !respuesta.mensaje) lista.anunciar(lineaDeEstado(depto));
-    });
   }
 
   // Lo que se pone (o se mueve, o se gira) queda elegido, y ningún gachamon.
@@ -1282,7 +1244,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // que contesta cambian sus barras y sus esperas, y se avisa como en el lugar.
   function cuidar(accion, boton) {
     const g = elVisto();
-    if (enCamino || !g || panel.falta(accion) > 0) return;
+    if (envios.enCamino || !g || panel.falta(accion) > 0) return;
     const evento = nuevoEvento();
     const gachamonId = g.id;
     const etapaAntes = g.etapa;
@@ -1308,7 +1270,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Corazones si se pudo; si todavía no, cuándo se podrá.
   function acariciar(id, boton) {
     const g = depto && depto.plantel.find((p) => p.id === id);
-    if (enCamino || !g) return;
+    if (envios.enCamino || !g) return;
     mandar(boton, () => pedir('POST', 'acariciar', { gachamon_id: id }), (respuesta) => {
       alDia(respuesta.gachamon);
       trasAcariciar(respuesta, respuesta.gachamon || g, {
@@ -1325,7 +1287,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // cada cuidado: un evento por toque. Se dice la frase del juego y se vuelve
   // a leer la pieza, que trae cómo quedaron.
   function cuidarATodos(accion, boton) {
-    if (enCamino || !depto || !depto.plantel.length) return;
+    if (envios.enCamino || !depto || !depto.plantel.length) return;
     const evento = nuevoEvento();
     mandar(boton, () => conReintentos(
       () => pedir('POST', 'cuidar/todos', { accion, evento_id: evento }),
@@ -1345,7 +1307,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
   // Salir con el que se ve: el servidor contesta con su frase y la pieza.
   function salirCon(boton) {
     const g = elVisto();
-    if (enCamino || !g) return;
+    if (envios.enCamino || !g) return;
     enviar(boton, () => pedir('POST', 'departamento/salir', { gachamon_id: g.id }), null);
   }
 
@@ -1383,59 +1345,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
 
   // --- mantenerse al día -----------------------------------------------------------------
 
-  // Las lecturas que salieron: sólo se pinta la última.
-  let lecturas = 0;
-  let leyendo = false;
-  // Una lectura que se tiró porque hubo una acción más nueva se vuelve a
-  // pedir: al acabar esa acción o, si ya acabó, enseguida. Lo que trae una
-  // acción no siempre es todo (un cuidado trae sólo al que lo recibió).
-  let quedaPorLeer = false;
-
-  function leerAlAcabar() {
-    quedaPorLeer = true;
-    if (!enCamino) leerLoQueQuedo();
-  }
-
-  function leerLoQueQuedo() {
-    if (!quedaPorLeer) return;
-    quedaPorLeer = false;
-    releer();
-  }
-
-  // Cada relectura trae el estado, como en el lugar, y la pieza: si el estado
-  // ya pide otra pantalla, se va con él; si no, se pinta la pieza. Una
-  // relectura que falla no borra la pieza ni dice nada: la próxima vuelta lo
-  // intenta otra vez. Sin sesión, o si ya no estás en tu departamento, se va.
-  // Mientras una acción va no se lee: lo que traiga es más nuevo. La de tras
-  // una acción sin respuesta sale aunque haya otra en camino. La espera de la
-  // red va aparte de lo que se pinta: lo que reviente al pintar no lo calla el
-  // fallo de la red, llega a la avería.
-  async function releer({ trasUnaAccion = false } = {}) {
-    if (!sigueAqui() || !depto || enCamino) return;
-    if (!trasUnaAccion && (leyendo || document.hidden)) return;
-    leyendo = true;
-    const esta = ++lecturas;
-    const hechas = acciones;
-    let leido;
-    try {
-      leido = await Promise.all([pedir('GET', 'estado'), pedir('GET', 'departamento')]);
-    } catch (error) {
-      if (sigueAqui() && hayQueDecidirDeNuevo(error)) irse();
-      return;
-    } finally {
-      if (esta === lecturas) leyendo = false;
-    }
-    if (!sigueAqui() || esta !== lecturas) return;
-    if (hechas !== acciones) {
-      leerAlAcabar();
-      return;
-    }
-    const [estadoNuevo, nuevo] = leido;
-    pintarLoQueLlega(() => {
-      if (aplicarEstado(estadoNuevo)) aplicarDepto(nuevo);
-    });
-  }
-
+  // Cada 30 segundos y al volver a la pestaña se vuelve a leer la pieza
+  // (`releer`, del transporte).
   document.addEventListener('visibilitychange', () => {
     if (!sigueAqui() || document.hidden) return;
     clearInterval(cadaTanto);
@@ -1452,7 +1363,7 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (!sigueAqui()) return;
     listo = true;
     // Ya se puede tocar la pieza: también entrar al modo.
-    if (!enCamino) alModo.removeAttribute('aria-disabled');
+    if (!envios.enCamino) alModo.removeAttribute('aria-disabled');
     delPlantel.hidden = false;
     lista.nodo.hidden = false;
     // Las cuentas de las esperas bajan solas; tus gachamones pasean y el que

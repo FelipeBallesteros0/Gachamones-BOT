@@ -460,7 +460,7 @@ def test_los_corazones_y_la_estrella_salen_del_arte_y_no_de_un_caracter():
     for codigo in (lugar, depto, flotantes, plantel, cuidados):
         assert "\u2764" not in codigo
     # Lo que pinta la pantalla de tu departamento desde sus m\u00f3dulos, tampoco.
-    for nombre in ("menu.js", "bandeja.js", "ampliar.js"):
+    for nombre in ("menu.js", "bandeja.js", "ampliar.js", "transporte.js"):
         assert "\u2764" not in _sin_comentarios(_guion(nombre)), nombre
     assert "efectos/estrella.png" in _sin_comentarios(_guion("ficha.js"))
 
@@ -505,7 +505,7 @@ def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
     import departamento
 
     for nombre in ("departamento.js", "flotantes.js", "lista.js", "plantel.js", "pieza.js", "casillas.js",
-                   "proyeccion.js", "caminantes.js", "menu.js", "bandeja.js", "ampliar.js"):
+                   "proyeccion.js", "caminantes.js", "menu.js", "bandeja.js", "ampliar.js", "transporte.js"):
         codigo = _sin_comentarios(_guion(nombre))
         for clave in departamento.MUEBLES:
             assert f"'{clave}'" not in codigo and f'"{clave}"' not in codigo, (nombre, clave)
@@ -514,7 +514,7 @@ def test_el_departamento_no_escribe_claves_ni_precios_del_catalogo():
 
 def test_el_cliente_reconoce_la_puerta_por_su_marca_y_no_por_su_clave():
     for nombre in ("departamento.js", "pieza.js", "lista.js", "casillas.js", "proyeccion.js", "plantel.js", "flotantes.js",
-                   "caminantes.js", "menu.js", "bandeja.js", "ampliar.js"):
+                   "caminantes.js", "menu.js", "bandeja.js", "ampliar.js", "transporte.js"):
         codigo = _sin_comentarios(_guion(nombre))
         assert "'puerta'" not in codigo and '"puerta"' not in codigo, nombre
     assert ".puerta" in _guion("casillas.js")
@@ -571,8 +571,9 @@ def test_lo_que_no_se_puede_usar_no_se_apaga_con_disabled():
         codigo = _sin_comentarios(_guion(nombre))
         assert "aria-disabled" in codigo and not re.search(r"\bdisabled\s*[:=]", codigo), nombre
     # Los botones del menú de lo elegido los deja sin poderse usar la pantalla
-    # (con los demás que mandan algo): el menú no apaga nada, y nunca con `disabled`.
-    for nombre in ("menu.js",):
+    # (con los demás que mandan algo, cuando el transporte la hace esperar): ni
+    # el menú ni el transporte apagan nada, y nunca con `disabled`.
+    for nombre in ("menu.js", "transporte.js"):
         assert not re.search(r"\bdisabled\s*[:=]", _sin_comentarios(_guion(nombre))), nombre
 
 
