@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 // se programa se apunta y no se hace: el globo, las cuentas de cada segundo).
 class Nodo {
   constructor() { this.padre = null; }
+
+  get parentElement() { return this.padre; }
 }
 
 class Texto extends Nodo {
@@ -196,7 +198,7 @@ function nuevoDocumento() {
 }
 
 nuevoDocumento();
-const { lugar } = await import('../../web/static/js/lugar.js');
+const { lugar, monigoteDeLaEscena } = await import('../../web/static/js/lugar.js');
 
 // Un servidor de mentira para `pedir`: apunta cada petición como `[ruta, cuerpo]`
 // («GET estado») y contesta lo que se le haya dicho para esa ruta.
@@ -466,4 +468,74 @@ test('con gachamon, el lugar trae su ficha, sus cuidados y su globo, como siempr
   await ficha.querySelector('.boton-ver-ficha').tocar();
   assert.equal(seguidos.length, 1);
   assert.deepEqual(seguidos[0][1], { vista: 'ficha' });
+});
+
+// --- tu avatar en la escena, en el computador ---------------------------------------------
+
+// Una escena de `alto` píxeles con el lienzo del avatar dentro, en un teléfono o
+// en un computador, con un `ResizeObserver` que se puede disparar a mano.
+function escenaDe(alto, { computador }) {
+  const observados = [];
+  const ResizeObserverDeAntes = globalThis.ResizeObserver;
+  const matchMediaDeAntes = window.matchMedia;
+  globalThis.ResizeObserver = class {
+    constructor(avisar) {
+      this.avisar = avisar;
+      this.conectado = false;
+      observados.push(this);
+    }
+
+    observe(nodo) {
+      this.nodo = nodo;
+      this.conectado = true;
+    }
+
+    disconnect() { this.conectado = false; }
+  };
+  window.matchMedia = (consulta) => ({
+    matches: computador && consulta === '(min-width: 900px)', media: consulta, addEventListener() {}, removeEventListener() {},
+  });
+  const escena = new Elemento('div');
+  escena.clientHeight = alto;
+  const lienzo = new Elemento('canvas');
+  escena.append(lienzo);
+  const oyentes = new AbortController();
+  const pintar = monigoteDeLaEscena(lienzo, () => AVATAR, oyentes.signal);
+  globalThis.ResizeObserver = ResizeObserverDeAntes;
+  window.matchMedia = matchMediaDeAntes;
+  return { escena, lienzo, pintar, oyentes, observados };
+}
+
+test('en el computador, tu avatar crece con la escena desde que ésta pasa de 560 px; en el teléfono, no', async () => {
+  // Lo de siempre: 126 px en el teléfono y 168 en el computador, también con la escena alta en el teléfono.
+  for (const [alto, computador, mide] of [[976, false, '126px'], [400, true, '168px'], [560, true, '168px']]) {
+    const { lienzo, pintar } = escenaDe(alto, { computador });
+    pintar();
+    assert.equal(lienzo.style.height, mide, `${alto} px, ${computador ? 'computador' : 'teléfono'}`);
+  }
+  // Desde ahí, el 30 % del alto de la escena (293 px con una de 976; el avatar se pinta a medios pasos de
+  // su dibujo, que mide 84 de alto: 84 × 3,5).
+  const { lienzo, pintar } = escenaDe(976, { computador: true });
+  pintar();
+  assert.equal(lienzo.style.height, '294px');
+  await asentar();
+});
+
+test('tu avatar se vuelve a pintar cuando la escena cambia de alto, y deja de mirarla al salir', async () => {
+  const {
+    escena, lienzo, pintar, oyentes, observados,
+  } = escenaDe(976, { computador: true });
+  pintar();
+  const [observador] = observados;
+  assert.equal(observador.nodo, escena);
+  assert.equal(observador.conectado, true);
+  // La ventana crece: la escena mide 1336 y el avatar, el 30 % (401 px, que se pintan a medios pasos
+  // de su dibujo: 84 × 5).
+  escena.clientHeight = 1336;
+  observador.avisar();
+  assert.equal(lienzo.style.height, '420px');
+  // Al salir de la pantalla ya no mira la escena.
+  oyentes.abort();
+  assert.equal(observador.conectado, false);
+  await asentar();
 });

@@ -1,6 +1,7 @@
 /* Gachamon: primero el celular en vertical, una columna centrada en pantallas
-   más grandes. Colores, bordes y letra se definen una sola vez, aquí. La
-   paleta es la del boceto aprobado de la pantalla principal. */
+   más grandes y, en un computador (desde 900 px), toda la ventana. Colores,
+   bordes y letra se definen una sola vez, aquí. La paleta es la del boceto
+   aprobado de la pantalla principal. */
 
 :root {
   color-scheme: light;
@@ -61,7 +62,6 @@
 [hidden] { display: none !important; }
 
 html {
-  background: var(--fondo-fuera);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -72,7 +72,6 @@ body {
   font-size: 16px;
   line-height: 1.45;
   color: var(--texto);
-  background: var(--fondo-fuera);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -87,8 +86,39 @@ body {
   background: var(--fondo);
 }
 
+/* A los lados de la columna, el color de fuera; en un computador no hay
+   fuera (lo de abajo). */
+@media not all and (min-width: 900px) {
+  html, body { background: var(--fondo-fuera); }
+}
+
 @media (min-width: 520px) {
   #juego { box-shadow: 0 0 0 1px var(--linea), var(--sombra); }
+}
+
+/* En un computador el juego ocupa toda la ventana, sin franjas a los lados:
+   la barra va de lado a lado y el fondo de la página es el del juego. Las
+   pantallas de leer guardan dentro su columna de siempre, al centro; las
+   demás reparten el ancho cada una a su manera, más abajo. */
+@media (min-width: 900px) {
+  html, body { background: var(--fondo); }
+
+  #juego { max-width: none; box-shadow: none; }
+
+  #juego[data-pantalla="sesion"] > .cuerpo,
+  #juego[data-pantalla="bienvenida"] > .cuerpo,
+  #juego[data-pantalla="avatar"] > .cuerpo,
+  #juego[data-pantalla="bautizo"] > .cuerpo,
+  #juego[data-pantalla="carta"] > .cuerpo,
+  #juego[data-pantalla="noCarga"] > .cuerpo { padding-inline: calc((100% - 480px) / 2 + var(--margen)); }
+
+  /* Las pantallas con escenario (la pieza, la escena, el mapa): el escenario
+     se queda con todo el ancho que sobra y, a su lado, el panel de los
+     botones con este ancho, siempre el mismo. */
+  #juego[data-pantalla="departamento"],
+  #juego[data-pantalla="lugar"],
+  #juego[data-pantalla="aventura"],
+  #juego[data-pantalla="pueblo"] { --ancho-del-panel: 420px; }
 }
 
 :focus-visible {
@@ -1125,13 +1155,12 @@ a { color: var(--principal-hundido); font-weight: 600; }
   .cuidado:not([aria-disabled="true"]):hover { border-color: var(--principal); }
 }
 
-/* En un computador, la escena a un lado y la ficha con los cuidados al otro. */
+/* En un computador, la escena con todo lo que sobra de ancho y el alto de la
+   ventana, y la ficha con los cuidados en el panel de al lado. */
 @media (min-width: 900px) {
-  #juego[data-pantalla="lugar"] { max-width: 1120px; }
-
   .cuerpo-lugar {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--ancho-del-panel);
     grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
       "escena ficha"
@@ -1140,7 +1169,7 @@ a { color: var(--principal-hundido); font-weight: 600; }
       "escena .";
     align-items: start;
     gap: 16px 28px;
-    padding: 28px 28px 36px;
+    padding: 28px;
   }
 
   /* Sin gachamon no hay ficha ni cuidados: al lado de la escena, el aviso del
@@ -1156,9 +1185,15 @@ a { color: var(--principal-hundido); font-weight: 600; }
   .cuerpo-lugar.sin-gachamon > .bajo-la-ficha,
   .cuerpo-lugar.sin-gachamon > .salidas-lugar { grid-area: auto / 2; }
 
+  /* El alto de la ventana bajo la barra (48 px) y el relleno de arriba y de
+     abajo (28 px cada uno), pero no más que su ancho (la ventana menos el
+     panel, el relleno de los lados y el hueco entre los dos, 28 px cada uno):
+     el gachamon se mide por el alto de la escena, y así cabe entero también en
+     una ventana angosta. */
   .escena-lugar {
     grid-area: escena;
-    height: clamp(420px, calc(100dvh - 140px), 560px);
+    height: min(calc(100vh - 104px), calc(100vw - var(--ancho-del-panel) - 84px));
+    height: min(calc(100dvh - 104px), calc(100vw - var(--ancho-del-panel) - 84px));
   }
 
   .escena-lugar .ventana { width: 104px; height: 84px; }
@@ -1393,28 +1428,35 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .lugar-del-pueblo:hover { border-color: var(--principal); }
 }
 
-/* En un computador se ve el pueblo entero, con su forma, y cabe en la ventana
-   con «Volver» debajo; si sobra ancho, queda al centro. */
+/* En un computador se ve el pueblo entero, con su forma, lo más grande que
+   cabe en lo que sobra de ancho y en el alto de la ventana (bajo la barra, con
+   28 px de margen alrededor), al centro de ese lado; «Volver» y los lugares,
+   en el panel de al lado (su columna lleva también el relleno de la
+   derecha). Mientras no llegan los datos del pueblo no hay forma, y el mapa
+   espera con su alto mínimo. */
 @media (min-width: 900px) {
-  #juego[data-pantalla="pueblo"] { max-width: 1120px; }
-
-  .mapa,
-  .cuerpo-pueblo {
-    width: calc(100% - 56px);
-    max-width: calc((100vh - 170px) * var(--ancho-del-pueblo) / var(--alto-del-pueblo));
-    max-width: calc((100dvh - 170px) * var(--ancho-del-pueblo) / var(--alto-del-pueblo));
-    margin: 0 auto;
+  #juego[data-pantalla="pueblo"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) calc(var(--ancho-del-panel) + 28px);
+    grid-template-rows: auto 1fr;
+    align-items: start;
   }
 
+  #juego[data-pantalla="pueblo"] > .barra { grid-column: 1 / -1; }
+
   .mapa {
+    justify-self: center;
+    width: calc(100% - 56px);
+    max-width: calc((100vh - 104px) * var(--ancho-del-pueblo) / var(--alto-del-pueblo));
+    max-width: calc((100dvh - 104px) * var(--ancho-del-pueblo) / var(--alto-del-pueblo));
     height: auto;
-    min-height: 320px;
-    margin-top: 24px;
+    min-height: 240px;
+    margin: 28px;
     aspect-ratio: var(--ancho-del-pueblo) / var(--alto-del-pueblo);
     border-radius: var(--radio-grande);
   }
 
-  .cuerpo-pueblo { padding: 16px 0 36px; }
+  .cuerpo-pueblo { padding: 28px 28px 28px 0; }
 
   .boton-volver { align-self: flex-start; width: auto; min-width: 260px; }
 }
@@ -1774,17 +1816,16 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .boton-avanzar[aria-busy="true"] { cursor: progress; }
 
-/* En un computador, como el lugar: la escena a un lado y el diálogo al otro. */
+/* En un computador, como el lugar: la escena a un lado y el diálogo en el
+   panel de al lado. */
 @media (min-width: 900px) {
-  #juego[data-pantalla="aventura"] { max-width: 1120px; }
-
   .cuerpo-aventura {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--ancho-del-panel);
     grid-template-rows: auto 1fr;
     align-items: start;
     gap: 16px 28px;
-    padding: 28px 28px 36px;
+    padding: 28px;
   }
 
   .cuerpo-aventura > .escena-lugar { grid-area: 1 / 1 / 3 / 2; }
@@ -1810,23 +1851,19 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   text-align: center;
 }
 
-/* En un computador, la lista en dos columnas. */
+/* En un computador, la lista a lo ancho de la ventana, en tantas columnas
+   como quepan (dos, desde 900 px). */
 @media (min-width: 900px) {
-  #juego[data-pantalla="tienda"],
-  #juego[data-pantalla="mochila"],
-  #juego[data-pantalla="ficha"],
-  #juego[data-pantalla="ropero"] { max-width: 1120px; }
-
   .cuerpo-tienda { padding: 24px 28px 36px; }
 
-  /* Con dos columnas la lista es corta: las pestañas se quedan en su sitio. */
+  /* Con varias columnas la lista es corta: las pestañas se quedan en su sitio. */
   .pestanas { position: static; justify-self: start; width: min(100%, 560px); box-shadow: none; }
 
   .pestana { font-size: 0.9375rem; }
 
   .estante .articulos,
   .cuerpo-mochila .articulos,
-  .cuerpo-ropero .articulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .cuerpo-ropero .articulos { grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; }
 }
 
 /* --- la ficha completa: quién es, sus estadísticas y sus medallas --- */
@@ -2060,7 +2097,8 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 .boton-quitar.esperando { gap: 8px; }
 
 /* En un computador, la ficha en dos columnas: quién es, sus estadísticas y
-   «Volver» a un lado, las medallas al otro. */
+   «Volver» a un lado, las medallas al otro. Es para leer: las dos juntas no
+   pasan de 1064 px (lo que dejaba la columna de 1120) y van al centro. */
 @media (min-width: 900px) {
   .cuerpo-ficha {
     display: grid;
@@ -2068,6 +2106,7 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
     grid-template-rows: auto auto 1fr;
     align-items: start;
     gap: 16px 28px;
+    padding-inline: max(28px, calc((100% - 1064px) / 2));
   }
 
   .cuerpo-ficha > .espera-tienda { grid-column: 1 / -1; }
@@ -2482,14 +2521,13 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
 .lista-departamento .boton[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
 
-/* En un computador, la pieza a la izquierda, grande, con lo suyo debajo (el
-   botón del modo, la bandeja y «Ampliar», y su línea); a la derecha, lo demás. */
+/* En un computador, la pieza a la izquierda, con todo lo que sobra de ancho y
+   el alto de la ventana, con lo suyo debajo (el botón del modo, la bandeja y
+   «Ampliar», y su línea); en el panel de la derecha, lo demás. */
 @media (min-width: 900px) {
-  #juego[data-pantalla="departamento"] { max-width: 1120px; }
-
   .cuerpo-departamento {
     display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--ancho-del-panel);
     grid-template-rows: auto auto 1fr;
     align-items: start;
     gap: 16px 28px;
@@ -2508,11 +2546,12 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
   .cuerpo-departamento > .ampliar { grid-column: 2; grid-row: 1; }
 
   /* La lista, debajo de todo y de lado a lado: tus gachamones arriba y,
-     construyendo, los muebles puestos y los guardados uno junto al otro. */
+     construyendo, los muebles puestos bajo la pieza y los guardados bajo el
+     panel. */
   .cuerpo-departamento > .lista-departamento {
     grid-column: 1 / -1;
     grid-row: 4;
-    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--ancho-del-panel);
     gap: 18px 28px;
   }
 
@@ -2525,24 +2564,25 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
 
   .pieza-lienzo {
     aspect-ratio: auto;
-    height: clamp(420px, calc(100vh - 190px), 640px);
-    height: clamp(420px, calc(100dvh - 190px), 640px);
+    height: max(420px, calc(100vh - 190px));
+    height: max(420px, calc(100dvh - 190px));
   }
 
   /* Mientras se lee la guía bajo el dibujo, el dibujo le deja su sitio (una
      línea de la guía y su hueco): el botón del modo y la línea siguen cabiendo
-     en la ventana. Entre 900 y 1200 de ancho la guía de la cama parte en dos
-     líneas, y la segunda cabe en el respiro que ya dejaba la línea de abajo. */
+     en la ventana. En las ventanas más angostas, con la pieza angosta, la guía
+     de la cama parte en dos líneas, y la segunda cabe en el respiro que ya
+     dejaba la línea de abajo. */
   .pieza:has(> .pieza-guia:not([hidden])) .pieza-lienzo {
-    height: clamp(420px, calc(100vh - 230px), 640px);
-    height: clamp(420px, calc(100dvh - 230px), 640px);
+    height: max(420px, calc(100vh - 230px));
+    height: max(420px, calc(100dvh - 230px));
   }
 
   /* Con el enlace a Discord bajo la guía, el dibujo le deja también el suyo. */
   .pieza:has(> .traer:not([hidden])) .pieza-lienzo {
     aspect-ratio: auto;
-    height: clamp(420px, calc(100vh - 282px), 640px);
-    height: clamp(420px, calc(100dvh - 282px), 640px);
+    height: max(420px, calc(100vh - 282px));
+    height: max(420px, calc(100dvh - 282px));
   }
 
   /* El paso del código, en la columna de la entrada y al centro. */

@@ -57,9 +57,11 @@ const ALGO_SALIO_MAL = 'Algo salió mal. Vuelve a intentarlo.';
 // --- la escena de un lugar: la de esta pantalla y la de la primera aventura -----------
 
 // Lo que mide de alto el avatar en la escena, en píxeles de pantalla: en el
-// computador se ve más grande.
+// computador se ve más grande y, cuando la escena pasa de 560 px de alto,
+// crece con ella, como el gachamon: mide esta parte de su alto (168 de 560).
 const ALTO_DEL_AVATAR = 126;
 const ALTO_DEL_AVATAR_EN_COMPUTADOR = 168;
+const PARTE_DE_LA_ESCENA = 0.3;
 const DENSIDAD_MAXIMA = 3;
 
 // El fondo de la escena de cada lugar, una pieza del contrato del arte.
@@ -138,16 +140,35 @@ export function fondoDeLaEscena(lienzo, { sigue, signal }) {
   };
 }
 
-// Tu avatar quieto en el lienzo `lienzo` de la escena, con el avatar que dé
-// `avatarDe()`; en el computador, más grande. Devuelve con qué pintarlo, y se
-// vuelve a pintar solo al cruzar el ancho del computador (lo que escucha para
-// eso se deja con `signal`).
+// Tu avatar quieto en el lienzo `lienzo` de la escena (lo que lo contiene),
+// con el avatar que dé `avatarDe()`; en el computador, más grande, y más aún
+// en una escena alta. Devuelve con qué pintarlo, y se vuelve a pintar solo al
+// cruzar el ancho del computador y cuando la escena cambia de alto, si con
+// eso cambia lo que mide (lo que escucha para eso se deja con `signal`).
 export function monigoteDeLaEscena(lienzo, avatarDe, signal) {
   const ancho = window.matchMedia('(min-width: 900px)');
-  const pintar = () => lienzoDelAvatar(
-    lienzo, avatarDe(), ancho.matches ? ALTO_DEL_AVATAR_EN_COMPUTADOR : ALTO_DEL_AVATAR,
-  );
+  const escena = lienzo.parentElement;
+  let pintado = null;
+  const alto = () => {
+    if (!ancho.matches) return ALTO_DEL_AVATAR;
+    const deLaEscena = Math.round(PARTE_DE_LA_ESCENA * ((escena && escena.clientHeight) || 0));
+    return Math.max(ALTO_DEL_AVATAR_EN_COMPUTADOR, deLaEscena);
+  };
+  const pintar = () => {
+    pintado = alto();
+    return lienzoDelAvatar(lienzo, avatarDe(), pintado);
+  };
+  const siCambia = () => {
+    if (alto() !== pintado) pintar();
+  };
   ancho.addEventListener('change', pintar, { signal });
+  if (escena && typeof ResizeObserver === 'function') {
+    const observador = new ResizeObserver(siCambia);
+    observador.observe(escena);
+    signal.addEventListener('abort', () => observador.disconnect());
+  } else {
+    window.addEventListener('resize', siCambia, { signal });
+  }
   return pintar;
 }
 

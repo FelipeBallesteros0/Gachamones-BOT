@@ -570,3 +570,59 @@ def test_la_carta_esta_montada():
     principal = _guion("principal.js")
     assert "from './carta.js'" in principal and "carta:" in principal
     assert "carta/vista" in _guion("carta.js")
+
+
+# --- en un computador, toda la ventana ------------------------------------------------
+
+def _reglas_con_su_media(estilo: str) -> list[tuple[str, str, str]]:
+    """Cada regla de la hoja: el `@media` que la envuelve ("" si ninguno), sus
+    selectores y su cuerpo. Lo de `@keyframes` no son reglas."""
+    reglas, desde = [], 0
+    while (llave := estilo.find("{", desde)) != -1:
+        cabeza = estilo[desde:llave].strip()
+        nivel, fin = 1, llave + 1
+        while nivel:
+            nivel += {"{": 1, "}": -1}.get(estilo[fin], 0)
+            fin += 1
+        dentro = estilo[llave + 1:fin - 1]
+        if cabeza.startswith("@media"):
+            reglas += [(cabeza, s, c) for s, c in re.findall(r"([^{}]+)\{([^{}]*)\}", dentro)]
+        elif not cabeza.startswith("@"):
+            reglas.append(("", cabeza, dentro))
+        desde = fin
+    return reglas
+
+
+def _vale_desde_900(media: str) -> bool:
+    """Si una regla con ese `@media` puede valer en una ventana de 900 px o más ancha."""
+    hasta = re.search(r"max-width:\s*([\d.]+)px", media)
+    if hasta and float(hasta[1]) < 900:
+        return False
+    menos_de = re.search(r"not all and \(min-width:\s*([\d.]+)px\)", media)
+    return not (menos_de and float(menos_de[1]) <= 900)
+
+
+def test_en_un_computador_el_juego_ocupa_toda_la_ventana():
+    # «Aprovechar toda la pantalla en pc, que no queden líneas blancas en los
+    # laterales»: desde 900 px, #juego no tiene ancho máximo y el color de fuera
+    # del juego no pinta ninguna franja ni el fondo de la página.
+    estilo = re.sub(r"/\*.*?\*/", "", (ESTATICOS / "estilo.css").read_text(encoding="utf-8"), flags=re.S)
+    reglas = _reglas_con_su_media(estilo)
+    anchos = [
+        (selector, valor.strip())
+        for media, selectores, cuerpo in reglas if media == "@media (min-width: 900px)"
+        for selector in (" ".join(s.split()) for s in selectores.split(","))
+        if selector.startswith("#juego")
+        for valor in re.findall(r"max-width:\s*([^;]+)", cuerpo)
+    ]
+    assert [a for a in anchos if a[1] != "none"] == [], anchos
+    assert ("#juego", "none") in anchos, anchos
+    # La pista de los medidores es lo único que lleva ese color desde 900 px, y
+    # no es un fondo: es la barra vacía dentro de la ficha, igual que en el teléfono.
+    usos = {
+        " ".join(s.split())
+        for media, selectores, cuerpo in reglas
+        if _vale_desde_900(media) and re.search(r"var\(\s*--fondo-fuera\b", cuerpo)
+        for s in selectores.split(",")
+    }
+    assert usos == {".medidor-pista"}, usos
