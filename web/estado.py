@@ -24,6 +24,10 @@ from web.cuenta import Jugador
 
 _ACCIONES = (sim.ALIMENTAR, sim.JUGAR, sim.ENTRENAR, sim.LIMPIAR, sim.ACARICIAR)
 
+# Lo que se le dice a quien pide algo de un gachamon que ya no es suyo o no
+# existe: lo usan el departamento (salir con otro) y la ficha.
+NO_ESTA = "Ese gachamon ya no está."
+
 
 def _barra(valor: float) -> int:
     return max(0, min(100, round(valor)))

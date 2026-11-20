@@ -165,9 +165,8 @@ def guardar_un_mueble(
 # --- Salir con otro ----------------------------------------------------------------
 #
 # Cambiar de activo es la regla `economia.cambiar_de_activo`; aquí sólo se dice
-# lo que pasó. La ficha usa la misma frase cuando el gachamon ya no está.
-
-NO_ESTA = "Ese gachamon ya no está."
+# lo que pasó. La frase de cuando el gachamon ya no está es `estado.NO_ESTA`,
+# la misma que usa la ficha.
 
 
 def dicho_de_salir(hecho: economia.ResultadoCambio) -> dict:
@@ -180,7 +179,7 @@ def dicho_de_salir(hecho: economia.ResultadoCambio) -> dict:
             "mensaje": f"{hecho.criatura.nombre} ya es tu gachamon activo.",
         }
     if hecho.motivo == "no_esta":
-        return {"ok": False, "clave": "no_esta", "mensaje": NO_ESTA}
+        return {"ok": False, "clave": "no_esta", "mensaje": estado.NO_ESTA}
     # Un motivo que no conocemos es un fallo nuestro y no se disfraza.
     raise RuntimeError(f"salir sin frase: {hecho.motivo!r}")
 

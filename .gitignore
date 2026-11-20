@@ -9,6 +9,9 @@ __pycache__/
 # Índices locales de code intelligence.
 .codegraph/
 .gitnexus/
+# Lo que genera GitNexus con `analyze` a secas: nombra funciones del momento en
+# que se generó y envejece con cada cambio. Se refresca con `analyze --index-only`.
+.claude/skills/generated/
 
 # Preferencias privadas de Claude por worktree.
 CLAUDE.local.md

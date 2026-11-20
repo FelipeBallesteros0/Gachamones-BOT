@@ -23,7 +23,6 @@ import personalidad as per
 import simulacion as sim
 from web import estado
 from web.cuenta import Jugador, jugador_actual
-from web.departamento import NO_ESTA
 from web.sesion import es_un_id, problema
 
 router = APIRouter()
@@ -75,7 +74,7 @@ def _el_pedido(jugador: Jugador, pedido: str | None, ahora) -> sim.Criatura:
     for criatura in db.plantel_al_dia(jugador.usuario_id, jugador.guild_id, ahora):
         if criatura.id == int(pedido):
             return criatura
-    raise problema(409, "no_esta", NO_ESTA)
+    raise problema(409, "no_esta", estado.NO_ESTA)
 
 
 @router.get("/ficha")

@@ -125,7 +125,7 @@ def test_la_ayuda_con_gachamon_deja_dos_camas_puestas_y_esta_en_casa(cliente, mo
     assert depto.camas_puestas == 2
     assert [p.clave for p in depto.guardadas] == []
     assert [(c.id, c.nombre, c.activa) for c in db.plantel(YO, G)] == [(estado["gachamon"]["id"], "Pelusa", True)]
-    # De vuelta en su casa, sin guía (ya tiene gachamon) y con el monedero en cero.
+    # De vuelta en su departamento, sin guía (ya tiene gachamon) y con el monedero en cero.
     assert estado["lugar"]["clave"] == "casa" and estado["guia"] is None
     assert cliente.get("/gachamon/api/estado").json()["lugar"]["clave"] == "casa"
     assert estado["saldos"] == {"monedas": 0, "gemas": 0}
