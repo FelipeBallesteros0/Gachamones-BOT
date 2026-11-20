@@ -94,6 +94,67 @@ def originales_de_la_pieza() -> tuple[Pieza, ...]:
                  for p in piezas() if p.familia == "pieza")
 
 
+@dataclass(frozen=True)
+class Grupo:
+    """Un puñado de piezas que se dibujan juntas: la tarjeta de un tablero.
+
+    `clave` sale de las rutas (sin extensión), nunca del nombre; `nombre` es para
+    quien dibuja y para el dueño.
+    """
+    clave: str
+    nombre: str
+    familia: str
+    rutas: tuple[str, ...]
+
+
+_ICONOS = {"muebles": "Iconos de los muebles", "objetos": "Iconos de los objetos",
+           "cosmeticos": "Iconos de los cosméticos"}
+
+
+def _grupo_de(ruta: str) -> tuple[str, str]:
+    """La clave y el nombre del grupo de una pieza, según su ruta."""
+    partes = ruta.removesuffix(".png").split("/")
+    if ruta == "pueblo/fondo.png":
+        return "pueblo/fondo", "Fondo del pueblo"
+    if partes[:2] == ["pueblo", "lugares"]:
+        return "pueblo/lugares", "Lugares del pueblo"
+    if partes[0] == "escenas":
+        return "escenas", "Escenas de los lugares"
+    if partes[0] == "efectos":
+        return "efectos", "Efectos"
+    if partes[:2] == ["avatar", "cuerpo"]:
+        return "avatar/cuerpo", "Cuerpos"
+    if partes[:2] == ["avatar", "ropa"]:
+        return "avatar/ropa", "Ropa"
+    if partes[:2] == ["avatar", "pelo"]:
+        for pelo in avatar.PELOS:
+            if partes[2].startswith(f"{pelo.clave}-"):
+                return f"avatar/pelo/{pelo.clave}", f"Peinado {pelo.nombre.lower()}"
+    if partes[0] == "iconos" and partes[1] in _ICONOS:
+        return f"iconos/{partes[1]}", _ICONOS[partes[1]]
+    if ruta in ("pieza/suelo.png", "pieza/pared-izquierda.png", "pieza/pared-derecha.png"):
+        return "pieza/paredes-y-suelo", "Paredes y suelo"
+    if partes[:2] == ["pieza", "muebles"]:
+        clave = partes[2].rsplit("-", 1)[0]
+        if clave in departamento.MUEBLES:
+            return f"pieza/muebles/{clave}", departamento.MUEBLES[clave].nombre
+    raise ValueError(f"la pieza {ruta} no cae en ningún grupo del arte")
+
+
+def grupos() -> tuple[Grupo, ...]:
+    """Las piezas del contrato repartidas en grupos, en el orden de `piezas()`.
+
+    Se calculan desde `piezas()`: una pieza que ningún grupo reconoce lanza `ValueError`.
+    """
+    por_clave: dict[str, tuple[str, str, list[str]]] = {}
+    for pieza in piezas():
+        clave, nombre = _grupo_de(pieza.ruta)
+        _, _, rutas = por_clave.setdefault(clave, (nombre, pieza.familia, []))
+        rutas.append(pieza.ruta)
+    return tuple(Grupo(clave, nombre, familia, tuple(rutas))
+                 for clave, (nombre, familia, rutas) in por_clave.items())
+
+
 def como_json() -> dict:
     return {"piezas": [{"ruta": p.ruta, "ancho": p.ancho, "alto": p.alto, "familia": p.familia}
                        for p in piezas()]}

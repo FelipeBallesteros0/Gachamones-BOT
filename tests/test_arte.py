@@ -167,3 +167,61 @@ def test_los_rellenos_de_iconos_se_distinguen_y_tienen_fondo_transparente():
     colores = {items[0][2] for items in por_grupo.values()}
     assert len(colores) == 3
     assert all(len({c for _, _, c in items}) == 1 for items in por_grupo.values())
+
+
+def test_toda_pieza_cae_en_un_solo_grupo_de_una_sola_familia():
+    piezas = arte.piezas()
+    grupos = arte.grupos()
+    sueltas = [r for g in grupos for r in g.rutas]
+    assert sorted(sueltas) == sorted(p.ruta for p in piezas)
+    familia = {p.ruta: p.familia for p in piezas}
+    for g in grupos:
+        assert g.rutas
+        assert {familia[r] for r in g.rutas} == {g.familia}, g.clave
+
+
+def test_las_claves_de_los_grupos_son_validas_y_unicas():
+    grupos = arte.grupos()
+    claves = [g.clave for g in grupos]
+    assert len(set(claves)) == len(claves)
+    for clave in claves:
+        assert re.fullmatch(r"[a-z0-9/_-]{1,64}", clave), clave
+        assert not clave.endswith(".png"), clave
+    assert 25 <= len(grupos) <= 40
+
+
+def test_los_nombres_de_los_grupos_dicen_algo():
+    for g in arte.grupos():
+        assert g.nombre.strip() and len(g.nombre) <= 120, g.clave
+
+
+def test_el_corte_de_los_grupos():
+    por_clave = {g.clave: g for g in arte.grupos()}
+    cama = por_clave["pieza/muebles/cama"]
+    assert cama.nombre == "Cama grande" and cama.familia == "pieza"
+    assert sorted(cama.rutas) == sorted(f"pieza/muebles/cama-{o}.png" for o in arte.ORIENTACIONES)
+    assert len(por_clave["pieza/muebles/cama_sencilla"].rutas) == 4
+    assert len(por_clave["pieza/muebles/cuadro"].rutas) == 2
+    assert len(por_clave["pieza/paredes-y-suelo"].rutas) == 3
+    for pelo in avatar.PELOS:
+        g = por_clave[f"avatar/pelo/{pelo.clave}"]
+        assert g.nombre == f"Peinado {pelo.nombre.lower()}"
+        assert len(g.rutas) == len(avatar.COLORES_DE_PELO) * len(arte.POSES)
+    assert len(por_clave["avatar/cuerpo"].rutas) == len(avatar.PIELES) * len(arte.POSES)
+    assert len(por_clave["avatar/ropa"].rutas) == len(avatar.ROPAS) * len(arte.POSES)
+    for carpeta in ("muebles", "objetos", "cosmeticos"):
+        assert por_clave[f"iconos/{carpeta}"].familia == "iconos"
+    assert len(por_clave["escenas"].rutas) == 6
+    assert por_clave["pueblo/fondo"].familia == "pueblo"
+    assert len(por_clave["pueblo/lugares"].rutas) == 7
+    assert len(por_clave["efectos"].rutas) == 4
+
+
+def test_una_pieza_que_ningun_grupo_conoce_hace_fallar(monkeypatch):
+    import pytest
+
+    originales = arte.piezas()
+    extra = arte.Pieza("rareza/algo.png", 1, 1, "avatar")
+    monkeypatch.setattr(arte, "piezas", lambda: originales + (extra,))
+    with pytest.raises(ValueError):
+        arte.grupos()
