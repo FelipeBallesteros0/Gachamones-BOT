@@ -655,13 +655,32 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     if (fallido) releer();
   }
 
+  // Lo que encoge al retrato el gesto de apretar (`.gachamon:active > .retrato`:
+  // `scale`), a lo ancho y a lo alto. Con el dedo, el clic llega todavía
+  // apretado; con el ratón, ya suelto. Sin estilos calculados que leer, nada.
+  function loQueEncogeApretar() {
+    const valor = window.getComputedStyle ? window.getComputedStyle(retrato).scale : 'none';
+    if (!valor || valor === 'none') return [1, 1];
+    const [x, y = x] = valor.split(' ').map(Number);
+    return x > 0 && y > 0 ? [x, y] : [1, 1];
+  }
+
   // Dónde se ve el dibujo del retrato en la página. El CSS lo encaja entero en
   // su caja, sin deformarlo, centrado y apoyado abajo (`.gachamon > .retrato`:
   // `object-fit: contain` y `object-position: 50% 100%`); lo que lo mueve o lo
   // estira (respirar, saltar) mueve y estira su caja con él, que es lo que mide
   // `getBoundingClientRect`, y su caja sin eso mide `offsetWidth` × `offsetHeight`.
+  // Apretar se deshace, con los pies y el centro quietos (`transform-origin:
+  // 50% 100%`): quien toca apuntó al dibujo sin apretar.
   function dondeSeVeElRetrato() {
-    const caja = retrato.getBoundingClientRect();
+    const medida = retrato.getBoundingClientRect();
+    const [encogeX, encogeY] = loQueEncogeApretar();
+    const caja = {
+      left: medida.left + (medida.width - medida.width / encogeX) / 2,
+      top: medida.top + medida.height - medida.height / encogeY,
+      width: medida.width / encogeX,
+      height: medida.height / encogeY,
+    };
     const { naturalWidth, naturalHeight, offsetWidth, offsetHeight } = retrato;
     const escala = Math.min(offsetWidth / naturalWidth, offsetHeight / naturalHeight);
     const ancho = (caja.width * naturalWidth * escala) / offsetWidth;

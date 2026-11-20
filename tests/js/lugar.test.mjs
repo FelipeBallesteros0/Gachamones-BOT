@@ -627,3 +627,77 @@ test('si el retrato no cargó (se ve su emoji), un clic de puntero en cualquier 
   await clicDePuntero(contenedor.querySelector('.gachamon'), 120, 70);
   assert.equal(caricias(servidor), 1);
 });
+
+// --- el retrato apretado y el retrato ancho -----------------------------------------------
+
+// El retrato de 48 × 84, con la mitad de arriba transparente, en su caja de
+// 200 × 200 en (100, 50) de la página, sin respirar: el dibujo se ve de
+// x = 142,9 a x = 257,1, y su mitad de abajo empieza en y = 150.
+function ponerElRetratoQuieto(contenedor, documento) {
+  const retrato = ponerElRetrato(contenedor, documento);
+  retrato.getBoundingClientRect = () => ({
+    left: 100, top: 50, width: 200, height: 200, right: 300, bottom: 250, x: 100, y: 50,
+  });
+  return retrato;
+}
+
+// Mientras dura `hacer`, los estilos calculados del navegador: el retrato
+// tiene la escala `escala` y los demás, ninguna.
+async function conEscala(retrato, escala, hacer) {
+  const deAntes = window.getComputedStyle;
+  window.getComputedStyle = (nodo) => ({ scale: nodo === retrato ? escala : 'none' });
+  try {
+    await hacer();
+  } finally {
+    window.getComputedStyle = deAntes;
+  }
+}
+
+test('en el teléfono el clic llega con el retrato apretado (encogido un 3 %): se mide sobre el dibujo sin apretar', { timeout: 2000 }, async () => {
+  const { contenedor, servidor, documento } = await abrir(conPelusa(ESTADIO));
+  const retrato = ponerElRetratoQuieto(contenedor, documento);
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: conPelusa(ESTADIO, 10) });
+  const boton = contenedor.querySelector('.gachamon');
+  // Apretado, con los pies y el centro quietos, su caja mide 194 × 194 en (103, 56).
+  retrato.getBoundingClientRect = () => ({
+    left: 103, top: 56, width: 194, height: 194, right: 297, bottom: 250, x: 103, y: 56,
+  });
+  await conEscala(retrato, '0.97', async () => {
+    await clicDePuntero(boton, 143.5, 200);                            // el borde izquierdo de su dibujo
+    await clicDePuntero(boton, 200, 151);                              // el borde de arriba de lo que se ve
+    assert.equal(caricias(servidor), 2);
+    await clicDePuntero(boton, 141, 200);                              // justo al lado
+    await clicDePuntero(boton, 200, 148);                              // justo encima: transparente
+    assert.equal(caricias(servidor), 2);
+  });
+  // Sin apretar (con el ratón, el clic llega ya suelto), la caja es la que se mide.
+  ponerElRetratoQuieto(contenedor, documento);
+  await conEscala(retrato, 'none', async () => {
+    await clicDePuntero(boton, 143.5, 200);
+    await clicDePuntero(boton, 141, 200);
+    assert.equal(caricias(servidor), 3);
+  });
+});
+
+test('un retrato más ancho que alto va apoyado abajo: el hueco de arriba de su caja no acaricia', { timeout: 2000 }, async () => {
+  const { contenedor, servidor, documento } = await abrir(conPelusa(ESTADIO));
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: conPelusa(ESTADIO, 10) });
+  conPixeles(documento, () => 255);                                     // todo su dibujo se ve
+  // De 84 × 48, en su caja de 200 × 200 en (100, 50): ocupa todo el ancho y
+  // 114,3 de alto, de y = 135,7 a y = 250.
+  const retrato = contenedor.querySelector('.retrato');
+  Object.assign(retrato, {
+    naturalWidth: 84, naturalHeight: 48, offsetWidth: 200, offsetHeight: 200, complete: true,
+  });
+  retrato.getBoundingClientRect = () => ({
+    left: 100, top: 50, width: 200, height: 200, right: 300, bottom: 250, x: 100, y: 50,
+  });
+  const boton = contenedor.querySelector('.gachamon');
+  await clicDePuntero(boton, 200, 60);                                  // el hueco de arriba
+  await clicDePuntero(boton, 200, 134);
+  assert.equal(caricias(servidor), 0);
+  await clicDePuntero(boton, 200, 137);                                 // el borde de arriba de su dibujo
+  await clicDePuntero(boton, 101, 249);                                 // sus esquinas de abajo
+  await clicDePuntero(boton, 299, 249);
+  assert.equal(caricias(servidor), 3);
+});

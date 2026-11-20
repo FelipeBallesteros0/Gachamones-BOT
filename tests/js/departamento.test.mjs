@@ -3667,3 +3667,44 @@ test('viviendo, lo transparente de un gachamon delante de un mueble sin acción 
   await tocarCasilla(pantalla, i, j);                                   // a sus pies se le ve
   assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Rulo');
 });
+
+// Los retratos de mentira con la mitad izquierda de su dibujo transparente:
+// sólo se ven sus columnas 24 a 47.
+const MITAD_DERECHA = (imagen, u) => (u >= 24 ? 255 : 0);
+
+test('lo que se toca de un gachamon se mide donde se pinta su dibujo, no en su cuadrado: al lado del dibujo no es él', async () => {
+  const { pantalla, documento } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+  conPixeles(documento, MITAD_DERECHA);
+  const { m, ancho: a, fondo: f } = medidaDe(pantalla);
+  const [, [, x, y, ancho, alto]] = pintados(pantalla, PELUSA.retrato).at(-1);
+  const centro = x + ancho / 2;
+  // A la derecha de su dibujo, dentro del cuadrado donde antes se la tocaba
+  // (de lado, lo que su dibujo mide de alto), a media altura.
+  const alLado = [centro + alto * 0.4, y + alto * 0.6];
+  assert.ok(alLado[0] > x + ancho && alLado[0] < centro + alto / 2);
+  await tocarEn(pantalla, ...alLado);
+  assert.equal(menu(pantalla), null);
+  assert.deepEqual(dondeEstas(pantalla), casillaEn(m, ...alLado, a, f));    // caminas hasta ahí (aparece)
+  // En su dibujo, la mitad izquierda no es ella; la derecha, sí.
+  await tocarEn(pantalla, x + ancho * 0.25, y + alto * 0.6);
+  assert.equal(menu(pantalla), null);
+  await tocarEn(pantalla, x + ancho * 0.75, y + alto * 0.6);
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Pelusa');
+});
+
+test('a un gachamon que salta se le toca donde se le ve: por encima de donde se pinta quieto', async () => {
+  const { pantalla, documento, servidor } = await abrir(DEPTO);
+  conPixeles(documento, MITAD_DERECHA);
+  const [, [, , yQuieto]] = pintados(pantalla, PELUSA.retrato).at(-1);
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: ESTADO });
+  await tocar(boton(uno(pantalla, '.ficha-elegido'), 'Acariciar'));
+  await correrCuadros(16 * 14);                                         // cerca de lo más alto del salto (dura 0,45 s)
+  const [, [, x, y, ancho]] = pintados(pantalla, PELUSA.retrato).at(-1);
+  const sube = yQuieto - y;
+  assert.ok(sube > 10, `sube ${sube}`);
+  // En la mitad derecha de su dibujo, que se ve, y más arriba de donde se pinta quieta.
+  const punto = [x + ancho * 0.75, y + sube / 2];
+  assert.ok(punto[1] < yQuieto);
+  await tocarEn(pantalla, ...punto);
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Pelusa');
+});
