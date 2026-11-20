@@ -98,8 +98,9 @@ deja pasar a quien la tiene o es administrador del sitio. A los demás, la
 página y sus rutas les contestan lo mismo que a una ruta que no existe. Quién
 eres sale sólo de la sesión, como en todo el juego. La lectura de la sesión que
 usa el resto del juego **no se toca**: si el juego se despliega antes que el
-sitio y la marca todavía no existe, nadie tiene el permiso y el juego sigue
-andando igual. Así el orden de los dos despliegues no importa.
+sitio y la marca todavía no existe, sólo el administrador del sitio tiene el
+permiso y el juego sigue andando igual. Así el orden de los dos despliegues no
+rompe nada.
 
 **Qué enseña.** Las piezas, por grupos (los mismos del tablero). De cada una: su
 imagen de ahora, su nombre, la medida exacta que tiene que tener, si es el
@@ -149,6 +150,10 @@ provisional), quién lo hizo y cuándo. El provisional es un estado aparte, no
 una de las cinco: siempre se puede volver a él. «Volver a la anterior» deja un
 renglón nuevo a nombre de quien vuelve. Se guardan en disco las cinco últimas
 imágenes distintas de cada pieza; a una más vieja ya no se puede volver.
+«Volver a la anterior» retrocede por las subidas, en el orden en que se
+subieron (v3, v2, v1 y el provisional), y desde el provisional vuelve a la
+última subida, para que un toque de más en «Volver al provisional» se deshaga
+con otro (decisiones del dueño, 2026-11-20).
 
 **Si el contrato cambia después.** La medida se comprueba contra el contrato en
 cada subida, y la tabla guarda la medida de lo subido. Si más adelante el
@@ -275,7 +280,10 @@ momento.
    son del sitio). Con el juego de antes todavía en marcha, `/gachamon` sigue
    igual y `/monsteropolis` contesta el «no existe» del juego, que nadie enlaza
    todavía. Se comprueba desde fuera que `/gachamon` sigue andando y que
-   `/plan/monsteropolis` sigue siendo del sitio.
+   `/plan/monsteropolis` sigue siendo del sitio. Un error en la configuración
+   del túnel deja sin servicio el sitio y el juego a la vez: antes de tocarla se
+   saca una copia, se valida antes de reiniciar y, si algo falla, se repone la
+   copia (los pasos, en los pendientes del juego).
 2. **Después el juego**, ya contestando en `/monsteropolis/` y en
    `/monsteropolis_dibujante/`. Se comprueba desde fuera que las dos direcciones
    contestan y que `/gachamon` redirige.

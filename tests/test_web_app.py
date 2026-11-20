@@ -48,6 +48,9 @@ def test_gachamon_redirige_conservando_la_ruta(cliente, metodo, antigua, nueva):
     respuesta = cliente.request(metodo, antigua, follow_redirects=False)
     assert respuesta.status_code == 308
     assert respuesta.headers["location"] == nueva
+    # Sin guardarse: una 308 sin cabeceras de caché el navegador la recuerda para
+    # siempre, y si hubiera que volver atrás, quien ya entró seguiría yendo a la nueva.
+    assert respuesta.headers["cache-control"] == "no-store"
     # Las cabeceras de todo lo que sirve el servicio salen también aquí.
     assert respuesta.headers["x-content-type-options"] == "nosniff"
     assert "frame-ancestors" in respuesta.headers["content-security-policy"]

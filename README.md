@@ -218,8 +218,9 @@ arrancar deja en el registro un aviso por cada cosa que falta.
 
 En producción lo lleva la unidad `gachamon-web.service`, que escucha sólo en
 `127.0.0.1:8010`, y se publica como `rowino.online/monsteropolis` detrás del túnel,
-con una regla por ruta (`/monsteropolis` y, para que las páginas y enlaces de antes sigan
-llegando a su redirección, también `/gachamon`). Quien jugaba en Discord entra con su cuenta de Rowino, elige «Ya jugaba en
+con una regla por ruta que le manda `/monsteropolis`, `/monsteropolis_dibujante` (la
+página del dibujante) y, para que las páginas y enlaces de antes sigan llegando a su
+redirección, también `/gachamon`. Quien jugaba en Discord entra con su cuenta de Rowino, elige «Ya jugaba en
 Discord», pide su código, escribe `/vincular` en el canal del juego y encuentra a
 sus gachamones.
 
@@ -240,6 +241,12 @@ copias reducidas que usa la página. Qué imágenes hacen falta (cuatro por mueb
 de suelo, dos por mueble de pared) y de qué tamaño está en la sección «La pieza
 de tu departamento» de `docs/arte/contrato.md`.
 
+Para regenerar los rellenos que falten:
+
+```bash
+./venv/bin/python -m herramientas.rellenos
+```
+
 #### La página del dibujante
 
 Quien dibuja no necesita el repositorio: el dueño y quien tenga el permiso
@@ -250,21 +257,19 @@ imagen de ahora, la medida exacta que pide el contrato, si es el recuadro
 provisional o una imagen subida, y quién y cuándo la subió. Cada pieza tiene
 «Subir» (sólo PNG, hasta 4 MB y de la medida exacta; la pieza del departamento
 admite también el doble), «Historial», «Volver a la anterior» (retrocede una
-subida cada vez, hasta el provisional) y «Volver al provisional». La imagen
-subida se ve en el juego al momento, al recargar. Arriba se descarga todo lo
-subido en un zip. Se guardan las cinco últimas imágenes distintas de cada pieza,
-en una carpeta junto a la base (`arte_subido`, o `RUTA_ARTE_SUBIDO`) que no es
-parte de git; `actualizar-pi.sh` la copia comprimida junto con la base y ningún
-despliegue la borra.
+subida cada vez, hasta el provisional; desde el provisional, vuelve a la última
+subida) y «Volver al provisional». La imagen subida se ve en el juego al
+momento, al recargar, y mientras esté puesta manda sobre el archivo del repo:
+cambiar el archivo de esa pieza en el repo no se ve. Arriba se descarga en un
+zip lo que se ve hoy (sin las anteriores ni lo vuelto al provisional; la copia
+completa es la de `actualizar-pi.sh`). Se guardan las cinco últimas imágenes
+distintas de cada pieza, en una carpeta junto a la base (`arte_subido`, o
+`RUTA_ARTE_SUBIDO`) que no es parte de git; `actualizar-pi.sh` la copia
+comprimida junto con la base y ningún despliegue la borra. Reponer una copia de
+la base pide reponer también esta carpeta desde su copia del mismo momento.
 
 Para probarla en local, `--dibujante N` de `herramientas.pagina_de_prueba` da el
 permiso a la cuenta N (ver «Desarrollo local»).
-
-Para regenerar los rellenos que falten:
-
-```bash
-./venv/bin/python -m herramientas.rellenos
-```
 
 Sólo escribe los archivos que no existen, así que un dibujo de verdad nunca se
 pisa. Con `--todo` rehace **todas** las piezas, también los dibujos de verdad

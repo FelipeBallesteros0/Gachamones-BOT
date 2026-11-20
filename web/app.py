@@ -340,7 +340,10 @@ def crear_app() -> FastAPI:
 
     # Lo que colgaba de la dirección de antes pasa a la misma ruta de la nueva, con
     # su consulta. 308 y no 301: un `POST` con cuerpo de una página abierta antes
-    # del cambio llega igual, con el mismo método.
+    # del cambio llega igual, con el mismo método (como con un 307). Sin guardarse:
+    # una 308 sin cabeceras de caché el navegador la recuerda para siempre, y si
+    # hubiera que volver a la versión de antes, quien ya entró seguiría yendo a la
+    # dirección nueva sin preguntar. Cuando el cambio sea definitivo, se puede quitar.
     @app.api_route(
         PREFIJO_ANTIGUO, methods=_METODOS_DEL_JUEGO, include_in_schema=False,
     )
@@ -351,7 +354,7 @@ def crear_app() -> FastAPI:
         destino = PREFIJO + quote(request.url.path[len(PREFIJO_ANTIGUO):], safe="/:@!$&'()*+,;=-._~")
         if request.url.query:
             destino += "?" + request.url.query
-        return RedirectResponse(destino, status_code=308)
+        return RedirectResponse(destino, status_code=308, headers={"Cache-Control": "no-store"})
 
     @app.get(PREFIJO, include_in_schema=False)
     def sin_barra() -> RedirectResponse:

@@ -60,8 +60,8 @@ Instala el hook local cuando prepares el entorno:
 - El servicio web no guarda estado del juego en memoria: lo que cambie el bot tiene que verse en la siguiente petición.
 - Quién eres sale sólo de la cookie de sesión de Rowino. Ninguna ruta acepta un identificador de persona.
 - El bot y la web arrancan por `economia.poner_al_dia`, y nadie más prepara la base.
-- El juego vive en `/monsteropolis`; `/gachamon` sólo redirige (308) al prefijo nuevo.
-- El permiso del dibujante se lee aparte y en sólo lectura, de la base del sitio; sin la columna, nadie lo tiene. Sin permiso, sus rutas contestan como una que no existe.
+- El juego vive en `/monsteropolis`; `/gachamon` sólo redirige (308, sin guardarse en caché, para que volver atrás siga siendo posible) al prefijo nuevo.
+- El permiso del dibujante se lee aparte y en sólo lectura, de la base del sitio; sin la columna del arte, sólo lo tiene el administrador del sitio. Sin permiso, sus rutas contestan como una que no existe.
 - Lo subido por el dibujante vive fuera de git, en `config.RUTA_ARTE_SUBIDO`, con nombre de su contenido, y ningún despliegue lo borra.
 - El historial `arte_subido` sólo crece y guarda nombres, nunca números de cuenta. La poda corre bajo `BEGIN IMMEDIATE`.
 - Lo que se sirve a quien juega sale de `urlDeArte`, que mira primero el bloque `arte-subido` de la portada; si falta o viene raro, el arte de siempre.
@@ -159,7 +159,7 @@ Instala el hook local cuando prepares el entorno:
 - Lo que el gachamon dice por su cuenta son frases escritas en `globos.py`, nunca una llamada a la IA, y un globo no anuncia nada que no esté pasando.
 - Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
 - El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
-- El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de `web/static/arte/` descritos en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza.
+- El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de `web/static/arte/` descritos en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza. Mientras una pieza tenga una imagen subida por el dibujante, se ve ésa y no el archivo del repo.
 - El arte de la pieza del departamento es la familia `pieza` del contrato (`web/arte.py`): no es pixel art, los originales van en `fuentes/pieza/` al doble de lo que sirve la página, `herramientas/pieza.py` los reduce, y cada mueble de suelo lleva cuatro orientaciones y cada uno de pared, dos.
 - El cliente no decide qué cabe: lo que calcula (`casillas.js`) es para dibujar y no proponer lo imposible, y `tests/test_casillas_cliente.py` lo contrasta con `departamento.py`.
 - Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.

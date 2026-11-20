@@ -353,10 +353,20 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     assert hecho.json() == {
         "ruta": CORAZON, "ancho": 32, "alto": 32, "original": None, "subida": None, "medida_cambiada": None}
 
-    # Desde el provisional no hay anterior: se dice por qué y no cambia nada.
-    no = volver(cliente, CORAZON, "anterior")
+    al_provisional = reloj.ahora
+
+    # Desde el provisional, «anterior» lo deshace: vuelve a la última subida.
+    reloj.pasar(minutes=5)
+    deshecho = reloj.ahora
+    hecho = volver(cliente, CORAZON, "anterior")
+    assert hecho.status_code == 200
+    assert hecho.json()["subida"] == {"direccion": d2, "quien": "admin", "cuando": segunda.isoformat()}
+
+    # Una pieza sin nada subido no tiene anterior: se dice por qué y no cambia nada.
+    no = volver(cliente, ESTRELLA, "anterior")
     assert no.status_code == 400
     assert no.json() == {"detail": {"clave": "no_vale", "mensaje": "No hay una imagen anterior."}}
+    assert historial(cliente, ESTRELLA).json() == {"ruta": ESTRELLA, "historial": []}
 
     def renglon(accion, dire, quien, cuando):
         medida = (32, 32) if dire else (None, None)
@@ -366,7 +376,8 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     respuesta = historial(cliente, CORAZON)
     assert respuesta.status_code == 200
     assert respuesta.json() == {"ruta": CORAZON, "historial": [
-        renglon("provisional", None, "admin", reloj.ahora),
+        renglon("anterior", d2, "admin", deshecho),
+        renglon("provisional", None, "admin", al_provisional),
         renglon("anterior", d1, "dibuja", vuelta),
         renglon("subir", d2, "admin", segunda),
         renglon("subir", d1, "dibuja", T0),

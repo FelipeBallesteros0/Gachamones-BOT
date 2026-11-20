@@ -144,13 +144,33 @@ def test_una_subida_nueva_va_al_final_de_la_secuencia():
     assert anterior() == V2
 
 
-def test_desde_el_provisional_volver_a_la_anterior_no_cambia_nada():
+def test_desde_el_provisional_volver_a_la_anterior_vuelve_a_la_ultima_subida():
+    """Un toque de más en «Volver al provisional» se deshace con otro (el dueño, 2026-11-20)."""
     subir(CORAZON, V1)
     subir(CORAZON, V2)
     db.volver_al_provisional(CORAZON, "felipe", T0)
+    assert anterior(quien="ana") == V2
+    assert filas()[-1] == (CORAZON, "anterior", V2, 32, 32, "ana", T0.isoformat())
+    assert vigente() == V2
+    # Y desde ahí sigue retrocediendo por las subidas, como siempre.
+    assert anterior() == V1
+    assert anterior() is None
+    assert anterior() == V2
+
+
+def test_desde_el_provisional_se_salta_la_ultima_si_ya_no_esta_en_disco():
+    subir(CORAZON, V1)
+    subir(CORAZON, V2)
+    db.volver_al_provisional(CORAZON, "felipe", T0)
+    assert anterior(en_disco=lambda archivo: archivo != V2) == V1
+
+
+def test_desde_el_provisional_sin_nada_en_disco_no_hay_anterior():
+    subir(CORAZON, V1)
+    db.volver_al_provisional(CORAZON, "felipe", T0)
     antes = filas()
     with pytest.raises(db.NoHayAnterior):
-        anterior()
+        anterior(en_disco=lambda _archivo: False)
     assert filas() == antes and vigente() is None
 
 
@@ -405,10 +425,25 @@ def test_volver_a_la_anterior_salta_lo_que_falta_en_la_carpeta(carpeta):
     assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == nombres[0]
 
 
-def test_desde_el_provisional_volver_a_la_anterior_lo_dice(carpeta):
-    subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
+def test_desde_el_provisional_volver_a_la_anterior_deshace_el_provisional(carpeta):
+    primera = subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
+    segunda = subir_por_ruta(carpeta, CORAZON, png((4, 5, 6, 255)))
     corazon = arte_subido.pieza_de(CORAZON)
     arte_subido.volver(carpeta, corazon, "provisional", "felipe", T0)
+    assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == segunda
+    assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == primera
+
+
+def test_sin_nada_subido_en_disco_volver_a_la_anterior_lo_dice(carpeta):
+    corazon = arte_subido.pieza_de(CORAZON)
+    with pytest.raises(arte_subido.NoVale) as rechazo:
+        arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0)
+    assert rechazo.value.mensaje == "No hay una imagen anterior."
+    assert filas() == []
+    # Con lo subido ya fuera de la carpeta, tampoco hay a qué volver.
+    nombre = subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
+    arte_subido.volver(carpeta, corazon, "provisional", "felipe", T0)
+    (carpeta / nombre).unlink()
     antes = filas()
     with pytest.raises(arte_subido.NoVale) as rechazo:
         arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0)

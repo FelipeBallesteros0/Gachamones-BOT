@@ -1916,6 +1916,11 @@ La primera tanda de la hoja de ruta de Monsteropolis
 - `python -m herramientas.pagina_de_prueba` levanta una página de prueba sobre
   bases de mentira (ver el README).
 
+### Lo que decidió el dueño
+
+- La ficha de «De la alfa» dice «💎 5» también a quien cobró 25 antes del
+  cambio: «Dejarlo así» (2026-11-20). La ficha dice lo que paga cada medalla hoy.
+
 ### Lo decidido por el controlador (técnico)
 
 - No se añadió la guarda «ningún router importa de otro»: medio `web/` comparte
@@ -1932,6 +1937,47 @@ La primera tanda de la hoja de ruta de Monsteropolis
 - En pantallas de alta densidad la pieza se ve algo menor dentro de su
   recuadro: es el precio de no estirar el arte.
 
+### Para publicarla
+
+Sola y antes de las herramientas del dibujante; si va con ellas, basta con
+«Para publicar este plan» de Monsteropolis A, porque esa rama ya la lleva
+dentro. No toca el túnel, ni la base, ni el bot: no pide ensayo ni nada de la
+lista del rediseño. **Cada paso que toca `main` o producción necesita el permiso
+expreso del dueño en ese momento.**
+
+1. **Fusionar en `main` y subir, con permiso expreso.** En el clon local, una
+   orden por renglón:
+
+   ```bash
+   git fetch origin main
+   git merge-base --is-ancestor origin/main monsteropolis/0-tanda-corta   # sin salida y sin error: es un avance rápido
+   git checkout main
+   git merge --ff-only monsteropolis/0-tanda-corta
+   git push origin main
+   ```
+
+   Se espera la integración continua en verde en 3.12 y 3.14. Si no es un avance
+   rápido, no se fusiona; sin ese verde, no se despliega: se mira con el dueño.
+2. **Desplegar, con permiso expreso.** Antes, en la Raspberry, en la carpeta del
+   repo, `git rev-parse HEAD`, que se anota: es el commit al que se vuelve (el
+   guion lo deja también en `.git/gachamon-anterior`, pero cada intento lo
+   pisa). Después, desde el clon local y en `main`: `SIN_TESTS=1
+   ./actualizar-pi.sh`. El guion saca la copia de la base, comprueba cada
+   servicio y la salud, y si falla a medias vuelve solo al commit de antes.
+3. **Comprobar.** Desde fuera, `/gachamon/` contesta como siempre. En la
+   Raspberry, `journalctl -u tamagotchi -u gachamon-web --since <la hora del
+   paso 2>` sin avisos de arranque. El dueño entra con su cuenta y juega; en un
+   computador, el juego ocupa toda la ventana.
+4. **Volver atrás, con permiso expreso**, si hiciera falta. En la Raspberry, en
+   la carpeta del repo: `git reset --hard <el commit del paso 2>`,
+   `./venv/bin/python -m pip install -r requirements.txt`, y reiniciar el bot y
+   después la web (`sudo systemctl restart tamagotchi`, `sudo systemctl restart
+   gachamon-web`). Se comprueba la salud de la web en la Raspberry
+   (`/gachamon/api/salud`) y `/gachamon/` desde fuera. La base no se toca: la
+   tanda corta no la cambia. **`main` sigue con la tanda corta**: el siguiente
+   `actualizar-pi.sh` de costumbre la volvería a publicar, así que no se
+   despliega `main` hasta arreglarlo con el dueño.
+
 ## Salió al ejecutar Monsteropolis A, del lado del juego (las herramientas del dibujante)
 
 El proyecto A de la hoja de ruta
@@ -1943,9 +1989,9 @@ dice el diseño. La rama sale de la de la tanda corta.
 ### Lo hecho
 
 - **El juego pasa a `/monsteropolis`.** `/gachamon` y todo lo que cuelga de él
-  redirigen con un 308, que conserva método y cuerpo, al mismo camino bajo el
-  prefijo nuevo, con su consulta. El enlace del manual del bot se queda en
-  `/gachamon`: el bot no se toca.
+  redirigen con un 308, que conserva método y cuerpo y no se guarda en caché, al
+  mismo camino bajo el prefijo nuevo, con su consulta. El enlace del manual del
+  bot se queda en `/gachamon`: el bot no se toca.
 - **El permiso del dibujante** (`sesion.puede_dibujar`, `dibujante_actual`) se
   lee aparte, en sólo lectura, de la base del sitio. La cuenta bloqueada no lo
   tiene, y una base que no se puede leer tampoco. Una ruta del dibujante sin
@@ -1961,7 +2007,9 @@ dice el diseño. La rama sale de la de la tanda corta.
 - **La API del dibujante** bajo `/monsteropolis_dibujante/api/`: piezas (con
   su estado y, si el contrato cambió su medida, el aviso de que se ve el
   provisional), subir, historial, volver a la anterior, volver al provisional,
-  el avance por grupos para el tablero del sitio y el zip de todo lo subido.
+  el avance por grupos para el tablero del sitio y el zip de lo que se ve hoy
+  (sin las anteriores guardadas ni lo vuelto al provisional: la copia completa
+  es la que saca `actualizar-pi.sh`).
   Todas contestan sin caché, y la descarga también (la red de entrega guarda
   los `.zip` por su extensión).
 - **Lo subido llega a quien juega** por una dirección propia con el nombre del
@@ -1982,8 +2030,10 @@ dice el diseño. La rama sale de la de la tanda corta.
 - Las direcciones: el juego en `/monsteropolis` y la página del dibujante en
   `/monsteropolis_dibujante`.
 - Una imagen subida se ve en el juego al momento: no hay aprobación previa.
-- «Volver a la anterior» retrocede: v3, v2, v1, y luego el provisional. Desde el
-  provisional no hay nada detrás y dice «No hay una imagen anterior.».
+- «Volver a la anterior» retrocede: v3, v2, v1, y luego el provisional.
+- Desde el provisional, «Volver a la anterior» vuelve a la última imagen subida
+  que siga en disco, para que un toque de más en «Volver al provisional» se
+  deshaga con otro (2026-11-20).
 - La frase de `entrada.js`: sólo cambió la dirección que ya traía.
 
 ### Lo que decidió el controlador (técnico)
@@ -1991,8 +2041,12 @@ dice el diseño. La rama sale de la de la tanda corta.
 - La subida llega como cuerpo crudo y no como `multipart`: `python-multipart` no
   está en los requisitos y no se añade una dependencia por esto. La lectura del
   cuerpo va tras el permiso, así que un anónimo no hace leer nada.
-- El 308 y no un 301 ni un 307: una página vieja abierta sigue funcionando el
-  día de publicar.
+- El 308 y no un 301: conserva el método y el cuerpo, como un 307, y una página
+  vieja abierta sigue funcionando el día de publicar. Sale con `Cache-Control:
+  no-store`: una 308 sin cabeceras de caché el navegador la guarda para siempre,
+  y tras una vuelta atrás quien ya hubiera entrado seguiría yendo a
+  `/monsteropolis/`, que el juego de antes no contesta. Cuando el dueño dé el
+  cambio por definitivo, el `no-store` se puede quitar.
 - La dirección del cliente está escrita en `index.html` y en `api.js` (el
   JavaScript no lee `PREFIJO` y sus pruebas corren en Node); una prueba vigila
   que coincidan con `web.PREFIJO`.
@@ -2000,6 +2054,9 @@ dice el diseño. La rama sale de la de la tanda corta.
   dueño puede pedir juntar.
 - «Anterior» se salta una subida que es la misma imagen que la vigente: si no,
   pulsarlo no cambiaría nada a la vista.
+- Cuando una pieza no tiene ninguna imagen subida a la que volver, «Volver a la
+  anterior» no cambia nada y dice «No hay una imagen anterior.». Antes de la
+  decisión del dueño del 2026-11-20, también lo decía desde el provisional.
 - La poda decide y borra dentro de un `BEGIN IMMEDIATE`, que excluye subidas y
   vueltas atrás; una poda que no puede borrar un archivo lo avisa en el
   registro y no hace fallar la subida. `arte_subido` importa `db`; `db` no
@@ -2015,10 +2072,24 @@ dice el diseño. La rama sale de la de la tanda corta.
 
 ### Lo que queda
 
-- `db.conectar()` no cierra sus conexiones al salir del `with`: con Python 3.12,
-  el de producción, se cierran al soltar la referencia; con 3.14 pueden quedar
-  abiertas hasta el recolector. Que `conectar` cierre al salir. (Viene de antes
-  de este plan.)
+- `db.conectar()` no cierra sus conexiones al salir del `with`, ni con Python
+  3.12, el de producción, ni con 3.14: quedan abiertas hasta que pasa el
+  recolector. En 3.12 pasa pronto (medido: unas 65 abiertas como mucho en 3000
+  vueltas, frente a unas 950 en 3.14), así que no hace falta arreglarlo antes de
+  publicar. Antes de subir el Python de la Raspberry, `conectar` tiene que cerrar
+  al salir, o la unidad necesita `LimitNOFILE`: el tablero del sitio pide el
+  avance cada 4 s por pestaña. (Viene de antes de este plan.)
+- Reponer una copia de la base es reponer también la carpeta de lo subido desde
+  su `arte_subido.*.tar.gz` del mismo momento (las dos las saca
+  `actualizar-pi.sh`). Si no, lo subido después de esa copia queda sin renglón, y
+  la primera subida que venga lo borra como huérfano pasada una hora; sólo queda
+  en los `.tar.gz`. Si la copia de la base es de antes de que existiera la
+  carpeta, la carpeta se aparta fuera del repo en vez de quedarse.
+- La ruta pública de lo subido (`/monsteropolis/arte-subido/…`) recalcula en cada
+  petición lo que se conserva de todas las piezas, y la tabla no tiene índices
+  (medido: unos 24 ms con 16 200 renglones). Hoy no molesta, porque la red de
+  entrega guarda el 200 y la tabla tardará en crecer; si crece, un índice para
+  esa consulta.
 - Una imagen ya podada que se vuelve a subir cruza con la poda de la subida
   anterior: la subida guarda otra vez tras anotarla, y el caso está cubierto,
   pero conviene vigilarlo si la poda cambia.
@@ -2027,49 +2098,105 @@ dice el diseño. La rama sale de la de la tanda corta.
 
 ### Para publicar este plan
 
-Va después de la tanda corta o con ella; la tanda corta, la rama anterior, **no
-toca el túnel** y puede publicarse antes y por separado con la lista de abajo
-(«Para publicar») tal cual. Este plan sí lo toca, y por eso su orden importa. El
-diseño lo explica: con el túnel de antes, que sólo manda `/gachamon` al juego, el
-juego nuevo redirigiría `/gachamon` a una dirección que cae en el sitio. **Cada
-paso que toca producción necesita el permiso expreso del dueño en ese momento.**
+Esta rama lleva dentro la de la tanda corta: si la tanda corta no se publicó
+antes, sale con ésta y bastan estos pasos; si va antes y sola, con los suyos
+(«Para publicarla», en «Salió al ejecutar Monsteropolis 0»). Este plan sí toca
+el túnel, y por eso su orden importa: con el túnel de antes, que sólo manda
+`/gachamon` al juego, el juego nuevo redirigiría `/gachamon` a una dirección que
+cae en el sitio (el diseño lo explica). **Cada paso que toca el túnel, `main` o
+producción necesita el permiso expreso del dueño en ese momento.**
 
-1. **La regla del túnel, con permiso expreso.** Se hace: el reparto por ruta que
-   manda al juego `^/(gachamon|monsteropolis|monsteropolis_dibujante)(/.*)?$`
-   (con el `^` delante no alcanza `/plan/monsteropolis`, que es del sitio). Se
-   comprueba, con `curl` desde fuera, que `/gachamon/` sigue contestando como
-   hoy y que `/plan/monsteropolis` sigue siendo del sitio. Se espera: nada
-   cambia para nadie; `/monsteropolis/` contesta todavía el «no existe» del juego
-   viejo, que nadie enlaza. Si falla: se quita la regla nueva y se deja la de
-   antes; sin ella, no se sigue.
-2. **El juego, con permiso expreso y la integración continua en verde en las dos
-   versiones de Python.** Se hace: `SIN_TESTS=1 ./actualizar-pi.sh`. El guion
-   saca la copia de la base y, si existe, la de lo subido (hoy no existe),
-   comprueba cada servicio y la salud. Si el guion falla a medias, vuelve al
-   commit de antes y reinicia la web solo (ver su aviso final).
-3. **Mirarlo desde fuera, con `curl`.** Se comprueba: `/monsteropolis/` y su
-   salud contestan 200; `/gachamon/` contesta 308 hacia `/monsteropolis/`;
-   `/monsteropolis_dibujante/` sin sesión contesta 404; `/plan/monsteropolis` sigue
-   siendo del sitio. Si alguna no sale así, se revisa la regla del túnel (paso 1)
-   antes que el juego.
-4. **El arranque.** Crea la tabla `arte_subido`, vacía, porque es aditiva: no
-   toca nada de lo que hay. La carpeta de lo subido no existe hasta la primera
-   subida, y de ahí en adelante ningún despliegue la borra. Se comprueba que el
-   registro del arranque no trae avisos. Si los trae, no se sigue sin el dueño.
-5. **El sitio, con su permiso expreso y una copia de su base**, según su propio
+En las comprobaciones con `curl`, quién contesta se distingue así: un 404 del
+juego es JSON, `{"detail":{"clave":"no_existe",…}}`; uno del sitio, no.
+
+1. **La regla del túnel, con permiso expreso.** Es el único paso que puede dejar
+   sin servicio el sitio y el juego a la vez: con un error en la configuración
+   del túnel, no contesta nada en todo el dominio. Se hace, en la Raspberry:
+   1. sacar una copia del archivo de configuración del túnel, junto a él, antes
+      de tocarlo;
+   2. cambiar sólo la regla de `/gachamon` por la nueva, en el mismo sitio
+      (antes de la regla del dominio): la que manda al juego
+      `^/(gachamon|monsteropolis|monsteropolis_dibujante)(/.*)?$` (con el `^`
+      delante no alcanza `/plan/monsteropolis`, que es del sitio);
+   3. validarla antes de reiniciar: `cloudflared tunnel ingress validate` tiene
+      que salir bien; `cloudflared tunnel ingress rule
+      https://rowino.online/monsteropolis_dibujante/` tiene que nombrar el
+      servicio del juego, y la misma orden con
+      `https://rowino.online/plan/monsteropolis`, el del sitio (con `--config
+      <el archivo>` si no es el de por defecto);
+   4. reiniciar el servicio del túnel, que corta unos segundos todo el dominio.
+
+   Se comprueba, con `curl` desde fuera: `/gachamon/` sigue contestando como hoy;
+   `/plan/monsteropolis` sigue siendo del sitio (no trae el JSON del juego); y
+   `/monsteropolis/` contesta el «no existe» del juego viejo, que nadie enlaza.
+   Si algo falla: se repone la copia, se reinicia el túnel y se comprueba que
+   `/gachamon/` y el sitio contestan como antes. Sin la regla nueva, no se sigue.
+2. **Fusionar en `main` y subir, con permiso expreso.** `actualizar-pi.sh`
+   despliega `origin/main`: sin este paso, el siguiente deja la Raspberry como
+   estaba. En el clon local, una orden por renglón:
+
+   ```bash
+   git fetch origin main
+   git merge-base --is-ancestor origin/main monsteropolis/a-herramientas-del-dibujante   # sin salida y sin error: es un avance rápido
+   git checkout main
+   git merge --ff-only monsteropolis/a-herramientas-del-dibujante
+   git push origin main
+   ```
+
+   Se espera: la comprobación sin error y la integración continua en verde en las
+   dos versiones de Python, 3.12 y 3.14. Si no es un avance rápido, no se
+   fusiona: alguien subió algo a `main` y se mira con el dueño. Sin ese verde, no
+   se despliega. Desde aquí `main` lleva el juego nuevo: nada se despliega de
+   costumbre antes del paso 3.
+3. **El juego, con permiso expreso.** Antes, en la Raspberry, en la carpeta del
+   repo, `git rev-parse HEAD`, que se anota: es el commit al que se vuelve (el
+   guion lo deja también en `.git/gachamon-anterior`, pero cada intento lo
+   pisa). Después, desde el clon local y en `main`: `SIN_TESTS=1
+   ./actualizar-pi.sh`. El guion saca la copia de la base y, si existe, la de lo
+   subido (hoy no existe), y comprueba cada servicio y la salud. Si falla a
+   medias, vuelve al commit de antes y reinicia la web solo (ver su aviso final).
+4. **Mirarlo desde fuera, con `curl`.** Se comprueba: `/monsteropolis/` y su
+   salud contestan 200; `/gachamon/` contesta 308 hacia `/monsteropolis/`, con
+   `Cache-Control: no-store`; `/monsteropolis_dibujante/` sin sesión contesta el
+   404 del juego; `/plan/monsteropolis` sigue siendo del sitio. Si alguna no sale
+   así, se revisa la regla del túnel (paso 1) antes que el juego.
+5. **El registro.** En la Raspberry, `journalctl -u tamagotchi -u gachamon-web
+   --since <la hora del paso 3>`. El arranque crea la tabla `arte_subido`, vacía,
+   porque es aditiva: no toca nada de lo que hay. La carpeta de lo subido no
+   existe hasta la primera subida, y de ahí en adelante ningún despliegue la
+   borra. Se espera un registro sin avisos de arranque. Si los trae, no se sigue
+   sin el dueño.
+6. **El sitio, con su permiso expreso y una copia de su base**, según su propio
    diseño (la copia, fuera de la carpeta del sitio, con la comprobación de
-   integridad de SQLite).
-6. **El permiso «arte».** El dueño se lo da a sí mismo y al dibujante en la
+   integridad de SQLite). Si el sitio falla, se sigue su propia vuelta atrás; el
+   juego no depende de él y sigue andando (sin la columna del arte en la base del
+   sitio, sólo su administrador abre la página del dibujante).
+7. **El permiso «arte».** El dueño se lo da a sí mismo y al dibujante en la
    administración del sitio. Se comprueba: con el permiso, la página del
-   dibujante abre y el avance contesta 200; sin él, 404. Se espera: una subida
-   de prueba se ve en el juego al recargar. Si no, se mira que la cuenta no esté
-   bloqueada y que la base del sitio tenga la columna.
-7. **Volver atrás, con el permiso expreso del dueño.** Primero el sitio (su
-   propia copia), después el juego (`git reset --hard` al commit anterior y sus
-   requisitos, y reiniciar el bot y la web). **La regla del túnel se queda:**
-   el juego de antes no contesta `/monsteropolis`, pero no estorba. La base
-   conserva la tabla `arte_subido`, que el código viejo ignora, y lo subido sigue
-   en su carpeta: se pierde sólo la vista, no los archivos.
+   dibujante abre y el avance contesta 200; sin él, 404. Si no, se mira que la
+   cuenta no esté bloqueada y que la base del sitio tenga la columna. **Una
+   subida se ve al momento para todos los que juegan** y deja su renglón en un
+   historial que sólo crece: si se prueba una, la hace el dueño, con una imagen
+   que sirva de verdad, o la vuelve enseguida al provisional. Su tarjeta del
+   tablero se queda donde llegó (la de un grupo de una sola pieza, como el fondo
+   del pueblo, pasa a «Hecho») y se mueve a mano.
+8. **Volver atrás, con el permiso expreso del dueño.** Primero el sitio (con su
+   propia copia), después el juego, en la Raspberry, en la carpeta del repo:
+   `git reset --hard <el commit del paso 3>`, `./venv/bin/python -m pip install
+   -r requirements.txt`, y reiniciar el bot y después la web (`sudo systemctl
+   restart tamagotchi`, `sudo systemctl restart gachamon-web`). Se comprueba la
+   salud de la web en la Raspberry (`/gachamon/api/salud`) y `/gachamon/` desde
+   fuera. Quien había entrado por `/gachamon` con la versión nueva vuelve al
+   juego de antes, porque la 308 no se guardó en su navegador; quien tenga
+   abierta la página nueva ve errores hasta que entre otra vez por `/gachamon/`.
+   **La regla del túnel se queda:** el juego de antes no contesta
+   `/monsteropolis`, pero no estorba. La base conserva la tabla `arte_subido`,
+   que el código viejo ignora, y lo subido sigue en su carpeta: se pierde sólo la
+   vista, no los archivos. **`main` sigue con la rama:** el siguiente
+   `actualizar-pi.sh` de costumbre la volvería a publicar, así que no se
+   despliega `main` hasta arreglarlo con el dueño. Si además hubiera que reponer
+   la base desde una copia, se repone la carpeta de lo subido desde la suya del
+   mismo momento (ver «Lo que queda»).
 
 ## Para publicar
 
@@ -2105,11 +2232,12 @@ Cómo salió:
   la Raspberry, fuera de la carpeta del repo, hasta que el dueño diga: borrarla
   es renunciar al paso 19. Los pasos 15 a 18 son para tenerlos presentes.
 
-**Después del rediseño viene Monsteropolis.** La tanda corta puede publicarse
-antes y por separado, con esta misma lista, porque no toca el túnel. Las
-herramientas del dibujante, no: tienen su propio orden (el túnel primero, luego
-el juego, luego el sitio) en «Para publicar este plan», dentro de «Salió al
-ejecutar Monsteropolis A, del lado del juego».
+**Después del rediseño viene Monsteropolis.** Esta lista no le sirve: es la del
+rediseño, con su ensayo y su día del cambio. La tanda corta tiene sus pasos
+(«Para publicarla», en «Salió al ejecutar Monsteropolis 0»), y las herramientas
+del dibujante, los suyos, con su propio orden (el túnel primero, luego el juego,
+luego el sitio), en «Para publicar este plan», dentro de «Salió al ejecutar
+Monsteropolis A, del lado del juego».
 
 La lista única para el día de publicar el rediseño entero (los reworks 1 a 8), en
 orden y sin repetir. Cada paso dice qué se hace y con qué orden, cómo se
@@ -2496,7 +2624,11 @@ permiso: `AGENTS.md` no exceptúa ninguna copia ni lectura.
        `tamagotchi.db-journal`, porque esta base no usa el modo de los `-wal` y
        `-shm`, y dejarlo junto a la copia repuesta la estropearía) y copiar
        (`cp <la copia> tamagotchi.db`); se comprueba con la comprobación de
-       integridad del paso 4: `ok`;
+       integridad del paso 4: `ok`. Lo subido por el dibujante va con la base: si
+       existe la carpeta `arte_subido`, se aparta fuera del repo (esta copia es
+       de antes de que existiera; con otra copia, se repone la carpeta desde su
+       `arte_subido.*.tar.gz` del mismo momento), porque con la base repuesta sus
+       imágenes quedan sin renglón y la primera subida que venga las borraría;
     3. volver el código al commit anotado en el paso 10 (`git reset --hard
        <commit>`, como hace el propio guion cuando vuelve atrás solo) y
        reinstalar sus requisitos (`./venv/bin/python -m pip install -r

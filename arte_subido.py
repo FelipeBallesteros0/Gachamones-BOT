@@ -272,8 +272,9 @@ def volver(carpeta: Path, pieza: arte.Pieza, a: str, quien: str, ahora: datetime
     """Vuelve atrás `a` "anterior" o `a` "provisional"; devuelve lo que quedó vigente.
 
     «anterior» retrocede una subida (`db.volver_a_la_anterior`), saltando las imágenes
-    que ya no están en la carpeta; desde el provisional lanza `NoVale`. Volver no
-    cambia lo que se conserva, así que no poda.
+    que ya no están en la carpeta; desde el provisional vuelve a la última subida, y
+    si no queda ninguna, lanza `NoVale`. Volver no cambia lo que se conserva, así que
+    no poda.
     """
     if a == "provisional":
         db.volver_al_provisional(pieza.ruta, quien, ahora)

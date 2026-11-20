@@ -2736,7 +2736,7 @@ _ARCHIVO_DE_ARTE = re.compile(r"[0-9a-f]{64}\.png")
 
 
 class NoHayAnterior(Exception):
-    """La pieza está en el recuadro provisional: no hay imagen anterior a la que volver."""
+    """La pieza está en el recuadro provisional y no tiene ninguna imagen subida a la que volver."""
 
 
 @dataclass(frozen=True)
@@ -2816,9 +2816,13 @@ def volver_a_la_anterior(
 
     Las subidas van en el orden en que se subieron, y volver no las reordena: con
     v1, v2 y v3, se pasa a v2, luego a v1 y luego al recuadro provisional (y
-    devuelve `None`). Se saltan las subidas de la misma imagen que la puesta y las
-    que ya no se guardan o no están `en_disco`. Deja un renglón nuevo a nombre de
-    quien vuelve. Desde el provisional no cambia nada y lanza `NoHayAnterior`.
+    devuelve `None`). Desde el provisional se vuelve a la última subida, para que
+    un toque de más en «Volver al provisional» se deshaga con otro (decisión del
+    dueño, 2026-11-20). Se saltan las subidas de la misma imagen que la puesta y
+    las que ya no se guardan o no están `en_disco`. Deja un renglón nuevo a nombre
+    de quien vuelve. Si no queda ninguna imagen subida a la que volver desde el
+    provisional, o la pieza no tiene historial, no cambia nada y lanza
+    `NoHayAnterior`.
     """
     _comprobar_ruta_de_arte(ruta)
     with conectar() as con:
@@ -2828,10 +2832,13 @@ def volver_a_la_anterior(
             "WHERE ruta = ? ORDER BY id DESC",
             (ruta,),
         ).fetchall()
-        if not filas or filas[0]["accion"] == "provisional":
+        if not filas:
             raise NoHayAnterior(ruta)
         puesta = filas[0]
-        donde = puesta["id"] if puesta["accion"] == "subir" else puesta["subida"]
+        desde_el_provisional = puesta["accion"] == "provisional"
+        # Por dónde va la secuencia de subidas: la subida puesta o, desde el provisional,
+        # detrás de la última.
+        donde = puesta["subida"] if puesta["accion"] == "anterior" else puesta["id"]
         guardadas = set(_guardadas_en(con).get(ruta, ()))
         anterior = next((
             f for f in filas
@@ -2839,6 +2846,8 @@ def volver_a_la_anterior(
             and f["archivo"] in guardadas and en_disco(f["archivo"])
         ), None)
         if anterior is None:
+            if desde_el_provisional:
+                raise NoHayAnterior(ruta)
             _anotar_arte_en(con, ruta, "provisional", None, None, None, None, quien, ahora)
             return None
         _anotar_arte_en(con, ruta, "anterior", anterior["id"], anterior["archivo"],
