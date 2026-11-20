@@ -229,3 +229,62 @@ test('un mueble de bulto con acción también se usa', () => {
   const laMaceta = (puesto) => puesto.id === 7;
   assert.deepEqual(p.queSeUsa(M, VIVIENDO, [], ...p.proyectar(M, 0.5, 2.5), laMaceta), { tipo: 'accion', id: 7 });
 });
+
+// --- lo transparente de un gachamon deja pasar el toque ----------------------------------
+
+// Un `visible` que no ve a ninguno, y uno que sólo ve a los de esos ids.
+const aNinguno = () => false;
+const soloA = (...ids) => (g) => ids.includes(g.id);
+
+test('con `visible` que dice que no, el toque cae en lo de detrás: otro gachamon, un mueble o la casilla', () => {
+  const sinVer = (pieza, i, j, h = 0) => p.queSeToco(M, pieza, GENTE, ...p.proyectar(M, i, j, h), aNinguno);
+  const vacia = depto([], 4, 4);
+  assert.deepEqual(sinVer(vacia, 1.5, 1.5), { tipo: 'casilla', i: 1, j: 1 });              // sus pies: su casilla
+  assert.deepEqual(sinVer(vacia, 1.5, 1.5, 0.5 * M.tw), { tipo: 'casilla', i: 0, j: 0 });  // su cabeza: la casilla de atrás
+  assert.deepEqual(sinVer(PIEZA, 2.5, 2.5, 0.75 * M.tw), { tipo: 'mueble', id: 7 });       // donde se cruza con la maceta: ella
+  // De dos que se tapan, el de atrás, si del de delante ahí no se ve nada.
+  const dos = [{ id: 1, i: 1, j: 1 }, { id: 2, i: 2, j: 2 }];
+  const punto = p.proyectar(M, 2.5, 2.5, 0.6 * M.tw);
+  assert.deepEqual(p.queSeToco(M, depto([], 4, 4), dos, ...punto, soloA(1)), { tipo: 'gachamon', id: 1 });
+  assert.deepEqual(p.queSeToco(M, depto([], 4, 4), dos, ...punto, soloA(1, 2)), { tipo: 'gachamon', id: 2 });
+});
+
+test('viviendo, con `visible` que dice que no, el toque va a la puerta de detrás, a otro gachamon o a la casilla', () => {
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, GENTE, ...p.proyectar(M, 1.5, 1.5), conAccion, aNinguno),
+    { tipo: 'casilla', i: 1, j: 1 });                                                         // se camina hasta ahí
+  const delante = [{ id: 4, i: 0, j: 2 }];
+  const enLaPuerta = p.proyectar(M, 0, 2.5, M.pared / 2);
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, delante, ...enLaPuerta, conAccion, aNinguno), { tipo: 'accion', id: 5 });
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, delante, ...enLaPuerta, conAccion, soloA(4)), { tipo: 'gachamon', id: 4 });
+  const dos = [{ id: 1, i: 1, j: 1 }, { id: 2, i: 2, j: 2 }];
+  const punto = p.proyectar(M, 2.5, 2.5, 0.6 * M.tw);
+  assert.deepEqual(p.queSeUsa(M, depto([], 4, 4), dos, ...punto, conAccion, soloA(1)), { tipo: 'gachamon', id: 1 });
+});
+
+test('con `visible`, manda él: se le pregunta por cada gachamon con el punto, y fuera de su caja también vale (uno que salta)', () => {
+  const preguntas = [];
+  const sobreSuCaja = p.proyectar(M, 1.5, 1.5, 0.7 * M.tw);                                // justo por encima de su caja
+  const caja = p.cajaDelGachamon(M, 1, 1);
+  assert.ok(sobreSuCaja[1] < caja.y);
+  assert.deepEqual(p.queSeToco(M, depto([], 4, 4), GENTE, ...sobreSuCaja), { tipo: 'casilla', i: 0, j: 0 });   // sin `visible`, el suelo
+  const visible = (g, x, y) => {
+    preguntas.push([g, x, y]);
+    return true;
+  };
+  assert.deepEqual(p.queSeToco(M, depto([], 4, 4), GENTE, ...sobreSuCaja, visible), { tipo: 'gachamon', id: 3 });
+  assert.deepEqual(preguntas, [[GENTE[0], ...sobreSuCaja]]);
+  assert.deepEqual(p.queSeUsa(M, depto([], 4, 4), GENTE, ...sobreSuCaja, conAccion, visible), { tipo: 'gachamon', id: 3 });
+});
+
+test('sin `visible`, todo da lo mismo que hoy: cuenta la caja entera de cada gachamon', () => {
+  const caja = p.cajaDelGachamon(M, 1, 1);
+  const enSuEsquina = [caja.x + 1, caja.y + 1];
+  assert.deepEqual(p.queSeToco(M, PIEZA, GENTE, ...enSuEsquina), { tipo: 'gachamon', id: 3 });
+  assert.deepEqual(p.queSeUsa(M, VIVIENDO, GENTE, ...enSuEsquina, conAccion), { tipo: 'gachamon', id: 3 });
+  for (let x = 0; x <= 1040; x += 20) {
+    for (let y = 0; y <= 520; y += 20) {
+      assert.deepEqual(p.queSeToco(M, PIEZA, GENTE, x, y, undefined), p.queSeToco(M, PIEZA, GENTE, x, y));
+      assert.deepEqual(p.queSeUsa(M, VIVIENDO, GENTE, x, y, conAccion, undefined), p.queSeUsa(M, VIVIENDO, GENTE, x, y, conAccion));
+    }
+  }
+});

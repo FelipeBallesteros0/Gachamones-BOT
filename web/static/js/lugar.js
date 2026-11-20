@@ -39,6 +39,7 @@ import {
   ofreceLaAventura, ofreceLaTienda, siguiente,
 } from './pantallas.js';
 import { cuantasGemas, cuantasMonedas, elegirGlobo } from './tiempo.js';
+import { seVe } from './transparencia.js';
 
 const PEDIR_ESTADO_CADA_MS = 30_000;
 const PRIMER_GLOBO_MS = 2500;
@@ -654,7 +655,35 @@ export function lugar(contenedor, estado, seguir, llegando = false) {
     if (fallido) releer();
   }
 
-  gachamon.addEventListener('click', acariciar);
+  // Dónde se ve el dibujo del retrato en la página. El CSS lo encaja entero en
+  // su caja, sin deformarlo, centrado y apoyado abajo (`.gachamon > .retrato`:
+  // `object-fit: contain` y `object-position: 50% 100%`); lo que lo mueve o lo
+  // estira (respirar, saltar) mueve y estira su caja con él, que es lo que mide
+  // `getBoundingClientRect`, y su caja sin eso mide `offsetWidth` × `offsetHeight`.
+  function dondeSeVeElRetrato() {
+    const caja = retrato.getBoundingClientRect();
+    const { naturalWidth, naturalHeight, offsetWidth, offsetHeight } = retrato;
+    const escala = Math.min(offsetWidth / naturalWidth, offsetHeight / naturalHeight);
+    const ancho = (caja.width * naturalWidth * escala) / offsetWidth;
+    const alto = (caja.height * naturalHeight * escala) / offsetHeight;
+    return { x: caja.left + (caja.width - ancho) / 2, y: caja.top + caja.height - alto, ancho, alto };
+  }
+
+  // Si en ese punto de la página se ve algo del gachamon. Sin su retrato (no
+  // cargó y se ve su emoji, o todavía no llega), cuenta el botón entero.
+  function seLeVeEn(x, y) {
+    const { naturalWidth, naturalHeight, offsetWidth, offsetHeight } = retrato;
+    if (retrato.hidden || !(naturalWidth > 0 && naturalHeight > 0 && offsetWidth > 0 && offsetHeight > 0)) return true;
+    return seVe(retrato, dondeSeVeElRetrato(), x, y);
+  }
+
+  // Lo transparente del retrato no es él: un clic de puntero (el navegador lo
+  // cuenta desde 1 en `detail`) ahí no hace nada. El del teclado (Intro o
+  // espacio: `detail` 0, sin punto) acaricia siempre.
+  gachamon.addEventListener('click', (evento) => {
+    if (evento.detail > 0 && !seLeVeEn(evento.clientX, evento.clientY)) return;
+    acariciar();
+  });
 
   // --- mantenerse al día ------------------------------------------------------------------
 

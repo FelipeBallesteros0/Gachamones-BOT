@@ -3596,3 +3596,74 @@ test('sin la primera pieza, volver a la pestaña no lee', async () => {
   await documento.dispara('visibilitychange');
   assert.equal(pedidos.length, antes);
 });
+
+// --- lo transparente de un gachamon deja pasar el toque ----------------------------------
+
+// Desde ahora, los lienzos que cree ese documento leen sus píxeles como si lo
+// que se les pinta tuviera, en cada punto `(u, v)` de su dibujo, el alfa
+// `alfa(imagen, u, v)`; lo demás que se les pida, lo aceptan sin más. Devuelve
+// las imágenes que se leyeron, una por lectura.
+function conPixeles(documento, alfa) {
+  const leidas = [];
+  const crear = documento.createElement;
+  documento.createElement = (etiqueta) => {
+    const nodo = crear(etiqueta);
+    if (etiqueta !== 'canvas') return nodo;
+    let pintada = null;
+    const contexto = new Proxy({}, {
+      get: (_, nombre) => {
+        if (nombre === 'drawImage') return (imagen) => { pintada = imagen; };
+        if (nombre !== 'getImageData') return () => {};
+        return (x0, y0, ancho, alto) => {
+          leidas.push(pintada);
+          const data = new Uint8ClampedArray(ancho * alto * 4);
+          for (let v = 0; v < alto; v += 1) for (let u = 0; u < ancho; u += 1) data[(v * ancho + u) * 4 + 3] = alfa(pintada, u, v);
+          return { width: ancho, height: alto, data };
+        };
+      },
+      set: () => true,
+    });
+    nodo.getContext = () => contexto;
+    return nodo;
+  };
+  return leidas;
+}
+
+// Los retratos de mentira miden 48 × 84: la mitad de arriba de su dibujo, transparente.
+const MEDIO_TRANSPARENTE = (imagen, u, v) => (v < 42 ? 0 : 255);
+
+test('viviendo, tocar lo transparente de un gachamon camina hasta la casilla de detrás; tocar lo que se ve de él lo elige', async () => {
+  const { pantalla, documento } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+  const leidas = conPixeles(documento, MEDIO_TRANSPARENTE);
+  const [i, j] = dondeEsta(DEPTO, 0);                                   // Pelusa, en (1, 2)
+  const { m } = medidaDe(pantalla);
+  // El centro de la casilla de detrás, (0, 1), cae en la mitad de arriba de su dibujo.
+  const detras = proyectar(m, i - 0.5, j - 0.5);
+  const [, [, x, y, ancho, alto]] = pintados(pantalla, PELUSA.retrato).at(-1);
+  assert.ok(detras[0] > x && detras[0] < x + ancho && detras[1] > y && detras[1] < y + alto / 2);
+  await tocarEn(pantalla, ...detras);
+  assert.equal(menu(pantalla), null);
+  assert.deepEqual(dondeEstas(pantalla), [i - 1, j - 1]);               // caminas hasta ahí (aparece)
+  await tocarCasilla(pantalla, i, j);                                   // a sus pies se le ve
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Pelusa');
+  // Su máscara se leyó una sola vez, de su retrato.
+  assert.equal(leidas.length, 1);
+  assert.ok(String(leidas[0].src).includes(PELUSA.retrato));
+});
+
+test('viviendo, lo transparente de un gachamon delante de un mueble sin acción no lo elige: el toque es del mueble, que no hace nada', async () => {
+  const { pantalla, documento } = await abrir(CON_DOS, ESTADO, { movimientoReducido: true });
+  conPixeles(documento, MEDIO_TRANSPARENTE);
+  const [i, j] = dondeEsta(CON_DOS, 1);                                 // Rulo, en (2, 1): delante de la cama
+  const { m } = medidaDe(pantalla);
+  // Un alto de casilla sobre el centro de la suya: la mitad de arriba de su dibujo, sobre la cama.
+  const sobreLaCama = proyectar(m, i + 0.5, j + 0.5, m.th);
+  const [, [, x, y, ancho, alto]] = pintados(pantalla, RULO.retrato).at(-1);
+  assert.ok(sobreLaCama[0] > x && sobreLaCama[0] < x + ancho && sobreLaCama[1] > y && sobreLaCama[1] < y + alto / 2);
+  const antes = dondeEstas(pantalla);
+  await tocarEn(pantalla, ...sobreLaCama);
+  assert.equal(menu(pantalla), null);
+  assert.deepEqual(dondeEstas(pantalla), antes);
+  await tocarCasilla(pantalla, i, j);                                   // a sus pies se le ve
+  assert.equal(texto(menu(pantalla), '.menu-nombre'), 'Rulo');
+});

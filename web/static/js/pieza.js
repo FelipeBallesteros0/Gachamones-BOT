@@ -69,31 +69,46 @@ function dondeEsta(puesto) {
   return { i: r.i0, j: r.j0, a: r.i1 - r.i0, f: r.j1 - r.j0 };
 }
 
-// El retrato de un gachamon en su caja, de pie sobre su sombra, levantado lo
-// que diga `g.sube` (un salto: la sombra se queda en el suelo). Es un dibujo
-// de cuadros: sin suavizar, y sin deformarlo. Encima del que sale contigo, su
-// marca.
+// Dónde se pinta el retrato de un gachamon (`{x, y, ancho, alto, imagen}`):
+// lo más grande que cabe en su caja sin deformarlo, centrado en su casilla,
+// con los pies abajo y levantado lo que diga `g.sube` (un salto). Sin su
+// imagen (no cargó, o todavía no llega), su caja entera, levantada igual, con
+// `imagen` en `null`. Lo usan el pintado y el toque: donde se ve es donde se toca.
+export function dondeSePintaElGachamon(m, cargadas, g) {
+  const caja = cajaDelGachamon(m, g.i, g.j);
+  const sube = g.sube || 0;
+  const cargada = cargadas.get(g.retrato);
+  if (!cargada || !cargada.imagen) {
+    return { x: caja.x, y: caja.y - sube, ancho: caja.ancho, alto: caja.alto, imagen: null };
+  }
+  const { imagen } = cargada;
+  const pies = caja.y + caja.alto;
+  const [centro] = proyectar(m, g.i + 0.5, g.j + 0.5);
+  const escala = Math.min(caja.ancho / imagen.naturalWidth, caja.alto / imagen.naturalHeight);
+  const ancho = imagen.naturalWidth * escala;
+  const alto = imagen.naturalHeight * escala;
+  return { x: centro - ancho / 2, y: pies - sube - alto, ancho, alto, imagen };
+}
+
+// El retrato de un gachamon donde se pinta (`dondeSePintaElGachamon`), de pie
+// sobre su sombra, que se queda en el suelo cuando salta. Es un dibujo de
+// cuadros: sin suavizar. El que no se pudo cargar, su recuadro; el que todavía
+// no llega, nada. Encima del que sale contigo, su marca.
 function pintarGachamon(ctx, m, cargadas, g) {
   const caja = cajaDelGachamon(m, g.i, g.j);
   const pies = caja.y + caja.alto;
   const [centro] = proyectar(m, g.i + 0.5, g.j + 0.5);
   const sombra = caja.ancho * ANCHO_DE_LA_SOMBRA;
   pintar(ctx, cargadas, SOMBRA, { x: centro - sombra / 2, y: pies - sombra / 4, ancho: sombra, alto: sombra / 2 });
-  const sube = g.sube || 0;
-  let cabeza = caja.y - sube;
-  const cargada = cargadas.get(g.retrato);
-  if (cargada && !cargada.imagen) {
-    faltante(ctx, caja.x, caja.y - sube, caja.ancho, caja.alto, g.retrato);
-  } else if (cargada) {
-    const { imagen } = cargada;
-    const escala = Math.min(caja.ancho / imagen.naturalWidth, caja.alto / imagen.naturalHeight);
-    const ancho = imagen.naturalWidth * escala;
-    const alto = imagen.naturalHeight * escala;
-    cabeza = pies - sube - alto;
+  const donde = dondeSePintaElGachamon(m, cargadas, g);
+  const cabeza = donde.y;
+  if (donde.imagen) {
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(imagen, centro - ancho / 2, pies - sube - alto, ancho, alto);
+    ctx.drawImage(donde.imagen, donde.x, donde.y, donde.ancho, donde.alto);
     ctx.restore();
+  } else if (cargadas.has(g.retrato)) {
+    faltante(ctx, donde.x, donde.y, donde.ancho, donde.alto, g.retrato);
   }
   if (g.activo) {
     const lado = caja.ancho * LADO_DE_LA_MARCA;

@@ -40,7 +40,8 @@
 // un mueble sin acción no hace nada, y lo que se pisa se camina; un toque sobre
 // lo que flota (el globo, la evolución, las medallas) no hace la acción de
 // ningún mueble. Tocar a un gachamon lo elige (se marca dónde está) y encima
-// sale su menú (`menu.js`), con «Mover» y «Acariciar». Construyendo, a los
+// sale su menú (`menu.js`), con «Mover» y «Acariciar»; lo transparente de su
+// retrato no es él: el toque pasa a lo que tiene detrás. Construyendo, a los
 // gachamones no se les toca (el toque va a lo que tienen detrás, `queSeToco`):
 // tocar un mueble lo elige y encima sale su menú, con «Mover», «Girar» (no lo
 // de pared) y «Guardar» (no la puerta), y al mover la puerta sólo se ofrecen
@@ -120,11 +121,14 @@ import { loQueFlota } from './flotantes.js';
 import { listaDelDepartamento } from './lista.js';
 import { menuDeLaPieza } from './menu.js';
 import { siguiente } from './pantallas.js';
-import { ANCHO_DEL_ARTE_DE_UNA_CASILLA, dibujarPieza, rutasDeLaPieza } from './pieza.js';
+import {
+  ANCHO_DEL_ARTE_DE_UNA_CASILLA, dibujarPieza, dondeSePintaElGachamon, rutasDeLaPieza,
+} from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
 import {
   cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, queSeUsa, tramoEn,
 } from './proyeccion.js';
+import { seVe } from './transparencia.js';
 import { transporte } from './transporte.js';
 
 const VISTA = 'departamento';
@@ -940,15 +944,22 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     else tocarViviendo(x, y, flota.cubre(evento.clientX, evento.clientY));
   }, { signal });
 
+  // Si en ese punto se ve algo del gachamon `g`, tal como se pinta (con su
+  // salto): lo transparente de su retrato deja pasar el toque a lo de detrás.
+  function seLeVe(g, x, y) {
+    const donde = dondeSePintaElGachamon(m, cargadas, g);
+    return seVe(donde.imagen, donde, x, y);
+  }
+
   // Viviendo, el toque es de lo que tiene acción (hoy, sólo la puerta: te
-  // saca), de un gachamon (tocarlo lo elige, y tocarlo otra vez deja de
-  // elegirlo) o del suelo (se camina; también sobre lo que se pisa). Ningún
-  // mueble se elige: el que no tiene acción no hace nada. Lo que no es un
-  // gachamon deja de elegir al que lo estaba. Un toque que cae sobre lo que
+  // saca), de un gachamon donde se le ve (tocarlo lo elige, y tocarlo otra vez
+  // deja de elegirlo) o del suelo (se camina; también sobre lo que se pisa).
+  // Ningún mueble se elige: el que no tiene acción no hace nada. Lo que no es
+  // un gachamon deja de elegir al que lo estaba. Un toque que cae sobre lo que
   // flota y se ve (`sobreLoQueFlota`: el globo, la evolución, las medallas) no
   // hace la acción de ningún mueble: no iba para él.
   function tocarViviendo(x, y, sobreLoQueFlota) {
-    const tocado = queSeUsa(m, depto, losDeLaPieza(), x, y, (puesto) => Boolean(puesto.puerta));
+    const tocado = queSeUsa(m, depto, losDeLaPieza(), x, y, (puesto) => Boolean(puesto.puerta), seLeVe);
     if (tocado && tocado.tipo === 'gachamon') {
       if (!envios.enCamino) elegirGachamon(tocado.id === elegidoG ? null : tocado.id);
       return;

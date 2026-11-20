@@ -146,3 +146,35 @@ Reglas de la herramienta, que sus pruebas fijan:
 ```bash
 ./venv/bin/python -m pre_commit run --all-files && git diff --check && git add -A && git diff --cached --check && git commit -m "feat: una herramienta para levantar una página de prueba con bases de mentira"
 ```
+
+### Task 6: Lo transparente de una criatura deja pasar el toque
+
+Lo pidió el dueño el 2026-11-20, tras probar la página: «cuando hago click en la parte transparente de la imagen de una criatura no debería seleccionar a la criatura sino a lo que hay detrás».
+
+**Cómo está hoy:** en el departamento, `gachamonBajo` (`web/static/js/proyeccion.js`) da por tocada a una criatura si el punto cae en su cuadrado (`cajaDelGachamon`), que además no sigue el salto (`g.sube`) con que se pinta. En el lugar, el botón de acariciar (`.gachamon`, con su `<img class="retrato">`) ocupa todo el cuadrado del dibujo.
+
+**Files:**
+- Modify: `web/static/js/proyeccion.js` (`gachamonBajo`, `queSeUsa`, `queSeToco`: un predicado opcional), `web/static/js/pieza.js` (dónde se pinta cada criatura, en una función que usen el pintado y el toque), `web/static/js/departamento.js` (le pasa el predicado), `web/static/js/lugar.js` (el clic del botón de acariciar)
+- Create, si hace falta: un módulo pequeño que diga si un punto de una imagen es visible (con su máscara de transparencia guardada por imagen)
+- Test: `tests/js/proyeccion.test.mjs`, `tests/js/pieza.test.mjs`, `tests/js/departamento.test.mjs` (pruebas nuevas, al final), `tests/js/lugar.test.mjs`
+
+**Interfaces:**
+- Produces:
+  - `queSeUsa(m, depto, gachamones, x, y, conAccion, visible)` y `queSeToco(m, depto, gachamones, x, y, visible)`: `visible(g, x, y) -> boolean` es opcional; sin él, todo queda exactamente como hoy;
+  - en `pieza.js`, `dondeSePintaElGachamon(m, cargadas, g) -> { x, y, ancho, alto, imagen }` (el rectángulo exacto con el salto y la escala de hoy; `imagen` es `null` si no cargó o falta), que usa `pintarGachamon` y el toque.
+
+**Reglas:**
+- Una criatura recibe el toque sólo si el píxel de su dibujo bajo el punto es visible (alfa mayor que cero), medido en el rectángulo donde se pinta de verdad, con su salto.
+- Si su imagen no cargó o falta (se ve el recuadro provisional), cuenta todo el recuadro, como hoy.
+- Un toque en lo transparente sigue buscando detrás: otra criatura, un mueble con acción, la pared o la casilla. Viviendo, eso es caminar hasta esa casilla.
+- En el lugar, un clic **de puntero** en lo transparente del botón de acariciar no hace nada; con el teclado (Intro o espacio, un clic sin puntero) el botón funciona como siempre, y su nombre accesible no cambia.
+- Nada de esto vale en el modo construcción (ahí las criaturas no se tocan) ni en el teléfono distinto que en el computador.
+
+- [ ] **Step 1: Las pruebas que fallan**:
+  - en `proyeccion.test.mjs`, que con `visible` que dice que no, el toque cae en lo de detrás (otra criatura, un mueble con acción, la casilla), y sin `visible` todo da lo mismo que hoy;
+  - en `pieza.test.mjs`, que `dondeSePintaElGachamon` da el rectángulo que usa `drawImage`, con y sin salto;
+  - en `departamento.test.mjs`, nuevas y al final: tocar lo transparente de la criatura camina hasta la casilla de detrás, tocar lo visible la elige;
+  - en `lugar.test.mjs`: un clic de puntero en lo transparente no acaricia, en lo visible sí, y uno de teclado sí.
+- [ ] **Step 2: Implementar.** La máscara de transparencia se calcula una vez por imagen (un lienzo fuera de la página y `getImageData`) y se guarda; las imágenes son del mismo origen.
+- [ ] **Step 3: Mirarlo** con la herramienta de páginas de prueba (`--con-gachamones`), a 390 × 664 y a 1920 × 1080: tocar entre las orejas o al lado de una criatura que está delante de un mueble o de otra criatura, y en el lugar, al lado del dibujo.
+- [ ] **Step 4: Commit** — `fix: lo transparente de una criatura deja pasar el toque`

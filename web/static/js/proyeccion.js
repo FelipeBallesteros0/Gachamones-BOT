@@ -145,10 +145,13 @@ function enLaSilueta(m, r, x, y) {
 
 const delanteDeTodo = (candidatos) => ordenDePintado(candidatos).at(-1);
 
-// El gachamon de más adelante bajo el punto, si hay alguno.
-function gachamonBajo(m, gachamones, x, y) {
+// El gachamon de más adelante bajo el punto, si hay alguno. Sin `visible`,
+// cuenta su caja entera; con él, sólo donde `visible(g, x, y)` diga que se le
+// ve (lo transparente de su dibujo deja pasar el toque a lo de detrás).
+function gachamonBajo(m, gachamones, x, y, visible) {
+  const loTapa = visible || ((g) => dentro(cajaDelGachamon(m, g.i, g.j), x, y));
   const tocados = gachamones
-    .filter((g) => dentro(cajaDelGachamon(m, g.i, g.j), x, y))
+    .filter((g) => loTapa(g, x, y))
     .map((g) => ({ tipo: 'gachamon', i: g.i, j: g.j, id: g.id }));
   return tocados.length > 0 ? delanteDeTodo(tocados) : null;
 }
@@ -167,8 +170,11 @@ function bultosBajo(m, depto, x, y) {
 // El mueble de pared colgado en ese tramo, si lo hay.
 const colgadoEn = (depto, tramo) => depto.puestos.find((p) => p.capa === PARED && p.casillas.some(([i, j]) => i === tramo[0] && j === tramo[1]));
 
-export function queSeToco(m, depto, gachamones, x, y) {
-  const gachamon = gachamonBajo(m, gachamones, x, y);
+// Qué se tocó. `visible(g, x, y)`, si se da, dice si en ese punto se ve algo
+// del gachamon `g`, donde se pinta de verdad: donde no, el toque sigue a lo que
+// tiene detrás. Sin él, cuenta su caja entera.
+export function queSeToco(m, depto, gachamones, x, y, visible) {
+  const gachamon = gachamonBajo(m, gachamones, x, y, visible);
   if (gachamon) return { tipo: 'gachamon', id: gachamon.id };
 
   const muebles = bultosBajo(m, depto, x, y);
@@ -193,8 +199,9 @@ export function queSeToco(m, depto, gachamones, x, y) {
 // Qué recibe un toque viviendo: sólo lo que tiene acción propia (`conAccion`
 // dice, de un mueble puesto, si la tiene). Lo que no la tiene no hace nada, ni
 // pasa el toque al suelo de detrás, ni le quita el toque a lo que sí la tiene.
-export function queSeUsa(m, depto, gachamones, x, y, conAccion) {
-  const gachamon = gachamonBajo(m, gachamones, x, y);
+// A un gachamon, como en `queSeToco`: con `visible`, sólo donde se le ve.
+export function queSeUsa(m, depto, gachamones, x, y, conAccion, visible) {
+  const gachamon = gachamonBajo(m, gachamones, x, y, visible);
   if (gachamon) return { tipo: 'gachamon', id: gachamon.id };
 
   const bultos = bultosBajo(m, depto, x, y);

@@ -539,3 +539,91 @@ test('tu avatar se vuelve a pintar cuando la escena cambia de alto, y deja de mi
   assert.equal(observador.conectado, false);
   await asentar();
 });
+
+// --- lo transparente del retrato no se acaricia -------------------------------------------
+
+// Desde ahora, los lienzos que cree ese documento leen sus píxeles como si lo
+// que se les pinta tuviera, en cada punto `(u, v)` de su dibujo, el alfa
+// `alfa(u, v)`; lo demás que se les pida, lo aceptan sin más.
+function conPixeles(documento, alfa) {
+  const crear = documento.createElement;
+  documento.createElement = (etiqueta) => {
+    const nodo = crear(etiqueta);
+    if (etiqueta !== 'canvas') return nodo;
+    const contexto = new Proxy({}, {
+      get: (_, nombre) => {
+        if (nombre !== 'getImageData') return () => {};
+        return (x0, y0, ancho, alto) => {
+          const data = new Uint8ClampedArray(ancho * alto * 4);
+          for (let v = 0; v < alto; v += 1) for (let u = 0; u < ancho; u += 1) data[(v * ancho + u) * 4 + 3] = alfa(u, v);
+          return { width: ancho, height: alto, data };
+        };
+      },
+      set: () => true,
+    });
+    nodo.getContext = () => contexto;
+    return nodo;
+  };
+}
+
+// El retrato de la escena, puesto como lo pondría el navegador: su dibujo mide
+// 48 × 84 y la mitad de arriba es transparente; su caja mide 200 × 200 y está
+// en (100, 50) de la página, pero lo que la mueve (respirar) la estira un 2 %
+// a lo ancho y la encoge un 3 % a lo alto, con los pies quietos. El CSS encaja
+// el dibujo en su caja sin deformarlo, centrado y apoyado abajo: se ve de
+// x = 141,7 a x = 258,3 y de y = 56 a y = 250.
+function ponerElRetrato(contenedor, documento) {
+  conPixeles(documento, (u, v) => (v < 42 ? 0 : 255));
+  const retrato = contenedor.querySelector('.retrato');
+  Object.assign(retrato, {
+    naturalWidth: 48, naturalHeight: 84, offsetWidth: 200, offsetHeight: 200, complete: true,
+  });
+  retrato.getBoundingClientRect = () => ({
+    left: 98, top: 56, width: 204, height: 194, right: 302, bottom: 250, x: 98, y: 56,
+  });
+  return retrato;
+}
+
+// Un clic de puntero en ese punto de la página: lo cuenta el navegador con `detail` 1.
+async function clicDePuntero(nodo, x, y) {
+  for (const oyente of [...(nodo.oyentes.click || [])]) await oyente({ type: 'click', detail: 1, clientX: x, clientY: y });
+  await asentar();
+}
+
+// Uno de teclado (Intro o espacio): sin punto y con `detail` 0.
+async function clicDeTeclado(nodo) {
+  for (const oyente of [...(nodo.oyentes.click || [])]) await oyente({ type: 'click', detail: 0, clientX: 0, clientY: 0 });
+  await asentar();
+}
+
+const caricias = (servidor) => servidor.pedidos.filter(([ruta]) => ruta === 'POST acariciar').length;
+
+test('un clic de puntero en lo transparente del retrato no acaricia; en lo que se ve, sí; y uno de teclado, también', { timeout: 2000 }, async () => {
+  const { contenedor, servidor, documento } = await abrir(conPelusa(ESTADIO));
+  ponerElRetrato(contenedor, documento);
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: conPelusa(ESTADIO, 10) });
+  const boton = contenedor.querySelector('.gachamon');
+  await clicDePuntero(boton, 120, 200);                                 // al lado del dibujo, dentro del botón
+  await clicDePuntero(boton, 296, 240);
+  await clicDePuntero(boton, 200, 80);                                  // entre las orejas: la mitad de arriba
+  assert.equal(caricias(servidor), 0);
+  await clicDePuntero(boton, 200, 220);                                 // su cuerpo
+  assert.equal(caricias(servidor), 1);
+  await clicDePuntero(boton, 143, 249);                                 // la esquina de abajo de su dibujo
+  assert.equal(caricias(servidor), 2);
+  await clicDeTeclado(boton);
+  assert.equal(caricias(servidor), 3);
+  // Su nombre accesible no cambia.
+  assert.equal(boton.getAttribute('aria-label'), 'Acariciar a Pelusa');
+});
+
+test('si el retrato no cargó (se ve su emoji), un clic de puntero en cualquier parte del botón acaricia, como siempre', { timeout: 2000 }, async () => {
+  const { contenedor, servidor, documento } = await abrir(conPelusa(ESTADIO));
+  const retrato = ponerElRetrato(contenedor, documento);
+  servidor.responde('POST acariciar', { ok: true, mensaje: null, espera: 60, estado: conPelusa(ESTADIO, 10) });
+  for (const oyente of [...(retrato.oyentes.error || [])]) oyente({ type: 'error' });
+  Object.assign(retrato, { naturalWidth: 0, naturalHeight: 0 });
+  assert.equal(retrato.hidden, true);
+  await clicDePuntero(contenedor.querySelector('.gachamon'), 120, 70);
+  assert.equal(caricias(servidor), 1);
+});
