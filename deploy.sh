@@ -11,7 +11,9 @@
 # Los valores de abajo son los de la máquina de casa; para apuntar a otra basta
 # con las variables de entorno, sin tocar el script.
 #
-# El .env NO viaja: se copia a mano una sola vez (ver README).
+# El .env NO viaja: se copia a mano una sola vez (ver README). Lo que sube el
+# dibujante (`arte_subido/`, junto a la base) tampoco: vive sólo en la Pi, y el
+# `--delete` lo borraría.
 set -euo pipefail
 
 PI="${PI:-felipe@192.168.1.109}"
@@ -29,6 +31,7 @@ rsync -av --delete \
     --exclude '*.db-wal' \
     --exclude '*.db-shm' \
     --exclude '*.bak' \
+    --exclude 'arte_subido' \
     --exclude '.pytest_cache' \
     "$ORIGEN/" "$PI:$DEST/"
 

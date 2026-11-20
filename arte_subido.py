@@ -2,34 +2,45 @@
 
 Las reglas de una subida: qué PNG vale para qué pieza del contrato
 (`web/arte.py`), cómo sale limpio y cómo se llama, y cómo se escribe y se poda en
-la carpeta de lo subido. No sabe de la base: el historial y qué se conserva lo
-lleva `db`, y quien recibe la subida junta las dos cosas. Fuera de escribir y
-borrar en la carpeta que se le pasa, no toca nada.
+la carpeta de lo subido. El historial y qué se conserva lo lleva `db`; `subir` y
+`volver` juntan las dos cosas en su orden, y son lo único que tiene que llamar
+quien recibe una subida o una vuelta atrás. Fuera de la base y de la carpeta que
+se le pasa, no toca nada.
 """
 
 import hashlib
 import io
+import logging
 import os
 import re
 import struct
 import tempfile
-from collections.abc import Collection, Iterable
+from collections.abc import Collection
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PIL import Image, ImageMath
 
+import db
 from web import arte
 
+logger = logging.getLogger(__name__)
+
 LIMITE_DE_BYTES = 4 * 1024 * 1024
+# Lo que puede tardar una subida entre escribir su archivo y anotarlo. Un archivo
+# sin renglón más viejo que esto quedó huérfano, y la poda se lo lleva.
+VIDA_DE_UN_HUERFANO = timedelta(hours=1)
 
 _NOMBRE = re.compile(r"[0-9a-f]{64}\.png")
+_TEMPORAL = re.compile(r"\.subiendo-[a-z0-9_]+\.tmp")
 _FIRMA_PNG = b"\x89PNG\r\n\x1a\n"
 _CIERRE_PNG = b"\x00\x00\x00\x00IEND\xaeB`\x82"  # el trozo IEND, que es siempre el mismo
 _GRIS, _RGB = 0, 2  # tipos de color de la cabecera de un PNG
 
 
 class NoVale(ValueError):
-    """Lo subido no sirve para esa pieza. `mensaje` dice por qué, para quien lo subió."""
+    """Lo pedido no vale para esa pieza: una imagen que no sirve, o volver a una anterior
+    que no hay. `mensaje` dice por qué, para quien lo pidió."""
 
     def __init__(self, mensaje: str):
         super().__init__(mensaje)
@@ -170,7 +181,7 @@ def guardar(carpeta: Path, nombre: str, datos: bytes) -> Path:
     destino = carpeta / nombre
     if destino.exists():
         return destino
-    descriptor, temporal = tempfile.mkstemp(dir=carpeta, prefix=".", suffix=".tmp")
+    descriptor, temporal = tempfile.mkstemp(dir=carpeta, prefix=".subiendo-", suffix=".tmp")
     try:
         with os.fdopen(descriptor, "wb") as archivo:
             archivo.write(datos)
@@ -189,22 +200,84 @@ def guardar(carpeta: Path, nombre: str, datos: bytes) -> Path:
     return destino
 
 
-def podar(carpeta: Path, candidatos: Iterable[str], conservar: Collection[str]) -> list[str]:
-    """Borra de `carpeta` los `candidatos` que no están en `conservar`; devuelve los borrados.
+def _mas_viejo_que(entrada: Path, limite: float) -> bool:
+    try:
+        return entrada.lstat().st_mtime < limite
+    except FileNotFoundError:
+        return False
 
-    Los candidatos son los archivos del historial de la pieza que se acaba de tocar, y
-    `conservar` lo que `db.archivos_que_se_conservan` dice que sigue haciendo falta: la
-    vigente y las cinco últimas distintas de cada pieza. Un archivo que todavía no está
-    en el historial (una subida a medio camino) no es candidato, así que no se toca.
-    Nunca borra fuera de la carpeta ni nada que no tenga nombre de archivo subido.
+
+def podar(carpeta: Path, conservar: Collection[str], conocidos: Collection[str],
+          ahora: datetime) -> list[str]:
+    """Borra de `carpeta` lo que ya no hace falta y devuelve lo borrado.
+
+    Se llama con la base tomada para escribir (`db.podar_arte` le pasa `conservar` y
+    `conocidos`), para que ninguna subida se anote mientras tanto. Borra:
+
+    - los archivos subidos que nombra el historial (`conocidos`) y no se conservan;
+    - los huérfanos de más de `VIDA_DE_UN_HUERFANO`: archivos subidos que el historial
+      no nombra (su subida no llegó a anotarse) y temporales que quedaron a medias.
+      Uno más reciente puede ser una subida en camino, y no se toca.
+
+    Sólo mira lo que está directamente en la carpeta, y nunca nada que no tenga
+    nombre de archivo subido o de temporal. Lo que no se puede borrar se avisa en el
+    registro y se deja: la subida que poda ya está hecha, y no falla por esto.
     """
+    if not carpeta.is_dir():
+        return []
+    limite = (ahora - VIDA_DE_UN_HUERFANO).timestamp()
     borrados = []
-    for nombre in sorted(set(candidatos) - set(conservar)):
-        if not _NOMBRE.fullmatch(nombre):
+    for entrada in sorted(carpeta.iterdir()):
+        nombre = entrada.name
+        if _NOMBRE.fullmatch(nombre):
+            sobra = nombre not in conservar and (nombre in conocidos or _mas_viejo_que(entrada, limite))
+        else:
+            sobra = bool(_TEMPORAL.fullmatch(nombre)) and _mas_viejo_que(entrada, limite)
+        if not sobra:
             continue
         try:
-            (carpeta / nombre).unlink()
+            entrada.unlink()
         except FileNotFoundError:
+            continue
+        except OSError as fallo:
+            logger.warning("No se pudo podar %s: %s", entrada, fallo)
             continue
         borrados.append(nombre)
     return borrados
+
+
+def subir(carpeta: Path, pieza: arte.Pieza, cuerpo: bytes, quien: str, ahora: datetime) -> str:
+    """Una subida entera, en su orden, y el nombre de lo que quedó vigente.
+
+    1. `preparar`: lo que no vale lanza `NoVale` sin haber tocado nada.
+    2. `guardar`: el archivo, entero, antes de anotarlo.
+    3. El renglón: desde aquí es la vigente y ninguna poda la toca.
+    4. `guardar` otra vez: una poda de otra subida que se cruzó entre los pasos 2 y 3
+       pudo llevárselo (era una imagen vieja que nadie conservaba), y aquí se repone.
+       Si sigue ahí, no hace nada.
+    5. La poda, con la base tomada.
+    """
+    datos, nombre = preparar(cuerpo, pieza)
+    guardar(carpeta, nombre, datos)
+    db.subir_arte(pieza.ruta, nombre, pieza.ancho, pieza.alto, quien, ahora)
+    guardar(carpeta, nombre, datos)
+    db.podar_arte(lambda conservar, conocidos: podar(carpeta, conservar, conocidos, ahora))
+    return nombre
+
+
+def volver(carpeta: Path, pieza: arte.Pieza, a: str, quien: str, ahora: datetime) -> str | None:
+    """Vuelve atrás `a` "anterior" o `a` "provisional"; devuelve lo que quedó vigente.
+
+    «anterior» retrocede una subida (`db.volver_a_la_anterior`), saltando las imágenes
+    que ya no están en la carpeta; desde el provisional lanza `NoVale`. Volver no
+    cambia lo que se conserva, así que no poda.
+    """
+    if a == "provisional":
+        db.volver_al_provisional(pieza.ruta, quien, ahora)
+        return None
+    if a != "anterior":
+        raise ValueError(f"no se vuelve a {a!r}")
+    try:
+        return db.volver_a_la_anterior(pieza.ruta, quien, ahora, lambda archivo: (carpeta / archivo).is_file())
+    except db.NoHayAnterior:
+        raise NoVale("No hay una imagen anterior.") from None

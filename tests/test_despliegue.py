@@ -574,6 +574,16 @@ def test_rsync_no_borra_el_diario_de_sqlite():
         assert f"--exclude '{patron}'" in texto
 
 
+def test_rsync_no_borra_lo_subido_por_el_dibujante():
+    """`deploy.sh` copia esta carpeta con `--delete`: sin la exclusión, la carpeta de lo
+    subido de la Pi, que vive junto a la base y fuera de git, se borraría o se pisaría."""
+    texto = leer("deploy.sh")
+    rsync = texto[texto.index("rsync -av --delete"):texto.index('"$ORIGEN/" "$PI:$DEST/"')]
+    # Exacta: `arte_subido.py` sí tiene que viajar.
+    assert re.findall(r"--exclude '([^']*arte_subido[^']*)'", rsync) == ["arte_subido"]
+    assert "--delete-excluded" not in texto
+
+
 @pytest.mark.parametrize("guion", GUIONES)
 def test_los_guiones_son_bash_valido(guion):
     bash = shutil.which("bash")

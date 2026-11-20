@@ -7,12 +7,14 @@ el arte del repo.
 import hashlib
 import io
 import os
+import shutil
 import struct
 import subprocess
 import sys
 import threading
 import warnings
 import zlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -302,13 +304,25 @@ def test_un_png_de_4_mb_vale_y_uno_de_un_byte_mas_no():
     assert "4 MB" in no_vale(png_que_pesa(arte_subido.LIMITE_DE_BYTES + 1))
 
 
-def test_una_bomba_de_descompresion_se_rechaza_por_su_medida_sin_abrirla():
-    bomba = (FIRMA + trozo(b"IHDR", struct.pack(">IIBBBBB", 100_000, 100_000, 8, 6, 0, 0, 0))
-             + trozo(b"IDAT", zlib.compress(b"\x00" * 1000)) + trozo(b"IEND", b""))
+def test_una_bomba_de_descompresion_se_rechaza_por_su_medida_sin_abrirla(monkeypatch):
+    # 9000 × 9000 a 1 bit: pesa unos 10 KB, se decodificaría en unos 300 MB en RGBA y queda
+    # por debajo del tope propio de Pillow, así que sólo la para mirar la medida antes.
+    fila = b"\x00" * (1 + 9000 // 8)
+    bomba = (FIRMA + trozo(b"IHDR", struct.pack(">IIBBBBB", 9000, 9000, 1, 0, 0, 0, 0))
+             + trozo(b"IDAT", zlib.compress(fila * 9000, 9)) + trozo(b"IEND", b""))
+    assert len(bomba) < 20_000 and 9000 * 9000 < Image.MAX_IMAGE_PIXELS
+    abiertas = []
+
+    def no_abrir(*args, **opciones):
+        abiertas.append(args)
+        raise AssertionError("se llegó a abrir la bomba")
+
+    monkeypatch.setattr(arte_subido.Image, "open", no_abrir)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         mensaje = no_vale(bomba)
-    assert "100000 × 100000 px" in mensaje
+    assert "9000 × 9000 px" in mensaje
+    assert abiertas == []
 
 
 # --- Guardar --------------------------------------------------------------------
@@ -362,6 +376,8 @@ def test_el_nombre_final_no_existe_hasta_que_el_archivo_esta_entero_en_disco(tmp
     def replace_espia(origen, destino):
         origen = Path(origen)
         pasos.append(("replace", origen.parent == tmp_path, origen.read_bytes() == datos, Path(destino).exists()))
+        # El temporal tiene la forma que la poda reconoce como temporal.
+        assert origen.name.startswith(".subiendo-") and origen.name.endswith(".tmp")
         replace(origen, destino)
 
     monkeypatch.setattr(arte_subido.os, "fsync", fsync_espia)
@@ -406,33 +422,80 @@ def test_dos_guardados_a_la_vez_del_mismo_archivo_dejan_uno_entero(tmp_path):
 
 # --- Podar ---------------------------------------------------------------------
 
-def test_podar_borra_solo_lo_que_no_se_conserva(tmp_path):
-    guardados = [preparado(semilla) for semilla in range(4)]
-    nombres = [nombre for _, nombre in guardados]
-    for datos, nombre in guardados:
-        arte_subido.guardar(tmp_path, nombre, datos)
-    borrados = arte_subido.podar(tmp_path, nombres, {nombres[0], nombres[2]})
+AHORA = datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc)
+
+
+def con_hora(archivo: Path, hora: datetime) -> Path:
+    os.utime(archivo, (hora.timestamp(), hora.timestamp()))
+    return archivo
+
+
+def escrito(archivo: Path, hora: datetime) -> Path:
+    archivo.write_bytes(b"de otro")
+    return con_hora(archivo, hora)
+
+
+def guardados(carpeta, cuantos, hora=AHORA) -> list[str]:
+    nombres = []
+    for semilla in range(cuantos):
+        datos, nombre = preparado(semilla)
+        con_hora(arte_subido.guardar(carpeta, nombre, datos), hora)
+        nombres.append(nombre)
+    return nombres
+
+
+def test_podar_borra_lo_conocido_que_no_se_conserva_aunque_sea_nuevo(tmp_path):
+    nombres = guardados(tmp_path, 4)
+    borrados = arte_subido.podar(tmp_path, {nombres[0], nombres[2]}, set(nombres), AHORA)
     assert sorted(borrados) == sorted([nombres[1], nombres[3]])
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted([nombres[0], nombres[2]])
 
 
-def test_podar_no_falla_si_un_archivo_ya_no_estaba(tmp_path):
-    _, nombre = preparado()
-    assert arte_subido.podar(tmp_path, [nombre], set()) == []
+def test_podar_borra_los_huerfanos_de_mas_de_una_hora_y_deja_los_recientes(tmp_path):
+    """Un huérfano es un archivo subido sin renglón (su subida no llegó a anotarse) o un
+    temporal que quedó a medias. Uno reciente puede ser una subida en camino: no se toca."""
+    hace_dos_horas, hace_un_rato = AHORA - timedelta(hours=2), AHORA - timedelta(minutes=50)
+    viejo, reciente, conservado = guardados(tmp_path, 3, hace_dos_horas)
+    con_hora(tmp_path / reciente, hace_un_rato)
+    temporal_viejo = escrito(tmp_path / ".subiendo-abc123_x.tmp", hace_dos_horas)
+    temporal_reciente = escrito(tmp_path / ".subiendo-zzz999.tmp", hace_un_rato)
+    borrados = arte_subido.podar(tmp_path, {conservado}, set(), AHORA)
+    assert sorted(borrados) == sorted([viejo, temporal_viejo.name])
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted([reciente, conservado, temporal_reciente.name])
+
+
+def test_lo_que_no_se_puede_podar_se_avisa_y_no_falla(tmp_path, caplog):
+    carpeta = tmp_path / "arte_subido"
+    nombre, = guardados(carpeta, 1)
+    carpeta.chmod(0o500)
+    try:
+        if os.access(carpeta, os.W_OK):
+            pytest.skip("aquí se puede escribir en una carpeta de sólo lectura (¿root?)")
+        assert arte_subido.podar(carpeta, set(), {nombre}, AHORA) == []
+    finally:
+        carpeta.chmod(0o700)
+    assert (carpeta / nombre).exists()
+    assert "No se pudo podar" in caplog.text
+
+
+def test_podar_sin_carpeta_no_hace_nada(tmp_path):
+    assert arte_subido.podar(tmp_path / "no-existe", set(), {"a" * 64 + ".png"}, AHORA) == []
 
 
 def test_podar_nunca_borra_fuera_de_la_carpeta_ni_lo_que_no_es_un_archivo_subido(tmp_path):
     carpeta = tmp_path / "arte_subido"
     carpeta.mkdir()
-    fuera = tmp_path / ("b" * 64 + ".png")
-    fuera.write_bytes(b"de otro")
-    otros = ["nota.txt", "C" * 64 + ".png", "c" * 63 + ".png", ".temporal.tmp"]
+    hace_un_mes = AHORA - timedelta(days=30)
+    fuera = escrito(tmp_path / ("b" * 64 + ".png"), hace_un_mes)
+    otros = ["nota.txt", "C" * 64 + ".png", "c" * 63 + ".png", ".temporal.tmp", "subiendo-abc.tmp",
+             ".subiendo-abc.tmp.png", "c" * 64 + ".png.tmp"]
     for nombre in otros:
-        (carpeta / nombre).write_bytes(b"de otro")
-    candidatos = [*otros, "../" + fuera.name, str(fuera), "../arte_subido/nota.txt"]
-    assert arte_subido.podar(carpeta, candidatos, set()) == []
+        escrito(carpeta / nombre, hace_un_mes)
+    (carpeta / ("d" * 64 + ".png")).mkdir()  # una carpeta con nombre de archivo subido
+    conocidos = {*otros, "../" + fuera.name, str(fuera), "d" * 64 + ".png"}
+    assert arte_subido.podar(carpeta, set(), conocidos, AHORA) == []
     assert fuera.exists()
-    assert sorted(p.name for p in carpeta.iterdir()) == sorted(otros)
+    assert sorted(p.name for p in carpeta.iterdir()) == sorted([*otros, "d" * 64 + ".png"])
 
 
 # --- Dónde vive lo subido ----------------------------------------------------------
@@ -455,6 +518,9 @@ def test_lo_subido_vive_junto_a_la_base_salvo_que_se_diga_otra_carpeta(tmp_path)
 
 
 def test_lo_subido_no_entra_en_git():
+    if shutil.which("git") is None or subprocess.run(
+            ["git", "rev-parse", "--git-dir"], cwd=RAIZ, capture_output=True).returncode != 0:
+        pytest.skip("no es un clon de git (una copia sacada con `git archive`)")
     salida = subprocess.run(["git", "check-ignore", "-q", "arte_subido/" + "a" * 64 + ".png"], cwd=RAIZ)
     assert salida.returncode == 0
 
