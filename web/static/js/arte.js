@@ -1,5 +1,6 @@
-// El único cargador del arte: las piezas de `web/static/arte/` que describe el
-// contrato (`datos/arte.json`). Cada pieza se pide una sola vez (la que no
+// El único cargador del arte: las piezas que describe el contrato
+// (`datos/arte.json`), de `web/static/arte/` o, si el dibujante subió la suya,
+// de la dirección de lo subido. Cada pieza se pide una sola vez (la que no
 // llegó, otra vez al cambiar de pantalla), y la que no llega se dibuja como un
 // recuadro rayado con su nombre, nunca con el dibujo de otra.
 
@@ -17,12 +18,51 @@ export function esRutaDeArte(ruta) {
   return typeof ruta === 'string' && FORMA_DE_PIEZA.test(ruta);
 }
 
-// La dirección se arma desde la de este módulo: así lleva la versión de los
-// estáticos (`/monsteropolis/static/<versión>/arte/…`) sin escribirla a mano. Con
-// una ruta que no tiene forma de pieza no hay dirección: `null`.
+// --- lo subido por el dibujante ------------------------------------------------
+
+// Lo que el dibujante sube se sirve con su contenido en el nombre, en
+// `/monsteropolis/arte-subido/<sha256>.png`, y la portada lleva en un bloque de
+// datos (`<script type="application/json" id="arte-subido">`) qué piezas tienen
+// imagen subida y su dirección. El bloque se lee una sola vez, la primera vez que
+// hace falta. Si no está, no se entiende o una entrada no tiene la forma de
+// siempre, eso se ignora y la pieza se pide como siempre.
+const DE_LO_SUBIDO = '/monsteropolis/arte-subido/';
+const NOMBRE_DE_SUBIDA = /^[0-9a-f]{64}\.png$/;
+
+function esDireccionDeSubida(direccion) {
+  return typeof direccion === 'string' && direccion.startsWith(DE_LO_SUBIDO)
+    && NOMBRE_DE_SUBIDA.test(direccion.slice(DE_LO_SUBIDO.length));
+}
+
+let subidas = null;
+
+function leerLoSubido() {
+  const leidas = new Map();
+  try {
+    if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return leidas;
+    const bloque = document.getElementById('arte-subido');
+    if (!bloque) return leidas;
+    const datos = JSON.parse(bloque.textContent);
+    if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) return leidas;
+    for (const [ruta, direccion] of Object.entries(datos)) {
+      if (esRutaDeArte(ruta) && esDireccionDeSubida(direccion)) {
+        leidas.set(ruta, direccion);
+      }
+    }
+  } catch {
+    return new Map();
+  }
+  return leidas;
+}
+
+// La dirección de una pieza: la de lo subido si la portada la trae; si no, se
+// arma desde la de este módulo, y así lleva la versión de los estáticos
+// (`/monsteropolis/static/<versión>/arte/…`) sin escribirla a mano. Con una
+// ruta que no tiene forma de pieza no hay dirección: `null`.
 export function urlDeArte(ruta) {
   if (!esRutaDeArte(ruta)) return null;
-  return new URL(`../arte/${ruta}`, import.meta.url).href;
+  if (subidas === null) subidas = leerLoSubido();
+  return subidas.get(ruta) || new URL(`../arte/${ruta}`, import.meta.url).href;
 }
 
 // Ruta → promesa de `{ruta, imagen}`. Guarda también las que fallaron, para no

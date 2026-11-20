@@ -6,19 +6,22 @@ base se prepara en el ciclo de vida de FastAPI, al arrancar el servidor.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as ErrorHTTP
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+import arte_subido
 import config
 import db
 import economia
@@ -27,7 +30,7 @@ from web import (
     PREFIJO, PREFIJO_ANTIGUO, aventura, carta, cuenta, departamento, dibujante, ficha, juego, mochila, retratos,
     ropero, tienda,
 )
-from web.sesion import Persona, persona_actual, problema
+from web.sesion import Persona, dibujante_actual, persona_actual, problema
 
 ESTATICOS = Path(__file__).resolve().parent / "static"
 
@@ -165,6 +168,73 @@ def calcular_version(carpeta: Path = ESTATICOS) -> str:
     return huella.hexdigest()[:12]
 
 
+# --- Lo subido por el dibujante, para quien juega --------------------------------
+#
+# Lo subido no se sirve bajo la versión de los estáticos (el navegador y la red de
+# entrega la guardan como inmutable, y se seguiría viendo el recuadro viejo): tiene
+# dirección propia, con su contenido en el nombre, y la portada, que no se guarda
+# en ninguna caché, dice en un bloque de datos qué piezas la tienen.
+
+_NOMBRE_DE_LO_SUBIDO = re.compile(r"[0-9a-f]{64}\.png")
+_PARA_SIEMPRE = "public, max-age=31536000, immutable"
+# Lo que en un `<script>` podría cerrarlo o abrir otra cosa, escrito como `\uXXXX`:
+# dentro de una cadena de JSON se lee igual.
+_ESCAPES_DEL_BLOQUE = {"<": "\\u003c", ">": "\\u003e", "&": "\\u0026",
+                       "\u2028": "\\u2028", "\u2029": "\\u2029"}
+
+
+def _como_dato_de_un_script(datos: dict) -> str:
+    """`datos` en JSON, listo para ir dentro de `<script type="application/json">`."""
+    texto = json.dumps(datos, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    for caracter, escapado in _ESCAPES_DEL_BLOQUE.items():
+        texto = texto.replace(caracter, escapado)
+    return texto
+
+
+def _arte_subido_de_la_portada() -> str:
+    """El bloque de datos de la portada: ruta → dirección de lo subido que se ve hoy.
+
+    Se arma en cada petición leyendo la tabla, sin abrir imágenes: el servicio no
+    recuerda nada. Si la base no se puede leer, sale vacío y la portada sale igual:
+    una portada caída es peor que un arte sin subir.
+    """
+    try:
+        vigente = db.arte_vigente(arte_subido.medidas())
+    except Exception as error:
+        log.warning("No se pudo leer el arte subido para la portada: %s", type(error).__name__)
+        vigente = {}
+    return _como_dato_de_un_script(
+        {ruta: dibujante.direccion_de(archivo) for ruta, (archivo, _, _) in vigente.items()}
+    )
+
+
+def _no_hay_tal_imagen() -> ErrorHTTP:
+    # Que nadie guarde un 404: el nombre es el contenido, y el archivo puede volver.
+    return ErrorHTTP(status_code=404, headers={"Cache-Control": "no-store"})
+
+
+def _imagen_subida(nombre: str) -> bytes:
+    """Los bytes de una imagen subida que la tabla conserva (la vigente de una pieza o
+    una de sus anteriores guardadas) y que está en disco.
+
+    El nombre se mira con su forma exacta antes de tocar la base o el disco, así que
+    con él no se arma ningún otro camino. Lo demás es un 404.
+    """
+    if not _NOMBRE_DE_LO_SUBIDO.fullmatch(nombre):
+        raise _no_hay_tal_imagen()
+    datos = None
+    try:
+        if nombre in db.archivos_que_se_conservan():
+            datos = (config.RUTA_ARTE_SUBIDO / nombre).read_bytes()
+    except FileNotFoundError:
+        pass
+    except Exception as error:
+        log.warning("No se pudo servir una imagen subida: %s", type(error).__name__)
+    if datos is None:
+        raise _no_hay_tal_imagen()
+    return datos
+
+
 def _avisar_de_lo_que_falta() -> None:
     """Un aviso por cada cosa del `.env` sin la cual el juego no funciona.
 
@@ -212,6 +282,8 @@ def crear_app() -> FastAPI:
     app.state.version = version
     portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
     portada = portada.replace("__V__", version)
+    pagina_del_dibujante = (ESTATICOS / "dibujante.html").read_text(encoding="utf-8")
+    pagina_del_dibujante = pagina_del_dibujante.replace("__V__", version)
 
     @app.exception_handler(RequestValidationError)
     def _peticion_mal_hecha(
@@ -281,7 +353,27 @@ def crear_app() -> FastAPI:
 
     @app.get(f"{PREFIJO}/", include_in_schema=False)
     def inicio() -> HTMLResponse:
-        return HTMLResponse(portada, headers={"Cache-Control": "no-cache"})
+        return HTMLResponse(
+            portada.replace("__ARTE_SUBIDO__", _arte_subido_de_la_portada()),
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    # Lo subido es de todos los que juegan: no pide sesión.
+    @app.get(f"{PREFIJO}/arte-subido/{{nombre}}", include_in_schema=False)
+    def imagen_subida(nombre: str) -> Response:
+        return Response(
+            _imagen_subida(nombre), media_type="image/png",
+            headers={"Cache-Control": _PARA_SIEMPRE},
+        )
+
+    # La página del dibujante: sólo con el permiso; a los demás, el 404 de una
+    # dirección que no existe. Sus estáticos son los del juego, con su versión.
+    @app.get(
+        f"{dibujante.PREFIJO_DIBUJANTE}/", include_in_schema=False,
+        dependencies=[Depends(dibujante_actual)],
+    )
+    def la_pagina_del_dibujante() -> HTMLResponse:
+        return HTMLResponse(pagina_del_dibujante, headers={"Cache-Control": "no-store"})
 
     # Los estáticos sólo existen bajo la versión vigente: Cloudflare los guarda
     # horas, y así un despliegue nuevo se ve al momento sin tocar su caché.

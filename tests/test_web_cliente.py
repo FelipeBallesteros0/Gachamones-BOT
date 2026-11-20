@@ -24,7 +24,8 @@ def test_nada_entra_en_la_pagina_como_marcado():
 
 
 def test_el_cliente_no_depende_de_nada_de_fuera():
-    for archivo in [ESTATICOS / "index.html", ESTATICOS / "estilo.css", *GUIONES]:
+    for archivo in [ESTATICOS / "index.html", ESTATICOS / "estilo.css",
+                    ESTATICOS / "dibujante.html", ESTATICOS / "dibujante.css", *GUIONES]:
         texto = archivo.read_text(encoding="utf-8")
         assert "http://" not in texto and "https://" not in texto, archivo.name
 
@@ -51,7 +52,7 @@ def test_el_aviso_del_codigo_esta_escrito():
 
 
 def test_ningun_texto_del_cliente_usa_los_nombres_viejos():
-    for archivo in [ESTATICOS / "index.html", *GUIONES]:
+    for archivo in [ESTATICOS / "index.html", ESTATICOS / "dibujante.html", *GUIONES]:
         assert not re.search(r"ascii\s?(coin|gem)", archivo.read_text(encoding="utf-8"), re.I)
 
 
@@ -567,7 +568,7 @@ def test_el_departamento_camina_solo_mientras_algo_se_mueve_y_respeta_el_movimie
 def test_lo_que_no_se_puede_usar_no_se_apaga_con_disabled():
     # La pantalla, la lista que la hace sin el dibujo y la ficha del elegido:
     # lo que no se puede usar sigue enfocable, con `aria-disabled`.
-    for nombre in ("departamento.js", "lista.js", "plantel.js", "bandeja.js", "ampliar.js"):
+    for nombre in ("departamento.js", "lista.js", "plantel.js", "bandeja.js", "ampliar.js", "dibujante.js"):
         codigo = _sin_comentarios(_guion(nombre))
         assert "aria-disabled" in codigo and not re.search(r"\bdisabled\s*[:=]", codigo), nombre
     # Los botones del menú de lo elegido los deja sin poderse usar la pantalla
@@ -666,6 +667,15 @@ def test_el_cliente_y_el_servidor_dicen_la_misma_direccion():
     portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
     assert f"{web.PREFIJO}/static/__V__/estilo.css" in portada
     assert f"{web.PREFIJO}/static/__V__/js/principal.js" in portada
+    # Lo subido por el dibujante: el cliente sólo acepta direcciones de la ruta que lo sirve.
+    from web import dibujante
+
+    assert dibujante.direccion_de("x.png") == f"{web.PREFIJO}/arte-subido/x.png"
+    assert f"'{web.PREFIJO}/arte-subido/'" in _guion("arte.js")
+    # La página del dibujante: sus estáticos son los del juego, y su api la del servidor.
+    pagina = (ESTATICOS / "dibujante.html").read_text(encoding="utf-8")
+    assert f"{web.PREFIJO}/static/__V__/js/dibujante.js" in pagina
+    assert f"const BASE = '{dibujante.PREFIJO_DIBUJANTE}/api/';" in _guion("dibujante.js")
 
 
 def test_la_entrada_manda_a_volver_a_monsteropolis():
@@ -675,3 +685,44 @@ def test_la_entrada_manda_a_volver_a_monsteropolis():
         in entrada
     )
     assert "rowino.online/gachamon" not in entrada
+
+
+# --- lo subido por el dibujante y su página ------------------------------------------
+
+def test_la_portada_deja_el_sitio_del_arte_subido_antes_de_arrancar_el_juego():
+    portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
+    bloque = '<script type="application/json" id="arte-subido">__ARTE_SUBIDO__</script>'
+    assert portada.count(bloque) == 1
+    assert portada.index(bloque) < portada.index('<script type="module"')
+
+
+def test_el_arte_lee_el_bloque_como_datos_y_url_de_arte_sigue_siendo_sincrona():
+    arte = _sin_comentarios(_guion("arte.js"))
+    assert "getElementById('arte-subido')" in arte
+    assert "JSON.parse" in arte and "innerHTML" not in arte
+    # `urlDeArte` sigue síncrona: ni `async` ni promesas.
+    assert re.search(r"^export function urlDeArte\(ruta\)", arte, re.M)
+
+
+def test_la_pagina_del_dibujante_carga_sus_archivos_por_la_ruta_con_version():
+    pagina = (ESTATICOS / "dibujante.html").read_text(encoding="utf-8")
+    for archivo in ("static/__V__/estilo.css", "static/__V__/dibujante.css", "static/__V__/js/dibujante.js"):
+        assert archivo in pagina, archivo
+    assert 'type="module"' in pagina and 'lang="es"' in pagina and 'name="viewport"' in pagina
+    assert "<title>Arte de Monsteropolis</title>" in pagina
+
+
+def test_las_frases_de_la_pagina_del_dibujante_son_las_del_plan():
+    codigo = _guion("dibujante.js")
+    for frase in ("Arte de Monsteropolis", "Sólo lo que falta", "Provisional", "Subida por ${", " el ${",
+                  " × ${", " px", "} o ${", "'Subir'", "'Historial'", "'Volver a la anterior'",
+                  "'Volver al provisional'", "Descargar todo lo subido", "Listo: ya se ve en el juego.",
+                  "px y esta pieza ahora pide otra medida: se ve el provisional.", "Lo subido mide ${"):
+        assert frase in codigo, frase
+
+
+def test_la_pagina_del_dibujante_tiene_su_estilo_con_los_colores_del_tema():
+    estilo = _sin_comentarios((ESTATICOS / "dibujante.css").read_text(encoding="utf-8"))
+    # Ningún color escrito a mano: todos salen de las variables de `estilo.css`.
+    assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", estilo), estilo
+    assert "var(--" in estilo

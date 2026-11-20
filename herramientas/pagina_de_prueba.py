@@ -15,6 +15,9 @@ Qué hace, y qué nunca hace:
 - Sólo escucha en `127.0.0.1`.
 - Con `--con-gachamones`, antes de levantar la web, a cada cuenta le da avatar,
   monedas, muebles y algunos gachamones usando las reglas del propio juego.
+- Con `--dibujante N`, la base de Rowino de mentira tiene la marca del permiso del
+  dibujante (`arte_access`) y sólo la cuenta N la lleva puesta: en su puerto se abre
+  también la página del dibujante. Sin la opción, la base es la de antes del permiso.
 
 Escribe en la carpeta `pids` (la herramienta y la web) y dice cómo apagarla.
 """
@@ -57,6 +60,9 @@ MUEBLES_DE_PRUEBA = (
 )
 MONEDAS_DE_PRUEBA = 4000
 GEMAS_DE_PRUEBA = 60
+# Dónde vive la página del dibujante (`web.dibujante.PREFIJO_DIBUJANTE`, que no se
+# importa: arrastraría `config`, que lee el `.env` del repo).
+PREFIJO_DEL_DIBUJANTE = "/monsteropolis_dibujante"
 
 # Cabeceras que no se reenvían tal cual: las fija cada salto.
 _SALTO_A_SALTO = {"connection", "keep-alive", "transfer-encoding", "te", "upgrade",
@@ -100,6 +106,11 @@ def validar_puertos(puerto: int, cuentas: int) -> None:
         raise NoSePuede("Esos puertos incluyen alguno reservado; elige otro rango.")
 
 
+def validar_dibujante(dibujante: int | None, cuentas: int) -> None:
+    if dibujante is not None and not 1 <= dibujante <= cuentas:
+        raise NoSePuede(f"El dibujante tiene que ser una de las cuentas, de 1 a {cuentas}.")
+
+
 def exigir_puertos_libres(puerto: int, cuentas: int) -> None:
     """Se niega si algún puerto de la web o de las cuentas ya está en uso en local."""
     for candidato in range(puerto, puerto + cuentas + 1):
@@ -123,6 +134,8 @@ def leer_argumentos(argv=None) -> argparse.Namespace:
                             help=f"cuántas cuentas de mentira (1 a {MAX_CUENTAS})")
     analizador.add_argument("--con-gachamones", action="store_true",
                             help="a cada cuenta, avatar, monedas, muebles y algunos gachamones")
+    analizador.add_argument("--dibujante", type=int, metavar="N",
+                            help="la cuenta N tiene el permiso del dibujante")
     return analizador.parse_args(argv)
 
 
@@ -157,23 +170,31 @@ def copiar_del_repo(repo: Path, destino: Path) -> None:
         raise NoSePuede("`git archive HEAD` falló.")
 
 
-def crear_rowino(ruta: Path, cuentas: int) -> None:
-    """La base de Rowino de mentira: personas 1..cuentas, sin bloquear."""
+def crear_rowino(ruta: Path, cuentas: int, dibujante: int | None = None) -> None:
+    """La base de Rowino de mentira: personas 1..cuentas, sin bloquear.
+
+    Con `dibujante`, la tabla tiene la columna del permiso del dibujante, como la del
+    sitio, y sólo esa cuenta la tiene en 1; sin él, no tiene la columna.
+    """
     import sqlite3
 
+    columnas = "id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, blocked INTEGER NOT NULL DEFAULT 0"
+    filas = [(n, f"persona{n}", 0) for n in range(1, cuentas + 1)]
+    if dibujante is not None:
+        columnas += ", arte_access INTEGER NOT NULL DEFAULT 0"
+        filas = [(*fila, int(fila[0] == dibujante)) for fila in filas]
     con = sqlite3.connect(ruta)
     try:
-        con.execute(
-            "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, "
-            "blocked INTEGER NOT NULL DEFAULT 0)"
-        )
-        con.executemany(
-            "INSERT INTO users VALUES (?, ?, 0)",
-            [(n, f"persona{n}") for n in range(1, cuentas + 1)],
-        )
+        con.execute(f"CREATE TABLE users ({columnas})")
+        con.executemany(f"INSERT INTO users VALUES ({', '.join('?' * len(filas[0]))})", filas)
         con.commit()
     finally:
         con.close()
+
+
+def pagina_del_dibujante(puerto: int, uid: int) -> str:
+    """La dirección de la página del dibujante, entrando como la cuenta `uid`."""
+    return f"http://{DIRECCION}:{puerto + uid}{PREFIJO_DEL_DIBUJANTE}/"
 
 
 def firmar_cookie(uid: int, clave: str) -> str:
@@ -380,13 +401,14 @@ def _morir_con_el_padre() -> None:
 def ejecutar(argumentos: argparse.Namespace) -> int:
     exigir_entorno_sin_bases(os.environ)
     validar_puertos(argumentos.puerto, argumentos.cuentas)
+    validar_dibujante(argumentos.dibujante, argumentos.cuentas)
     exigir_puertos_libres(argumentos.puerto, argumentos.cuentas)
     carpeta = validar_carpeta(argumentos.carpeta)
     carpeta.mkdir(parents=True, exist_ok=True)
     copia = carpeta / "copia"
     copiar_del_repo(REPO, copia)
     entorno = entorno_de_la_web(carpeta, GUILD_DE_PRUEBA)
-    crear_rowino(carpeta / "rowino.db", argumentos.cuentas)
+    crear_rowino(carpeta / "rowino.db", argumentos.cuentas, argumentos.dibujante)
 
     if argumentos.con_gachamones:
         sembrado = subprocess.run(
@@ -432,6 +454,9 @@ def ejecutar(argumentos: argparse.Namespace) -> int:
     print("Página de prueba lista (bases de mentira, sin tocar las de verdad).")
     for uid in range(1, argumentos.cuentas + 1):
         print(f"  persona{uid}: http://{DIRECCION}:{argumentos.puerto + uid}{PREFIJO}/")
+    if argumentos.dibujante is not None:
+        print(f"  página del dibujante (persona{argumentos.dibujante}): "
+              f"{pagina_del_dibujante(argumentos.puerto, argumentos.dibujante)}")
     print(f"Carpeta: {carpeta}")
     print(f"Para apagarla: Ctrl-C, cerrar la terminal, o `kill {os.getpid()}` (apaga también la web, pid {web.pid}).")
     print("Los pids quedan en el archivo `pids` de la carpeta.")

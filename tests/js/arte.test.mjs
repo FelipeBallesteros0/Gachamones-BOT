@@ -235,3 +235,135 @@ test('todas las piezas del contrato pasan el filtro', () => {
     assert.ok(urlDeArte(ruta).endsWith(`/web/static/arte/${ruta}`), ruta);
   }
 });
+
+// --- lo subido por el dibujante: el bloque de la portada ---------------------------
+
+// La portada lleva `<script type="application/json" id="arte-subido">` con las
+// piezas que tienen imagen subida y su dirección. `urlDeArte` lo lee una sola vez,
+// la primera vez que se la llama; por eso cada caso carga su propia copia del
+// módulo (la consulta al final de la dirección la hace otra).
+const SUBIDA = `/monsteropolis/arte-subido/${'a'.repeat(64)}.png`;
+const OTRA_SUBIDA = `/monsteropolis/arte-subido/${'b'.repeat(64)}.png`;
+let copias = 0;
+
+// Una página con sólo `getElementById`, que apunta cada vez que se le pide algo, y
+// una copia nueva del módulo, que todavía no ha leído nada: lo lee al primer
+// `urlDeArte`. Con `texto` en null, la página no tiene el bloque.
+async function conBloque(texto) {
+  const pedidos = [];
+  globalThis.document = {
+    getElementById(id) {
+      pedidos.push(id);
+      return id === 'arte-subido' && texto !== null ? { textContent: texto } : null;
+    },
+  };
+  copias += 1;
+  const modulo = await import(`../../web/static/js/arte.js?copia=${copias}`);
+  return { modulo, pedidos };
+}
+
+const estatica = (ruta) => new URL(`../../web/static/arte/${ruta}`, import.meta.url).href;
+
+test('con el bloque, una pieza subida se pide por su dirección y las demás como siempre', async () => {
+  const { modulo, pedidos } = await conBloque(
+    JSON.stringify({ 'efectos/corazon.png': SUBIDA, 'pieza/suelo.png': OTRA_SUBIDA }),
+  );
+  try {
+    assert.deepEqual(pedidos, []);
+    assert.equal(modulo.urlDeArte('efectos/corazon.png'), SUBIDA);
+    assert.equal(modulo.urlDeArte('pieza/suelo.png'), OTRA_SUBIDA);
+    assert.equal(modulo.urlDeArte('efectos/estrella.png'), estatica('efectos/estrella.png'));
+    // Una ruta rara sigue sin dirección, esté o no en el bloque.
+    assert.equal(modulo.urlDeArte('../efectos/corazon.png'), null);
+    // El bloque se leyó una sola vez, aunque se hayan pedido varias direcciones.
+    assert.deepEqual(pedidos, ['arte-subido']);
+  } finally {
+    sinPagina();
+  }
+});
+
+test('sin página (en Node no hay document) todo es como siempre', async () => {
+  sinPagina();
+  copias += 1;
+  const modulo = await import(`../../web/static/js/arte.js?copia=${copias}`);
+  assert.equal(modulo.urlDeArte('efectos/corazon.png'), estatica('efectos/corazon.png'));
+});
+
+// Lo que no se entiende se ignora: sin bloque, roto o con otra forma, todo como hoy.
+const BLOQUES_QUE_NO_VALEN = [
+  null, '', 'no es json', '{', '[]', '["efectos/corazon.png"]', 'null', '42', '"texto"', 'true',
+];
+
+test('un bloque que falta o no se entiende deja todo como siempre', async () => {
+  for (const texto of BLOQUES_QUE_NO_VALEN) {
+    const { modulo } = await conBloque(texto);
+    try {
+      assert.equal(modulo.urlDeArte('efectos/corazon.png'), estatica('efectos/corazon.png'), String(texto));
+    } finally {
+      sinPagina();
+    }
+  }
+});
+
+test('si leer el bloque revienta, todo como siempre', async () => {
+  copias += 1;
+  globalThis.document = { getElementById() { throw new Error('sin DOM'); } };
+  try {
+    const modulo = await import(`../../web/static/js/arte.js?copia=${copias}`);
+    assert.equal(modulo.urlDeArte('efectos/corazon.png'), estatica('efectos/corazon.png'));
+  } finally {
+    sinPagina();
+  }
+});
+
+test('una entrada rara del bloque se ignora y las buenas valen', async () => {
+  const raras = {
+    // Direcciones que no son de lo subido.
+    'efectos/corazon.png': 'https://otro.example/x.png',
+    'efectos/estrella.png': '/monsteropolis/static/v/arte/efectos/corazon.png',
+    'efectos/marca.png': `/monsteropolis/arte-subido/${'a'.repeat(63)}.png`,
+    'efectos/sombra.png': `/monsteropolis/arte-subido/${'A'.repeat(64)}.png`,
+    'avatar/cuerpo/clara-quieto.png': `/monsteropolis/arte-subido/../${'a'.repeat(64)}.png`,
+    'avatar/cuerpo/media-quieto.png': `//otro.example/monsteropolis/arte-subido/${'a'.repeat(64)}.png`,
+    'avatar/cuerpo/oscura-quieto.png': `${SUBIDA}?x=1`,
+    'avatar/ropa/camisa-quieto.png': 42,
+    'avatar/ropa/poleron-quieto.png': null,
+    'avatar/ropa/vestido-quieto.png': { direccion: SUBIDA },
+    // Rutas que no son de una pieza.
+    '../../x.png': SUBIDA,
+    '/x.png': SUBIDA,
+    'efectos/corazon.png#x': SUBIDA,
+    // La buena.
+    'pieza/suelo.png': OTRA_SUBIDA,
+  };
+  const { modulo } = await conBloque(JSON.stringify(raras));
+  try {
+    for (const ruta of Object.keys(raras)) {
+      if (ruta === 'pieza/suelo.png') continue;
+      const esperada = modulo.esRutaDeArte(ruta) ? estatica(ruta) : null;
+      assert.equal(modulo.urlDeArte(ruta), esperada, ruta);
+    }
+    assert.equal(modulo.urlDeArte('pieza/suelo.png'), OTRA_SUBIDA);
+  } finally {
+    sinPagina();
+  }
+});
+
+test('una imagen subida que no llega (falta en disco) se pinta como el recuadro de esa pieza', { timeout: 2000 }, async () => {
+  const { modulo } = await conBloque(JSON.stringify({ 'efectos/corazon.png': SUBIDA }));
+  try {
+    cortadas.add(SUBIDA);
+    const antes = pedidas.length;
+    const cargada = await modulo.cargar('efectos/corazon.png');
+    assert.deepEqual(cargada, { ruta: 'efectos/corazon.png', imagen: null });
+    // Se pidió sólo lo subido: ni el dibujo de siempre ni el de otra pieza.
+    assert.deepEqual(pedidas.slice(antes), [SUBIDA]);
+    const { ctx, hecho } = lienzoDeMentira();
+    modulo.pintarPieza(ctx, cargada, 0, 0, 32, 32);
+    assert.equal(hecho.filter(([n]) => n === 'drawImage').length, 0);
+    assert.equal(escrito(hecho).join(''), 'efectos/corazon.png');
+  } finally {
+    cortadas.delete(SUBIDA);
+    sinPagina();
+  }
+});

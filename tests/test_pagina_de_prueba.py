@@ -121,6 +121,43 @@ def test_la_base_de_rowino_de_mentira_tiene_ids_chicos_y_sinteticos(tmp_path, mo
     assert sesion.buscar_persona(5) is None
 
 
+def test_sin_dibujante_la_base_de_rowino_es_la_de_antes_del_permiso(tmp_path, monkeypatch):
+    pp.crear_rowino(tmp_path / "rowino.db", 2)
+    columnas = [c[1] for c in sqlite3.connect(tmp_path / "rowino.db").execute("PRAGMA table_info(users)")]
+    assert columnas == ["id", "username", "blocked"]
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", tmp_path / "rowino.db")
+    assert not sesion.puede_dibujar(1) and not sesion.puede_dibujar(2)
+
+
+def test_con_dibujante_esa_cuenta_y_sólo_esa_tiene_el_permiso(tmp_path, monkeypatch):
+    pp.crear_rowino(tmp_path / "rowino.db", 3, dibujante=2)
+    filas = sqlite3.connect(tmp_path / "rowino.db").execute(
+        "SELECT id, username, blocked, arte_access FROM users ORDER BY id").fetchall()
+    assert filas == [(1, "persona1", 0, 0), (2, "persona2", 0, 1), (3, "persona3", 0, 0)]
+    # Es el permiso que lee la web: la cuenta 2 dibuja y las demás no.
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", tmp_path / "rowino.db")
+    assert [sesion.puede_dibujar(uid) for uid in (1, 2, 3)] == [False, True, False]
+    assert sesion.buscar_persona(2) == sesion.Persona(2, "persona2")
+
+
+def test_el_dibujante_tiene_que_ser_una_de_las_cuentas():
+    assert pp.leer_argumentos(["--carpeta", "x"]).dibujante is None
+    assert pp.leer_argumentos(["--carpeta", "x", "--dibujante", "2"]).dibujante == 2
+    pp.validar_dibujante(None, 3)
+    pp.validar_dibujante(1, 3)
+    pp.validar_dibujante(3, 3)
+    for fuera in (0, 4, -1):
+        with pytest.raises(pp.NoSePuede):
+            pp.validar_dibujante(fuera, 3)
+
+
+def test_la_direccion_de_la_pagina_del_dibujante_es_la_de_su_cuenta():
+    from web import dibujante
+
+    assert pp.PREFIJO_DEL_DIBUJANTE == dibujante.PREFIJO_DIBUJANTE
+    assert pp.pagina_del_dibujante(8500, 2) == "http://127.0.0.1:8502/monsteropolis_dibujante/"
+
+
 def test_la_cookie_firmada_la_acepta_la_web_con_esa_clave_y_con_ninguna_otra(monkeypatch):
     monkeypatch.setattr(config, "ROWINO_SECRET_KEY", "clave-uno")
     assert sesion.leer_cookie(pp.firmar_cookie(2, "clave-uno")) == 2

@@ -1,5 +1,6 @@
 import ast
 import os
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -579,3 +580,171 @@ def test_otro_sitio_no_recibe_permiso_para_escribir(cliente):
         "Access-Control-Request-Headers": "x-gachamon, content-type",
     })
     assert not [k for k in respuesta.headers if k.lower().startswith("access-control-")]
+
+
+# --- Lo subido por el dibujante llega a quien juega --------------------------------
+
+BLOQUE = re.compile(r'<script type="application/json" id="arte-subido">(.*?)</script>', re.S)
+CORAZON = "efectos/corazon.png"    # 32 × 32
+ESTRELLA = "efectos/estrella.png"  # 32 × 32
+CACHE_PARA_SIEMPRE = "public, max-age=31536000, immutable"
+
+
+def _png(ancho: int, alto: int, semilla: int = 0) -> bytes:
+    """Un PNG RGBA de ruido, siempre el mismo para la misma semilla."""
+    import io
+    import random
+
+    from PIL import Image
+
+    imagen = Image.frombytes("RGBA", (ancho, alto), random.Random(semilla).randbytes(ancho * alto * 4))
+    salida = io.BytesIO()
+    imagen.save(salida, "PNG")
+    return salida.getvalue()
+
+
+@pytest.fixture
+def carpeta(tmp_path, monkeypatch):
+    import config
+
+    lugar = tmp_path / "arte_subido"
+    monkeypatch.setattr(config, "RUTA_ARTE_SUBIDO", lugar)
+    return lugar
+
+
+def _subir(carpeta, ruta: str, semilla: int = 0) -> str:
+    """Sube un PNG de ruido de la medida de esa pieza, como lo hace la api; devuelve su nombre."""
+    import arte_subido
+
+    pieza = arte_subido.pieza_de(ruta)
+    return arte_subido.subir(carpeta, pieza, _png(pieza.ancho, pieza.alto, semilla), "dibuja", T0)
+
+
+def _bloque(respuesta) -> str:
+    """El texto del bloque de lo subido en la portada; tiene que haber uno solo."""
+    assert respuesta.status_code == 200
+    hallados = BLOQUE.findall(respuesta.text)
+    assert len(hallados) == 1, hallados
+    return hallados[0]
+
+
+def test_la_portada_sin_nada_subido_lleva_el_bloque_vacio(cliente):
+    assert _bloque(cliente.get("/monsteropolis/")) == "{}"
+
+
+def test_la_portada_lleva_lo_subido_que_se_ve_con_su_direccion_y_se_arma_en_cada_peticion(cliente, carpeta):
+    import json
+
+    import arte_subido
+
+    assert _bloque(cliente.get("/monsteropolis/")) == "{}"
+    corazon, estrella = _subir(carpeta, CORAZON), _subir(carpeta, ESTRELLA, semilla=1)
+    assert json.loads(_bloque(cliente.get("/monsteropolis/"))) == {
+        CORAZON: f"/monsteropolis/arte-subido/{corazon}",
+        ESTRELLA: f"/monsteropolis/arte-subido/{estrella}",
+    }
+    # Lo que cambia en la tabla se ve en la siguiente petición: nada se recuerda.
+    arte_subido.volver(carpeta, arte_subido.pieza_de(CORAZON), "provisional", "dibuja", T0)
+    assert json.loads(_bloque(cliente.get("/monsteropolis/"))) == {
+        ESTRELLA: f"/monsteropolis/arte-subido/{estrella}",
+    }
+    # Y la portada sigue sin guardarse en ninguna caché.
+    assert cliente.get("/monsteropolis/").headers["cache-control"] == "no-cache"
+
+
+def test_la_portada_no_lleva_lo_subido_con_una_medida_que_el_contrato_ya_no_pide(cliente):
+    # Una imagen de 31 × 31 puesta en una pieza que hoy pide 32 × 32: no se sirve.
+    db.subir_arte(CORAZON, "a" * 64 + ".png", 31, 31, "dibuja", T0)
+    db.subir_arte("efectos/ya-no-existe.png", "b" * 64 + ".png", 32, 32, "dibuja", T0)
+    assert _bloque(cliente.get("/monsteropolis/")) == "{}"
+
+
+def test_el_bloque_va_escapado_para_que_nada_cierre_su_etiqueta(cliente, monkeypatch):
+    import json
+
+    raro = "</script><script>alert(1)</script><!-- &     >"
+    monkeypatch.setattr(db, "arte_vigente", lambda medidas: {raro: (raro, 32, 32)})
+    texto = _bloque(cliente.get("/monsteropolis/"))
+    assert not set(texto) & {"<", ">", "&", " ", " "}, texto
+    assert json.loads(texto) == {raro: f"/monsteropolis/arte-subido/{raro}"}
+
+
+def test_si_la_base_no_se_puede_leer_la_portada_sale_igual_con_el_bloque_vacio(
+        cliente, tmp_path, monkeypatch, caplog):
+    # La base, en una carpeta que no existe: abrirla falla.
+    monkeypatch.setattr(db, "RUTA", tmp_path / "no-hay" / "juego.db")
+    assert _bloque(cliente.get("/monsteropolis/")) == "{}"
+    # Y cualquier otro fallo al leerla, igual: una portada caída es peor que un arte sin subir.
+    def rota(medidas):
+        raise RuntimeError("se rompió")
+    monkeypatch.setattr(db, "arte_vigente", rota)
+    assert _bloque(cliente.get("/monsteropolis/")) == "{}"
+    assert "arte subido" in caplog.text.lower()
+
+
+def test_lo_subido_se_sirve_a_cualquiera_por_su_nombre_y_se_guarda_para_siempre(cliente, carpeta):
+    nombre = _subir(carpeta, CORAZON)
+    assert not cliente.cookies   # sin sesión: el arte lo ve todo el que juega
+    respuesta = cliente.get(f"/monsteropolis/arte-subido/{nombre}")
+    assert respuesta.status_code == 200
+    assert respuesta.content == (carpeta / nombre).read_bytes()
+    assert respuesta.headers["content-type"] == "image/png"
+    assert respuesta.headers["cache-control"] == CACHE_PARA_SIEMPRE
+    assert _lleva_siempre(respuesta)
+
+
+def test_lo_subido_antes_que_sigue_guardado_tambien_se_sirve(cliente, carpeta):
+    # El historial de la página del dibujante enseña las anteriores por esta misma ruta.
+    vieja = _subir(carpeta, CORAZON, semilla=1)
+    _subir(carpeta, CORAZON, semilla=2)
+    respuesta = cliente.get(f"/monsteropolis/arte-subido/{vieja}")
+    assert respuesta.status_code == 200 and respuesta.content == (carpeta / vieja).read_bytes()
+
+
+def _no_se_sirve(respuesta) -> None:
+    assert respuesta.status_code == 404
+    assert respuesta.json() == {"detail": {"clave": "no_existe", "mensaje": "Eso no existe."}}
+    assert respuesta.headers["cache-control"] == "no-store"
+    assert _lleva_siempre(respuesta)
+
+
+def test_una_imagen_subida_que_falta_en_disco_da_404(cliente, carpeta):
+    nombre = _subir(carpeta, CORAZON)
+    (carpeta / nombre).unlink()
+    _no_se_sirve(cliente.get(f"/monsteropolis/arte-subido/{nombre}"))
+
+
+def test_un_archivo_que_la_tabla_no_conoce_no_se_sirve_aunque_este_en_disco(cliente, carpeta):
+    _subir(carpeta, CORAZON)
+    intruso = "c" * 64 + ".png"
+    (carpeta / intruso).write_bytes(_png(32, 32, semilla=9))
+    _no_se_sirve(cliente.get(f"/monsteropolis/arte-subido/{intruso}"))
+
+
+@pytest.mark.parametrize("nombre", [
+    "C" * 64 + ".png", "c" * 63 + ".png", "c" * 65 + ".png", "c" * 64 + ".PNG", "c" * 64 + ".png.png",
+    "c" * 64 + ".pngx", "c" * 64, "x.png", "g" * 64 + ".png", "c" * 64 + ".png%0A", "%2E%2E%2Fjuego.db",
+    "..%2F..%2F.env",
+])
+def test_un_nombre_sin_la_forma_exacta_da_404_sin_mirar_la_tabla_ni_el_disco(cliente, carpeta, monkeypatch, nombre):
+    from urllib.parse import unquote
+
+    bueno = _subir(carpeta, CORAZON)
+    mirado = []
+    de_verdad = db.archivos_que_se_conservan
+    monkeypatch.setattr(db, "archivos_que_se_conservan", lambda: mirado.append(1) or de_verdad())
+    if "/" not in unquote(nombre):
+        (carpeta / unquote(nombre)).write_bytes(_png(32, 32))
+    respuesta = cliente.get(f"/monsteropolis/arte-subido/{nombre}")
+    assert respuesta.status_code == 404
+    assert "immutable" not in respuesta.headers.get("cache-control", "")
+    assert mirado == []
+    # El que sí tiene la forma se busca en la tabla, y se sirve.
+    assert cliente.get(f"/monsteropolis/arte-subido/{bueno}").status_code == 200
+    assert mirado == [1]
+
+
+def test_si_la_base_no_se_puede_leer_lo_subido_da_404(cliente, carpeta, tmp_path, monkeypatch):
+    nombre = _subir(carpeta, CORAZON)
+    monkeypatch.setattr(db, "RUTA", tmp_path / "no-hay" / "juego.db")
+    _no_se_sirve(cliente.get(f"/monsteropolis/arte-subido/{nombre}"))

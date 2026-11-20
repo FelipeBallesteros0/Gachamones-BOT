@@ -584,3 +584,50 @@ def test_nada_de_la_api_del_dibujante_se_guarda_en_una_cache(cliente):
     for pedir in RUTAS.values():
         respuesta = pedir(cliente)
         assert respuesta.status_code == 404 and respuesta.headers["cache-control"] == "no-store"
+
+
+# --- La página del dibujante --------------------------------------------------------
+
+PAGINA = "/monsteropolis_dibujante/"
+
+
+def test_la_pagina_del_dibujante_se_sirve_sin_cache_y_con_los_estaticos_de_la_version(cliente):
+    version = cliente.app.state.version
+    for uid in (DIBUJA, ADMIN):
+        entrar(cliente, uid)
+        respuesta = cliente.get(PAGINA)
+        assert respuesta.status_code == 200
+        assert "text/html" in respuesta.headers["content-type"]
+        assert respuesta.headers["cache-control"] == "no-store"
+        assert {k: respuesta.headers.get(k) for k in SIEMPRE} == SIEMPRE
+        assert "__V__" not in respuesta.text
+        assert f'"/monsteropolis/static/{version}/js/dibujante.js"' in respuesta.text
+        assert f'"/monsteropolis/static/{version}/estilo.css"' in respuesta.text
+        assert "<title>Arte de Monsteropolis</title>" in respuesta.text
+
+
+def test_sin_la_barra_del_final_se_llega_igual_a_la_pagina(cliente):
+    respuesta = cliente.get(PAGINA.rstrip("/"))
+    assert respuesta.status_code == 200 and respuesta.url.path == PAGINA
+
+
+@pytest.mark.parametrize("quien", DEMAS)
+def test_a_los_demas_la_pagina_les_contesta_como_una_que_no_existe(cliente, tmp_path, monkeypatch, quien):
+    if quien == "sin_sesion":
+        cliente.cookies.clear()
+    elif quien == "cookie_falsa":
+        cliente.cookies.set("session", galleta(DIBUJA, clave="otra-clave"))
+    elif quien == "sin_la_columna":
+        _permisos(tmp_path, monkeypatch, con_arte_access=False)
+    else:
+        entrar(cliente, {"sin_permiso": NADIE, "bloqueada": BLOQUEADO, "no_existe": NO_EXISTE}[quien])
+    respuesta = cliente.get(PAGINA)
+    inventada = cliente.get(f"{PAGINA}no-existe")
+    assert inventada.status_code == 404
+    assert (respuesta.status_code, respuesta.content) == (404, inventada.content)
+    assert respuesta.headers == inventada.headers
+    assert "Arte de Monsteropolis" not in respuesta.text
+    # Con el permiso, sí.
+    _permisos(tmp_path, monkeypatch)
+    entrar(cliente, DIBUJA)
+    assert cliente.get(PAGINA).status_code == 200
