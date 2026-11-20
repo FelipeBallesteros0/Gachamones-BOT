@@ -615,6 +615,26 @@ Para comprobar manualmente los mismos gates del hook sobre todo el repositorio:
 GitHub Actions ejecuta la suite completa con las dos versiones soportadas de
 Python, 3.12 y 3.14, en cada `push` y `pull_request`.
 
+Para mirar la página en un navegador sin tocar la base ni los secretos de
+verdad hay una herramienta que la levanta sobre bases de mentira:
+
+```bash
+./venv/bin/python -m herramientas.pagina_de_prueba --carpeta <carpeta nueva> [--puerto N] [--cuentas N] [--con-gachamones]
+```
+
+La carpeta tiene que no existir o estar vacía, y quedar fuera del repositorio:
+ahí viven la base del juego y la de Rowino de mentira, el registro de la web y
+un archivo `pids`. La web arranca desde una copia del último commit
+(`git archive HEAD`), con su propio entorno y una clave de sesión inventada en
+cada arranque, así que no lee el `.env` ni cambios sin confirmar, y se niega a
+correr si `RUTA_BD` o `RUTA_ROWINO_BD` ya están puestas. Por cada cuenta de
+mentira (`persona1`, `persona2`…) imprime una dirección local con su propio
+puerto, que reenvía todo a la web poniendo la cookie de esa cuenta: abrir
+`/gachamon/` en ese puerto es entrar como esa persona. Sólo escucha en
+`127.0.0.1`. Con `--con-gachamones`, cada cuenta empieza con avatar, monedas,
+muebles y tres gachamones, hechos con las reglas del propio juego. Se apaga con
+Ctrl-C o con la orden `kill` que imprime al arrancar.
+
 El cliente tiene sus propias pruebas, que corren con Node sin abrir ninguna
 pantalla:
 
