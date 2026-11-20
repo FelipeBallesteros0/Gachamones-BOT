@@ -71,6 +71,15 @@ if [ -f tamagotchi.db ]; then
     ls -1t tamagotchi.db.*.bak 2>/dev/null | tail -n +6 | xargs -r rm --
 fi
 
+# Lo que subió el dibujante vive junto a la base, fuera de git, y no se puede
+# rehacer: va también en una copia comprimida, con la misma rotación de 5.
+if [ -d arte_subido ]; then
+    copia_arte="arte_subido.\$(date +%Y%m%d-%H%M%S).tar.gz"
+    tar -czf "\$copia_arte" arte_subido
+    echo "    copia de lo subido: \$copia_arte"
+    ls -1t arte_subido.*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm --
+fi
+
 if [ ! -d .git ]; then
     echo "    primera vez: convirtiendo en clon de git"
     git init -q

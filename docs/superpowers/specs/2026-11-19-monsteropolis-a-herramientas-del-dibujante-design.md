@@ -260,20 +260,28 @@ cómo se parte el trabajo en planes (por lo menos uno por repo).
 
 ## Para publicar
 
-El orden importa por los enlaces: el sitio enseña «Jugar» y «Monsteropolis» a
-todos los visitantes, y si sale antes que el juego esos enlaces llevan a una
-página de error. Cada paso que toca producción necesita el permiso expreso del
-dueño en ese momento.
+El orden importa: el sitio enseña «Jugar» y «Monsteropolis» a todos los
+visitantes, y si sale antes que el juego esos enlaces llevan a una página de
+error; y el juego necesita que el túnel ya le mande sus direcciones nuevas.
+Cada paso que toca producción necesita el permiso expreso del dueño en ese
+momento.
 
-1. **El juego primero**, ya contestando en `/monsteropolis/` y en
-   `/monsteropolis_dibujante/`, con la regla del túnel que manda los dos
-   prefijos a su servicio (por ejemplo `^/monsteropolis(_dibujante)?(/.*)?$`; con
-   el `^` delante no alcanza `/plan/monsteropolis` ni `/api/plan/monsteropolis`,
-   que son del sitio). Se comprueba desde fuera que las dos direcciones
+1. **La regla del túnel, antes que nada.** Hoy el túnel sólo manda `/gachamon`
+   al servicio del juego. Si el juego nuevo saliera con el túnel viejo,
+   `/gachamon` redirigiría a `/monsteropolis` y eso caería en el sitio con un
+   error para todos. La regla nueva manda al juego las tres direcciones (por
+   ejemplo `^/(gachamon|monsteropolis|monsteropolis_dibujante)(/.*)?$`; con el
+   `^` delante no alcanza `/plan/monsteropolis` ni `/api/plan/monsteropolis`, que
+   son del sitio). Con el juego de antes todavía en marcha, `/gachamon` sigue
+   igual y `/monsteropolis` contesta el «no existe» del juego, que nadie enlaza
+   todavía. Se comprueba desde fuera que `/gachamon` sigue andando y que
+   `/plan/monsteropolis` sigue siendo del sitio.
+2. **Después el juego**, ya contestando en `/monsteropolis/` y en
+   `/monsteropolis_dibujante/`. Se comprueba desde fuera que las dos direcciones
    contestan y que `/gachamon` redirige.
-2. **Después el sitio.** Antes de reiniciarlo, una copia de su base en la
+3. **Al final el sitio.** Antes de reiniciarlo, una copia de su base en la
    Raspberry, fuera de la carpeta del sitio (su guion de despliegue no la
    respalda, y esta rama le añade una columna y dos tablas al arrancar). Se
    comprueba la copia con la comprobación de integridad de SQLite.
-3. **Mirarlo**: el tablero de siempre como estaba, la portada con su botón, y el
+4. **Mirarlo**: el tablero de siempre como estaba, la portada con su botón, y el
    tablero del arte sembrado por el dueño con el avance del juego.

@@ -591,3 +591,16 @@ def test_los_guiones_son_bash_valido(guion):
         pytest.skip("no hay bash")
     hecho = subprocess.run([bash, "-n", str(RAIZ / guion)], capture_output=True, text=True)
     assert hecho.returncode == 0, hecho.stderr
+
+
+def test_la_copia_de_seguridad_incluye_lo_subido_y_conserva_las_cinco_ultimas():
+    """Lo subido por el dibujante vive fuera de git y no se puede rehacer: se copia comprimido,
+    sólo si la carpeta existe, y se conservan las cinco últimas como con la base."""
+    texto = leer("actualizar-pi.sh")
+    bloque = texto[texto.index("if [ -f tamagotchi.db ]"):texto.index("if [ ! -d .git ]")]
+    assert "if [ -d arte_subido ]" in bloque
+    assert re.search(r"tar -czf \"\\\$copia_arte\" arte_subido", bloque)
+    assert "copia_arte=\"arte_subido.\\$(date +%Y%m%d-%H%M%S).tar.gz\"" in bloque
+    assert re.search(r"ls -1t arte_subido\.\*\.tar\.gz 2>/dev/null \| tail -n \+6 \| xargs -r rm --", bloque)
+    # el bloque remoto va en un heredoc sin comillas: ningún `$` de la Pi sin escapar
+    assert not re.search(r"(?<!\\)\$(copia_arte|\()", bloque)

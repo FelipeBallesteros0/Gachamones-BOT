@@ -1932,6 +1932,145 @@ La primera tanda de la hoja de ruta de Monsteropolis
 - En pantallas de alta densidad la pieza se ve algo menor dentro de su
   recuadro: es el precio de no estirar el arte.
 
+## Salió al ejecutar Monsteropolis A, del lado del juego (las herramientas del dibujante)
+
+El proyecto A de la hoja de ruta
+(`docs/superpowers/specs/2026-11-19-monsteropolis-a-herramientas-del-dibujante-design.md`),
+el lado del juego. El lado del sitio (la portada, el permiso, el tablero del
+arte) vive en el repo del sitio y consume el contrato del avance tal como lo
+dice el diseño. La rama sale de la de la tanda corta.
+
+### Lo hecho
+
+- **El juego pasa a `/monsteropolis`.** `/gachamon` y todo lo que cuelga de él
+  redirigen con un 308, que conserva método y cuerpo, al mismo camino bajo el
+  prefijo nuevo, con su consulta. El enlace del manual del bot se queda en
+  `/gachamon`: el bot no se toca.
+- **El permiso del dibujante** (`sesion.puede_dibujar`, `dibujante_actual`) se
+  lee aparte, en sólo lectura, de la base del sitio. La cuenta bloqueada no lo
+  tiene, y una base que no se puede leer tampoco. Una ruta del dibujante sin
+  permiso contesta lo mismo que una ruta que no existe.
+- **Los grupos del arte** (`arte.grupos()`): 35, uno por mueble (la puerta
+  incluida) o por conjunto de piezas, con clave sin extensión.
+- **La subida** (`arte_subido.py`, la tabla `arte_subido` de `db.py`): sólo PNG
+  de hasta 4 MB y de la medida exacta del contrato (la pieza del departamento
+  admite también el doble y se reduce como `herramientas/pieza.py`); se abre
+  de verdad y se reescribe limpio; se guarda con nombre de su contenido, en
+  `config.RUTA_ARTE_SUBIDO`; las cinco últimas distintas de cada pieza se
+  conservan; el historial sólo crece.
+- **La API del dibujante** bajo `/monsteropolis_dibujante/api/`: piezas (con
+  su estado y, si el contrato cambió su medida, el aviso de que se ve el
+  provisional), subir, historial, volver a la anterior, volver al provisional,
+  el avance por grupos para el tablero del sitio y el zip de todo lo subido.
+  Todas contestan sin caché, y la descarga también (la red de entrega guarda
+  los `.zip` por su extensión).
+- **Lo subido llega a quien juega** por una dirección propia con el nombre del
+  contenido, y la portada lleva un bloque de datos `arte-subido` que
+  `urlDeArte` (`arte.js`) mira primero; si falta o viene raro, todo como antes.
+  Si el archivo falta en el disco, se ve el recuadro de su pieza, nunca el de
+  otra.
+- **La página del dibujante** (`/monsteropolis_dibujante/`): las piezas por
+  grupos plegables, con su imagen de ahora, la medida exacta, quién subió y
+  cuándo, y los botones «Subir», «Historial», «Volver a la anterior» y «Volver
+  al provisional».
+- `python -m herramientas.pagina_de_prueba` gana `--dibujante N`.
+- `actualizar-pi.sh` saca también una copia comprimida de la carpeta de lo
+  subido, si existe, y conserva las cinco últimas; `deploy.sh` no la borra.
+
+### Lo que decidió el dueño
+
+- Las direcciones: el juego en `/monsteropolis` y la página del dibujante en
+  `/monsteropolis_dibujante`.
+- Una imagen subida se ve en el juego al momento: no hay aprobación previa.
+- «Volver a la anterior» retrocede: v3, v2, v1, y luego el provisional. Desde el
+  provisional no hay nada detrás y dice «No hay una imagen anterior.».
+- La frase de `entrada.js`: sólo cambió la dirección que ya traía.
+
+### Lo que decidió el controlador (técnico)
+
+- La subida llega como cuerpo crudo y no como `multipart`: `python-multipart` no
+  está en los requisitos y no se añade una dependencia por esto. La lectura del
+  cuerpo va tras el permiso, así que un anónimo no hace leer nada.
+- El 308 y no un 301 ni un 307: una página vieja abierta sigue funcionando el
+  día de publicar.
+- La dirección del cliente está escrita en `index.html` y en `api.js` (el
+  JavaScript no lee `PREFIJO` y sus pruebas corren en Node); una prueba vigila
+  que coincidan con `web.PREFIJO`.
+- Un grupo por mueble (35) y no «unos treinta»: es lo que dice el diseño; el
+  dueño puede pedir juntar.
+- «Anterior» se salta una subida que es la misma imagen que la vigente: si no,
+  pulsarlo no cambiaría nada a la vista.
+- La poda decide y borra dentro de un `BEGIN IMMEDIATE`, que excluye subidas y
+  vueltas atrás; una poda que no puede borrar un archivo lo avisa en el
+  registro y no hace fallar la subida. `arte_subido` importa `db`; `db` no
+  importa `web/` ni `arte_subido`.
+- Las frases de rechazo de la subida y las de la página del dibujante las ven
+  sólo el dueño y el dibujante.
+- Si la base no se puede leer, la portada sale igual con el bloque vacío: una
+  portada caída es peor que un arte sin subir.
+- Los 405 y 307 que delatan que una ruta del dibujante existe se quedan: el repo
+  es público y la protección es el permiso.
+- `/piezas` hace una cantidad fija de consultas con pocas o muchas piezas.
+- `deploy.sh` excluye `arte_subido` de su `rsync --delete`.
+
+### Lo que queda
+
+- `db.conectar()` no cierra sus conexiones al salir del `with`: con Python 3.12,
+  el de producción, se cierran al soltar la referencia; con 3.14 pueden quedar
+  abiertas hasta el recolector. Que `conectar` cierre al salir. (Viene de antes
+  de este plan.)
+- Una imagen ya podada que se vuelve a subir cruza con la poda de la subida
+  anterior: la subida guarda otra vez tras anotarla, y el caso está cubierto,
+  pero conviene vigilarlo si la poda cambia.
+- Pasar lo subido al repo, para que el recuadro provisional deje de existir, es
+  trabajo aparte.
+
+### Para publicar este plan
+
+Va después de la tanda corta o con ella; la tanda corta, la rama anterior, **no
+toca el túnel** y puede publicarse antes y por separado con la lista de abajo
+(«Para publicar») tal cual. Este plan sí lo toca, y por eso su orden importa. El
+diseño lo explica: con el túnel de antes, que sólo manda `/gachamon` al juego, el
+juego nuevo redirigiría `/gachamon` a una dirección que cae en el sitio. **Cada
+paso que toca producción necesita el permiso expreso del dueño en ese momento.**
+
+1. **La regla del túnel, con permiso expreso.** Se hace: el reparto por ruta que
+   manda al juego `^/(gachamon|monsteropolis|monsteropolis_dibujante)(/.*)?$`
+   (con el `^` delante no alcanza `/plan/monsteropolis`, que es del sitio). Se
+   comprueba, con `curl` desde fuera, que `/gachamon/` sigue contestando como
+   hoy y que `/plan/monsteropolis` sigue siendo del sitio. Se espera: nada
+   cambia para nadie; `/monsteropolis/` contesta todavía el «no existe» del juego
+   viejo, que nadie enlaza. Si falla: se quita la regla nueva y se deja la de
+   antes; sin ella, no se sigue.
+2. **El juego, con permiso expreso y la integración continua en verde en las dos
+   versiones de Python.** Se hace: `SIN_TESTS=1 ./actualizar-pi.sh`. El guion
+   saca la copia de la base y, si existe, la de lo subido (hoy no existe),
+   comprueba cada servicio y la salud. Si el guion falla a medias, vuelve al
+   commit de antes y reinicia la web solo (ver su aviso final).
+3. **Mirarlo desde fuera, con `curl`.** Se comprueba: `/monsteropolis/` y su
+   salud contestan 200; `/gachamon/` contesta 308 hacia `/monsteropolis/`;
+   `/monsteropolis_dibujante/` sin sesión contesta 404; `/plan/monsteropolis` sigue
+   siendo del sitio. Si alguna no sale así, se revisa la regla del túnel (paso 1)
+   antes que el juego.
+4. **El arranque.** Crea la tabla `arte_subido`, vacía, porque es aditiva: no
+   toca nada de lo que hay. La carpeta de lo subido no existe hasta la primera
+   subida, y de ahí en adelante ningún despliegue la borra. Se comprueba que el
+   registro del arranque no trae avisos. Si los trae, no se sigue sin el dueño.
+5. **El sitio, con su permiso expreso y una copia de su base**, según su propio
+   diseño (la copia, fuera de la carpeta del sitio, con la comprobación de
+   integridad de SQLite).
+6. **El permiso «arte».** El dueño se lo da a sí mismo y al dibujante en la
+   administración del sitio. Se comprueba: con el permiso, la página del
+   dibujante abre y el avance contesta 200; sin él, 404. Se espera: una subida
+   de prueba se ve en el juego al recargar. Si no, se mira que la cuenta no esté
+   bloqueada y que la base del sitio tenga la columna.
+7. **Volver atrás, con el permiso expreso del dueño.** Primero el sitio (su
+   propia copia), después el juego (`git reset --hard` al commit anterior y sus
+   requisitos, y reiniciar el bot y la web). **La regla del túnel se queda:**
+   el juego de antes no contesta `/monsteropolis`, pero no estorba. La base
+   conserva la tabla `arte_subido`, que el código viejo ignora, y lo subido sigue
+   en su carpeta: se pierde sólo la vista, no los archivos.
+
 ## Para publicar
 
 **Publicado el 2026-11-19.** El rediseño entero se publicó siguiendo esta lista,
@@ -1965,6 +2104,12 @@ Cómo salió:
 - **Lo que sigue vivo de la lista.** La copia de antes del cambio se guarda en
   la Raspberry, fuera de la carpeta del repo, hasta que el dueño diga: borrarla
   es renunciar al paso 19. Los pasos 15 a 18 son para tenerlos presentes.
+
+**Después del rediseño viene Monsteropolis.** La tanda corta puede publicarse
+antes y por separado, con esta misma lista, porque no toca el túnel. Las
+herramientas del dibujante, no: tienen su propio orden (el túnel primero, luego
+el juego, luego el sitio) en «Para publicar este plan», dentro de «Salió al
+ejecutar Monsteropolis A, del lado del juego».
 
 La lista única para el día de publicar el rediseño entero (los reworks 1 a 8), en
 orden y sin repetir. Cada paso dice qué se hace y con qué orden, cómo se

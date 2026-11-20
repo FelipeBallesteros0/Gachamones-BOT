@@ -91,7 +91,7 @@ Hay **dos scripts y no hacen lo mismo**:
 
 `actualizar-pi.sh` es el que evita el desfase de desplegar una copia local que no
 está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
-datos antes de tocar nada (guarda las 5 últimas), pone la Pi en el commit de
+datos antes de tocar nada, y la carpeta de lo subido por el dibujante si existe (guarda las 5 últimas de cada una), pone la Pi en el commit de
 `main`, corre la suite allí y **sólo reinicia si pasa** (si no, la Pi vuelve al
 commit en el que estaba, no reinicia el bot y vuelve a arrancar la web). La suite usa un temporal
 en memoria (`--basetemp=/dev/shm/...`) que se borra al terminar, y para ello
@@ -239,6 +239,26 @@ entrega los originales, al doble de lo que sirve la página, en `fuentes/pieza/`
 copias reducidas que usa la página. Qué imágenes hacen falta (cuatro por mueble
 de suelo, dos por mueble de pared) y de qué tamaño está en la sección «La pieza
 de tu departamento» de `docs/arte/contrato.md`.
+
+#### La página del dibujante
+
+Quien dibuja no necesita el repositorio: el dueño y quien tenga el permiso
+«arte» (que se da en la administración del sitio, no aquí) abren
+`/monsteropolis_dibujante/`. Sin el permiso, esa dirección contesta como una que
+no existe. La página lista las piezas por grupos plegables, cada una con su
+imagen de ahora, la medida exacta que pide el contrato, si es el recuadro
+provisional o una imagen subida, y quién y cuándo la subió. Cada pieza tiene
+«Subir» (sólo PNG, hasta 4 MB y de la medida exacta; la pieza del departamento
+admite también el doble), «Historial», «Volver a la anterior» (retrocede una
+subida cada vez, hasta el provisional) y «Volver al provisional». La imagen
+subida se ve en el juego al momento, al recargar. Arriba se descarga todo lo
+subido en un zip. Se guardan las cinco últimas imágenes distintas de cada pieza,
+en una carpeta junto a la base (`arte_subido`, o `RUTA_ARTE_SUBIDO`) que no es
+parte de git; `actualizar-pi.sh` la copia comprimida junto con la base y ningún
+despliegue la borra.
+
+Para probarla en local, `--dibujante N` de `herramientas.pagina_de_prueba` da el
+permiso a la cuenta N (ver «Desarrollo local»).
 
 Para regenerar los rellenos que falten:
 
@@ -620,7 +640,7 @@ Para mirar la página en un navegador sin tocar la base ni los secretos de
 verdad hay una herramienta que la levanta sobre bases de mentira:
 
 ```bash
-./venv/bin/python -m herramientas.pagina_de_prueba --carpeta <carpeta nueva> [--puerto N] [--cuentas N] [--con-gachamones]
+./venv/bin/python -m herramientas.pagina_de_prueba --carpeta <carpeta nueva> [--puerto N] [--cuentas N] [--con-gachamones] [--dibujante N]
 ```
 
 La carpeta tiene que no existir o estar vacía, y quedar fuera del repositorio:
@@ -633,7 +653,10 @@ mentira (`persona1`, `persona2`…) imprime una dirección local con su propio
 puerto, que reenvía todo a la web poniendo la cookie de esa cuenta: abrir
 `/monsteropolis/` en ese puerto es entrar como esa persona. Sólo escucha en
 `127.0.0.1`. Con `--con-gachamones`, cada cuenta empieza con avatar, monedas,
-muebles y tres gachamones, hechos con las reglas del propio juego. Se apaga con
+muebles y tres gachamones, hechos con las reglas del propio juego. Con `--dibujante N`
+(de 1 al número de cuentas), la base de Rowino de mentira lleva la marca del
+permiso del dibujante y sólo la cuenta N la tiene: en su puerto también abre
+`/monsteropolis_dibujante/`. Sin la opción, nadie lo tiene. Se apaga con
 Ctrl-C o con la orden `kill` que imprime al arrancar.
 
 El cliente tiene sus propias pruebas, que corren con Node sin abrir ninguna

@@ -60,6 +60,11 @@ Instala el hook local cuando prepares el entorno:
 - El servicio web no guarda estado del juego en memoria: lo que cambie el bot tiene que verse en la siguiente petición.
 - Quién eres sale sólo de la cookie de sesión de Rowino. Ninguna ruta acepta un identificador de persona.
 - El bot y la web arrancan por `economia.poner_al_dia`, y nadie más prepara la base.
+- El juego vive en `/monsteropolis`; `/gachamon` sólo redirige (308) al prefijo nuevo.
+- El permiso del dibujante se lee aparte y en sólo lectura, de la base del sitio; sin la columna, nadie lo tiene. Sin permiso, sus rutas contestan como una que no existe.
+- Lo subido por el dibujante vive fuera de git, en `config.RUTA_ARTE_SUBIDO`, con nombre de su contenido, y ningún despliegue lo borra.
+- El historial `arte_subido` sólo crece y guarda nombres, nunca números de cuenta. La poda corre bajo `BEGIN IMMEDIATE`.
+- Lo que se sirve a quien juega sale de `urlDeArte`, que mira primero el bloque `arte-subido` de la portada; si falta o viene raro, el arte de siempre.
 
 ## Invariantes del dominio
 
