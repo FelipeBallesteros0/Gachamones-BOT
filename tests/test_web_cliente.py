@@ -473,6 +473,16 @@ def test_el_departamento_esta_montado_y_tiene_su_ancho_en_el_computador():
     assert '#juego[data-pantalla="departamento"]' in (ESTATICOS / "estilo.css").read_text(encoding="utf-8")
 
 
+def test_el_tope_de_la_casilla_sale_de_lo_que_mide_su_arte():
+    # En una pantalla de alta densidad la casilla no se pinta más ancha que su
+    # arte en píxeles del aparato: ese ancho es el del contrato del arte.
+    from web import arte
+
+    hallado = re.search(r"^export const ANCHO_DEL_ARTE_DE_UNA_CASILLA = (\d+);$", _guion("pieza.js"), re.M)
+    assert hallado and int(hallado[1]) == arte.CASILLA[0]
+    assert "ANCHO_DEL_ARTE_DE_UNA_CASILLA / densidad" in _guion("departamento.js")
+
+
 def test_al_departamento_se_le_dice_si_se_llega_caminando_como_al_lugar():
     # Al llegar caminando, el gachamon dice algo del lugar: también en tu departamento.
     # Y tu departamento recibe la cuenta, para el enlace a Discord de quien no tiene gachamon.
@@ -608,15 +618,24 @@ def test_en_un_computador_el_juego_ocupa_toda_la_ventana():
     # del juego no pinta ninguna franja ni el fondo de la página.
     estilo = re.sub(r"/\*.*?\*/", "", (ESTATICOS / "estilo.css").read_text(encoding="utf-8"), flags=re.S)
     reglas = _reglas_con_su_media(estilo)
+    # Cada `max-width` de un selector `#juego…` en una regla que puede valer desde
+    # 900 px, con su sitio en la hoja.
     anchos = [
-        (selector, valor.strip())
-        for media, selectores, cuerpo in reglas if media == "@media (min-width: 900px)"
+        (n, media, selector, valor.strip())
+        for n, (media, selectores, cuerpo) in enumerate(reglas) if _vale_desde_900(media)
         for selector in (" ".join(s.split()) for s in selectores.split(","))
         if selector.startswith("#juego")
         for valor in re.findall(r"max-width:\s*([^;]+)", cuerpo)
     ]
-    assert [a for a in anchos if a[1] != "none"] == [], anchos
-    assert ("#juego", "none") in anchos, anchos
+    sin_tope = [n for n, media, selector, valor in anchos
+                if media == "@media (min-width: 900px)" and selector == "#juego" and valor == "none"]
+    assert sin_tope, anchos
+    # Lo único que puede llevar otro es la columna del teléfono: `#juego` a secas,
+    # fuera de todo `@media` y antes en la hoja que `#juego { max-width: none }`,
+    # que desde 900 px la pisa. Cualquier otro volvería a dejar franjas.
+    otros = [(media, selector, valor) for n, media, selector, valor in anchos
+             if valor != "none" and not (media == "" and selector == "#juego" and n < sin_tope[0])]
+    assert otros == [], otros
     # La pista de los medidores es lo único que lleva ese color desde 900 px, y
     # no es un fondo: es la barra vacía dentro de la ficha, igual que en el teléfono.
     usos = {

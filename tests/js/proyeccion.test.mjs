@@ -23,6 +23,22 @@ test('la casilla se ajusta al tamaño de la pieza', () => {
   assert.ok(cerca(m.ox, 190 - 2 * m.tw / 4));
 });
 
+test('con un tope, la casilla no pasa de él y su alto y la pared la siguen; sin tope, como siempre', () => {
+  // Sin el quinto argumento, lo de siempre (aquí manda el alto: 856 / 2,5).
+  const sinTope = p.medir(1400, 890, 3, 3);
+  assert.ok(cerca(sinTope.tw, 342.4));
+  assert.ok(cerca(sinTope.th, 171.2) && cerca(sinTope.pared, 342.4) && cerca(sinTope.ox, 700) && cerca(sinTope.oy, 358.4));
+  // Un tope que no se alcanza, o ninguno, no cambia nada.
+  assert.deepEqual(p.medir(1400, 890, 3, 3, 512), sinTope);
+  assert.deepEqual(p.medir(1400, 890, 3, 3, undefined), sinTope);
+  assert.deepEqual(p.medir(380, 310, 4, 2, 1000), p.medir(380, 310, 4, 2));
+  // Con uno menor, la casilla mide el tope; su alto, la pared y dónde empieza la pieza salen de él.
+  const conTope = p.medir(1400, 890, 3, 3, 256);
+  assert.deepEqual([conTope.tw, conTope.th, conTope.pared, conTope.ox, conTope.oy], [256, 128, 256, 700, 16 + 256]);
+  const ancha = p.medir(1400, 890, 4, 2, 200);
+  assert.deepEqual([ancha.tw, ancha.ox], [200, 700 - 2 * 200 / 4]);
+});
+
 test('toda la pieza cabe en el lienzo, del 3 × 3 al 8 × 8', () => {
   for (let ancho = 3; ancho <= 8; ancho += 1) for (let fondo = 3; fondo <= 8; fondo += 1) {
     const m = p.medir(380, 310, ancho, fondo);

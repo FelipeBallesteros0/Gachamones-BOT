@@ -12,10 +12,11 @@ const MARGEN_LADOS = 28;
 const MARGEN_VERTICAL = 34;
 const MARGEN_ARRIBA = 16;
 
-// La casilla más grande que deja ver la pieza entera con sus paredes.
-export function medir(anchoPx, altoPx, ancho, fondo) {
+// La casilla más grande que deja ver la pieza entera con sus paredes; con
+// `topeDeCasilla`, no más ancha que eso (en píxeles de pantalla).
+export function medir(anchoPx, altoPx, ancho, fondo, topeDeCasilla = Infinity) {
   const suma = ancho + fondo;
-  const tw = Math.min(2 * (anchoPx - MARGEN_LADOS) / suma, (altoPx - MARGEN_VERTICAL) / (1 + suma / 4));
+  const tw = Math.min(2 * (anchoPx - MARGEN_LADOS) / suma, (altoPx - MARGEN_VERTICAL) / (1 + suma / 4), topeDeCasilla);
   const pared = tw;
   return { tw, th: tw / 2, pared, ox: anchoPx / 2 - (ancho - fondo) * tw / 4, oy: MARGEN_ARRIBA + pared };
 }

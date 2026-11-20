@@ -848,6 +848,35 @@ test('tocar una casilla que se pisa lleva ahí a tu avatar, contando el toque de
   assert.equal(pedidos.length, 1);                                      // dónde estás no se manda
 });
 
+test('en una pantalla de alta densidad la casilla no pasa del ancho de su arte, y el toque cae donde se ve', async () => {
+  // Un lienzo grande, como en un computador: aquí manda el alto y la casilla mide 342,4.
+  const deAntes = { ...LIENZO };
+  Object.assign(LIENZO, { width: 1400, height: 890 });
+  try {
+    // A densidad 1, lo de siempre.
+    const normal = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+    const sinTope = medir(1400, 890, 3, 3);
+    for (const [, [, , , ancho]] of pintados(normal.pantalla, 'pieza/suelo.png')) assert.equal(ancho, sinTope.tw);
+    // A densidad 2, el arte de una casilla (512 de ancho) se pinta a lo sumo a su tamaño en píxeles del
+    // aparato: la casilla mide 256 de pantalla.
+    window.devicePixelRatio = 2;
+    const { pantalla } = await abrir(DEPTO, ESTADO, { movimientoReducido: true });
+    const suelos = pintados(pantalla, 'pieza/suelo.png');
+    assert.equal(suelos.length, 9);
+    for (const [, [, , , ancho]] of suelos) assert.equal(ancho, 256);
+    // El toque se cuenta con esa misma medida: tocar el centro de (0, 2) lleva ahí a tu avatar.
+    const m = medir(1400, 890, 3, 3, 256);
+    const [x, y] = proyectar(m, 0.5, 2.5);
+    await tocarEn(pantalla, x, y);
+    const [, [, xCuerpo, yCuerpo, anchoCuerpo, altoCuerpo]] = pintados(pantalla, '/avatar/cuerpo/').at(-1);
+    assert.ok(Math.abs(xCuerpo + anchoCuerpo / 2 - x) <= 1, `${xCuerpo + anchoCuerpo / 2} / ${x}`);
+    assert.ok(Math.abs(yCuerpo + altoCuerpo * (80 / 84) - y) <= 1, `${yCuerpo + altoCuerpo * (80 / 84)} / ${y}`);
+  } finally {
+    Object.assign(LIENZO, deAntes);
+    window.devicePixelRatio = 1;
+  }
+});
+
 // --- mientras carga, y lo que llega tarde o no llega -------------------------------
 
 test('mientras carga dice «Cargando tu departamento…», como la tienda y la mochila', async () => {

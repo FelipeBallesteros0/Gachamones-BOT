@@ -21,6 +21,11 @@ import {
 const SUELO = 'suelo';
 const PARED = 'pared';
 
+// Lo que mide de ancho el arte de una casilla de suelo, tal como se sirve (el
+// contrato del arte, `web/arte.py`): pintarlo más ancho, en píxeles del
+// aparato, sólo lo agranda borroso.
+export const ANCHO_DEL_ARTE_DE_UNA_CASILLA = 512;
+
 const DIBUJO_DEL_SUELO = 'pieza/suelo.png';
 const PARED_IZQUIERDA = 'pieza/pared-izquierda.png';
 const PARED_DERECHA = 'pieza/pared-derecha.png';

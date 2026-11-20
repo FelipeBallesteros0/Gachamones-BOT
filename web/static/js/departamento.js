@@ -120,7 +120,7 @@ import { loQueFlota } from './flotantes.js';
 import { listaDelDepartamento } from './lista.js';
 import { menuDeLaPieza } from './menu.js';
 import { siguiente } from './pantallas.js';
-import { dibujarPieza, rutasDeLaPieza } from './pieza.js';
+import { ANCHO_DEL_ARTE_DE_UNA_CASILLA, dibujarPieza, rutasDeLaPieza } from './pieza.js';
 import { panelDelPlantel } from './plantel.js';
 import {
   cajaDelGachamon, cajaDelMueble, casillaEn, medir, queSeToco, queSeUsa, tramoEn,
@@ -629,7 +629,8 @@ export function departamento(contenedor, estado, seguir, { azar = Math.random, l
     if (lienzo.width !== anchoReal) lienzo.width = anchoReal;
     if (lienzo.height !== altoReal) lienzo.height = altoReal;
     escala = [anchoReal / caja.width, altoReal / caja.height];
-    m = medir(caja.width, caja.height, depto.ancho, depto.fondo);
+    // La casilla no se pinta más ancha que su arte en píxeles del aparato.
+    m = medir(caja.width, caja.height, depto.ancho, depto.fondo, ANCHO_DEL_ARTE_DE_UNA_CASILLA / densidad);
     return true;
   }
 

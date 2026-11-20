@@ -2555,17 +2555,24 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
     gap: 18px 28px;
   }
 
-  /* Lo que contesta el juego, en la última fila, a lo ancho. */
-  .cuerpo-departamento > .aviso { grid-column: 1 / -1; grid-row: 5; }
+  /* Lo que contesta el juego, en la última fila, al centro y ceñido a su
+     texto, como en la Tienda y en la mochila. */
+  .cuerpo-departamento > .aviso { grid-column: 1 / -1; grid-row: 5; justify-self: center; }
 
   .lista-departamento > .lista-gachamones { grid-column: 1 / -1; }
 
   .cuidados-elegido { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+  /* El alto de la ventana, pero no más del que pide la forma de siempre de la
+     pieza (380 × 310) con el ancho de su columna (la ventana menos el panel,
+     el relleno de los lados y el hueco entre los dos, 28 px cada uno): en una
+     ventana más alta que ancha no queda un recuadro estirado con la pieza
+     arriba y un hueco debajo. */
   .pieza-lienzo {
+    --alto-por-el-ancho: calc((100vw - var(--ancho-del-panel) - 84px) * 310 / 380);
     aspect-ratio: auto;
-    height: max(420px, calc(100vh - 190px));
-    height: max(420px, calc(100dvh - 190px));
+    height: max(420px, min(calc(100vh - 190px), var(--alto-por-el-ancho)));
+    height: max(420px, min(calc(100dvh - 190px), var(--alto-por-el-ancho)));
   }
 
   /* Mientras se lee la guía bajo el dibujo, el dibujo le deja su sitio (una
@@ -2574,15 +2581,15 @@ h1.donde { font-size: inherit; line-height: inherit; letter-spacing: normal; }
      de la cama parte en dos líneas, y la segunda cabe en el respiro que ya
      dejaba la línea de abajo. */
   .pieza:has(> .pieza-guia:not([hidden])) .pieza-lienzo {
-    height: max(420px, calc(100vh - 230px));
-    height: max(420px, calc(100dvh - 230px));
+    height: max(420px, min(calc(100vh - 230px), var(--alto-por-el-ancho)));
+    height: max(420px, min(calc(100dvh - 230px), var(--alto-por-el-ancho)));
   }
 
   /* Con el enlace a Discord bajo la guía, el dibujo le deja también el suyo. */
   .pieza:has(> .traer:not([hidden])) .pieza-lienzo {
     aspect-ratio: auto;
-    height: max(420px, calc(100vh - 282px));
-    height: max(420px, calc(100dvh - 282px));
+    height: max(420px, min(calc(100vh - 282px), var(--alto-por-el-ancho)));
+    height: max(420px, min(calc(100dvh - 282px), var(--alto-por-el-ancho)));
   }
 
   /* El paso del código, en la columna de la entrada y al centro. */
