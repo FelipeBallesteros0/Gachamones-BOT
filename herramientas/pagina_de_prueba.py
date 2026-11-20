@@ -21,6 +21,7 @@ Escribe en la carpeta `pids` (la herramienta y la web) y dice cómo apagarla.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import http.client
 import http.server
 import os
@@ -28,6 +29,7 @@ import random
 import secrets
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tarfile
@@ -94,6 +96,17 @@ def validar_puertos(puerto: int, cuentas: int) -> None:
         raise NoSePuede("El puerto tiene que estar entre 1024 y 65535, con sitio para las cuentas.")
     if RESERVADOS.intersection(usados):
         raise NoSePuede("Esos puertos incluyen alguno reservado; elige otro rango.")
+
+
+def exigir_puertos_libres(puerto: int, cuentas: int) -> None:
+    """Se niega si algún puerto de la web o de las cuentas ya está en uso en local."""
+    for candidato in range(puerto, puerto + cuentas + 1):
+        with socket.socket() as prueba:
+            prueba.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                prueba.bind((DIRECCION, candidato))
+            except OSError:
+                raise NoSePuede(f"El puerto {candidato} está ocupado.") from None
 
 
 def leer_argumentos(argv=None) -> argparse.Namespace:
@@ -229,13 +242,23 @@ def crear_intermediario(puerto: int, puerto_web: int, cookie: str) -> http.serve
 # --- Cuentas con algo dentro -------------------------------------------------------
 
 def _colocar(usuario_id: str, guild: str, mueble_id: int) -> None:
-    """Pone ese mueble en la primera casilla donde las reglas lo dejan."""
+    """Pone ese mueble en la primera casilla donde las reglas lo dejan, sin tapar la entrada.
+
+    La entrada es la casilla de dentro que queda frente a la puerta: ahí no se
+    pone ningún mueble de bulto, porque el avatar no podría pasar.
+    """
     import db
+    import departamento as dep
     import economia
 
     depto = db.departamento_leido(usuario_id, guild)
+    puerta = next(p for p in depto.puestas if p.clave == dep.PUERTA)
+    entrada = dep.frente_a(puerta.x, puerta.y)
+    mueble = dep.MUEBLES[next(p.clave for p in depto.piezas if p.id == mueble_id)]
     for y in range(-1, depto.fondo + 1):
         for x in range(-1, depto.ancho + 1):
+            if mueble.capa == dep.BULTO and entrada in dep.huella(mueble, x, y, 0):
+                continue
             if economia.poner_mueble(usuario_id, guild, mueble_id, x, y, 0).ok:
                 return
     raise NoSePuede("No hay dónde poner un mueble de prueba.")
@@ -267,6 +290,8 @@ def sembrar(uids, guild: int) -> None:
     import nacer
     import personalidad as per
 
+    if Path(db.RUTA).resolve().is_relative_to(REPO):
+        raise NoSePuede("La base está dentro del repositorio: no se siembra ahí.")
     ahora = db.ahora_utc()
     economia.poner_al_dia(ahora - timedelta(days=1))
     if any(db.cuenta_web(uid) is not None for uid in uids):
@@ -317,6 +342,12 @@ _ARRANQUE_DEL_SEMBRADO = (
 )
 
 
+def orden_del_sembrado(copia: Path, cuentas: int, guild: int) -> list[str]:
+    """El subproceso que siembra: corre la herramienta de la copia, no la del árbol de trabajo."""
+    return [sys.executable, "-I", "-c", _ARRANQUE_DEL_SEMBRADO, str(copia),
+            str(copia / "herramientas" / "pagina_de_prueba.py"), str(cuentas), str(guild)]
+
+
 def _esperar_a_la_web(puerto: int, web: subprocess.Popen, registro: Path) -> None:
     limite = time.monotonic() + 90
     while time.monotonic() < limite:
@@ -334,9 +365,20 @@ def _esperar_a_la_web(puerto: int, web: subprocess.Popen, registro: Path) -> Non
     raise NoSePuede("La web no contestó:\n" + "\n".join(ultimas))
 
 
+def _como_ctrl_c(*_) -> None:
+    raise KeyboardInterrupt
+
+
+def _morir_con_el_padre() -> None:
+    """En Linux, la web muere también si a la herramienta la matan sin avisar."""
+    if sys.platform.startswith("linux"):
+        ctypes.CDLL(None).prctl(1, signal.SIGTERM)   # PR_SET_PDEATHSIG
+
+
 def ejecutar(argumentos: argparse.Namespace) -> int:
     exigir_entorno_sin_bases(os.environ)
     validar_puertos(argumentos.puerto, argumentos.cuentas)
+    exigir_puertos_libres(argumentos.puerto, argumentos.cuentas)
     carpeta = validar_carpeta(argumentos.carpeta)
     carpeta.mkdir(parents=True, exist_ok=True)
     copia = carpeta / "copia"
@@ -346,26 +388,20 @@ def ejecutar(argumentos: argparse.Namespace) -> int:
 
     if argumentos.con_gachamones:
         sembrado = subprocess.run(
-            [sys.executable, "-I", "-c", _ARRANQUE_DEL_SEMBRADO, str(copia),
-             str(Path(__file__).resolve()), str(argumentos.cuentas), str(GUILD_DE_PRUEBA)],
+            orden_del_sembrado(copia, argumentos.cuentas, GUILD_DE_PRUEBA),
             cwd=copia, env=entorno, capture_output=True, text=True,
         )
         if sembrado.returncode != 0:
             raise NoSePuede("No se pudieron sembrar las cuentas:\n" + sembrado.stderr[-1500:])
 
+    # Desde aquí, cerrar la terminal o un `kill` hacen lo mismo que Ctrl-C.
+    for senal in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(senal, _como_ctrl_c)
     registro = carpeta / "web.log"
-    with registro.open("wb") as salida:
-        web = subprocess.Popen(
-            orden_de_la_web(argumentos.puerto), cwd=copia, env=entorno,
-            stdout=salida, stderr=subprocess.STDOUT, start_new_session=True,
-        )
-    (carpeta / "pids").write_text(f"{os.getpid()} {web.pid}\n")
-    intermediarios = []
+    web = None
 
-    def apagar(*_):
-        for servidor in intermediarios:
-            servidor.shutdown()
-        if web.poll() is None:
+    def apagar():
+        if web is not None and web.poll() is None:
             web.terminate()
             try:
                 web.wait(10)
@@ -373,13 +409,19 @@ def ejecutar(argumentos: argparse.Namespace) -> int:
                 web.kill()
 
     try:
+        with registro.open("wb") as salida:
+            web = subprocess.Popen(
+                orden_de_la_web(argumentos.puerto), cwd=copia, env=entorno,
+                stdout=salida, stderr=subprocess.STDOUT, start_new_session=True,
+                preexec_fn=_morir_con_el_padre,
+            )
+        (carpeta / "pids").write_text(f"{os.getpid()} {web.pid}\n")
         _esperar_a_la_web(argumentos.puerto, web, registro)
         for uid in range(1, argumentos.cuentas + 1):
             servidor = crear_intermediario(
                 argumentos.puerto + uid, argumentos.puerto,
                 "session=" + firmar_cookie(uid, entorno["ROWINO_SECRET_KEY"]),
             )
-            intermediarios.append(servidor)
             threading.Thread(target=servidor.serve_forever, daemon=True).start()
     except BaseException:
         apagar()
@@ -389,15 +431,13 @@ def ejecutar(argumentos: argparse.Namespace) -> int:
     for uid in range(1, argumentos.cuentas + 1):
         print(f"  persona{uid}: http://{DIRECCION}:{argumentos.puerto + uid}/gachamon/")
     print(f"Carpeta: {carpeta}")
-    print(f"Para apagarla: Ctrl-C, o `kill {os.getpid()}` (apaga también la web, pid {web.pid}).")
+    print(f"Para apagarla: Ctrl-C, cerrar la terminal, o `kill {os.getpid()}` (apaga también la web, pid {web.pid}).")
     print("Los pids quedan en el archivo `pids` de la carpeta.")
     sys.stdout.flush()
 
-    parar = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: parar.set())
     try:
-        while not parar.is_set() and web.poll() is None:
-            parar.wait(1)
+        while web.poll() is None:
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
     apagar()
@@ -412,6 +452,9 @@ def main(argv=None) -> int:
     except NoSePuede as error:
         print(f"No se puede: {error}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        print("Interrumpida; la web queda apagada.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

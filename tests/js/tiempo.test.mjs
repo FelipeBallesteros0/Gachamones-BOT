@@ -136,8 +136,8 @@ test('sin marca y con la misma etapa no hay nada que celebrar', () => {
 
 test('cada medalla nueva dice su nombre y sus gemas, en singular cuando es una', () => {
   assert.deepEqual(avisosDeMedallas({ logros: [
-    { nombre: 'De la alfa', gemas: 25 }, { nombre: 'Uno suelto', gemas: 1 },
-  ] }), ['🏅 De la alfa · +25 gemas', '🏅 Uno suelto · +1 gema']);
+    { nombre: 'De la alfa', gemas: 5 }, { nombre: 'Uno suelto', gemas: 1 },
+  ] }), ['🏅 De la alfa · +5 gemas', '🏅 Uno suelto · +1 gema']);
 });
 
 test('sin medallas, o con algo que no lo es, no se dice nada', () => {

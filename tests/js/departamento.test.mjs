@@ -3263,7 +3263,7 @@ test('viviendo, tocar el suelo bajo el globo sigue siendo caminar', async () => 
 test('viviendo, tocar el aviso de una evolución o de una medalla que queda sobre la puerta no te saca', async () => {
   const casos = [
     ['.celebracion-texto', { ...CUIDADO_HECHO, evoluciono: true }, 4500],
-    ['.medalla', { ...CUIDADO_HECHO, logros: [{ nombre: 'De la alfa', gemas: 25 }] }, 6000],
+    ['.medalla', { ...CUIDADO_HECHO, logros: [{ nombre: 'De la alfa', gemas: 5 }] }, 6000],
   ];
   for (const [aviso, respuesta, dura] of casos) {
     const { pantalla, seguido, servidor } = await abrir(DEPTO);           // recién entrado: estás en la puerta

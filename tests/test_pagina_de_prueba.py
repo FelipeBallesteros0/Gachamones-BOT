@@ -5,8 +5,12 @@ Rowino de mentira, la cookie, las cabeceras del intermediario y el sembrado de
 cuentas sobre una base temporal). Levantarla de verdad se hace a mano.
 """
 import os
+import signal
+import socket
 import sqlite3
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -208,3 +212,88 @@ def test_sembrar_dos_veces_la_misma_base_se_niega(tmp_path, monkeypatch):
 
 def test_nada_de_esto_toca_el_entorno_del_proceso():
     assert "RUTA_BD" not in os.environ and "RUTA_ROWINO_BD" not in os.environ
+
+
+# --- Arreglos de la revisión final -----------------------------------------------
+
+def test_un_puerto_ocupado_se_niega_antes_de_lanzar_nada():
+    ocupado = socket.socket()
+    ocupado.bind(("127.0.0.1", 0))
+    ocupado.listen()
+    puerto = ocupado.getsockname()[1]
+    try:
+        for desde in (puerto, puerto - 1, puerto - 2):   # la web o alguna de las cuentas
+            with pytest.raises(pp.NoSePuede, match=f"El puerto {puerto} está ocupado"):
+                pp.exigir_puertos_libres(desde, 2)
+    finally:
+        ocupado.close()
+    pp.exigir_puertos_libres(puerto, 1)   # ya libre
+
+
+def test_sembrar_se_niega_sobre_una_base_dentro_del_repo(monkeypatch):
+    monkeypatch.setattr(db, "RUTA", REPO / "no-se-crea.db")
+    with pytest.raises(pp.NoSePuede):
+        pp.sembrar([1], 777)
+    assert not (REPO / "no-se-crea.db").exists()
+
+
+def test_el_sembrado_corre_el_archivo_de_la_copia(tmp_path):
+    orden = pp.orden_del_sembrado(tmp_path / "copia", 2, 777)
+    assert str(tmp_path / "copia" / "herramientas" / "pagina_de_prueba.py") in orden
+    assert str(Path(pp.__file__).resolve()) not in orden
+
+
+def test_tras_sembrar_la_entrada_de_cada_cuenta_no_tiene_bultos(tmp_path, monkeypatch):
+    import departamento as dep
+
+    monkeypatch.setattr(db, "RUTA", tmp_path / "juego.db")
+    pp.sembrar([1, 2], 777)
+    for uid in (1, 2):
+        cuenta = db.cuenta_web(uid)
+        depto = db.departamento_leido(cuenta.usuario_id, cuenta.guild_id)
+        puerta = next(p for p in depto.puestas if p.clave == dep.PUERTA)
+        entrada = dep.frente_a(puerta.x, puerta.y)
+        bultos = [p for p in depto.puestas
+                  if dep.MUEBLES[p.clave].capa == dep.BULTO
+                  and entrada in dep.huella(dep.MUEBLES[p.clave], p.x, p.y, p.giro)]
+        assert bultos == []
+
+
+def test_las_senales_de_apagado_hacen_lo_que_ctrl_c():
+    with pytest.raises(KeyboardInterrupt):
+        pp._como_ctrl_c(signal.SIGTERM, None)
+
+
+def test_main_no_saca_traza_si_lo_interrumpen_durante_el_arranque(monkeypatch, capsys):
+    def interrumpida(_):
+        raise KeyboardInterrupt
+    monkeypatch.setattr(pp, "ejecutar", interrumpida)
+    assert pp.main(["--carpeta", "x"]) == 130
+    assert "Interrumpida" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="sólo Linux")
+def test_la_web_muere_si_matan_a_la_herramienta_sin_avisar():
+    guion = (
+        "import subprocess, sys, time\n"
+        "from herramientas import pagina_de_prueba as pp\n"
+        "hijo = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+        "                        start_new_session=True, preexec_fn=pp._morir_con_el_padre)\n"
+        "print(hijo.pid, flush=True)\n"
+        "time.sleep(60)\n"
+    )
+    padre = subprocess.Popen([sys.executable, "-c", guion], cwd=REPO, stdout=subprocess.PIPE, text=True)
+    try:
+        hijo = int(padre.stdout.readline())
+        padre.kill()
+        padre.wait()
+        for _ in range(50):
+            try:
+                os.kill(hijo, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.1)
+        os.kill(hijo, signal.SIGKILL)
+        pytest.fail("el hijo siguió vivo tras morir su padre")
+    finally:
+        padre.kill()
