@@ -86,6 +86,13 @@ URL_DE_LA_PAGINA = (
 
 RUTA_BD = Path(os.environ.get("RUTA_BD", RAIZ / "tamagotchi.db"))
 
+# Las imágenes que sube el dibujante para reemplazar los recuadros provisionales
+# del arte. Viven fuera de git, junto a la base y como ella, para que ningún
+# despliegue las toque. Vacía, la variable vale como si no estuviera.
+RUTA_ARTE_SUBIDO = Path(
+    os.environ.get("RUTA_ARTE_SUBIDO", "").strip() or RUTA_BD.parent / "arte_subido"
+)
+
 # La web de Gachamon no tiene cuentas propias: entra con la sesión de Rowino.
 # La clave es la misma `SECRET_KEY` de Rowino, con la que firma su cookie, y la
 # base de Rowino sólo se lee para saber quién es esa cookie.

@@ -15,8 +15,9 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 import sqlite3
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -434,6 +435,23 @@ CREATE TABLE IF NOT EXISTS cartas (
     escrita_en TEXT NOT NULL,
     vista_en TEXT,
     PRIMARY KEY (usuario_id, guild_id, carta)
+);
+
+-- Lo que sube el dibujante para reemplazar los recuadros provisionales del arte:
+-- un renglón por subida o por vuelta atrás, y ninguno se cambia ni se borra. La
+-- imagen vigente de una pieza (`ruta`, la del contrato) es la de su último
+-- renglón; `archivo` vacío es el recuadro provisional. `ancho` y `alto` son los
+-- de lo servido, para dejar de servirlo si el contrato cambia de medida. `quien`
+-- es el nombre de quien lo hizo, nunca su número de cuenta.
+CREATE TABLE IF NOT EXISTS arte_subido (
+    id INTEGER PRIMARY KEY,
+    ruta TEXT NOT NULL,
+    archivo TEXT,
+    ancho INTEGER,
+    alto INTEGER,
+    quien TEXT NOT NULL,
+    cuando TEXT NOT NULL,
+    CHECK ((archivo IS NULL) = (ancho IS NULL) AND (archivo IS NULL) = (alto IS NULL))
 );
 
 """
@@ -2691,3 +2709,154 @@ def canjear_codigo_de_vinculo(
             "DELETE FROM vinculos_pendientes WHERE rowino_uid = ?", (rowino_uid,)
         )
         return vinculo.OK
+
+
+# --- Lo que sube el dibujante -------------------------------------------------
+#
+# La tabla es un historial que sólo crece; los archivos viven en la carpeta de lo
+# subido (`config.RUTA_ARTE_SUBIDO`), y escribirlos y podarlos es de
+# `arte_subido`. Aquí no se sabe del contrato del arte (`db` no importa `web`):
+# las rutas sólo se comprueban de forma, y lo que mide hoy cada pieza lo pasa
+# quien llama.
+
+# Las imágenes distintas de cada pieza que se conservan en disco, contando desde
+# la última. A una más vieja ya no se puede volver.
+ARTE_CONSERVADO_POR_PIEZA = 5
+
+_RUTA_DE_ARTE = re.compile(r"[a-z0-9_-]+(?:/[a-z0-9_-]+)*\.png")
+_ARCHIVO_DE_ARTE = re.compile(r"[0-9a-f]{64}\.png")
+
+
+@dataclass(frozen=True)
+class RenglonDelArte:
+    archivo: str | None  # None: el recuadro provisional
+    ancho: int | None
+    alto: int | None
+    quien: str
+    cuando: datetime
+
+
+def _comprobar_ruta_de_arte(ruta: str) -> None:
+    if not _RUTA_DE_ARTE.fullmatch(ruta):
+        raise ValueError(f"{ruta!r} no tiene forma de ruta del arte")
+
+
+def _anotar_arte_en(
+    con: sqlite3.Connection, ruta: str, archivo: str | None,
+    ancho: int | None, alto: int | None, quien: str, ahora: datetime,
+) -> None:
+    con.execute(
+        "INSERT INTO arte_subido (ruta, archivo, ancho, alto, quien, cuando) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (ruta, archivo, ancho, alto, quien, ahora.isoformat()),
+    )
+
+
+def subir_arte(
+    ruta: str, archivo: str, ancho: int, alto: int, quien: str, ahora: datetime,
+) -> None:
+    """Deja `archivo` como la imagen vigente de esa pieza, a nombre de `quien`.
+
+    El archivo ya tiene que estar entero en la carpeta de lo subido: se anota
+    después de escribirlo. `ancho` y `alto` son los de la imagen servida.
+    """
+    _comprobar_ruta_de_arte(ruta)
+    if not _ARCHIVO_DE_ARTE.fullmatch(archivo):
+        raise ValueError(f"{archivo!r} no tiene forma de archivo subido")
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        _anotar_arte_en(con, ruta, archivo, ancho, alto, quien, ahora)
+
+
+def volver_a_la_anterior(ruta: str, quien: str, ahora: datetime) -> str | None:
+    """Vuelve a la imagen anterior distinta de la vigente, y la devuelve.
+
+    Deja un renglón nuevo a nombre de quien vuelve. Si no hay anterior, vuelve al
+    recuadro provisional y devuelve `None`. Desde el provisional, la anterior es la
+    última imagen que tuvo la pieza. Siempre es una de las que se conservan en
+    disco (`archivos_que_se_conservan`).
+    """
+    _comprobar_ruta_de_arte(ruta)
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        filas = con.execute(
+            "SELECT archivo, ancho, alto FROM arte_subido WHERE ruta = ? ORDER BY id DESC",
+            (ruta,),
+        ).fetchall()
+        vigente = filas[0]["archivo"] if filas else None
+        anterior = next(
+            (f for f in filas if f["archivo"] is not None and f["archivo"] != vigente), None
+        )
+        if anterior is None:
+            _anotar_arte_en(con, ruta, None, None, None, quien, ahora)
+            return None
+        _anotar_arte_en(
+            con, ruta, anterior["archivo"], anterior["ancho"], anterior["alto"], quien, ahora
+        )
+        return anterior["archivo"]
+
+
+def volver_al_provisional(ruta: str, quien: str, ahora: datetime) -> None:
+    """Deja la pieza sin imagen subida: se vuelve a ver su recuadro provisional."""
+    _comprobar_ruta_de_arte(ruta)
+    with conectar() as con:
+        con.execute("BEGIN IMMEDIATE")
+        _anotar_arte_en(con, ruta, None, None, None, quien, ahora)
+
+
+def arte_vigente(
+    medidas: Mapping[str, tuple[int, int]],
+) -> dict[str, tuple[str, int, int]]:
+    """Ruta → (archivo, ancho, alto) de las piezas cuya imagen vigente se sirve.
+
+    `medidas` es lo que mide hoy cada pieza del contrato (`arte_subido.medidas()`).
+    Sólo salen las piezas con imagen subida, que siguen en el contrato y cuya
+    imagen tiene la medida que pide hoy: lo subido con una medida vieja, o para
+    una pieza que ya no existe, deja de servirse y se vuelve a ver el recuadro.
+    """
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT ruta, archivo, ancho, alto FROM arte_subido "
+            "WHERE id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) "
+            "AND archivo IS NOT NULL"
+        ).fetchall()
+    return {
+        f["ruta"]: (f["archivo"], f["ancho"], f["alto"]) for f in filas
+        if medidas.get(f["ruta"]) == (f["ancho"], f["alto"])
+    }
+
+
+def historial_del_arte(ruta: str) -> list[RenglonDelArte]:
+    """Todo lo que le ha pasado a esa pieza, lo último primero."""
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT archivo, ancho, alto, quien, cuando FROM arte_subido "
+            "WHERE ruta = ? ORDER BY id DESC",
+            (ruta,),
+        ).fetchall()
+    return [
+        RenglonDelArte(f["archivo"], f["ancho"], f["alto"], f["quien"],
+                       datetime.fromisoformat(f["cuando"]))
+        for f in filas
+    ]
+
+
+def archivos_que_se_conservan() -> set[str]:
+    """Los archivos que tienen que seguir en disco: de cada pieza, sus últimas
+    `ARTE_CONSERVADO_POR_PIEZA` imágenes distintas, que incluyen la vigente.
+
+    Lo que `arte_subido.podar` no borra. Un archivo puede ser de varias piezas, y
+    basta con que una lo conserve.
+    """
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT ruta, archivo FROM arte_subido WHERE archivo IS NOT NULL "
+            "GROUP BY ruta, archivo ORDER BY ruta, MAX(id) DESC"
+        ).fetchall()
+    conservados: set[str] = set()
+    contados: dict[str, int] = {}
+    for fila in filas:
+        if contados.get(fila["ruta"], 0) < ARTE_CONSERVADO_POR_PIEZA:
+            contados[fila["ruta"]] = contados.get(fila["ruta"], 0) + 1
+            conservados.add(fila["archivo"])
+    return conservados

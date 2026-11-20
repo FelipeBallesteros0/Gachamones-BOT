@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
+import arte_subido
 from web import arte
 
 FUENTES = Path(__file__).resolve().parent.parent / "fuentes"
@@ -18,10 +19,13 @@ SERVIDO = arte.RAIZ
 
 
 def reducida(ruta: Path) -> Image.Image:
-    """El original abierto, en RGBA, reducido a la mitad con `LANCZOS`: lo que se guarda."""
+    """El original abierto, en RGBA, reducido a la mitad con `LANCZOS`: lo que se guarda.
+
+    La reducción es la misma que se le hace al doble que sube el dibujante
+    (`arte_subido.a_lo_servido`)."""
     with Image.open(ruta) as abierta:
         imagen = abierta.convert("RGBA")
-    return imagen.resize((imagen.width // arte.REDUCCION, imagen.height // arte.REDUCCION), Image.LANCZOS)
+    return arte_subido.a_lo_servido(imagen)
 
 
 def reducir() -> list[str]:

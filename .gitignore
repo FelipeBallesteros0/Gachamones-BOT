@@ -24,5 +24,8 @@ CLAUDE.local.md
 # Las mascotas de cada servidor.
 *.db
 
+# Lo que sube el dibujante: vive sólo en el servidor, junto a la base, como ella.
+/arte_subido/
+
 # Las copias que hace `actualizar-pi.sh` antes de tocar la Pi. Viven sólo ahí.
 *.db.*.bak
