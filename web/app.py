@@ -24,7 +24,8 @@ import db
 import economia
 import retrato
 from web import (
-    PREFIJO, PREFIJO_ANTIGUO, aventura, carta, cuenta, departamento, ficha, juego, mochila, retratos, ropero, tienda,
+    PREFIJO, PREFIJO_ANTIGUO, aventura, carta, cuenta, departamento, dibujante, ficha, juego, mochila, retratos,
+    ropero, tienda,
 )
 from web.sesion import Persona, persona_actual, problema
 
@@ -38,6 +39,7 @@ _ERRORES_CONOCIDOS = {
 }
 
 API = f"{PREFIJO}/api/"
+API_DEL_DIBUJANTE = f"{dibujante.PREFIJO_DIBUJANTE}/api/"
 _METODOS_DEL_JUEGO = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 TOPE_DEL_CUERPO = 16 * 1024
 DEMASIADO = ("demasiado", "Eso es demasiado grande.")
@@ -102,8 +104,10 @@ class _TopeDelCuerpo:
 class _Cabeceras:
     """Lo que lleva toda respuesta del servicio, sea cual sea.
 
-    Nadie la mete en un marco ni adivina su tipo; y lo de la api no se guarda
-    en ninguna caché, tampoco los errores. Los retratos no son de la api y
+    Nadie la mete en un marco ni adivina su tipo; y lo de la api (la del juego
+    y la del dibujante) no se guarda en ninguna caché, tampoco los errores: la
+    copia de lo subido es un `.zip`, que Cloudflare guarda por su extensión si
+    no se le dice que no. Los retratos no son de la api y
     conservan su caché de un año. Lo de la api dice además de qué versión es
     el servidor, también un error: así una página de una versión anterior se
     entera y se recarga.
@@ -117,7 +121,7 @@ class _Cabeceras:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        de_la_api = scope["path"].startswith(API)
+        de_la_api = scope["path"].startswith((API, API_DEL_DIBUJANTE))
         # Lo que cuelga de la versión vigente nunca cambia de contenido: una
         # versión nueva es otra dirección. Sólo el 200 se guarda; un 404 (un
         # dibujo que falta y se vuelve a pedir) no.
@@ -246,6 +250,7 @@ def crear_app() -> FastAPI:
     app.include_router(carta.router, prefix=f"{PREFIJO}/api")
     app.include_router(aventura.router, prefix=f"{PREFIJO}/api")
     app.include_router(retratos.router, prefix=PREFIJO)
+    app.include_router(dibujante.router, prefix=f"{dibujante.PREFIJO_DIBUJANTE}/api")
 
     @app.get(f"{PREFIJO}/api/salud")
     def salud() -> dict:

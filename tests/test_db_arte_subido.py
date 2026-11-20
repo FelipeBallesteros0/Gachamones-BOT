@@ -209,6 +209,22 @@ def test_una_pieza_cuyo_contrato_cambio_de_medida_no_sale_en_arte_vigente():
     assert db.arte_vigente(sin_corazon) == {SUELO: (B, 512, 256)}
 
 
+def test_arte_puesto_es_la_imagen_de_cada_pieza_mida_lo_que_mida():
+    assert db.arte_puesto() == {}
+    subir(CORAZON, A, medida=(31, 31))
+    subir(SUELO, B, medida=(512, 256))
+    subir(SUELO, C, medida=(512, 256))
+    subir(ESTRELLA, D)
+    subir("efectos/ya-no-esta.png", E)
+    db.volver_a_la_anterior(SUELO, "ana", T0, todo_en_disco)
+    db.volver_al_provisional(ESTRELLA, "ana", T0)
+    # Lo que tiene puesto cada pieza, aunque su medida ya no sea la del contrato o la
+    # pieza ya no esté en él; la que está en su recuadro provisional no sale.
+    assert db.arte_puesto() == {
+        CORAZON: (A, 31, 31), SUELO: (B, 512, 256), "efectos/ya-no-esta.png": (E, 32, 32)}
+    assert db.arte_vigente(arte_subido.medidas()) == {SUELO: (B, 512, 256)}
+
+
 @pytest.mark.parametrize("ruta, archivo", [
     ("../efectos/corazon.png", A), ("efectos/../corazon.png", A), ("/efectos/corazon.png", A),
     ("efectos\\corazon.png", A), ("efectos/corazon", A), (CORAZON, "nota.txt"), (CORAZON, "../" + A),

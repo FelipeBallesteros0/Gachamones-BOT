@@ -2876,6 +2876,22 @@ def arte_vigente(
     }
 
 
+def arte_puesto() -> dict[str, tuple[str, int, int]]:
+    """Ruta → (archivo, ancho, alto) de la imagen que tiene puesta cada pieza, se sirva o no.
+
+    Es `arte_vigente` sin mirar el contrato: sale también lo subido con una medida que
+    el contrato ya no pide, para que la página del dibujante lo diga. Las piezas en su
+    recuadro provisional no salen.
+    """
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT ruta, archivo, ancho, alto FROM arte_subido "
+            "WHERE id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) "
+            "AND archivo IS NOT NULL"
+        ).fetchall()
+    return {f["ruta"]: (f["archivo"], f["ancho"], f["alto"]) for f in filas}
+
+
 def historial_del_arte(ruta: str) -> list[RenglonDelArte]:
     """Todo lo que le ha pasado a esa pieza, lo último primero."""
     with conectar() as con:
