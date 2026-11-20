@@ -25,9 +25,12 @@ import logging
 import tempfile
 import zipfile
 from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 
 import arte_subido
@@ -93,7 +96,7 @@ async def _leer_hasta(request: Request, tope: int, demasiado: str) -> bytes:
 
 # Son `async` sólo para leer el cuerpo a trozos; las rutas siguen siendo `def`.
 async def _png_subido(request: Request) -> bytes:
-    return await _leer_hasta(request, arte_subido.LIMITE_DE_BYTES, "La imagen pesa más de 4 MB.")
+    return await _leer_hasta(request, arte_subido.LIMITE_DE_BYTES, arte_subido.PESA_DEMASIADO)
 
 
 async def _cuerpo_de_volver(request: Request) -> bytes:
@@ -105,20 +108,39 @@ def _lo_vigente() -> dict[str, tuple[str, int, int]]:
     return db.arte_vigente(arte_subido.medidas())
 
 
-def _subida(pieza: arte.Pieza, vigente: dict[str, tuple[str, int, int]]) -> dict | None:
+@dataclass(frozen=True)
+class _LoSubido:
+    """Lo que piden las vistas de las piezas, leído de la tabla una vez por petición.
+
+    Son tres consultas, haya pocas piezas subidas o muchas: cada conexión de `db`
+    vive hasta que pasa el recolector, y una por pieza llegó a agotar los
+    descriptores del servicio.
+    """
+    vigente: dict[str, tuple[str, int, int]]
+    puesto: dict[str, tuple[str, int, int]]
+    quien_subio: dict[str, tuple[str, str, datetime]]
+
+
+def _lo_subido() -> _LoSubido:
+    return _LoSubido(_lo_vigente(), db.arte_puesto(), db.quien_subio_lo_puesto())
+
+
+def _subida(pieza: arte.Pieza, lo: _LoSubido) -> dict | None:
     """Lo subido que se ve hoy de esa pieza, o `None` si se ve su recuadro provisional.
 
     Quién y cuándo son los de la última subida de esa misma imagen: tras volver a
     la anterior se ve quién la subió, no quién volvió (eso lo cuenta el historial).
+    Si una subida se cruzó entre las lecturas y no coinciden, sale como provisional
+    y la próxima lista ya la trae.
     """
-    if pieza.ruta not in vigente:
+    if pieza.ruta not in lo.vigente:
         return None
-    archivo = vigente[pieza.ruta][0]
-    subida = next((r for r in db.historial_del_arte(pieza.ruta)
-                   if r.accion == "subir" and r.archivo == archivo), None)
-    if subida is None:
+    archivo = lo.vigente[pieza.ruta][0]
+    de_quien = lo.quien_subio.get(pieza.ruta)
+    if de_quien is None or de_quien[0] != archivo:
         return None
-    return {"direccion": direccion_de(archivo), "quien": subida.quien, "cuando": subida.cuando.isoformat()}
+    _, quien, cuando = de_quien
+    return {"direccion": direccion_de(archivo), "quien": quien, "cuando": cuando.isoformat()}
 
 
 def _medida_cambiada(pieza: arte.Pieza, puesto: dict[str, tuple[str, int, int]]) -> dict | None:
@@ -134,8 +156,7 @@ def _medida_cambiada(pieza: arte.Pieza, puesto: dict[str, tuple[str, int, int]])
     return {"ancho": ancho, "alto": alto}
 
 
-def _vista(pieza: arte.Pieza, vigente: dict[str, tuple[str, int, int]],
-           puesto: dict[str, tuple[str, int, int]]) -> dict:
+def _vista(pieza: arte.Pieza, lo: _LoSubido) -> dict:
     """Una pieza como la enseña la página del dibujante.
 
     `ancho` y `alto` son la medida que pide el contrato; en la familia `pieza` vale
@@ -145,21 +166,21 @@ def _vista(pieza: arte.Pieza, vigente: dict[str, tuple[str, int, int]],
     if pieza.familia == "pieza":
         original = {"ancho": pieza.ancho * arte.REDUCCION, "alto": pieza.alto * arte.REDUCCION}
     return {"ruta": pieza.ruta, "ancho": pieza.ancho, "alto": pieza.alto, "original": original,
-            "subida": _subida(pieza, vigente), "medida_cambiada": _medida_cambiada(pieza, puesto)}
+            "subida": _subida(pieza, lo), "medida_cambiada": _medida_cambiada(pieza, lo.puesto)}
 
 
 def _al_dia(pieza: arte.Pieza) -> dict:
-    return _vista(pieza, _lo_vigente(), db.arte_puesto())
+    return _vista(pieza, _lo_subido())
 
 
 @router.get("/piezas")
 def las_piezas() -> dict:
     """Las piezas del contrato por grupos, con su medida y lo subido que se ve hoy."""
-    vigente, puesto = _lo_vigente(), db.arte_puesto()
+    lo = _lo_subido()
     por_ruta = {p.ruta: p for p in arte.piezas()}
     return {"grupos": [
         {"clave": g.clave, "nombre": g.nombre, "familia": g.familia,
-         "piezas": [_vista(por_ruta[ruta], vigente, puesto) for ruta in g.rutas]}
+         "piezas": [_vista(por_ruta[ruta], lo) for ruta in g.rutas]}
         for g in arte.grupos()
     ]}
 
@@ -234,8 +255,10 @@ def _a_trozos(archivo) -> Iterator[bytes]:
 def la_copia() -> StreamingResponse:
     """Todo lo vigente en un zip, cada imagen con su ruta del contrato como nombre.
 
-    Se arma en un temporal sin nombre en disco (se va solo al cerrarse, también si
-    la descarga se corta) y se manda a trozos: nada se carga entero en memoria.
+    Se arma en un temporal sin nombre en disco (se va solo al cerrarse) y se manda a
+    trozos: nada se carga entero en memoria. El temporal se cierra al acabar la
+    respuesta, también si la descarga se corta: entonces el generador se queda
+    a medias, y sin la tarea del final seguiría abierto hasta que pasara el recolector.
     Una imagen que falta en disco se deja fuera y se avisa en el registro.
     """
     vigente = _lo_vigente()
@@ -255,4 +278,5 @@ def la_copia() -> StreamingResponse:
     return StreamingResponse(
         _a_trozos(archivo), media_type="application/zip",
         headers={"Content-Length": str(largo), "Content-Disposition": 'attachment; filename="copia.zip"'},
+        background=BackgroundTask(archivo.close),
     )

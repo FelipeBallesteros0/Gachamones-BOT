@@ -6,6 +6,7 @@ verdad (cada prueba tiene la suya).
 """
 import asyncio
 import builtins
+import gc
 import io
 import json
 import random
@@ -152,6 +153,15 @@ def test_a_los_demas_cada_ruta_les_contesta_como_una_que_no_existe(
     assert RUTAS[ruta](cliente).status_code == 200
 
 
+# Un cuerpo de `volver` de más de 16 KiB y uno que no se entiende.
+VOLVER_RAROS = (b" " * (16 * 1024 + 1), b"{")
+
+
+def volver_con(cliente, cuerpo):
+    return cliente.post(f"{API}/volver", content=cuerpo,
+                        headers={**ESCRIBIR, "Content-Type": "application/json"})
+
+
 def test_a_los_demas_se_les_contesta_sin_mirar_la_cabecera_ni_el_cuerpo(cliente, carpeta):
     entrar(cliente, NADIE)
     sin_cabecera = cliente.post(f"{API}/subir", params={"ruta": CORAZON}, content=png(32, 32))
@@ -160,11 +170,14 @@ def test_a_los_demas_se_les_contesta_sin_mirar_la_cabecera_ni_el_cuerpo(cliente,
     como_una_ruta_que_no_existe(cliente, sin_cabecera)
     grande = subir(cliente, CORAZON, b"\0" * (LIMITE + 1))
     como_una_ruta_que_no_existe(cliente, grande)
+    for cuerpo in VOLVER_RAROS:
+        como_una_ruta_que_no_existe(cliente, volver_con(cliente, cuerpo))
     assert nada_guardado(carpeta)
     # Al dibujante, en cambio, sí se le mira la cabecera y se le cuenta lo que manda.
     entrar(cliente, DIBUJA)
     assert cliente.post(f"{API}/subir", params={"ruta": CORAZON}, content=png(32, 32)).status_code == 403
     assert subir(cliente, CORAZON, b"\0" * (LIMITE + 1)).status_code == 413
+    assert [volver_con(cliente, cuerpo).status_code for cuerpo in VOLVER_RAROS] == [413, 422]
 
 
 def _subir_a_trozos(app, trozos, uid=DIBUJA, declarado=None, se_corta=False, ruta=CORAZON):
@@ -492,21 +505,65 @@ def test_la_medida_cambiada_se_va_al_subir_una_de_la_medida_de_hoy_o_al_volver_a
     assert (hecho.json()["subida"], hecho.json()["medida_cambiada"]) == (None, None)
 
 
+def test_la_lista_de_piezas_abre_las_mismas_conexiones_con_pocas_o_muchas_piezas_subidas(cliente, monkeypatch):
+    # Cada conexión de `db.conectar` vive hasta que pasa el recolector: una por pieza
+    # subida llegó a agotar los descriptores del servicio.
+    conectar, abiertas = db.conectar, []
+
+    def contando():
+        abiertas.append(1)
+        return conectar()
+
+    monkeypatch.setattr(db, "conectar", contando)
+
+    def conexiones_de_una_lista():
+        abiertas.clear()
+        assert cliente.get(f"{API}/piezas").status_code == 200
+        return len(abiertas)
+
+    piezas = arte.piezas()
+    for indice, pieza in enumerate(piezas[:3]):
+        db.subir_arte(pieza.ruta, f"{indice:064x}.png", pieza.ancho, pieza.alto, "dibuja", T0)
+    pocas = conexiones_de_una_lista()
+    for indice, pieza in enumerate(piezas[3:150], start=3):
+        db.subir_arte(pieza.ruta, f"{indice:064x}.png", pieza.ancho, pieza.alto, "dibuja", T0)
+    muchas = conexiones_de_una_lista()
+    assert muchas == pocas <= 3
+    vistas = [p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g["piezas"]]
+    assert sum(p["subida"] is not None for p in vistas) == 150
+
+
+def test_si_una_subida_se_cruza_entre_las_lecturas_no_se_mezclan_dos_imagenes(cliente, monkeypatch):
+    assert subir(cliente, CORAZON, png(32, 32, 1)).status_code == 200
+    # Como si otra subida hubiera cambiado la imagen entre leer lo vigente y leer quién
+    # la subió: no se enseña la dirección de una con el nombre de quien subió la otra.
+    otra = ("f" * 64 + ".png", "otra persona", T0)
+    monkeypatch.setattr(db, "quien_subio_lo_puesto", lambda: {CORAZON: otra})
+    piezas = {p["ruta"]: p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g["piezas"]}
+    assert piezas[CORAZON]["subida"] is None
+
+
 def test_el_historial_de_una_pieza_sin_nada_esta_vacio(cliente):
     respuesta = historial(cliente, CORAZON)
     assert respuesta.status_code == 200
     assert respuesta.json() == {"ruta": CORAZON, "historial": []}
 
 
-def _sin_temporales(tmp_path, monkeypatch):
-    temporales = tmp_path / "temporales"
-    temporales.mkdir()
-    monkeypatch.setattr(tempfile, "tempdir", str(temporales))
-    return temporales
+@pytest.fixture
+def temporales(monkeypatch):
+    """Los archivos que abre `tempfile.TemporaryFile` en la prueba: la copia se arma en
+    uno (sin nombre en disco: nunca en memoria) y se cierra al acabar la respuesta."""
+    crear, abiertos = tempfile.TemporaryFile, []
+
+    def anotando(*argumentos, **opciones):
+        abiertos.append(crear(*argumentos, **opciones))
+        return abiertos[-1]
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", anotando)
+    return abiertos
 
 
-def test_la_copia_trae_lo_vigente_con_su_ruta_del_contrato(cliente, carpeta, tmp_path, monkeypatch):
-    temporales = _sin_temporales(tmp_path, monkeypatch)
+def test_la_copia_trae_lo_vigente_con_su_ruta_del_contrato(cliente, carpeta, temporales):
     vacia = cliente.get(f"{API}/copia.zip")
     assert vacia.status_code == 200
     with zipfile.ZipFile(io.BytesIO(vacia.content)) as copia:
@@ -529,12 +586,57 @@ def test_la_copia_trae_lo_vigente_con_su_ruta_del_contrato(cliente, carpeta, tmp
         assert sorted(copia.namelist()) == [CORAZON, SUELO]
         assert copia.read(CORAZON) == (carpeta / nombre_limpio(corazon, CORAZON)).read_bytes()
         assert copia.read(SUELO) == (carpeta / nombre_limpio(suelo, SUELO)).read_bytes()
-    # El archivo de la copia no queda en ningún sitio.
-    assert list(temporales.iterdir()) == []
+    # Cada copia se armó en su temporal, y los dos quedaron cerrados.
+    assert [archivo.closed for archivo in temporales] == [True, True]
 
 
-def test_si_falta_una_imagen_en_disco_la_copia_sale_igual_sin_ella(cliente, carpeta, tmp_path, monkeypatch):
-    temporales = _sin_temporales(tmp_path, monkeypatch)
+def _bajar_la_copia_y_cortar(app, abiertos):
+    """Pide la copia hablando ASGI y se va en cuanto llega el primer trozo.
+
+    Devuelve cuántos trozos llegaron y si los temporales estaban cerrados al acabar la
+    respuesta, antes de que el bucle se apague y recoja lo que quedó colgando.
+    """
+    enviados = []
+
+    async def pedir():
+        empezo = asyncio.Event()
+
+        async def recibir():
+            await empezo.wait()
+            return {"type": "http.disconnect"}
+
+        async def enviar(mensaje):
+            enviados.append(mensaje)
+            if mensaje["type"] == "http.response.body":
+                empezo.set()
+
+        camino = f"{API}/copia.zip"
+        alcance = {
+            "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+            "method": "GET", "scheme": "http", "path": camino, "raw_path": camino.encode(),
+            "root_path": "", "query_string": b"", "client": ("prueba", 1), "server": ("prueba", 80),
+            "headers": [(b"host", b"prueba"), (b"cookie", f"session={galleta(DIBUJA)}".encode())],
+        }
+        await app(alcance, recibir, enviar)
+        return [archivo.closed for archivo in abiertos]
+
+    cerrados = asyncio.run(pedir())
+    return sum(m["type"] == "http.response.body" for m in enviados), cerrados
+
+
+def test_si_la_descarga_se_corta_el_temporal_se_cierra_igual(cliente, carpeta, temporales):
+    assert subir(cliente, SUELO, png(1024, 512)).status_code == 200
+    # Sin el recolector: lo que se cierra tiene que cerrarse solo.
+    gc.disable()
+    try:
+        trozos, cerrados = _bajar_la_copia_y_cortar(cliente.app, temporales)
+    finally:
+        gc.enable()
+    assert 1 <= trozos < 5
+    assert cerrados == [True]
+
+
+def test_si_falta_una_imagen_en_disco_la_copia_sale_igual_sin_ella(cliente, carpeta, temporales):
     estrella = png(32, 32, 4)
     assert subir(cliente, CORAZON, png(32, 32, 1)).status_code == 200
     assert subir(cliente, ESTRELLA, estrella).status_code == 200
@@ -543,7 +645,7 @@ def test_si_falta_una_imagen_en_disco_la_copia_sale_igual_sin_ella(cliente, carp
     assert respuesta.status_code == 200
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert copia.namelist() == [CORAZON]
-    assert list(temporales.iterdir()) == []
+    assert [archivo.closed for archivo in temporales] == [True]
 
 
 # --- Nada de esto se guarda en una caché -----------------------------------------
@@ -572,6 +674,7 @@ def test_lo_del_juego_sigue_con_sus_cabeceras_de_siempre(cliente):
         **SIEMPRE, "cache-control": "public, max-age=31536000, immutable", "x-gachamon-version": None}
     portada = cliente.get("/monsteropolis/")
     assert (portada.headers["cache-control"], portada.headers.get("x-gachamon-version")) == ("no-cache", None)
+
 
 def test_nada_de_la_api_del_dibujante_se_guarda_en_una_cache(cliente):
     version = cliente.app.state.version

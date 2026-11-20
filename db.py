@@ -2854,28 +2854,6 @@ def volver_al_provisional(ruta: str, quien: str, ahora: datetime) -> None:
         _anotar_arte_en(con, ruta, "provisional", None, None, None, None, quien, ahora)
 
 
-def arte_vigente(
-    medidas: Mapping[str, tuple[int, int]],
-) -> dict[str, tuple[str, int, int]]:
-    """Ruta → (archivo, ancho, alto) de las piezas cuya imagen vigente se sirve.
-
-    `medidas` es lo que mide hoy cada pieza del contrato (`arte_subido.medidas()`).
-    Sólo salen las piezas con imagen subida, que siguen en el contrato y cuya
-    imagen tiene la medida que pide hoy: lo subido con una medida vieja, o para
-    una pieza que ya no existe, deja de servirse y se vuelve a ver el recuadro.
-    """
-    with conectar() as con:
-        filas = con.execute(
-            "SELECT ruta, archivo, ancho, alto FROM arte_subido "
-            "WHERE id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) "
-            "AND archivo IS NOT NULL"
-        ).fetchall()
-    return {
-        f["ruta"]: (f["archivo"], f["ancho"], f["alto"]) for f in filas
-        if medidas.get(f["ruta"]) == (f["ancho"], f["alto"])
-    }
-
-
 def arte_puesto() -> dict[str, tuple[str, int, int]]:
     """Ruta → (archivo, ancho, alto) de la imagen que tiene puesta cada pieza, se sirva o no.
 
@@ -2890,6 +2868,41 @@ def arte_puesto() -> dict[str, tuple[str, int, int]]:
             "AND archivo IS NOT NULL"
         ).fetchall()
     return {f["ruta"]: (f["archivo"], f["ancho"], f["alto"]) for f in filas}
+
+
+def arte_vigente(
+    medidas: Mapping[str, tuple[int, int]],
+) -> dict[str, tuple[str, int, int]]:
+    """Ruta → (archivo, ancho, alto) de las piezas cuya imagen vigente se sirve.
+
+    `medidas` es lo que mide hoy cada pieza del contrato (`arte_subido.medidas()`).
+    Sólo salen las piezas con imagen subida, que siguen en el contrato y cuya
+    imagen tiene la medida que pide hoy: lo subido con una medida vieja, o para
+    una pieza que ya no existe, deja de servirse y se vuelve a ver el recuadro.
+    """
+    return {
+        ruta: (archivo, ancho, alto) for ruta, (archivo, ancho, alto) in arte_puesto().items()
+        if medidas.get(ruta) == (ancho, alto)
+    }
+
+
+def quien_subio_lo_puesto() -> dict[str, tuple[str, str, datetime]]:
+    """Ruta → (archivo, quien, cuando) de la última subida de la imagen que tiene puesta
+    cada pieza, en una sola consulta.
+
+    Tras volver a la anterior, es quien subió esa imagen, no quien volvió. Las piezas
+    en su recuadro provisional no salen.
+    """
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT p.ruta, p.archivo, s.quien, s.cuando "
+            "FROM arte_subido p JOIN arte_subido s ON s.id = ("
+            "  SELECT MAX(id) FROM arte_subido "
+            "  WHERE ruta = p.ruta AND accion = 'subir' AND archivo = p.archivo) "
+            "WHERE p.id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) "
+            "AND p.archivo IS NOT NULL"
+        ).fetchall()
+    return {f["ruta"]: (f["archivo"], f["quien"], datetime.fromisoformat(f["cuando"])) for f in filas}
 
 
 def historial_del_arte(ruta: str) -> list[RenglonDelArte]:

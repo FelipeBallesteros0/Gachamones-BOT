@@ -27,6 +27,9 @@ from web import arte
 logger = logging.getLogger(__name__)
 
 LIMITE_DE_BYTES = 4 * 1024 * 1024
+# Lo que se le dice a quien sube algo de más de `LIMITE_DE_BYTES`: aquí, y en el 413 de
+# la api del dibujante, que corta el cuerpo antes de que llegue entero.
+PESA_DEMASIADO = "La imagen pesa más de 4 MB."
 # Lo que puede tardar una subida entre escribir su archivo y anotarlo. Un archivo
 # sin renglón más viejo que esto quedó huérfano, y la poda se lo lleva.
 VIDA_DE_UN_HUERFANO = timedelta(hours=1)
@@ -132,7 +135,7 @@ def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
     `NoVale`, sin haber escrito nada.
     """
     if len(cuerpo) > LIMITE_DE_BYTES:
-        raise NoVale("La imagen pesa más de 4 MB.")
+        raise NoVale(PESA_DEMASIADO)
     ancho, alto, profundidad, tipo = _cabecera(cuerpo)
     # Un PNG acaba en su cierre. Lo que no, llegó cortado (o trae algo pegado detrás).
     if not cuerpo.endswith(_CIERRE_PNG):

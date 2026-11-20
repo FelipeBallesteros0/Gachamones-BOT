@@ -225,6 +225,22 @@ def test_arte_puesto_es_la_imagen_de_cada_pieza_mida_lo_que_mida():
     assert db.arte_vigente(arte_subido.medidas()) == {SUELO: (B, 512, 256)}
 
 
+def test_quien_subio_lo_puesto_es_la_ultima_subida_de_esa_misma_imagen():
+    assert db.quien_subio_lo_puesto() == {}
+    minuto = timedelta(minutes=1)
+    subir(CORAZON, A, "ana", T0)
+    subir(CORAZON, B, "felipe", T0 + minuto)
+    subir(CORAZON, A, "jona", T0 + 2 * minuto)
+    subir(CORAZON, C, "felipe", T0 + 3 * minuto)
+    # Vuelve a A: la subió por última vez jona, no quien vuelve.
+    assert db.volver_a_la_anterior(CORAZON, "pepe", T0 + 4 * minuto, todo_en_disco) == A
+    subir(SUELO, B, "ana", T0 + 5 * minuto, medida=(512, 256))
+    subir(ESTRELLA, D, "ana", T0)
+    db.volver_al_provisional(ESTRELLA, "ana", T0 + 6 * minuto)
+    assert db.quien_subio_lo_puesto() == {
+        CORAZON: (A, "jona", T0 + 2 * minuto), SUELO: (B, "ana", T0 + 5 * minuto)}
+
+
 @pytest.mark.parametrize("ruta, archivo", [
     ("../efectos/corazon.png", A), ("efectos/../corazon.png", A), ("/efectos/corazon.png", A),
     ("efectos\\corazon.png", A), ("efectos/corazon", A), (CORAZON, "nota.txt"), (CORAZON, "../" + A),
