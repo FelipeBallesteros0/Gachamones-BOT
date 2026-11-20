@@ -349,6 +349,22 @@ test('una entrada rara del bloque se ignora y las buenas valen', async () => {
   }
 });
 
+test('__proto__ en el bloque no cambia nada: ni es una pieza ni toca los objetos', async () => {
+  // Escrito a mano: con un objeto de JavaScript, `__proto__` no sería una clave.
+  const texto = `{"__proto__": {"efectos/estrella.png": "${OTRA_SUBIDA}"}, "constructor": "${SUBIDA}", `
+    + `"toString": "${SUBIDA}", "efectos/corazon.png": "${SUBIDA}"}`;
+  const { modulo } = await conBloque(texto);
+  try {
+    assert.equal(modulo.urlDeArte('efectos/corazon.png'), SUBIDA);
+    assert.equal(modulo.urlDeArte('efectos/estrella.png'), estatica('efectos/estrella.png'));
+    for (const ruta of ['__proto__', 'constructor', 'toString']) assert.equal(modulo.urlDeArte(ruta), null, ruta);
+    assert.equal({}['efectos/estrella.png'], undefined);
+    assert.equal(Object.prototype['efectos/estrella.png'], undefined);
+  } finally {
+    sinPagina();
+  }
+});
+
 test('una imagen subida que no llega (falta en disco) se pinta como el recuadro de esa pieza', { timeout: 2000 }, async () => {
   const { modulo } = await conBloque(JSON.stringify({ 'efectos/corazon.png': SUBIDA }));
   try {

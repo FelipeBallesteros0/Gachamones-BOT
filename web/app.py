@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -33,6 +34,8 @@ from web import (
 from web.sesion import Persona, dibujante_actual, persona_actual, problema
 
 ESTATICOS = Path(__file__).resolve().parent / "static"
+# Lo que no es estático: no cuelga de la ruta de los estáticos, que se sirve a cualquiera.
+PLANTILLAS = Path(__file__).resolve().parent / "plantillas"
 
 log = logging.getLogger("gachamones")
 
@@ -218,14 +221,17 @@ def _imagen_subida(nombre: str) -> bytes:
     una de sus anteriores guardadas) y que está en disco.
 
     El nombre se mira con su forma exacta antes de tocar la base o el disco, así que
-    con él no se arma ningún otro camino. Lo demás es un 404.
+    con él no se arma ningún otro camino; y un enlace simbólico no se sigue, aunque se
+    llame como una imagen guardada. Lo demás es un 404.
     """
     if not _NOMBRE_DE_LO_SUBIDO.fullmatch(nombre):
         raise _no_hay_tal_imagen()
     datos = None
     try:
         if nombre in db.archivos_que_se_conservan():
-            datos = (config.RUTA_ARTE_SUBIDO / nombre).read_bytes()
+            descriptor = os.open(config.RUTA_ARTE_SUBIDO / nombre, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(descriptor, "rb") as archivo:
+                datos = archivo.read()
     except FileNotFoundError:
         pass
     except Exception as error:
@@ -282,7 +288,7 @@ def crear_app() -> FastAPI:
     app.state.version = version
     portada = (ESTATICOS / "index.html").read_text(encoding="utf-8")
     portada = portada.replace("__V__", version)
-    pagina_del_dibujante = (ESTATICOS / "dibujante.html").read_text(encoding="utf-8")
+    pagina_del_dibujante = (PLANTILLAS / "dibujante.html").read_text(encoding="utf-8")
     pagina_del_dibujante = pagina_del_dibujante.replace("__V__", version)
 
     @app.exception_handler(RequestValidationError)
@@ -368,6 +374,14 @@ def crear_app() -> FastAPI:
 
     # La página del dibujante: sólo con el permiso; a los demás, el 404 de una
     # dirección que no existe. Sus estáticos son los del juego, con su versión.
+    # Sin la barra se redirige con una dirección relativa, como en `sin_barra`.
+    @app.get(
+        dibujante.PREFIJO_DIBUJANTE, include_in_schema=False,
+        dependencies=[Depends(dibujante_actual)],
+    )
+    def la_pagina_del_dibujante_sin_barra() -> RedirectResponse:
+        return RedirectResponse(f"{dibujante.PREFIJO_DIBUJANTE}/")
+
     @app.get(
         f"{dibujante.PREFIJO_DIBUJANTE}/", include_in_schema=False,
         dependencies=[Depends(dibujante_actual)],

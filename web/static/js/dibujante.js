@@ -158,7 +158,8 @@ function tarjeta(pieza, familia) {
       actual = await peticion();
       pintar();
       avisar(alSalirBien(), false);
-      if (!lista.hidden) await leerHistorial();
+      // Lo que salió bien sigue dicho aunque releer el historial falle.
+      if (!lista.hidden) await leerHistorial({ avisarSiFalla: false });
     } catch (error) {
       avisar(error && error.mensaje ? error.mensaje : SIN_RESPUESTA, true);
     } finally {
@@ -181,7 +182,7 @@ function tarjeta(pieza, familia) {
     await cambiar(pulsado, () => pedir('POST', 'volver', cuerpo, 'application/json'), () => estadoDe(actual));
   }
 
-  async function leerHistorial() {
+  async function leerHistorial({ avisarSiFalla = true } = {}) {
     try {
       const { historial } = await pedir('GET', `historial?ruta=${encodeURIComponent(actual.ruta)}`);
       lista.replaceChildren(...historial.map((renglon) => {
@@ -197,7 +198,7 @@ function tarjeta(pieza, familia) {
         return el('li', {}, miniatura, renglonDelHistorial(renglon));
       }));
     } catch (error) {
-      avisar(error && error.mensaje ? error.mensaje : SIN_RESPUESTA, true);
+      if (avisarSiFalla) avisar(error && error.mensaje ? error.mensaje : SIN_RESPUESTA, true);
     }
   }
 

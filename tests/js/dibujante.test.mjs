@@ -269,8 +269,12 @@ test('las piezas van por grupos, cada una con su imagen, su nombre, su medida y 
   assert.equal(suelo.querySelector('.dib-estado').textContent, 'Subida por luis el 20/11/2026 15:04');
   // Cada imagen dice de qué pieza es.
   for (const imagen of raiz.querySelectorAll('img')) assert.ok(imagen.getAttribute('alt'));
-  // Lo que cambia se anuncia, y de entrada no dice nada.
-  for (const t of raiz.querySelectorAll('.dib-pieza')) assert.equal(aviso(t).textContent, '');
+  // Lo que cambia se anuncia, y de entrada no dice nada; pero el aviso ya está en la
+  // página, sin `hidden`, para que un lector de pantalla lea su primer mensaje.
+  for (const t of raiz.querySelectorAll('.dib-pieza')) {
+    assert.equal(aviso(t).textContent, '');
+    assert.equal(aviso(t).hidden, false);
+  }
 });
 
 test('lo subido con una medida vieja se ve provisional y lo dice', { timeout: 2000 }, async () => {
@@ -302,6 +306,7 @@ test('Subir abre el selector y manda el PNG elegido tal cual, con la cabecera de
 
   assert.equal(aviso(corazon).textContent, 'Listo: ya se ve en el juego.');
   assert.equal(aviso(corazon).classList.contains('es-error'), false);
+  assert.equal(aviso(corazon).hidden, false);
   assert.equal(corazon.querySelector('img').getAttribute('src'), SUBIDA('d'));
   assert.equal(corazon.querySelector('.dib-estado').textContent, 'Subida por ana el 20/11/2026 15:04');
   // Se puede volver a elegir el mismo archivo.
@@ -452,6 +457,28 @@ test('con el historial abierto, lo que cambia la pieza se ve también en él', {
   await elegir(corazon, { nombre: 'x.png' });
   await esperar();
   assert.deepEqual(textos(corazon.querySelector('ol'), 'li'), ['Subir · ana · 20/11/2026 15:04 · 32 × 32 px']);
+});
+
+test('si releer el historial falla tras una subida que salió bien, lo dicho sigue siendo «Listo»', { timeout: 2000 }, async () => {
+  const { raiz, servidor } = await abrir();
+  const corazon = tarjeta(raiz, 'efectos/corazon.png');
+  const historial = [{ accion: 'subir', direccion: SUBIDA('d'), ancho: 32, alto: 32, quien: 'ana', cuando: CUANDO }];
+  servidor.responde('GET historial?ruta=efectos%2Fcorazon.png', { ruta: 'efectos/corazon.png', historial });
+  await tocar(boton(corazon, 'Historial'));
+  servidor.responde('POST subir?ruta=efectos%2Fcorazon.png',
+    { ...CORAZON, subida: { direccion: SUBIDA('d'), quien: 'ana', cuando: CUANDO } });
+  servidor.falla('GET historial?ruta=efectos%2Fcorazon.png');
+  await elegir(corazon, { nombre: 'x.png' });
+  await esperar();
+  assert.equal(servidor.pedidos.at(-1).ruta, 'GET historial?ruta=efectos%2Fcorazon.png');
+  assert.equal(aviso(corazon).textContent, 'Listo: ya se ve en el juego.');
+  assert.equal(aviso(corazon).classList.contains('es-error'), false);
+  assert.equal(corazon.querySelector('.dib-estado').textContent, 'Subida por ana el 20/11/2026 15:04');
+  // Abrir el historial a mano sí dice que no llegó.
+  await tocar(boton(corazon, 'Historial'));
+  await tocar(boton(corazon, 'Historial'));
+  assert.equal(aviso(corazon).textContent, 'No hay conexión con el juego. Revisa tu internet y vuelve a intentarlo.');
+  assert.equal(aviso(corazon).classList.contains('es-error'), true);
 });
 
 test('«Sólo lo que falta» deja a la vista las piezas provisionales y sus grupos', { timeout: 2000 }, async () => {

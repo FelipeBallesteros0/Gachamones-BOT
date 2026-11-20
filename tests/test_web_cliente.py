@@ -5,6 +5,8 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 ESTATICOS = RAIZ / "web" / "static"
 GUIONES = sorted((ESTATICOS / "js").glob("*.js"))
+# La página del dibujante no es un estático: sólo la sirve su ruta, con permiso.
+PAGINA_DEL_DIBUJANTE = RAIZ / "web" / "plantillas" / "dibujante.html"
 
 
 def test_hay_guiones_que_mirar():
@@ -25,7 +27,7 @@ def test_nada_entra_en_la_pagina_como_marcado():
 
 def test_el_cliente_no_depende_de_nada_de_fuera():
     for archivo in [ESTATICOS / "index.html", ESTATICOS / "estilo.css",
-                    ESTATICOS / "dibujante.html", ESTATICOS / "dibujante.css", *GUIONES]:
+                    PAGINA_DEL_DIBUJANTE, ESTATICOS / "dibujante.css", *GUIONES]:
         texto = archivo.read_text(encoding="utf-8")
         assert "http://" not in texto and "https://" not in texto, archivo.name
 
@@ -52,7 +54,7 @@ def test_el_aviso_del_codigo_esta_escrito():
 
 
 def test_ningun_texto_del_cliente_usa_los_nombres_viejos():
-    for archivo in [ESTATICOS / "index.html", ESTATICOS / "dibujante.html", *GUIONES]:
+    for archivo in [ESTATICOS / "index.html", PAGINA_DEL_DIBUJANTE, *GUIONES]:
         assert not re.search(r"ascii\s?(coin|gem)", archivo.read_text(encoding="utf-8"), re.I)
 
 
@@ -651,8 +653,9 @@ def test_en_un_computador_el_juego_ocupa_toda_la_ventana():
 
 def test_el_cliente_no_nombra_gachamon_como_direccion():
     culpables = [
-        f"{a.relative_to(ESTATICOS)}:{n}"
-        for a in sorted(ESTATICOS.rglob("*")) if a.is_file() and a.suffix in {".html", ".js", ".css", ".json"}
+        f"{a.relative_to(RAIZ)}:{n}"
+        for a in [*sorted(ESTATICOS.rglob("*")), PAGINA_DEL_DIBUJANTE]
+        if a.is_file() and a.suffix in {".html", ".js", ".css", ".json"}
         for n, linea in enumerate(a.read_text(encoding="utf-8").splitlines(), 1)
         if "/gachamon" in linea
     ]
@@ -673,7 +676,7 @@ def test_el_cliente_y_el_servidor_dicen_la_misma_direccion():
     assert dibujante.direccion_de("x.png") == f"{web.PREFIJO}/arte-subido/x.png"
     assert f"'{web.PREFIJO}/arte-subido/'" in _guion("arte.js")
     # La página del dibujante: sus estáticos son los del juego, y su api la del servidor.
-    pagina = (ESTATICOS / "dibujante.html").read_text(encoding="utf-8")
+    pagina = PAGINA_DEL_DIBUJANTE.read_text(encoding="utf-8")
     assert f"{web.PREFIJO}/static/__V__/js/dibujante.js" in pagina
     assert f"const BASE = '{dibujante.PREFIJO_DIBUJANTE}/api/';" in _guion("dibujante.js")
 
@@ -705,7 +708,7 @@ def test_el_arte_lee_el_bloque_como_datos_y_url_de_arte_sigue_siendo_sincrona():
 
 
 def test_la_pagina_del_dibujante_carga_sus_archivos_por_la_ruta_con_version():
-    pagina = (ESTATICOS / "dibujante.html").read_text(encoding="utf-8")
+    pagina = PAGINA_DEL_DIBUJANTE.read_text(encoding="utf-8")
     for archivo in ("static/__V__/estilo.css", "static/__V__/dibujante.css", "static/__V__/js/dibujante.js"):
         assert archivo in pagina, archivo
     assert 'type="module"' in pagina and 'lang="es"' in pagina and 'name="viewport"' in pagina
@@ -726,3 +729,34 @@ def test_la_pagina_del_dibujante_tiene_su_estilo_con_los_colores_del_tema():
     # Ningún color escrito a mano: todos salen de las variables de `estilo.css`.
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", estilo), estilo
     assert "var(--" in estilo
+
+
+def test_la_pagina_del_dibujante_no_es_un_estatico():
+    # Lo estático se sirve a cualquiera: la página sólo por su ruta, con el permiso.
+    assert PAGINA_DEL_DIBUJANTE.is_file()
+    assert not list(ESTATICOS.rglob("dibujante.html"))
+
+
+def test_el_aviso_de_cada_pieza_sigue_en_la_pagina_aunque_este_vacio():
+    # Un `role="status"` que se esconde mientras está vacío sale del árbol de
+    # accesibilidad, y su primer mensaje puede no leerse en voz alta.
+    estilo = re.sub(r"/\*.*?\*/", "", (ESTATICOS / "dibujante.css").read_text(encoding="utf-8"), flags=re.S)
+    reglas = [(selectores, cuerpo) for _, selectores, cuerpo in _reglas_con_su_media(estilo)
+              if ".dib-aviso" in selectores]
+    assert reglas
+    for selectores, cuerpo in reglas:
+        assert not re.search(r"display\s*:\s*none|visibility\s*:\s*hidden|content-visibility", cuerpo), selectores
+    assert not re.search(r"\baviso\.hidden\b|\baviso\b[^;\n]*'hidden'", _sin_comentarios(_guion("dibujante.js")))
+
+
+def test_las_frases_de_sin_red_de_la_pagina_del_dibujante_son_las_del_juego():
+    # `dibujante.js` las copia de `api.js`, que no las exporta: si cambian, cambian las dos.
+    def frases(nombre):
+        codigo = _guion(nombre)
+        return {constante: re.search(rf"^const {constante} = '([^']+)';$", codigo, re.M)
+                for constante in ("SIN_RED", "SIN_RESPUESTA")}
+
+    del_juego, del_dibujante = frases("api.js"), frases("dibujante.js")
+    for constante in ("SIN_RED", "SIN_RESPUESTA"):
+        assert del_juego[constante] and del_dibujante[constante], constante
+        assert del_dibujante[constante].group(1) == del_juego[constante].group(1), constante

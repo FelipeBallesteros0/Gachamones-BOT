@@ -714,6 +714,19 @@ def test_una_imagen_subida_que_falta_en_disco_da_404(cliente, carpeta):
     _no_se_sirve(cliente.get(f"/monsteropolis/arte-subido/{nombre}"))
 
 
+def test_lo_subido_no_sigue_un_enlace_simbolico(cliente, carpeta, tmp_path):
+    nombre = _subir(carpeta, CORAZON)
+    assert cliente.get(f"/monsteropolis/arte-subido/{nombre}").status_code == 200
+    # Alguien con acceso al servidor cambia la imagen guardada por un enlace a otra cosa.
+    secreto = tmp_path / "secreto.txt"
+    secreto.write_text("secreto")
+    (carpeta / nombre).unlink()
+    (carpeta / nombre).symlink_to(secreto)
+    respuesta = cliente.get(f"/monsteropolis/arte-subido/{nombre}")
+    _no_se_sirve(respuesta)
+    assert b"secreto" not in respuesta.content
+
+
 def test_un_archivo_que_la_tabla_no_conoce_no_se_sirve_aunque_este_en_disco(cliente, carpeta):
     _subir(carpeta, CORAZON)
     intruso = "c" * 64 + ".png"

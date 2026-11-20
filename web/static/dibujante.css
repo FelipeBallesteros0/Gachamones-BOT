@@ -156,7 +156,15 @@ html.dibujante body { background: var(--fondo); }
 
 .dib-aviso { font-size: 0.9375rem; font-weight: 600; color: var(--hecho-texto); }
 
-.dib-aviso:empty { display: none; }
+/* Vacío, el aviso no ocupa sitio, pero sigue en la página (ni `display: none` ni
+   `hidden`): un lector de pantalla ya conoce la zona cuando llega su primer mensaje. */
+.dib-aviso:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 
 .dib-aviso.es-error { color: var(--error-texto); }
 

@@ -712,6 +712,28 @@ def test_la_pagina_del_dibujante_se_sirve_sin_cache_y_con_los_estaticos_de_la_ve
 def test_sin_la_barra_del_final_se_llega_igual_a_la_pagina(cliente):
     respuesta = cliente.get(PAGINA.rstrip("/"))
     assert respuesta.status_code == 200 and respuesta.url.path == PAGINA
+    # Con una dirección relativa, como la del juego: detrás del túnel no cambia ni el
+    # esquema ni el puerto, ni se pierde la cookie.
+    redirige = cliente.get(PAGINA.rstrip("/"), follow_redirects=False)
+    assert redirige.status_code in (301, 302, 307, 308)
+    assert redirige.headers["location"] == PAGINA
+
+
+def test_sin_la_barra_a_los_demas_les_contesta_como_una_que_no_existe(cliente):
+    entrar(cliente, NADIE)
+    respuesta = cliente.get(PAGINA.rstrip("/"), follow_redirects=False)
+    inventada = cliente.get(f"{PAGINA}no-existe")
+    assert (respuesta.status_code, respuesta.content) == (404, inventada.content)
+    assert respuesta.headers == inventada.headers
+
+
+def test_la_pagina_del_dibujante_no_se_sirve_como_estatico(cliente):
+    version = cliente.app.state.version
+    entrar(cliente, NADIE)
+    assert cliente.get(f"/monsteropolis/static/{version}/dibujante.html").status_code == 404
+    # Su hoja y su guion sí son estáticos: no dicen nada que no diga el repo.
+    assert cliente.get(f"/monsteropolis/static/{version}/js/dibujante.js").status_code == 200
+    assert cliente.get(f"/monsteropolis/static/{version}/dibujante.css").status_code == 200
 
 
 @pytest.mark.parametrize("quien", DEMAS)
