@@ -42,6 +42,30 @@ def crear_rowino(ruta, usuarios=USUARIOS) -> None:
     con.close()
 
 
+def crear_rowino_con_permisos(ruta, usuarios, con_arte_access: bool = True, con_is_admin: bool = True) -> None:
+    """Una base de Rowino de mentira con las columnas del permiso del dibujante.
+
+    Cada fila es `(id, username, blocked, arte_access, is_admin)`. Con `con_arte_access`
+    o `con_is_admin` en `False`, esa columna no existe (como en una base de antes).
+    """
+    columnas = ["id INTEGER PRIMARY KEY", "username TEXT UNIQUE NOT NULL", "blocked INTEGER NOT NULL DEFAULT 0"]
+    if con_arte_access:
+        columnas.append("arte_access INTEGER NOT NULL DEFAULT 0")
+    if con_is_admin:
+        columnas.append("is_admin INTEGER NOT NULL DEFAULT 0")
+    con = sqlite3.connect(ruta)
+    con.execute(f"CREATE TABLE users ({', '.join(columnas)})")
+    for ident, usuario, bloqueada, acceso, admin in usuarios:
+        valores = [ident, usuario, bloqueada]
+        if con_arte_access:
+            valores.append(acceso)
+        if con_is_admin:
+            valores.append(admin)
+        con.execute(f"INSERT INTO users VALUES ({', '.join('?' * len(valores))})", valores)
+    con.commit()
+    con.close()
+
+
 class Reloj:
     def __init__(self, ahora: datetime) -> None:
         self.ahora = ahora

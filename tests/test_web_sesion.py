@@ -194,3 +194,149 @@ def test_un_id_es_un_entero_positivo_que_cabe_en_sqlite(valor):
 @pytest.mark.parametrize("valor", [0, -1, 2**63, 2**70, True, False, 1.0, "1", None, [1]])
 def test_lo_demas_no_es_un_id(valor):
     assert sesion.es_un_id(valor) is False
+
+
+# --- el permiso del dibujante ---
+
+# (id, usuario, bloqueada, arte_access, is_admin)
+PERMISOS = (
+    (1, "dibuja", 0, 1, 0), (2, "admin", 0, 0, 1), (3, "nadie", 0, 0, 0),
+    (4, "bloqueado", 1, 1, 1), (5, "ambos", 0, 1, 1),
+)
+RUTA_DIBUJANTE = "/monsteropolis_dibujante/api/prueba"
+
+
+def _rowino(monkeypatch, tmp_path, **columnas):
+    from ayudas_web import crear_rowino_con_permisos
+
+    ruta = tmp_path / "permisos.db"
+    crear_rowino_con_permisos(ruta, PERMISOS, **columnas)
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", ruta)
+
+
+@pytest.mark.parametrize("uid, esperado", [(1, True), (2, True), (3, False), (4, False), (5, True), (99, False)])
+def test_puede_dibujar_con_las_dos_columnas(monkeypatch, tmp_path, uid, esperado):
+    _rowino(monkeypatch, tmp_path)
+    assert sesion.puede_dibujar(uid) is esperado
+
+
+@pytest.mark.parametrize("uid, esperado", [(1, False), (2, True), (3, False), (4, False)])
+def test_sin_la_columna_arte_access_solo_vale_is_admin(monkeypatch, tmp_path, uid, esperado):
+    _rowino(monkeypatch, tmp_path, con_arte_access=False)
+    assert sesion.puede_dibujar(uid) is esperado
+
+
+@pytest.mark.parametrize("uid, esperado", [(1, True), (2, False), (3, False), (4, False)])
+def test_sin_la_columna_is_admin_solo_vale_arte_access(monkeypatch, tmp_path, uid, esperado):
+    _rowino(monkeypatch, tmp_path, con_is_admin=False)
+    assert sesion.puede_dibujar(uid) is esperado
+
+
+def test_una_base_como_la_de_hoy_no_da_el_permiso_a_nadie(cliente):
+    # La de `ayudas_web.crear_rowino`: sólo id, username y blocked.
+    assert [sesion.puede_dibujar(u) for u in (1, 2, 3, 99)] == [False] * 4
+
+
+def test_si_la_base_no_se_puede_leer_no_hay_permiso(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", tmp_path / "no-existe" / "rowino.db")
+    assert sesion.puede_dibujar(1) is False
+    rota = tmp_path / "rota.db"
+    rota.write_bytes(b"esto no es una base de datos" * 100)
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", rota)
+    assert sesion.puede_dibujar(1) is False
+    _sin_tabla(tmp_path / "sin_tabla.db")
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", tmp_path / "sin_tabla.db")
+    assert sesion.puede_dibujar(1) is False
+
+
+def test_puede_dibujar_no_escribe_ni_crea_la_base(monkeypatch, tmp_path):
+    _rowino(monkeypatch, tmp_path)
+    antes = (tmp_path / "permisos.db").read_bytes()
+    sesion.puede_dibujar(1)
+    assert (tmp_path / "permisos.db").read_bytes() == antes
+    fantasma = tmp_path / "fantasma.db"
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", fantasma)
+    sesion.puede_dibujar(1)
+    assert not fantasma.exists()
+
+
+@pytest.mark.parametrize("columnas", [{}, {"con_arte_access": False}, {"con_is_admin": False}])
+def test_buscar_persona_y_persona_actual_no_cambian_con_las_columnas_nuevas(
+        cliente, monkeypatch, tmp_path, columnas):
+    _rowino(monkeypatch, tmp_path, **columnas)
+    assert sesion.buscar_persona(1) == sesion.Persona(1, "dibuja")
+    assert sesion.buscar_persona(4) is None and sesion.buscar_persona(99) is None
+    entrar(cliente, 3)
+    assert cliente.get(RUTA).json() == {"usuario": "nadie"}
+    entrar(cliente, 4)
+    assert cliente.get(RUTA).status_code == 401
+
+
+def _con_ruta_de_dibujante(cliente):
+    @cliente.app.get(RUTA_DIBUJANTE)
+    def prueba(persona=Depends(sesion.dibujante_actual)) -> dict:
+        return {"usuario": persona.usuario}
+
+    return cliente
+
+
+def _no_existe(cliente):
+    return cliente.get("/monsteropolis_dibujante/api/ruta-inventada")
+
+
+def _igual_que_una_ruta_inexistente(cliente):
+    respuesta = cliente.get(RUTA_DIBUJANTE)
+    inventada = _no_existe(cliente)
+    assert inventada.status_code == 404
+    assert (respuesta.status_code, respuesta.content) == (inventada.status_code, inventada.content)
+    assert respuesta.headers == inventada.headers
+
+
+def test_el_dibujante_entra_y_a_los_demas_se_les_contesta_como_a_una_ruta_inexistente(
+        cliente, monkeypatch, tmp_path):
+    _rowino(monkeypatch, tmp_path)
+    _con_ruta_de_dibujante(cliente)
+    entrar(cliente, 1)
+    assert cliente.get(RUTA_DIBUJANTE).json() == {"usuario": "dibuja"}
+    entrar(cliente, 2)
+    assert cliente.get(RUTA_DIBUJANTE).json() == {"usuario": "admin"}
+    for uid in (3, 4, 99):
+        entrar(cliente, uid)
+        _igual_que_una_ruta_inexistente(cliente)
+
+
+@pytest.mark.parametrize("valor", [None, "basura", galleta(1, clave="otra-clave")])
+def test_sin_sesion_o_con_una_cookie_falsa_se_contesta_como_a_una_ruta_inexistente(
+        cliente, monkeypatch, tmp_path, valor):
+    _rowino(monkeypatch, tmp_path)
+    _con_ruta_de_dibujante(cliente)
+    cliente.cookies.clear()
+    if valor is not None:
+        cliente.cookies.set("session", valor)
+    _igual_que_una_ruta_inexistente(cliente)
+
+
+def test_con_la_base_sin_leer_o_sin_clave_se_contesta_como_a_una_ruta_inexistente(
+        cliente, monkeypatch, tmp_path):
+    _con_ruta_de_dibujante(cliente)
+    entrar(cliente, 1)
+    monkeypatch.setattr(config, "RUTA_ROWINO_BD", tmp_path / "no-existe" / "rowino.db")
+    _igual_que_una_ruta_inexistente(cliente)
+    monkeypatch.setattr(config, "ROWINO_SECRET_KEY", "")
+    _igual_que_una_ruta_inexistente(cliente)
+
+
+def test_sin_el_permiso_el_404_es_el_de_fastapi_sin_adornos(monkeypatch, tmp_path):
+    _rowino(monkeypatch, tmp_path)
+    app = FastAPI()
+
+    @app.get("/x")
+    def x(persona=Depends(sesion.dibujante_actual)) -> dict:
+        return {"usuario": persona.usuario}
+
+    with TestClient(app) as c:
+        c.cookies.set("session", galleta(3))
+        respuesta = c.get("/x")
+        inventada = c.get("/y")
+        assert respuesta.status_code == 404 and respuesta.json() == {"detail": "Not Found"}
+        assert respuesta.content == inventada.content and respuesta.headers == inventada.headers

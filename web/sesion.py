@@ -100,6 +100,39 @@ def buscar_persona(rowino_uid: int) -> Persona | None:
     return Persona(rowino_uid=ident, usuario=usuario)
 
 
+def puede_dibujar(rowino_uid: int) -> bool:
+    """Si la cuenta tiene el permiso del dibujante: `arte_access` o `is_admin`, y no está bloqueada.
+
+    Es una consulta aparte de `buscar_persona`: primero mira qué columnas tiene
+    `users` y lee sólo las que existen, así que una base sin `arte_access` (o sin
+    `is_admin`) no da el permiso a nadie por esa vía. Si la base no se puede leer
+    no hay permiso, y no falla nada.
+    """
+    try:
+        con = sqlite3.connect(
+            _direccion_de_solo_lectura(config.RUTA_ROWINO_BD), uri=True,
+        )
+        try:
+            existentes = {fila[1] for fila in con.execute("PRAGMA table_info(users)")}
+            permisos = [c for c in ("arte_access", "is_admin") if c in existentes]
+            if not permisos or "blocked" not in existentes:
+                return False
+            fila = con.execute(
+                f"SELECT blocked, {', '.join(permisos)} FROM users WHERE id = ?",
+                (rowino_uid,),
+            ).fetchone()
+        finally:
+            con.close()
+    except Exception as error:
+        log.warning(
+            "No se pudo leer el permiso del dibujante: %s", type(error).__name__,
+        )
+        return False
+    if fila is None or fila[0] != 0:
+        return False
+    return any(valor == 1 for valor in fila[1:])
+
+
 def _sin_servicio() -> HTTPException:
     return problema(503, "servicio", "El juego no está disponible ahora mismo.")
 
@@ -117,6 +150,25 @@ def persona_actual(request: Request) -> Persona:
         raise _sin_servicio() from None
     if persona is None:
         raise problema(401, "sin_sesion", "Entra a Rowino para jugar.")
+    return persona
+
+
+def dibujante_actual(request: Request) -> Persona:
+    """Quien tiene el permiso del dibujante; a cualquier otro, el 404 de una ruta que no existe.
+
+    Sin clave, sin sesión, con la base sin leer o sin el permiso: la respuesta es
+    la misma, para que nadie distinga si la ruta existe.
+    """
+    clave = config.ROWINO_SECRET_KEY
+    if not clave or not isinstance(clave, str):
+        raise HTTPException(status_code=404)
+    uid = leer_cookie(request.cookies.get(COOKIE))
+    try:
+        persona = buscar_persona(uid) if uid is not None else None
+    except RowinoNoSeLee:
+        raise HTTPException(status_code=404) from None
+    if persona is None or not puede_dibujar(persona.rowino_uid):
+        raise HTTPException(status_code=404)
     return persona
 
 
