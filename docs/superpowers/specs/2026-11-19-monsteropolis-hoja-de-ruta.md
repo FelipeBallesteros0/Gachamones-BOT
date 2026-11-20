@@ -52,7 +52,7 @@ diseño se vuelve a leer el documento del dueño, que sigue cambiando.
 
 | | Proyecto | Qué trae |
 |---|---|---|
-| 0 | Tanda corta | Las 5 gemas, la pantalla completa en un computador y la limpieza técnica |
+| 0 | Tanda corta (hecha en su rama) | Las 5 gemas, la pantalla completa en un computador y la limpieza técnica |
 | A | Herramientas del dibujante | El botón de Monsteropolis en la portada del sitio, la página para subir imágenes y el tablero del arte |
 | B | El nombre | Monsteropolis y «criaturas» en toda la página |
 | 1b | Aventuras y reclutar | Las salidas afuera con energía, y unirse por amistad, sin IA |

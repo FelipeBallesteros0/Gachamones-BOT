@@ -1658,9 +1658,10 @@ estaban bien.
 
 ### Lo que queda
 
-- Sacar el transporte de `departamento.js` (`mandar`, `enviar`, `releer` y sus
+- ~~Sacar el transporte de `departamento.js` (`mandar`, `enviar`, `releer` y sus
   contadores): es lo más enredado, porque lo que hay en camino se lee en muchos
-  sitios, y se dejó fuera a propósito.
+  sitios, y se dejó fuera a propósito.~~ Hecho en la tanda corta de
+  Monsteropolis: vive en `web/static/js/transporte.js`.
 - `menu.js` repite la clase de pared y el marcado del botón con ícono que
   también están en `departamento.js`.
 - Decir junto a la barra, o bajo la pieza, que un mueble la sostiene (por ahora
@@ -1870,8 +1871,8 @@ estaban bien.
   el 2026-11-18; los muebles que se usan solos, el 2026-11-19).
 - Siguen sin hacer, de planes anteriores y de fuera de este rediseño: reclutar en
   la web, las aventuras de siempre, competir, conversar, el huerto, el cementerio
-  como lugar para explorar, los lugares cerrados, el arte de verdad, sacar el
-  «transporte» de `departamento.js` y decir junto a la barra que un mueble la
+  como lugar para explorar, los lugares cerrados, el arte de verdad (~~sacar el
+  «transporte» de `departamento.js`~~, hecho) y decir junto a la barra que un mueble la
   sostiene. **El orden de todo eso, y lo que el dueño añadió y cambió el
   2026-11-19, está en la hoja de ruta**
   (`docs/superpowers/specs/2026-11-19-monsteropolis-hoja-de-ruta.md`).
@@ -1894,6 +1895,42 @@ estaban bien.
   de mentira y la cookie firmada con una clave de prueba) se rehace en cada
   tarea: convendría conservarlo en el repo, entre las herramientas.
 - Para el día de publicar: ver **«Para publicar»**, abajo.
+
+## Salió al ejecutar Monsteropolis 0 (la tanda corta)
+
+La primera tanda de la hoja de ruta de Monsteropolis
+(`docs/superpowers/specs/2026-11-19-monsteropolis-hoja-de-ruta.md`, el proyecto
+0), pedida por el dueño el 2026-11-19.
+
+### Lo hecho
+
+- El logro «De la alfa» paga 5 gemas en vez de 25. Lo ya pagado no se toca.
+- En un computador (desde 900 px de ancho) el juego ocupa toda la ventana, sin
+  franjas a los lados; por debajo de 900 px no cambia nada. El escenario crece
+  con la ventana; el avatar de las escenas, también. La casilla de la pieza no
+  se pinta más ancha que su arte en píxeles del aparato, para que no se vea
+  borrosa en pantallas de alta densidad.
+- `NO_ESTA` vive en `web/estado.py`; los documentos que genera GitNexus
+  (`.claude/skills/generated/`) dejan de versionarse.
+- El transporte del departamento vive en `web/static/js/transporte.js`.
+- `python -m herramientas.pagina_de_prueba` levanta una página de prueba sobre
+  bases de mentira (ver el README).
+
+### Lo decidido por el controlador (técnico)
+
+- No se añadió la guarda «ningún router importa de otro»: medio `web/` comparte
+  a propósito ayudantes de la Tienda y de la cuenta entre routers.
+- El ancho del arte de una casilla está en el cliente
+  (`ANCHO_DEL_ARTE_DE_UNA_CASILLA`, en `pieza.js`) y una prueba lo contrasta con
+  el contrato del arte.
+
+### Lo que queda
+
+- En una ventana más alta que ancha (una tableta en vertical) queda un hueco
+  entre la pieza y «Tus gachamones», que baja al pie de la ventana (ya pasaba
+  antes).
+- En pantallas de alta densidad la pieza se ve algo menor dentro de su
+  recuadro: es el precio de no estirar el arte.
 
 ## Para publicar
 
