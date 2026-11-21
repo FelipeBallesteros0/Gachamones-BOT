@@ -16,7 +16,12 @@ y FastAPI leería un cuerpo declarado entero antes de mirar la sesión.
 
 El avance (`/avance`) es el contrato con el tablero del arte del sitio, que lo
 pide cada pocos segundos por cada pestaña abierta: sale de una sola lectura de
-la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero.
+la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero. Cuenta
+casillas, no rutas, y sólo de los grupos con tarjeta.
+
+Las criaturas son miles de capas: la lista general y los zips de arriba no las
+traen, y cada grupo se pide entero con `?grupo=<clave>`. La clave sólo se compara
+con las de `arte.grupos()`: nunca arma una ruta de archivo.
 """
 from __future__ import annotations
 
@@ -26,7 +31,7 @@ import logging
 import tempfile
 import zipfile
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -195,6 +200,23 @@ def _criatura(capa: arte.Capa | None) -> dict | None:
             "nombre_del_sombrero": sombrero, "orientacion": capa.orientacion}
 
 
+def _cubierta(lugar: arte.Lugar, lo: _LoSubido) -> dict | None:
+    """Quién cubre una cara o un sombrero de forma que no tiene su capa propia al día.
+
+    Si la de su especie está al día, `{"por": "especie", ...}`; si no, la común. La
+    `direccion` es la imagen chica de la que la cubre. Si no, `None`."""
+    capa = lugar.criatura
+    if capa is None or capa.nivel != "forma" or capa.capa == "cuerpo" or lugar.ruta in lo.al_dia:
+        return None
+    candidatas = (("especie", replace(capa, nivel="especie", etapa=None)),
+                  ("comun", replace(capa, nivel="comun", especie=None, etapa=None)))
+    for por, candidata in candidatas:
+        de_quien = arte.lugar_de(arte.ruta_de_capa(candidata))
+        if de_quien is not None and (subida := _subida(de_quien, lo)) is not None:
+            return {"por": por, "direccion": subida["direccion"]}
+    return None
+
+
 def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
     """Un lugar como lo enseña la página del dibujante.
 
@@ -203,22 +225,42 @@ def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
     return {"ruta": lugar.ruta, "ancho": lugar.ancho, "alto": lugar.alto,
             "subida": _subida(lugar, lo), "medida_cambiada": _medida_cambiada(lugar, lo),
             "objeto": lugar.objeto, "estado": lugar.estado, "miniatura": _miniatura(lugar),
-            "criatura": _criatura(lugar.criatura)}
+            "criatura": _criatura(lugar.criatura), "cubierta": _cubierta(lugar, lo)}
 
 
 def _la_vista(lugar: arte.Lugar) -> dict:
     return _vista(lugar, _lo_subido())
 
 
+def _el_grupo(grupo: str | None = None) -> arte.Grupo | None:
+    """El grupo de `?grupo=`, o `None` si no se pidió ninguno; una clave que no es de ningún
+    grupo es el 404 de una ruta que no existe. Sólo se compara con las claves conocidas."""
+    if grupo is None:
+        return None
+    pedido = next((g for g in arte.grupos() if g.clave == grupo), None)
+    if pedido is None:
+        raise HTTPException(status_code=404)
+    return pedido
+
+
+def _resumen(g: arte.Grupo, al_dia: set[str]) -> dict:
+    """Lo que dice un grupo de sí mismo: sus casillas, y las hechas (alguna ruta candidata al día)."""
+    return {"clave": g.clave, "nombre": g.nombre, "familia": g.familia, "total": len(g.casillas),
+            "hechas": sum(1 for casilla in g.casillas if any(ruta in al_dia for ruta in casilla))}
+
+
 @router.get("/piezas")
-def las_piezas() -> dict:
-    """Las piezas del contrato por grupos, con su medida y lo subido que se ve hoy."""
+def las_piezas(pedido: arte.Grupo | None = Depends(_el_grupo)) -> dict:
+    """Los grupos del contrato, cada uno con sus piezas, su medida y lo subido que se ve hoy.
+
+    Los de las criaturas salen sin `piezas` (son miles); `?grupo=<clave>` da ese grupo entero."""
     lo = _lo_subido()
-    por_ruta = {lugar.ruta: lugar for lugar in arte.lugares()}
+    grupos = (pedido,) if pedido else arte.grupos()
     return {"grupos": [
-        {"clave": g.clave, "nombre": g.nombre, "familia": g.familia,
-         "piezas": [_vista(por_ruta[ruta], lo) for ruta in g.rutas]}
-        for g in arte.grupos()
+        {**_resumen(g, lo.al_dia),
+         **({"piezas": [_vista(arte.lugar_de(ruta), lo) for ruta in g.rutas]}
+            if pedido or g.familia != "criaturas" else {})}
+        for g in grupos
     ]}
 
 
@@ -272,14 +314,11 @@ def el_historial(lugar: arte.Lugar = Depends(_el_lugar)) -> dict:
 
 @router.get("/avance")
 def el_avance() -> dict:
-    """El contrato con el tablero del arte: por grupo, cuántos lugares tiene y cuántos
-    tienen hoy una imagen subida con la medida de subida."""
+    """El contrato con el tablero del arte: por grupo con tarjeta, cuántas casillas tiene y
+    cuántas tienen hoy una imagen subida con la medida de subida (en las criaturas, la de la
+    forma, la de la especie o la común)."""
     al_dia = _al_dia(db.arte_puesto_entero())
-    return {"grupos": [
-        {"clave": g.clave, "nombre": g.nombre, "familia": g.familia,
-         "total": len(g.rutas), "hechas": sum(1 for ruta in g.rutas if ruta in al_dia)}
-        for g in arte.grupos()
-    ]}
+    return {"grupos": [_resumen(g, al_dia) for g in arte.grupos() if g.con_tarjeta]}
 
 
 def _a_trozos(archivo) -> Iterator[bytes]:
@@ -290,10 +329,16 @@ def _a_trozos(archivo) -> Iterator[bytes]:
         archivo.close()
 
 
+def _nombre_del_zip(antes: str, pedido: arte.Grupo | None) -> str:
+    return f'attachment; filename="{antes}{"-" + pedido.clave.replace("/", "-") if pedido else ""}.zip"'
+
+
 @router.get("/copia.zip")
-def la_copia() -> StreamingResponse:
+def la_copia(pedido: arte.Grupo | None = Depends(_el_grupo)) -> StreamingResponse:
     """El original de todo lo que tiene algo puesto (esté al día o no), en un zip, cada
     imagen con su ruta del contrato como nombre.
+
+    Sin `?grupo=`, sin las criaturas (se bajan por especie); con él, sólo las de ese grupo.
 
     Se arma en un temporal sin nombre en disco (se va solo al cerrarse) y se manda a
     trozos: nada se carga entero en memoria. El temporal se cierra al acabar la
@@ -306,6 +351,11 @@ def la_copia() -> StreamingResponse:
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
             for ruta, lo_puesto in sorted(puesto.items()):
+                if pedido is not None:
+                    if ruta not in pedido.rutas:
+                        continue
+                elif (lugar := arte.lugar_de(ruta)) is not None and lugar.familia == "criaturas":
+                    continue
                 try:
                     copia.write(config.RUTA_ARTE_SUBIDO / lo_puesto.original, arcname=ruta)
                 except FileNotFoundError:
@@ -317,7 +367,7 @@ def la_copia() -> StreamingResponse:
         raise
     return StreamingResponse(
         _a_trozos(archivo), media_type="application/zip",
-        headers={"Content-Length": str(largo), "Content-Disposition": 'attachment; filename="copia.zip"'},
+        headers={"Content-Length": str(largo), "Content-Disposition": _nombre_del_zip("copia", pedido)},
         background=BackgroundTask(archivo.close),
     )
 
@@ -392,22 +442,20 @@ def _nombres_en_el_zip(grupo: arte.Grupo) -> dict[str, str]:
 
 
 @router.get("/provisionales.zip")
-def los_provisionales() -> StreamingResponse:
-    """Todos los provisionales en un zip, cada uno en la carpeta de su grupo.
+def los_provisionales(pedido: arte.Grupo | None = Depends(_el_grupo)) -> StreamingResponse:
+    """Los provisionales en un zip, cada uno en la carpeta de su grupo.
 
-    Sin las criaturas: son miles, y se bajan por especie. Se arma y se manda como `la_copia`. Un provisional que falta en el repo se deja
-    fuera y se avisa en el registro.
+    Sin `?grupo=`, todos menos las criaturas: son miles, y se bajan por especie. Se arma y se
+    manda como `la_copia`. Un provisional que falta en el repo se deja fuera y se avisa en el registro.
     """
-    por_ruta = {lugar.ruta: lugar for lugar in arte.lugares()}
+    grupos = (pedido,) if pedido else [g for g in arte.grupos() if g.familia != "criaturas"]
     archivo = tempfile.TemporaryFile()
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
-            for grupo in arte.grupos():
-                if grupo.familia == "criaturas":
-                    continue
+            for grupo in grupos:
                 for ruta, nombre in _nombres_en_el_zip(grupo).items():
                     try:
-                        copia.writestr(nombre, _el_provisional(por_ruta[ruta]))
+                        copia.writestr(nombre, _el_provisional(arte.lugar_de(ruta)))
                     except FileNotFoundError:
                         log.warning("Falta en el repo el provisional de %s; el zip sale sin él.", ruta)
         largo = archivo.tell()
@@ -418,6 +466,6 @@ def los_provisionales() -> StreamingResponse:
     return StreamingResponse(
         _a_trozos(archivo), media_type="application/zip",
         headers={"Content-Length": str(largo),
-                 "Content-Disposition": 'attachment; filename="provisionales.zip"'},
+                 "Content-Disposition": _nombre_del_zip("provisionales", pedido)},
         background=BackgroundTask(archivo.close),
     )

@@ -213,7 +213,7 @@ def test_las_claves_de_los_grupos_son_validas_y_unicas():
     for clave in claves:
         assert re.fullmatch(r"[a-z0-9/_-]{1,64}", clave), clave
         assert not clave.endswith(".png"), clave
-    assert 25 <= len(grupos) <= 90
+    assert len(grupos) == 85  # 59 de siempre, 25 especies y lo común
 
 
 def test_los_nombres_de_los_grupos_dicen_algo():
