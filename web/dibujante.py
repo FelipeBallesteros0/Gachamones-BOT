@@ -313,9 +313,13 @@ def _a_trozos(archivo) -> Iterator[bytes]:
 def _temporal_del_zip():
     """Donde se arma un zip: un temporal sin nombre en disco (se va solo al cerrarse), en la
     carpeta de lo subido y no en el `/tmp` del sistema, que puede ser memoria; con los
-    originales, un zip son cientos de MB. Crea la carpeta, pero no lo que hay encima."""
-    config.RUTA_ARTE_SUBIDO.mkdir(exist_ok=True)
-    return tempfile.TemporaryFile(dir=config.RUTA_ARTE_SUBIDO)
+    originales, un zip son cientos de MB. Crea la carpeta, pero no lo que hay encima. Si no
+    se puede crear o escribir, el del sistema: mejor eso que una descarga que no sale."""
+    try:
+        config.RUTA_ARTE_SUBIDO.mkdir(exist_ok=True)
+        return tempfile.TemporaryFile(dir=config.RUTA_ARTE_SUBIDO)
+    except OSError:
+        return tempfile.TemporaryFile()
 
 
 def _nombre_del_zip(antes: str, pedido: arte.Grupo | None) -> str:

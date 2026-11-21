@@ -1471,6 +1471,36 @@ def test_los_zips_se_arman_junto_a_lo_subido_y_no_en_el_tmp_del_sistema(cliente,
     assert not (tmp_path / "no-hay-tmp").exists()
 
 
+@pytest.mark.parametrize("estorbo", ["no_se_puede_crear", "no_se_puede_escribir"])
+def test_si_la_carpeta_de_lo_subido_no_sirve_los_zips_se_arman_en_el_temporal_del_sistema(
+        cliente, carpeta, monkeypatch, tmp_path, estorbo):
+    """Si la carpeta de lo subido no se puede crear o no se puede escribir, el zip se arma en el
+    temporal del sistema, como antes: la descarga sale igual, y no un 500."""
+    del_sistema = tmp_path / "tmp-del-sistema"
+    del_sistema.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(del_sistema))
+    if estorbo == "no_se_puede_crear":
+        # Donde iría la carpeta hay un archivo.
+        (tmp_path / "un-archivo").write_bytes(b"")
+        monkeypatch.setattr(config, "RUTA_ARTE_SUBIDO", tmp_path / "un-archivo" / "arte_subido")
+    crear, donde = tempfile.TemporaryFile, []
+
+    def anotando(*argumentos, **opciones):
+        donde.append(opciones.get("dir"))
+        if opciones.get("dir") is not None and estorbo == "no_se_puede_escribir":
+            raise PermissionError(13, "Permiso denegado", str(opciones["dir"]))
+        return crear(*argumentos, **opciones)
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", anotando)
+    for zip_, params in (("copia.zip", {}), ("provisionales.zip", {"grupo": "efectos"})):
+        respuesta = cliente.get(f"{API}/{zip_}", params=params)
+        assert respuesta.status_code == 200, zip_
+        with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+            assert copia.testzip() is None
+    # Los dos zips se armaron en el temporal del sistema (`dir` sin dar).
+    assert donde.count(None) == 2
+
+
 def test_el_zip_de_una_especie_conserva_sus_carpetas(cliente, carpeta, monkeypatch):
     """Dentro del zip de una especie, cada capa va con su ruta relativa a la especie
     (`bebe/cuerpo-se.png`), igual en los dos zips; los nombres se repiten entre etapas."""

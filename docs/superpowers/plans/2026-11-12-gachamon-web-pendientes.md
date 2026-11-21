@@ -2250,7 +2250,9 @@ momento.
 6. **En la Raspberry, antes del juego**, tres comprobaciones que sólo leen, en
    este orden:
    1. **El espacio.** `df -h` de la carpeta de lo subido (`arte_subido`, junto a
-      la base, si `RUTA_ARTE_SUBIDO` no dice otra) y `df -h /tmp`. En ese disco
+      la base, si `RUTA_ARTE_SUBIDO` no dice otra) y `df -h /tmp`. Si esa carpeta
+      todavía no existe (nadie ha subido nada), `df -h` falla: entonces se mira
+      la carpeta de la base, que es donde se va a crear. En ese disco
       van lo subido, su espejo (los enlaces no ocupan; lo podado, sí) y los
       temporales de los zips del dibujante, que con los originales pueden ser
       cientos de MB; `/tmp` es memoria por omisión en Debian 13. Con poco margen,
@@ -2266,7 +2268,12 @@ momento.
       original es lo servido y no mide lo que pide su lugar: `hechas` no las cuenta
       y la página del dibujante enseña el aviso de otra medida), y sus tarjetas del
       tablero quedan por rehacer. No impide publicar: se le dice al dueño cuáles
-      son, para que el dibujante las vuelva a subir a la medida nueva.
+      son, para que el dibujante las vuelva a subir a la medida nueva. Ojo: el
+      bloque también sale `{}` si la base no se puede leer. Para distinguirlo, en
+      el registro de la web (`journalctl -u gachamon-web --since <la hora de esta
+      comprobación>`) no tiene que estar el aviso «No se pudo leer el arte subido
+      para la portada: …» (con el tipo del error), que es el que deja `web/app.py`
+      en ese caso; si está, no se sigue sin el dueño.
 7. **El juego**, con la copia de la base de siempre. Al arrancar, la tabla gana
    sus columnas. Se comprueba desde fuera que el bloque de la portada sigue como
    en el paso 6, que la página del dibujante carga y pliega las especies, que el
@@ -2300,7 +2307,11 @@ momento.
     espejo los tiene desde el último despliegue: volver atrás con
     `actualizar-pi.sh` lo pone al día antes de tocar el código, pero a mano (`git
     reset`) o con `deploy.sh` no, y antes se saca con la orden de `rsync` del
-    guion.
+    guion. Si lo que corrió al volver atrás fue el guion de antes (el
+    `actualizar-pi.sh` del código publicado), no deja espejo sino un
+    `arte_subido.*.tar.gz` en la carpeta del repo, que también los tiene: el que
+    hizo al volver atrás, antes de que nadie subiera. Se sacan de ahí sin pisar
+    nada, en la misma carpeta: `tar -xzf <ese archivo> --skip-old-files`.
 
 ### Lo que le toca al sitio
 
