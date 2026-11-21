@@ -235,14 +235,122 @@ El relleno de la pieza es una caja de color liso sobre la huella, con las
 primeras letras de la clave y, en su cara hacia la que mira, una marca amarilla
 (y una flecha en la tapa) para que girar se note.
 
-## Los gachamones
+## Lo que subes en la página del dibujante
 
-Los gachamones **no están en este contrato**: siguen con su formato de capas de
-`fuentes/` (cuerpos, caras y cosméticos), tal como hasta ahora.
+Todo lo de la pieza del departamento (suelo, paredes y muebles) lo subes **a la medida de original**, la de la columna «Tamaño original» de arriba: el doble de lo que se ve en pantalla (la casilla, de 1024 × 512). Si subes uno de la mitad, la página lo rechaza y te dice qué medida pide ese lugar.
 
-Eso sí: el mapa voltea el retrato cuando el gachamon camina hacia la derecha.
-Por eso, **si un gachamon se dibuja de perfil, mira a la izquierda**; si está
-de frente, da igual.
+- La página guarda **tu original tal como lo subes** y, aparte, una versión reducida a la mitad, que es la que usa el juego. Tú no reduces nada.
+- Cada imagen puede pesar **hasta 24 MB**. Es PNG con transparencia, como siempre.
+- Si tu PNG trae un perfil de color (por ejemplo Display P3), la página lo pasa a sRGB, que es el color de las pantallas corrientes, y guarda la imagen sin el perfil. Si no trae perfil, queda como la dibujaste.
+- De cada lugar se conservan **las cinco últimas imágenes distintas** que subas, cada una con su original y su versión reducida. «Volver a la anterior» las recorre.
+- Lo que no es de la pieza (pueblo, escenas, avatar, efectos e íconos) se sube a su medida de siempre.
+
+Los lugares de las secciones que siguen **todavía no los pinta el juego**: son dibujos que se van adelantando para cuando el juego los use. Aparecen en la página, con su provisional y su avance, pero nadie los ve jugando.
+
+## Los muebles que se encienden
+
+Cuatro muebles de hoy tienen **un segundo dibujo, el encendido**: la lámpara, el calefactor, la chimenea y la fuente. El dibujo de siempre es el apagado; el encendido es el mismo mueble prendido (con luz, fuego o agua corriendo).
+
+| Mueble | Archivos del encendido | Tamaño original |
+|---|---|---|
+| Lámpara | `pieza/muebles/lampara-encendido-<orientación>.png` | 1024 × 1536 |
+| Calefactor | `pieza/muebles/calefactor-encendido-<orientación>.png` | 1024 × 1536 |
+| Chimenea | `pieza/muebles/chimenea-encendido-<orientación>.png` | 1536 × 1792 |
+| Fuente | `pieza/muebles/fuente-encendido-<orientación>.png` | 2048 × 2048 |
+
+Cada uno lleva **las cuatro orientaciones** (`se`, `so`, `no`, `ne`) y mide **lo mismo que su dibujo apagado**, en el mismo lienzo y con el mueble en el mismo lugar: así, al encender, solo cambia lo que se enciende. En la página, el encendido aparece dentro del grupo del mueble, junto a los otros cuatro.
+
+## Los objetos que el juego todavía no tiene
+
+Son 24 objetos nuevos. Cada uno lleva **su dibujo de pieza** y **su ícono**.
+
+- Dibujo de pieza: `pieza/muebles/<clave>-<orientación>.png`, con las cuatro orientaciones (el balcón, sólo dos, más abajo).
+- Ícono: `iconos/muebles/<clave>.png`, de **48 × 48** como los demás (pixel art, fondo transparente).
+- Si tiene un segundo estado, su dibujo va aparte, con las mismas orientaciones y la misma medida: `pieza/muebles/<clave>-encendido-<orientación>.png`. La excepción es la Puerta de cristal, cuyo segundo estado se llama `atravesable`: `pieza/muebles/puerta_cristal-atravesable-<orientación>.png`.
+
+Todos son de bulto, como una lámpara: sobresalen del suelo (el balcón es un caso aparte, más abajo). La medida de la tabla es la de cada orientación.
+
+| Clave | Nombre | Forma | Tamaño original (cada orientación) | Segundo estado |
+|---|---|---|---|---|
+| `consola_flappy` | Consola Flappy | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `consola_pong` | Consola Pong | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `mesa_gato` | Mesa de gato | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `atril` | Atril | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `tocadiscos` | Tocadiscos | bulto de 1 × 1 | 1024 × 1536 | `encendido` |
+| `mayordomo` | Mayordomo robot | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `puerta_cristal` | Puerta de cristal | bulto de 1 × 1 | 1024 × 1536 | `atravesable` |
+| `cableados` | Bloque de cableados | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `super_dado` | Súper Dado | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `mega_tv` | Mega TV | bulto de 2 × 1 | 1536 × 1792 | `encendido` |
+| `lampara_dragon` | Lámpara Dragón | bulto de 1 × 1 | 1024 × 1536 | `encendido` |
+| `silla_azul`, `silla_roja`, `silla_verde`, `silla_amarilla`, `silla_negra`, `silla_blanca` | Silla azul, roja, verde, amarilla, negra y blanca | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `mesa_azul`, `mesa_roja`, `mesa_verde`, `mesa_amarilla`, `mesa_negra`, `mesa_blanca` | Mesa azul, roja, verde, amarilla, negra y blanca | bulto de 1 × 1 | 1024 × 1536 | no tiene |
+| `balcon` | Balcón | tira de 4 × 1 por fuera de la pared | 2560 × 2304 (sólo `se` y `so`) | no tiene |
+
+Son 24 claves y 24 íconos (cada silla y cada mesa lleva el suyo, con su color). Cosas que conviene saber:
+
+- **Mayordomo robot.** Es **tan alto como tu avatar**: unos 717 px del original, de pie en el centro de la casilla.
+- **Puerta de cristal.** La de siempre es la sólida (`puerta_cristal-<orientación>.png`); la otra es la que se puede atravesar (`puerta_cristal-atravesable-<orientación>.png`).
+- **Balcón.** Es la tira de 4 × 1 casillas que queda por fuera de la pared, con su baranda. Se comporta como lo de pared: lleva **sólo dos dibujos**, `se` en la pared izquierda y `so` en la derecha (`pieza/muebles/balcon-se.png` y `pieza/muebles/balcon-so.png`).
+- Los que se encienden (Tocadiscos, Mega TV y Lámpara Dragón) llevan, además de sus cuatro dibujos de siempre, los cuatro del encendido, igual que los cuatro muebles de la sección anterior.
+
+Cuentas: los 24 objetos suman 110 dibujos de pieza (23 objetos de cuatro orientaciones y el balcón de dos, más cuatro encendidos o atravesables de cuatro orientaciones cada uno: Tocadiscos, Puerta de cristal, Mega TV y Lámpara Dragón) y 24 íconos.
+
+## Las criaturas
+
+Cada criatura se arma **apilando capas**: el cuerpo, la cara y, si lleva, el sombrero. Cada capa es un PNG con transparencia de **1024 × 1024**, y **todas las capas de una misma etapa y orientación se dibujan en el mismo lienzo**, una encima de la otra, sin mover nada de lugar: así calzan al apilarlas.
+
+Hay cuatro **orientaciones**, las mismas de los muebles:
+
+| Orientación | Hacia dónde mira |
+|---|---|
+| `se` | de frente, hacia abajo a la derecha |
+| `so` | de frente, hacia abajo a la izquierda |
+| `no` | de espaldas, hacia arriba a la izquierda |
+| `ne` | de espaldas, hacia arriba a la derecha |
+
+**De espaldas no hay cara.** La cara sólo lleva `se` y `so`; el cuerpo y los sombreros llevan las cuatro.
+
+### Los nombres de los archivos
+
+Todo vive bajo `criaturas/`. `<especie>` es el nombre interno de la especie (por ejemplo `dragoncito`, aunque en el juego se llame de otra forma; la página enseña la lista y el nombre de cada una).
+
+| Qué | Archivo | Orientaciones |
+|---|---|---|
+| El cuerpo de una etapa | `criaturas/<especie>/<etapa>/cuerpo-<orientación>.png` | `se`, `so`, `no`, `ne` |
+| Una cara de una etapa | `criaturas/<especie>/<etapa>/cara-<ánimo>-<orientación>.png` | `se`, `so` |
+| Un sombrero en una etapa | `criaturas/<especie>/<etapa>/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
+| Una cara para **todas las etapas** de una especie | `criaturas/<especie>/cara-<ánimo>-<orientación>.png` | `se`, `so` |
+| Un sombrero para **todas las etapas** de una especie | `criaturas/<especie>/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
+| Una cara **común** a todas las especies | `criaturas/comun/cara-<ánimo>-<orientación>.png` | `se`, `so` |
+| Un sombrero **común** a todas las especies | `criaturas/comun/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
+
+Los nombres que van en lugar de las palabras entre `< >`:
+
+- `<etapa>`: `bebe` (la cría), `nino`, `adolescente`, `adulto` y `adulto_grande`.
+- `<ánimo>`: `feliz`, `normal` y `mal`.
+- `<sombrero>`: `corona`, `chistera`, `laurel`, `cuernos`, `aureola` y `cinta`.
+- `<orientación>`: `se`, `so`, `no` y `ne`.
+
+Ejemplos: `criaturas/pollito/bebe/cuerpo-se.png`, `criaturas/pollito/bebe/cara-feliz-so.png`, `criaturas/pollito/adulto/sombrero-corona-ne.png`, `criaturas/pollito/cara-mal-se.png`, `criaturas/comun/sombrero-cinta-no.png`.
+
+El **cuerpo** es siempre de una etapa concreta. Las caras y los sombreros se pueden dibujar de tres maneras, de lo más particular a lo más general:
+
+1. **Para una etapa de una especie** (con `<etapa>/` en la ruta): sólo esa etapa la usa.
+2. **Para todas las etapas de una especie** (sin etapa): la usan todas las etapas de esa especie que no tienen la suya.
+3. **Común** (`criaturas/comun/`): la usan todas las especies que no tienen la suya.
+
+Cuando falta la de una etapa, se usa la de toda la especie y, si tampoco está, la común. Por eso **no hace falta dibujar cada cara y cada sombrero para cada etapa de cada especie**: una cara o un sombrero común basta para todas. En la página, esa casilla se ve cubierta, con la frase «Usa la de toda la especie.» o «Usa la común.»; si subes la tuya, manda la tuya. Y si más tarde la vuelves al provisional, las casillas que dependían de ella vuelven a faltar; la página te lo pregunta antes.
+
+### El provisional
+
+El provisional de una capa de criatura es **la capa de frente de hoy, ampliada**. Dice **dónde va** la capa en el lienzo y **de qué tamaño**, no cómo se ve de lado ni de espaldas. Sirve de guía de posición, no de modelo del dibujo.
+
+### Qué ves en la página
+
+Las criaturas salen **plegadas por especie**, en una sección «Criaturas»; cada especie se abre aparte y por dentro se divide en sus etapas («Cría», «Niño», «Adolescente», «Adulto» y «Adulto grande»), en «Para todas las etapas de» la especie, y las capas «Cuerpo», «Caras» y «Sombreros». Cada especie tiene sus dos botones de descarga, «Descargar lo subido de» la especie y «Descargar los provisionales de» la especie. «Capas comunes a todas las especies» sale aparte, sin contar en el avance.
+
+El juego de hoy sigue con sus retratos de siempre; nada de esta sección se ve todavía al jugar. Eso sí: el mapa voltea el retrato cuando el gachamon camina hacia la derecha, así que **si un retrato de hoy se dibuja de perfil, mira a la izquierda**.
 
 ## Dónde mirar si algo no calza
 

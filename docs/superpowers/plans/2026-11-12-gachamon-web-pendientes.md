@@ -2198,6 +2198,93 @@ juego es JSON, `{"detail":{"clave":"no_existe",…}}`; uno del sitio, no.
    la base desde una copia, se repone la carpeta de lo subido desde la suya del
    mismo momento (ver «Lo que queda»).
 
+## Salió al planificar el arte que falta
+
+El diseño (`docs/superpowers/specs/2026-11-21-el-arte-que-falta-design.md`) y su
+plan sólo tocan la página del dibujante y lo que hay detrás; la página del juego
+sigue congelada. Está construido en una rama, sin publicar. Lo que no se puede
+saber hasta publicar queda aquí.
+
+### Lo hecho
+
+- La pieza se sube al doble (1024 × 512 por casilla), con el original aparte y la
+  versión chica derivada; `archivo, ancho, alto` de `arte_subido` siguen siendo
+  lo servido. Tope de 24 MB y los PNG con perfil de color pasan a sRGB.
+- `arte.lugares()` suma, al contrato del juego (`arte.piezas()`, 270, sin
+  cambios), el encendido de cuatro muebles, 24 objetos nuevos con sus íconos y
+  las capas de las criaturas; nada de eso entra en el bloque de la portada.
+- El avance cuenta casillas: pasa de 35 a 84 grupos con tarjeta (las capas
+  comunes salen en la página pero no en el avance). La página pliega las
+  criaturas por especie y las pide al abrirlas.
+- `actualizar-pi.sh` ya no comprime la carpeta de lo subido en cada despliegue:
+  la espeja en `arte_subido.copia/` y el espejo sólo gana lo nuevo.
+
+### Para publicar
+
+Cada paso que toca producción necesita el permiso expreso del dueño en ese
+momento.
+
+1. **Contarle al dueño, antes de publicar, que el plan cambió la copia de lo
+   subido en `actualizar-pi.sh`:** de un `tar` entero en cada despliegue a un
+   espejo que sólo gana lo nuevo. Los `arte_subido.*.tar.gz` que ya haya en la
+   Raspberry no se tocan, ni se borran ni se rotan.
+2. **El sitio primero**, con su categoría «Criaturas» (ver «Lo que le toca al
+   sitio»). Sola es inofensiva. Si el juego saliera antes, las especies se
+   sembrarían en «Avatar».
+3. **Antes del juego**, confirmar con **un archivo real del dibujante** que sus
+   colores llegan igual. La conversión a sRGB ya viene construida, y esto sólo la
+   confirma.
+4. **Probarlo en una página de prueba** (`herramientas/pagina_de_prueba.py
+   --dibujante N`), no en producción, porque el historial no se borra: subir un
+   mueble del juego a la medida nueva y verlo reducido en la página, subir un
+   objeto por venir, su encendido y su ícono, abrir una especie, descargar.
+5. **Mirarlo en un navegador de verdad**, que es lo único que las pruebas no
+   cubren: abrir una especie, una etapa y los Sombreros, con «Sólo lo que falta»
+   puesto y quitado, y ver cómo rinde una especie en un teléfono.
+6. **Las «Capas comunes a todas las especies»** llevan también sus dos enlaces de
+   descarga («Descargar lo subido» y «Descargar los provisionales»): comprobar
+   que están y que bajan lo suyo.
+7. **El juego**, con la copia de la base de siempre. Al arrancar, la tabla gana
+   sus columnas. Se comprueba desde fuera que el bloque de la portada sigue
+   vacío, que la página del dibujante carga y pliega las especies, que el avance
+   trae los grupos nuevos (84 con tarjeta) y que el mundo en línea del ejecutable
+   sigue leyendo la tabla.
+8. **Quien publique le avisa al dueño** que, mientras el juego siga en la
+   Raspberry, conviene que el dibujante no suba criaturas en masa hasta la
+   mudanza. **El dueño le avisa al dibujante** eso y la medida nueva.
+9. **Al juntar esta rama con la del ejecutable**, resolver los conflictos de
+   `arte_subido.py` y `web/dibujante.py` (y los de sus pruebas) a favor de este
+   diseño, y que su armado copie sólo lo que usa su contrato, no la carpeta
+   entera.
+
+### Lo que le toca al sitio
+
+El sitio es el que lleva el tablero de tareas del arte y lee el avance.
+
+- La categoría «Criaturas» para los grupos de familia `criaturas`, como pedía el
+  diseño A2.
+- Con este cambio el avance pasa a 84 grupos.
+- **Requisito, si se quiere que el tablero no esconda trabajo**: reabrir una
+  tarjeta ya hecha cuyo grupo crezca. Por ejemplo, un mueble que gana su
+  encendido pasa de 4 de 4 a 4 de 8.
+
+### Menores que quedaron aparcados en la construcción
+
+Si la revisión final no los cierra:
+
+- El comentario de `_guardadas_en` en `db.py` dice «sin ordenar aparte» y no es
+  cierto; esa función lee todas las filas y queda al borde de los 20 ms con 10 000
+  filas.
+- Dos subidas del mismo original con distinta versión chica cuentan como una sola
+  imagen; falta la prueba que lo fije.
+- Al refrescar una especie en la página, dos cambios seguidos pueden llegar en
+  desorden; falta numerar las peticiones.
+- Con «Sólo lo que falta», «Capas comunes…» se ve antes de abrirla y desaparece
+  después, y una sección que nace con el filtro puesto puede quedar abierta y
+  vacía.
+- La prueba del relleno del encendido sólo exige que difiera del apagado; la de
+  «las otras especies no se mueven» sólo lo comprueba con las demás en cero.
+
 ## Para publicar
 
 **Publicado el 2026-11-19.** El rediseño entero se publicó siguiendo esta lista,

@@ -63,7 +63,8 @@ Instala el hook local cuando prepares el entorno:
 - El juego vive en `/monsteropolis`; `/gachamon` sólo redirige (308, sin guardarse en caché, para que volver atrás siga siendo posible) al prefijo nuevo.
 - El permiso del dibujante se lee aparte y en sólo lectura, de la base del sitio; sin la columna del arte, sólo lo tiene el administrador del sitio. Sin permiso, sus rutas contestan como una que no existe.
 - Lo subido por el dibujante vive fuera de git, en `config.RUTA_ARTE_SUBIDO`, con nombre de su contenido, y ningún despliegue lo borra.
-- El historial `arte_subido` sólo crece y guarda nombres, nunca números de cuenta. La poda corre bajo `BEGIN IMMEDIATE`.
+- El historial `arte_subido` sólo crece y guarda nombres, nunca números de cuenta. La poda corre bajo `BEGIN IMMEDIATE`. `archivo, ancho, alto` son lo servido (el mundo en línea del ejecutable los lee por su nombre) y el original va aparte; la poda conserva los dos archivos.
+- Los lugares de subida (`arte.lugares()`) son más que el contrato del juego (`arte.piezas()`): suman lo que el juego todavía no pinta. Eso nunca entra en el bloque `arte-subido` de la portada ni en lo que ve quien juega.
 - Lo que se sirve a quien juega sale de `urlDeArte`, que mira primero el bloque `arte-subido` de la portada; si falta o viene raro, el arte de siempre.
 
 ## Invariantes del dominio
@@ -160,7 +161,7 @@ Instala el hook local cuando prepares el entorno:
 - Las frases de un lugar hablan de ese lugar tal como es hoy: no dicen que haya otras personas ni prometen lo que el lugar todavía no hace.
 - El pueblo vive en `web/static/datos/pueblo.json`: qué lugares hay, sus nombres, sus coordenadas y sus caminos. El código no lleva coordenadas ni una lista propia de lugares; sólo nombra uno por su clave donde le da un significado. El servidor recuerda en qué lugar estás; la caminata es del cliente y no se guarda a medias.
 - El arte del pueblo, de las escenas de cada lugar y del avatar son archivos de `web/static/arte/` descritos en `web/arte.py`. Reemplazar un dibujo es cambiar el archivo; si falta, se ve un recuadro con su nombre y nunca el dibujo de otra pieza. Mientras una pieza tenga una imagen subida por el dibujante, se ve ésa y no el archivo del repo.
-- El arte de la pieza del departamento es la familia `pieza` del contrato (`web/arte.py`): no es pixel art, los originales van en `fuentes/pieza/` al doble de lo que sirve la página, `herramientas/pieza.py` los reduce, lo que sube el dibujante sólo vale a la medida exacta de la pieza (también el doble se rechaza), y cada mueble de suelo lleva cuatro orientaciones y cada uno de pared, dos.
+- El arte de la pieza del departamento es la familia `pieza` del contrato (`web/arte.py`): no es pixel art, los originales van en `fuentes/pieza/` al doble de lo que sirve la página, `herramientas/pieza.py` los reduce, lo que sube el dibujante sólo vale al doble (1024 × 512 por casilla; la medida chica se rechaza), se guarda el original y lo que sirve el juego se deriva de él, y cada mueble de suelo lleva cuatro orientaciones y cada uno de pared, dos.
 - El cliente no decide qué cabe: lo que calcula (`casillas.js`) es para dibujar y no proponer lo imposible, y `tests/test_casillas_cliente.py` lo contrasta con `departamento.py`.
 - Usar un objeto es una regla del juego (`economia.usar_objeto`), no del menú: se gasta, se aplica y se anota en una sola transacción, y ningún rechazo cuesta el objeto.
 - Toda compra, venta o uso que llega de la web lleva un evento: repetirlo devuelve lo que pasó la primera vez y no cobra, entrega ni gasta otra vez.

@@ -91,7 +91,7 @@ Hay **dos scripts y no hacen lo mismo**:
 
 `actualizar-pi.sh` es el que evita el desfase de desplegar una copia local que no
 está al día con `main`: **avisa si tienes commits sin subir**, copia la base de
-datos antes de tocar nada, y la carpeta de lo subido por el dibujante si existe (guarda las 5 últimas de cada una), pone la Pi en el commit de
+datos antes de tocar nada, y la carpeta de lo subido por el dibujante si existe (la espeja en `arte_subido.copia/`, ver «La página del dibujante»), pone la Pi en el commit de
 `main`, corre la suite allí y **sólo reinicia si pasa** (si no, la Pi vuelve al
 commit en el que estaba, no reinicia el bot y vuelve a arrancar la web). La suite usa un temporal
 en memoria (`--basetemp=/dev/shm/...`) que se borra al terminar, y para ello
@@ -255,20 +255,32 @@ Quien dibuja no necesita el repositorio: el dueño y quien tenga el permiso
 no existe. La página lista las piezas por grupos plegables, cada una con su
 imagen de ahora, la medida exacta que pide el contrato, si es el recuadro
 provisional o una imagen subida, y quién y cuándo la subió. Cada pieza tiene
-«Subir» (sólo PNG, hasta 4 MB y de la medida exacta, también en la pieza del
-departamento), «Historial», «Volver a la anterior» (retrocede una subida cada
+«Subir» (sólo PNG, hasta 24 MB y de la medida exacta; la pieza del departamento
+se sube al doble, 1024 × 512 por casilla: se guarda el original y el juego sirve una
+versión reducida que se deriva de él; un PNG con perfil de color pasa a sRGB), «Historial», «Volver a la anterior» (retrocede una subida cada
 vez, hasta el provisional; desde el provisional, vuelve a la última subida) y
 «Volver al provisional». También baja el provisional de esa pieza («Descargar el
 provisional») y, si la tiene, su imagen subida («Descargar la imagen subida»). La imagen subida se ve en el juego al
 momento, al recargar, y mientras esté puesta manda sobre el archivo del repo:
 cambiar el archivo de esa pieza en el repo no se ve. Arriba se descarga en un
-zip lo que se ve hoy (sin las anteriores ni lo vuelto al provisional; la copia
-completa es la de `actualizar-pi.sh`) y, en otro, todos los provisionales del
-repo, en carpetas por grupo («Descargar los provisionales»). Se guardan las cinco últimas imágenes
-distintas de cada pieza, en una carpeta junto a la base (`arte_subido`, o
-`RUTA_ARTE_SUBIDO`) que no es parte de git; `actualizar-pi.sh` la copia
-comprimida junto con la base y ningún despliegue la borra. Reponer una copia de
-la base pide reponer también esta carpeta desde su copia del mismo momento.
+zip lo que se ve hoy («Descargar lo subido», sin las anteriores ni lo vuelto al
+provisional ni las criaturas; la copia completa es la de `actualizar-pi.sh`) y, en
+otro, los provisionales del repo, en carpetas por grupo («Descargar los
+provisionales»). Además de las piezas del juego, la página lista lugares que el
+juego todavía no pinta, para ir adelantando el arte del ejecutable: el encendido
+de cuatro muebles, 24 objetos nuevos con sus íconos y las capas de las criaturas
+(1024 × 1024, por especie y etapa, en cuatro orientaciones). Las criaturas salen
+plegadas por especie, se piden al abrirlas y cada una tiene sus propios zips; nada
+de eso lo ve quien juega ni entra en el bloque `arte-subido` de la portada. Se guardan
+las cinco últimas imágenes distintas de cada lugar, cada una con su original y su
+versión reducida, en una carpeta junto a la base (`arte_subido`, o
+`RUTA_ARTE_SUBIDO`) que no es parte de git y que ningún despliegue borra.
+`actualizar-pi.sh` la espeja en `arte_subido.copia/`, junto a ella, y el espejo
+sólo gana lo nuevo: cada archivo lleva el nombre de su contenido y no cambia nunca,
+así que no se pisa ni se borra nada ni se comprime la carpeta entera en cada
+despliegue. Reponer una copia de la base pide reponer también esta carpeta, desde
+su copia del mismo momento. Lo que está descrito para el dibujante vive en
+`docs/arte/contrato.md`.
 
 Para probarla en local, `--dibujante N` de `herramientas.pagina_de_prueba` da el
 permiso a la cuenta N (ver «Desarrollo local»).
