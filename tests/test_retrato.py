@@ -149,3 +149,80 @@ def test_todas_las_especies_tienen_color_de_borde():
     puede salir gris por un color sin traducir."""
     for clave, definicion in esp.ESPECIES.items():
         assert definicion.color in retrato.COLORES, clave
+
+
+# --- Las capas sueltas de frente, para los provisionales de las criaturas ------
+
+def _png_de(color, lado=256) -> bytes:
+    buzon = io.BytesIO()
+    Image.new("RGBA", (lado, lado), color).save(buzon, "PNG")
+    return buzon.getvalue()
+
+
+def _escribir(raiz, ruta, color):
+    destino = raiz / ruta
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_bytes(_png_de(color))
+
+
+def test_el_cuerpo_de_una_especie_dibujada_es_su_archivo_de_hoy():
+    capa = retrato.capa_de_frente("dragoncito", "adulto", "cuerpo", None)
+    assert capa == retrato._ruta_del_cuerpo("dragoncito", "adulto").read_bytes()
+    with Image.open(io.BytesIO(capa)) as imagen:
+        assert imagen.size == (256, 256)
+
+
+def test_una_especie_sin_dibujos_usa_el_relleno_de_retrato():
+    sin_dibujo = next(c for c in esp.ESPECIES if c not in retrato.CON_ETAPAS_COMPLETAS)
+    capa = retrato.capa_de_frente(sin_dibujo, "nino", "cuerpo", None)
+    assert capa == retrato.relleno(sin_dibujo, "nino", esp.NORMAL)
+    with Image.open(io.BytesIO(capa)) as imagen:
+        assert imagen.size == (256, 256)
+
+
+def test_el_cuerpo_pide_especie_y_etapa():
+    for especie, etapa in ((None, "bebe"), ("dragoncito", None)):
+        try:
+            retrato.capa_de_frente(especie, etapa, "cuerpo", None)
+        except ValueError:
+            continue
+        raise AssertionError((especie, etapa))
+
+
+def test_la_cara_y_el_sombrero_buscan_forma_especie_y_comun(tmp_path, monkeypatch):
+    monkeypatch.setattr(retrato, "FUENTES", tmp_path)
+    retrato.olvidar()
+    nombre = "tsushimon"
+    forma = retrato.FORMA_ARCHIVO["adulto"]
+    # Sólo la común: la usan todos.
+    _escribir(tmp_path, "caras/face_1.png", (1, 0, 0, 255))
+    _escribir(tmp_path, "sombreros/corona.png", (2, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", "adulto", "cara", "feliz") == _png_de((1, 0, 0, 255))
+    assert retrato.capa_de_frente(None, None, "cara", "feliz") == _png_de((1, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", "adulto", "sombrero", "corona") == _png_de((2, 0, 0, 255))
+    # La de la especie gana a la común, para todas sus etapas…
+    _escribir(tmp_path, f"caras/{nombre}/face_1.png", (3, 0, 0, 255))
+    _escribir(tmp_path, f"sombreros/{nombre}/corona.png", (4, 0, 0, 255))
+    retrato.olvidar()
+    assert retrato.capa_de_frente("dragoncito", "adulto", "cara", "feliz") == _png_de((3, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", None, "cara", "feliz") == _png_de((3, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", "bebe", "sombrero", "corona") == _png_de((4, 0, 0, 255))
+    assert retrato.capa_de_frente(None, None, "cara", "feliz") == _png_de((1, 0, 0, 255))
+    # …y la de la forma gana a las dos, sólo en esa etapa.
+    _escribir(tmp_path, f"caras/{nombre}/{forma}/face_1.png", (5, 0, 0, 255))
+    _escribir(tmp_path, f"sombreros/{nombre}/{forma}/corona.png", (6, 0, 0, 255))
+    retrato.olvidar()
+    assert retrato.capa_de_frente("dragoncito", "adulto", "cara", "feliz") == _png_de((5, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", "adulto", "sombrero", "corona") == _png_de((6, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", "bebe", "cara", "feliz") == _png_de((3, 0, 0, 255))
+    assert retrato.capa_de_frente("dragoncito", None, "cara", "feliz") == _png_de((3, 0, 0, 255))
+    retrato.olvidar()
+
+
+def test_la_capa_de_frente_se_recuerda_y_olvidar_la_vacia():
+    retrato.olvidar()
+    retrato.capa_de_frente("dragoncito", "adulto", "cara", "mal")
+    retrato.capa_de_frente("dragoncito", "adulto", "cara", "mal")
+    assert retrato.capa_de_frente.cache_info().hits == 1
+    retrato.olvidar()
+    assert retrato.capa_de_frente.cache_info().currsize == 0

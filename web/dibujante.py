@@ -39,7 +39,9 @@ from starlette.requests import ClientDisconnect
 
 import arte_subido
 import config
+import cosmeticos
 import db
+import retrato
 from web import PREFIJO, arte
 from web.sesion import Persona, con_cabecera, dibujante_actual, problema
 from web.tienda import no_se_entiende
@@ -183,6 +185,16 @@ def _miniatura(lugar: arte.Lugar) -> str | None:
     return f"{PREFIJO_DIBUJANTE}/api/provisional?ruta={quote(lugar.ruta, safe='/')}&miniatura=1"
 
 
+def _criatura(capa: arte.Capa | None) -> dict | None:
+    """Qué capa de criatura es un lugar, para el título de su tarjeta; `None` si no lo es."""
+    if capa is None:
+        return None
+    sombrero = next((s.nombre for s in cosmeticos.SOMBREROS if s.clave == capa.cual), None) \
+        if capa.capa == "sombrero" else None
+    return {"nivel": capa.nivel, "etapa": capa.etapa, "capa": capa.capa, "cual": capa.cual,
+            "nombre_del_sombrero": sombrero, "orientacion": capa.orientacion}
+
+
 def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
     """Un lugar como lo enseña la página del dibujante.
 
@@ -190,7 +202,8 @@ def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
     """
     return {"ruta": lugar.ruta, "ancho": lugar.ancho, "alto": lugar.alto,
             "subida": _subida(lugar, lo), "medida_cambiada": _medida_cambiada(lugar, lo),
-            "objeto": lugar.objeto, "estado": lugar.estado, "miniatura": _miniatura(lugar)}
+            "objeto": lugar.objeto, "estado": lugar.estado, "miniatura": _miniatura(lugar),
+            "criatura": _criatura(lugar.criatura)}
 
 
 def _la_vista(lugar: arte.Lugar) -> dict:
@@ -314,16 +327,17 @@ def _el_provisional(lugar: arte.Lugar) -> bytes:
 
     En la familia `pieza`, el original de `fuentes/<ruta>` si existe; si no, el
     provisional servido ampliado al doble sin suavizar (`NEAREST`). En las demás, el
-    archivo tal cual. Nunca sale de lo subido. Si el archivo no está, lanza
-    `FileNotFoundError`.
+    archivo tal cual. En las criaturas, la capa de frente de hoy (`retrato.capa_de_frente`)
+    ampliada ×4. Nunca sale de lo subido. Si el archivo no está, lanza `FileNotFoundError`.
     """
     if lugar.reduccion == 1:
         return _el_provisional_servido(lugar).read_bytes()
-    try:
-        return (arte.FUENTES / lugar.ruta).read_bytes()
-    except FileNotFoundError:
-        pass
-    with Image.open(_el_provisional_servido(lugar)) as chico:
+    if lugar.criatura is None:
+        try:
+            return (arte.FUENTES / lugar.ruta).read_bytes()
+        except FileNotFoundError:
+            pass
+    with Image.open(_el_provisional_chico(lugar)) as chico:
         grande = chico.convert("RGBA").resize(
             (chico.width * lugar.reduccion, chico.height * lugar.reduccion), Image.NEAREST)
     salida = io.BytesIO()
@@ -337,6 +351,15 @@ def _el_provisional_servido(lugar: arte.Lugar):
     return (arte.RAIZ if lugar.en_el_juego else arte.RAIZ_POR_VENIR) / lugar.ruta
 
 
+def _el_provisional_chico(lugar: arte.Lugar):
+    """El provisional a su medida servida, para abrirlo: un archivo, o (en las criaturas, que
+    no tienen archivos, serían miles) la capa de frente armada al vuelo."""
+    capa = lugar.criatura
+    if capa is None:
+        return _el_provisional_servido(lugar)
+    return io.BytesIO(retrato.capa_de_frente(capa.especie, capa.etapa, capa.capa, capa.cual))
+
+
 @router.get("/provisional")
 def el_provisional(lugar: arte.Lugar = Depends(_el_lugar), miniatura: bool = False) -> Response:
     """El provisional del lugar de `?ruta=`, como descarga.
@@ -346,6 +369,8 @@ def el_provisional(lugar: arte.Lugar = Depends(_el_lugar), miniatura: bool = Fal
     """
     try:
         if miniatura:
+            if lugar.criatura is not None:
+                return Response(_el_provisional_chico(lugar).getvalue(), media_type="image/png")
             return Response(_el_provisional_servido(lugar).read_bytes(), media_type="image/png")
         cuerpo = _el_provisional(lugar)
     except FileNotFoundError:
@@ -370,7 +395,7 @@ def _nombres_en_el_zip(grupo: arte.Grupo) -> dict[str, str]:
 def los_provisionales() -> StreamingResponse:
     """Todos los provisionales en un zip, cada uno en la carpeta de su grupo.
 
-    Se arma y se manda como `la_copia`. Un provisional que falta en el repo se deja
+    Sin las criaturas: son miles, y se bajan por especie. Se arma y se manda como `la_copia`. Un provisional que falta en el repo se deja
     fuera y se avisa en el registro.
     """
     por_ruta = {lugar.ruta: lugar for lugar in arte.lugares()}
@@ -378,6 +403,8 @@ def los_provisionales() -> StreamingResponse:
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
             for grupo in arte.grupos():
+                if grupo.familia == "criaturas":
+                    continue
                 for ruta, nombre in _nombres_en_el_zip(grupo).items():
                     try:
                         copia.writestr(nombre, _el_provisional(por_ruta[ruta]))

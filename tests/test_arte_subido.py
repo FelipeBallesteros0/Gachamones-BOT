@@ -606,3 +606,24 @@ def test_el_balcon_de_su_medida_vale():
     original, chica = arte_subido.preparar(cuerpo, lugar(ruta))
     assert abierta(chica.datos).size == (1280, 1152)
     assert abierta(original.datos).size == (2560, 2304)
+
+
+# --- Las capas de las criaturas -------------------------------------------------
+
+CAPA = "criaturas/dragoncito/adulto/cara-feliz-se.png"
+
+
+def test_una_capa_se_sube_a_1024_y_se_guarda_con_su_version_de_256():
+    original = dibujo(1024, 1024)
+    grande, chica = arte_subido.preparar(png_de(original), lugar(CAPA))
+    assert (grande.ancho, grande.alto, chica.ancho, chica.alto) == (1024, 1024, 256, 256)
+    assert abierta(grande.datos).tobytes() == original.tobytes()
+    assert abierta(chica.datos).tobytes() == arte_subido.a_lo_servido(original, 4).tobytes()
+    assert abierta(chica.datos).tobytes() == original.resize((256, 256), Image.LANCZOS).tobytes()
+    assert grande.nombre != chica.nombre
+
+
+def test_una_capa_de_la_medida_chica_se_rechaza():
+    with pytest.raises(arte_subido.NoVale) as fallo:
+        arte_subido.preparar(png_de(dibujo(256, 256)), lugar(CAPA))
+    assert fallo.value.mensaje == "La imagen mide 256 × 256 px y esta pieza pide 1024 × 1024 px."

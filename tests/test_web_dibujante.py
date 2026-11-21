@@ -248,7 +248,7 @@ def test_a_los_demas_no_se_les_lee_ni_un_trozo_del_cuerpo(cliente, carpeta):
 # --- El avance: el contrato con el tablero del arte ------------------------------
 
 CLAVE_DEL_CONTRATO = re.compile(r"[a-z0-9/_-]{1,64}")
-FAMILIAS = {"avatar", "pieza", "iconos", "pueblo", "lugares", "escenas", "efectos"}
+FAMILIAS = {"avatar", "pieza", "iconos", "pueblo", "lugares", "escenas", "efectos", "criaturas"}
 
 
 def test_el_avance_es_el_contrato_del_diseno_campo_por_campo(cliente):
@@ -344,7 +344,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     assert hecho.json() == {
         "ruta": CORAZON, "ancho": 32, "alto": 32,
         "subida": {"direccion": d1, "original": d1, "quien": "dibuja", "cuando": T0.isoformat()},
-        "medida_cambiada": None, "objeto": None, "estado": None, "miniatura": None,
+        "medida_cambiada": None, "objeto": None, "estado": None, "miniatura": None, "criatura": None,
     }
     assert (carpeta / nombre_limpio(v1, CORAZON)).is_file()
     piezas = {p["ruta"]: p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g["piezas"]}
@@ -371,7 +371,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     assert hecho.status_code == 200
     assert hecho.json() == {
         "ruta": CORAZON, "ancho": 32, "alto": 32, "subida": None, "medida_cambiada": None,
-        "objeto": None, "estado": None, "miniatura": None}
+        "objeto": None, "estado": None, "miniatura": None, "criatura": None}
 
     al_provisional = reloj.ahora
 
@@ -586,7 +586,7 @@ def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
     for lugar in arte.lugares():
         vista = piezas[lugar.ruta]
         assert set(vista) == {"ruta", "ancho", "alto", "subida", "medida_cambiada", "objeto", "estado",
-                              "miniatura"}
+                              "miniatura", "criatura"}
         assert (vista["ancho"], vista["alto"]) == (lugar.ancho, lugar.alto)
     assert piezas[SUELO] == subido
     assert [ruta for ruta, vista in piezas.items() if vista["subida"] is not None] == [SUELO]
@@ -826,18 +826,20 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
     assert respuesta.headers["content-type"] == "application/zip"
     assert respuesta.headers["content-disposition"] == 'attachment; filename="provisionales.zip"'
     assert int(respuesta.headers["content-length"]) == len(respuesta.content)
+    # Sin las criaturas: son 5 030 y se bajan por especie.
+    grupos = [g for g in arte.grupos() if g.familia != "criaturas"]
     esperado = {}
-    for grupo in arte.grupos():
+    for grupo in grupos:
         for ruta in grupo.rutas:
             esperado[f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}"] = ruta
-    assert len(esperado) == len(arte.lugares())
+    assert len(esperado) == len(arte.lugares()) - 5030
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert copia.testzip() is None
         nombres = copia.namelist()
-        assert len(nombres) == len(set(nombres)) == len(arte.lugares())
+        assert len(nombres) == len(set(nombres)) == len(arte.lugares()) - 5030
         assert set(nombres) == set(esperado)
         # Cada uno, en su medida de subida; lo que no es de la pieza, con los bytes del repo.
-        for grupo in arte.grupos():
+        for grupo in grupos:
             for ruta in grupo.rutas:
                 lugar, dentro = arte.lugar_de(ruta), copia.read(f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}")
                 with Image.open(io.BytesIO(dentro)) as imagen:
@@ -856,7 +858,8 @@ def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
 
 
 def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cliente, monkeypatch):
-    repetido = arte.Grupo("junto", "Junto", "lugares", ("pueblo/lugares/tienda.png", "escenas/tienda.png"))
+    rutas = ("pueblo/lugares/tienda.png", "escenas/tienda.png")
+    repetido = arte.Grupo("junto", "Junto", "lugares", rutas, tuple((r,) for r in rutas))
     monkeypatch.setattr(arte, "grupos", lambda: (repetido,))
     respuesta = cliente.get(f"{API}/provisionales.zip")
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
@@ -874,7 +877,7 @@ def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(client
     assert respuesta.status_code == 200
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert "efectos/corazon.png" not in copia.namelist()
-        assert len(copia.namelist()) == len(arte.lugares()) - 1
+        assert len(copia.namelist()) == len(arte.lugares()) - 5030 - 1
     assert CORAZON in caplog.text
 
 
@@ -1142,3 +1145,86 @@ def test_un_objeto_nuevo_se_ve_y_se_baja_pero_no_toca_la_portada(cliente, carpet
     assert (icono["ancho"], icono["alto"]) == (48, 48)
     assert cliente.get(f"{API}/provisional", params={"ruta": "pieza/muebles/mega_tv-ne.png"}).status_code == 200
     assert _bloque_de_la_portada(cliente) == {}
+
+
+# --- Las capas de las criaturas ---------------------------------------------------
+
+CUERPO = "criaturas/dragoncito/adulto/cuerpo-no.png"
+CARA = "criaturas/dragoncito/adulto/cara-mal-so.png"
+
+
+def _de_frente(*capa) -> bytes:
+    from retrato import capa_de_frente
+
+    return capa_de_frente(*capa)
+
+
+def test_el_provisional_de_un_cuerpo_dibujado_es_su_capa_de_frente_por_cuatro(cliente):
+    chico = _de_frente("dragoncito", "adulto", "cuerpo", None)
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": CUERPO})
+    assert respuesta.status_code == 200 and respuesta.headers["content-type"] == "image/png"
+    assert respuesta.headers["content-disposition"] == \
+        'attachment; filename="provisional-criaturas-dragoncito-adulto-cuerpo-no.png"'
+    with Image.open(io.BytesIO(respuesta.content)) as grande, Image.open(io.BytesIO(chico)) as base:
+        assert grande.size == (1024, 1024) == (arte.lugar_de(CUERPO).ancho, arte.lugar_de(CUERPO).alto)
+        assert grande.convert("RGBA").tobytes() == base.convert("RGBA").resize((1024, 1024), Image.NEAREST).tobytes()
+    # La miniatura es la de 256, tal cual y sin descarga.
+    mini = cliente.get(f"{API}/provisional", params={"ruta": CUERPO, "miniatura": 1})
+    assert mini.content == chico and "content-disposition" not in mini.headers
+    # Las cuatro orientaciones tienen el mismo provisional.
+    otra = cliente.get(f"{API}/provisional", params={"ruta": CUERPO.replace("-no", "-se"), "miniatura": 1})
+    assert otra.content == chico
+
+
+def test_una_especie_sin_dibujos_usa_el_relleno_de_retrato(cliente):
+    import especies
+    import retrato
+
+    sin_dibujo = next(c for c in especies.ESPECIES if c not in retrato.CON_ETAPAS_COMPLETAS)
+    ruta = f"criaturas/{sin_dibujo}/bebe/cuerpo-se.png"
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta, "miniatura": 1})
+    assert respuesta.status_code == 200
+    assert respuesta.content == retrato.relleno(sin_dibujo, "bebe", "normal")
+
+
+def test_el_provisional_de_una_cara_sigue_la_busqueda_forma_especie_comun(cliente):
+    for ruta, esperado in ((CARA, ("dragoncito", "adulto", "cara", "mal")),
+                           ("criaturas/dragoncito/cara-feliz-se.png", ("dragoncito", None, "cara", "feliz")),
+                           ("criaturas/comun/cara-normal-so.png", (None, None, "cara", "normal")),
+                           ("criaturas/dragoncito/sombrero-laurel-ne.png", ("dragoncito", None, "sombrero", "laurel")),
+                           ("criaturas/comun/sombrero-cinta-se.png", (None, None, "sombrero", "cinta"))):
+        respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta, "miniatura": 1})
+        assert respuesta.status_code == 200, ruta
+        assert respuesta.content == _de_frente(*esperado), ruta
+
+
+def test_la_vista_de_una_capa_dice_que_es(cliente):
+    grupos = cliente.get(f"{API}/piezas").json()["grupos"]
+    vistas = {p["ruta"]: p for g in grupos for p in g["piezas"]}
+    assert vistas[CUERPO]["criatura"] == {"nivel": "forma", "etapa": "adulto", "capa": "cuerpo", "cual": None,
+                                          "nombre_del_sombrero": None, "orientacion": "no"}
+    sombrero = vistas["criaturas/comun/sombrero-laurel-se.png"]
+    assert sombrero["criatura"] == {"nivel": "comun", "etapa": None, "capa": "sombrero", "cual": "laurel",
+                                    "nombre_del_sombrero": "Laurel", "orientacion": "se"}
+    assert sombrero["miniatura"] == f"{API}/provisional?ruta=criaturas/comun/sombrero-laurel-se.png&miniatura=1"
+    assert vistas[CORAZON]["criatura"] is None
+
+
+def test_una_capa_se_sube_y_se_ve(cliente, carpeta):
+    cuerpo = png(1024, 1024, 5)
+    vista = subir(cliente, CARA, cuerpo).json()
+    assert vista["subida"]["direccion"] == direccion(cuerpo, CARA)
+    assert vista["criatura"]["capa"] == "cara"
+    with Image.open(carpeta / nombre_limpio(cuerpo, CARA)) as chica:
+        assert chica.size == (256, 256)
+    # Y no es del juego: no entra en lo que lee la portada.
+    assert CARA not in db.arte_vigente(arte_subido.medidas())
+
+
+@pytest.mark.usefixtures("provisional_barato")
+def test_el_zip_de_provisionales_no_trae_las_criaturas(cliente):
+    respuesta = cliente.get(f"{API}/provisionales.zip")
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        nombres = copia.namelist()
+    assert not any(n.startswith("criaturas") for n in nombres)
+    assert len(nombres) == len(arte.lugares()) - 5030
