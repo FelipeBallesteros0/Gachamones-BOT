@@ -39,7 +39,6 @@ from starlette.requests import ClientDisconnect
 import arte_subido
 import config
 import db
-from herramientas import pieza as herramienta_pieza
 from web import PREFIJO, arte
 from web.sesion import Persona, con_cabecera, dibujante_actual, problema
 from web.tienda import no_se_entiende
@@ -310,14 +309,15 @@ def _el_provisional(lugar: arte.Lugar) -> bytes:
     if lugar.reduccion == 1:
         return _el_provisional_servido(lugar).read_bytes()
     try:
-        return (herramienta_pieza.FUENTES / lugar.ruta).read_bytes()
+        return (arte.FUENTES / lugar.ruta).read_bytes()
     except FileNotFoundError:
         pass
     with Image.open(_el_provisional_servido(lugar)) as chico:
         grande = chico.convert("RGBA").resize(
             (chico.width * lugar.reduccion, chico.height * lugar.reduccion), Image.NEAREST)
     salida = io.BytesIO()
-    grande.save(salida, "PNG", optimize=True)
+    # Compresión rápida: se arma en cada petición, y el tamaño no importa para quien baja.
+    grande.save(salida, "PNG", compress_level=1)
     return salida.getvalue()
 
 

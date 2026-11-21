@@ -14,7 +14,6 @@ from PIL import Image
 import arte_subido
 from web import arte
 
-FUENTES = Path(__file__).resolve().parent.parent / "fuentes"
 SERVIDO = arte.RAIZ
 
 
@@ -35,7 +34,7 @@ def reducir() -> list[str]:
     """
     presentes = []
     for esperado in arte.originales_de_la_pieza():
-        origen = FUENTES / esperado.ruta
+        origen = arte.FUENTES / esperado.ruta
         if not origen.exists():
             continue
         with Image.open(origen) as imagen:
@@ -47,7 +46,7 @@ def reducir() -> list[str]:
     for ruta in presentes:
         destino = SERVIDO / ruta
         destino.parent.mkdir(parents=True, exist_ok=True)
-        reducida(FUENTES / ruta).save(destino, "PNG", optimize=True)
+        reducida(arte.FUENTES / ruta).save(destino, "PNG", optimize=True)
     return presentes
 
 

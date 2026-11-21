@@ -127,7 +127,7 @@ def test_el_dibujo_de_un_mueble_que_no_se_pisa_llena_al_menos_la_mitad_de_su_caj
 
 def test_reducir_escribe_la_copia_de_un_original_y_rechaza_el_de_otro_tamano(tmp_path, monkeypatch):
     fuentes, servido = tmp_path / "fuentes", tmp_path / "arte"
-    monkeypatch.setattr(pieza, "FUENTES", fuentes)
+    monkeypatch.setattr(arte, "FUENTES", fuentes)
     monkeypatch.setattr(pieza, "SERVIDO", servido)
     (fuentes / "pieza").mkdir(parents=True)
     Image.new("RGBA", (1024, 512), (10, 200, 30, 255)).save(fuentes / "pieza/suelo.png")
@@ -142,6 +142,6 @@ def test_reducir_escribe_la_copia_de_un_original_y_rechaza_el_de_otro_tamano(tmp
 def test_lo_servido_es_la_reduccion_de_su_original_si_lo_hay():
     # Nadie entrega un original y se olvida de correr la herramienta: los píxeles coinciden.
     for o in arte.originales_de_la_pieza():
-        original = pieza.FUENTES / o.ruta
+        original = arte.FUENTES / o.ruta
         if original.exists():
             assert pieza.reducida(original).tobytes() == Image.open(arte.RAIZ / o.ruta).convert("RGBA").tobytes(), o.ruta

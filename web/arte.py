@@ -17,6 +17,8 @@ import objetos
 from web import pueblo
 
 RAIZ = Path(__file__).parent / "static" / "arte"
+# Los originales de la pieza (el doble de lo servido), con las mismas rutas que `RAIZ`.
+FUENTES = Path(__file__).resolve().parent.parent / "fuentes"
 POSES = ("quieto", "paso1", "paso2")
 
 LADO_LUGAR = 160

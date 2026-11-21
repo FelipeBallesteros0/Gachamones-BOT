@@ -23,7 +23,6 @@ import arte_subido
 import config
 import db
 from ayudas_web import ESCRIBIR, T0, crear_rowino_con_permisos, entrar, galleta, poner_reloj, servicio
-from herramientas import pieza as pieza_herramienta
 from web import arte, dibujante
 
 API = "/monsteropolis_dibujante/api"
@@ -67,6 +66,13 @@ def cliente(tmp_path, monkeypatch, carpeta):
         poner_reloj(monkeypatch)
         entrar(cliente, DIBUJA)
         yield cliente
+
+
+@pytest.fixture
+def provisional_barato(monkeypatch):
+    """Para lo que sólo mira la estructura o el permiso: el provisional sale tal como está en el
+    repo, sin ampliarlo (ampliar los 270 de `provisionales.zip` tarda unos segundos)."""
+    monkeypatch.setattr(dibujante, "_el_provisional", lambda lugar: dibujante._el_provisional_servido(lugar).read_bytes())
 
 
 def png(ancho: int, alto: int, semilla: int = 0) -> bytes:
@@ -135,6 +141,7 @@ RUTAS = {
 DEMAS = ["sin_sesion", "cookie_falsa", "sin_permiso", "bloqueada", "no_existe", "sin_la_columna"]
 
 
+@pytest.mark.usefixtures("provisional_barato")
 @pytest.mark.parametrize("ruta", RUTAS)
 def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, ruta):
     for uid in (DIBUJA, ADMIN):
@@ -142,6 +149,7 @@ def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, ruta):
         assert RUTAS[ruta](cliente).status_code == 200
 
 
+@pytest.mark.usefixtures("provisional_barato")
 @pytest.mark.parametrize("ruta", RUTAS)
 @pytest.mark.parametrize("quien", DEMAS)
 def test_a_los_demas_cada_ruta_les_contesta_como_una_que_no_existe(
@@ -836,6 +844,7 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
     assert [archivo.closed for archivo in temporales] == [True]
 
 
+@pytest.mark.usefixtures("provisional_barato")
 def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
     assert subir(cliente, CORAZON, png(32, 32, 7)).status_code == 200
     respuesta = cliente.get(f"{API}/provisionales.zip")
@@ -851,6 +860,7 @@ def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cl
         assert sorted(copia.namelist()) == ["junto/escenas-tienda.png", "junto/pueblo-lugares-tienda.png"]
 
 
+@pytest.mark.usefixtures("provisional_barato")
 def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(cliente, monkeypatch, tmp_path, caplog):
     copia_del_arte = tmp_path / "arte-incompleta"
     shutil.copytree(arte.RAIZ, copia_del_arte)
@@ -865,6 +875,7 @@ def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(client
     assert CORAZON in caplog.text
 
 
+@pytest.mark.usefixtures("provisional_barato")
 def test_las_descargas_de_provisionales_no_se_guardan(cliente):
     for respuesta in (cliente.get(f"{API}/provisional", params={"ruta": CORAZON}),
                       cliente.get(f"{API}/provisionales.zip")):
@@ -985,7 +996,7 @@ def test_a_los_demas_la_pagina_les_contesta_como_una_que_no_existe(cliente, tmp_
 
 def _con_fuentes(monkeypatch, tmp_path) -> Path:
     fuentes = tmp_path / "fuentes"
-    monkeypatch.setattr(pieza_herramienta, "FUENTES", fuentes)
+    monkeypatch.setattr(arte, "FUENTES", fuentes)
     return fuentes
 
 
