@@ -281,8 +281,11 @@ y nunca se reescribe en su sitio, así que no se pisa ni se borra nada ni se com
 la carpeta entera en cada despliegue. Un enlace no ocupa disco mientras su original
 siga en la carpeta; lo que la poda borra sigue en el espejo, y desde ahí sí ocupa.
 Reponer una copia de la base pide reponer también esta carpeta, desde su copia del
-mismo momento. Lo que está descrito para el dibujante vive en
-`docs/arte/contrato.md`.
+mismo momento. Volver atrás al código de antes de guardar originales los poda en la
+primera subida pasada una hora (para él son archivos que nadie nombra): con ese
+código nadie sube y, si alguien sube, se reponen desde `arte_subido.copia/` (ver los
+pendientes del arte que falta, en `docs/superpowers/plans/`). Lo que está descrito
+para el dibujante vive en `docs/arte/contrato.md`.
 
 Para probarla en local, `--dibujante N` de `herramientas.pagina_de_prueba` da el
 permiso a la cuenta N (ver «Desarrollo local»).

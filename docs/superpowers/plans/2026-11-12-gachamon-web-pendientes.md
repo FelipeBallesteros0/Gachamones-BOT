@@ -2250,18 +2250,60 @@ momento.
 6. **Las «Capas comunes a todas las especies»** llevan también sus dos enlaces de
    descarga («Descargar lo subido» y «Descargar los provisionales»): comprobar
    que están y que bajan lo suyo.
-7. **El juego**, con la copia de la base de siempre. Al arrancar, la tabla gana
-   sus columnas. Se comprueba desde fuera que el bloque de la portada sigue
-   vacío, que la página del dibujante carga y pliega las especies, que el avance
-   trae los grupos nuevos (84 con tarjeta) y que el mundo en línea del ejecutable
-   sigue leyendo la tabla.
-8. **Quien publique le avisa al dueño** que, mientras el juego siga en la
-   Raspberry, conviene que el dibujante no suba criaturas en masa hasta la
-   mudanza. **El dueño le avisa al dibujante** eso y la medida nueva.
-9. **Al juntar esta rama con la del ejecutable**, resolver los conflictos de
-   `arte_subido.py` y `web/dibujante.py` (y los de sus pruebas) a favor de este
-   diseño, y que su armado copie sólo lo que usa su contrato, no la carpeta
-   entera.
+7. **En la Raspberry, antes del juego**, tres comprobaciones que sólo leen, en
+   este orden:
+   1. **El espacio.** `df -h` de la carpeta de lo subido (`arte_subido`, junto a
+      la base, si `RUTA_ARTE_SUBIDO` no dice otra) y `df -h /tmp`. En ese disco
+      van lo subido, su espejo (los enlaces no ocupan; lo podado, sí) y los
+      temporales de los zips del dibujante, que con los originales pueden ser
+      cientos de MB; `/tmp` es memoria por omisión en Debian 13. Con poco margen,
+      no se sigue sin el dueño.
+   2. **littleCMS.** Con el Python del servicio, en la carpeta del repo:
+      `./venv/bin/python -c 'from PIL import features; print(features.check("littlecms2"))'`
+      tiene que decir `True`. Con `False`, el color de un PNG con perfil no se pasa
+      a sRGB (el perfil se descarta y el registro lo avisa una vez): no se publica
+      sin arreglar el Pillow del `venv`.
+   3. **El bloque `arte-subido` de la portada** (`/monsteropolis/`), desde fuera:
+      se espera vacío, `{}`. Si trae algo, son filas de antes, sin original: se
+      siguen viendo en el juego igual que hoy, pero cuentan como pendientes (su
+      original es lo servido y no mide lo que pide su lugar: `hechas` no las cuenta
+      y la página del dibujante enseña el aviso de otra medida), y sus tarjetas del
+      tablero quedan por rehacer. No impide publicar: se le dice al dueño cuáles
+      son, para que el dibujante las vuelva a subir a la medida nueva.
+8. **El juego**, con la copia de la base de siempre. Al arrancar, la tabla gana
+   sus columnas. Se comprueba desde fuera que el bloque de la portada sigue como
+   en el paso 7, que la página del dibujante carga y pliega las especies, que el
+   avance trae los grupos nuevos (84 con tarjeta) y que el mundo en línea del
+   ejecutable sigue leyendo la tabla. Al publicar, todos los retratos se vuelven a
+   pedir una vez: cambió `retrato.py`, que entra en su huella
+   (`retrato.version()`), así que cambia su dirección y navegadores y Cloudflare
+   los piden de nuevo. Es inofensivo.
+9. **Una subida grande de verdad, por el túnel**, la hace el dueño desde la página
+   del dibujante, con su permiso expreso: un PNG real de cerca de 24 MB a un lugar
+   que el juego no pinta (el balcón, `pieza/muebles/balcon-se.png`, de 2560 ×
+   2304), que tiene que entrar y verse en su tarjeta; después, «Volver al
+   provisional». Nadie que juega lo ve, pero deja sus renglones en un historial
+   que sólo crece.
+10. **Quien publique le avisa al dueño** que, mientras el juego siga en la
+    Raspberry, conviene que el dibujante no suba criaturas en masa hasta la
+    mudanza. **El dueño le avisa al dibujante** eso y la medida nueva.
+11. **Al juntar esta rama con la del ejecutable**, resolver los conflictos de
+    `arte_subido.py` y `web/dibujante.py` (y los de sus pruebas) a favor de este
+    diseño, y que su armado copie sólo lo que usa su contrato, no la carpeta
+    entera.
+12. **Si hubiera que volver atrás al código publicado de antes**, con el permiso
+    expreso del dueño. Desde la primera subida con original, ese código toma los
+    originales por archivos que el historial no nombra: pasada una hora, la
+    primera subida los poda, y las filas siguen apuntando a ellos. Por eso, **con
+    el código de antes nadie sube**. Si alguien sube, los originales se reponen
+    desde `arte_subido.copia/` al volver al código nuevo (con el de antes, la
+    siguiente subida los volvería a podar): en la carpeta del repo de la
+    Raspberry, `rsync -a --ignore-existing arte_subido.copia/ arte_subido/`, que
+    no pisa nada; lo que reponga de más lo vuelve a podar la siguiente subida. El
+    espejo los tiene desde el último despliegue: volver atrás con
+    `actualizar-pi.sh` lo pone al día antes de tocar el código, pero a mano (`git
+    reset`) o con `deploy.sh` no, y antes se saca con la orden de `rsync` del
+    guion.
 
 ### Lo que le toca al sitio
 
@@ -2276,20 +2318,32 @@ El sitio es el que lleva el tablero de tareas del arte y lee el avance.
 
 ### Menores que quedaron aparcados en la construcción
 
-Si la revisión final no los cierra:
+La ola de arreglos de la revisión final cerró el comentario de `_guardadas_en`,
+las peticiones cruzadas al refrescar una especie y lo de «Sólo lo que falta» con
+las «Capas comunes…» y las secciones vacías. Quedan, para tareas propias:
 
-- El comentario de `_guardadas_en` en `db.py` dice «sin ordenar aparte» y no es
-  cierto; esa función lee todas las filas y queda al borde de los 20 ms con 10 000
-  filas.
+- `_guardadas_en` en `db.py` lee todas las filas y queda al borde de los 20 ms con
+  10 000 filas.
 - Dos subidas del mismo original con distinta versión chica cuentan como una sola
   imagen; falta la prueba que lo fije.
-- Al refrescar una especie en la página, dos cambios seguidos pueden llegar en
-  desorden; falta numerar las peticiones.
-- Con «Sólo lo que falta», «Capas comunes…» se ve antes de abrirla y desaparece
-  después, y una sección que nace con el filtro puesto puede quedar abierta y
-  vacía.
 - La prueba del relleno del encendido sólo exige que difiera del apagado; la de
   «las otras especies no se mueven» sólo lo comprueba con las demás en cero.
+- La poda toma la base mientras recorre toda la tabla y toda la carpeta
+  (`db.podar_arte` con `arte_subido.podar`), y cada imagen servida recorre todo el
+  historial (`_imagen_subida` en `web/app.py`, con `db.archivos_que_se_conservan`;
+  también `db.volver_a_la_anterior`): no estorba con la tabla vacía; va con su
+  revisión antes de que se suban criaturas en masa.
+- Un piso de espacio libre que rechace la subida pide una frase que apruebe el
+  dueño.
+- Lo que el juego no pinta también dice «Listo: ya se ve en el juego.» al subirse;
+  otra frase la aprueba el dueño.
+- `db.quien_subio_lo_puesto` empareja por `archivo` y no por el original (pasa
+  rarísima vez).
+- `actualizar-pi.sh` no espeja ni avisa si la carpeta de lo subido está en otra
+  parte (`RUTA_ARTE_SUBIDO`).
+- El espejo no repara un archivo que quedó mal: nunca pisa lo que ya tiene.
+- Los demás menores que la revisión final dejó como «puede esperar» o «no vale la
+  pena».
 
 ## Para publicar
 

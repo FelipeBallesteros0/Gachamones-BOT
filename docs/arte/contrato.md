@@ -241,17 +241,17 @@ primeras letras de la clave y, en su cara hacia la que mira, una marca amarilla
 
 ## Lo que subes en la página del dibujante
 
-**Tú, que dibujas, subes todo desde la página del dibujante**: no necesitas el repositorio ni correr nada. Lo que sube la página es la medida de original; la vía de `fuentes/pieza/` de más arriba es sólo para quien trabaja con el repositorio.
+**Tú, que dibujas, subes todo desde la página del dibujante**: no necesitas el repositorio ni correr nada. Lo de más arriba sobre guardar originales en `fuentes/pieza/` y correr una herramienta es sólo para quien trabaja con el repositorio: tú subes tu original en la página, y ella hace lo demás.
 
 Todo lo de la pieza del departamento (suelo, paredes y muebles) lo subes **a la medida de original**, la de la columna «Tamaño original» de arriba: el doble de lo que se ve en pantalla (la casilla, de 1024 × 512). Si subes uno de la mitad, la página lo rechaza y te dice qué medida pide ese dibujo.
 
-- La página guarda **tu original tal como lo subes** y, aparte, una versión reducida a la mitad, que es la que usa el juego. Tú no reduces nada.
+- La página guarda **tu original**, con su medida y su transparencia, y, aparte, una versión reducida a la mitad, que es la que usa el juego. Tú no reduces nada. Tu original se guarda a 8 bits por canal (si lo exportas a 16, queda a 8) y, si traía un perfil de color, ya pasado a sRGB (lo explica el punto siguiente).
 - Cada imagen puede pesar **hasta 24 MB**. Es PNG con transparencia, como siempre.
 - Si tu PNG trae un perfil de color (por ejemplo Display P3), la página lo pasa a sRGB, que es el color de las pantallas corrientes, y guarda la imagen sin el perfil. Si no trae perfil, queda como la dibujaste.
 - De cada dibujo se conservan **las cinco últimas imágenes distintas** que subas, cada una con su original y su versión reducida. «Volver a la anterior» las recorre.
 - Lo que no es de la pieza (pueblo, escenas, avatar, efectos e íconos) se sube a su medida de siempre.
 
-Los dibujos de las secciones que siguen **todavía no los pinta el juego**: se van adelantando para cuando el juego los use. Aparecen en la página, con su provisional y su avance, pero nadie los ve jugando. El **avance** es la cuenta de lo que ya está dibujado de cada grupo (por ejemplo, 4 de 8); se ve en el tablero.
+Los dibujos de las secciones que siguen **todavía no los pinta el juego**: se van adelantando para cuando el juego los use. Aparecen en la página, con su provisional y su avance, pero nadie los ve jugando. El **avance** es la cuenta de lo que ya está dibujado de cada grupo (por ejemplo, 4 de 8); se ve en el tablero de tareas del proyecto.
 
 ## Los muebles que se encienden
 
