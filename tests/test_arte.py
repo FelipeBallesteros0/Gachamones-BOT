@@ -45,6 +45,13 @@ def test_los_lugares_de_hoy_son_las_270_piezas_y_la_pieza_se_sube_al_doble():
     assert all((l.ancho // l.reduccion, l.alto // l.reduccion) == servido[l.ruta] for l in en_el_juego)
 
 
+def test_las_rutas_de_los_lugares_son_unicas():
+    # El índice de `lugar_de` se arma con un diccionario: una ruta repetida pisaría a la otra sin avisar.
+    rutas = [l.ruta for l in arte.lugares()]
+    assert len(set(rutas)) == len(rutas)
+    assert len(rutas) == 5450
+
+
 def test_un_lugar_se_busca_por_su_ruta_y_nada_mas():
     assert arte.lugar_de("efectos/corazon.png") == next(l for l in arte.lugares() if l.ruta == "efectos/corazon.png")
     for ruta in ("pieza/inventada.png", "efectos/corazon", "efectos/../efectos/corazon.png", "/efectos/corazon.png",
