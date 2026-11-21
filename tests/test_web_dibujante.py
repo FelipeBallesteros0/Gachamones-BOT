@@ -752,7 +752,8 @@ def test_si_falta_una_imagen_en_disco_la_copia_sale_igual_sin_ella(cliente, carp
 # --- Descargar los provisionales -------------------------------------------------
 
 def _del_repo(ruta: str) -> bytes:
-    return (arte.RAIZ / ruta).read_bytes()
+    raiz = arte.RAIZ if arte.lugar_de(ruta).en_el_juego else arte.RAIZ_POR_VENIR
+    return (raiz / ruta).read_bytes()
 
 
 def test_el_provisional_baja_en_la_medida_de_la_pieza(cliente):
@@ -1130,3 +1131,14 @@ def test_el_provisional_del_encendido_baja_al_doble(cliente):
     with Image.open(io.BytesIO(chica.content)) as imagen:
         assert imagen.size == (lugar.ancho // 2, lugar.alto // 2)
     assert chica.content == (arte.RAIZ_POR_VENIR / LAMPARA_ENCENDIDA).read_bytes()
+
+
+def test_un_objeto_nuevo_se_ve_y_se_baja_pero_no_toca_la_portada(cliente, carpeta):
+    vista = _vista_de(cliente, "pieza/muebles/balcon-se.png")
+    assert (vista["objeto"], vista["estado"]) == ("balcon", None)
+    assert (vista["ancho"], vista["alto"]) == (2560, 2304)
+    assert cliente.get(vista["miniatura"]).status_code == 200
+    icono = _vista_de(cliente, "iconos/muebles/silla_azul.png")
+    assert (icono["ancho"], icono["alto"]) == (48, 48)
+    assert cliente.get(f"{API}/provisional", params={"ruta": "pieza/muebles/mega_tv-ne.png"}).status_code == 200
+    assert _bloque_de_la_portada(cliente) == {}

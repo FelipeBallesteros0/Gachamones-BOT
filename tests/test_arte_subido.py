@@ -595,3 +595,14 @@ def test_un_gris_con_perfil_se_deja_como_hoy(caplog):
         salida = _limpia_con_perfil(original, bytes(perfil))
     assert salida.tobytes() == original.convert("RGBA").tobytes()
     assert not caplog.records
+
+
+def test_el_balcon_de_su_medida_vale():
+    """El tope de peso deja pasar un PNG real de la medida del balcón: 2560 × 2304 y menos de 24 MB."""
+    ruta = "pieza/muebles/balcon-se.png"
+    assert (lugar(ruta).ancho, lugar(ruta).alto) == (2560, 2304)
+    cuerpo = png_de(dibujo(2560, 2304), compress_level=1)
+    assert len(cuerpo) < arte_subido.LIMITE_DE_BYTES
+    original, chica = arte_subido.preparar(cuerpo, lugar(ruta))
+    assert abierta(chica.datos).size == (1280, 1152)
+    assert abierta(original.datos).size == (2560, 2304)

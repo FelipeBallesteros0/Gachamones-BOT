@@ -69,6 +69,45 @@ class Lugar:
 ENCENDIDOS = {"lampara": "encendido", "calefactor": "encendido", "chimenea": "encendido", "fuente": "encendido"}
 
 
+# La forma del balcón: una tira por fuera de la pared, que no es suelo, ni bulto, ni pared.
+FUERA = "fuera"
+
+
+@dataclass(frozen=True)
+class Objeto:
+    """Un objeto que el juego todavía no tiene: lo que el dibujante ya dibuja de él.
+
+    `ancho`, `fondo` y `capa` miden como los de un `departamento.Mueble`; `estado` es el
+    nombre de su segundo dibujo, si lo tiene."""
+    clave: str
+    nombre: str
+    ancho: int = 1
+    fondo: int = 1
+    capa: str = departamento.BULTO
+    estado: str | None = None
+
+
+COLORES = ("azul", "roja", "verde", "amarilla", "negra", "blanca")
+
+# Los 24 objetos, en el orden de su tabla: los once primeros, las seis sillas, las seis mesas y el balcón.
+POR_VENIR: tuple[Objeto, ...] = (
+    Objeto("consola_flappy", "Consola Flappy"),
+    Objeto("consola_pong", "Consola Pong"),
+    Objeto("mesa_gato", "Mesa de gato"),
+    Objeto("atril", "Atril"),
+    Objeto("tocadiscos", "Tocadiscos", estado="encendido"),
+    Objeto("mayordomo", "Mayordomo robot"),
+    Objeto("puerta_cristal", "Puerta de cristal", estado="atravesable"),
+    Objeto("cableados", "Bloque de cableados"),
+    Objeto("super_dado", "Súper Dado"),
+    Objeto("mega_tv", "Mega TV", ancho=2, estado="encendido"),
+    Objeto("lampara_dragon", "Lámpara Dragón", estado="encendido"),
+    *(Objeto(f"silla_{c}", f"Silla {c}") for c in COLORES),
+    *(Objeto(f"mesa_{c}", f"Mesa {c}") for c in COLORES),
+    Objeto("balcon", "Balcón", ancho=4, fondo=1, capa=FUERA),
+)
+
+
 def _con_escena(clave: str) -> bool:
     """Si la pantalla de ese lugar es la del lugar, la que pinta su escena: donde se
     ofrece el departamento se ve la pieza, y la escena no la pintaría nadie."""
@@ -97,12 +136,14 @@ def piezas() -> tuple[Pieza, ...]:
     return tuple(lista)
 
 
-def tamano_de_mueble(mueble: departamento.Mueble) -> tuple[int, int]:
-    """Lo que mide, servido, el dibujo de un mueble (el mismo en todas sus orientaciones)."""
+def tamano_de_mueble(mueble: departamento.Mueble | Objeto) -> tuple[int, int]:
+    """Lo que mide, servido, el dibujo de un mueble (el mismo en todas sus orientaciones).
+
+    El balcón (`FUERA`) mide como un bulto de su huella."""
     if mueble.capa == departamento.PARED:
         return mueble.ancho * CASILLA[0] // 2, mueble.ancho * CASILLA[1] // 2 + ALTURA
     lados = mueble.ancho + mueble.fondo
-    extra = ALTURA if mueble.capa == departamento.BULTO else 0
+    extra = ALTURA if mueble.capa in (departamento.BULTO, FUERA) else 0
     return lados * CASILLA[0] // 2, lados * CASILLA[1] // 2 + extra
 
 
@@ -137,6 +178,16 @@ def lugares() -> tuple[Lugar, ...]:
         lista += [Lugar(f"pieza/muebles/{clave}-{estado}-{o}.png", ancho * REDUCCION, alto * REDUCCION,
                         "pieza", REDUCCION, False, objeto=clave, estado=estado)
                   for o in ORIENTACIONES]
+    for objeto in POR_VENIR:
+        ancho, alto = tamano_de_mueble(objeto)
+        orientaciones = ORIENTACIONES[:2] if objeto.capa == FUERA else ORIENTACIONES
+        rutas = [(f"pieza/muebles/{objeto.clave}-{o}.png", None) for o in orientaciones]
+        if objeto.estado:
+            rutas += [(f"pieza/muebles/{objeto.clave}-{objeto.estado}-{o}.png", objeto.estado)
+                      for o in orientaciones]
+        lista += [Lugar(ruta, ancho * REDUCCION, alto * REDUCCION, "pieza", REDUCCION, False,
+                        objeto=objeto.clave, estado=estado) for ruta, estado in rutas]
+    lista += [Lugar(f"iconos/muebles/{o.clave}.png", *ICONO, "iconos", 1, False) for o in POR_VENIR]
     return tuple(lista)
 
 
@@ -177,8 +228,17 @@ _ICONOS = {"muebles": "Iconos de los muebles", "objetos": "Iconos de los objetos
            "cosmeticos": "Iconos de los cosméticos"}
 
 
-def _grupo_de(ruta: str) -> tuple[str, str]:
-    """La clave y el nombre del grupo de una pieza, según su ruta."""
+def _nombre_de_objeto(clave: str) -> str | None:
+    if clave in departamento.MUEBLES:
+        return departamento.MUEBLES[clave].nombre
+    return next((o.nombre for o in POR_VENIR if o.clave == clave), None)
+
+
+def _grupo_de(ruta: str, objeto: str | None = None) -> tuple[str, str]:
+    """La clave y el nombre del grupo de una pieza, según su ruta y, si lo tiene, su objeto.
+
+    El de un mueble sale de su `objeto` y no de partir el nombre del archivo: el estado
+    (`encendido`, `atravesable`) y las claves con guion bajo lo harían frágil."""
     partes = ruta.removesuffix(".png").split("/")
     if ruta == "pueblo/fondo.png":
         return "pueblo/fondo", "Fondo del pueblo"
@@ -201,11 +261,10 @@ def _grupo_de(ruta: str) -> tuple[str, str]:
     if ruta in ("pieza/suelo.png", "pieza/pared-izquierda.png", "pieza/pared-derecha.png"):
         return "pieza/paredes-y-suelo", "Paredes y suelo"
     if partes[:2] == ["pieza", "muebles"]:
-        clave = partes[2].rsplit("-", 1)[0]
-        if clave.endswith(tuple(f"-{e}" for e in ENCENDIDOS.values())):
-            clave = clave.rsplit("-", 1)[0]
-        if clave in departamento.MUEBLES:
-            return f"pieza/muebles/{clave}", departamento.MUEBLES[clave].nombre
+        clave = objeto or partes[2].rsplit("-", 1)[0]
+        nombre = _nombre_de_objeto(clave)
+        if nombre is not None:
+            return f"pieza/muebles/{clave}", nombre
     raise ValueError(f"la pieza {ruta} no cae en ningún grupo del arte")
 
 
@@ -216,7 +275,7 @@ def grupos() -> tuple[Grupo, ...]:
     """
     por_clave: dict[str, tuple[str, str, list[str]]] = {}
     for lugar in lugares():
-        clave, nombre = _grupo_de(lugar.ruta)
+        clave, nombre = _grupo_de(lugar.ruta, lugar.objeto)
         _, _, rutas = por_clave.setdefault(clave, (nombre, lugar.familia, []))
         rutas.append(lugar.ruta)
     return tuple(Grupo(clave, nombre, familia, tuple(rutas))

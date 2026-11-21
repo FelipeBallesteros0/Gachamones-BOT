@@ -403,7 +403,7 @@ def _en_cara(esquinas: list[tuple], u: float, v: float) -> tuple:
     return (ax + (bx - ax) * u + (dx - ax) * v, ay + (by - ay) * u + (dy - ay) * v)
 
 
-def _mueble_de_suelo(mueble: departamento.Mueble, indice: int, orientacion: str,
+def _mueble_de_suelo(mueble: departamento.Mueble | arte.Objeto, indice: int, orientacion: str,
                      ancho: int, alto: int, estado: str | None = None) -> Image.Image:
     imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
     pincel = ImageDraw.Draw(imagen)
@@ -441,6 +441,47 @@ def _mueble_de_suelo(mueble: departamento.Mueble, indice: int, orientacion: str,
         _rotular(pincel, centro, letras, 56)
         _flecha(pincel, centro, orientacion, 70, 125 * min(a, f))
     return imagen
+
+
+def _balcon(indice: int, orientacion: str, ancho: int, alto: int, estado: str | None = None) -> Image.Image:
+    """La tira de 4 × 1 que queda por fuera de la pared, con su baranda.
+
+    El suelo es la huella (la tira corre a lo largo de la pared de su lado: la izquierda en `se`, la
+    derecha en `so`) y la baranda, tan alta como la pared, cierra sus tres lados de fuera."""
+    imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
+    pincel = ImageDraw.Draw(imagen)
+    a, f = (1, 4) if orientacion == "se" else (4, 1)
+    unidad = arte.CASILLA[0] // 2
+    fondo_y = (a + f) * unidad // 2
+    arriba = [(f * unidad, 0), ((a + f) * unidad - 1, a * unidad // 2), (a * unidad, fondo_y - 1),
+              (0, f * unidad // 2)]
+    suelo = [(x, y + arte.ALTURA) for x, y in arriba]
+    color = _color_de_lugar(indice, 0.9, 0.5)
+    pincel.polygon(suelo, fill=(214, 190, 140, 255), outline=_BLANCO, width=4)  # el suelo, claro, para que se vea tras la baranda
+    # De lo más lejano a lo más cercano; el lado de la pared (cima-izquierda en `se`, cima-derecha en `so`) no lleva.
+    lados = [(0, 1), (1, 2), (2, 3)] if orientacion == "se" else [(0, 3), (3, 2), (2, 1)]
+    baranda = _oscurecer(color, 0.6)[:3] + (110,)  # translúcida: deja ver el suelo detrás
+    capa = Image.new("RGBA", (ancho, alto), TRANSPARENTE)  # aparte: `ImageDraw` no mezcla el alfa
+    sobre = ImageDraw.Draw(capa)
+    for i, j in lados:
+        sobre.polygon([suelo[i], suelo[j], arriba[j], arriba[i]], fill=baranda, outline=_BLANCO, width=3)
+    imagen.alpha_composite(capa)
+    pincel = ImageDraw.Draw(imagen)
+    letras = ["BALCON", orientacion.upper()] + ([estado[:3].upper()] if estado else [])
+    centro = (sum(x for x, _ in suelo) / 4, sum(y for _, y in suelo) / 4)
+    _rotular(pincel, centro, letras, 64)
+    return imagen
+
+
+def _objeto_nuevo(lugar: arte.Lugar, ancho: int, alto: int) -> Image.Image:
+    """El relleno de un objeto que el juego todavía no tiene: su caja sobre su huella, como un mueble."""
+    indice = [o.clave for o in arte.POR_VENIR].index(lugar.objeto)
+    objeto = arte.POR_VENIR[indice]
+    orientacion = lugar.ruta.removesuffix(".png").rsplit("-", 1)[1]
+    indice += len(departamento.MUEBLES)  # el color sigue al de los del juego
+    if objeto.capa == arte.FUERA:
+        return _balcon(indice, orientacion, ancho, alto, lugar.estado)
+    return _mueble_de_suelo(objeto, indice, orientacion, ancho, alto, lugar.estado)
 
 
 def _pieza_del_departamento(partes: list[str], ancho: int, alto: int, estado: str | None = None) -> Image.Image:
@@ -496,6 +537,8 @@ def _dibujar_lugar(lugar: arte.Lugar) -> Image.Image:
     El encendido es el relleno de su mueble con un renglón más, el de su estado.
     """
     ancho, alto = lugar.ancho // lugar.reduccion, lugar.alto // lugar.reduccion
+    if lugar.familia == "pieza" and lugar.objeto in {o.clave for o in arte.POR_VENIR}:
+        return _objeto_nuevo(lugar, ancho, alto)
     if lugar.familia == "pieza" and lugar.estado:
         return _pieza_del_departamento(lugar.ruta.removesuffix(".png").split("/"), ancho, alto, lugar.estado)
     return _dibujar(arte.Pieza(lugar.ruta, ancho, alto, lugar.familia))

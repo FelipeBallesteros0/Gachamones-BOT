@@ -110,7 +110,7 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     monkeypatch.setattr(arte, "RAIZ_POR_VENIR", tmp_path / "por_venir")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 270 + 16
+    assert len(escritas) == 270 + 16 + 134
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
@@ -118,7 +118,7 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     assert rellenos.generar(todo=False) == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 270 + 16
+    assert len(rellenos.generar(todo=True)) == 270 + 16 + 134
 
 
 def _relleno(ruta: str) -> Image.Image:
@@ -213,7 +213,7 @@ def test_las_claves_de_los_grupos_son_validas_y_unicas():
     for clave in claves:
         assert re.fullmatch(r"[a-z0-9/_-]{1,64}", clave), clave
         assert not clave.endswith(".png"), clave
-    assert 25 <= len(grupos) <= 40
+    assert 25 <= len(grupos) <= 70
 
 
 def test_los_nombres_de_los_grupos_dicen_algo():
@@ -294,7 +294,7 @@ def test_el_encendido_no_entra_al_contrato_del_juego():
     escrito = json.loads((arte.RAIZ.parent / "datos" / "arte.json").read_text(encoding="utf-8"))
     assert escrito == arte.como_json()
     assert len([l for l in arte.lugares() if l.en_el_juego]) == 270
-    assert len(arte.lugares()) == 270 + 16
+    assert len(arte.lugares()) == 270 + 16 + 134
     # Los lugares nuevos van detrás de los del juego.
     assert all(l.en_el_juego for l in arte.lugares()[:270])
 
@@ -302,7 +302,7 @@ def test_el_encendido_no_entra_al_contrato_del_juego():
 def test_cada_lugar_por_venir_tiene_su_provisional_y_no_sobra_ninguno():
     esperados = {l.ruta: (l.ancho // l.reduccion, l.alto // l.reduccion) for l in arte.lugares()
                  if not l.en_el_juego and l.familia in ("pieza", "iconos")}
-    assert len(esperados) == 16
+    assert len(esperados) == 16 + 134
     en_disco = {p.relative_to(arte.RAIZ_POR_VENIR).as_posix() for p in arte.RAIZ_POR_VENIR.rglob("*")
                 if p.is_file()}
     assert en_disco == set(esperados)
@@ -323,3 +323,159 @@ def test_el_relleno_del_encendido_no_es_el_del_apagado():
             encendido = rellenos._dibujar_lugar(lugar).convert("RGBA")
             assert encendido.size == apagado.size == (lugar.ancho // 2, lugar.alto // 2)
             assert encendido.tobytes() != apagado.tobytes()
+
+
+# --- Los 24 objetos que el juego todavía no tiene ------------------------------
+
+COLORES = ("azul", "roja", "verde", "amarilla", "negra", "blanca")
+# (clave, nombre, ancho, fondo, estado) tal cual la tabla del diseño.
+LOS_24 = [
+    ("consola_flappy", "Consola Flappy", 1, 1, None), ("consola_pong", "Consola Pong", 1, 1, None),
+    ("mesa_gato", "Mesa de gato", 1, 1, None), ("atril", "Atril", 1, 1, None),
+    ("tocadiscos", "Tocadiscos", 1, 1, "encendido"), ("mayordomo", "Mayordomo robot", 1, 1, None),
+    ("puerta_cristal", "Puerta de cristal", 1, 1, "atravesable"), ("cableados", "Bloque de cableados", 1, 1, None),
+    ("super_dado", "Súper Dado", 1, 1, None), ("mega_tv", "Mega TV", 2, 1, "encendido"),
+    ("lampara_dragon", "Lámpara Dragón", 1, 1, "encendido"),
+    *[(f"silla_{c}", f"Silla {c}", 1, 1, None) for c in COLORES],
+    *[(f"mesa_{c}", f"Mesa {c}", 1, 1, None) for c in COLORES],
+    ("balcon", "Balcón", 4, 1, None),
+]
+CLAVES_NUEVAS = [c for c, *_ in LOS_24]
+
+
+def _rutas_de(clave, estado, orientaciones):
+    rutas = [f"pieza/muebles/{clave}-{o}.png" for o in orientaciones]
+    return rutas + ([f"pieza/muebles/{clave}-{estado}-{o}.png" for o in orientaciones] if estado else [])
+
+
+def test_los_24_objetos_y_sus_claves():
+    assert len(arte.POR_VENIR) == 24
+    assert [(o.clave, o.nombre, o.ancho, o.fondo, o.estado) for o in arte.POR_VENIR] == LOS_24
+    assert all(c not in departamento.MUEBLES for c in CLAVES_NUEVAS)
+    assert all(o.capa == departamento.BULTO for o in arte.POR_VENIR[:-1])
+    assert arte.POR_VENIR[-1] == arte.Objeto("balcon", "Balcón", ancho=4, fondo=1, capa=arte.FUERA)
+    assert arte.FUERA == "fuera"
+
+
+def test_los_objetos_nuevos_tienen_110_dibujos_y_24_iconos():
+    nuevos = [l for l in arte.lugares() if not l.en_el_juego and l.objeto in CLAVES_NUEVAS]
+    dibujos = [l for l in nuevos if l.familia == "pieza"]
+    assert len(dibujos) == 110
+    assert all((l.reduccion, l.en_el_juego) == (2, False) for l in dibujos)
+    esperados = []
+    for clave, _, _, _, estado in LOS_24:
+        esperados += _rutas_de(clave, estado, ("se", "so") if clave == "balcon" else arte.ORIENTACIONES)
+    assert [l.ruta for l in dibujos] == esperados
+    iconos = [l for l in arte.lugares() if l.ruta.startswith("iconos/muebles/") and not l.en_el_juego]
+    assert [l.ruta for l in iconos] == [f"iconos/muebles/{c}.png" for c in CLAVES_NUEVAS]
+    assert all((l.ancho, l.alto, l.reduccion, l.familia) == (48, 48, 1, "iconos") for l in iconos)
+    # Los dibujos van detrás de los encendidos de hoy y los íconos, detrás de todos los dibujos.
+    rutas = [l.ruta for l in arte.lugares()]
+    assert rutas[270 + 16:270 + 16 + 110] == esperados
+    assert rutas[270 + 16 + 110:] == [l.ruta for l in iconos]
+
+
+def test_las_medidas_de_los_objetos_nuevos():
+    def medida(ruta):
+        lugar = arte.lugar_de(ruta)
+        return lugar.ancho, lugar.alto
+
+    assert medida("pieza/muebles/consola_flappy-se.png") == (1024, 1536)
+    assert medida("pieza/muebles/mega_tv-ne.png") == (1536, 1792)
+    assert medida("pieza/muebles/mega_tv-encendido-so.png") == (1536, 1792)
+    assert medida("pieza/muebles/balcon-se.png") == (2560, 2304)
+    assert medida("iconos/muebles/balcon.png") == (48, 48)
+    assert arte.tamano_de_mueble(arte.POR_VENIR[-1]) == (1280, 1152)
+    assert arte.tamano_de_mueble(departamento.MUEBLES["maceta"]) == (512, 768)
+
+
+def test_el_balcon_solo_tiene_se_y_so():
+    rutas = {l.ruta for l in arte.lugares()}
+    assert {"pieza/muebles/balcon-se.png", "pieza/muebles/balcon-so.png"} <= rutas
+    assert not {"pieza/muebles/balcon-no.png", "pieza/muebles/balcon-ne.png"} & rutas
+    assert len([r for r in rutas if "/balcon-" in r]) == 2
+
+
+def test_la_puerta_de_cristal_atraviesa_y_no_se_enciende():
+    rutas = {l.ruta for l in arte.lugares()}
+    assert all(f"pieza/muebles/puerta_cristal-atravesable-{o}.png" in rutas for o in arte.ORIENTACIONES)
+    assert not any("puerta_cristal-encendido" in r for r in rutas)
+    assert arte.lugar_de("pieza/muebles/puerta_cristal-atravesable-se.png").estado == "atravesable"
+    assert arte.lugar_de("pieza/muebles/puerta_cristal-se.png").estado is None
+
+
+def test_los_objetos_nuevos_no_entran_al_juego():
+    assert len(arte.piezas()) == 270
+    assert not any(o in p.ruta for p in arte.piezas() for o in CLAVES_NUEVAS)
+    escrito = json.loads((arte.RAIZ.parent / "datos" / "arte.json").read_text(encoding="utf-8"))
+    assert escrito == arte.como_json()
+    assert not any(o in p["ruta"] for p in escrito["piezas"] for o in CLAVES_NUEVAS)
+    assert len([l for l in arte.lugares() if l.en_el_juego]) == 270
+    assert not any(c in [m.clave for m in departamento.a_la_venta()] for c in CLAVES_NUEVAS)
+    assert len(departamento.a_la_venta()) == 19
+    assert not any(c in p.name for p in arte.RAIZ.rglob("*") for c in CLAVES_NUEVAS)
+
+
+def test_cada_objeto_es_un_grupo_con_su_nombre_y_sus_dos_estados():
+    por_clave = {g.clave: g for g in arte.grupos()}
+    for clave, nombre, _, _, estado in LOS_24:
+        grupo = por_clave[f"pieza/muebles/{clave}"]
+        assert (grupo.nombre, grupo.familia) == (nombre, "pieza")
+        assert list(grupo.rutas) == _rutas_de(clave, estado, ("se", "so") if clave == "balcon" else arte.ORIENTACIONES)
+    assert len(por_clave["pieza/muebles/mega_tv"].rutas) == 8
+    assert len(por_clave["pieza/muebles/balcon"].rutas) == 2
+    # Una clave con guion bajo no se confunde con otra que empieza igual.
+    assert len(por_clave["pieza/muebles/consola"].rutas) == 4
+    assert len(por_clave["pieza/muebles/lampara"].rutas) == 8
+    assert len(por_clave["pieza/muebles/lampara_dragon"].rutas) == 8
+    assert len(por_clave["pieza/muebles/mesa_gato"].rutas) == 4
+
+
+def test_los_iconos_nuevos_van_con_los_de_los_muebles():
+    grupo = {g.clave: g for g in arte.grupos()}["iconos/muebles"]
+    assert grupo.nombre == "Iconos de los muebles" and grupo.familia == "iconos"
+    assert len(grupo.rutas) == 19 + 24
+    assert not any(clave.startswith("iconos/muebles/") and clave != "iconos/muebles"
+                   for clave in (g.clave for g in arte.grupos()))
+
+
+def test_las_rutas_nuevas_pasan_el_filtro_del_cliente_y_de_la_tabla():
+    import shutil
+    import subprocess
+
+    import db
+    from pathlib import Path
+
+    rutas = [l.ruta for l in arte.lugares() if not l.en_el_juego]
+    assert all(db._RUTA_DE_ARTE.fullmatch(r) for r in rutas)
+    node = shutil.which("node")
+    if node is None:
+        return
+    raiz = Path(__file__).resolve().parent.parent
+    programa = ("import { esRutaDeArte } from './web/static/js/arte.js';"
+                "const rutas = JSON.parse(process.argv[1]);"
+                "console.log(JSON.stringify(rutas.filter((r) => !esRutaDeArte(r))));")
+    hecho = subprocess.run([node, "--input-type=module", "-e", programa, json.dumps(rutas)],
+                           capture_output=True, text=True, cwd=raiz)
+    assert hecho.returncode == 0, hecho.stderr
+    assert json.loads(hecho.stdout) == []
+
+
+def test_el_relleno_de_los_objetos_nuevos_se_entiende():
+    from herramientas import rellenos
+
+    for lugar in arte.lugares():
+        if lugar.en_el_juego or lugar.objeto not in CLAVES_NUEVAS or lugar.familia != "pieza":
+            continue
+        imagen = rellenos._dibujar_lugar(lugar).convert("RGBA")
+        assert imagen.size == (lugar.ancho // 2, lugar.alto // 2), lugar.ruta
+        assert imagen.getbbox() is not None, lugar.ruta
+    se = rellenos._dibujar_lugar(arte.lugar_de("pieza/muebles/balcon-se.png")).convert("RGBA")
+    so = rellenos._dibujar_lugar(arte.lugar_de("pieza/muebles/balcon-so.png")).convert("RGBA")
+    assert se.size == so.size == (1280, 1152) and se.tobytes() != so.tobytes()
+    # Se miran en espejo: la tira de una va por donde la otra no.
+    assert se.transpose(Image.Transpose.FLIP_LEFT_RIGHT).tobytes() != se.tobytes()
+    for lugar in arte.lugares():
+        if lugar.ruta.startswith("iconos/muebles/") and not lugar.en_el_juego:
+            with Image.open(arte.RAIZ_POR_VENIR / lugar.ruta) as icono:
+                assert icono.size == (48, 48), lugar.ruta
