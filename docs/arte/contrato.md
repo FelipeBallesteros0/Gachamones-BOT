@@ -2,6 +2,8 @@
 
 Esto es para ti, que dibujas. No hace falta tocar código.
 
+Tu camino es **la página del dibujante**: ahí subes cada dibujo con el nombre y la medida que dice esta lista. Guardar archivos en carpetas del repositorio es sólo para quien trabaja con él.
+
 ## La regla de oro
 
 **Reemplazar un dibujo es guardar el archivo nuevo con el mismo nombre y el mismo tamaño.**
@@ -112,7 +114,7 @@ su ícono con el mismo nombre.
 |---|---|---|
 | `iconos/objetos/<clave>.png` | 32 | Cada objeto: pociones, golosinas, porotos, sopaipillas, placa, silbato, semilla. También los que no se venden, porque se ven en la mochila. |
 | `iconos/cosmeticos/<clave>.png` | 12 | Cada cosmético del gachamon: sombreros y títulos. |
-| `iconos/muebles/<clave>.png` | 19 | Cada mueble del departamento que se vende, la cama sencilla incluida. La puerta no lleva ícono: no se vende ni se guarda. |
+| `iconos/muebles/<clave>.png` | 19 | Cada mueble del departamento que se vende, la cama sencilla incluida. La puerta no lleva ícono: no se vende ni se guarda. Hay además 24 íconos de muebles por venir, que el juego todavía no pide: están en «Los objetos que el juego todavía no tiene». |
 
 Cada ícono ya tiene su relleno en `web/static/arte/iconos/`, con el nombre
 exacto de su archivo: dibuja el tuyo y guárdalo encima. Por ejemplo:
@@ -130,10 +132,12 @@ isométrica, y la medida de partida es **la casilla: un rombo de 1024 × 512** q
 llena su lienzo. Los tamaños de abajo son los **originales** (los que tú
 dibujas); la página sirve cada uno a la mitad.
 
-Dejas tus originales en **`fuentes/pieza/`**, con **el mismo nombre y la misma
+**Si dibujas y no tienes el repositorio, nada de esto es tuyo: tu camino es subir cada archivo desde la página del dibujante** (ver «Lo que subes en la página del dibujante», más abajo). Lo que sigue es la vía de quien trabaja con el repositorio, y sólo cubre las piezas que el juego ya pinta, no lo nuevo de las secciones del final.
+
+Quien tiene el repositorio deja los originales en **`fuentes/pieza/`**, con **el mismo nombre y la misma
 subcarpeta** que tiene el relleno en `web/static/arte/pieza/` (por ejemplo,
-`fuentes/pieza/muebles/cama-se.png`). Después se corre
-`./venv/bin/python -m herramientas.pieza`: comprueba que cada original mide
+`fuentes/pieza/muebles/cama-se.png`). Después corre
+`./venv/bin/python -m herramientas.pieza`, que comprueba que cada original mide
 exactamente lo que dice esta lista (si no, lo dice y no escribe nada) y
 guarda la copia reducida en `web/static/arte/pieza/`.
 
@@ -237,15 +241,17 @@ primeras letras de la clave y, en su cara hacia la que mira, una marca amarilla
 
 ## Lo que subes en la página del dibujante
 
-Todo lo de la pieza del departamento (suelo, paredes y muebles) lo subes **a la medida de original**, la de la columna «Tamaño original» de arriba: el doble de lo que se ve en pantalla (la casilla, de 1024 × 512). Si subes uno de la mitad, la página lo rechaza y te dice qué medida pide ese lugar.
+**Tú, que dibujas, subes todo desde la página del dibujante**: no necesitas el repositorio ni correr nada. Lo que sube la página es la medida de original; la vía de `fuentes/pieza/` de más arriba es sólo para quien trabaja con el repositorio.
+
+Todo lo de la pieza del departamento (suelo, paredes y muebles) lo subes **a la medida de original**, la de la columna «Tamaño original» de arriba: el doble de lo que se ve en pantalla (la casilla, de 1024 × 512). Si subes uno de la mitad, la página lo rechaza y te dice qué medida pide ese dibujo.
 
 - La página guarda **tu original tal como lo subes** y, aparte, una versión reducida a la mitad, que es la que usa el juego. Tú no reduces nada.
 - Cada imagen puede pesar **hasta 24 MB**. Es PNG con transparencia, como siempre.
 - Si tu PNG trae un perfil de color (por ejemplo Display P3), la página lo pasa a sRGB, que es el color de las pantallas corrientes, y guarda la imagen sin el perfil. Si no trae perfil, queda como la dibujaste.
-- De cada lugar se conservan **las cinco últimas imágenes distintas** que subas, cada una con su original y su versión reducida. «Volver a la anterior» las recorre.
+- De cada dibujo se conservan **las cinco últimas imágenes distintas** que subas, cada una con su original y su versión reducida. «Volver a la anterior» las recorre.
 - Lo que no es de la pieza (pueblo, escenas, avatar, efectos e íconos) se sube a su medida de siempre.
 
-Los lugares de las secciones que siguen **todavía no los pinta el juego**: son dibujos que se van adelantando para cuando el juego los use. Aparecen en la página, con su provisional y su avance, pero nadie los ve jugando.
+Los dibujos de las secciones que siguen **todavía no los pinta el juego**: se van adelantando para cuando el juego los use. Aparecen en la página, con su provisional y su avance, pero nadie los ve jugando. El **avance** es la cuenta de lo que ya está dibujado de cada grupo (por ejemplo, 4 de 8); se ve en el tablero.
 
 ## Los muebles que se encienden
 
@@ -258,7 +264,7 @@ Cuatro muebles de hoy tienen **un segundo dibujo, el encendido**: la lámpara, e
 | Chimenea | `pieza/muebles/chimenea-encendido-<orientación>.png` | 1536 × 1792 |
 | Fuente | `pieza/muebles/fuente-encendido-<orientación>.png` | 2048 × 2048 |
 
-Cada uno lleva **las cuatro orientaciones** (`se`, `so`, `no`, `ne`) y mide **lo mismo que su dibujo apagado**, en el mismo lienzo y con el mueble en el mismo lugar: así, al encender, solo cambia lo que se enciende. En la página, el encendido aparece dentro del grupo del mueble, junto a los otros cuatro.
+Cada uno lleva **las cuatro orientaciones** (`se`, `so`, `no`, `ne`) y mide **lo mismo que su dibujo apagado**, en el mismo lienzo y con el mueble en el mismo lugar: así, al encender, solo cambia lo que se enciende. En la página, el encendido aparece dentro del grupo del mueble, junto a las cuatro orientaciones del dibujo apagado.
 
 ## Los objetos que el juego todavía no tiene
 
@@ -313,7 +319,35 @@ Hay cuatro **orientaciones**, las mismas de los muebles:
 
 ### Los nombres de los archivos
 
-Todo vive bajo `criaturas/`. `<especie>` es el nombre interno de la especie (por ejemplo `dragoncito`, aunque en el juego se llame de otra forma; la página enseña la lista y el nombre de cada una).
+Todo vive bajo `criaturas/`. `<especie>` es el nombre interno de la especie, que no siempre se parece al nombre que ve quien juega (`dragoncito` es Tsushimon). Son 25:
+
+| `<especie>` | Nombre en el juego |
+|---|---|
+| `pollito` | Piollito |
+| `brote` | Magora |
+| `michi` | Purreon |
+| `slime` | Gelatín |
+| `pedrusco` | Geo |
+| `pulpo` | Octopul |
+| `chispa` | Pyro |
+| `fantasma` | Duskhouse |
+| `chatarra` | Re-bot |
+| `dragoncito` | Tsushimon |
+| `swampdon` | Swampdón |
+| `canizo` | Cañizo |
+| `lucierno` | Lucierno |
+| `coralito` | Coralito |
+| `escorpgon` | Escorpgon |
+| `nacar` | Nacar |
+| `remolin` | Remolín |
+| `prinel` | Prinel |
+| `bulb` | Bulb |
+| `magnetron` | Magnetrón |
+| `criold` | Criold |
+| `goot` | Goot |
+| `cefiro` | Céfiro |
+| `noctule` | Noctule |
+| `prismlon` | Prismlon |
 
 | Qué | Archivo | Orientaciones |
 |---|---|---|
@@ -354,6 +388,8 @@ El juego de hoy sigue con sus retratos de siempre; nada de esta sección se ve t
 
 ## Dónde mirar si algo no calza
 
-La lista completa y exacta de archivos, con sus tamaños, está en
+La lista de los 270 archivos que el juego pinta hoy, con sus tamaños, está en
 `web/static/datos/arte.json`. Una prueba (`tests/test_arte.py`) comprueba que
-cada archivo exista, sea PNG y mida lo que dice, y que no sobre ninguno.
+cada uno exista, sea PNG y mida lo que dice, y que no sobre ninguno. Esa lista
+**no trae** lo que el juego todavía no pinta (los encendidos, los 24 objetos con
+sus íconos y las criaturas): eso sale en la página del dibujante, con sus medidas.

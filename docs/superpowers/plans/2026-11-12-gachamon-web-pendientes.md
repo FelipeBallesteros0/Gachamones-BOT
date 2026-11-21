@@ -2202,8 +2202,8 @@ juego es JSON, `{"detail":{"clave":"no_existe",…}}`; uno del sitio, no.
 
 El diseño (`docs/superpowers/specs/2026-11-21-el-arte-que-falta-design.md`) y su
 plan sólo tocan la página del dibujante y lo que hay detrás; la página del juego
-sigue congelada. Está construido en una rama, sin publicar. Lo que no se puede
-saber hasta publicar queda aquí.
+sigue congelada. Falta publicarlo: ver «Para publicar». Lo que no se puede saber
+hasta publicar queda aquí.
 
 ### Lo hecho
 
@@ -2227,7 +2227,9 @@ momento.
 1. **Contarle al dueño, antes de publicar, que el plan cambió la copia de lo
    subido en `actualizar-pi.sh`:** de un `tar` entero en cada despliegue a un
    espejo que sólo gana lo nuevo. Los `arte_subido.*.tar.gz` que ya haya en la
-   Raspberry no se tocan, ni se borran ni se rotan.
+   Raspberry no se tocan, ni se borran ni se rotan. Además, el espejo nunca borra:
+   lo que la poda quite de `arte_subido` sigue en `arte_subido.copia/`, y ese disco
+   sólo crece; hay que mirar el espacio.
 2. **El sitio primero**, con su categoría «Criaturas» (ver «Lo que le toca al
    sitio»). Sola es inofensiva. Si el juego saliera antes, las especies se
    sembrarían en «Avatar».
