@@ -7,6 +7,7 @@ pieza sola. Sin `discord` ni `db`.
 """
 
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 import avatar
@@ -38,6 +39,26 @@ class Pieza:
     ancho: int
     alto: int
     familia: str
+
+
+@dataclass(frozen=True)
+class Lugar:
+    """Un sitio donde el dibujante sube un dibujo.
+
+    `ancho` y `alto` son la medida de subida; `reduccion` es cuántas veces más chico es
+    lo que sirve el juego (1: lo mismo). `en_el_juego` dice si es una pieza del contrato
+    (`piezas()`) o algo que el juego todavía no pinta. `objeto` es la clave del mueble
+    en `pieza/muebles/*` y en `iconos/muebles/*`.
+    """
+    ruta: str
+    ancho: int
+    alto: int
+    familia: str
+    reduccion: int
+    en_el_juego: bool
+    objeto: str | None = None
+    estado: str | None = None
+    criatura: "Capa | None" = None  # noqa: F821  (`Capa` nace en otra tarea)
 
 
 def _con_escena(clave: str) -> bool:
@@ -94,6 +115,37 @@ def originales_de_la_pieza() -> tuple[Pieza, ...]:
                  for p in piezas() if p.familia == "pieza")
 
 
+@cache
+def lugares() -> tuple[Lugar, ...]:
+    """Todos los lugares de subida, en un orden fijo. Hoy, las piezas del contrato: la
+    familia `pieza` se sube al doble de lo que sirve, las demás a su medida."""
+    lista = []
+    for p in piezas():
+        reduccion = REDUCCION if p.familia == "pieza" else 1
+        lista.append(Lugar(p.ruta, p.ancho * reduccion, p.alto * reduccion, p.familia, reduccion, True))
+    return tuple(lista)
+
+
+@cache
+def _indice() -> dict[str, Lugar]:
+    return {lugar.ruta: lugar for lugar in lugares()}
+
+
+def lugar_de(ruta: str) -> Lugar | None:
+    """El lugar con esa ruta, tal cual; `None` si no lo hay.
+
+    Sólo se busca, no se arma nada con la ruta: una con `..`, con `\\` o con una barra
+    delante no es de ningún lugar.
+    """
+    return _indice().get(ruta)
+
+
+def olvidar() -> None:
+    """Vacía lo calculado, para las pruebas que cambian los catálogos."""
+    lugares.cache_clear()
+    _indice.cache_clear()
+
+
 @dataclass(frozen=True)
 class Grupo:
     """Un puñado de piezas que se dibujan juntas: la tarjeta de un tablero.
@@ -142,15 +194,15 @@ def _grupo_de(ruta: str) -> tuple[str, str]:
 
 
 def grupos() -> tuple[Grupo, ...]:
-    """Las piezas del contrato repartidas en grupos, en el orden de `piezas()`.
+    """Los lugares repartidos en grupos, en el orden de `lugares()`.
 
-    Se calculan desde `piezas()`: una pieza que ningún grupo reconoce lanza `ValueError`.
+    Se calculan desde `lugares()`: uno que ningún grupo reconoce lanza `ValueError`.
     """
     por_clave: dict[str, tuple[str, str, list[str]]] = {}
-    for pieza in piezas():
-        clave, nombre = _grupo_de(pieza.ruta)
-        _, _, rutas = por_clave.setdefault(clave, (nombre, pieza.familia, []))
-        rutas.append(pieza.ruta)
+    for lugar in lugares():
+        clave, nombre = _grupo_de(lugar.ruta)
+        _, _, rutas = por_clave.setdefault(clave, (nombre, lugar.familia, []))
+        rutas.append(lugar.ruta)
     return tuple(Grupo(clave, nombre, familia, tuple(rutas))
                  for clave, (nombre, familia, rutas) in por_clave.items())
 

@@ -28,7 +28,8 @@ from web import arte
 RAIZ = Path(__file__).resolve().parent.parent
 FIRMA = b"\x89PNG\r\n\x1a\n"
 CORAZON = "efectos/corazon.png"   # 32 × 32, familia `efectos`
-SUELO = "pieza/suelo.png"         # 512 × 256, familia `pieza`: una sola medida, como el resto
+SUELO = "pieza/suelo.png"         # se sube a 1024 × 512; el juego sirve 512 × 256
+MACETA = "pieza/muebles/maceta-se.png"  # se sube a 1024 × 1536; el juego sirve 512 × 768
 GRIS, RGB, PALETA, GRIS_Y_ALFA, RGBA = 0, 2, 3, 4, 6
 CANALES = {GRIS: 1, RGB: 3, PALETA: 1, GRIS_Y_ALFA: 2, RGBA: 4}
 
@@ -80,10 +81,16 @@ def dibujo(ancho, alto) -> Image.Image:
     return imagen
 
 
-def pieza(ruta):
-    encontrada = arte_subido.pieza_de(ruta)
-    assert encontrada is not None
-    return encontrada
+def lugar(ruta):
+    encontrado = arte.lugar_de(ruta)
+    assert encontrado is not None
+    return encontrado
+
+
+def preparada(cuerpo, ruta=CORAZON) -> tuple[bytes, str]:
+    """Los datos y el nombre del original limpio, para lo que no mira la chica."""
+    original, _ = arte_subido.preparar(cuerpo, lugar(ruta))
+    return original.datos, original.nombre
 
 
 def abierta(datos: bytes) -> Image.Image:
@@ -92,33 +99,19 @@ def abierta(datos: bytes) -> Image.Image:
     return imagen
 
 
-# --- Qué es una pieza ---------------------------------------------------------
-
-def test_una_ruta_del_contrato_es_su_pieza():
-    corazon = arte_subido.pieza_de(CORAZON)
-    assert (corazon.ruta, corazon.ancho, corazon.alto, corazon.familia) == (CORAZON, 32, 32, "efectos")
-
-
-@pytest.mark.parametrize("ruta", [
-    "pieza/inventada.png", "efectos/corazon", "efectos/../efectos/corazon.png", "../efectos/corazon.png",
-    "/efectos/corazon.png", "efectos\\corazon.png", "efectos/corazon.png/", "EFECTOS/CORAZON.PNG",
-    "efectos//corazon.png", "", "efectos/corazon.png\x00",
-])
-def test_lo_que_no_esta_en_el_contrato_no_es_una_pieza(ruta):
-    assert arte_subido.pieza_de(ruta) is None
-
+# --- Las medidas ---------------------------------------------------------------
 
 def test_las_medidas_del_contrato_son_las_de_cada_pieza():
     medidas = arte_subido.medidas()
     assert medidas == {p.ruta: (p.ancho, p.alto) for p in arte.piezas()}
-    assert medidas[CORAZON] == (32, 32) and medidas[SUELO] == (512, 256)
+    assert medidas[CORAZON] == (32, 32) and medidas[SUELO] == (512, 256)  # lo servido
 
 
 # --- Lo que vale y cómo sale -----------------------------------------------------
 
 def test_un_png_de_su_medida_sale_limpio_y_con_el_nombre_de_su_contenido():
     original = dibujo(32, 32)
-    datos, nombre = arte_subido.preparar(png_de(original), pieza(CORAZON))
+    datos, nombre = preparada(png_de(original))
     assert nombre == hashlib.sha256(datos).hexdigest() + ".png"
     limpia = abierta(datos)
     assert limpia.format == "PNG" and limpia.mode == "RGBA" and limpia.size == (32, 32)
@@ -127,11 +120,11 @@ def test_un_png_de_su_medida_sale_limpio_y_con_el_nombre_de_su_contenido():
 
 def test_dos_subidas_iguales_dan_el_mismo_nombre():
     cuerpo = png_de(dibujo(32, 32))
-    assert arte_subido.preparar(cuerpo, pieza(CORAZON)) == arte_subido.preparar(cuerpo, pieza(CORAZON))
+    assert arte_subido.preparar(cuerpo, lugar(CORAZON)) == arte_subido.preparar(cuerpo, lugar(CORAZON))
     # La misma imagen guardada de otra forma (otra compresión, otro modo) también.
     otra = png_de(dibujo(32, 32), compress_level=0)
     assert otra != cuerpo
-    assert arte_subido.preparar(otra, pieza(CORAZON))[1] == arte_subido.preparar(cuerpo, pieza(CORAZON))[1]
+    assert preparada(otra)[1] == preparada(cuerpo)[1]
 
 
 def test_un_png_con_metadatos_y_perfil_de_color_sale_sin_ellos():
@@ -145,11 +138,11 @@ def test_un_png_con_metadatos_y_perfil_de_color_sale_sin_ellos():
     cuerpo = png_de(original, pnginfo=datos_extra, icc_profile=b"un perfil de color",
                     exif=b"Exif\x00\x00MM\x00*\x00\x00\x00\x08\x00\x00", dpi=(300, 300))
     assert {b"tEXt", b"zTXt", b"iTXt", b"gAMA", b"prIv", b"iCCP", b"eXIf", b"pHYs"} <= set(trozos(cuerpo))
-    datos, nombre = arte_subido.preparar(cuerpo, pieza(CORAZON))
+    datos, nombre = preparada(cuerpo)
     assert set(trozos(datos)) <= {b"IHDR", b"IDAT", b"IEND"}
     limpia = abierta(datos)
     assert limpia.info == {} and limpia.tobytes() == original.tobytes()
-    assert nombre == arte_subido.preparar(png_de(original), pieza(CORAZON))[1]
+    assert nombre == preparada(png_de(original))[1]
 
 
 TRNS = b"tRNS"
@@ -188,17 +181,28 @@ TRNS = b"tRNS"
                  [(0x12, 0x56, 0x9A, 0), (255, 0, 0, 255)], id="rgb-de-16-bits-con-transparencia"),
 ])
 def test_cualquier_modo_de_png_sale_en_rgba_sin_perder_la_transparencia(cuerpo, esperado):
-    datos, _ = arte_subido.preparar(cuerpo, pieza(CORAZON))
+    datos, _ = preparada(cuerpo)
     limpia = abierta(datos)
     assert limpia.mode == "RGBA" and limpia.size == (32, 32)
     for y in (0, 31):
         assert [limpia.getpixel((x, y)) for x in range(len(esperado))] == esperado
 
 
-def test_una_pieza_de_la_pieza_vale_a_su_medida_y_sale_igual():
-    original = dibujo(512, 256)
-    datos, _ = arte_subido.preparar(png_de(original), pieza(SUELO))
-    assert abierta(datos).tobytes() == original.tobytes()
+def test_un_mueble_al_doble_sale_con_su_original_y_su_version_servida():
+    original = dibujo(1024, 1536)
+    grande, chica = arte_subido.preparar(png_de(original), lugar(MACETA))
+    assert (grande.ancho, grande.alto, chica.ancho, chica.alto) == (1024, 1536, 512, 768)
+    assert abierta(grande.datos).tobytes() == original.tobytes()
+    assert abierta(chica.datos).size == (512, 768)
+    assert abierta(chica.datos).tobytes() == arte_subido.a_lo_servido(original).tobytes()
+    assert grande.nombre == hashlib.sha256(grande.datos).hexdigest() + ".png"
+    assert chica.nombre == hashlib.sha256(chica.datos).hexdigest() + ".png"
+    assert grande.nombre != chica.nombre
+
+
+def test_fuera_de_la_pieza_el_original_y_la_chica_son_el_mismo_archivo():
+    grande, chica = arte_subido.preparar(png_de(dibujo(32, 32)), lugar(CORAZON))
+    assert chica is grande
 
 
 def test_la_herramienta_reduce_igual_que_antes(tmp_path):
@@ -214,7 +218,7 @@ def test_la_herramienta_reduce_igual_que_antes(tmp_path):
 
 def no_vale(cuerpo, ruta=CORAZON) -> str:
     with pytest.raises(arte_subido.NoVale) as rechazo:
-        arte_subido.preparar(cuerpo, pieza(ruta))
+        arte_subido.preparar(cuerpo, lugar(ruta))
     assert rechazo.value.mensaje == str(rechazo.value)
     return rechazo.value.mensaje
 
@@ -224,11 +228,11 @@ def test_una_imagen_con_la_medida_de_otra_pieza_se_rechaza_diciendo_la_esperada_
     assert "48 × 48 px" in mensaje and "32 × 32 px" in mensaje
 
 
-def test_en_la_pieza_el_doble_se_rechaza_y_el_rechazo_nombra_una_sola_medida():
-    assert no_vale(png_de(dibujo(1024, 512)), SUELO) == \
-        "La imagen mide 1024 × 512 px y esta pieza pide 512 × 256 px."
-    assert no_vale(png_de(dibujo(256, 128)), SUELO) == \
-        "La imagen mide 256 × 128 px y esta pieza pide 512 × 256 px."
+def test_la_medida_servida_de_un_mueble_se_rechaza_nombrando_la_de_subida():
+    assert no_vale(png_de(dibujo(512, 768)), MACETA) == \
+        "La imagen mide 512 × 768 px y esta pieza pide 1024 × 1536 px."
+    assert no_vale(png_de(dibujo(512, 256)), SUELO) == \
+        "La imagen mide 512 × 256 px y esta pieza pide 1024 × 512 px."
 
 
 def test_el_doble_tampoco_vale_fuera_de_la_familia_de_la_pieza():
@@ -289,11 +293,11 @@ def png_que_pesa(tamano: int) -> bytes:
     return cuerpo
 
 
-def test_un_png_de_4_mb_vale_y_uno_de_un_byte_mas_no():
-    assert arte_subido.LIMITE_DE_BYTES == 4 * 1024 * 1024
-    datos, _ = arte_subido.preparar(png_que_pesa(arte_subido.LIMITE_DE_BYTES), pieza(CORAZON))
+def test_un_png_de_24_mb_vale_y_uno_de_un_byte_mas_no():
+    assert arte_subido.LIMITE_DE_BYTES == 24 * 1024 * 1024
+    datos, _ = preparada(png_que_pesa(arte_subido.LIMITE_DE_BYTES))
     assert len(datos) < 1000
-    assert "4 MB" in no_vale(png_que_pesa(arte_subido.LIMITE_DE_BYTES + 1))
+    assert no_vale(png_que_pesa(arte_subido.LIMITE_DE_BYTES + 1)) == "La imagen pesa más de 24 MB."
 
 
 def test_una_bomba_de_descompresion_se_rechaza_por_su_medida_sin_abrirla(monkeypatch):
@@ -312,8 +316,8 @@ def test_una_bomba_de_descompresion_se_rechaza_por_su_medida_sin_abrirla(monkeyp
     monkeypatch.setattr(arte_subido.Image, "open", no_abrir)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mensaje = no_vale(bomba)
-    assert "9000 × 9000 px" in mensaje
+        mensaje = no_vale(bomba, SUELO)
+    assert "9000 × 9000 px" in mensaje and "1024 × 512 px" in mensaje
     assert abiertas == []
 
 
@@ -322,7 +326,7 @@ def test_una_bomba_de_descompresion_se_rechaza_por_su_medida_sin_abrirla(monkeyp
 def preparado(semilla=0) -> tuple[bytes, str]:
     imagen = dibujo(32, 32)
     imagen.putpixel((0, 0), (semilla, 0, 0, 255))
-    return arte_subido.preparar(png_de(imagen), pieza(CORAZON))
+    return preparada(png_de(imagen))
 
 
 def test_guardar_escribe_el_archivo_entero_con_su_nombre(tmp_path):

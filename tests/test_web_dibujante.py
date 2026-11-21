@@ -30,15 +30,16 @@ INVENTADA = f"{API}/ruta-inventada"
 CORAZON = "efectos/corazon.png"    # 32 × 32
 ESTRELLA = "efectos/estrella.png"  # 32 × 32
 SOMBRA = "efectos/sombra.png"      # 32 × 32
-SUELO = "pieza/suelo.png"          # 512 × 256, familia `pieza`: también una sola medida
-LIMITE = 4 * 1024 * 1024
+SUELO = "pieza/suelo.png"          # se sube a 1024 × 512 y el juego sirve 512 × 256
+MACETA = "pieza/muebles/maceta-se.png"  # se sube a 1024 × 1536 y el juego sirve 512 × 768
+LIMITE = 24 * 1024 * 1024
 
 # (id, usuario, bloqueada, arte_access, is_admin)
 CUENTAS = ((1, "dibuja", 0, 1, 0), (2, "admin", 0, 0, 1), (3, "nadie", 0, 0, 0), (4, "bloqueado", 1, 1, 1))
 DIBUJA, ADMIN, NADIE, BLOQUEADO, NO_EXISTE = 1, 2, 3, 4, 99
 
 NO_SE_ENTIENDE = {"detail": {"clave": "peticion", "mensaje": "La petición no se entiende."}}
-IMAGEN_DEMASIADO_GRANDE = {"detail": {"clave": "demasiado", "mensaje": "La imagen pesa más de 4 MB."}}
+IMAGEN_DEMASIADO_GRANDE = {"detail": {"clave": "demasiado", "mensaje": "La imagen pesa más de 24 MB."}}
 CUERPO_DEMASIADO_GRANDE = {"detail": {"clave": "demasiado", "mensaje": "Eso es demasiado grande."}}
 
 
@@ -77,7 +78,7 @@ def png(ancho: int, alto: int, semilla: int = 0) -> bytes:
 
 def nombre_limpio(cuerpo: bytes, ruta: str) -> str:
     """El nombre con que queda guardado lo que se sube: el de su PNG limpio."""
-    return arte_subido.preparar(cuerpo, arte_subido.pieza_de(ruta))[1]
+    return arte_subido.preparar(cuerpo, arte.lugar_de(ruta))[1].nombre
 
 
 def direccion(cuerpo: bytes, ruta: str) -> str:
@@ -262,7 +263,7 @@ def test_el_avance_es_el_contrato_del_diseno_campo_por_campo(cliente):
 
 
 def test_el_avance_cuenta_lo_vigente_desde_la_tabla_sin_abrir_ninguna_imagen(cliente, carpeta, monkeypatch):
-    for ruta, cuerpo in ((CORAZON, png(32, 32, 1)), (ESTRELLA, png(32, 32, 2)), (SUELO, png(512, 256))):
+    for ruta, cuerpo in ((CORAZON, png(32, 32, 1)), (ESTRELLA, png(32, 32, 2)), (SUELO, png(1024, 512))):
         assert subir(cliente, ruta, cuerpo).status_code == 200
     assert volver(cliente, ESTRELLA, "provisional").status_code == 200
     # Lo que la tabla tiene y ya no se sirve no cuenta: una medida que el contrato
@@ -328,7 +329,8 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     assert hecho.status_code == 200
     assert hecho.json() == {
         "ruta": CORAZON, "ancho": 32, "alto": 32,
-        "subida": {"direccion": d1, "quien": "dibuja", "cuando": T0.isoformat()}, "medida_cambiada": None,
+        "subida": {"direccion": d1, "original": d1, "quien": "dibuja", "cuando": T0.isoformat()},
+        "medida_cambiada": None,
     }
     assert (carpeta / nombre_limpio(v1, CORAZON)).is_file()
     piezas = {p["ruta"]: p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g["piezas"]}
@@ -339,14 +341,14 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     entrar(cliente, ADMIN)
     hecho = subir(cliente, CORAZON, v2)
     assert hecho.status_code == 200
-    assert hecho.json()["subida"] == {"direccion": d2, "quien": "admin", "cuando": segunda.isoformat()}
+    assert hecho.json()["subida"] == {"direccion": d2, "original": d2, "quien": "admin", "cuando": segunda.isoformat()}
 
     reloj.pasar(minutes=5)
     entrar(cliente, DIBUJA)
     hecho = volver(cliente, CORAZON, "anterior")
     assert hecho.status_code == 200
     # Se ve otra vez la primera: quién la subió y cuándo.
-    assert hecho.json()["subida"] == {"direccion": d1, "quien": "dibuja", "cuando": T0.isoformat()}
+    assert hecho.json()["subida"] == {"direccion": d1, "original": d1, "quien": "dibuja", "cuando": T0.isoformat()}
     vuelta = reloj.ahora
 
     reloj.pasar(minutes=5)
@@ -363,7 +365,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     deshecho = reloj.ahora
     hecho = volver(cliente, CORAZON, "anterior")
     assert hecho.status_code == 200
-    assert hecho.json()["subida"] == {"direccion": d2, "quien": "admin", "cuando": segunda.isoformat()}
+    assert hecho.json()["subida"] == {"direccion": d2, "original": d2, "quien": "admin", "cuando": segunda.isoformat()}
 
     # Una pieza sin nada subido no tiene anterior: se dice por qué y no cambia nada.
     no = volver(cliente, ESTRELLA, "anterior")
@@ -390,25 +392,28 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
         assert {f["quien"] for f in con.execute("SELECT quien FROM arte_subido")} == {"dibuja", "admin"}
 
 
-def test_en_la_familia_de_la_pieza_el_doble_se_rechaza_y_la_medida_exacta_se_guarda_tal_cual(cliente, carpeta):
-    doble = png(1024, 512)
-    # Más de lo que deja pasar el tope de la api del juego: aquí no se aplica.
-    assert len(doble) > 16 * 1024
-    respuesta = subir(cliente, SUELO, doble)
+def test_en_la_familia_de_la_pieza_la_medida_servida_se_rechaza_y_la_de_subida_se_guarda_con_su_chica(
+        cliente, carpeta):
+    servida = png(512, 256)
+    respuesta = subir(cliente, SUELO, servida)
     assert respuesta.status_code == 400
     assert respuesta.json() == {"detail": {
-        "clave": "no_vale", "mensaje": "La imagen mide 1024 × 512 px y esta pieza pide 512 × 256 px."}}
+        "clave": "no_vale", "mensaje": "La imagen mide 512 × 256 px y esta pieza pide 1024 × 512 px."}}
     assert nada_guardado(carpeta)
-    exacta = png(512, 256)
+    exacta = png(1024, 512)
     vista = subir(cliente, SUELO, exacta).json()
-    assert (vista["ancho"], vista["alto"]) == (512, 256) and "original" not in vista
-    assert vista["subida"]["direccion"] == direccion(exacta, SUELO)
-    # Lo vigente con la medida exacta se ve y se guarda sin cambiar un píxel.
-    with Image.open(carpeta / nombre_limpio(exacta, SUELO)) as guardada:
-        assert guardada.size == (512, 256)
+    assert (vista["ancho"], vista["alto"]) == (1024, 512)
+    original, chica = arte_subido.preparar(exacta, arte.lugar_de(SUELO))
+    assert vista["subida"]["direccion"] == f"/monsteropolis/arte-subido/{chica.nombre}"
+    assert vista["subida"]["original"] == f"/monsteropolis/arte-subido/{original.nombre}"
+    # Lo vigente con la medida de subida se ve y se guarda sin cambiar un píxel, con su chica.
+    with Image.open(carpeta / original.nombre) as guardada:
+        assert guardada.size == (1024, 512)
         assert guardada.convert("RGBA").tobytes() == Image.open(io.BytesIO(exacta)).convert("RGBA").tobytes()
+    with Image.open(carpeta / chica.nombre) as guardada:
+        assert guardada.size == (512, 256)
     en_la_lista = {x["ruta"]: x for g in cliente.get(f"{API}/piezas").json()["grupos"] for x in g["piezas"]}
-    assert en_la_lista[SUELO]["subida"]["direccion"] == direccion(exacta, SUELO)
+    assert en_la_lista[SUELO] == vista
 
 
 @pytest.mark.parametrize("cuerpo, mensaje", [
@@ -446,22 +451,22 @@ def test_volver_con_un_cuerpo_que_no_se_entiende_da_422(cliente, carpeta, cuerpo
 
 # --- Lo que pesa demasiado se corta al leer --------------------------------------
 
-def test_una_imagen_de_mas_de_4_mb_da_413_y_no_cambia_nada(cliente, carpeta):
+def test_una_imagen_de_mas_de_24_mb_da_413_y_no_cambia_nada(cliente, carpeta):
     respuesta = subir(cliente, CORAZON, b"\0" * (LIMITE + 1))
     assert respuesta.status_code == 413 and respuesta.json() == IMAGEN_DEMASIADO_GRANDE
     assert nada_guardado(carpeta)
 
 
-def test_justo_4_mb_llega_a_mirarse(cliente, carpeta):
+def test_justo_24_mb_llega_a_mirarse(cliente, carpeta):
     respuesta = subir(cliente, CORAZON, b"\0" * LIMITE)
     assert respuesta.status_code == 400
     assert respuesta.json()["detail"]["mensaje"] == "El archivo no es un PNG."
 
 
-def test_un_cuerpo_troceado_se_corta_en_cuanto_pasa_de_4_mb(cliente, carpeta):
-    estado, cuerpo, leidos = _subir_a_trozos(cliente.app, [b"\0" * (1536 * 1024)] * 5)
+def test_un_cuerpo_troceado_se_corta_en_cuanto_pasa_de_24_mb(cliente, carpeta):
+    estado, cuerpo, leidos = _subir_a_trozos(cliente.app, [b"\0" * (10 * 1024 * 1024)] * 5)
     assert (estado, cuerpo) == (413, IMAGEN_DEMASIADO_GRANDE)
-    # Uno y medio, tres, cuatro y medio: al tercero ya se pasa, y los otros dos no se leen.
+    # Diez, veinte, treinta: al tercero ya se pasa, y los otros dos no se leen.
     assert leidos == 3
     assert nada_guardado(carpeta)
 
@@ -487,10 +492,70 @@ def test_volver_con_un_cuerpo_de_mas_de_16_kib_da_413(cliente, carpeta):
     assert nada_guardado(carpeta)
 
 
+# --- Los lugares de la pieza, subidos al doble --------------------------------------
+
+def _vista_de(cliente, ruta) -> dict:
+    return {p["ruta"]: p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g["piezas"]}[ruta]
+
+
+def _bloque_de_la_portada(cliente) -> dict:
+    texto = cliente.get("/monsteropolis/").text
+    return json.loads(re.search(r'<script type="application/json" id="arte-subido">(.*?)</script>', texto, re.S).group(1))
+
+
+def test_subir_un_mueble_al_doble_lo_deja_al_dia_y_la_portada_sirve_la_chica(cliente, carpeta):
+    cuerpo = png(1024, 1536)
+    vista = subir(cliente, MACETA, cuerpo).json()
+    original, chica = arte_subido.preparar(cuerpo, arte.lugar_de(MACETA))
+    assert (original.ancho, original.alto, chica.ancho, chica.alto) == (1024, 1536, 512, 768)
+    assert (vista["ancho"], vista["alto"], vista["medida_cambiada"]) == (1024, 1536, None)
+    assert vista["subida"]["direccion"] == f"/monsteropolis/arte-subido/{chica.nombre}"
+    assert vista["subida"]["original"] == f"/monsteropolis/arte-subido/{original.nombre}"
+    assert sorted(p.name for p in carpeta.iterdir()) == sorted([original.nombre, chica.nombre])
+    avance = {g["clave"]: g["hechas"] for g in cliente.get(f"{API}/avance").json()["grupos"]}
+    assert avance["pieza/muebles/maceta"] == 1
+    # El juego sirve la de 512 × 768.
+    assert _bloque_de_la_portada(cliente) == {MACETA: f"/monsteropolis/arte-subido/{chica.nombre}"}
+
+
+def test_una_fila_sin_original_se_sigue_viendo_y_cuenta_como_pendiente(cliente, carpeta):
+    # Una subida de antes de publicar el doble: sólo el archivo servido, de 512 × 768.
+    db.subir_arte(MACETA, "a" * 64 + ".png", 512, 768, "dibuja", T0)
+    assert _bloque_de_la_portada(cliente) == {MACETA: f"/monsteropolis/arte-subido/{'a' * 64}.png"}
+    vista = _vista_de(cliente, MACETA)
+    assert vista["subida"] is None
+    assert vista["medida_cambiada"] == {"ancho": 512, "alto": 768}
+    avance = {g["clave"]: g["hechas"] for g in cliente.get(f"{API}/avance").json()["grupos"]}
+    assert avance["pieza/muebles/maceta"] == 0
+
+
+def test_la_vista_pide_la_medida_de_subida(cliente):
+    medidas = {SUELO: (1024, 512), "pieza/pared-izquierda.png": (512, 1280), MACETA: (1024, 1536),
+               "pieza/muebles/fuente-ne.png": (2048, 2048), CORAZON: (32, 32)}
+    for ruta, medida in medidas.items():
+        vista = _vista_de(cliente, ruta)
+        assert (vista["ancho"], vista["alto"]) == medida
+
+
+def test_el_413_dice_24_mb(cliente, carpeta):
+    respuesta = subir(cliente, MACETA, b"\0" * (LIMITE + 1))
+    assert respuesta.status_code == 413
+    assert respuesta.json()["detail"]["mensaje"] == "La imagen pesa más de 24 MB."
+    assert nada_guardado(carpeta)
+
+
+def test_una_subida_de_la_medida_chica_se_rechaza_y_no_deja_renglon_ni_archivo(cliente, carpeta):
+    respuesta = subir(cliente, MACETA, png(512, 768))
+    assert respuesta.status_code == 400
+    assert respuesta.json()["detail"]["mensaje"] == \
+        "La imagen mide 512 × 768 px y esta pieza pide 1024 × 1536 px."
+    assert nada_guardado(carpeta)
+
+
 # --- Las piezas, el historial y la copia ----------------------------------------
 
 def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
-    subido = subir(cliente, SUELO, png(512, 256)).json()
+    subido = subir(cliente, SUELO, png(1024, 512)).json()
     # Lo subido con una medida que el contrato ya no pide no se sirve (se ve el
     # recuadro), y la pieza lo dice con la medida de lo subido.
     db.subir_arte(CORAZON, "0" * 64 + ".png", 31, 31, "dibuja", T0)
@@ -503,10 +568,10 @@ def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
     assert [p["ruta"] for g in cuerpo["grupos"] for p in g["piezas"]] == [
         r for g in arte.grupos() for r in g.rutas]
     piezas = {p["ruta"]: p for g in cuerpo["grupos"] for p in g["piezas"]}
-    for pieza in arte.piezas():
-        vista = piezas[pieza.ruta]
+    for lugar in arte.lugares():
+        vista = piezas[lugar.ruta]
         assert set(vista) == {"ruta", "ancho", "alto", "subida", "medida_cambiada"}
-        assert (vista["ancho"], vista["alto"]) == (pieza.ancho, pieza.alto)
+        assert (vista["ancho"], vista["alto"]) == (lugar.ancho, lugar.alto)
     assert piezas[SUELO] == subido
     assert [ruta for ruta, vista in piezas.items() if vista["subida"] is not None] == [SUELO]
     assert piezas[CORAZON]["subida"] is None
@@ -589,7 +654,7 @@ def test_la_copia_trae_lo_vigente_con_su_ruta_del_contrato(cliente, carpeta, tem
     with zipfile.ZipFile(io.BytesIO(vacia.content)) as copia:
         assert copia.namelist() == []
 
-    corazon, suelo = png(32, 32, 1), png(512, 256)
+    corazon, suelo = png(32, 32, 1), png(1024, 512)
     assert subir(cliente, CORAZON, png(32, 32, 9)).status_code == 200
     assert subir(cliente, CORAZON, corazon).status_code == 200
     assert subir(cliente, SUELO, suelo).status_code == 200
@@ -645,7 +710,7 @@ def _bajar_la_copia_y_cortar(app, abiertos):
 
 
 def test_si_la_descarga_se_corta_el_temporal_se_cierra_igual(cliente, carpeta, temporales):
-    assert subir(cliente, SUELO, png(512, 256)).status_code == 200
+    assert subir(cliente, SUELO, png(1024, 512)).status_code == 200
     # Sin el recolector: lo que se cierra tiene que cerrarse solo.
     gc.disable()
     try:
@@ -679,7 +744,7 @@ def test_el_provisional_baja_en_la_medida_de_la_pieza(cliente):
     assert respuesta.status_code == 200
     assert respuesta.headers["content-type"] == "image/png"
     assert respuesta.headers["content-disposition"] == 'attachment; filename="provisional-efectos-corazon.png"'
-    pieza = arte_subido.pieza_de(CORAZON)
+    pieza = arte.lugar_de(CORAZON)
     with Image.open(io.BytesIO(respuesta.content)) as imagen:
         assert imagen.format == "PNG" and imagen.size == (pieza.ancho, pieza.alto)
     assert respuesta.content == _del_repo(CORAZON)
@@ -696,20 +761,22 @@ def test_cada_pieza_que_no_es_de_la_pieza_baja_en_su_medida(cliente):
 
 
 @pytest.mark.parametrize("ruta", [SUELO, "pieza/pared-izquierda.png", "pieza/muebles/cama-se.png"])
-def test_el_provisional_de_un_mueble_baja_en_su_medida_exacta_con_los_bytes_del_repo(cliente, carpeta, ruta):
-    pieza = arte_subido.pieza_de(ruta)
+def test_el_provisional_de_un_mueble_baja_en_su_medida_servida_con_los_bytes_del_repo(cliente, carpeta, ruta):
+    lugar = arte.lugar_de(ruta)
     respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta})
     assert respuesta.status_code == 200
     assert respuesta.content == _del_repo(ruta)
     with Image.open(io.BytesIO(respuesta.content)) as imagen:
-        assert imagen.size == (pieza.ancho, pieza.alto)
-    # Y subido tal cual, la página lo acepta.
-    assert subir(cliente, ruta, respuesta.content).status_code == 200
+        assert imagen.size == (lugar.ancho // lugar.reduccion, lugar.alto // lugar.reduccion)
+    # Subido tal cual no vale: la subida es al doble.
+    rechazo = subir(cliente, ruta, respuesta.content)
+    assert rechazo.status_code == 400
+    assert f"esta pieza pide {lugar.ancho} × {lugar.alto} px" in rechazo.json()["detail"]["mensaje"]
 
 
 def test_el_provisional_no_es_lo_subido(cliente, carpeta):
     assert subir(cliente, CORAZON, png(32, 32, 5)).status_code == 200
-    assert subir(cliente, SUELO, png(512, 256, 6)).status_code == 200
+    assert subir(cliente, SUELO, png(1024, 512, 6)).status_code == 200
     for ruta in (CORAZON, SUELO):
         assert cliente.get(f"{API}/provisional", params={"ruta": ruta}).content == _del_repo(ruta)
 

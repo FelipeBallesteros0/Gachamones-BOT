@@ -16,6 +16,7 @@ import re
 import struct
 import tempfile
 from collections.abc import Collection
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -26,10 +27,10 @@ from web import arte
 
 logger = logging.getLogger(__name__)
 
-LIMITE_DE_BYTES = 4 * 1024 * 1024
+LIMITE_DE_BYTES = 24 * 1024 * 1024
 # Lo que se le dice a quien sube algo de más de `LIMITE_DE_BYTES`: aquí, y en el 413 de
 # la api del dibujante, que corta el cuerpo antes de que llegue entero.
-PESA_DEMASIADO = "La imagen pesa más de 4 MB."
+PESA_DEMASIADO = "La imagen pesa más de 24 MB."
 # Lo que puede tardar una subida entre escribir su archivo y anotarlo. Un archivo
 # sin renglón más viejo que esto quedó huérfano, y la poda se lo lleva.
 VIDA_DE_UN_HUERFANO = timedelta(hours=1)
@@ -48,16 +49,6 @@ class NoVale(ValueError):
     def __init__(self, mensaje: str):
         super().__init__(mensaje)
         self.mensaje = mensaje
-
-
-def pieza_de(ruta: str) -> arte.Pieza | None:
-    """La pieza del contrato con esa ruta, tal cual; `None` si no la hay.
-
-    Sólo se busca, no se arma nada con la ruta: una con `..`, con `\\` o con una
-    barra delante no es de ninguna pieza (`tests/test_arte.py` fija la forma de las
-    del contrato).
-    """
-    return next((p for p in arte.piezas() if p.ruta == ruta), None)
 
 
 def medidas() -> dict[str, tuple[int, int]]:
@@ -103,13 +94,13 @@ def _a_rgba(imagen: Image.Image, profundidad: int, tipo: int) -> Image.Image:
     return imagen.convert("RGBA")
 
 
-def a_lo_servido(original: Image.Image) -> Image.Image:
-    """Un original de `fuentes/pieza/` (el doble), reducido a lo que sirve la página.
+def a_lo_servido(original: Image.Image, reduccion: int = arte.REDUCCION) -> Image.Image:
+    """Un original (el doble, de `fuentes/pieza/` o de lo que sube el dibujante), reducido a
+    lo que sirve la página.
 
-    A la mitad y con `LANCZOS`: es la reducción de `herramientas/pieza.py`. Lo que sube
-    el dibujante no pasa por aquí: sólo vale a la medida exacta de la pieza.
+    A la mitad y con `LANCZOS`: es la reducción de `herramientas/pieza.py`.
     """
-    return original.resize((original.width // arte.REDUCCION, original.height // arte.REDUCCION),
+    return original.resize((original.width // reduccion, original.height // reduccion),
                            Image.LANCZOS)
 
 
@@ -117,12 +108,29 @@ def _medida(ancho: int, alto: int) -> str:
     return f"{ancho} × {alto} px"
 
 
-def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
-    """El PNG limpio para esa pieza y su nombre (`<sha256 de los bytes limpios>.png`).
+@dataclass(frozen=True)
+class Imagen:
+    """Un PNG ya limpio, con su nombre (`<sha256 de los bytes>.png`) y su medida."""
+    datos: bytes
+    nombre: str
+    ancho: int
+    alto: int
 
-    Sólo vale un PNG de hasta `LIMITE_DE_BYTES`, entero y de la medida exacta de la
-    pieza, también en la familia `pieza`. Se abre de verdad, se pasa a RGBA y se vuelve
-    a escribir sin nada más que los píxeles: ni textos, ni perfil de color, ni exif.
+
+def _como_imagen(imagen: Image.Image) -> Imagen:
+    salida = io.BytesIO()
+    imagen.save(salida, "PNG", optimize=True)
+    datos = salida.getvalue()
+    return Imagen(datos, hashlib.sha256(datos).hexdigest() + ".png", imagen.width, imagen.height)
+
+
+def preparar(cuerpo: bytes, lugar: arte.Lugar) -> tuple[Imagen, Imagen]:
+    """El original limpio y la versión chica que sirve el juego, para ese lugar.
+
+    Sólo vale un PNG de hasta `LIMITE_DE_BYTES`, entero y de la medida de subida del
+    lugar. Se abre de verdad, se pasa a RGBA y se vuelve a escribir sin nada más que los
+    píxeles: ni textos, ni perfil de color, ni exif. La chica es ese original reducido
+    (`a_lo_servido`); si el lugar no se reduce (`reduccion == 1`), es el mismo objeto.
     Lo que no vale lanza `NoVale`, sin haber escrito nada.
     """
     if len(cuerpo) > LIMITE_DE_BYTES:
@@ -131,9 +139,9 @@ def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
     # Un PNG acaba en su cierre. Lo que no, llegó cortado (o trae algo pegado detrás).
     if not cuerpo.endswith(_CIERRE_PNG):
         raise NoVale("El PNG está dañado o incompleto.")
-    if (ancho, alto) != (pieza.ancho, pieza.alto):
+    if (ancho, alto) != (lugar.ancho, lugar.alto):
         raise NoVale(f"La imagen mide {_medida(ancho, alto)} y esta pieza pide "
-                     f"{_medida(pieza.ancho, pieza.alto)}.")
+                     f"{_medida(lugar.ancho, lugar.alto)}.")
     # Lo que puede fallar al decodificar un archivo dañado no es una lista cerrada
     # (Pillow lanza OSError, SyntaxError, ValueError, EOFError, struct.error…): todo
     # fallo aquí dentro es que el PNG no se puede leer.
@@ -151,10 +159,10 @@ def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
         raise NoVale("El PNG está dañado o incompleto.") from fallo
     # Una imagen nueva, sin el `info` de la original: lo que no son píxeles no pasa.
     limpia = Image.frombytes("RGBA", rgba.size, rgba.tobytes())
-    salida = io.BytesIO()
-    limpia.save(salida, "PNG", optimize=True)
-    datos = salida.getvalue()
-    return datos, hashlib.sha256(datos).hexdigest() + ".png"
+    original = _como_imagen(limpia)
+    if lugar.reduccion == 1:
+        return original, original
+    return original, _como_imagen(a_lo_servido(limpia, lugar.reduccion))
 
 
 def guardar(carpeta: Path, nombre: str, datos: bytes) -> Path:
@@ -237,26 +245,31 @@ def podar(carpeta: Path, conservar: Collection[str], conocidos: Collection[str],
     return borrados
 
 
-def subir(carpeta: Path, pieza: arte.Pieza, cuerpo: bytes, quien: str, ahora: datetime) -> str:
-    """Una subida entera, en su orden, y el nombre de lo que quedó vigente.
+def subir(carpeta: Path, lugar: arte.Lugar, cuerpo: bytes, quien: str, ahora: datetime) -> str:
+    """Una subida entera, en su orden, y el nombre de lo que quedó vigente (la chica).
 
     1. `preparar`: lo que no vale lanza `NoVale` sin haber tocado nada.
-    2. `guardar`: el archivo, entero, antes de anotarlo.
-    3. El renglón: desde aquí es la vigente y ninguna poda la toca.
+    2. `guardar`: los dos archivos, enteros, antes de anotarlos.
+    3. El renglón, con el original: desde aquí es la vigente y ninguna poda la toca.
     4. `guardar` otra vez: una poda de otra subida que se cruzó entre los pasos 2 y 3
-       pudo llevárselo (era una imagen vieja que nadie conservaba), y aquí se repone.
-       Si sigue ahí, no hace nada.
+       pudo llevarse alguno (era una imagen vieja que nadie conservaba), y aquí se repone.
+       Si siguen ahí, no hace nada.
     5. La poda, con la base tomada.
     """
-    datos, nombre = preparar(cuerpo, pieza)
-    guardar(carpeta, nombre, datos)
-    db.subir_arte(pieza.ruta, nombre, pieza.ancho, pieza.alto, quien, ahora)
-    guardar(carpeta, nombre, datos)
+    original, chica = preparar(cuerpo, lugar)
+    imagenes = (original, chica) if chica is not original else (original,)
+    for imagen in imagenes:
+        guardar(carpeta, imagen.nombre, imagen.datos)
+    db.subir_arte(lugar.ruta, chica.nombre, chica.ancho, chica.alto, quien, ahora,
+                  original=original.nombre, ancho_original=original.ancho,
+                  alto_original=original.alto)
+    for imagen in imagenes:
+        guardar(carpeta, imagen.nombre, imagen.datos)
     db.podar_arte(lambda conservar, conocidos: podar(carpeta, conservar, conocidos, ahora))
-    return nombre
+    return chica.nombre
 
 
-def volver(carpeta: Path, pieza: arte.Pieza, a: str, quien: str, ahora: datetime) -> str | None:
+def volver(carpeta: Path, lugar: arte.Lugar, a: str, quien: str, ahora: datetime) -> str | None:
     """Vuelve atrás `a` "anterior" o `a` "provisional"; devuelve lo que quedó vigente.
 
     «anterior» retrocede una subida (`db.volver_a_la_anterior`), saltando las imágenes
@@ -265,11 +278,11 @@ def volver(carpeta: Path, pieza: arte.Pieza, a: str, quien: str, ahora: datetime
     no poda.
     """
     if a == "provisional":
-        db.volver_al_provisional(pieza.ruta, quien, ahora)
+        db.volver_al_provisional(lugar.ruta, quien, ahora)
         return None
     if a != "anterior":
         raise ValueError(f"no se vuelve a {a!r}")
     try:
-        return db.volver_a_la_anterior(pieza.ruta, quien, ahora, lambda archivo: (carpeta / archivo).is_file())
+        return db.volver_a_la_anterior(lugar.ruta, quien, ahora, lambda archivo: (carpeta / archivo).is_file())
     except db.NoHayAnterior:
         raise NoVale("No hay una imagen anterior.") from None

@@ -28,6 +28,30 @@ def test_el_contrato_tiene_sus_270_piezas():
     assert rutas["efectos/sombra.png"] == (32, 32)
 
 
+def test_los_lugares_de_hoy_son_las_270_piezas_y_la_pieza_se_sube_al_doble():
+    en_el_juego = [l for l in arte.lugares() if l.en_el_juego]
+    assert [l.ruta for l in en_el_juego] == [p.ruta for p in arte.piezas()]
+    assert len(en_el_juego) == 270
+    por_ruta = {l.ruta: l for l in en_el_juego}
+    assert (por_ruta["pieza/suelo.png"].ancho, por_ruta["pieza/suelo.png"].alto) == (1024, 512)
+    assert (por_ruta["pieza/pared-izquierda.png"].ancho, por_ruta["pieza/pared-izquierda.png"].alto) == (512, 1280)
+    assert (por_ruta["pieza/muebles/maceta-se.png"].ancho, por_ruta["pieza/muebles/maceta-se.png"].alto) == (1024, 1536)
+    assert (por_ruta["pieza/muebles/fuente-ne.png"].ancho, por_ruta["pieza/muebles/fuente-ne.png"].alto) == (2048, 2048)
+    assert all(l.reduccion == 2 for l in en_el_juego if l.familia == "pieza")
+    icono = next(l for l in en_el_juego if l.familia == "iconos")
+    assert (icono.ancho, icono.alto, icono.reduccion) == (48, 48, 1)
+    # Lo servido es siempre la subida entre la reducción.
+    servido = {p.ruta: (p.ancho, p.alto) for p in arte.piezas()}
+    assert all((l.ancho // l.reduccion, l.alto // l.reduccion) == servido[l.ruta] for l in en_el_juego)
+
+
+def test_un_lugar_se_busca_por_su_ruta_y_nada_mas():
+    assert arte.lugar_de("efectos/corazon.png") == next(l for l in arte.lugares() if l.ruta == "efectos/corazon.png")
+    for ruta in ("pieza/inventada.png", "efectos/corazon", "efectos/../efectos/corazon.png", "/efectos/corazon.png",
+                 "efectos\\corazon.png", "efectos/corazon.png/", "EFECTOS/CORAZON.PNG", "", "efectos/corazon.png\x00"):
+        assert arte.lugar_de(ruta) is None
+
+
 def test_el_contrato_sale_de_los_catalogos():
     rutas = {p.ruta for p in arte.piezas()}
     for lugar in pueblo.LUGARES:
@@ -223,5 +247,10 @@ def test_una_pieza_que_ningun_grupo_conoce_hace_fallar(monkeypatch):
     originales = arte.piezas()
     extra = arte.Pieza("rareza/algo.png", 1, 1, "avatar")
     monkeypatch.setattr(arte, "piezas", lambda: originales + (extra,))
-    with pytest.raises(ValueError):
-        arte.grupos()
+    arte.olvidar()
+    try:
+        with pytest.raises(ValueError):
+            arte.grupos()
+    finally:
+        monkeypatch.undo()
+        arte.olvidar()

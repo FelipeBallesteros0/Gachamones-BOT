@@ -618,9 +618,10 @@ def carpeta(tmp_path, monkeypatch):
 def _subir(carpeta, ruta: str, semilla: int = 0) -> str:
     """Sube un PNG de ruido de la medida de esa pieza, como lo hace la api; devuelve su nombre."""
     import arte_subido
+    from web import arte
 
-    pieza = arte_subido.pieza_de(ruta)
-    return arte_subido.subir(carpeta, pieza, _png(pieza.ancho, pieza.alto, semilla), "dibuja", T0)
+    lugar = arte.lugar_de(ruta)
+    return arte_subido.subir(carpeta, lugar, _png(lugar.ancho, lugar.alto, semilla), "dibuja", T0)
 
 
 def _bloque(respuesta) -> str:
@@ -631,7 +632,7 @@ def _bloque(respuesta) -> str:
     return hallados[0]
 
 
-def test_la_portada_sin_nada_subido_lleva_el_bloque_vacio(cliente):
+def test_el_bloque_de_la_portada_sigue_vacio_sin_nada_subido(cliente):
     assert _bloque(cliente.get("/monsteropolis/")) == "{}"
 
 
@@ -639,6 +640,7 @@ def test_la_portada_lleva_lo_subido_que_se_ve_con_su_direccion_y_se_arma_en_cada
     import json
 
     import arte_subido
+    from web import arte
 
     assert _bloque(cliente.get("/monsteropolis/")) == "{}"
     corazon, estrella = _subir(carpeta, CORAZON), _subir(carpeta, ESTRELLA, semilla=1)
@@ -647,7 +649,7 @@ def test_la_portada_lleva_lo_subido_que_se_ve_con_su_direccion_y_se_arma_en_cada
         ESTRELLA: f"/monsteropolis/arte-subido/{estrella}",
     }
     # Lo que cambia en la tabla se ve en la siguiente petición: nada se recuerda.
-    arte_subido.volver(carpeta, arte_subido.pieza_de(CORAZON), "provisional", "dibuja", T0)
+    arte_subido.volver(carpeta, arte.lugar_de(CORAZON), "provisional", "dibuja", T0)
     assert json.loads(_bloque(cliente.get("/monsteropolis/"))) == {
         ESTRELLA: f"/monsteropolis/arte-subido/{estrella}",
     }

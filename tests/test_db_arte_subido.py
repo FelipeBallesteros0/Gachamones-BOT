@@ -19,6 +19,7 @@ from PIL import Image
 
 import arte_subido
 import db
+from web import arte
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 CORAZON = "efectos/corazon.png"
@@ -75,11 +76,11 @@ def png(color, ancho=32, alto=32) -> bytes:
 
 
 def subir_por_ruta(carpeta, ruta, cuerpo, quien="ana", ahora=T0) -> str:
-    """Lo que hace quien recibe una subida: buscar la pieza y subir."""
-    pieza = arte_subido.pieza_de(ruta)
-    if pieza is None:
+    """Lo que hace quien recibe una subida: buscar el lugar y subir."""
+    lugar = arte.lugar_de(ruta)
+    if lugar is None:
         raise LookupError(ruta)
-    return arte_subido.subir(carpeta, pieza, cuerpo, quien, ahora)
+    return arte_subido.subir(carpeta, lugar, cuerpo, quien, ahora)
 
 
 def en_carpeta(carpeta):
@@ -393,12 +394,12 @@ def test_una_imagen_vieja_que_vuelve_a_subirse_se_conserva(carpeta):
     # Y sigue siendo de las cinco cuando llega otra encima: se la cuenta por su última subida.
     subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
     assert (carpeta / primera).exists() and primera in db.archivos_que_se_conservan()
-    assert arte_subido.volver(carpeta, arte_subido.pieza_de(CORAZON), "anterior", "felipe", T0) == primera
+    assert arte_subido.volver(carpeta, arte.lugar_de(CORAZON), "anterior", "felipe", T0) == primera
 
 
 def test_una_imagen_vieja_a_la_que_se_vuelve_sigue_en_disco(carpeta):
     nombres = [subir_por_ruta(carpeta, CORAZON, png((n, 50, 50, 255))) for n in range(5)]
-    corazon = arte_subido.pieza_de(CORAZON)
+    corazon = arte.lugar_de(CORAZON)
     for _ in range(4):
         arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0)
     assert vigente() == nombres[0]
@@ -411,7 +412,7 @@ def test_una_imagen_vieja_a_la_que_se_vuelve_sigue_en_disco(carpeta):
 def test_volver_no_borra_nada_y_la_anterior_sigue_en_disco(carpeta):
     primera = subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
     segunda = subir_por_ruta(carpeta, CORAZON, png((4, 5, 6, 255)))
-    corazon = arte_subido.pieza_de(CORAZON)
+    corazon = arte.lugar_de(CORAZON)
     assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == primera
     assert (carpeta / primera).exists() and (carpeta / segunda).exists()
     assert arte_subido.volver(carpeta, corazon, "provisional", "felipe", T0) is None
@@ -421,21 +422,21 @@ def test_volver_no_borra_nada_y_la_anterior_sigue_en_disco(carpeta):
 def test_volver_a_la_anterior_salta_lo_que_falta_en_la_carpeta(carpeta):
     nombres = [subir_por_ruta(carpeta, CORAZON, png((n, 9, 9, 255))) for n in range(3)]
     (carpeta / nombres[1]).unlink()
-    corazon = arte_subido.pieza_de(CORAZON)
+    corazon = arte.lugar_de(CORAZON)
     assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == nombres[0]
 
 
 def test_desde_el_provisional_volver_a_la_anterior_deshace_el_provisional(carpeta):
     primera = subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
     segunda = subir_por_ruta(carpeta, CORAZON, png((4, 5, 6, 255)))
-    corazon = arte_subido.pieza_de(CORAZON)
+    corazon = arte.lugar_de(CORAZON)
     arte_subido.volver(carpeta, corazon, "provisional", "felipe", T0)
     assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == segunda
     assert arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0) == primera
 
 
 def test_sin_nada_subido_en_disco_volver_a_la_anterior_lo_dice(carpeta):
-    corazon = arte_subido.pieza_de(CORAZON)
+    corazon = arte.lugar_de(CORAZON)
     with pytest.raises(arte_subido.NoVale) as rechazo:
         arte_subido.volver(carpeta, corazon, "anterior", "felipe", T0)
     assert rechazo.value.mensaje == "No hay una imagen anterior."
@@ -453,7 +454,7 @@ def test_sin_nada_subido_en_disco_volver_a_la_anterior_lo_dice(carpeta):
 
 def test_volver_a_otra_cosa_no_vale(carpeta):
     with pytest.raises(ValueError):
-        arte_subido.volver(carpeta, arte_subido.pieza_de(CORAZON), "siguiente", "felipe", T0)
+        arte_subido.volver(carpeta, arte.lugar_de(CORAZON), "siguiente", "felipe", T0)
     assert filas() == []
 
 
@@ -625,9 +626,9 @@ def test_una_lectura_de_ruta_archivo_ancho_alto_sigue_funcionando():
 def test_subir_repone_la_imagen_si_una_poda_se_la_llevo_antes_del_renglon(carpeta, monkeypatch):
     subir_arte = db.subir_arte
 
-    def poda_que_se_cruza(ruta, archivo, *resto):
+    def poda_que_se_cruza(ruta, archivo, *resto, **opciones):
         (carpeta / archivo).unlink()  # otra poda, con la imagen todavía sin renglón
-        subir_arte(ruta, archivo, *resto)
+        subir_arte(ruta, archivo, *resto, **opciones)
 
     monkeypatch.setattr(db, "subir_arte", poda_que_se_cruza)
     nombre = subir_por_ruta(carpeta, CORAZON, png((1, 2, 3, 255)))
@@ -651,11 +652,11 @@ def test_una_poda_no_se_cruza_con_la_subida_de_una_imagen_ya_podada(carpeta, mon
     r1_antes_del_renglon, r2_podando, r1_termino = threading.Event(), threading.Event(), threading.Event()
     subir_arte, podar = db.subir_arte, arte_subido.podar
 
-    def subir_arte_espiando(*args):
+    def subir_arte_espiando(*args, **opciones):
         if threading.current_thread().name == "R1":
             r1_antes_del_renglon.set()
             r2_podando.wait(5)
-        subir_arte(*args)
+        subir_arte(*args, **opciones)
 
     def podar_espiando(*args):
         if threading.current_thread().name == "R2":

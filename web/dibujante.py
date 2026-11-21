@@ -55,15 +55,15 @@ def direccion_de(archivo: str) -> str:
     return f"{PREFIJO}/arte-subido/{archivo}"
 
 
-def _la_pieza(ruta: str) -> arte.Pieza:
-    """La pieza del contrato con esa ruta, tal cual; si no la hay, el 404 de una ruta que no existe.
+def _el_lugar(ruta: str) -> arte.Lugar:
+    """El lugar de subida con esa ruta, tal cual; si no lo hay, el 404 de una ruta que no existe.
 
     Como dependencia, es la de `?ruta=`, y se mira antes de leer ningún cuerpo.
     """
-    pieza = arte_subido.pieza_de(ruta)
-    if pieza is None:
+    lugar = arte.lugar_de(ruta)
+    if lugar is None:
         raise HTTPException(status_code=404)
-    return pieza
+    return lugar
 
 
 def _se_declara_mas_de(request: Request, tope: int) -> bool:
@@ -110,70 +110,84 @@ def _lo_vigente() -> dict[str, tuple[str, int, int]]:
 
 @dataclass(frozen=True)
 class _LoSubido:
-    """Lo que piden las vistas de las piezas, leído de la tabla una vez por petición.
+    """Lo que piden las vistas de los lugares, leído de la tabla una vez por petición.
 
-    Son tres consultas, haya pocas piezas subidas o muchas: cada conexión de `db`
-    vive hasta que pasa el recolector, y una por pieza llegó a agotar los
+    Son tres consultas, haya pocos lugares subidos o muchos: cada conexión de `db`
+    vive hasta que pasa el recolector, y una por lugar llegó a agotar los
     descriptores del servicio.
     """
     vigente: dict[str, tuple[str, int, int]]
-    puesto: dict[str, tuple[str, int, int]]
+    puesto: dict[str, db.ArtePuesto]
     quien_subio: dict[str, tuple[str, str, datetime]]
+    al_dia: set[str]
 
 
 def _lo_subido() -> _LoSubido:
-    return _LoSubido(_lo_vigente(), db.arte_puesto(), db.quien_subio_lo_puesto())
+    puesto = db.arte_puesto_entero()
+    return _LoSubido(_lo_vigente(), puesto, db.quien_subio_lo_puesto(), _al_dia(puesto))
 
 
-def _subida(pieza: arte.Pieza, lo: _LoSubido) -> dict | None:
-    """Lo subido que se ve hoy de esa pieza, o `None` si se ve su recuadro provisional.
+def _al_dia(puesto: dict[str, db.ArtePuesto]) -> set[str]:
+    """Las rutas cuyo original puesto mide lo que hoy pide su lugar.
+
+    Una fila de antes de guardar originales tiene por original su propio archivo, que
+    mide lo servido: en la pieza no está al día hasta que se vuelva a subir.
+    """
+    return {ruta for ruta, p in puesto.items()
+            if (lugar := arte.lugar_de(ruta)) is not None
+            and (p.ancho_original, p.alto_original) == (lugar.ancho, lugar.alto)}
+
+
+def _subida(lugar: arte.Lugar, lo: _LoSubido) -> dict | None:
+    """Lo subido que se ve hoy de ese lugar, o `None` si se ve su recuadro provisional
+    o lo puesto no tiene la medida de subida.
 
     Quién y cuándo son los de la última subida de esa misma imagen: tras volver a
     la anterior se ve quién la subió, no quién volvió (eso lo cuenta el historial).
     Si una subida se cruzó entre las lecturas y no coinciden, sale como provisional
     y la próxima lista ya la trae.
     """
-    if pieza.ruta not in lo.vigente:
+    if lugar.ruta not in lo.vigente or lugar.ruta not in lo.al_dia:
         return None
-    archivo = lo.vigente[pieza.ruta][0]
-    de_quien = lo.quien_subio.get(pieza.ruta)
-    if de_quien is None or de_quien[0] != archivo:
+    puesto = lo.puesto[lugar.ruta]
+    archivo = lo.vigente[lugar.ruta][0]
+    de_quien = lo.quien_subio.get(lugar.ruta)
+    if de_quien is None or de_quien[0] != archivo or puesto.archivo != archivo:
         return None
     _, quien, cuando = de_quien
-    return {"direccion": direccion_de(archivo), "quien": quien, "cuando": cuando.isoformat()}
+    return {"direccion": direccion_de(archivo), "original": direccion_de(puesto.original),
+            "quien": quien, "cuando": cuando.isoformat()}
 
 
-def _medida_cambiada(pieza: arte.Pieza, puesto: dict[str, tuple[str, int, int]]) -> dict | None:
-    """La medida de lo que tiene puesto la pieza, si no es la que hoy pide el contrato.
+def _medida_cambiada(lugar: arte.Lugar, lo: _LoSubido) -> dict | None:
+    """La medida del original que tiene puesto el lugar, si no es la que hoy pide.
 
-    Eso no se sirve (se ve el recuadro) y la página del dibujante lo dice; si no, `None`.
+    Eso no cuenta como hecho (se ve el recuadro) y la página del dibujante lo dice; si no, `None`.
     """
-    if pieza.ruta not in puesto:
+    if lugar.ruta not in lo.puesto or lugar.ruta in lo.al_dia:
         return None
-    _, ancho, alto = puesto[pieza.ruta]
-    if (ancho, alto) == (pieza.ancho, pieza.alto):
-        return None
-    return {"ancho": ancho, "alto": alto}
+    p = lo.puesto[lugar.ruta]
+    return {"ancho": p.ancho_original, "alto": p.alto_original}
 
 
-def _vista(pieza: arte.Pieza, lo: _LoSubido) -> dict:
-    """Una pieza como la enseña la página del dibujante.
+def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
+    """Un lugar como lo enseña la página del dibujante.
 
-    `ancho` y `alto` son la única medida que vale para esa pieza.
+    `ancho` y `alto` son la única medida de subida que vale para ese lugar.
     """
-    return {"ruta": pieza.ruta, "ancho": pieza.ancho, "alto": pieza.alto,
-            "subida": _subida(pieza, lo), "medida_cambiada": _medida_cambiada(pieza, lo.puesto)}
+    return {"ruta": lugar.ruta, "ancho": lugar.ancho, "alto": lugar.alto,
+            "subida": _subida(lugar, lo), "medida_cambiada": _medida_cambiada(lugar, lo)}
 
 
-def _al_dia(pieza: arte.Pieza) -> dict:
-    return _vista(pieza, _lo_subido())
+def _la_vista(lugar: arte.Lugar) -> dict:
+    return _vista(lugar, _lo_subido())
 
 
 @router.get("/piezas")
 def las_piezas() -> dict:
     """Las piezas del contrato por grupos, con su medida y lo subido que se ve hoy."""
     lo = _lo_subido()
-    por_ruta = {p.ruta: p for p in arte.piezas()}
+    por_ruta = {lugar.ruta: lugar for lugar in arte.lugares()}
     return {"grupos": [
         {"clave": g.clave, "nombre": g.nombre, "familia": g.familia,
          "piezas": [_vista(por_ruta[ruta], lo) for ruta in g.rutas]}
@@ -183,16 +197,16 @@ def las_piezas() -> dict:
 
 @router.post("/subir", dependencies=[Depends(con_cabecera)])
 def subir_una_imagen(
-    pieza: arte.Pieza = Depends(_la_pieza),
+    lugar: arte.Lugar = Depends(_el_lugar),
     persona: Persona = Depends(dibujante_actual),
     cuerpo: bytes = Depends(_png_subido),
 ) -> dict:
-    """El PNG crudo del cuerpo, para la pieza de `?ruta=`; devuelve la pieza al día."""
+    """El PNG crudo del cuerpo, para el lugar de `?ruta=`; devuelve su vista al día."""
     try:
-        arte_subido.subir(config.RUTA_ARTE_SUBIDO, pieza, cuerpo, persona.usuario, db.ahora_utc())
+        arte_subido.subir(config.RUTA_ARTE_SUBIDO, lugar, cuerpo, persona.usuario, db.ahora_utc())
     except arte_subido.NoVale as no_vale:
         raise problema(400, "no_vale", no_vale.mensaje) from None
-    return _al_dia(pieza)
+    return _la_vista(lugar)
 
 
 @router.post("/volver", dependencies=[Depends(con_cabecera)])
@@ -200,7 +214,7 @@ def volver_atras(
     persona: Persona = Depends(dibujante_actual),
     cuerpo: bytes = Depends(_cuerpo_de_volver),
 ) -> dict:
-    """`{"ruta", "a": "anterior" | "provisional"}`; devuelve la pieza al día."""
+    """`{"ruta", "a": "anterior" | "provisional"}`; devuelve su vista al día."""
     try:
         datos = json.loads(cuerpo)
     except (ValueError, RecursionError):
@@ -209,32 +223,32 @@ def volver_atras(
         raise no_se_entiende()
     if datos.get("a") not in ("anterior", "provisional"):
         raise no_se_entiende()
-    pieza = _la_pieza(datos["ruta"])
+    lugar = _el_lugar(datos["ruta"])
     try:
-        arte_subido.volver(config.RUTA_ARTE_SUBIDO, pieza, datos["a"], persona.usuario, db.ahora_utc())
+        arte_subido.volver(config.RUTA_ARTE_SUBIDO, lugar, datos["a"], persona.usuario, db.ahora_utc())
     except arte_subido.NoVale as no_vale:
         raise problema(400, "no_vale", no_vale.mensaje) from None
-    return _al_dia(pieza)
+    return _la_vista(lugar)
 
 
 @router.get("/historial")
-def el_historial(pieza: arte.Pieza = Depends(_la_pieza)) -> dict:
-    """Todo lo que le ha pasado a la pieza de `?ruta=`, lo último primero."""
-    return {"ruta": pieza.ruta, "historial": [
+def el_historial(lugar: arte.Lugar = Depends(_el_lugar)) -> dict:
+    """Todo lo que le ha pasado al lugar de `?ruta=`, lo último primero."""
+    return {"ruta": lugar.ruta, "historial": [
         {"accion": r.accion, "direccion": direccion_de(r.archivo) if r.archivo else None,
          "ancho": r.ancho, "alto": r.alto, "quien": r.quien, "cuando": r.cuando.isoformat()}
-        for r in db.historial_del_arte(pieza.ruta)
+        for r in db.historial_del_arte(lugar.ruta)
     ]}
 
 
 @router.get("/avance")
 def el_avance() -> dict:
-    """El contrato con el tablero del arte: por grupo, cuántas piezas tiene y cuántas
-    tienen hoy una imagen subida con la medida del contrato."""
-    vigente = _lo_vigente()
+    """El contrato con el tablero del arte: por grupo, cuántos lugares tiene y cuántos
+    tienen hoy una imagen subida con la medida de subida."""
+    al_dia = _al_dia(db.arte_puesto_entero())
     return {"grupos": [
         {"clave": g.clave, "nombre": g.nombre, "familia": g.familia,
-         "total": len(g.rutas), "hechas": sum(1 for ruta in g.rutas if ruta in vigente)}
+         "total": len(g.rutas), "hechas": sum(1 for ruta in g.rutas if ruta in al_dia)}
         for g in arte.grupos()
     ]}
 
@@ -278,23 +292,23 @@ def la_copia() -> StreamingResponse:
     )
 
 
-def _el_provisional(pieza: arte.Pieza) -> bytes:
-    """El PNG del provisional de la pieza, tal como baja el dibujante.
+def _el_provisional(lugar: arte.Lugar) -> bytes:
+    """El PNG del provisional del lugar, tal como baja el dibujante.
 
     Sale siempre de `web/static/arte/`, nunca de lo subido, tal cual y en la medida
-    exacta de la pieza. Si el archivo no está, lanza `FileNotFoundError`.
+    servida del lugar. Si el archivo no está, lanza `FileNotFoundError`.
     """
-    return (arte.RAIZ / pieza.ruta).read_bytes()
+    return (arte.RAIZ / lugar.ruta).read_bytes()
 
 
 @router.get("/provisional")
-def el_provisional(pieza: arte.Pieza = Depends(_la_pieza)) -> Response:
-    """El provisional de la pieza de `?ruta=`, como descarga."""
+def el_provisional(lugar: arte.Lugar = Depends(_el_lugar)) -> Response:
+    """El provisional del lugar de `?ruta=`, como descarga."""
     try:
-        cuerpo = _el_provisional(pieza)
+        cuerpo = _el_provisional(lugar)
     except FileNotFoundError:
         raise HTTPException(status_code=404) from None
-    nombre = f"provisional-{pieza.ruta.replace('/', '-')}"
+    nombre = f"provisional-{lugar.ruta.replace('/', '-')}"
     return Response(cuerpo, media_type="image/png",
                     headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
@@ -317,7 +331,7 @@ def los_provisionales() -> StreamingResponse:
     Se arma y se manda como `la_copia`. Un provisional que falta en el repo se deja
     fuera y se avisa en el registro.
     """
-    por_ruta = {p.ruta: p for p in arte.piezas()}
+    por_ruta = {lugar.ruta: lugar for lugar in arte.lugares()}
     archivo = tempfile.TemporaryFile()
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
