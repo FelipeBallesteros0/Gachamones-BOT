@@ -344,7 +344,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     assert hecho.json() == {
         "ruta": CORAZON, "ancho": 32, "alto": 32,
         "subida": {"direccion": d1, "original": d1, "quien": "dibuja", "cuando": T0.isoformat()},
-        "medida_cambiada": None,
+        "medida_cambiada": None, "objeto": None, "estado": None, "miniatura": None,
     }
     assert (carpeta / nombre_limpio(v1, CORAZON)).is_file()
     piezas = {p["ruta"]: p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g["piezas"]}
@@ -370,7 +370,8 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     hecho = volver(cliente, CORAZON, "provisional")
     assert hecho.status_code == 200
     assert hecho.json() == {
-        "ruta": CORAZON, "ancho": 32, "alto": 32, "subida": None, "medida_cambiada": None}
+        "ruta": CORAZON, "ancho": 32, "alto": 32, "subida": None, "medida_cambiada": None,
+        "objeto": None, "estado": None, "miniatura": None}
 
     al_provisional = reloj.ahora
 
@@ -584,7 +585,8 @@ def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
     piezas = {p["ruta"]: p for g in cuerpo["grupos"] for p in g["piezas"]}
     for lugar in arte.lugares():
         vista = piezas[lugar.ruta]
-        assert set(vista) == {"ruta", "ancho", "alto", "subida", "medida_cambiada"}
+        assert set(vista) == {"ruta", "ancho", "alto", "subida", "medida_cambiada", "objeto", "estado",
+                              "miniatura"}
         assert (vista["ancho"], vista["alto"]) == (lugar.ancho, lugar.alto)
     assert piezas[SUELO] == subido
     assert [ruta for ruta, vista in piezas.items() if vista["subida"] is not None] == [SUELO]
@@ -827,11 +829,11 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
     for grupo in arte.grupos():
         for ruta in grupo.rutas:
             esperado[f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}"] = ruta
-    assert len(esperado) == len(arte.piezas())
+    assert len(esperado) == len(arte.lugares())
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert copia.testzip() is None
         nombres = copia.namelist()
-        assert len(nombres) == len(set(nombres)) == len(arte.piezas())
+        assert len(nombres) == len(set(nombres)) == len(arte.lugares())
         assert set(nombres) == set(esperado)
         # Cada uno, en su medida de subida; lo que no es de la pieza, con los bytes del repo.
         for grupo in arte.grupos():
@@ -871,7 +873,7 @@ def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(client
     assert respuesta.status_code == 200
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert "efectos/corazon.png" not in copia.namelist()
-        assert len(copia.namelist()) == len(arte.piezas()) - 1
+        assert len(copia.namelist()) == len(arte.lugares()) - 1
     assert CORAZON in caplog.text
 
 
@@ -1090,3 +1092,41 @@ def test_una_subida_cortada_no_deja_renglon_ni_archivo(cliente, carpeta):
     assert respuesta.json() == {"detail": {"clave": "no_vale", "mensaje": "El PNG está dañado o incompleto."}}
     assert nada_guardado(carpeta)
     assert not list(carpeta.glob(".subiendo-*"))
+
+
+# --- El encendido de los cuatro muebles del juego -----------------------------------
+
+LAMPARA_ENCENDIDA = "pieza/muebles/lampara-encendido-se.png"
+
+
+def test_subir_un_encendido_no_toca_la_portada(cliente, carpeta):
+    lugar = arte.lugar_de(LAMPARA_ENCENDIDA)
+    vista = subir(cliente, LAMPARA_ENCENDIDA, png(lugar.ancho, lugar.alto)).json()
+    assert vista["subida"] is not None and vista["medida_cambiada"] is None
+    assert (vista["objeto"], vista["estado"]) == ("lampara", "encendido")
+    assert _bloque_de_la_portada(cliente) == {}
+    avance = {g["clave"]: (g["hechas"], g["total"]) for g in cliente.get(f"{API}/avance").json()["grupos"]}
+    assert avance["pieza/muebles/lampara"] == (1, 8)
+
+
+def test_la_vista_dice_el_objeto_el_estado_y_donde_esta_la_miniatura(cliente):
+    de_juego = _vista_de(cliente, "pieza/muebles/lampara-se.png")
+    assert (de_juego["objeto"], de_juego["estado"], de_juego["miniatura"]) == (None, None, None)
+    nueva = _vista_de(cliente, "pieza/muebles/fuente-encendido-ne.png")
+    assert (nueva["objeto"], nueva["estado"]) == ("fuente", "encendido")
+    assert nueva["miniatura"] == ("/monsteropolis_dibujante/api/provisional"
+                                  "?ruta=pieza/muebles/fuente-encendido-ne.png&miniatura=1")
+    assert cliente.get(nueva["miniatura"]).status_code == 200
+
+
+def test_el_provisional_del_encendido_baja_al_doble(cliente):
+    lugar = arte.lugar_de(LAMPARA_ENCENDIDA)
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": LAMPARA_ENCENDIDA})
+    assert respuesta.status_code == 200
+    with Image.open(io.BytesIO(respuesta.content)) as imagen:
+        assert imagen.size == (lugar.ancho, lugar.alto)
+    chica = cliente.get(f"{API}/provisional", params={"ruta": LAMPARA_ENCENDIDA, "miniatura": 1})
+    assert chica.status_code == 200 and "content-disposition" not in chica.headers
+    with Image.open(io.BytesIO(chica.content)) as imagen:
+        assert imagen.size == (lugar.ancho // 2, lugar.alto // 2)
+    assert chica.content == (arte.RAIZ_POR_VENIR / LAMPARA_ENCENDIDA).read_bytes()

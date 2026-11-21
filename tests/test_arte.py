@@ -107,16 +107,18 @@ def test_generar_no_pisa_un_dibujo_que_ya_esta(tmp_path, monkeypatch):
     from herramientas import rellenos
 
     monkeypatch.setattr(arte, "RAIZ", tmp_path / "arte")
+    monkeypatch.setattr(arte, "RAIZ_POR_VENIR", tmp_path / "por_venir")
     (tmp_path / "datos").mkdir()
     escritas = rellenos.generar()
-    assert len(escritas) == 270
+    assert len(escritas) == 270 + 16
     corazon = arte.RAIZ / "efectos" / "corazon.png"
     propio = Image.new("RGBA", (32, 32), (1, 2, 3, 255))
     propio.save(corazon)
     assert rellenos.generar() == []
+    assert rellenos.generar(todo=False) == []
     with Image.open(corazon) as imagen:
         assert imagen.getpixel((0, 0)) == (1, 2, 3, 255)
-    assert len(rellenos.generar(todo=True)) == 270
+    assert len(rellenos.generar(todo=True)) == 270 + 16
 
 
 def _relleno(ruta: str) -> Image.Image:
@@ -194,11 +196,11 @@ def test_los_rellenos_de_iconos_se_distinguen_y_tienen_fondo_transparente():
 
 
 def test_toda_pieza_cae_en_un_solo_grupo_de_una_sola_familia():
-    piezas = arte.piezas()
+    lugares = arte.lugares()
     grupos = arte.grupos()
     sueltas = [r for g in grupos for r in g.rutas]
-    assert sorted(sueltas) == sorted(p.ruta for p in piezas)
-    familia = {p.ruta: p.familia for p in piezas}
+    assert sorted(sueltas) == sorted(l.ruta for l in lugares)
+    familia = {l.ruta: l.familia for l in lugares}
     for g in grupos:
         assert g.rutas
         assert {familia[r] for r in g.rutas} == {g.familia}, g.clave
@@ -254,3 +256,70 @@ def test_una_pieza_que_ningun_grupo_conoce_hace_fallar(monkeypatch):
     finally:
         monkeypatch.undo()
         arte.olvidar()
+
+
+# --- El encendido de los cuatro muebles del juego ------------------------------
+
+ENCENDIDOS = ("lampara", "calefactor", "chimenea", "fuente")
+
+
+def test_los_cuatro_del_juego_tienen_su_encendido_en_su_grupo():
+    assert arte.ENCENDIDOS == {c: "encendido" for c in ENCENDIDOS}
+    por_clave = {g.clave: g for g in arte.grupos()}
+    for clave in ENCENDIDOS:
+        de_hoy = [f"pieza/muebles/{clave}-{o}.png" for o in arte.ORIENTACIONES]
+        nuevos = [f"pieza/muebles/{clave}-encendido-{o}.png" for o in arte.ORIENTACIONES]
+        grupo = por_clave[f"pieza/muebles/{clave}"]
+        assert grupo.nombre == departamento.MUEBLES[clave].nombre
+        assert list(grupo.rutas) == de_hoy + nuevos
+        for ruta in nuevos:
+            lugar = arte.lugar_de(ruta)
+            assert (lugar.familia, lugar.reduccion, lugar.en_el_juego) == ("pieza", 2, False)
+            assert (lugar.objeto, lugar.estado) == (clave, "encendido")
+    assert arte.lugar_de("pieza/muebles/lampara-se.png").estado is None
+
+
+def test_el_encendido_mide_lo_mismo_que_su_mueble():
+    for clave in ENCENDIDOS:
+        for o in arte.ORIENTACIONES:
+            apagado = arte.lugar_de(f"pieza/muebles/{clave}-{o}.png")
+            encendido = arte.lugar_de(f"pieza/muebles/{clave}-encendido-{o}.png")
+            assert (encendido.ancho, encendido.alto) == (apagado.ancho, apagado.alto)
+
+
+def test_el_encendido_no_entra_al_contrato_del_juego():
+    assert len(arte.piezas()) == 270
+    assert not any("encendido" in p.ruta for p in arte.piezas())
+    assert not any("encendido" in p["ruta"] for p in arte.como_json()["piezas"])
+    escrito = json.loads((arte.RAIZ.parent / "datos" / "arte.json").read_text(encoding="utf-8"))
+    assert escrito == arte.como_json()
+    assert len([l for l in arte.lugares() if l.en_el_juego]) == 270
+    assert len(arte.lugares()) == 270 + 16
+    # Los lugares nuevos van detrás de los del juego.
+    assert all(l.en_el_juego for l in arte.lugares()[:270])
+
+
+def test_cada_lugar_por_venir_tiene_su_provisional_y_no_sobra_ninguno():
+    esperados = {l.ruta: (l.ancho // l.reduccion, l.alto // l.reduccion) for l in arte.lugares()
+                 if not l.en_el_juego and l.familia in ("pieza", "iconos")}
+    assert len(esperados) == 16
+    en_disco = {p.relative_to(arte.RAIZ_POR_VENIR).as_posix() for p in arte.RAIZ_POR_VENIR.rglob("*")
+                if p.is_file()}
+    assert en_disco == set(esperados)
+    for ruta, medida in esperados.items():
+        with Image.open(arte.RAIZ_POR_VENIR / ruta) as imagen:
+            assert imagen.format == "PNG" and imagen.size == medida, ruta
+    # Nada de lo que no pinta el juego cuelga de lo que sirve.
+    assert not any("encendido" in p.name for p in arte.RAIZ.rglob("*"))
+
+
+def test_el_relleno_del_encendido_no_es_el_del_apagado():
+    from herramientas import rellenos
+
+    for clave in ENCENDIDOS:
+        for o in arte.ORIENTACIONES:
+            lugar = arte.lugar_de(f"pieza/muebles/{clave}-encendido-{o}.png")
+            apagado = _relleno(f"pieza/muebles/{clave}-{o}.png")
+            encendido = rellenos._dibujar_lugar(lugar).convert("RGBA")
+            assert encendido.size == apagado.size == (lugar.ancho // 2, lugar.alto // 2)
+            assert encendido.tobytes() != apagado.tobytes()

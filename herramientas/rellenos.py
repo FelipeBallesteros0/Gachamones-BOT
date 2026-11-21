@@ -404,7 +404,7 @@ def _en_cara(esquinas: list[tuple], u: float, v: float) -> tuple:
 
 
 def _mueble_de_suelo(mueble: departamento.Mueble, indice: int, orientacion: str,
-                     ancho: int, alto: int) -> Image.Image:
+                     ancho: int, alto: int, estado: str | None = None) -> Image.Image:
     imagen = Image.new("RGBA", (ancho, alto), TRANSPARENTE)
     pincel = ImageDraw.Draw(imagen)
     a, f = mueble.ancho, mueble.fondo
@@ -424,6 +424,8 @@ def _mueble_de_suelo(mueble: departamento.Mueble, indice: int, orientacion: str,
         pincel.polygon([base, der, abajo[1], abajo[2]], fill=_oscurecer(color, 0.5), outline=_BLANCO, width=3)
     pincel.polygon(arriba, fill=color, outline=_BLANCO, width=4)
     letras = _renglones_de(mueble.clave)
+    if estado:  # un renglón más: las tres primeras letras del estado
+        letras.append(estado[:3].upper())
     centro = (sum(x for x, _ in arriba) / 4, sum(y for _, y in arriba) / 4)
     if alza:
         cara_izq = [izq, base, abajo[2], abajo[3]]
@@ -441,7 +443,7 @@ def _mueble_de_suelo(mueble: departamento.Mueble, indice: int, orientacion: str,
     return imagen
 
 
-def _pieza_del_departamento(partes: list[str], ancho: int, alto: int) -> Image.Image:
+def _pieza_del_departamento(partes: list[str], ancho: int, alto: int, estado: str | None = None) -> Image.Image:
     nombre = partes[-1]
     if nombre == "suelo":
         return _casilla(ancho, alto)
@@ -450,6 +452,8 @@ def _pieza_del_departamento(partes: list[str], ancho: int, alto: int) -> Image.I
         return _tramo_de_pared(ancho, alto, lado, (120, 138, 170, 255),
                                ["PARED", lado[:3].upper(), "RELLENO"])
     clave, orientacion = nombre.rsplit("-", 1)
+    if estado:
+        clave = clave.removesuffix(f"-{estado}")
     mueble = departamento.MUEBLES[clave]
     indice = list(departamento.MUEBLES).index(clave)
     if mueble.puerta:
@@ -457,7 +461,7 @@ def _pieza_del_departamento(partes: list[str], ancho: int, alto: int) -> Image.I
     if mueble.capa == departamento.PARED:
         return _tramo_de_pared(ancho, alto, "izquierda" if orientacion == "se" else "derecha",
                                _color_de_lugar(indice, 0.9, 0.5), _renglones_de(clave), orientacion)
-    return _mueble_de_suelo(mueble, indice, orientacion, ancho, alto)
+    return _mueble_de_suelo(mueble, indice, orientacion, ancho, alto, estado)
 
 
 # --- la generación -----------------------------------------------------------
@@ -486,8 +490,21 @@ def _dibujar(pieza: arte.Pieza) -> Image.Image:
     return _cuerpo(clave, pose) if capa == "cuerpo" else _ropa(clave, pose)
 
 
+def _dibujar_lugar(lugar: arte.Lugar) -> Image.Image:
+    """El relleno de un lugar que el juego todavía no pinta, a su medida servida.
+
+    El encendido es el relleno de su mueble con un renglón más, el de su estado.
+    """
+    ancho, alto = lugar.ancho // lugar.reduccion, lugar.alto // lugar.reduccion
+    if lugar.familia == "pieza" and lugar.estado:
+        return _pieza_del_departamento(lugar.ruta.removesuffix(".png").split("/"), ancho, alto, lugar.estado)
+    return _dibujar(arte.Pieza(lugar.ruta, ancho, alto, lugar.familia))
+
+
 def generar(todo: bool = False) -> list[str]:
-    """Escribe el relleno de cada pieza que falte (o de todas) y devuelve las rutas escritas."""
+    """Escribe el relleno de cada pieza que falte (o de todas) y devuelve las rutas escritas.
+
+    Los de lo que el juego todavía no pinta van aparte, en `arte.RAIZ_POR_VENIR`."""
     raiz = arte.RAIZ
     escritas = []
     for pieza in arte.piezas():
@@ -498,6 +515,16 @@ def generar(todo: bool = False) -> list[str]:
         assert imagen.size == (pieza.ancho, pieza.alto), pieza.ruta
         _guardar(imagen, destino)
         escritas.append(pieza.ruta)
+    for lugar in arte.lugares():
+        if lugar.en_el_juego or lugar.familia not in ("pieza", "iconos"):
+            continue
+        destino = arte.RAIZ_POR_VENIR / lugar.ruta
+        if destino.exists() and not todo:
+            continue
+        imagen = _dibujar_lugar(lugar)
+        assert imagen.size == (lugar.ancho // lugar.reduccion, lugar.alto // lugar.reduccion), lugar.ruta
+        _guardar(imagen, destino)
+        escritas.append(lugar.ruta)
     datos = raiz.parent / "datos"
     datos.mkdir(parents=True, exist_ok=True)
     (datos / "arte.json").write_text(

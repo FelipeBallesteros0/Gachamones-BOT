@@ -19,6 +19,8 @@ from web import pueblo
 RAIZ = Path(__file__).parent / "static" / "arte"
 # Los originales de la pieza (el doble de lo servido), con las mismas rutas que `RAIZ`.
 FUENTES = Path(__file__).resolve().parent.parent / "fuentes"
+# Lo que el juego todavía no pinta pero el dibujante ya sube: sus provisionales viven aquí, fuera de lo que se sirve.
+RAIZ_POR_VENIR = Path(__file__).parent / "arte_por_venir"
 POSES = ("quieto", "paso1", "paso2")
 
 LADO_LUGAR = 160
@@ -61,6 +63,10 @@ class Lugar:
     objeto: str | None = None
     estado: str | None = None
     criatura: "Capa | None" = None  # noqa: F821  (`Capa` nace en otra tarea)
+
+
+# Los muebles del juego que tendrán un segundo dibujo, y cómo se llama su estado.
+ENCENDIDOS = {"lampara": "encendido", "calefactor": "encendido", "chimenea": "encendido", "fuente": "encendido"}
 
 
 def _con_escena(clave: str) -> bool:
@@ -119,12 +125,18 @@ def originales_de_la_pieza() -> tuple[Pieza, ...]:
 
 @cache
 def lugares() -> tuple[Lugar, ...]:
-    """Todos los lugares de subida, en un orden fijo. Hoy, las piezas del contrato: la
-    familia `pieza` se sube al doble de lo que sirve, las demás a su medida."""
+    """Todos los lugares de subida, en un orden fijo: primero las piezas del contrato (la
+    familia `pieza` se sube al doble de lo que sirve, las demás a su medida) y detrás lo
+    que el juego todavía no pinta."""
     lista = []
     for p in piezas():
         reduccion = REDUCCION if p.familia == "pieza" else 1
         lista.append(Lugar(p.ruta, p.ancho * reduccion, p.alto * reduccion, p.familia, reduccion, True))
+    for clave, estado in ENCENDIDOS.items():
+        ancho, alto = tamano_de_mueble(departamento.MUEBLES[clave])
+        lista += [Lugar(f"pieza/muebles/{clave}-{estado}-{o}.png", ancho * REDUCCION, alto * REDUCCION,
+                        "pieza", REDUCCION, False, objeto=clave, estado=estado)
+                  for o in ORIENTACIONES]
     return tuple(lista)
 
 
@@ -190,6 +202,8 @@ def _grupo_de(ruta: str) -> tuple[str, str]:
         return "pieza/paredes-y-suelo", "Paredes y suelo"
     if partes[:2] == ["pieza", "muebles"]:
         clave = partes[2].rsplit("-", 1)[0]
+        if clave.endswith(tuple(f"-{e}" for e in ENCENDIDOS.values())):
+            clave = clave.rsplit("-", 1)[0]
         if clave in departamento.MUEBLES:
             return f"pieza/muebles/{clave}", departamento.MUEBLES[clave].nombre
     raise ValueError(f"la pieza {ruta} no cae en ningún grupo del arte")

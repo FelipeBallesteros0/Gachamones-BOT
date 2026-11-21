@@ -29,6 +29,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -150,10 +151,11 @@ def _subida(lugar: arte.Lugar, lo: _LoSubido) -> dict | None:
     Si una subida se cruzó entre las lecturas y no coinciden, sale como provisional
     y la próxima lista ya la trae.
     """
-    if lugar.ruta not in lo.vigente or lugar.ruta not in lo.al_dia:
+    # Lo que el juego no pinta nunca está entre lo vigente (el bloque de la portada): se ve lo puesto.
+    if (lugar.en_el_juego and lugar.ruta not in lo.vigente) or lugar.ruta not in lo.al_dia:
         return None
     puesto = lo.puesto[lugar.ruta]
-    archivo = lo.vigente[lugar.ruta][0]
+    archivo = lo.vigente[lugar.ruta][0] if lugar.en_el_juego else puesto.archivo
     de_quien = lo.quien_subio.get(lugar.ruta)
     if de_quien is None or de_quien[0] != archivo or puesto.archivo != archivo:
         return None
@@ -173,13 +175,22 @@ def _medida_cambiada(lugar: arte.Lugar, lo: _LoSubido) -> dict | None:
     return {"ancho": p.ancho_original, "alto": p.alto_original}
 
 
+def _miniatura(lugar: arte.Lugar) -> str | None:
+    """Dónde pedir el provisional chico de un lugar que el juego no pinta; los del juego ya
+    tienen su imagen servida, y la página la pide por su ruta."""
+    if lugar.en_el_juego:
+        return None
+    return f"{PREFIJO_DIBUJANTE}/api/provisional?ruta={quote(lugar.ruta, safe='/')}&miniatura=1"
+
+
 def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
     """Un lugar como lo enseña la página del dibujante.
 
     `ancho` y `alto` son la única medida de subida que vale para ese lugar.
     """
     return {"ruta": lugar.ruta, "ancho": lugar.ancho, "alto": lugar.alto,
-            "subida": _subida(lugar, lo), "medida_cambiada": _medida_cambiada(lugar, lo)}
+            "subida": _subida(lugar, lo), "medida_cambiada": _medida_cambiada(lugar, lo),
+            "objeto": lugar.objeto, "estado": lugar.estado, "miniatura": _miniatura(lugar)}
 
 
 def _la_vista(lugar: arte.Lugar) -> dict:
@@ -323,7 +334,7 @@ def _el_provisional(lugar: arte.Lugar) -> bytes:
 
 def _el_provisional_servido(lugar: arte.Lugar):
     """El archivo del provisional que sirve el juego (a su medida servida)."""
-    return arte.RAIZ / lugar.ruta
+    return (arte.RAIZ if lugar.en_el_juego else arte.RAIZ_POR_VENIR) / lugar.ruta
 
 
 @router.get("/provisional")

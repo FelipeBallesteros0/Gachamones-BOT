@@ -35,6 +35,15 @@ def _sin_carpeta_de_arte_por_defecto(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "RUTA_ARTE_SUBIDO", tmp_path / "no-existe" / "arte_subido")
 
 
+@pytest.fixture(autouse=True)
+def _sin_cache_de_arte():
+    """`arte.lugares()` está cacheada: una prueba que cambia un catálogo no deja su caché a las demás."""
+    yield
+    from web import arte
+
+    arte.olvidar()
+
+
 @pytest.fixture
 def cliente(tmp_path, monkeypatch):
     import ayudas_web
