@@ -2217,7 +2217,8 @@ hasta publicar queda aquí.
   comunes salen en la página pero no en el avance). La página pliega las
   criaturas por especie y las pide al abrirlas.
 - `actualizar-pi.sh` ya no comprime la carpeta de lo subido en cada despliegue:
-  la espeja en `arte_subido.copia/` y el espejo sólo gana lo nuevo.
+  la espeja en `arte_subido.copia/`, con enlaces duros, y el espejo sólo gana lo
+  nuevo.
 
 ### Para publicar
 
@@ -2226,10 +2227,13 @@ momento.
 
 1. **Contarle al dueño, antes de publicar, que el plan cambió la copia de lo
    subido en `actualizar-pi.sh`:** de un `tar` entero en cada despliegue a un
-   espejo que sólo gana lo nuevo. Los `arte_subido.*.tar.gz` que ya haya en la
-   Raspberry no se tocan, ni se borran ni se rotan. Además, el espejo nunca borra:
-   lo que la poda quite de `arte_subido` sigue en `arte_subido.copia/`, y ese disco
-   sólo crece; hay que mirar el espacio.
+   espejo de enlaces duros que sólo gana lo nuevo. Los `arte_subido.*.tar.gz` que
+   ya haya en la Raspberry no se tocan, ni se borran ni se rotan. Un enlace duro no
+   ocupa disco mientras el original siga en `arte_subido` (ningún archivo subido se
+   reescribe en su sitio: se escribe aparte y se renombra). El espejo nunca borra:
+   lo que la poda quite de `arte_subido` sigue en `arte_subido.copia/` y desde ahí
+   sí ocupa, así que ese disco crece con lo podado; hay que mirar el espacio. Si
+   falla el `rsync`, el despliegue se detiene antes de tocar el código.
 2. **El sitio primero**, con su categoría «Criaturas» (ver «Lo que le toca al
    sitio»). Sola es inofensiva. Si el juego saliera antes, las especies se
    sembrarían en «Avatar».

@@ -606,12 +606,13 @@ def _copia_de_lo_subido() -> str:
 
 def test_la_copia_de_lo_subido_lleva_solo_lo_nuevo():
     """Lo subido por el dibujante vive fuera de git, no se puede rehacer y cada archivo lleva
-    el nombre de su contenido: la copia es un espejo que sólo gana lo nuevo, sin comprimir
-    la carpeta entera en cada despliegue ni pisar ni borrar nada."""
+    el nombre de su contenido: la copia es un espejo que sólo gana lo nuevo, con enlaces duros
+    a lo subido, sin comprimir la carpeta entera en cada despliegue ni pisar ni borrar nada."""
     remoto = _bloque_remoto()
     bloque = _copia_de_lo_subido()
     assert re.search(
-        r"rsync -a --ignore-existing --exclude '\.subiendo-\*' arte_subido/ arte_subido\.copia/", bloque)
+        r"rsync -a --ignore-existing --link-dest=\"\\\$PWD/arte_subido\" --exclude '\.subiendo-\*' "
+        r"arte_subido/ arte_subido\.copia/", bloque)
     assert "--delete" not in bloque
     assert "tar " not in remoto and "copia_arte" not in remoto
     # antes de tocar el código
@@ -626,20 +627,22 @@ def test_las_copias_comprimidas_viejas_ya_no_se_rotan():
 
 
 def _correr_la_copia_de_lo_subido(tmp_path, rsync=0, con_carpeta=True):
-    """Corre el bloque remoto entero con un `rsync` de mentira que sale con `rsync`."""
+    """Corre el bloque remoto entero con un `rsync` de mentira que sale con `rsync` (con
+    `rsync=None`, el de verdad). Se puede correr más de una vez sobre el mismo `tmp_path`."""
     bash = shutil.which("bash")
     if bash is None:
         pytest.skip("no hay bash")
     destino, ordenes = tmp_path / "destino", tmp_path / "bin"
     for carpeta in (destino / "venv" / "bin", destino / ".git", ordenes):
-        carpeta.mkdir(parents=True)
+        carpeta.mkdir(parents=True, exist_ok=True)
     if con_carpeta:
-        (destino / "arte_subido").mkdir()
+        (destino / "arte_subido").mkdir(exist_ok=True)
     apuntes = tmp_path / "apuntes"
     _de_mentira(destino / "venv" / "bin" / "python", apuntes, "python")
     _de_mentira(ordenes / "git", apuntes, "git")
     _de_mentira(ordenes / "sudo", apuntes, "sudo")
-    _de_mentira(ordenes / "rsync", apuntes, "rsync", f"exit {rsync}")
+    if rsync is not None:
+        _de_mentira(ordenes / "rsync", apuntes, "rsync", f"exit {rsync}")
     variables = {**os.environ, "DEST": str(destino), "RAMA": "main", "REMOTO_URL": "origen", "SIN_TESTS": ""}
     bloque = subprocess.run(
         [bash, "-c", f"cat <<REMOTO\n{_bloque_remoto()}\nREMOTO\n"], env=variables,
@@ -653,7 +656,39 @@ def _correr_la_copia_de_lo_subido(tmp_path, rsync=0, con_carpeta=True):
 def test_con_la_carpeta_de_lo_subido_se_copia_solo_lo_nuevo(tmp_path):
     hecho, apuntes = _correr_la_copia_de_lo_subido(tmp_path)
     assert hecho.returncode == 0, hecho.stderr
-    assert "rsync -a --ignore-existing --exclude .subiendo-* arte_subido/ arte_subido.copia/" in apuntes
+    # El `$PWD` es el de la Pi, ya en la carpeta del repo: la de lo subido, con su ruta entera.
+    destino = tmp_path / "destino"
+    assert (f"rsync -a --ignore-existing --link-dest={destino}/arte_subido --exclude .subiendo-* "
+            "arte_subido/ arte_subido.copia/") in apuntes
+
+
+def test_el_espejo_enlaza_lo_subido_y_conserva_lo_que_la_poda_borra(tmp_path):
+    """Con el `rsync` de verdad: el espejo es de enlaces duros (no ocupa hasta que la poda borra
+    el nombre del original), no pisa lo que ya tiene y no lleva las subidas a medias."""
+    if shutil.which("rsync") is None:
+        pytest.skip("no hay rsync")
+    subido = tmp_path / "destino" / "arte_subido"
+    copia = subido.with_name("arte_subido.copia")
+    subido.mkdir(parents=True)
+    viejo, nuevo, otro = ("a" * 64 + ".png", "b" * 64 + ".png", "c" * 64 + ".png")
+    (subido / viejo).write_bytes(b"viejo")
+    (subido / ".subiendo-x1.tmp").write_bytes(b"a medias")
+    hecho, _ = _correr_la_copia_de_lo_subido(tmp_path, rsync=None)
+    assert hecho.returncode == 0, hecho.stderr
+    # Un enlace duro: el mismo archivo con dos nombres.
+    assert (copia / viejo).stat().st_ino == (subido / viejo).stat().st_ino
+    assert not list(copia.glob(".subiendo-*"))
+
+    # La poda borra el nombre del original: el espejo lo conserva, y gana lo nuevo sin pisar nada.
+    (subido / viejo).unlink()
+    (subido / nuevo).write_bytes(b"nuevo")
+    (copia / otro).write_bytes(b"lo que ya estaba")
+    (subido / otro).write_bytes(b"otro contenido")
+    hecho, _ = _correr_la_copia_de_lo_subido(tmp_path, rsync=None)
+    assert hecho.returncode == 0, hecho.stderr
+    assert (copia / viejo).read_bytes() == b"viejo"
+    assert (copia / nuevo).stat().st_ino == (subido / nuevo).stat().st_ino
+    assert (copia / otro).read_bytes() == b"lo que ya estaba"
 
 
 def test_sin_la_carpeta_de_lo_subido_no_es_un_error(tmp_path):

@@ -275,11 +275,13 @@ de eso lo ve quien juega ni entra en el bloque `arte-subido` de la portada. Se g
 las cinco últimas imágenes distintas de cada lugar, cada una con su original y su
 versión reducida, en una carpeta junto a la base (`arte_subido`, o
 `RUTA_ARTE_SUBIDO`) que no es parte de git y que ningún despliegue borra.
-`actualizar-pi.sh` la espeja en `arte_subido.copia/`, junto a ella, y el espejo
-sólo gana lo nuevo: cada archivo lleva el nombre de su contenido y no cambia nunca,
-así que no se pisa ni se borra nada ni se comprime la carpeta entera en cada
-despliegue. Reponer una copia de la base pide reponer también esta carpeta, desde
-su copia del mismo momento. Lo que está descrito para el dibujante vive en
+`actualizar-pi.sh` la espeja en `arte_subido.copia/`, junto a ella, con enlaces
+duros, y el espejo sólo gana lo nuevo: cada archivo lleva el nombre de su contenido
+y nunca se reescribe en su sitio, así que no se pisa ni se borra nada ni se comprime
+la carpeta entera en cada despliegue. Un enlace no ocupa disco mientras su original
+siga en la carpeta; lo que la poda borra sigue en el espejo, y desde ahí sí ocupa.
+Reponer una copia de la base pide reponer también esta carpeta, desde su copia del
+mismo momento. Lo que está descrito para el dibujante vive en
 `docs/arte/contrato.md`.
 
 Para probarla en local, `--dibujante N` de `herramientas.pagina_de_prueba` da el

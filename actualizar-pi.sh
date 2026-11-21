@@ -75,10 +75,14 @@ fi
 # rehacer: se espeja en arte_subido.copia/. Cada archivo lleva el nombre de su
 # contenido y no cambia nunca, así que el espejo sólo gana lo nuevo: nada de
 # --delete ni de pisar, y no se comprime la carpeta entera en cada despliegue.
+# El espejo es de enlaces duros (--link-dest): ningún archivo subido se
+# reescribe en su sitio (se escribe aparte y se renombra), así que un enlace
+# protege igual de un borrado y no ocupa nada hasta que la poda borra el nombre
+# del original. El \$PWD es el de la Pi, ya en la carpeta del repo.
 # Las arte_subido.*.tar.gz que ya haya en la Pi no se tocan: ni se borran ni se rotan.
 # Es la copia previa: si falla, no se sigue ni se toca el código.
 if [ -d arte_subido ]; then
-    rsync -a --ignore-existing --exclude '.subiendo-*' arte_subido/ arte_subido.copia/ || {
+    rsync -a --ignore-existing --link-dest="\$PWD/arte_subido" --exclude '.subiendo-*' arte_subido/ arte_subido.copia/ || {
         echo "    falló la copia de lo subido: el despliegue se detiene antes de tocar el código"
         exit 1
     }
