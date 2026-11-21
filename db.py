@@ -2802,18 +2802,15 @@ def _anotar_arte_en(
     )
 
 
-# La identidad de una imagen: su original, o su archivo si no se guardó el original.
-_IDENTIDAD = "COALESCE(original, archivo)"
-
-
 def _guardadas_en(con: sqlite3.Connection) -> dict[str, list[tuple[str, str | None]]]:
     """De cada pieza, sus imágenes guardadas, como (archivo, original): las últimas
     distintas, de la subida más nueva a la más vieja, contando cada una (por su original)
     en su última subida. Las vueltas atrás no cuentan: no cambian lo que se guarda."""
     guardadas: dict[str, list[tuple[str, str | None]]] = {}
     vistas: dict[str, set[str]] = {}
-    # Por el índice de (ruta, id): sin ordenar aparte, y la primera vez que sale una
-    # imagen es su última subida.
+    # Recorre el índice de (ruta, id), que deja juntas las filas de cada pieza, y ordena
+    # aparte sólo el último término (`id DESC`) dentro de cada una: la primera vez que sale
+    # una imagen es su última subida.
     for fila in con.execute(
         "SELECT ruta, archivo, original FROM arte_subido WHERE accion = 'subir' "
         "ORDER BY ruta, id DESC"

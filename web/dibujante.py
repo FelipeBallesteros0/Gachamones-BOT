@@ -33,7 +33,6 @@ import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from datetime import datetime
-from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request

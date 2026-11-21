@@ -52,8 +52,10 @@ class Lugar:
 
     `ancho` y `alto` son la medida de subida; `reduccion` es cuántas veces más chico es
     lo que sirve el juego (1: lo mismo). `en_el_juego` dice si es una pieza del contrato
-    (`piezas()`) o algo que el juego todavía no pinta. `objeto` es la clave del mueble
-    en `pieza/muebles/*` y en `iconos/muebles/*`.
+    (`piezas()`) o algo que el juego todavía no pinta. `objeto` sólo lo llevan los dibujos
+    de la pieza que el juego todavía no pinta (los encendidos y los objetos nuevos): es la
+    clave de su mueble, de la que sale su grupo. Los muebles del juego y todos los íconos
+    van sin él.
     """
     ruta: str
     ancho: int
