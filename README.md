@@ -255,13 +255,16 @@ Quien dibuja no necesita el repositorio: el dueño y quien tenga el permiso
 no existe. La página lista las piezas por grupos plegables, cada una con su
 imagen de ahora, la medida exacta que pide el contrato, si es el recuadro
 provisional o una imagen subida, y quién y cuándo la subió. Cada pieza tiene
-«Subir» (sólo PNG, hasta 4 MB y de la medida exacta, también en la pieza del departamento), «Historial», «Volver a la anterior» (retrocede una
-subida cada vez, hasta el provisional; desde el provisional, vuelve a la última
-subida) y «Volver al provisional». La imagen subida se ve en el juego al
+«Subir» (sólo PNG, hasta 4 MB y de la medida exacta, también en la pieza del
+departamento), «Historial», «Volver a la anterior» (retrocede una subida cada
+vez, hasta el provisional; desde el provisional, vuelve a la última subida) y
+«Volver al provisional». También baja el provisional de esa pieza («Descargar el
+provisional») y, si la tiene, su imagen subida («Descargar la imagen subida»). La imagen subida se ve en el juego al
 momento, al recargar, y mientras esté puesta manda sobre el archivo del repo:
 cambiar el archivo de esa pieza en el repo no se ve. Arriba se descarga en un
 zip lo que se ve hoy (sin las anteriores ni lo vuelto al provisional; la copia
-completa es la de `actualizar-pi.sh`). Se guardan las cinco últimas imágenes
+completa es la de `actualizar-pi.sh`) y, en otro, todos los provisionales del
+repo, en carpetas por grupo («Descargar los provisionales»). Se guardan las cinco últimas imágenes
 distintas de cada pieza, en una carpeta junto a la base (`arte_subido`, o
 `RUTA_ARTE_SUBIDO`) que no es parte de git; `actualizar-pi.sh` la copia
 comprimida junto con la base y ningún despliegue la borra. Reponer una copia de

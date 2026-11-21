@@ -14,6 +14,7 @@ import re
 import shutil
 import tempfile
 import zipfile
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -718,12 +719,14 @@ def test_el_provisional_no_es_lo_subido(cliente, carpeta):
     "efectos/corazon.png/", "efectos\\corazon.png", "", "efectos/corazon.png\x00.png",
 ])
 def test_una_ruta_que_no_es_del_contrato_se_rechaza_sin_tocar_el_disco(cliente, monkeypatch, ruta):
-    abiertos = []
-    abrir = builtins.open
-    monkeypatch.setattr(builtins, "open", lambda *a, **k: (abiertos.append(a[0]), abrir(*a, **k))[1])
+    def leer(*_):
+        pytest.fail("se leyó un archivo para una ruta que no es del contrato")
+
     respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta})
     como_una_ruta_que_no_existe(cliente, respuesta)
-    assert not [a for a in abiertos if str(arte.RAIZ) in str(a)]
+    monkeypatch.setattr(dibujante, "_el_provisional", leer)
+    monkeypatch.setattr(Path, "read_bytes", leer)
+    como_una_ruta_que_no_existe(cliente, cliente.get(f"{API}/provisional", params={"ruta": ruta}))
 
 
 def test_un_provisional_que_falta_en_el_repo_es_404(cliente, monkeypatch, tmp_path):
