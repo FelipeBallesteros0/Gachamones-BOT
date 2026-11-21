@@ -298,6 +298,11 @@ columnas que se añadieron antes a otras tablas.
   la medida de subida (antes de abrir nada, para que no entre una bomba de
   descompresión), limpiar, reducir, escribir los dos, anotar la fila, volver a
   escribir los dos (por si una poda que se cruzó se llevó alguno) y podar.
+- **Limpiar convierte el color**: todo PNG que traiga un perfil de color se pasa
+  a sRGB y se guarda sin perfil; el que no trae perfil se deja como está
+  **[llamada mía]**. Hoy el perfil se descarta sin convertir, y un dibujo hecho
+  en Display P3 (el de muchas tabletas) cambiaría de color. Se construye ya, sin
+  esperar un archivo del dibujante.
 - **La identidad de una imagen pasa a ser su original.** «Volver a la anterior»
   salta las subidas de la misma imagen que la puesta y las que no se conservan o
   no están enteras en disco: tienen que estar los dos archivos. La fila de la
@@ -324,9 +329,12 @@ medida del original.
 
 ### Los objetos que el juego no tiene
 
-Van con la ruta que tendrán cuando entren al juego con la misma clave. Si el
-ejecutable usa estas claves, lo subido ya está en su sitio. Las claves y las
-formas son **[llamada mía]**, salvo las casillas que fijó el dueño.
+Van con la ruta que tendrán cuando entren al juego. **Este documento fija sus
+claves, sus rutas y sus formas** **[llamada mía]**. La rama del ejecutable
+todavía no las tiene y las adoptará tal cual al construir cada objeto: ése es el
+contrato, y así lo subido ya estará en su sitio. La lista y las casillas son las
+que decidió el dueño: el balcón, 4 × 1 por fuera de la pared; la Mega TV, 2 × 1;
+y lo demás, 1 casilla.
 
 - **Los dibujos de la pieza** (familia `pieza`):
   `pieza/muebles/<clave>-<orientación>.png`, y el encendido,
@@ -367,8 +375,8 @@ formas son **[llamada mía]**, salvo las casillas que fijó el dueño.
   lienzo es el de una huella de 4 × 1 más el alto de la pared:
   (4 + 1) × 512 = 2560 de ancho y (4 + 1) × 256 + 1024 = 2304 de alto. Cubre la
   tira con su baranda y lo que se ponga encima **[llamada mía]**.
-- La Puerta de cristal sólida es el dibujo de siempre, y la atravesable es su
-  segundo estado **[llamada mía]**.
+- La Puerta de cristal es de bulto, de 1 × 1, como dice la tabla. La sólida es
+  el dibujo de siempre, y la atravesable, su segundo estado **[llamada mía]**.
 - **Los íconos nuevos van en el grupo de hoy, «Iconos de los muebles»**, como los
   de los muebles que ya existen **[llamada mía]**.
 
@@ -421,13 +429,16 @@ de `cosmeticos.SOMBREROS`.
 - **Se guardan** en la misma tabla y la misma carpeta que todo lo subido, con el
   mismo historial y la misma poda.
 - **Su provisional** es la capa de frente de hoy ampliada ×4, como en
-  «Enfoques». Se arma al pedirlo y se recuerda en memoria por su capa de origen.
+  «Enfoques». Las especies que todavía no tienen dibujos en `fuentes/` usan como
+  provisional del cuerpo el relleno de `retrato` (`retrato.relleno`), el mismo
+  que hoy enseña su retrato. Se arma al pedirlo y se recuerda en memoria por su
+  capa de origen.
   Para eso hace falta una función nueva en `retrato.py`, que es quien sabe buscar
   en `fuentes/`. Las cuatro orientaciones de un cuerpo tienen el mismo
   provisional, y su nombre dice cuál es cuál.
 - **Una casilla de forma está cubierta** si tiene una capa al día para esa forma,
-  para toda su especie o común, en ese orden, como en A2. El cuerpo no se
-  comparte.
+  para toda su especie o común, en ese orden, como en A2. **El cuerpo no se
+  comparte**: cada etapa de cada especie lleva los suyos, como ya decía A2.
 
 ### Las descargas
 
@@ -568,21 +579,21 @@ queda en cinco, como todo **[llamada mía]**.
 
 ## Riesgos
 
-- **Los colores.** La limpieza de hoy vuelve a escribir la imagen en RGBA de 8
-  bits, sin metadatos ni perfil de color, y se queda (es la protección contra
-  archivos raros): «tal cual» quiere decir los mismos píxeles, no los mismos
-  bytes. Si el dibujante exporta a 16 bits, se guarda a 8. Si exporta con un
-  perfil que no es sRGB (por ejemplo Display P3, el de muchas tabletas), hoy el
-  perfil se descarta y los colores se ven distintos. **Se prueba con un archivo
-  real del dibujante antes de publicar.** Si pasa, la limpieza convierte a sRGB
-  en vez de descartar.
+- **«Tal cual» no son los mismos bytes.** La limpieza vuelve a escribir la imagen
+  en RGBA de 8 bits, sin metadatos, y se queda (es la protección contra archivos
+  raros). Un PNG de 16 bits se guarda a 8, y uno con perfil de color se convierte
+  a sRGB (ver «Subir, volver, podar y servir»). La prueba con un archivo real del
+  dibujante, en «Para publicar», sólo confirma la conversión.
 - **El espacio y las copias.** El diseño de la mudanza del juego (en la rama del
-  ejecutable) cuenta con «unos pocos» MB de arte subido y unos 14 GB libres, y
-  guarda 14 copias de cada noche. Con esto, el arte puede llegar a varios GB y
-  catorce copias enteras no caben. **La copia de cada noche tiene que llevar sólo
-  lo nuevo de esa noche**: un archivo subido nunca cambia, porque su nombre es su
-  contenido. Hay que cambiarlo allí antes de que el dibujante empiece con las
-  criaturas.
+  ejecutable) cuenta con «unos pocos» MB de arte subido y guarda 14 copias de
+  cada noche. Con esto, el arte puede llegar a varios GB. Que la copia de cada
+  noche lleve sólo lo nuevo de esa noche (un archivo subido nunca cambia, porque
+  su nombre es su contenido) **es tarea del proyecto de la mudanza**, en sus
+  guiones, y no de este trabajo **[llamada mía]**. Aquí no hay tarea para eso.
+- **Mientras el juego siga en la Raspberry**, cuya tarjeta tiene pocos GB libres,
+  conviene que **el dibujante no suba criaturas en masa hasta la mudanza**. Los
+  lugares de las criaturas se publican igual, y quien publique se lo avisa al
+  dueño **[llamada mía]**.
 - **La rama del ejecutable.** Al juntarla con ésta **habrá conflictos en
   `arte_subido.py` y `web/dibujante.py`** (y en sus pruebas): esa rama todavía
   tiene la versión que acepta las dos medidas. **Su armado tiene que copiar sólo
@@ -590,12 +601,13 @@ queda en cinco, como todo **[llamada mía]**.
   GB. Su mundo en línea ya lee esta tabla y esta carpeta: con este diseño sigue
   leyendo igual y recibe la versión chica. Para usar los originales, tiene que
   leer `original` y servir también esos archivos, porque su código de hoy sólo
-  conserva `archivo`. Y tiene que adoptar estas claves, estas rutas y estas
-  formas (sobre todo el balcón), o decidir otras **antes** de que se dibuje: si
-  las cambia, lo subido queda «con otra medida» o huérfano.
+  conserva `archivo`. Y adopta tal cual las claves, las rutas y las formas que
+  fija este documento: si algún día cambiara una, lo subido a ella quedaría «con
+  otra medida» o huérfano.
 - **El balcón queda detrás de la pared.** Visto desde la pieza, una tira por
-  fuera de las paredes del fondo la tapa la pared. Cómo se ve es del ejecutable;
-  si eso cambia su lienzo, conviene saberlo antes de dibujarlo.
+  fuera de las paredes del fondo la tapa la pared. Su lienzo lo fija este
+  documento; cómo lo deja ver (por ejemplo, con un vano en la pared) es cosa del
+  ejecutable.
 - **El rendimiento con miles de filas.** La portada lee la tabla en cada visita,
   y la dirección de lo subido calcula lo que se conserva en cada imagen. Hoy no
   hay filas; con las criaturas pueden ser decenas de miles. Se mide antes de
@@ -625,11 +637,9 @@ momento.
 1. **El sitio primero**, con su categoría «Criaturas», como pedía A2. Sola es
    inofensiva. Si el juego saliera antes, las especies se sembrarían en
    «Avatar».
-2. **Antes del juego**:
-   - probar con **un archivo real del dibujante** que la limpieza no le cambia
-     los colores (el perfil de color);
-   - mirar el espacio libre donde vive la carpeta de lo subido y dejar **la copia
-     de cada noche llevando sólo lo nuevo**.
+2. **Antes del juego**, confirmar con **un archivo real del dibujante** que sus
+   colores llegan igual. La conversión a sRGB ya viene construida, y esto sólo la
+   confirma.
 3. **Probarlo en una página de prueba** (`herramientas/pagina_de_prueba.py
    --dibujante N`), no en producción, porque el historial no se borra: subir un
    mueble del juego a la medida nueva y verlo reducido en la página, subir un
@@ -639,7 +649,9 @@ momento.
    vacío, que la página del dibujante carga y pliega las especies, que el avance
    trae los grupos nuevos y que el mundo en línea del ejecutable sigue leyendo la
    tabla.
-5. **El dueño le avisa al dibujante** la medida nueva.
+5. **Quien publique le avisa al dueño** que, mientras el juego siga en la
+   Raspberry, conviene que el dibujante no suba criaturas en masa hasta la
+   mudanza. **El dueño le avisa al dibujante** eso y la medida nueva.
 6. **Al juntar esta rama con la del ejecutable**, resolver los conflictos de
    `arte_subido.py` y `web/dibujante.py` a favor de este diseño, y que su armado
    copie sólo lo que usa su contrato.
