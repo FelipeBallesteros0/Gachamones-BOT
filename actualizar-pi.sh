@@ -72,12 +72,17 @@ if [ -f tamagotchi.db ]; then
 fi
 
 # Lo que subió el dibujante vive junto a la base, fuera de git, y no se puede
-# rehacer: va también en una copia comprimida, con la misma rotación de 5.
+# rehacer: se espeja en arte_subido.copia/. Cada archivo lleva el nombre de su
+# contenido y no cambia nunca, así que el espejo sólo gana lo nuevo: nada de
+# --delete ni de pisar, y no se comprime la carpeta entera en cada despliegue.
+# Las arte_subido.*.tar.gz que ya haya en la Pi no se tocan: ni se borran ni se rotan.
+# Es la copia previa: si falla, no se sigue ni se toca el código.
 if [ -d arte_subido ]; then
-    copia_arte="arte_subido.\$(date +%Y%m%d-%H%M%S).tar.gz"
-    tar -czf "\$copia_arte" arte_subido
-    echo "    copia de lo subido: \$copia_arte"
-    ls -1t arte_subido.*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm --
+    rsync -a --ignore-existing --exclude '.subiendo-*' arte_subido/ arte_subido.copia/ || {
+        echo "    falló la copia de lo subido: el despliegue se detiene antes de tocar el código"
+        exit 1
+    }
+    echo "    copia de lo subido: arte_subido.copia/"
 fi
 
 if [ ! -d .git ]; then

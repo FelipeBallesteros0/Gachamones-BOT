@@ -26,7 +26,9 @@ CLAUDE.local.md
 
 # Lo que sube el dibujante: vive sólo en el servidor, junto a la base, como ella.
 /arte_subido/
-# Sus copias comprimidas, que saca `actualizar-pi.sh` en la Pi antes de tocar nada.
+# Su espejo, que saca `actualizar-pi.sh` en la Pi antes de tocar nada (sólo gana lo nuevo).
+/arte_subido.copia/
+# Las copias comprimidas de antes, que ya no se rotan.
 /arte_subido.*.tar.gz
 
 # Las copias que hace `actualizar-pi.sh` antes de tocar la Pi. Viven sólo ahí.

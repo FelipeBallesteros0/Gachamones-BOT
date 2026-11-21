@@ -582,7 +582,7 @@ def test_rsync_no_borra_lo_subido_por_el_dibujante():
     # Exactas: `arte_subido.py` sí tiene que viajar; la carpeta y sus copias
     # comprimidas (las saca `actualizar-pi.sh` en la Pi) no, o `--delete` las borra.
     assert re.findall(r"--exclude '([^']*arte_subido[^']*)'", rsync) == [
-        "arte_subido", "arte_subido.*.tar.gz",
+        "arte_subido", "arte_subido.*.tar.gz", "arte_subido.copia",
     ]
     assert "--delete-excluded" not in texto
 
@@ -596,21 +596,82 @@ def test_los_guiones_son_bash_valido(guion):
     assert hecho.returncode == 0, hecho.stderr
 
 
-def test_la_copia_de_seguridad_incluye_lo_subido_y_conserva_las_cinco_ultimas():
-    """Lo subido por el dibujante vive fuera de git y no se puede rehacer: se copia comprimido,
-    sólo si la carpeta existe, y se conservan las cinco últimas como con la base."""
-    texto = leer("actualizar-pi.sh")
-    bloque = texto[texto.index("if [ -f tamagotchi.db ]"):texto.index("if [ ! -d .git ]")]
-    assert "if [ -d arte_subido ]" in bloque
-    assert re.search(r"tar -czf \"\\\$copia_arte\" arte_subido", bloque)
-    assert "copia_arte=\"arte_subido.\\$(date +%Y%m%d-%H%M%S).tar.gz\"" in bloque
-    assert re.search(r"ls -1t arte_subido\.\*\.tar\.gz 2>/dev/null \| tail -n \+6 \| xargs -r rm --", bloque)
+def _copia_de_lo_subido() -> str:
+    """Las líneas del bloque remoto que copian lo subido, de su `if` a su `fi`."""
+    lineas = _bloque_remoto().splitlines()
+    inicio = next(i for i, l in enumerate(lineas) if l.startswith("if [ -d arte_subido ]"))
+    fin = next(i for i in range(inicio, len(lineas)) if lineas[i] == "fi")
+    return "\n".join(lineas[inicio:fin + 1])
+
+
+def test_la_copia_de_lo_subido_lleva_solo_lo_nuevo():
+    """Lo subido por el dibujante vive fuera de git, no se puede rehacer y cada archivo lleva
+    el nombre de su contenido: la copia es un espejo que sólo gana lo nuevo, sin comprimir
+    la carpeta entera en cada despliegue ni pisar ni borrar nada."""
+    remoto = _bloque_remoto()
+    bloque = _copia_de_lo_subido()
+    assert re.search(
+        r"rsync -a --ignore-existing --exclude '\.subiendo-\*' arte_subido/ arte_subido\.copia/", bloque)
+    assert "--delete" not in bloque
+    assert "tar " not in remoto and "copia_arte" not in remoto
+    # antes de tocar el código
+    assert remoto.index(bloque) < remoto.index("git fetch")
     # el bloque remoto va en un heredoc sin comillas: ningún `$` de la Pi sin escapar
-    assert not re.search(r"(?<!\\)\$(copia_arte|\()", bloque)
+    assert not re.search(r"(?<!\\)\$", bloque)
+
+
+def test_las_copias_comprimidas_viejas_ya_no_se_rotan():
+    sin_comentarios = "\n".join(l for l in _bloque_remoto().splitlines() if not l.lstrip().startswith("#"))
+    assert "arte_subido.*.tar.gz" not in sin_comentarios
+
+
+def _correr_la_copia_de_lo_subido(tmp_path, rsync=0, con_carpeta=True):
+    """Corre el bloque remoto entero con un `rsync` de mentira que sale con `rsync`."""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no hay bash")
+    destino, ordenes = tmp_path / "destino", tmp_path / "bin"
+    for carpeta in (destino / "venv" / "bin", destino / ".git", ordenes):
+        carpeta.mkdir(parents=True)
+    if con_carpeta:
+        (destino / "arte_subido").mkdir()
+    apuntes = tmp_path / "apuntes"
+    _de_mentira(destino / "venv" / "bin" / "python", apuntes, "python")
+    _de_mentira(ordenes / "git", apuntes, "git")
+    _de_mentira(ordenes / "sudo", apuntes, "sudo")
+    _de_mentira(ordenes / "rsync", apuntes, "rsync", f"exit {rsync}")
+    variables = {**os.environ, "DEST": str(destino), "RAMA": "main", "REMOTO_URL": "origen", "SIN_TESTS": ""}
+    bloque = subprocess.run(
+        [bash, "-c", f"cat <<REMOTO\n{_bloque_remoto()}\nREMOTO\n"], env=variables,
+        capture_output=True, text=True, check=True,
+    ).stdout
+    entorno = {**os.environ, "PATH": f"{ordenes}{os.pathsep}{os.environ.get('PATH', '')}"}
+    hecho = subprocess.run([bash, "-c", bloque], capture_output=True, text=True, env=entorno)
+    return hecho, apuntes.read_text().splitlines() if apuntes.exists() else []
+
+
+def test_con_la_carpeta_de_lo_subido_se_copia_solo_lo_nuevo(tmp_path):
+    hecho, apuntes = _correr_la_copia_de_lo_subido(tmp_path)
+    assert hecho.returncode == 0, hecho.stderr
+    assert "rsync -a --ignore-existing --exclude .subiendo-* arte_subido/ arte_subido.copia/" in apuntes
+
+
+def test_sin_la_carpeta_de_lo_subido_no_es_un_error(tmp_path):
+    hecho, apuntes = _correr_la_copia_de_lo_subido(tmp_path, con_carpeta=False)
+    assert hecho.returncode == 0, hecho.stderr
+    assert not [a for a in apuntes if a.startswith("rsync")]
+
+
+def test_si_la_copia_de_lo_subido_falla_no_se_toca_el_codigo(tmp_path):
+    hecho, apuntes = _correr_la_copia_de_lo_subido(tmp_path, rsync=23)
+    assert hecho.returncode != 0
+    assert "copia de lo subido" in hecho.stdout + hecho.stderr
+    assert not [a for a in apuntes if a.startswith(("git ", "sudo ", "python "))]
 
 
 def test_las_copias_de_lo_subido_no_entran_en_git():
-    """Las copias comprimidas que saca `actualizar-pi.sh` quedan en la carpeta del
+    """La carpeta y su espejo (y las copias comprimidas de antes) quedan en la carpeta del
     repo de la Pi: `.gitignore` las cubre, como a las de la base."""
     lineas = leer(".gitignore").splitlines()
+    assert "/arte_subido.copia/" in lineas
     assert "/arte_subido.*.tar.gz" in lineas
