@@ -712,12 +712,12 @@ def test_la_pagina_del_dibujante_carga_sus_archivos_por_la_ruta_con_version():
     for archivo in ("static/__V__/estilo.css", "static/__V__/dibujante.css", "static/__V__/js/dibujante.js"):
         assert archivo in pagina, archivo
     assert 'type="module"' in pagina and 'lang="es"' in pagina and 'name="viewport"' in pagina
-    assert "<title>Arte de Monsteropolis</title>" in pagina
+    assert "<title>Arte de Criópolis</title>" in pagina
 
 
 def test_las_frases_de_la_pagina_del_dibujante_son_las_del_plan():
     codigo = _guion("dibujante.js")
-    for frase in ("Arte de Monsteropolis", "Sólo lo que falta", "Provisional", "Subida por ${", " el ${",
+    for frase in ("Arte de Criópolis", "Sólo lo que falta", "Provisional", "Subida por ${", " el ${",
                   " × ${", " px", "} o ${", "'Subir'", "'Historial'", "'Volver a la anterior'",
                   "'Volver al provisional'", "Descargar lo que se ve", "Listo: ya se ve en el juego.",
                   "px y esta pieza ahora pide otra medida: se ve el provisional.", "Lo subido mide ${"):

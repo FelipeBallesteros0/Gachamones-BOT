@@ -236,7 +236,7 @@ async function elegir(nodo, archivo) {
 test('la página tiene su título, la descarga de todo y el filtro de lo que falta', { timeout: 2000 }, async () => {
   const { raiz, servidor } = await abrir();
   assert.deepEqual(servidor.pedidos.map((p) => p.ruta), ['GET piezas']);
-  assert.equal(raiz.querySelector('h1').textContent, 'Arte de Monsteropolis');
+  assert.equal(raiz.querySelector('h1').textContent, 'Arte de Criópolis');
   const descarga = raiz.querySelector('a');
   assert.equal(descarga.textContent, 'Descargar lo que se ve');
   assert.equal(descarga.getAttribute('href'), '/monsteropolis_dibujante/api/copia.zip');
@@ -516,7 +516,7 @@ test('si las piezas no llegan, lo dice con la frase del servidor o la de sin red
   servidor.falla('GET piezas');
   const raiz = new Elemento('main');
   await montar(raiz);
-  assert.equal(raiz.querySelector('h1').textContent, 'Arte de Monsteropolis');
+  assert.equal(raiz.querySelector('h1').textContent, 'Arte de Criópolis');
   const estado = raiz.querySelector('[role="status"]');
   assert.equal(estado.textContent, 'No hay conexión con el juego. Revisa tu internet y vuelve a intentarlo.');
   assert.equal(estado.classList.contains('es-error'), true);

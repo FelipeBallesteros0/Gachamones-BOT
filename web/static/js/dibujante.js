@@ -223,7 +223,7 @@ function tarjeta(pieza, familia) {
 // --- la página ------------------------------------------------------------------------
 
 export async function montar(raiz) {
-  const titulo = el('h1', {}, 'Arte de Monsteropolis');
+  const titulo = el('h1', {}, 'Arte de Criópolis');
   const estado = el('p', { class: 'cargando', role: 'status' }, 'Cargando…');
   raiz.replaceChildren(titulo, estado);
   let datos;

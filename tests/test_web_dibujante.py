@@ -717,7 +717,7 @@ def test_la_pagina_del_dibujante_se_sirve_sin_cache_y_con_los_estaticos_de_la_ve
         assert "__V__" not in respuesta.text
         assert f'"/monsteropolis/static/{version}/js/dibujante.js"' in respuesta.text
         assert f'"/monsteropolis/static/{version}/estilo.css"' in respuesta.text
-        assert "<title>Arte de Monsteropolis</title>" in respuesta.text
+        assert "<title>Arte de Criópolis</title>" in respuesta.text
 
 
 def test_sin_la_barra_del_final_se_llega_igual_a_la_pagina(cliente):
@@ -762,7 +762,7 @@ def test_a_los_demas_la_pagina_les_contesta_como_una_que_no_existe(cliente, tmp_
     assert inventada.status_code == 404
     assert (respuesta.status_code, respuesta.content) == (404, inventada.content)
     assert respuesta.headers == inventada.headers
-    assert "Arte de Monsteropolis" not in respuesta.text
+    assert "Arte de Criópolis" not in respuesta.text
     # Con el permiso, sí.
     _permisos(tmp_path, monkeypatch)
     entrar(cliente, DIBUJA)
