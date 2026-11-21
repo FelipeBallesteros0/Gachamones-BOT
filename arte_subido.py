@@ -18,9 +18,10 @@ import tempfile
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import cache
 from pathlib import Path
 
-from PIL import Image, ImageCms, ImageMath
+from PIL import Image, ImageCms, ImageMath, features
 
 import db
 from web import arte
@@ -94,6 +95,17 @@ def _a_rgba(imagen: Image.Image, profundidad: int, tipo: int) -> Image.Image:
     return imagen.convert("RGBA")
 
 
+@cache
+def _falta_littlecms() -> bool:
+    """Si a Pillow le falta littleCMS, sin el que ningún color se convierte (`ImageCms` se
+    importa igual y falla al usarlo). Se mira una vez por proceso, y si falta, el registro lo
+    dice esa vez y no en cada subida."""
+    if features.check("littlecms2"):
+        return False
+    logger.warning("A Pillow le falta littleCMS: los perfiles de color se descartan sin pasar a sRGB.")
+    return True
+
+
 def _a_srgb(rgba: Image.Image, perfil: bytes | None) -> Image.Image:
     """La imagen con el color pasado de su perfil incrustado a sRGB.
 
@@ -101,9 +113,10 @@ def _a_srgb(rgba: Image.Image, perfil: bytes | None) -> Image.Image:
     separa antes y se vuelve a juntar intacto. Sin perfil, o con uno que no es RGB (un
     gris, por ejemplo), la imagen vuelve igual; con uno que no se puede leer o con el
     que no se arma la conversión, también, y queda un aviso en el registro: una subida
-    nunca falla por su perfil.
+    nunca falla por su perfil. Sin littleCMS, igual, y el aviso es el de
+    `_falta_littlecms`, no el del perfil.
     """
-    if not perfil:
+    if not perfil or _falta_littlecms():
         return rgba
     try:
         origen = ImageCms.ImageCmsProfile(io.BytesIO(perfil))

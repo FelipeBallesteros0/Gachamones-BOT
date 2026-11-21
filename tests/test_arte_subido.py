@@ -6,6 +6,7 @@ el arte del repo.
 """
 import hashlib
 import io
+import json
 import logging
 import os
 import shutil
@@ -583,6 +584,50 @@ def test_un_perfil_ilegible_se_descarta_y_se_avisa(caplog):
     assert b"iCCP" not in trozos(datos)
     assert abierta(datos).tobytes() == original.tobytes()
     assert [r.levelno for r in caplog.records] == [logging.WARNING]
+
+
+# Corre en un proceso aparte, con `PIL.features.check("littlecms2")` falso desde antes de importar
+# nada: así se ve lo que pasa en todo un proceso, no sólo en una subida.
+_SIN_LITTLECMS = """
+import io, json, logging
+from PIL import Image, features
+de_verdad = features.check
+features.check = lambda nombre, *otros, **mas: nombre != "littlecms2" and de_verdad(nombre, *otros, **mas)
+import arte_subido
+from tests import perfiles_de_color
+from web import arte
+avisos = []
+class Anotar(logging.Handler):
+    def emit(self, registro):
+        avisos.append(registro.getMessage())
+logging.getLogger("arte_subido").addHandler(Anotar())
+logging.getLogger("arte_subido").setLevel(logging.WARNING)
+perfil = perfiles_de_color.perfil_rgb(((0.680, 0.320), (0.265, 0.690), (0.150, 0.060)), (0.3127, 0.3290), 2.2)
+original = Image.new("RGBA", (32, 32), (200, 100, 50, 255))
+salidas = []
+for _ in range(2):
+    cuerpo = io.BytesIO()
+    original.save(cuerpo, "PNG", icc_profile=perfil)
+    limpio, _ = arte_subido.preparar(cuerpo.getvalue(), arte.lugar_de("efectos/corazon.png"))
+    with Image.open(io.BytesIO(limpio.datos)) as imagen:
+        salidas.append({"pixel": list(imagen.getpixel((0, 0))), "perfil": "icc_profile" in imagen.info})
+print(json.dumps({"salidas": salidas, "avisos": avisos}))
+"""
+
+
+def test_sin_littlecms_el_color_no_se_convierte_y_el_registro_lo_dice_una_vez():
+    """Sin littleCMS, Pillow importa `ImageCms` igual y falla al usarlo: la subida sigue como con
+    un perfil ilegible (el perfil se descarta, los píxeles quedan como vienen), y el aviso dice que
+    falta littleCMS, una sola vez por proceso y no en cada subida, sin culpar al perfil."""
+    variables = {k: v for k, v in os.environ.items() if k not in ("RUTA_BD", "RUTA_ARTE_SUBIDO")}
+    hecho = subprocess.run([sys.executable, "-c", _SIN_LITTLECMS], cwd=RAIZ, env=variables,
+                           capture_output=True, text=True)
+    assert hecho.returncode == 0, hecho.stderr
+    resultado = json.loads(hecho.stdout)
+    assert resultado["salidas"] == [{"pixel": [200, 100, 50, 255], "perfil": False}] * 2
+    assert len(resultado["avisos"]) == 1
+    assert "littleCMS" in resultado["avisos"][0]
+    assert "ilegible" not in resultado["avisos"][0]
 
 
 def test_un_gris_con_perfil_se_deja_como_hoy(caplog):
