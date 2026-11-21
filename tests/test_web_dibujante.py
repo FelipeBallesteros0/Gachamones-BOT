@@ -880,7 +880,11 @@ def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
 def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cliente, monkeypatch):
     rutas = ("pueblo/lugares/tienda.png", "escenas/tienda.png")
     repetido = arte.Grupo("junto", "Junto", "lugares", rutas, tuple((r,) for r in rutas))
-    monkeypatch.setattr(arte, "grupos", lambda: (repetido,))
+
+    def solo_el_repetido():
+        return (repetido,)
+    solo_el_repetido.cache_clear = arte.grupos.cache_clear   # `arte.olvidar()` la vacía al acabar la prueba
+    monkeypatch.setattr(arte, "grupos", solo_el_repetido)
     respuesta = cliente.get(f"{API}/provisionales.zip")
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert sorted(copia.namelist()) == ["junto/escenas-tienda.png", "junto/pueblo-lugares-tienda.png"]
@@ -1276,6 +1280,23 @@ def test_el_avance_trae_84_grupos_y_no_el_de_las_comunes(cliente):
     assert len(claves) == GRUPOS_CON_TARJETA
     assert "criaturas/comun" not in claves
     assert _avance(cliente)[PULPO] == (0, CASILLAS_POR_ESPECIE)
+
+
+def test_cien_avances_arman_los_grupos_una_sola_vez(cliente, monkeypatch):
+    """El tablero pide el avance cada pocos segundos por pestaña, en el proceso que atiende a
+    quien juega: los grupos (miles de lugares) se arman una vez, y `olvidar()` los vuelve a armar."""
+    arte.olvidar()
+    armados, original = [], arte._casillas_de
+    monkeypatch.setattr(arte, "_casillas_de", lambda rutas: armados.append(rutas) or original(rutas))
+    for _ in range(100):
+        assert cliente.get(f"{API}/avance").status_code == 200
+    assert len(armados) == GRUPOS          # `_casillas_de` corre una vez por grupo: un solo armado
+    assert cliente.get(f"{API}/piezas").status_code == 200
+    assert cliente.get(f"{API}/piezas", params={"grupo": PULPO}).status_code == 200
+    assert len(armados) == GRUPOS
+    arte.olvidar()
+    assert cliente.get(f"{API}/avance").status_code == 200
+    assert len(armados) == 2 * GRUPOS
 
 
 def test_una_capa_comun_hace_avanzar_a_todas_las_especies_que_cubre(cliente):

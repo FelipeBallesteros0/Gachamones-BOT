@@ -37,7 +37,8 @@ def _sin_carpeta_de_arte_por_defecto(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _sin_cache_de_arte():
-    """`arte.lugares()` está cacheada: una prueba que cambia un catálogo no deja su caché a las demás."""
+    """`arte.lugares()` y `arte.grupos()` están cacheadas: una prueba que cambia un catálogo no
+    deja su caché a las demás."""
     yield
     from web import arte
 

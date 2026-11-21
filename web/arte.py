@@ -264,6 +264,7 @@ def olvidar() -> None:
     """Vacía lo calculado, para las pruebas que cambian los catálogos."""
     lugares.cache_clear()
     _indice.cache_clear()
+    grupos.cache_clear()
 
 
 @dataclass(frozen=True)
@@ -350,10 +351,13 @@ def _casillas_de(rutas: list[str]) -> tuple[tuple[str, ...], ...]:
     return tuple(casillas)
 
 
+@cache
 def grupos() -> tuple[Grupo, ...]:
     """Los lugares repartidos en grupos, en el orden de `lugares()`.
 
     Se calculan desde `lugares()`: uno que ningún grupo reconoce lanza `ValueError`.
+    Se arman una sola vez (son miles de lugares, y el avance los pide cada pocos
+    segundos): `olvidar()` los vuelve a armar.
     """
     por_clave: dict[str, tuple[str, str, list[str]]] = {}
     for lugar in lugares():
