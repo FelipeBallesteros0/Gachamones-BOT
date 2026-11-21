@@ -766,3 +766,17 @@ def test_si_la_base_no_se_puede_leer_lo_subido_da_404(cliente, carpeta, tmp_path
     nombre = _subir(carpeta, CORAZON)
     monkeypatch.setattr(db, "RUTA", tmp_path / "no-hay" / "juego.db")
     _no_se_sirve(cliente.get(f"/monsteropolis/arte-subido/{nombre}"))
+
+
+def test_el_original_se_sirve_por_su_nombre(cliente, carpeta):
+    import arte_subido
+    from web import arte
+
+    lugar = arte.lugar_de("pieza/muebles/maceta-se.png")
+    original, chica = arte_subido.preparar(_png(lugar.ancho, lugar.alto, 3), lugar)
+    arte_subido.subir(carpeta, lugar, _png(lugar.ancho, lugar.alto, 3), "dibuja", T0)
+    for imagen in (original, chica):
+        respuesta = cliente.get(f"/monsteropolis/arte-subido/{imagen.nombre}")
+        assert respuesta.status_code == 200
+        assert respuesta.content == imagen.datos
+    assert original.nombre != chica.nombre

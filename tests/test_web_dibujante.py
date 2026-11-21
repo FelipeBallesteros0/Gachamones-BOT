@@ -23,6 +23,7 @@ import arte_subido
 import config
 import db
 from ayudas_web import ESCRIBIR, T0, crear_rowino_con_permisos, entrar, galleta, poner_reloj, servicio
+from herramientas import pieza as pieza_herramienta
 from web import arte, dibujante
 
 API = "/monsteropolis_dibujante/api"
@@ -79,6 +80,11 @@ def png(ancho: int, alto: int, semilla: int = 0) -> bytes:
 def nombre_limpio(cuerpo: bytes, ruta: str) -> str:
     """El nombre con que queda guardado lo que se sube: el de su PNG limpio."""
     return arte_subido.preparar(cuerpo, arte.lugar_de(ruta))[1].nombre
+
+
+def nombre_original(cuerpo: bytes, ruta: str) -> str:
+    """El nombre con que queda guardado el original (el que sube el dibujante, ya limpio)."""
+    return arte_subido.preparar(cuerpo, arte.lugar_de(ruta))[0].nombre
 
 
 def direccion(cuerpo: bytes, ruta: str) -> str:
@@ -375,8 +381,8 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
 
     def renglon(accion, dire, quien, cuando):
         medida = (32, 32) if dire else (None, None)
-        return {"accion": accion, "direccion": dire, "ancho": medida[0], "alto": medida[1],
-                "quien": quien, "cuando": cuando.isoformat()}
+        return {"accion": accion, "direccion": dire, "original": dire, "ancho": medida[0],
+                "alto": medida[1], "quien": quien, "cuando": cuando.isoformat()}
 
     respuesta = historial(cliente, CORAZON)
     assert respuesta.status_code == 200
@@ -670,7 +676,7 @@ def test_la_copia_trae_lo_vigente_con_su_ruta_del_contrato(cliente, carpeta, tem
         assert copia.testzip() is None
         assert sorted(copia.namelist()) == [CORAZON, SUELO]
         assert copia.read(CORAZON) == (carpeta / nombre_limpio(corazon, CORAZON)).read_bytes()
-        assert copia.read(SUELO) == (carpeta / nombre_limpio(suelo, SUELO)).read_bytes()
+        assert copia.read(SUELO) == (carpeta / nombre_original(suelo, SUELO)).read_bytes()
     # Cada copia se armó en su temporal, y los dos quedaron cerrados.
     assert [archivo.closed for archivo in temporales] == [True, True]
 
@@ -761,24 +767,22 @@ def test_cada_pieza_que_no_es_de_la_pieza_baja_en_su_medida(cliente):
 
 
 @pytest.mark.parametrize("ruta", [SUELO, "pieza/pared-izquierda.png", "pieza/muebles/cama-se.png"])
-def test_el_provisional_de_un_mueble_baja_en_su_medida_servida_con_los_bytes_del_repo(cliente, carpeta, ruta):
+def test_el_provisional_de_un_mueble_baja_en_su_medida_de_subida(cliente, carpeta, ruta):
     lugar = arte.lugar_de(ruta)
     respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta})
     assert respuesta.status_code == 200
-    assert respuesta.content == _del_repo(ruta)
     with Image.open(io.BytesIO(respuesta.content)) as imagen:
-        assert imagen.size == (lugar.ancho // lugar.reduccion, lugar.alto // lugar.reduccion)
-    # Subido tal cual no vale: la subida es al doble.
-    rechazo = subir(cliente, ruta, respuesta.content)
-    assert rechazo.status_code == 400
-    assert f"esta pieza pide {lugar.ancho} × {lugar.alto} px" in rechazo.json()["detail"]["mensaje"]
+        assert imagen.size == (lugar.ancho, lugar.alto)
+    # Lo que baja se puede subir tal cual (es la medida de subida).
+    assert subir(cliente, ruta, respuesta.content).status_code == 200
 
 
 def test_el_provisional_no_es_lo_subido(cliente, carpeta):
     assert subir(cliente, CORAZON, png(32, 32, 5)).status_code == 200
     assert subir(cliente, SUELO, png(1024, 512, 6)).status_code == 200
-    for ruta in (CORAZON, SUELO):
-        assert cliente.get(f"{API}/provisional", params={"ruta": ruta}).content == _del_repo(ruta)
+    assert cliente.get(f"{API}/provisional", params={"ruta": CORAZON}).content == _del_repo(CORAZON)
+    with Image.open(io.BytesIO(cliente.get(f"{API}/provisional", params={"ruta": SUELO}).content)) as imagen:
+        assert imagen.size == (1024, 512)
 
 
 @pytest.mark.parametrize("ruta", [
@@ -821,10 +825,14 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
         nombres = copia.namelist()
         assert len(nombres) == len(set(nombres)) == len(arte.piezas())
         assert set(nombres) == set(esperado)
-        # Cada uno, con los bytes del archivo del repo, en su medida exacta.
+        # Cada uno, en su medida de subida; lo que no es de la pieza, con los bytes del repo.
         for grupo in arte.grupos():
             for ruta in grupo.rutas:
-                assert copia.read(f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}") == _del_repo(ruta), ruta
+                lugar, dentro = arte.lugar_de(ruta), copia.read(f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}")
+                with Image.open(io.BytesIO(dentro)) as imagen:
+                    assert imagen.size == (lugar.ancho, lugar.alto), ruta
+                if lugar.reduccion == 1:
+                    assert dentro == _del_repo(ruta), ruta
     assert [archivo.closed for archivo in temporales] == [True]
 
 
@@ -971,3 +979,103 @@ def test_a_los_demas_la_pagina_les_contesta_como_una_que_no_existe(cliente, tmp_
     _permisos(tmp_path, monkeypatch)
     entrar(cliente, DIBUJA)
     assert cliente.get(PAGINA).status_code == 200
+
+
+# --- Lo que se ve y se baja a la medida nueva -----------------------------------
+
+def _con_fuentes(monkeypatch, tmp_path) -> Path:
+    fuentes = tmp_path / "fuentes"
+    monkeypatch.setattr(pieza_herramienta, "FUENTES", fuentes)
+    return fuentes
+
+
+def test_el_provisional_de_un_mueble_baja_al_doble_sin_suavizar(cliente, monkeypatch, tmp_path):
+    _con_fuentes(monkeypatch, tmp_path)   # sin original en `fuentes/`
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": MACETA})
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"] == "image/png"
+    assert respuesta.headers["content-disposition"] == 'attachment; filename="provisional-pieza-muebles-maceta-se.png"'
+    with Image.open(io.BytesIO(respuesta.content)) as doble, Image.open(arte.RAIZ / MACETA) as chico:
+        assert doble.size == (1024, 1536) == (arte.lugar_de(MACETA).ancho, arte.lugar_de(MACETA).alto)
+        doble, chico = doble.convert("RGBA"), chico.convert("RGBA")
+        assert doble.tobytes() == chico.resize(doble.size, Image.NEAREST).tobytes()
+        for x, y in ((0, 0), (255, 400), (511, 767)):
+            for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                assert doble.getpixel((2 * x + dx, 2 * y + dy)) == chico.getpixel((x, y))
+
+
+def test_si_fuentes_tiene_el_original_el_provisional_es_ese(cliente, monkeypatch, tmp_path):
+    fuentes = _con_fuentes(monkeypatch, tmp_path)
+    (fuentes / "pieza/muebles").mkdir(parents=True)
+    original = png(1024, 1536, 7)
+    (fuentes / MACETA).write_bytes(original)
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": MACETA})
+    assert respuesta.status_code == 200
+    assert respuesta.content == original
+
+
+def test_la_miniatura_del_provisional_es_la_del_repo_sin_ampliar(cliente, monkeypatch, tmp_path):
+    fuentes = _con_fuentes(monkeypatch, tmp_path)   # aunque `fuentes/` tenga el original
+    (fuentes / "pieza/muebles").mkdir(parents=True)
+    (fuentes / MACETA).write_bytes(png(1024, 1536, 7))
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": MACETA, "miniatura": 1})
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"] == "image/png"
+    assert "content-disposition" not in respuesta.headers
+    assert respuesta.content == _del_repo(MACETA)
+
+
+def test_el_provisional_de_un_icono_baja_tal_cual(cliente):
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": CORAZON})
+    assert respuesta.content == _del_repo(CORAZON)
+    con_miniatura = cliente.get(f"{API}/provisional", params={"ruta": CORAZON, "miniatura": 1})
+    assert con_miniatura.content == _del_repo(CORAZON)
+
+
+def test_descargar_la_imagen_subida_baja_el_original(cliente, carpeta):
+    cuerpo = png(1024, 1536, 3)
+    vista = subir(cliente, MACETA, cuerpo).json()
+    original, chica = arte_subido.preparar(cuerpo, arte.lugar_de(MACETA))
+    baja = cliente.get(vista["subida"]["original"])
+    assert baja.status_code == 200
+    assert baja.content == original.datos
+    assert vista["subida"]["direccion"].endswith(chica.nombre)
+    assert baja.content != cliente.get(vista["subida"]["direccion"]).content
+
+
+def test_la_copia_trae_los_originales_con_su_ruta(cliente, carpeta):
+    cuerpo = png(1024, 1536, 4)
+    assert subir(cliente, MACETA, cuerpo).status_code == 200
+    # Una fila de antes de publicar, sin original: la copia lleva su propio archivo.
+    db.subir_arte(SUELO, "b" * 64 + ".png", 512, 256, "dibuja", T0)
+    (carpeta / ("b" * 64 + ".png")).write_bytes(b"viejo")
+    respuesta = cliente.get(f"{API}/copia.zip")
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        assert sorted(copia.namelist()) == [MACETA, SUELO]
+        original = arte_subido.preparar(cuerpo, arte.lugar_de(MACETA))[0]
+        assert copia.read(MACETA) == original.datos
+        assert Image.open(io.BytesIO(copia.read(MACETA))).size == (1024, 1536)
+        assert copia.read(SUELO) == b"viejo"
+
+
+def test_el_historial_dice_la_medida_del_original(cliente, carpeta):
+    cuerpo = png(1024, 1536, 5)
+    assert subir(cliente, MACETA, cuerpo).status_code == 200
+    assert volver(cliente, MACETA, "provisional").status_code == 200
+    original, chica = arte_subido.preparar(cuerpo, arte.lugar_de(MACETA))
+    renglones_ = historial(cliente, MACETA).json()["historial"]
+    assert [r["accion"] for r in renglones_] == ["provisional", "subir"]
+    assert renglones_[0]["direccion"] is None and renglones_[0]["original"] is None
+    subida = renglones_[1]
+    assert subida["direccion"] == f"/monsteropolis/arte-subido/{chica.nombre}"
+    assert subida["original"] == f"/monsteropolis/arte-subido/{original.nombre}"
+    assert (subida["ancho"], subida["alto"]) == (1024, 1536)
+
+
+def test_una_subida_cortada_no_deja_renglon_ni_archivo(cliente, carpeta):
+    entero = png(1024, 1536, 6)
+    respuesta = subir(cliente, MACETA, entero[: len(entero) // 2])
+    assert respuesta.status_code == 400
+    assert respuesta.json() == {"detail": {"clave": "no_vale", "mensaje": "El PNG está dañado o incompleto."}}
+    assert nada_guardado(carpeta)
+    assert not list(carpeta.glob(".subiendo-*"))

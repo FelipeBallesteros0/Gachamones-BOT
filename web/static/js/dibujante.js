@@ -78,7 +78,7 @@ export function estadoDe(pieza) {
 export function avisoDeMedida(pieza) {
   const medida = pieza.medida_cambiada;
   if (!medida) return null;
-  return `Lo subido mide ${medida.ancho} × ${medida.alto} px y esta pieza ahora pide otra medida: se ve el provisional.`;
+  return `Lo subido mide ${medida.ancho} × ${medida.alto} px y este lugar pide ${pieza.ancho} × ${pieza.alto} px: hay que volver a subirlo.`;
 }
 
 // Un renglón del historial: lo que se hizo (con el nombre de su botón), quién, cuándo y lo que mide.
@@ -156,7 +156,7 @@ function tarjeta(pieza, familia) {
     cambiada.textContent = medida || '';
     cambiada.hidden = !medida;
     bajarSubida.hidden = !actual.subida;
-    if (actual.subida) bajarSubida.setAttribute('href', actual.subida.direccion);
+    if (actual.subida) bajarSubida.setAttribute('href', actual.subida.original);
     else bajarSubida.removeAttribute('href');
   }
 
@@ -279,7 +279,7 @@ export async function montar(raiz) {
     el('header', { class: 'dib-cabeza' },
       titulo,
       el('div', { class: 'dib-descargas' },
-        el('a', { class: 'boton boton-chico', href: `${BASE}copia.zip`, download: true }, 'Descargar lo que se ve'),
+        el('a', { class: 'boton boton-chico', href: `${BASE}copia.zip`, download: true }, 'Descargar lo subido'),
         el('a', { class: 'boton boton-chico', href: `${BASE}provisionales.zip`, download: true },
           DESCARGAS.provisionales))),
     el('label', { class: 'dib-filtro' }, filtro, 'Sólo lo que falta'),

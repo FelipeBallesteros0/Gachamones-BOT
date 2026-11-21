@@ -134,10 +134,10 @@ test('una pieza es provisional o dice quién la subió y cuándo', () => {
   assert.equal(fecha('2026-01-02T03:04:05+00:00'), '02/01/2026 03:04');
 });
 
-test('lo subido con una medida que el contrato ya no pide se dice con su medida', () => {
-  assert.equal(avisoDeMedida({ medida_cambiada: null }), null);
-  assert.equal(avisoDeMedida({ medida_cambiada: { ancho: 31, alto: 30 } }),
-    'Lo subido mide 31 × 30 px y esta pieza ahora pide otra medida: se ve el provisional.');
+test('el aviso de otra medida nombra las dos medidas', () => {
+  assert.equal(avisoDeMedida({ ancho: 1024, alto: 1536, medida_cambiada: null }), null);
+  assert.equal(avisoDeMedida({ ancho: 1024, alto: 1536, medida_cambiada: { ancho: 512, alto: 768 } }),
+    'Lo subido mide 512 × 768 px y este lugar pide 1024 × 1536 px: hay que volver a subirlo.');
 });
 
 test('cada renglón del historial dice qué se hizo, quién, cuándo y lo que mide', () => {
@@ -156,14 +156,16 @@ const CORAZON = {
 };
 const ESTRELLA = {
   ruta: 'efectos/estrella.png', ancho: 32, alto: 32,
-  subida: { direccion: SUBIDA('b'), quien: 'ana', cuando: CUANDO }, medida_cambiada: null,
+  subida: { direccion: SUBIDA('b'), original: SUBIDA('y'), quien: 'ana', cuando: CUANDO },
+  medida_cambiada: null,
 };
 const SUELO = {
-  ruta: 'pieza/suelo.png', ancho: 512, alto: 256,
-  subida: { direccion: SUBIDA('c'), quien: 'luis', cuando: CUANDO }, medida_cambiada: null,
+  ruta: 'pieza/suelo.png', ancho: 1024, alto: 512,
+  subida: { direccion: SUBIDA('c'), original: SUBIDA('z'), quien: 'luis', cuando: CUANDO },
+  medida_cambiada: null,
 };
 const MACETA = {
-  ruta: 'pieza/muebles/maceta-se.png', ancho: 512, alto: 768,
+  ruta: 'pieza/muebles/maceta-se.png', ancho: 1024, alto: 1536,
   subida: null, medida_cambiada: { ancho: 512, alto: 640 },
 };
 const PIEZAS = {
@@ -238,7 +240,7 @@ test('la página tiene su título, la descarga de todo y el filtro de lo que fal
   assert.deepEqual(servidor.pedidos.map((p) => p.ruta), ['GET piezas']);
   assert.equal(raiz.querySelector('h1').textContent, 'Arte de Criópolis');
   const descarga = raiz.querySelector('a');
-  assert.equal(descarga.textContent, 'Descargar lo que se ve');
+  assert.equal(descarga.textContent, 'Descargar lo subido');
   assert.equal(descarga.getAttribute('href'), '/monsteropolis_dibujante/api/copia.zip');
   assert.ok(descarga.getAttribute('download') !== null);
   const filtro = raiz.querySelector('label');
@@ -265,7 +267,7 @@ test('las piezas van por grupos, cada una con su imagen, su nombre, su medida y 
   assert.equal(entrada.getAttribute('accept'), 'image/png');
 
   const suelo = tarjeta(raiz, 'pieza/suelo.png');
-  assert.equal(suelo.querySelector('.dib-medida').textContent, '512 × 256 px');
+  assert.equal(suelo.querySelector('.dib-medida').textContent, '1024 × 512 px');
   assert.equal(suelo.querySelector('.dib-estado').textContent, 'Subida por luis el 20/11/2026 15:04');
   // Cada imagen dice de qué pieza es.
   for (const imagen of raiz.querySelectorAll('img')) assert.ok(imagen.getAttribute('alt'));
@@ -282,7 +284,7 @@ test('lo subido con una medida vieja se ve provisional y lo dice', { timeout: 20
   const maceta = tarjeta(raiz, 'pieza/muebles/maceta-se.png');
   assert.equal(maceta.querySelector('.dib-estado').textContent, 'Provisional');
   assert.equal(maceta.querySelector('.dib-cambiada').textContent,
-    'Lo subido mide 512 × 640 px y esta pieza ahora pide otra medida: se ve el provisional.');
+    'Lo subido mide 512 × 640 px y este lugar pide 1024 × 1536 px: hay que volver a subirlo.');
   assert.equal(maceta.querySelector('img').getAttribute('src'), urlDeArte('pieza/muebles/maceta-se.png'));
   assert.equal(tarjeta(raiz, 'efectos/corazon.png').querySelector('.dib-cambiada').hidden, true);
 });
@@ -545,7 +547,7 @@ test('cada pieza ofrece descargar su provisional, también la que tiene una imag
   }
 });
 
-test('sólo la pieza con imagen subida ofrece descargarla, desde su misma dirección', { timeout: 2000 }, async () => {
+test('descargar la imagen subida apunta al original', { timeout: 2000 }, async () => {
   const { raiz } = await abrir();
   // Sin imagen subida el enlace no se ve ni lleva dirección.
   for (const pieza of [CORAZON, MACETA]) {
@@ -553,21 +555,21 @@ test('sólo la pieza con imagen subida ofrece descargarla, desde su misma direcc
     assert.ok(sin === null || (sin.hidden && sin.getAttribute('href') === null), pieza.ruta);
   }
   const estrella = enlace(tarjeta(raiz, ESTRELLA.ruta), 'Descargar la imagen subida');
-  assert.equal(estrella.getAttribute('href'), SUBIDA('b'));
+  assert.equal(estrella.getAttribute('href'), SUBIDA('y'));
   assert.equal(estrella.getAttribute('download'), 'subida-efectos-estrella.png');
   const suelo = enlace(tarjeta(raiz, SUELO.ruta), 'Descargar la imagen subida');
-  assert.equal(suelo.getAttribute('href'), SUBIDA('c'));
+  assert.equal(suelo.getAttribute('href'), SUBIDA('z'));
   assert.equal(suelo.getAttribute('download'), 'subida-pieza-suelo.png');
 });
 
 test('la descarga de lo subido sigue a la pieza al subir y al volver al provisional', { timeout: 2000 }, async () => {
   const { raiz, servidor } = await abrir();
   const corazon = tarjeta(raiz, CORAZON.ruta);
-  const nueva = { ...CORAZON, subida: { direccion: SUBIDA('d'), quien: 'ana', cuando: CUANDO } };
+  const nueva = { ...CORAZON, subida: { direccion: SUBIDA('d'), original: SUBIDA('w'), quien: 'ana', cuando: CUANDO } };
   servidor.responde('POST subir?ruta=efectos%2Fcorazon.png', nueva);
   await elegir(corazon, { name: 'x.png' });
   const subida = enlace(corazon, 'Descargar la imagen subida');
-  assert.equal(subida.getAttribute('href'), SUBIDA('d'));
+  assert.equal(subida.getAttribute('href'), SUBIDA('w'));
   assert.equal(subida.hidden, false);
   servidor.responde('POST volver', CORAZON);
   await tocar(boton(corazon, 'Volver al provisional'));
@@ -576,11 +578,19 @@ test('la descarga de lo subido sigue a la pieza al subir y al volver al provisio
   assert.equal(oculto.getAttribute('href'), null);
 });
 
-test('arriba se ofrecen los provisionales, junto a lo que se ve', { timeout: 2000 }, async () => {
+test('arriba dice «Descargar lo subido»', { timeout: 2000 }, async () => {
+  const { raiz } = await abrir();
+  const cabeza = raiz.querySelector('.dib-cabeza');
+  assert.equal(enlace(cabeza, 'Descargar lo que se ve'), null);
+  const copia = enlace(cabeza, 'Descargar lo subido');
+  assert.equal(copia.getAttribute('href'), '/monsteropolis_dibujante/api/copia.zip');
+});
+
+test('arriba se ofrecen los provisionales, junto a lo subido', { timeout: 2000 }, async () => {
   const { raiz } = await abrir();
   const cabeza = raiz.querySelector('.dib-cabeza');
   assert.deepEqual(enlaces(cabeza).map((a) => a.textContent),
-    ['Descargar lo que se ve', 'Descargar los provisionales']);
+    ['Descargar lo subido', 'Descargar los provisionales']);
   const todos = enlace(cabeza, 'Descargar los provisionales');
   assert.equal(todos.getAttribute('href'), '/monsteropolis_dibujante/api/provisionales.zip');
   assert.ok(todos.getAttribute('download') !== null);

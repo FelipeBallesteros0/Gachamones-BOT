@@ -20,6 +20,7 @@ la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import tempfile
@@ -27,15 +28,18 @@ import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
+from PIL import Image
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 
 import arte_subido
 import config
 import db
+from herramientas import pieza as herramienta_pieza
 from web import PREFIJO, arte
 from web.sesion import Persona, con_cabecera, dibujante_actual, problema
 from web.tienda import no_se_entiende
@@ -236,7 +240,9 @@ def el_historial(lugar: arte.Lugar = Depends(_el_lugar)) -> dict:
     """Todo lo que le ha pasado al lugar de `?ruta=`, lo último primero."""
     return {"ruta": lugar.ruta, "historial": [
         {"accion": r.accion, "direccion": direccion_de(r.archivo) if r.archivo else None,
-         "ancho": r.ancho, "alto": r.alto, "quien": r.quien, "cuando": r.cuando.isoformat()}
+         "original": direccion_de(r.original) if r.original else None,
+         "ancho": r.ancho_original, "alto": r.alto_original,
+         "quien": r.quien, "cuando": r.cuando.isoformat()}
         for r in db.historial_del_arte(lugar.ruta)
     ]}
 
@@ -263,7 +269,8 @@ def _a_trozos(archivo) -> Iterator[bytes]:
 
 @router.get("/copia.zip")
 def la_copia() -> StreamingResponse:
-    """Todo lo vigente en un zip, cada imagen con su ruta del contrato como nombre.
+    """El original de todo lo que tiene algo puesto (esté al día o no), en un zip, cada
+    imagen con su ruta del contrato como nombre.
 
     Se arma en un temporal sin nombre en disco (se va solo al cerrarse) y se manda a
     trozos: nada se carga entero en memoria. El temporal se cierra al acabar la
@@ -271,13 +278,13 @@ def la_copia() -> StreamingResponse:
     a medias, y sin la tarea del final seguiría abierto hasta que pasara el recolector.
     Una imagen que falta en disco se deja fuera y se avisa en el registro.
     """
-    vigente = _lo_vigente()
+    puesto = db.arte_puesto_entero()
     archivo = tempfile.TemporaryFile()
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
-            for ruta, (nombre, _, _) in sorted(vigente.items()):
+            for ruta, lo_puesto in sorted(puesto.items()):
                 try:
-                    copia.write(config.RUTA_ARTE_SUBIDO / nombre, arcname=ruta)
+                    copia.write(config.RUTA_ARTE_SUBIDO / lo_puesto.original, arcname=ruta)
                 except FileNotFoundError:
                     log.warning("Falta en disco la imagen subida de %s; la copia sale sin ella.", ruta)
         largo = archivo.tell()
@@ -293,18 +300,42 @@ def la_copia() -> StreamingResponse:
 
 
 def _el_provisional(lugar: arte.Lugar) -> bytes:
-    """El PNG del provisional del lugar, tal como baja el dibujante.
+    """El PNG del provisional del lugar, tal como baja el dibujante, a su medida de subida.
 
-    Sale siempre de `web/static/arte/`, nunca de lo subido, tal cual y en la medida
-    servida del lugar. Si el archivo no está, lanza `FileNotFoundError`.
+    En la familia `pieza`, el original de `fuentes/<ruta>` si existe; si no, el
+    provisional servido ampliado al doble sin suavizar (`NEAREST`). En las demás, el
+    archivo tal cual. Nunca sale de lo subido. Si el archivo no está, lanza
+    `FileNotFoundError`.
     """
-    return (arte.RAIZ / lugar.ruta).read_bytes()
+    if lugar.reduccion == 1:
+        return _el_provisional_servido(lugar).read_bytes()
+    try:
+        return (herramienta_pieza.FUENTES / lugar.ruta).read_bytes()
+    except FileNotFoundError:
+        pass
+    with Image.open(_el_provisional_servido(lugar)) as chico:
+        grande = chico.convert("RGBA").resize(
+            (chico.width * lugar.reduccion, chico.height * lugar.reduccion), Image.NEAREST)
+    salida = io.BytesIO()
+    grande.save(salida, "PNG", optimize=True)
+    return salida.getvalue()
+
+
+def _el_provisional_servido(lugar: arte.Lugar):
+    """El archivo del provisional que sirve el juego (a su medida servida)."""
+    return arte.RAIZ / lugar.ruta
 
 
 @router.get("/provisional")
-def el_provisional(lugar: arte.Lugar = Depends(_el_lugar)) -> Response:
-    """El provisional del lugar de `?ruta=`, como descarga."""
+def el_provisional(lugar: arte.Lugar = Depends(_el_lugar), miniatura: bool = False) -> Response:
+    """El provisional del lugar de `?ruta=`, como descarga.
+
+    Con `miniatura`, el provisional servido sin ampliar y sin `Content-Disposition`: es
+    lo que enseña la página en vez de bajarlo.
+    """
     try:
+        if miniatura:
+            return Response(_el_provisional_servido(lugar).read_bytes(), media_type="image/png")
         cuerpo = _el_provisional(lugar)
     except FileNotFoundError:
         raise HTTPException(status_code=404) from None
