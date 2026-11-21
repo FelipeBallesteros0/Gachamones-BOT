@@ -329,6 +329,14 @@ def _a_trozos(archivo) -> Iterator[bytes]:
         archivo.close()
 
 
+def _temporal_del_zip():
+    """Donde se arma un zip: un temporal sin nombre en disco (se va solo al cerrarse), en la
+    carpeta de lo subido y no en el `/tmp` del sistema, que puede ser memoria; con los
+    originales, un zip son cientos de MB. Crea la carpeta, pero no lo que hay encima."""
+    config.RUTA_ARTE_SUBIDO.mkdir(exist_ok=True)
+    return tempfile.TemporaryFile(dir=config.RUTA_ARTE_SUBIDO)
+
+
 def _nombre_del_zip(antes: str, pedido: arte.Grupo | None) -> str:
     return f'attachment; filename="{antes}{"-" + pedido.clave.replace("/", "-") if pedido else ""}.zip"'
 
@@ -340,14 +348,14 @@ def la_copia(pedido: arte.Grupo | None = Depends(_el_grupo)) -> StreamingRespons
 
     Sin `?grupo=`, sin las criaturas (se bajan por especie); con él, sólo las de ese grupo.
 
-    Se arma en un temporal sin nombre en disco (se va solo al cerrarse) y se manda a
-    trozos: nada se carga entero en memoria. El temporal se cierra al acabar la
+    Se arma en un temporal sin nombre en disco, junto a lo subido (`_temporal_del_zip`), y se
+    manda a trozos: nada se carga entero en memoria. El temporal se cierra al acabar la
     respuesta, también si la descarga se corta: entonces el generador se queda
     a medias, y sin la tarea del final seguiría abierto hasta que pasara el recolector.
     Una imagen que falta en disco se deja fuera y se avisa en el registro.
     """
     puesto = db.arte_puesto_entero()
-    archivo = tempfile.TemporaryFile()
+    archivo = _temporal_del_zip()
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
             for ruta, lo_puesto in sorted(puesto.items()):
@@ -431,13 +439,17 @@ def el_provisional(lugar: arte.Lugar = Depends(_el_lugar), miniatura: bool = Fal
 
 
 def _nombres_en_el_zip(grupo: arte.Grupo) -> dict[str, str]:
-    """Ruta → nombre dentro del zip: `<clave del grupo>/<último tramo>`.
+    """Ruta → nombre dentro del zip, en la carpeta del grupo (`<clave del grupo>/`).
 
-    Si en el grupo se repite ese último tramo, las que lo repiten llevan la ruta
-    entera con guiones.
+    La ruta que ya cae dentro de esa carpeta va con su ruta relativa a ella: en una especie,
+    `bebe/cuerpo-se.png`, como en `la_copia` (los nombres se repiten entre etapas). Las demás,
+    con su último tramo; si en el grupo se repite, las que lo repiten llevan la ruta entera
+    con guiones.
     """
+    carpeta = f"{grupo.clave}/"
     ultimos = [ruta.rsplit("/", 1)[1] for ruta in grupo.rutas]
-    return {ruta: f"{grupo.clave}/{ruta.replace('/', '-') if ultimos.count(ultimo) > 1 else ultimo}"
+    return {ruta: ruta if ruta.startswith(carpeta)
+            else f"{carpeta}{ruta.replace('/', '-') if ultimos.count(ultimo) > 1 else ultimo}"
             for ruta, ultimo in zip(grupo.rutas, ultimos)}
 
 
@@ -449,7 +461,7 @@ def los_provisionales(pedido: arte.Grupo | None = Depends(_el_grupo)) -> Streami
     manda como `la_copia`. Un provisional que falta en el repo se deja fuera y se avisa en el registro.
     """
     grupos = (pedido,) if pedido else [g for g in arte.grupos() if g.familia != "criaturas"]
-    archivo = tempfile.TemporaryFile()
+    archivo = _temporal_del_zip()
     try:
         with zipfile.ZipFile(archivo, "w") as copia:
             for grupo in grupos:

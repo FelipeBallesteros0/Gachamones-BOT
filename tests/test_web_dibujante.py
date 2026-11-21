@@ -1450,3 +1450,54 @@ def test_cada_especie_tiene_sus_dos_zips(cliente, carpeta):
         assert copia.namelist() == [CORAZON]
     respuesta = cliente.get(f"{API}/provisionales.zip", params={"grupo": "pieza/muebles/cama"})
     assert respuesta.headers["content-disposition"] == 'attachment; filename="provisionales-pieza-muebles-cama.zip"'
+
+
+def test_los_zips_se_arman_junto_a_lo_subido_y_no_en_el_tmp_del_sistema(cliente, carpeta, monkeypatch, tmp_path):
+    """Con los originales, un zip son cientos de MB, y el `/tmp` del sistema puede ser memoria: el
+    temporal va en la carpeta de lo subido (creándola si falta) y no deja nombre en ella."""
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "no-hay-tmp"))
+    assert not carpeta.exists()
+    vacia = cliente.get(f"{API}/copia.zip")
+    assert vacia.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(vacia.content)) as copia:
+        assert copia.namelist() == []
+    assert carpeta.is_dir() and not any(carpeta.iterdir())
+
+    corazon = png(32, 32, 5)
+    assert subir(cliente, CORAZON, corazon).status_code == 200
+    guardado = sorted(carpeta.iterdir())
+    with zipfile.ZipFile(io.BytesIO(cliente.get(f"{API}/copia.zip").content)) as copia:
+        assert copia.namelist() == [CORAZON]
+    respuesta = cliente.get(f"{API}/provisionales.zip", params={"grupo": "efectos"})
+    assert respuesta.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        assert len(copia.namelist()) == 4
+    assert sorted(carpeta.iterdir()) == guardado
+    assert not (tmp_path / "no-hay-tmp").exists()
+
+
+def test_el_zip_de_una_especie_conserva_sus_carpetas(cliente, carpeta, monkeypatch):
+    """Dentro del zip de una especie, cada capa va con su ruta relativa a la especie
+    (`bebe/cuerpo-se.png`), igual en los dos zips; los nombres se repiten entre etapas."""
+    monkeypatch.setattr(dibujante, "_el_provisional", lambda lugar: b"provisional")
+    for color, ruta in enumerate((CARA_PULPO, CARA_DE_LA_ESPECIE, CARA_COMUN), start=50):
+        assert subir(cliente, ruta, liso(color)).status_code == 200
+    grupos = {g.clave: g for g in arte.grupos()}
+
+    def nombres(zip_, clave):
+        respuesta = cliente.get(f"{API}/{zip_}", params={"grupo": clave})
+        assert respuesta.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+            return copia.namelist()
+
+    provisionales = nombres("provisionales.zip", PULPO)
+    assert sorted(provisionales) == sorted(grupos[PULPO].rutas)
+    assert f"{PULPO}/bebe/cuerpo-se.png" in provisionales and f"{PULPO}/adulto/cuerpo-se.png" in provisionales
+    assert CARA_DE_LA_ESPECIE in provisionales
+    # Lo subido de la especie va con el mismo nombre que su provisional.
+    assert sorted(nombres("copia.zip", PULPO)) == sorted([CARA_PULPO, CARA_DE_LA_ESPECIE])
+    assert set(nombres("copia.zip", PULPO)) <= set(provisionales)
+    # Lo común, en su carpeta, igual en los dos.
+    comunes = nombres("provisionales.zip", "criaturas/comun")
+    assert sorted(comunes) == sorted(grupos["criaturas/comun"].rutas)
+    assert nombres("copia.zip", "criaturas/comun") == [CARA_COMUN]
