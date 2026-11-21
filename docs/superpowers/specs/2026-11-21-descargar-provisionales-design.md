@@ -30,7 +30,8 @@ dibujante sólo los enseña en miniatura y sólo baja un zip con lo subido.
 
 - `GET /monsteropolis_dibujante/api/provisional?ruta=…`: el PNG del provisional
   de esa pieza, como descarga. En la familia `pieza`, ampliado al doble sin
-  suavizar, de modo que al subirlo y reducirlo vuelve a ser el mismo.
+  suavizar: es una guía para dibujar encima, y subido tal cual se acepta y se
+  reduce a la medida de la pieza (sin prometer los mismos píxeles).
 - `GET /monsteropolis_dibujante/api/provisionales.zip`: todos, cada uno en la
   carpeta de su grupo.
 - Las dos, sólo con el permiso (a los demás, el 404 de siempre) y sin caché.

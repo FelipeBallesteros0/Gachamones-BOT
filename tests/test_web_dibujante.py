@@ -22,7 +22,7 @@ import arte_subido
 import config
 import db
 from ayudas_web import ESCRIBIR, T0, crear_rowino_con_permisos, entrar, galleta, poner_reloj, servicio
-from web import arte
+from web import arte, dibujante
 
 API = "/monsteropolis_dibujante/api"
 INVENTADA = f"{API}/ruta-inventada"
@@ -128,7 +128,7 @@ DEMAS = ["sin_sesion", "cookie_falsa", "sin_permiso", "bloqueada", "no_existe", 
 
 
 @pytest.mark.parametrize("ruta", RUTAS)
-def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, ruta):
+def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, sin_ampliar, ruta):
     for uid in (DIBUJA, ADMIN):
         entrar(cliente, uid)
         assert RUTAS[ruta](cliente).status_code == 200
@@ -137,7 +137,7 @@ def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, ruta):
 @pytest.mark.parametrize("ruta", RUTAS)
 @pytest.mark.parametrize("quien", DEMAS)
 def test_a_los_demas_cada_ruta_les_contesta_como_una_que_no_existe(
-        cliente, tmp_path, monkeypatch, carpeta, ruta, quien):
+        cliente, sin_ampliar, tmp_path, monkeypatch, carpeta, ruta, quien):
     if quien == "sin_sesion":
         cliente.cookies.clear()
     elif quien == "cookie_falsa":
@@ -667,13 +667,15 @@ def _del_repo(ruta: str) -> bytes:
     return (arte.RAIZ / ruta).read_bytes()
 
 
-HOLGURA_DEL_ALFA = 32
+@pytest.fixture
+def sin_ampliar(monkeypatch):
+    """El zip de provisionales sin ampliar de verdad los de la familia `pieza` (lo caro: ~2,5 s).
 
-
-def _pixeles(cuerpo: bytes) -> tuple[tuple[int, int], bytes]:
-    with Image.open(io.BytesIO(cuerpo)) as imagen:
-        imagen = imagen.convert("RGBA")
-        return imagen.size, imagen.tobytes()
+    Para las pruebas que no miran esas imágenes; la ampliación se prueba aparte, con las de verdad.
+    """
+    verdadero = dibujante._el_provisional
+    monkeypatch.setattr(dibujante, "_el_provisional",
+                        lambda pieza: b"png" if pieza.familia == "pieza" else verdadero(pieza))
 
 
 def test_el_provisional_baja_en_la_medida_de_la_pieza(cliente):
@@ -705,13 +707,10 @@ def test_el_provisional_de_un_mueble_baja_al_doble_y_subido_la_pagina_lo_acepta_
     medida_doble = (pieza.ancho * arte.REDUCCION, pieza.alto * arte.REDUCCION)
     with Image.open(io.BytesIO(respuesta.content)) as imagen:
         assert imagen.size == medida_doble
-    # Subido tal cual, la página lo acepta y lo reduce a la medida del provisional. Los píxeles
-    # no vuelven idénticos: la reducción de `arte_subido` (LANCZOS) no deshace una ampliación
-    # al vecino más próximo, y deja un rastro en los bordes (el alfa, a lo sumo en `HOLGURA_DEL_ALFA`).
+    # Subido tal cual, la página lo acepta y lo reduce a la medida de la pieza.
     limpio, _ = arte_subido.preparar(respuesta.content, pieza)
-    (medida, reducido), (medida_original, original) = _pixeles(limpio), _pixeles(_del_repo(ruta))
-    assert medida == medida_original == (pieza.ancho, pieza.alto)
-    assert max(abs(reducido[i] - original[i]) for i in range(3, len(original), 4)) <= HOLGURA_DEL_ALFA
+    with Image.open(io.BytesIO(limpio)) as reducido:
+        assert reducido.size == (pieza.ancho, pieza.alto)
     assert subir(cliente, ruta, respuesta.content).status_code == 200
 
 
@@ -775,7 +774,7 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
     assert [archivo.closed for archivo in temporales] == [True]
 
 
-def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
+def test_el_zip_de_provisionales_no_es_lo_subido(cliente, sin_ampliar, carpeta):
     assert subir(cliente, CORAZON, png(32, 32, 7)).status_code == 200
     respuesta = cliente.get(f"{API}/provisionales.zip")
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
@@ -790,7 +789,7 @@ def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cl
         assert sorted(copia.namelist()) == ["junto/escenas-tienda.png", "junto/pueblo-lugares-tienda.png"]
 
 
-def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(cliente, monkeypatch, tmp_path, caplog):
+def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(cliente, sin_ampliar, monkeypatch, tmp_path, caplog):
     copia_del_arte = tmp_path / "arte-incompleta"
     shutil.copytree(arte.RAIZ, copia_del_arte)
     (copia_del_arte / CORAZON).unlink()
@@ -804,7 +803,7 @@ def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(client
     assert CORAZON in caplog.text
 
 
-def test_las_descargas_de_provisionales_no_se_guardan(cliente):
+def test_las_descargas_de_provisionales_no_se_guardan(cliente, sin_ampliar):
     for respuesta in (cliente.get(f"{API}/provisional", params={"ruta": CORAZON}),
                       cliente.get(f"{API}/provisionales.zip")):
         assert respuesta.status_code == 200 and respuesta.headers["cache-control"] == "no-store"
