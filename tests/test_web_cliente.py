@@ -721,7 +721,21 @@ def test_las_frases_de_la_pagina_del_dibujante_son_las_del_plan():
                   " × ${", " px", "'Subir'", "'Historial'", "'Volver a la anterior'",
                   "'Volver al provisional'", "Descargar lo subido", "Descargar el provisional", "Descargar la imagen subida",
                   "Descargar los provisionales", "Listo: ya se ve en el juego.",
-                  " px y este lugar pide ${", " px: hay que volver a subirlo.", "Lo subido mide ${"):
+                  " px y este lugar pide ${", " px: hay que volver a subirlo.", "Lo subido mide ${",
+                  "Criaturas", "Cargando las capas…", "Descargar lo subido de ${", "Descargar los provisionales de ${",
+                  "Usa la de toda la especie.", "Usa la común.", "'Cuerpo'", "'Caras'", "'Sombreros'",
+                  "Para todas las etapas de ${", "Cuerpo · ${", "Cara ${", "Adulto grande",
+                  "Esta capa la usan todas las etapas de ${", " que no tienen la suya. ¿Seguir?",
+                  "Esta capa la usan todas las especies que no tienen la suya. ¿Seguir?",
+                  "El dibujo de siempre es el apagado; éste es el encendido.",
+                  "La de siempre es la sólida; ésta es la que se puede atravesar.",
+                  "Alto como tu avatar: unos 717 px del original, de pie en el centro de la casilla.",
+                  "La tira de 4 × 1 casillas que queda por fuera de la pared, con su baranda. ",
+                  "Como lo de pared: «se» va en la pared izquierda y «so», en la derecha.",
+                  "Cada capa mide 1024 × 1024 y se apila con las demás de su etapa en el mismo lienzo. De espaldas no lleva cara.",
+                  "El provisional es la capa de frente de hoy, ampliada: dice dónde va y de qué tamaño, no cómo se ve de lado ni de espaldas.",
+                  "se · de frente, hacia abajo a la derecha", "so · de frente, hacia abajo a la izquierda",
+                  "no · de espaldas, hacia arriba a la izquierda", "ne · de espaldas, hacia arriba a la derecha"):
         assert frase in codigo, frase
 
 

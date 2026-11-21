@@ -207,3 +207,65 @@ html.dibujante body { background: var(--fondo); }
    dibujo roto del navegador. */
 span.dib-miniatura,
 .dib-sin-imagen { visibility: hidden; }
+
+/* Las criaturas: un título, y una especie plegada (con sus enlaces) por cada una. */
+.dib-criaturas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dib-criaturas > h2 { margin: 8px 0 0; }
+
+.dib-especie-cuerpo,
+.dib-capas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dib-especie-cuerpo { padding: 0 12px 12px; }
+
+.dib-capas > h3 {
+  margin: 4px 0 0;
+  font-size: 1rem;
+}
+
+/* Las etapas y los sombreros, plegados dentro de la especie. */
+.dib-etapa,
+.dib-sombreros {
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-chico);
+  background: var(--fondo);
+}
+
+.dib-etapa > summary,
+.dib-sombreros > summary {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dib-etapa > .dib-capas,
+.dib-sombreros > .dib-capas { padding: 0 12px 12px; }
+
+.dib-etapa .dib-piezas,
+.dib-sombreros .dib-piezas { padding: 0; }
+
+.dib-titulo {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.dib-nota {
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+}
+
+/* Una casilla que no tiene su capa y usa otra: se dice, pero no es un aviso. */
+.dib-cubierta {
+  color: var(--texto-suave);
+  font-size: 0.9375rem;
+  font-style: italic;
+}
