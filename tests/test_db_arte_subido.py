@@ -457,6 +457,169 @@ def test_volver_a_otra_cosa_no_vale(carpeta):
     assert filas() == []
 
 
+# --- El original de cada subida ----------------------------------------------------
+
+O1, O2, O3, O4, O5, O6, O7 = (falso(100 + n) for n in range(7))
+CHICA = (512, 768)
+GRANDE = (1024, 1536)
+
+
+def subir_con_original(ruta, archivo, original, quien="ana", ahora=T0, chica=CHICA, grande=GRANDE):
+    db.subir_arte(ruta, archivo, *chica, quien, ahora,
+                  original=original, ancho_original=grande[0], alto_original=grande[1])
+
+
+def test_subir_con_original_lo_deja_puesto_con_su_medida():
+    subir_con_original(CORAZON, A, O1)
+    assert db.arte_puesto_entero() == {
+        CORAZON: db.ArtePuesto(A, 512, 768, O1, 1024, 1536)}
+
+
+def test_una_fila_sin_original_tiene_por_original_su_archivo():
+    subir(CORAZON, A, medida=(512, 768))
+    assert db.arte_puesto_entero() == {
+        CORAZON: db.ArtePuesto(A, 512, 768, A, 512, 768)}
+    assert [(r.original, r.ancho_original, r.alto_original) for r in db.historial_del_arte(CORAZON)] == [
+        (A, 512, 768)]
+
+
+@pytest.mark.parametrize("falta", [
+    dict(original=O1), dict(ancho_original=1024), dict(alto_original=1536),
+    dict(original=O1, ancho_original=1024), dict(original=O1, alto_original=1536),
+    dict(ancho_original=1024, alto_original=1536),
+])
+def test_el_original_va_con_su_medida_o_no_va(falta):
+    with pytest.raises(ValueError):
+        db.subir_arte(CORAZON, A, 512, 768, "ana", T0, **falta)
+    assert filas() == []
+
+
+def test_el_original_tiene_la_forma_de_un_archivo_subido():
+    with pytest.raises(ValueError):
+        db.subir_arte(CORAZON, A, 512, 768, "ana", T0,
+                      original="../x.png", ancho_original=1024, alto_original=1536)
+    assert filas() == []
+
+
+def test_arte_vigente_y_arte_puesto_no_cambian_con_el_original():
+    subir_con_original(SUELO, A, O1, chica=(512, 256), grande=(1024, 512))
+    subir(CORAZON, B)
+    assert db.arte_puesto() == {SUELO: (A, 512, 256), CORAZON: (B, 32, 32)}
+    assert db.arte_vigente(arte_subido.medidas()) == {SUELO: (A, 512, 256), CORAZON: (B, 32, 32)}
+    assert db.quien_subio_lo_puesto() == {SUELO: (A, "ana", T0), CORAZON: (B, "ana", T0)}
+
+
+def test_volver_a_la_anterior_copia_el_original_y_su_medida():
+    subir_con_original(CORAZON, A, O1, grande=(1024, 1536))
+    subir_con_original(CORAZON, B, O2, grande=(1000, 1500))
+    assert anterior() == A
+    with db.conectar() as con:
+        ultima = tuple(con.execute(
+            "SELECT accion, archivo, ancho, alto, original, ancho_original, alto_original "
+            "FROM arte_subido ORDER BY id DESC LIMIT 1").fetchone())
+    assert ultima == ("anterior", A, 512, 768, O1, 1024, 1536)
+    assert db.arte_puesto_entero()[CORAZON] == db.ArtePuesto(A, 512, 768, O1, 1024, 1536)
+
+
+def test_volver_a_la_anterior_salta_la_subida_cuyo_original_no_esta_en_disco():
+    subir_con_original(CORAZON, A, O1)
+    subir_con_original(CORAZON, B, O2)
+    subir_con_original(CORAZON, C, O3)
+    visto = []
+
+    def en_disco(nombre):
+        visto.append(nombre)
+        return nombre != O2
+
+    assert anterior(en_disco=en_disco) == A
+    assert B in visto and O2 in visto and A in visto and O1 in visto
+    assert db.arte_puesto_entero()[CORAZON].archivo == A
+
+
+def test_dos_originales_distintos_con_la_misma_version_chica_son_dos_imagenes():
+    subir_con_original(CORAZON, A, O1)
+    subir_con_original(CORAZON, A, O2)
+    # No es «la misma imagen subida dos veces»: se puede volver a la primera.
+    assert anterior() == A
+    assert db.arte_puesto_entero()[CORAZON].original == O1
+    assert db.archivos_que_se_conservan() == {A, O1, O2}
+
+
+def test_se_conservan_el_archivo_y_el_original_de_las_cinco_ultimas():
+    chicas, grandes = (A, B, C, D, E, F, G), (O1, O2, O3, O4, O5, O6, O7)
+    for chica, grande in zip(chicas, grandes):
+        subir_con_original(CORAZON, chica, grande)
+    assert db.archivos_que_se_conservan() == set(chicas[2:]) | set(grandes[2:])
+    # Una sin original cuenta por su archivo, junto a las que sí lo tienen.
+    subir(ESTRELLA, A)
+    assert A in db.archivos_que_se_conservan()
+
+
+def test_la_poda_borra_el_original_que_ya_no_se_conserva():
+    chicas, grandes = (A, B, C, D, E, F), (O1, O2, O3, O4, O5, O6)
+    for chica, grande in zip(chicas, grandes):
+        subir_con_original(CORAZON, chica, grande)
+    vistos = []
+    db.podar_arte(lambda conservar, conocidos: vistos.append((conservar, conocidos)))
+    conservar, conocidos = vistos[0]
+    assert conocidos == set(chicas) | set(grandes)
+    assert conocidos - conservar == {A, O1}
+
+
+def test_el_historial_trae_el_original_y_su_medida():
+    subir(CORAZON, A, "ana", T0)
+    subir_con_original(CORAZON, B, O1, "felipe", T0 + timedelta(minutes=1))
+    db.volver_al_provisional(CORAZON, "felipe", T0 + timedelta(minutes=2))
+    assert [(r.accion, r.archivo, r.original, r.ancho_original, r.alto_original)
+            for r in db.historial_del_arte(CORAZON)] == [
+        ("provisional", None, None, None, None),
+        ("subir", B, O1, 1024, 1536),
+        ("subir", A, A, 32, 32),
+    ]
+
+
+def test_una_base_de_antes_gana_las_tres_columnas_al_arrancar_sin_perder_filas(tmp_path, monkeypatch):
+    vieja = tmp_path / "vieja.db"
+    con = sqlite3.connect(vieja)
+    con.executescript("""
+        CREATE TABLE arte_subido (
+            id INTEGER PRIMARY KEY,
+            ruta TEXT NOT NULL,
+            accion TEXT NOT NULL CHECK (accion IN ('subir', 'anterior', 'provisional')),
+            subida INTEGER REFERENCES arte_subido(id),
+            archivo TEXT, ancho INTEGER, alto INTEGER,
+            quien TEXT NOT NULL, cuando TEXT NOT NULL,
+            CHECK ((archivo IS NULL) = (ancho IS NULL) AND (archivo IS NULL) = (alto IS NULL)),
+            CHECK ((accion = 'provisional') = (archivo IS NULL)),
+            CHECK ((accion = 'anterior') = (subida IS NOT NULL))
+        );
+    """)
+    con.execute("INSERT INTO arte_subido (ruta, accion, archivo, ancho, alto, quien, cuando) "
+                "VALUES (?, 'subir', ?, 32, 32, 'ana', ?)", (CORAZON, A, T0.isoformat()))
+    con.commit()
+    con.close()
+    monkeypatch.setattr(db, "RUTA", vieja)
+    db.inicializar(T0)
+    with db.conectar() as con:
+        columnas = {f["name"] for f in con.execute("PRAGMA table_info(arte_subido)")}
+        assert {"original", "ancho_original", "alto_original"} <= columnas
+        assert con.execute("SELECT original, ancho_original, alto_original FROM arte_subido").fetchall()[0][:] == (
+            None, None, None)
+    assert db.arte_puesto_entero() == {CORAZON: db.ArtePuesto(A, 32, 32, A, 32, 32)}
+    db.inicializar(T0)  # y otra vez no rompe
+
+
+def test_una_lectura_de_ruta_archivo_ancho_alto_sigue_funcionando():
+    """La consulta que hace el mundo en línea, por nombre y en sólo lectura."""
+    subir_con_original(CORAZON, A, O1)
+    subir(ESTRELLA, B)
+    with db.conectar() as con:
+        leidas = {f["ruta"]: (f["archivo"], f["ancho"], f["alto"]) for f in con.execute(
+            "SELECT ruta, archivo, ancho, alto FROM arte_subido "
+            "WHERE id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) AND archivo IS NOT NULL")}
+    assert leidas == {CORAZON: (A, 512, 768), ESTRELLA: (B, 32, 32)}
+
+
 # --- Una subida y una poda a la vez -------------------------------------------------
 
 def test_subir_repone_la_imagen_si_una_poda_se_la_llevo_antes_del_renglon(carpeta, monkeypatch):

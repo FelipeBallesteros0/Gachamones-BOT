@@ -445,7 +445,10 @@ CREATE TABLE IF NOT EXISTS cartas (
 -- dónde va la vuelta atrás) o el recuadro provisional, que no lleva `archivo`.
 -- `ancho` y `alto` son los de lo servido, para dejar de servirlo si el contrato
 -- cambia de medida. `quien` es el nombre de quien lo hizo, nunca su número de
--- cuenta.
+-- cuenta. `original`, `ancho_original` y `alto_original` son el archivo grande que
+-- subió el dibujante y su medida; pueden ir vacíos (lo de antes de guardarlo), y
+-- entonces el original es el propio `archivo`. La identidad de una imagen es
+-- `COALESCE(original, archivo)`. Las tres van o ninguna: lo comprueba el código.
 CREATE TABLE IF NOT EXISTS arte_subido (
     id INTEGER PRIMARY KEY,
     ruta TEXT NOT NULL,
@@ -456,6 +459,9 @@ CREATE TABLE IF NOT EXISTS arte_subido (
     alto INTEGER,
     quien TEXT NOT NULL,
     cuando TEXT NOT NULL,
+    original TEXT,
+    ancho_original INTEGER,
+    alto_original INTEGER,
     CHECK ((archivo IS NULL) = (ancho IS NULL) AND (archivo IS NULL) = (alto IS NULL)),
     CHECK ((accion = 'provisional') = (archivo IS NULL)),
     CHECK ((accion = 'anterior') = (subida IS NOT NULL))
@@ -478,6 +484,11 @@ CREATE INDEX IF NOT EXISTS idx_conversacion
 
 CREATE INDEX IF NOT EXISTS idx_uso_ia
     ON uso_ia(usuario_id, cuando);
+
+-- Lo vigente y lo que se conserva del arte agrupan por pieza y miran el último
+-- renglón de cada una.
+CREATE INDEX IF NOT EXISTS arte_subido_por_ruta
+    ON arte_subido(ruta, id);
 
 CREATE INDEX IF NOT EXISTS idx_cupo
     ON operaciones_economia(usuario_id, guild_id, fecha_utc, tipo);
@@ -586,6 +597,13 @@ MIGRACIONES = (
 # Lo mismo, para tablas que no son `criaturas`. Van aparte porque `MIGRACIONES`
 # mira sólo el `PRAGMA` de aquélla, que es donde habían caído todas hasta ahora.
 MIGRACIONES_DE_TABLAS = (
+    # El arte subido guarda también el original de cada subida. Las filas de antes
+    # se quedan sin él (vacías): su original es su archivo.
+    ("arte_subido", "original", "ALTER TABLE arte_subido ADD COLUMN original TEXT"),
+    ("arte_subido", "ancho_original",
+     "ALTER TABLE arte_subido ADD COLUMN ancho_original INTEGER"),
+    ("arte_subido", "alto_original",
+     "ALTER TABLE arte_subido ADD COLUMN alto_original INTEGER"),
     # Las casas nacieron todas visibles y así se quedan las que ya existían.
     ("hogar", "publica",
      "ALTER TABLE hogar ADD COLUMN publica INTEGER NOT NULL DEFAULT 1"),
@@ -2747,6 +2765,22 @@ class RenglonDelArte:
     alto: int | None
     quien: str
     cuando: datetime
+    # El original y su medida; sin el original guardado es el propio archivo. Sólo
+    # van vacíos en el recuadro provisional.
+    original: str | None = None
+    ancho_original: int | None = None
+    alto_original: int | None = None
+
+
+@dataclass(frozen=True)
+class ArtePuesto:
+    """Lo puesto de una pieza: lo servido (`archivo`) y el original del que sale."""
+    archivo: str
+    ancho: int
+    alto: int
+    original: str
+    ancho_original: int
+    alto_original: int
 
 
 def _comprobar_ruta_de_arte(ruta: str) -> None:
@@ -2757,56 +2791,82 @@ def _comprobar_ruta_de_arte(ruta: str) -> None:
 def _anotar_arte_en(
     con: sqlite3.Connection, ruta: str, accion: str, subida: int | None,
     archivo: str | None, ancho: int | None, alto: int | None, quien: str, ahora: datetime,
+    original: str | None = None, ancho_original: int | None = None,
+    alto_original: int | None = None,
 ) -> None:
     con.execute(
-        "INSERT INTO arte_subido (ruta, accion, subida, archivo, ancho, alto, quien, cuando) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (ruta, accion, subida, archivo, ancho, alto, quien, ahora.isoformat()),
+        "INSERT INTO arte_subido (ruta, accion, subida, archivo, ancho, alto, quien, cuando, "
+        "original, ancho_original, alto_original) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (ruta, accion, subida, archivo, ancho, alto, quien, ahora.isoformat(),
+         original, ancho_original, alto_original),
     )
 
 
-def _guardadas_en(con: sqlite3.Connection) -> dict[str, list[str]]:
-    """De cada pieza, sus imágenes guardadas: las últimas distintas, de la subida más
-    nueva a la más vieja, contando cada una por su última subida. Las vueltas atrás no
-    cuentan: no cambian lo que se guarda."""
-    filas = con.execute(
-        "SELECT ruta, archivo FROM arte_subido WHERE accion = 'subir' "
-        "GROUP BY ruta, archivo ORDER BY ruta, MAX(id) DESC"
-    ).fetchall()
-    guardadas: dict[str, list[str]] = {}
-    for fila in filas:
+# La identidad de una imagen: su original, o su archivo si no se guardó el original.
+_IDENTIDAD = "COALESCE(original, archivo)"
+
+
+def _guardadas_en(con: sqlite3.Connection) -> dict[str, list[tuple[str, str | None]]]:
+    """De cada pieza, sus imágenes guardadas, como (archivo, original): las últimas
+    distintas, de la subida más nueva a la más vieja, contando cada una (por su original)
+    en su última subida. Las vueltas atrás no cuentan: no cambian lo que se guarda."""
+    guardadas: dict[str, list[tuple[str, str | None]]] = {}
+    vistas: dict[str, set[str]] = {}
+    # Por el índice de (ruta, id): sin ordenar aparte, y la primera vez que sale una
+    # imagen es su última subida.
+    for fila in con.execute(
+        "SELECT ruta, archivo, original FROM arte_subido WHERE accion = 'subir' "
+        "ORDER BY ruta, id DESC"
+    ):
         de_la_pieza = guardadas.setdefault(fila["ruta"], [])
-        if len(de_la_pieza) < ARTE_CONSERVADO_POR_PIEZA:
-            de_la_pieza.append(fila["archivo"])
+        identidad = fila["original"] or fila["archivo"]
+        ya = vistas.setdefault(fila["ruta"], set())
+        if identidad not in ya and len(de_la_pieza) < ARTE_CONSERVADO_POR_PIEZA:
+            ya.add(identidad)
+            de_la_pieza.append((fila["archivo"], fila["original"]))
     return guardadas
 
 
 def _se_conservan_en(con: sqlite3.Connection) -> set[str]:
-    conservados = {archivo for lista in _guardadas_en(con).values() for archivo in lista}
+    conservados = {
+        nombre for lista in _guardadas_en(con).values() for par in lista
+        for nombre in par if nombre is not None}
     # La vigente de cada pieza ya es una de sus guardadas; se añade igual, por si acaso.
-    conservados |= {f["archivo"] for f in con.execute(
-        "SELECT archivo FROM arte_subido "
+    for f in con.execute(
+        "SELECT archivo, original FROM arte_subido "
         "WHERE id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) AND archivo IS NOT NULL"
-    )}
+    ):
+        conservados.add(f["archivo"])
+        if f["original"] is not None:
+            conservados.add(f["original"])
     return conservados
 
 
 def subir_arte(
     ruta: str, archivo: str, ancho: int, alto: int, quien: str, ahora: datetime,
+    *, original: str | None = None, ancho_original: int | None = None,
+    alto_original: int | None = None,
 ) -> None:
     """Deja `archivo` como la imagen vigente de esa pieza, a nombre de `quien`, y lo pone al
     final de sus subidas.
 
     El archivo ya tiene que estar entero en la carpeta de lo subido: se anota
     después de escribirlo (`arte_subido.subir`). `ancho` y `alto` son los de la
-    imagen servida.
+    imagen servida. `original` es el archivo grande del que sale, con su medida:
+    van los tres o ninguno.
     """
     _comprobar_ruta_de_arte(ruta)
     if not _ARCHIVO_DE_ARTE.fullmatch(archivo):
         raise ValueError(f"{archivo!r} no tiene forma de archivo subido")
+    del_original = (original, ancho_original, alto_original)
+    if any(x is not None for x in del_original) and any(x is None for x in del_original):
+        raise ValueError("el original va con su ancho y su alto, o no va")
+    if original is not None and not _ARCHIVO_DE_ARTE.fullmatch(original):
+        raise ValueError(f"{original!r} no tiene forma de archivo subido")
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
-        _anotar_arte_en(con, ruta, "subir", None, archivo, ancho, alto, quien, ahora)
+        _anotar_arte_en(con, ruta, "subir", None, archivo, ancho, alto, quien, ahora,
+                        original, ancho_original, alto_original)
 
 
 def volver_a_la_anterior(
@@ -2818,18 +2878,19 @@ def volver_a_la_anterior(
     v1, v2 y v3, se pasa a v2, luego a v1 y luego al recuadro provisional (y
     devuelve `None`). Desde el provisional se vuelve a la última subida, para que
     un toque de más en «Volver al provisional» se deshaga con otro (decisión del
-    dueño, 2026-11-20). Se saltan las subidas de la misma imagen que la puesta y
-    las que ya no se guardan o no están `en_disco`. Deja un renglón nuevo a nombre
-    de quien vuelve. Si no queda ninguna imagen subida a la que volver desde el
-    provisional, o la pieza no tiene historial, no cambia nada y lanza
-    `NoHayAnterior`.
+    dueño, 2026-11-20). Se saltan las subidas de la misma imagen que la puesta (la
+    misma por su original) y las que ya no se guardan o no están `en_disco`, ni su
+    archivo ni su original. Deja un renglón nuevo, con el original de la subida a la
+    que vuelve, a nombre de quien vuelve. Si no queda ninguna imagen subida a la que
+    volver desde el provisional, o la pieza no tiene historial, no cambia nada y
+    lanza `NoHayAnterior`.
     """
     _comprobar_ruta_de_arte(ruta)
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         filas = con.execute(
-            "SELECT id, accion, subida, archivo, ancho, alto FROM arte_subido "
-            "WHERE ruta = ? ORDER BY id DESC",
+            "SELECT id, accion, subida, archivo, ancho, alto, original, ancho_original, "
+            "alto_original FROM arte_subido WHERE ruta = ? ORDER BY id DESC",
             (ruta,),
         ).fetchall()
         if not filas:
@@ -2839,11 +2900,16 @@ def volver_a_la_anterior(
         # Por dónde va la secuencia de subidas: la subida puesta o, desde el provisional,
         # detrás de la última.
         donde = puesta["subida"] if puesta["accion"] == "anterior" else puesta["id"]
-        guardadas = set(_guardadas_en(con).get(ruta, ()))
+        guardadas = {original or archivo for archivo, original in _guardadas_en(con).get(ruta, ())}
+
+        def identidad(fila) -> str | None:
+            return fila["original"] or fila["archivo"]
+
         anterior = next((
             f for f in filas
-            if f["accion"] == "subir" and f["id"] < donde and f["archivo"] != puesta["archivo"]
-            and f["archivo"] in guardadas and en_disco(f["archivo"])
+            if f["accion"] == "subir" and f["id"] < donde and identidad(f) != identidad(puesta)
+            and identidad(f) in guardadas and en_disco(f["archivo"])
+            and (f["original"] is None or en_disco(f["original"]))
         ), None)
         if anterior is None:
             if desde_el_provisional:
@@ -2851,7 +2917,9 @@ def volver_a_la_anterior(
             _anotar_arte_en(con, ruta, "provisional", None, None, None, None, quien, ahora)
             return None
         _anotar_arte_en(con, ruta, "anterior", anterior["id"], anterior["archivo"],
-                        anterior["ancho"], anterior["alto"], quien, ahora)
+                        anterior["ancho"], anterior["alto"], quien, ahora,
+                        anterior["original"], anterior["ancho_original"],
+                        anterior["alto_original"])
         return anterior["archivo"]
 
 
@@ -2861,6 +2929,25 @@ def volver_al_provisional(ruta: str, quien: str, ahora: datetime) -> None:
     with conectar() as con:
         con.execute("BEGIN IMMEDIATE")
         _anotar_arte_en(con, ruta, "provisional", None, None, None, None, quien, ahora)
+
+
+def arte_puesto_entero() -> dict[str, ArtePuesto]:
+    """Ruta → lo puesto de cada pieza, con su original, en una sola consulta.
+
+    Como `arte_puesto`, pero con el original y su medida; sin original guardado, el
+    original es el propio archivo con su medida. Las piezas en su recuadro provisional
+    no salen.
+    """
+    with conectar() as con:
+        filas = con.execute(
+            "SELECT ruta, archivo, ancho, alto, COALESCE(original, archivo) AS original, "
+            "COALESCE(ancho_original, ancho) AS ancho_original, "
+            "COALESCE(alto_original, alto) AS alto_original FROM arte_subido "
+            "WHERE id IN (SELECT MAX(id) FROM arte_subido GROUP BY ruta) "
+            "AND archivo IS NOT NULL"
+        ).fetchall()
+    return {f["ruta"]: ArtePuesto(f["archivo"], f["ancho"], f["alto"], f["original"],
+                                  f["ancho_original"], f["alto_original"]) for f in filas}
 
 
 def arte_puesto() -> dict[str, tuple[str, int, int]]:
@@ -2918,13 +3005,17 @@ def historial_del_arte(ruta: str) -> list[RenglonDelArte]:
     """Todo lo que le ha pasado a esa pieza, lo último primero."""
     with conectar() as con:
         filas = con.execute(
-            "SELECT accion, archivo, ancho, alto, quien, cuando FROM arte_subido "
+            "SELECT accion, archivo, ancho, alto, quien, cuando, "
+            "COALESCE(original, archivo) AS original, "
+            "COALESCE(ancho_original, ancho) AS ancho_original, "
+            "COALESCE(alto_original, alto) AS alto_original FROM arte_subido "
             "WHERE ruta = ? ORDER BY id DESC",
             (ruta,),
         ).fetchall()
     return [
         RenglonDelArte(f["accion"], f["archivo"], f["ancho"], f["alto"], f["quien"],
-                       datetime.fromisoformat(f["cuando"]))
+                       datetime.fromisoformat(f["cuando"]),
+                       f["original"], f["ancho_original"], f["alto_original"])
         for f in filas
     ]
 
@@ -2942,7 +3033,7 @@ def podar_arte(borrar: Callable[[set[str], set[str]], object]) -> None:
     """Decide qué archivos se conservan y llama a `borrar(conservar, conocidos)`, con la
     base tomada para escribir.
 
-    `conocidos` son todos los archivos que nombra el historial. Decidir y borrar
+    `conocidos` son todos los archivos que nombra el historial, también los originales. Decidir y borrar
     van en la misma transacción que excluye a cualquier subida o vuelta atrás: una
     imagen no puede quedar vigente entre que se decide borrarla y se borra.
     """
@@ -2950,6 +3041,7 @@ def podar_arte(borrar: Callable[[set[str], set[str]], object]) -> None:
         con.execute("BEGIN IMMEDIATE")
         conservar = _se_conservan_en(con)
         conocidos = {f["archivo"] for f in con.execute(
-            "SELECT DISTINCT archivo FROM arte_subido WHERE archivo IS NOT NULL"
+            "SELECT archivo FROM arte_subido WHERE archivo IS NOT NULL "
+            "UNION SELECT original FROM arte_subido WHERE original IS NOT NULL"
         )}
         borrar(conservar, conocidos)
