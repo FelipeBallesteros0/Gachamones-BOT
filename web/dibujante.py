@@ -16,8 +16,8 @@ y FastAPI leería un cuerpo declarado entero antes de mirar la sesión.
 
 El avance (`/avance`) es el contrato con el tablero del arte del sitio, que lo
 pide cada pocos segundos por cada pestaña abierta: sale de una sola lectura de
-la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero. Cuenta
-casillas, no rutas, y sólo de los grupos con tarjeta.
+la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero. Cada
+dibujo de un grupo cuenta una vez.
 
 Las criaturas son miles de capas: la lista general y los zips de arriba no las
 traen, y cada grupo se pide entero con `?grupo=<clave>`. La clave sólo se compara
@@ -31,7 +31,7 @@ import logging
 import tempfile
 import zipfile
 from collections.abc import Iterator
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
 
@@ -195,25 +195,8 @@ def _criatura(capa: arte.Capa | None) -> dict | None:
         return None
     sombrero = next((s.nombre for s in cosmeticos.SOMBREROS if s.clave == capa.cual), None) \
         if capa.capa == "sombrero" else None
-    return {"nivel": capa.nivel, "etapa": capa.etapa, "capa": capa.capa, "cual": capa.cual,
+    return {"etapa": capa.etapa, "capa": capa.capa, "cual": capa.cual,
             "nombre_del_sombrero": sombrero, "orientacion": capa.orientacion}
-
-
-def _cubierta(lugar: arte.Lugar, lo: _LoSubido) -> dict | None:
-    """Quién cubre una cara o un sombrero de forma que no tiene su capa propia al día.
-
-    Si la de su especie está al día, `{"por": "especie", ...}`; si no, la común. La
-    `direccion` es la imagen chica de la que la cubre. Si no, `None`."""
-    capa = lugar.criatura
-    if capa is None or capa.nivel != "forma" or capa.capa == "cuerpo" or lugar.ruta in lo.al_dia:
-        return None
-    candidatas = (("especie", replace(capa, nivel="especie", etapa=None)),
-                  ("comun", replace(capa, nivel="comun", especie=None, etapa=None)))
-    for por, candidata in candidatas:
-        de_quien = arte.lugar_de(arte.ruta_de_capa(candidata))
-        if de_quien is not None and (subida := _subida(de_quien, lo)) is not None:
-            return {"por": por, "direccion": subida["direccion"]}
-    return None
 
 
 def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
@@ -224,7 +207,7 @@ def _vista(lugar: arte.Lugar, lo: _LoSubido) -> dict:
     return {"ruta": lugar.ruta, "ancho": lugar.ancho, "alto": lugar.alto,
             "subida": _subida(lugar, lo), "medida_cambiada": _medida_cambiada(lugar, lo),
             "objeto": lugar.objeto, "estado": lugar.estado, "miniatura": _miniatura(lugar),
-            "criatura": _criatura(lugar.criatura), "cubierta": _cubierta(lugar, lo)}
+            "criatura": _criatura(lugar.criatura)}
 
 
 def _la_vista(lugar: arte.Lugar) -> dict:
@@ -243,9 +226,9 @@ def _el_grupo(grupo: str | None = None) -> arte.Grupo | None:
 
 
 def _resumen(g: arte.Grupo, al_dia: set[str]) -> dict:
-    """Lo que dice un grupo de sí mismo: sus casillas, y las hechas (alguna ruta candidata al día)."""
-    return {"clave": g.clave, "nombre": g.nombre, "familia": g.familia, "total": len(g.casillas),
-            "hechas": sum(1 for casilla in g.casillas if any(ruta in al_dia for ruta in casilla))}
+    """Lo que dice un grupo de sí mismo: cuántos dibujos tiene, y cuántos están al día."""
+    return {"clave": g.clave, "nombre": g.nombre, "familia": g.familia, "total": len(g.rutas),
+            "hechas": sum(1 for ruta in g.rutas if ruta in al_dia)}
 
 
 @router.get("/piezas")
@@ -313,11 +296,10 @@ def el_historial(lugar: arte.Lugar = Depends(_el_lugar)) -> dict:
 
 @router.get("/avance")
 def el_avance() -> dict:
-    """El contrato con el tablero del arte: por grupo con tarjeta, cuántas casillas tiene y
-    cuántas tienen hoy una imagen subida con la medida de subida (en las criaturas, la de la
-    forma, la de la especie o la común)."""
+    """El contrato con el tablero del arte: por grupo, cuántos dibujos tiene y cuántos tienen
+    hoy una imagen subida con la medida de subida."""
     al_dia = _al_dia(db.arte_puesto_entero())
-    return {"grupos": [_resumen(g, al_dia) for g in arte.grupos() if g.con_tarjeta]}
+    return {"grupos": [_resumen(g, al_dia) for g in arte.grupos()]}
 
 
 def _a_trozos(archivo) -> Iterator[bytes]:

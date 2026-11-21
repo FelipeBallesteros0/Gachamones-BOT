@@ -2212,10 +2212,10 @@ hasta publicar queda aquí.
   lo servido. Tope de 24 MB y los PNG con perfil de color pasan a sRGB.
 - `arte.lugares()` suma, al contrato del juego (`arte.piezas()`, 270, sin
   cambios), el encendido de cuatro muebles, 24 objetos nuevos con sus íconos y
-  las capas de las criaturas; nada de eso entra en el bloque de la portada.
-- El avance cuenta casillas: pasa de 35 a 84 grupos con tarjeta (las capas
-  comunes salen en la página pero no en el avance). La página pliega las
-  criaturas por especie y las pide al abrirlas.
+  las capas de las criaturas, cada una de una especie en una etapa (4 250, 170
+  por especie): 4 670 lugares. Nada de eso entra en el bloque de la portada.
+- El avance cuenta cada dibujo de cada grupo: pasa de 35 a 84 grupos. La página
+  pliega las criaturas por especie y las pide al abrirlas.
 - `actualizar-pi.sh` ya no comprime la carpeta de lo subido en cada despliegue:
   la espeja en `arte_subido.copia/`, con enlaces duros, y el espejo sólo gana lo
   nuevo.
@@ -2247,10 +2247,7 @@ momento.
 5. **Mirarlo en un navegador de verdad**, que es lo único que las pruebas no
    cubren: abrir una especie, una etapa y los Sombreros, con «Sólo lo que falta»
    puesto y quitado, y ver cómo rinde una especie en un teléfono.
-6. **Las «Capas comunes a todas las especies»** llevan también sus dos enlaces de
-   descarga («Descargar lo subido» y «Descargar los provisionales»): comprobar
-   que están y que bajan lo suyo.
-7. **En la Raspberry, antes del juego**, tres comprobaciones que sólo leen, en
+6. **En la Raspberry, antes del juego**, tres comprobaciones que sólo leen, en
    este orden:
    1. **El espacio.** `df -h` de la carpeta de lo subido (`arte_subido`, junto a
       la base, si `RUTA_ARTE_SUBIDO` no dice otra) y `df -h /tmp`. En ese disco
@@ -2270,28 +2267,28 @@ momento.
       y la página del dibujante enseña el aviso de otra medida), y sus tarjetas del
       tablero quedan por rehacer. No impide publicar: se le dice al dueño cuáles
       son, para que el dibujante las vuelva a subir a la medida nueva.
-8. **El juego**, con la copia de la base de siempre. Al arrancar, la tabla gana
+7. **El juego**, con la copia de la base de siempre. Al arrancar, la tabla gana
    sus columnas. Se comprueba desde fuera que el bloque de la portada sigue como
-   en el paso 7, que la página del dibujante carga y pliega las especies, que el
-   avance trae los grupos nuevos (84 con tarjeta) y que el mundo en línea del
+   en el paso 6, que la página del dibujante carga y pliega las especies, que el
+   avance trae los grupos nuevos (84) y que el mundo en línea del
    ejecutable sigue leyendo la tabla. Al publicar, todos los retratos se vuelven a
    pedir una vez: cambió `retrato.py`, que entra en su huella
    (`retrato.version()`), así que cambia su dirección y navegadores y Cloudflare
    los piden de nuevo. Es inofensivo.
-9. **Una subida grande de verdad, por el túnel**, la hace el dueño desde la página
+8. **Una subida grande de verdad, por el túnel**, la hace el dueño desde la página
    del dibujante, con su permiso expreso: un PNG real de cerca de 24 MB a un lugar
    que el juego no pinta (el balcón, `pieza/muebles/balcon-se.png`, de 2560 ×
    2304), que tiene que entrar y verse en su tarjeta; después, «Volver al
    provisional». Nadie que juega lo ve, pero deja sus renglones en un historial
    que sólo crece.
-10. **Quien publique le avisa al dueño** que, mientras el juego siga en la
-    Raspberry, conviene que el dibujante no suba criaturas en masa hasta la
-    mudanza. **El dueño le avisa al dibujante** eso y la medida nueva.
-11. **Al juntar esta rama con la del ejecutable**, resolver los conflictos de
+9. **Quien publique le avisa al dueño** que, mientras el juego siga en la
+   Raspberry, conviene que el dibujante no suba criaturas en masa hasta la
+   mudanza. **El dueño le avisa al dibujante** eso y la medida nueva.
+10. **Al juntar esta rama con la del ejecutable**, resolver los conflictos de
     `arte_subido.py` y `web/dibujante.py` (y los de sus pruebas) a favor de este
     diseño, y que su armado copie sólo lo que usa su contrato, no la carpeta
     entera.
-12. **Si hubiera que volver atrás al código publicado de antes**, con el permiso
+11. **Si hubiera que volver atrás al código publicado de antes**, con el permiso
     expreso del dueño. Desde la primera subida con original, ese código toma los
     originales por archivos que el historial no nombra: pasada una hora, la
     primera subida los poda, y las filas siguen apuntando a ellos. Por eso, **con
@@ -2319,15 +2316,14 @@ El sitio es el que lleva el tablero de tareas del arte y lee el avance.
 ### Menores que quedaron aparcados en la construcción
 
 La ola de arreglos de la revisión final cerró el comentario de `_guardadas_en`,
-las peticiones cruzadas al refrescar una especie y lo de «Sólo lo que falta» con
-las «Capas comunes…» y las secciones vacías. Quedan, para tareas propias:
+las peticiones cruzadas al refrescar una especie y las secciones que «Sólo lo que
+falta» dejaba abiertas y vacías. Quedan, para tareas propias:
 
 - `_guardadas_en` en `db.py` lee todas las filas y queda al borde de los 20 ms con
   10 000 filas.
 - Dos subidas del mismo original con distinta versión chica cuentan como una sola
   imagen; falta la prueba que lo fije.
-- La prueba del relleno del encendido sólo exige que difiera del apagado; la de
-  «las otras especies no se mueven» sólo lo comprueba con las demás en cero.
+- La prueba del relleno del encendido sólo exige que difiera del apagado.
 - La poda toma la base mientras recorre toda la tabla y toda la carpeta
   (`db.podar_arte` con `arte_subido.podar`), y cada imagen servida recorre todo el
   historial (`_imagen_subida` en `web/app.py`, con `db.archivos_que_se_conservan`;

@@ -98,18 +98,14 @@ const DESCARGAS = {
 // El nombre con que baja una pieza: su ruta, con guiones en vez de barras.
 const nombreDe = (prefijo, ruta) => `${prefijo}-${ruta.replaceAll('/', '-')}`;
 
-// Lo que se ve de un lugar: lo subido; si no, lo que lo cubre; si no, su provisional chico; si no, el del juego.
+// Lo que se ve de un lugar: lo subido; si no, su provisional chico; si no, el del juego.
 function imagenDe(pieza) {
   if (pieza.subida) return pieza.subida.direccion;
-  if (pieza.cubierta) return pieza.cubierta.direccion;
   return pieza.miniatura || urlDeArte(pieza.ruta);
 }
 
-// Lo que se le pide al lugar de una criatura que no sea de su forma (lo comparten otras casillas).
-const esCompartida = (pieza) => Boolean(pieza.criatura) && pieza.criatura.nivel !== 'forma';
-
-// Lo que se pide dibujar: ni lo hecho, ni lo cubierto, ni lo que comparten otras casillas.
-const sePide = (pieza) => !pieza.subida && !pieza.cubierta && !esCompartida(pieza);
+// Lo que se pide dibujar: lo que no está hecho.
+const sePide = (pieza) => !pieza.subida;
 
 const ORIENTACIONES = {
   se: 'se · de frente, hacia abajo a la derecha',
@@ -122,8 +118,6 @@ const ETAPAS = [
   ['bebe', 'Cría'], ['nino', 'Niño'], ['adolescente', 'Adolescente'], ['adulto', 'Adulto'],
   ['adulto_grande', 'Adulto grande'],
 ];
-
-const CUBIERTAS = { especie: 'Usa la de toda la especie.', comun: 'Usa la común.' };
 
 const NOTAS_DE_ESTADO = {
   encendido: 'El dibujo de siempre es el apagado; éste es el encendido.',
@@ -165,8 +159,7 @@ let historiales = 0;
 
 // La tarjeta de una pieza. Sus botones no se rehacen nunca (el foco se queda donde
 // estaba): lo que cambia se escribe en su sitio. Devuelve el nodo, su vista de ahora y
-// cómo ponerle otra. `contexto.especie` es el nombre de la especie de una capa de criatura
-// y `contexto.alCambiar(antes, ahora)` avisa de lo que salió bien.
+// cómo ponerle otra. `contexto.alCambiar(antes, ahora)` avisa de lo que salió bien.
 function tarjeta(pieza, familia, contexto = {}) {
   let actual = pieza;
   let ocupada = false;
@@ -178,7 +171,6 @@ function tarjeta(pieza, familia, contexto = {}) {
   });
   const estado = el('p', { class: 'dib-estado' });
   const cambiada = el('p', { class: 'dib-cambiada' });
-  const cubierta = el('p', { class: 'dib-cubierta' });
   const aviso = el('p', { class: 'dib-aviso', role: 'status' });
   const lista = el('ol', { class: 'dib-historial', id: `dib-historial-${historiales}`, hidden: true });
   // Se abre con «Subir»: no se ve ni se enfoca, pero no va con `hidden`, que en algún
@@ -218,8 +210,6 @@ function tarjeta(pieza, familia, contexto = {}) {
     const medida = avisoDeMedida(actual);
     cambiada.textContent = medida || '';
     cambiada.hidden = !medida;
-    cubierta.textContent = actual.cubierta ? CUBIERTAS[actual.cubierta.por] : '';
-    cubierta.hidden = !actual.cubierta;
     bajarSubida.hidden = !actual.subida;
     if (actual.subida) bajarSubida.setAttribute('href', actual.subida.original);
     else bajarSubida.removeAttribute('href');
@@ -265,13 +255,6 @@ function tarjeta(pieza, familia, contexto = {}) {
 
   async function volver(a, pulsado) {
     if (ocupada) return;
-    // Una capa de la especie o común la usan otras casillas: antes de quitarla se pregunta.
-    if (esCompartida(actual)) {
-      const frase = actual.criatura.nivel === 'comun'
-        ? 'Esta capa la usan todas las especies que no tienen la suya. ¿Seguir?'
-        : `Esta capa la usan todas las etapas de ${contexto.especie} que no tienen la suya. ¿Seguir?`;
-      if (!globalThis.confirm(frase)) return;
-    }
     const cuerpo = JSON.stringify({ ruta: actual.ruta, a });
     await cambiar(pulsado, () => pedir('POST', 'volver', cuerpo, 'application/json'), () => estadoDe(actual));
   }
@@ -310,7 +293,7 @@ function tarjeta(pieza, familia, contexto = {}) {
     pieza.criatura ? el('p', { class: 'dib-titulo' }, tituloDeCapa(pieza.criatura)) : null,
     el('p', { class: 'dib-medida' }, medidaDe(pieza)),
     notasDe(pieza).map((nota) => el('p', { class: 'dib-nota' }, nota)),
-    estado, cambiada, cubierta,
+    estado, cambiada,
     el('div', { class: 'dib-botones' }, subir, verHistorial, anterior, provisional,
       bajarProvisional, bajarSubida),
     archivo, aviso, lista);
@@ -379,7 +362,7 @@ export async function montar(raiz) {
     return { nodo, tarjetas };
   });
 
-  // Las especies y las capas comunes: plegadas, sin tarjetas hasta abrirlas.
+  // Las especies: plegadas, sin tarjetas hasta abrirlas.
   const especies = datos.grupos.filter((g) => g.familia === 'criaturas').map((grupo) => {
     const esp = {
       grupo: { ...grupo }, cargada: false, pidiendo: false, pedidas: 0,
@@ -414,16 +397,11 @@ export async function montar(raiz) {
     return recibidos[0];
   }
 
-  // Cada petición que trae los números de una especie lleva el suyo: dos cambios seguidos
-  // pueden contestar en desorden, y sólo vale la última que se pidió.
-  const numerar = (esp) => {
-    esp.pedidas += 1;
-    return esp.pedidas;
-  };
-
-  // Una especie abierta vuelve a contar sus hechas y sus casillas cubiertas.
+  // Lo que se cambió en una capa: su especie vuelve a contar sus hechas. Cada relectura lleva
+  // su número: dos cambios seguidos pueden contestar en desorden, y sólo vale la última pedida.
   async function refrescar(esp) {
-    const numero = numerar(esp);
+    esp.pedidas += 1;
+    const numero = esp.pedidas;
     try {
       const recibido = await traer(esp);
       if (numero === esp.pedidas) ponerAlDia(esp, recibido);
@@ -432,42 +410,12 @@ export async function montar(raiz) {
     }
   }
 
-  // Las especies sin abrir sólo tienen su resumen: lo ponen al día con la lista general, que
-  // trae `hechas` y `total` de cada grupo.
-  async function refrescarLasCerradas() {
-    const cerradas = especies.filter((esp) => !esp.cargada).map((esp) => [esp, numerar(esp)]);
-    if (!cerradas.length) return;
-    try {
-      const { grupos: recibidos } = await pedir('GET', 'piezas');
-      for (const [esp, numero] of cerradas) {
-        const g = recibidos.find((r) => r.clave === esp.grupo.clave);
-        if (!g || numero !== esp.pedidas) continue;
-        esp.grupo = { ...esp.grupo, hechas: g.hechas, total: g.total };
-        esp.resumen.textContent = resumenDe(esp.grupo);
-      }
-    } catch {
-      // Igual que arriba: lo que se cambió salió bien.
-    }
-  }
-
-  // Lo que se cambió en una capa: la especie vuelve a contar sus hechas y sus casillas cubiertas,
-  // y una capa común puede cambiar lo hecho de todas: las abiertas se vuelven a pedir enteras y
-  // las demás, su resumen.
-  async function alCambiarUnaCapa(esp, antes) {
-    if (!antes.criatura || antes.criatura.nivel !== 'comun') {
-      await refrescar(esp);
-      return;
-    }
-    await Promise.all([...especies.filter((otra) => otra.cargada).map(refrescar), refrescarLasCerradas()]);
-  }
-
   function lista(esp, rutas, familia) {
     return el('ul', { class: 'dib-piezas' }, rutas.map((ruta) => {
       const armada = tarjeta(esp.vistas.get(ruta), familia, {
-        especie: esp.grupo.nombre,
-        alCambiar: (antes, ahora) => {
+        alCambiar: (_, ahora) => {
           esp.vistas.set(ahora.ruta, ahora);
-          alCambiarUnaCapa(esp, antes);
+          refrescar(esp);
         },
       });
       armada.nodo.hidden = escondida(armada.vista());
@@ -503,17 +451,9 @@ export async function montar(raiz) {
 
   function armarEspecie(esp) {
     const rutas = [...esp.vistas.keys()];
-    const criatura = (ruta) => esp.vistas.get(ruta).criatura;
     const notas = NOTAS_DE_CRIATURAS.map((nota) => el('p', { class: 'dib-nota' }, nota));
-    if (esp.grupo.clave === 'criaturas/comun') {
-      const cuerpo = el('div', { class: 'dib-capas' });
-      capas(esp, rutas, cuerpo);
-      esp.contenido.replaceChildren(...notas, cuerpo);
-      return;
-    }
-    const secciones = ETAPAS.map(([etapa, nombre]) => [nombre, rutas.filter((r) => criatura(r).nivel === 'forma'
-      && criatura(r).etapa === etapa)]);
-    secciones.push([`Para todas las etapas de ${esp.grupo.nombre}`, rutas.filter((r) => criatura(r).nivel === 'especie')]);
+    const secciones = ETAPAS.map(([etapa, nombre]) => [nombre,
+      rutas.filter((r) => esp.vistas.get(r).criatura.etapa === etapa)]);
     esp.contenido.replaceChildren(...notas, ...secciones.filter(([, delas]) => delas.length).map(
       ([nombre, delas]) => seccionNueva(esp, plegado(nombre, (cuerpo) => capas(esp, delas, cuerpo)), delas),
     ));
@@ -524,14 +464,10 @@ export async function montar(raiz) {
     esp.pidiendo = true;
     esp.contenido.replaceChildren(el('p', { class: 'cargando', role: 'status' }, 'Cargando las capas…'));
     try {
-      const numero = numerar(esp);
-      const recibido = await traer(esp);
-      ponerAlDia(esp, recibido);
+      ponerAlDia(esp, await traer(esp));
       // Ya cargada: lo que se arma se filtra con lo que trae.
       esp.cargada = true;
       armarEspecie(esp);
-      // Si mientras llegaba una capa común pidió otros números, lo armado puede ser viejo.
-      if (numero !== esp.pedidas) refrescar(esp);
     } catch (error) {
       // En su sitio, con el aviso de error de la página; al volver a abrirla se vuelve a pedir.
       esp.cargada = false;
@@ -546,12 +482,11 @@ export async function montar(raiz) {
     seccion.nodo.hidden = filtro.checked && !seccion.rutas.some((r) => sePide(esp.vistas.get(r)));
   }
 
-  // Sin abrir no se sabe qué hay dentro: se esconde si ya está todo hecho. Las capas comunes son
-  // todas compartidas, que el filtro esconde: se esconden siempre, abiertas o no.
+  // Sin abrir no se sabe qué hay dentro: se esconde si ya está todo hecho.
   function filtrarEspecie(esp) {
-    esp.nodo.hidden = filtro.checked && (esp.grupo.clave === 'criaturas/comun' || (esp.cargada
+    esp.nodo.hidden = filtro.checked && (esp.cargada
       ? ![...esp.vistas.values()].some(sePide)
-      : esp.grupo.hechas === esp.grupo.total));
+      : esp.grupo.hechas === esp.grupo.total);
   }
 
   function refiltrar() {

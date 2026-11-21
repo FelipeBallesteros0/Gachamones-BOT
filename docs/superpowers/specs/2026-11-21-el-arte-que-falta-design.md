@@ -1,5 +1,9 @@
 # El arte que falta · Lo que el dibujante adelanta para el ejecutable — diseño
 
+> **Nota posterior (2026-11-21).** Después de aprobado esto, el dueño decidió quitar los dos niveles compartidos
+> de las capas de las criaturas: sólo quedan las de cada especie en cada etapa (4 250 lugares, 170 por especie).
+> Donde este documento hable de capas de la especie, comunes, cubiertas o de sus confirmaciones, ya no vale.
+
 Continúa el proyecto A (`2026-11-19-monsteropolis-a-herramientas-del-dibujante-design.md`)
 y sus descargas (`2026-11-21-descargar-provisionales-design.md`), y retoma el
 diseño A2 de las criaturas en cuatro orientaciones, aprobado el 2026-11-20 y

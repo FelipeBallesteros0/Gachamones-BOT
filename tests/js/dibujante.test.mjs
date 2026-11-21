@@ -619,10 +619,7 @@ function capa(ruta, criatura, resto = {}) {
   return {
     ruta, ancho: 1024, alto: 1024, subida: null, medida_cambiada: null, objeto: null, estado: null,
     miniatura: `/monsteropolis_dibujante/api/provisional?ruta=${ruta}&miniatura=1`,
-    criatura: {
-      nivel: 'forma', etapa: null, capa: 'cuerpo', cual: null, nombre_del_sombrero: null, orientacion: 'se', ...criatura,
-    },
-    cubierta: null,
+    criatura: { etapa: null, capa: 'cuerpo', cual: null, nombre_del_sombrero: null, orientacion: 'se', ...criatura },
     ...resto,
   };
 }
@@ -632,28 +629,19 @@ const CUERPO_BEBE = ['se', 'so', 'no', 'ne'].map((o) => capa(`criaturas/pulpo/be
   { etapa: 'bebe', orientacion: o }));
 const CARA_BEBE = ['se', 'so'].map((o) => capa(`criaturas/pulpo/bebe/cara-feliz-${o}.png`,
   { etapa: 'bebe', capa: 'cara', cual: 'feliz', orientacion: o },
-  o === 'se' ? { cubierta: { por: 'especie', direccion: SUBIDA('k') } } : {}));
+  o === 'se' ? { subida: HECHA('k') } : {}));
 const GORRO_BEBE = capa('criaturas/pulpo/bebe/sombrero-gorro-se.png',
   { etapa: 'bebe', capa: 'sombrero', cual: 'gorro', nombre_del_sombrero: 'Gorro', orientacion: 'se' });
 const CUERPO_NINO = capa('criaturas/pulpo/nino/cuerpo-se.png', { etapa: 'nino' });
-const CARA_ESPECIE = capa('criaturas/pulpo/cara-feliz-se.png',
-  { nivel: 'especie', capa: 'cara', cual: 'feliz' }, { subida: HECHA('m') });
-const CARA_COMUN = capa('criaturas/comun/cara-feliz-se.png', { nivel: 'comun', capa: 'cara', cual: 'feliz' });
 
-const PULPO = [...CUERPO_BEBE, ...CARA_BEBE, GORRO_BEBE, CUERPO_NINO, CARA_ESPECIE];
+const PULPO = [...CUERPO_BEBE, ...CARA_BEBE, GORRO_BEBE, CUERPO_NINO];
 const GRUPO_PULPO = { clave: 'criaturas/pulpo', nombre: 'Octopul', familia: 'criaturas', total: 10, hechas: 1 };
 const GRUPO_DRAGON = { clave: 'criaturas/dragoncito', nombre: 'Dragoncito', familia: 'criaturas', total: 10, hechas: 10 };
-const GRUPO_COMUN = {
-  clave: 'criaturas/comun', nombre: 'Capas comunes a todas las especies', familia: 'criaturas', total: 1, hechas: 0,
-};
-const CON_CRIATURAS = {
-  grupos: [...PIEZAS.grupos, GRUPO_PULPO, GRUPO_DRAGON, GRUPO_COMUN],
-};
+const CON_CRIATURAS = { grupos: [...PIEZAS.grupos, GRUPO_PULPO, GRUPO_DRAGON] };
 
 async function abrirConCriaturas() {
   const { raiz, servidor } = await abrir(CON_CRIATURAS);
   servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', { grupos: [{ ...GRUPO_PULPO, piezas: PULPO }] });
-  servidor.responde('GET piezas?grupo=criaturas%2Fcomun', { grupos: [{ ...GRUPO_COMUN, piezas: [CARA_COMUN] }] });
   return { raiz, servidor };
 }
 
@@ -680,13 +668,12 @@ test('cada grupo dice cuántas tiene hechas', { timeout: 2000 }, async () => {
   const { raiz } = await abrirConCriaturas();
   assert.deepEqual(textos(raiz, 'summary'), [
     'Efectos · 1 de 2', 'Paredes y suelo · 1 de 1', 'Maceta · 0 de 1',
-    'Octopul · 1 de 10', 'Dragoncito · 10 de 10', 'Capas comunes a todas las especies · 0 de 1',
+    'Octopul · 1 de 10', 'Dragoncito · 10 de 10',
   ]);
   assert.equal(raiz.querySelector('h2').textContent, 'Criaturas');
   // Las especies van bajo «Criaturas»; los demás grupos, arriba.
   const criaturas = raiz.querySelector('.dib-criaturas');
-  assert.deepEqual(textos(criaturas, 'summary'),
-    ['Octopul · 1 de 10', 'Dragoncito · 10 de 10', 'Capas comunes a todas las especies · 0 de 1']);
+  assert.deepEqual(textos(criaturas, 'summary'), ['Octopul · 1 de 10', 'Dragoncito · 10 de 10']);
 });
 
 test('una especie no se pide ni se arma hasta abrirla', { timeout: 2000 }, async () => {
@@ -723,9 +710,9 @@ test('mientras pide una especie dice «Cargando las capas…»', { timeout: 2000
 
 test('las secciones de una etapa se arman al abrirlas', { timeout: 2000 }, async () => {
   const { pulpo } = await especieAbierta();
-  // Una por etapa que tiene capas, y la de toda la especie; todas cerradas y sin tarjetas.
+  // Una por etapa que tiene capas; todas cerradas y sin tarjetas.
   assert.deepEqual(pulpo.querySelectorAll('details').map((d) => d.querySelector('summary').textContent),
-    ['Cría', 'Niño', 'Para todas las etapas de Octopul']);
+    ['Cría', 'Niño']);
   assert.equal(pulpo.querySelectorAll('.dib-pieza').length, 0);
   assert.equal(pulpo.querySelectorAll('img').length, 0);
 
@@ -748,6 +735,33 @@ test('las secciones de una etapa se arman al abrirlas', { timeout: 2000 }, async
     [`Cara feliz · ${ORIENTACION.se}`, `Cara feliz · ${ORIENTACION.so}`, `Gorro · ${ORIENTACION.se}`]);
 });
 
+test('una especie sólo trae sus cinco etapas', { timeout: 2000 }, async () => {
+  const etapas = [['bebe', 'Cría'], ['nino', 'Niño'], ['adolescente', 'Adolescente'], ['adulto', 'Adulto'],
+    ['adulto_grande', 'Adulto grande']];
+  const todas = etapas.flatMap(([etapa]) => [
+    capa(`criaturas/pulpo/${etapa}/cuerpo-se.png`, { etapa }),
+    capa(`criaturas/pulpo/${etapa}/cara-feliz-se.png`, { etapa, capa: 'cara', cual: 'feliz' }),
+    capa(`criaturas/pulpo/${etapa}/sombrero-gorro-se.png`,
+      { etapa, capa: 'sombrero', cual: 'gorro', nombre_del_sombrero: 'Gorro' }),
+  ]);
+  const { raiz, servidor } = await abrirConCriaturas();
+  servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', { grupos: [{ ...GRUPO_PULPO, piezas: todas }] });
+  const pulpo = grupoDe(raiz, 'Octopul · 1 de 10');
+  await abrirDetalle(pulpo);
+  // Dentro de la especie, sus cinco etapas y nada más.
+  const secciones = pulpo.querySelectorAll('details');
+  assert.deepEqual(secciones.map((d) => d.querySelector('summary').textContent), etapas.map(([, nombre]) => nombre));
+  // Cada una, con sus tres capas.
+  for (const [i, seccion] of secciones.entries()) {
+    await abrirDetalle(seccion);
+    assert.deepEqual(textos(seccion, 'h3'), ['Cuerpo', 'Caras']);
+    assert.deepEqual(textos(seccion, 'summary'), [etapas[i][1], 'Sombreros']);
+    await abrirDetalle(hijoDetalle(seccion, 'Sombreros'));
+    assert.deepEqual(seccion.querySelectorAll('.dib-pieza').map((t) => t.querySelector('img').getAttribute('alt')),
+      todas.slice(3 * i, 3 * i + 3).map((c) => c.ruta));
+  }
+});
+
 test('una capa de espaldas no ofrece cara', { timeout: 2000 }, async () => {
   const { pulpo } = await especieAbierta();
   const cria = hijoDetalle(pulpo, 'Cría');
@@ -759,35 +773,20 @@ test('una capa de espaldas no ofrece cara', { timeout: 2000 }, async () => {
   assert.equal(cuerpos.length, 4);
 });
 
-test('una casilla cubierta lo dice y enseña la que la cubre', { timeout: 2000 }, async () => {
+test('una capa sin subir sólo dice que es provisional, y una subida enseña la suya', { timeout: 2000 }, async () => {
   const { pulpo } = await especieAbierta();
   const cria = hijoDetalle(pulpo, 'Cría');
   await abrirDetalle(cria);
-  const cubierta = tarjeta(cria, 'criaturas/pulpo/bebe/cara-feliz-se.png');
-  assert.equal(cubierta.querySelector('img').getAttribute('src'), SUBIDA('k'));
-  assert.equal(cubierta.querySelector('.dib-cubierta').textContent, 'Usa la de toda la especie.');
-  assert.equal(cubierta.querySelector('.dib-cubierta').hidden, false);
-  const sola = tarjeta(cria, 'criaturas/pulpo/bebe/cara-feliz-so.png');
-  assert.equal(sola.querySelector('.dib-cubierta').hidden, true);
-  // Sin capa subida ni cubierta, el provisional chico que manda el servidor.
+  const sola = tarjeta(cria, CARA_BEBE[1].ruta);
+  // El provisional chico que manda el servidor, y lo de siempre de una tarjeta: nada más.
   assert.equal(sola.querySelector('img').getAttribute('src'), CARA_BEBE[1].miniatura);
-});
-
-test('lo común dice «Usa la común.» y una capa subida enseña la suya', { timeout: 2000 }, async () => {
-  const { raiz, servidor } = await abrirConCriaturas();
-  const otra = capa('criaturas/pulpo/nino/cara-feliz-se.png', { etapa: 'nino', capa: 'cara', cual: 'feliz' },
-    { cubierta: { por: 'comun', direccion: SUBIDA('n') } });
-  servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', { grupos: [{ ...GRUPO_PULPO, piezas: [otra, CARA_ESPECIE] }] });
-  const pulpo = grupoDe(raiz, 'Octopul · 1 de 10');
-  await abrirDetalle(pulpo);
-  const nino = hijoDetalle(pulpo, 'Niño');
-  await abrirDetalle(nino);
-  assert.equal(nino.querySelector('.dib-cubierta').textContent, 'Usa la común.');
-  assert.equal(nino.querySelector('img').getAttribute('src'), SUBIDA('n'));
-  // La capa de la especie, ya subida, se ve con su imagen.
-  const especie = hijoDetalle(pulpo, 'Para todas las etapas de Octopul');
-  await abrirDetalle(especie);
-  assert.equal(especie.querySelector('img').getAttribute('src'), SUBIDA('m'));
+  assert.deepEqual(sola.querySelectorAll('p').map((p) => p.getAttribute('class')),
+    ['dib-ruta', 'dib-titulo', 'dib-medida', 'dib-estado', 'dib-cambiada', 'dib-aviso']);
+  assert.deepEqual(textos(sola, 'p').filter(Boolean),
+    [CARA_BEBE[1].ruta, `Cara feliz · ${ORIENTACION.so}`, '1024 × 1024 px', 'Provisional']);
+  const subida = tarjeta(cria, CARA_BEBE[0].ruta);
+  assert.equal(subida.querySelector('img').getAttribute('src'), SUBIDA('k'));
+  assert.equal(subida.querySelector('.dib-estado').textContent, 'Subida por ana el 20/11/2026 15:04');
 });
 
 test('las capas no se pintan como cuadros', { timeout: 2000 }, async () => {
@@ -802,7 +801,7 @@ test('las capas no se pintan como cuadros', { timeout: 2000 }, async () => {
 test('el encendido, el mayordomo y el balcón llevan su nota', { timeout: 2000 }, async () => {
   const lugar = (ruta, objeto, estado) => ({
     ruta, ancho: 1024, alto: 1536, subida: null, medida_cambiada: null, objeto, estado,
-    miniatura: '/x', criatura: null, cubierta: null,
+    miniatura: '/x', criatura: null,
   });
   const piezas = [
     lugar('pieza/muebles/lampara-encendido-se.png', 'lampara', 'encendido'),
@@ -829,41 +828,26 @@ test('las criaturas llevan sus dos notas', { timeout: 2000 }, async () => {
   ]);
 });
 
-test('volver atrás una capa compartida pide confirmación y, si se cancela, no manda nada', { timeout: 2000 }, async () => {
+test('volver atrás una capa no pide confirmación', { timeout: 2000 }, async () => {
   const { servidor, pulpo } = await especieAbierta();
-  const especie = hijoDetalle(pulpo, 'Para todas las etapas de Octopul');
-  await abrirDetalle(especie);
-  const compartida = tarjeta(especie, CARA_ESPECIE.ruta);
+  const cria = hijoDetalle(pulpo, 'Cría');
+  await abrirDetalle(cria);
+  const cara = tarjeta(cria, CARA_BEBE[0].ruta);
   const preguntas = [];
-  let respuesta = false;
-  globalThis.confirm = (texto) => { preguntas.push(texto); return respuesta; };
+  globalThis.confirm = (texto) => { preguntas.push(texto); return false; };
   try {
-    const antes = servidor.pedidos.length;
-    await tocar(boton(compartida, 'Volver a la anterior'));
-    await tocar(boton(compartida, 'Volver al provisional'));
-    assert.deepEqual(preguntas, Array(2).fill(
-      'Esta capa la usan todas las etapas de Octopul que no tienen la suya. ¿Seguir?'));
-    assert.equal(servidor.pedidos.length, antes);
-    assert.equal(compartida.querySelector('.dib-estado').textContent, 'Subida por ana el 20/11/2026 15:04');
-
-    // Una de forma no pregunta nada.
-    const cria = hijoDetalle(pulpo, 'Cría');
-    await abrirDetalle(cria);
-    servidor.responde('POST volver', CUERPO_BEBE[0]);
-    await tocar(boton(tarjeta(cria, CUERPO_BEBE[0].ruta), 'Volver a la anterior'));
-    assert.equal(preguntas.length, 2);
-
-    // Al aceptar, se manda.
-    respuesta = true;
-    servidor.responde('POST volver', { ...CARA_ESPECIE, subida: null });
+    const vuelta = { ...CARA_BEBE[0], subida: null };
+    servidor.responde('POST volver', vuelta);
     servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', {
-      grupos: [{ ...GRUPO_PULPO, hechas: 0, piezas: PULPO.map((p) => (p === CARA_ESPECIE ? { ...p, subida: null } : p)) }],
+      grupos: [{ ...GRUPO_PULPO, hechas: 0, piezas: PULPO.map((p) => (p === CARA_BEBE[0] ? vuelta : p)) }],
     });
-    await tocar(boton(compartida, 'Volver al provisional'));
+    await tocar(boton(cara, 'Volver a la anterior'));
+    await tocar(boton(cara, 'Volver al provisional'));
     await esperar();
-    assert.equal(preguntas.length, 3);
-    assert.deepEqual(JSON.parse(servidor.pedidos.find((p) => p.ruta === 'POST volver' && JSON.parse(p.opciones.body).ruta === CARA_ESPECIE.ruta).opciones.body),
-      { ruta: CARA_ESPECIE.ruta, a: 'provisional' });
+    assert.deepEqual(preguntas, []);
+    assert.deepEqual(servidor.pedidos.filter((p) => p.ruta === 'POST volver').map((p) => JSON.parse(p.opciones.body)),
+      [{ ruta: CARA_BEBE[0].ruta, a: 'anterior' }, { ruta: CARA_BEBE[0].ruta, a: 'provisional' }]);
+    assert.equal(cara.querySelector('.dib-estado').textContent, 'Provisional');
     // Y los números de la especie quedan al día.
     assert.equal(pulpo.querySelector('summary').textContent, 'Octopul · 0 de 10');
   } finally {
@@ -871,65 +855,26 @@ test('volver atrás una capa compartida pide confirmación y, si se cancela, no 
   }
 });
 
-test('una capa común pide su propia confirmación y deja al día lo cubierto de las especies abiertas', { timeout: 2000 }, async () => {
-  const { raiz, servidor, pulpo } = await especieAbierta();
-  const comun = grupoDe(raiz, 'Capas comunes a todas las especies · 0 de 1');
-  await abrirDetalle(comun);
-  const cria = hijoDetalle(pulpo, 'Cría');
-  await abrirDetalle(cria);
-  const sola = tarjeta(cria, 'criaturas/pulpo/bebe/cara-feliz-so.png');
-  assert.equal(sola.querySelector('.dib-cubierta').hidden, true);
-  const preguntas = [];
-  globalThis.confirm = (texto) => { preguntas.push(texto); return true; };
-  try {
-    servidor.responde('POST subir?ruta=criaturas%2Fcomun%2Fcara-feliz-se.png', { ...CARA_COMUN, subida: HECHA('q') });
-    await elegir(tarjeta(comun, CARA_COMUN.ruta), { nombre: 'x.png' });
-    assert.deepEqual(preguntas, []);
-    servidor.responde('POST volver', CARA_COMUN);
-    servidor.responde('GET piezas?grupo=criaturas%2Fcomun', { grupos: [{ ...GRUPO_COMUN, piezas: [CARA_COMUN] }] });
-    servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', {
-      grupos: [{
-        ...GRUPO_PULPO,
-        piezas: PULPO.map((p) => (p === CARA_BEBE[1] ? { ...p, cubierta: { por: 'comun', direccion: SUBIDA('q') } } : p)),
-      }],
-    });
-    await tocar(boton(tarjeta(comun, CARA_COMUN.ruta), 'Volver a la anterior'));
-    await esperar();
-    assert.deepEqual(preguntas, ['Esta capa la usan todas las especies que no tienen la suya. ¿Seguir?']);
-    // La casilla cubierta de otra sección ya armada no se queda con lo viejo.
-    assert.equal(tarjeta(cria, 'criaturas/pulpo/bebe/cara-feliz-so.png').querySelector('.dib-cubierta').textContent,
-      'Usa la común.');
-    assert.equal(tarjeta(cria, 'criaturas/pulpo/bebe/cara-feliz-so.png').querySelector('img').getAttribute('src'), SUBIDA('q'));
-  } finally {
-    delete globalThis.confirm;
-  }
-});
-
-test('«sólo lo que falta» esconde lo cubierto y lo compartido', { timeout: 2000 }, async () => {
+test('«Sólo lo que falta» esconde lo hecho y la especie completa', { timeout: 2000 }, async () => {
   const { raiz, pulpo } = await especieAbierta();
   const cria = hijoDetalle(pulpo, 'Cría');
   await abrirDetalle(cria);
-  const especie = hijoDetalle(pulpo, 'Para todas las etapas de Octopul');
-  await abrirDetalle(especie);
   const filtro = raiz.querySelector('label').querySelector('input');
-  filtro.checked = true;
-  filtro.dispatch('change');
   const vistas = (nodo) => nodo.querySelectorAll('.dib-pieza').filter((t) => !t.hidden)
     .map((t) => t.querySelector('img').getAttribute('alt'));
-  // La cubierta no falta, y la capa de toda la especie no se pide aquí.
-  assert.ok(!vistas(cria).includes('criaturas/pulpo/bebe/cara-feliz-se.png'));
-  assert.ok(vistas(cria).includes('criaturas/pulpo/bebe/cara-feliz-so.png'));
-  assert.deepEqual(vistas(especie), []);
-  assert.equal(especie.hidden, true);
+  assert.equal(vistas(cria).length, 6);
+  filtro.checked = true;
+  filtro.dispatch('change');
+  // Lo hecho se esconde; lo que falta, aunque sea de una criatura, se queda.
+  assert.deepEqual(vistas(cria), [...CUERPO_BEBE.map((c) => c.ruta), CARA_BEBE[1].ruta]);
+  assert.equal(cria.hidden, false);
   // La especie sin abrir, con todo hecho, se esconde; la que falta algo se queda.
   assert.equal(grupoDe(raiz, 'Dragoncito · 10 de 10').hidden, true);
   assert.equal(pulpo.hidden, false);
-  // Lo común son capas compartidas: con el filtro, se esconde aunque no se haya abierto.
-  assert.equal(grupoDe(raiz, 'Capas comunes a todas las especies · 0 de 1').hidden, true);
   filtro.checked = false;
   filtro.dispatch('change');
   assert.equal(grupoDe(raiz, 'Dragoncito · 10 de 10').hidden, false);
-  assert.equal(especie.hidden, false);
+  assert.equal(vistas(cria).length, 6);
 });
 
 test('dos cambios seguidos en una especie: la relectura vieja que llega tarde no pisa a la nueva', { timeout: 2000 }, async () => {
@@ -961,46 +906,39 @@ test('dos cambios seguidos en una especie: la relectura vieja que llega tarde no
   assert.equal(tarjeta(cria, cuerpo.ruta).querySelector('.dib-estado').textContent, 'Provisional');
 });
 
-test('una capa común pone al día los resúmenes de las especies sin abrir, y el filtro los usa', { timeout: 2000 }, async () => {
-  const dragon = { ...GRUPO_DRAGON, hechas: 5 };
-  const { raiz, servidor } = await abrir({ grupos: [...PIEZAS.grupos, GRUPO_PULPO, dragon, GRUPO_COMUN] });
-  servidor.responde('GET piezas?grupo=criaturas%2Fcomun', { grupos: [{ ...GRUPO_COMUN, piezas: [CARA_COMUN] }] });
-  const comun = grupoDe(raiz, 'Capas comunes a todas las especies · 0 de 1');
-  await abrirDetalle(comun);
-  const subida = { ...CARA_COMUN, subida: HECHA('q') };
-  servidor.responde('POST subir?ruta=criaturas%2Fcomun%2Fcara-feliz-se.png', subida);
-  servidor.responde('GET piezas?grupo=criaturas%2Fcomun', { grupos: [{ ...GRUPO_COMUN, hechas: 1, piezas: [subida] }] });
-  // La lista general trae los números de cada grupo; las especies sin abrir los toman de ahí.
-  servidor.responde('GET piezas', {
-    grupos: [...PIEZAS.grupos, { ...GRUPO_PULPO, hechas: 6 }, { ...dragon, hechas: 10 }, { ...GRUPO_COMUN, hechas: 1 }],
+test('un cambio en una especie no vuelve a pedir las demás', { timeout: 2000 }, async () => {
+  const { raiz, servidor, pulpo } = await especieAbierta();
+  const dragon = capa('criaturas/dragoncito/bebe/cuerpo-se.png', { etapa: 'bebe' }, { subida: HECHA('v') });
+  servidor.responde('GET piezas?grupo=criaturas%2Fdragoncito', { grupos: [{ ...GRUPO_DRAGON, piezas: [dragon] }] });
+  await abrirDetalle(grupoDe(raiz, 'Dragoncito · 10 de 10'));
+  const cria = hijoDetalle(pulpo, 'Cría');
+  await abrirDetalle(cria);
+  const cuerpo = CUERPO_BEBE[0];
+  const subido = { ...cuerpo, subida: HECHA('w') };
+  servidor.responde('POST subir?ruta=criaturas%2Fpulpo%2Fbebe%2Fcuerpo-se.png', subido);
+  servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', {
+    grupos: [{ ...GRUPO_PULPO, hechas: 2, piezas: PULPO.map((p) => (p === cuerpo ? subido : p)) }],
   });
-  await elegir(tarjeta(comun, CARA_COMUN.ruta), { name: 'x.png' });
+  const antes = servidor.pedidos.length;
+  await elegir(tarjeta(cria, cuerpo.ruta), { name: 'x.png' });
   await esperar();
-  assert.equal(servidor.pedidos.filter((p) => p.ruta === 'GET piezas').length, 2);
-  assert.deepEqual(textos(raiz.querySelector('.dib-criaturas'), 'summary'), [
-    'Octopul · 6 de 10', 'Dragoncito · 10 de 10', 'Capas comunes a todas las especies · 1 de 1',
-  ]);
-  // Y el filtro las juzga con esos números: Dragoncito ya no tiene nada que pedir.
-  const filtro = raiz.querySelector('label').querySelector('input');
-  filtro.checked = true;
-  filtro.dispatch('change');
-  assert.equal(grupoDe(raiz, 'Dragoncito · 10 de 10').hidden, true);
-  assert.equal(grupoDe(raiz, 'Octopul · 6 de 10').hidden, false);
+  // Sólo se vuelve a pedir su especie: ni la lista general ni la otra especie abierta.
+  assert.deepEqual(servidor.pedidos.slice(antes).map((p) => p.ruta),
+    ['POST subir?ruta=criaturas%2Fpulpo%2Fbebe%2Fcuerpo-se.png', 'GET piezas?grupo=criaturas%2Fpulpo']);
+  assert.equal(pulpo.querySelector('summary').textContent, 'Octopul · 2 de 10');
+  assert.ok(grupoDe(raiz, 'Dragoncito · 10 de 10'));
 });
 
-test('con el filtro puesto, lo que se arma nace filtrado y lo común se esconde siempre', { timeout: 2000 }, async () => {
+test('con el filtro puesto, lo que se arma nace filtrado', { timeout: 2000 }, async () => {
   const { raiz, servidor } = await abrirConCriaturas();
   const filtro = raiz.querySelector('label').querySelector('input');
   const filtrar = (puesto) => { filtro.checked = puesto; filtro.dispatch('change'); };
-  const comun = grupoDe(raiz, 'Capas comunes a todas las especies · 0 de 1');
   filtrar(true);
-  // Lo común, sin abrir, también se esconde: son capas compartidas.
-  assert.equal(comun.hidden, true);
-  // Una etapa sin nada que pedir y unos sombreros cubiertos nacen escondidos, no abiertos y vacíos.
+  // Una etapa sin nada que pedir y unos sombreros ya hechos nacen escondidos, no abiertos y vacíos.
   const ninoHecho = { ...CUERPO_NINO, subida: HECHA('s') };
-  const gorroCubierto = { ...GORRO_BEBE, cubierta: { por: 'comun', direccion: SUBIDA('t') } };
+  const gorroHecho = { ...GORRO_BEBE, subida: HECHA('t') };
   servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', {
-    grupos: [{ ...GRUPO_PULPO, piezas: PULPO.map((p) => (p === CUERPO_NINO ? ninoHecho : p === GORRO_BEBE ? gorroCubierto : p)) }],
+    grupos: [{ ...GRUPO_PULPO, piezas: PULPO.map((p) => (p === CUERPO_NINO ? ninoHecho : p === GORRO_BEBE ? gorroHecho : p)) }],
   });
   const pulpo = grupoDe(raiz, 'Octopul · 1 de 10');
   await abrirDetalle(pulpo);
@@ -1012,11 +950,7 @@ test('con el filtro puesto, lo que se arma nace filtrado y lo común se esconde 
   assert.deepEqual(visibles(pulpo), ['Cría']);
   assert.equal(pulpo.hidden, false);
   filtrar(false);
-  assert.deepEqual(visibles(pulpo), ['Cría', 'Sombreros', 'Niño', 'Para todas las etapas de Octopul']);
-  // Abierta, lo común sigue escondiéndose con el filtro.
-  await abrirDetalle(comun);
-  filtrar(true);
-  assert.equal(comun.hidden, true);
+  assert.deepEqual(visibles(pulpo), ['Cría', 'Sombreros', 'Niño']);
 });
 
 test('una especie que se abre con el filtro puesto y no tiene nada que pedir se esconde', { timeout: 2000 }, async () => {
@@ -1024,8 +958,8 @@ test('una especie que se abre con el filtro puesto y no tiene nada que pedir se 
   const filtro = raiz.querySelector('label').querySelector('input');
   filtro.checked = true;
   filtro.dispatch('change');
-  // El resumen decía que faltaba algo, pero lo que llega ya está hecho, cubierto o es compartido.
-  const hecho = (p) => (p.criatura.nivel === 'forma' && !p.cubierta ? { ...p, subida: HECHA('u') } : p);
+  // El resumen decía que faltaba algo, pero lo que llega ya está hecho.
+  const hecho = (p) => ({ ...p, subida: HECHA('u') });
   servidor.responde('GET piezas?grupo=criaturas%2Fpulpo', { grupos: [{ ...GRUPO_PULPO, hechas: 10, piezas: PULPO.map(hecho) }] });
   const pulpo = grupoDe(raiz, 'Octopul · 1 de 10');
   assert.equal(pulpo.hidden, false);
@@ -1070,7 +1004,7 @@ test('si una especie no carga, lo dice en su sitio y al volver a abrirla la pide
   await abrirDetalle(pulpo);
   assert.equal(servidor.pedidos.filter((p) => p.ruta === 'GET piezas?grupo=criaturas%2Fpulpo').length, 3);
   assert.deepEqual(pulpo.querySelectorAll('details').map((d) => d.querySelector('summary').textContent),
-    ['Cría', 'Niño', 'Para todas las etapas de Octopul']);
+    ['Cría', 'Niño']);
   assert.equal(pulpo.querySelectorAll('.es-error').length, 0);
 });
 

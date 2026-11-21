@@ -34,10 +34,9 @@ SUELO = "pieza/suelo.png"          # se sube a 1024 × 512 y el juego sirve 512 
 MACETA = "pieza/muebles/maceta-se.png"  # se sube a 1024 × 1536 y el juego sirve 512 × 768
 LIMITE = 24 * 1024 * 1024
 # Las cuentas del contrato: de dónde salen, en un solo sitio.
-CAPAS_DE_CRIATURAS = 5030   # 4 250 de forma, 750 de especie y 30 comunes
-GRUPOS = 85                 # 59 de siempre, 25 especies y lo común
-GRUPOS_CON_TARJETA = 84     # lo común se sube pero no está en el avance
-CASILLAS_POR_ESPECIE = 170
+CAPAS_DE_CRIATURAS = 4250   # 25 especies × 5 etapas × (4 cuerpos + 6 caras + 24 sombreros)
+GRUPOS = 84                 # 59 de siempre y 25 especies, todos en el avance
+LUGARES_POR_ESPECIE = 170
 PULPO = "criaturas/pulpo"
 
 # (id, usuario, bloqueada, arte_access, is_admin)
@@ -280,15 +279,15 @@ def test_el_avance_sigue_siendo_el_contrato_del_diseno_campo_por_campo(cliente):
     claves = [g["clave"] for g in grupos]
     assert len(set(claves)) == len(claves)
     assert grupos == [
-        {"clave": g.clave, "nombre": g.nombre, "familia": g.familia, "total": len(g.casillas), "hechas": 0}
-        for g in arte.grupos() if g.con_tarjeta
+        {"clave": g.clave, "nombre": g.nombre, "familia": g.familia, "total": len(g.rutas), "hechas": 0}
+        for g in arte.grupos()
     ]
 
 
 def test_el_avance_no_abre_ninguna_imagen(cliente, carpeta, monkeypatch):
     for ruta, cuerpo in ((CORAZON, png(32, 32, 1)), (ESTRELLA, png(32, 32, 2)), (SUELO, png(1024, 512)),
-                         (f"{PULPO}/cara-feliz-se.png", png(1024, 1024, 3)),
-                         ("criaturas/comun/sombrero-laurel-so.png", png(1024, 1024, 4))):
+                         (f"{PULPO}/bebe/cara-feliz-se.png", png(1024, 1024, 3)),
+                         ("criaturas/dragoncito/adulto/sombrero-laurel-so.png", png(1024, 1024, 4))):
         assert subir(cliente, ruta, cuerpo).status_code == 200
     assert volver(cliente, ESTRELLA, "provisional").status_code == 200
     # Lo que la tabla tiene y ya no se sirve no cuenta: una medida que el contrato
@@ -316,10 +315,9 @@ def test_el_avance_no_abre_ninguna_imagen(cliente, carpeta, monkeypatch):
     avance = {g["clave"]: (g["hechas"], g["total"]) for g in respuesta.json()["grupos"]}
     assert avance["efectos"] == (1, 4)
     assert avance["pieza/paredes-y-suelo"] == (1, 3)
-    # La de la especie cubre las cinco etapas de Octopul; la común, las de las 25 especies.
-    assert avance[PULPO] == (5 + 5, CASILLAS_POR_ESPECIE)
-    assert avance["criaturas/dragoncito"] == (5, CASILLAS_POR_ESPECIE)
-    assert sum(hechas for hechas, _ in avance.values()) == 2 + 10 + 24 * 5
+    assert avance[PULPO] == (1, LUGARES_POR_ESPECIE)
+    assert avance["criaturas/dragoncito"] == (1, LUGARES_POR_ESPECIE)
+    assert sum(hechas for hechas, _ in avance.values()) == 2 + 2
 
 
 # --- Las rutas de pieza que no son del contrato ---------------------------------
@@ -359,7 +357,6 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
         "ruta": CORAZON, "ancho": 32, "alto": 32,
         "subida": {"direccion": d1, "original": d1, "quien": "dibuja", "cuando": T0.isoformat()},
         "medida_cambiada": None, "objeto": None, "estado": None, "miniatura": None, "criatura": None,
-        "cubierta": None,
     }
     assert (carpeta / nombre_limpio(v1, CORAZON)).is_file()
     piezas = {p["ruta"]: p for g in cliente.get(f"{API}/piezas").json()["grupos"] for p in g.get("piezas", ())}
@@ -386,7 +383,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     assert hecho.status_code == 200
     assert hecho.json() == {
         "ruta": CORAZON, "ancho": 32, "alto": 32, "subida": None, "medida_cambiada": None,
-        "objeto": None, "estado": None, "miniatura": None, "criatura": None, "cubierta": None}
+        "objeto": None, "estado": None, "miniatura": None, "criatura": None}
 
     al_provisional = reloj.ahora
 
@@ -584,6 +581,9 @@ def test_una_subida_de_la_medida_chica_se_rechaza_y_no_deja_renglon_ni_archivo(c
 
 # --- Las piezas, el historial y la copia ----------------------------------------
 
+CAMPOS_DE_LA_VISTA = {"ruta", "ancho", "alto", "subida", "medida_cambiada", "objeto", "estado", "miniatura",
+                      "criatura"}
+
 def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
     subido = subir(cliente, SUELO, png(1024, 512)).json()
     # Lo subido con una medida que el contrato ya no pide no se sirve (se ve el
@@ -594,7 +594,7 @@ def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
     cuerpo = respuesta.json()
     assert list(cuerpo) == ["grupos"]
     assert [(g["clave"], g["nombre"], g["familia"], g["total"], g["hechas"]) for g in cuerpo["grupos"]] == [
-        (g.clave, g.nombre, g.familia, len(g.casillas), 1 if g.clave in ("pieza/paredes-y-suelo",) else 0)
+        (g.clave, g.nombre, g.familia, len(g.rutas), 1 if g.clave in ("pieza/paredes-y-suelo",) else 0)
         for g in arte.grupos()]
     # Las criaturas llegan sin sus capas: se piden por grupo.
     assert all(("piezas" in g) == (g["familia"] != "criaturas") for g in cuerpo["grupos"])
@@ -605,8 +605,7 @@ def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
         if lugar.familia == "criaturas":
             continue
         vista = piezas[lugar.ruta]
-        assert set(vista) == {"ruta", "ancho", "alto", "subida", "medida_cambiada", "objeto", "estado",
-                              "miniatura", "criatura", "cubierta"}
+        assert set(vista) == CAMPOS_DE_LA_VISTA
         assert (vista["ancho"], vista["alto"]) == (lugar.ancho, lugar.alto)
     assert piezas[SUELO] == subido
     assert [ruta for ruta, vista in piezas.items() if vista["subida"] is not None] == [SUELO]
@@ -846,7 +845,7 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
     assert respuesta.headers["content-type"] == "application/zip"
     assert respuesta.headers["content-disposition"] == 'attachment; filename="provisionales.zip"'
     assert int(respuesta.headers["content-length"]) == len(respuesta.content)
-    # Sin las criaturas: son 5 030 y se bajan por especie.
+    # Sin las criaturas: son 4 250 y se bajan por especie.
     grupos = [g for g in arte.grupos() if g.familia != "criaturas"]
     esperado = {}
     for grupo in grupos:
@@ -879,7 +878,7 @@ def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
 
 def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cliente, monkeypatch):
     rutas = ("pueblo/lugares/tienda.png", "escenas/tienda.png")
-    repetido = arte.Grupo("junto", "Junto", "lugares", rutas, tuple((r,) for r in rutas))
+    repetido = arte.Grupo("junto", "Junto", "lugares", rutas)
 
     def solo_el_repetido():
         return (repetido,)
@@ -1211,12 +1210,10 @@ def test_una_especie_sin_dibujos_usa_el_relleno_de_retrato(cliente):
     assert respuesta.content == retrato.relleno(sin_dibujo, "bebe", "normal")
 
 
-def test_el_provisional_de_una_cara_sigue_la_busqueda_forma_especie_comun(cliente):
+def test_el_provisional_de_una_cara_o_un_sombrero_es_su_capa_de_frente_en_esa_etapa(cliente):
     for ruta, esperado in ((CARA, ("dragoncito", "adulto", "cara", "mal")),
-                           ("criaturas/dragoncito/cara-feliz-se.png", ("dragoncito", None, "cara", "feliz")),
-                           ("criaturas/comun/cara-normal-so.png", (None, None, "cara", "normal")),
-                           ("criaturas/dragoncito/sombrero-laurel-ne.png", ("dragoncito", None, "sombrero", "laurel")),
-                           ("criaturas/comun/sombrero-cinta-se.png", (None, None, "sombrero", "cinta"))):
+                           ("criaturas/dragoncito/bebe/cara-feliz-se.png", ("dragoncito", "bebe", "cara", "feliz")),
+                           ("criaturas/pulpo/nino/sombrero-laurel-ne.png", ("pulpo", "nino", "sombrero", "laurel"))):
         respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta, "miniatura": 1})
         assert respuesta.status_code == 200, ruta
         assert respuesta.content == _de_frente(*esperado), ruta
@@ -1224,15 +1221,15 @@ def test_el_provisional_de_una_cara_sigue_la_busqueda_forma_especie_comun(client
 
 def test_la_vista_de_una_capa_dice_que_es(cliente):
     vistas = {}
-    for clave in ("criaturas/dragoncito", "criaturas/comun", "efectos"):
+    for clave in ("criaturas/dragoncito", "efectos"):
         grupos = cliente.get(f"{API}/piezas", params={"grupo": clave}).json()["grupos"]
         vistas |= {p["ruta"]: p for g in grupos for p in g["piezas"]}
-    assert vistas[CUERPO]["criatura"] == {"nivel": "forma", "etapa": "adulto", "capa": "cuerpo", "cual": None,
+    assert vistas[CUERPO]["criatura"] == {"etapa": "adulto", "capa": "cuerpo", "cual": None,
                                           "nombre_del_sombrero": None, "orientacion": "no"}
-    sombrero = vistas["criaturas/comun/sombrero-laurel-se.png"]
-    assert sombrero["criatura"] == {"nivel": "comun", "etapa": None, "capa": "sombrero", "cual": "laurel",
+    sombrero = vistas["criaturas/dragoncito/bebe/sombrero-laurel-se.png"]
+    assert sombrero["criatura"] == {"etapa": "bebe", "capa": "sombrero", "cual": "laurel",
                                     "nombre_del_sombrero": "Laurel", "orientacion": "se"}
-    assert sombrero["miniatura"] == f"{API}/provisional?ruta=criaturas/comun/sombrero-laurel-se.png&miniatura=1"
+    assert sombrero["miniatura"] == f"{API}/provisional?ruta=criaturas/dragoncito/bebe/sombrero-laurel-se.png&miniatura=1"
     assert vistas[CORAZON]["criatura"] is None
 
 
@@ -1256,11 +1253,13 @@ def test_el_zip_de_provisionales_no_trae_las_criaturas(cliente):
     assert len(nombres) == len(arte.lugares()) - CAPAS_DE_CRIATURAS
 
 
-# --- El avance cuenta casillas, y la api va por grupos --------------------------------
+# --- El avance cuenta cada dibujo, y la api va por grupos --------------------------------
 
 CARA_PULPO = f"{PULPO}/bebe/cara-feliz-se.png"
-CARA_DE_LA_ESPECIE = f"{PULPO}/cara-feliz-se.png"
-CARA_COMUN = "criaturas/comun/cara-feliz-se.png"
+CUERPO_PULPO = f"{PULPO}/bebe/cuerpo-se.png"
+# Lo que fueron las capas de toda una especie y las comunes: ya no son lugares.
+YA_NO_SON_LUGARES = ("criaturas/pulpo/cara-feliz-se.png", "criaturas/pulpo/sombrero-corona-se.png",
+                     "criaturas/comun/cara-feliz-se.png")
 
 
 def liso(color: int, lado: int = 1024) -> bytes:
@@ -1274,66 +1273,67 @@ def _avance(cliente) -> dict[str, tuple[int, int]]:
     return {g["clave"]: (g["hechas"], g["total"]) for g in cliente.get(f"{API}/avance").json()["grupos"]}
 
 
-def test_el_avance_trae_84_grupos_y_no_el_de_las_comunes(cliente):
-    assert len(arte.grupos()) == GRUPOS
-    claves = [g["clave"] for g in cliente.get(f"{API}/avance").json()["grupos"]]
-    assert len(claves) == GRUPOS_CON_TARJETA
-    assert "criaturas/comun" not in claves
-    assert _avance(cliente)[PULPO] == (0, CASILLAS_POR_ESPECIE)
+def test_el_avance_trae_84_grupos(cliente):
+    avance = _avance(cliente)
+    assert len(avance) == len(arte.grupos()) == GRUPOS
+    especies_ = [clave for clave in avance if clave.startswith("criaturas/")]
+    assert len(especies_) == 25
+    assert {avance[clave] for clave in especies_} == {(0, LUGARES_POR_ESPECIE)}
 
 
 def test_cien_avances_arman_los_grupos_una_sola_vez(cliente, monkeypatch):
     """El tablero pide el avance cada pocos segundos por pestaña, en el proceso que atiende a
     quien juega: los grupos (miles de lugares) se arman una vez, y `olvidar()` los vuelve a armar."""
     arte.olvidar()
-    armados, original = [], arte._casillas_de
-    monkeypatch.setattr(arte, "_casillas_de", lambda rutas: armados.append(rutas) or original(rutas))
+    armados, original = [], arte._grupo_de
+    monkeypatch.setattr(arte, "_grupo_de", lambda *datos: armados.append(datos) or original(*datos))
+    por_armado = len(arte.lugares())     # `_grupo_de` corre una vez por lugar en cada armado
     for _ in range(100):
         assert cliente.get(f"{API}/avance").status_code == 200
-    assert len(armados) == GRUPOS          # `_casillas_de` corre una vez por grupo: un solo armado
+    assert len(armados) == por_armado
     assert cliente.get(f"{API}/piezas").status_code == 200
     assert cliente.get(f"{API}/piezas", params={"grupo": PULPO}).status_code == 200
-    assert len(armados) == GRUPOS
+    assert len(armados) == por_armado
     arte.olvidar()
     assert cliente.get(f"{API}/avance").status_code == 200
-    assert len(armados) == 2 * GRUPOS
+    assert len(armados) == 2 * por_armado
 
 
-def test_una_capa_comun_hace_avanzar_a_todas_las_especies_que_cubre(cliente):
-    assert subir(cliente, CARA_COMUN, liso(1)).status_code == 200
-    avance = _avance(cliente)
-    especies_ = [clave for clave in avance if clave.startswith("criaturas/")]
-    assert len(especies_) == 25
-    # Una cara por etapa y por especie: la común cubre las cinco casillas `cara-feliz-se` de cada una.
-    assert {avance[clave] for clave in especies_} == {(5, CASILLAS_POR_ESPECIE)}
-    assert sum(hechas for hechas, _ in avance.values()) == 25 * 5
-    # Ya de una especie con su propia capa en una etapa: esa casilla no se cuenta dos veces.
-    assert subir(cliente, CARA_PULPO, liso(2)).status_code == 200
-    assert _avance(cliente)[PULPO] == (5, CASILLAS_POR_ESPECIE)
+def test_una_especie_tiene_170_lugares_y_cada_dibujo_cuenta_solo(cliente):
+    # Otra especie ya tiene algo: lo suyo no se mueve por lo que se sube a Octopul.
+    assert subir(cliente, "criaturas/dragoncito/adulto/cara-mal-so.png", liso(1)).status_code == 200
+    antes = _avance(cliente)
+    assert antes[PULPO] == (0, LUGARES_POR_ESPECIE)
+    assert antes["criaturas/dragoncito"] == (1, LUGARES_POR_ESPECIE)
+    assert subir(cliente, CUERPO_PULPO, liso(2)).status_code == 200
+    assert _avance(cliente)[PULPO] == (1, LUGARES_POR_ESPECIE)
+    assert subir(cliente, CARA_PULPO, liso(3)).status_code == 200
+    # Otra imagen en el mismo lugar no lo cuenta dos veces.
+    assert subir(cliente, CARA_PULPO, liso(4)).status_code == 200
+    despues = _avance(cliente)
+    assert despues[PULPO] == (2, LUGARES_POR_ESPECIE)
+    assert {clave: v for clave, v in despues.items() if clave != PULPO} == \
+        {clave: v for clave, v in antes.items() if clave != PULPO}
 
 
-def test_volver_una_capa_de_la_especie_al_provisional_descubre_sus_casillas(cliente):
-    assert subir(cliente, CARA_DE_LA_ESPECIE, liso(3)).status_code == 200
-    avance = _avance(cliente)
-    assert avance[PULPO] == (5, CASILLAS_POR_ESPECIE)
-    assert avance["criaturas/dragoncito"] == (0, CASILLAS_POR_ESPECIE)
-    assert volver(cliente, CARA_DE_LA_ESPECIE, "provisional").status_code == 200
-    # Vuelven a faltar las cinco, y las de las otras especies no se movieron.
-    assert set(_avance(cliente).values()) == {(0, CASILLAS_POR_ESPECIE), *(
-        (0, total) for _, total in avance.values())}
-    assert sum(hechas for hechas, _ in _avance(cliente).values()) == 0
+@pytest.mark.parametrize("ruta", YA_NO_SON_LUGARES)
+def test_subir_a_una_ruta_compartida_es_404(cliente, carpeta, ruta):
+    for respuesta in (subir(cliente, ruta, liso(5)), volver(cliente, ruta, "provisional"),
+                      volver(cliente, ruta, "anterior"), historial(cliente, ruta),
+                      cliente.get(f"{API}/provisional", params={"ruta": ruta}),
+                      cliente.get(f"{API}/provisional", params={"ruta": ruta, "miniatura": 1})):
+        como_una_ruta_que_no_existe(cliente, respuesta)
+    assert nada_guardado(carpeta)
 
 
 def test_hechas_nunca_pasa_de_total(cliente):
-    # La misma casilla por sus tres rutas, y todo lo de la especie y lo común.
-    for color, ruta in enumerate((CARA_PULPO, CARA_DE_LA_ESPECIE, CARA_COMUN,
-                                  f"{PULPO}/bebe/cuerpo-se.png", "criaturas/comun/sombrero-laurel-so.png",
-                                  f"{PULPO}/sombrero-laurel-so.png"), start=10):
+    # La misma capa dos veces, otra de la especie, y una vuelta atrás.
+    for color, ruta in enumerate((CARA_PULPO, CARA_PULPO, CUERPO_PULPO), start=10):
         assert subir(cliente, ruta, liso(color)).status_code == 200
+    assert volver(cliente, CARA_PULPO, "anterior").status_code == 200
     for clave, (hechas, total) in _avance(cliente).items():
         assert 0 <= hechas <= total, clave
-    # Por casilla: la cara de Octopul bebé (3 rutas) cuenta una vez; las otras 4 de la especie, una cada una.
-    assert _avance(cliente)[PULPO][0] == 5 + 1 + 5
+    assert _avance(cliente)[PULPO] == (2, LUGARES_POR_ESPECIE)
 
 
 def test_la_lista_general_no_trae_las_capas_de_las_criaturas(cliente):
@@ -1347,10 +1347,10 @@ def test_la_lista_general_no_trae_las_capas_de_las_criaturas(cliente):
         assert ("piezas" in grupo) == (grupo["familia"] != "criaturas"), grupo["clave"]
     assert all(len(g["piezas"]) == g["total"] for g in grupos if "piezas" in g)
     pulpo = next(g for g in grupos if g["clave"] == PULPO)
-    assert (pulpo["total"], pulpo["hechas"]) == (CASILLAS_POR_ESPECIE, 0)
-    assert subir(cliente, CARA_COMUN, liso(1)).status_code == 200
+    assert (pulpo["total"], pulpo["hechas"]) == (LUGARES_POR_ESPECIE, 0)
+    assert subir(cliente, CARA_PULPO, liso(1)).status_code == 200
     de_nuevo = {g["clave"]: g for g in cliente.get(f"{API}/piezas").json()["grupos"]}
-    assert de_nuevo[PULPO]["hechas"] == 5 and de_nuevo["criaturas/comun"]["hechas"] == 1
+    assert de_nuevo[PULPO]["hechas"] == 1
 
 
 def test_un_grupo_se_pide_entero(cliente):
@@ -1361,10 +1361,10 @@ def test_un_grupo_se_pide_entero(cliente):
     grupo = {g.clave: g for g in arte.grupos()}[PULPO]
     assert [p["ruta"] for p in grupos[0]["piezas"]] == list(grupo.rutas)
     assert (grupos[0]["nombre"], grupos[0]["familia"], grupos[0]["total"]) == ("Octopul", "criaturas", 170)
-    # También uno de los de siempre, y lo común (que no sale en el avance).
-    for clave in ("efectos", "criaturas/comun"):
-        uno = cliente.get(f"{API}/piezas", params={"grupo": clave}).json()["grupos"]
-        assert [g["clave"] for g in uno] == [clave] and uno[0]["piezas"]
+    assert len(grupos[0]["piezas"]) == LUGARES_POR_ESPECIE
+    # También uno de los de siempre.
+    uno = cliente.get(f"{API}/piezas", params={"grupo": "efectos"}).json()["grupos"]
+    assert [g["clave"] for g in uno] == ["efectos"] and uno[0]["piezas"]
 
 
 @pytest.mark.parametrize("clave", ["criaturas/no-hay", "", "../efectos", "efectos/../efectos", "efectos.png",
@@ -1374,32 +1374,27 @@ def test_un_grupo_que_no_existe_es_404(cliente, clave):
         como_una_ruta_que_no_existe(cliente, cliente.get(f"{API}/{ruta}", params={"grupo": clave}))
 
 
-def test_una_casilla_cubierta_dice_por_quien(cliente, carpeta):
-    sin_nada = _vista_de_grupo(cliente, PULPO, CARA_PULPO)
-    assert sin_nada["cubierta"] is None
-    comun = liso(20)
-    assert subir(cliente, CARA_COMUN, comun).status_code == 200
-    vista = _vista_de_grupo(cliente, PULPO, CARA_PULPO)
-    assert vista["cubierta"] == {"por": "comun", "direccion": direccion(comun, CARA_COMUN)}
-    assert vista["subida"] is None
-    # La de la especie va antes que la común.
-    de_la_especie = liso(21)
-    assert subir(cliente, CARA_DE_LA_ESPECIE, de_la_especie).status_code == 200
-    assert _vista_de_grupo(cliente, PULPO, CARA_PULPO)["cubierta"] == {
-        "por": "especie", "direccion": direccion(de_la_especie, CARA_DE_LA_ESPECIE)}
-    # Con la suya al día, ya no está cubierta.
-    propia = liso(22)
+def test_el_grupo_de_las_comunes_ya_no_existe(cliente):
+    for ruta in ("piezas", "copia.zip", "provisionales.zip"):
+        como_una_ruta_que_no_existe(cliente, cliente.get(f"{API}/{ruta}", params={"grupo": "criaturas/comun"}))
+
+
+def test_la_vista_de_una_capa_es_solo_lo_suyo(cliente, carpeta):
+    """Una capa que no tiene su dibujo no se ve con el de otra: la vista trae sus campos y ninguno más."""
+    propia = liso(20)
     hecha = subir(cliente, CARA_PULPO, propia).json()
-    assert hecha["cubierta"] is None and hecha["subida"]["direccion"] == direccion(propia, CARA_PULPO)
-    # Lo que no es una cara o un sombrero de forma, nunca; y otra especie sólo ve la común.
-    assert _vista_de_grupo(cliente, PULPO, f"{PULPO}/bebe/cuerpo-se.png")["cubierta"] is None
-    assert _vista_de_grupo(cliente, PULPO, CARA_DE_LA_ESPECIE)["cubierta"] is None
-    assert _vista_de_grupo(cliente, "criaturas/dragoncito", "criaturas/dragoncito/bebe/cara-feliz-se.png")[
-        "cubierta"]["por"] == "comun"
-    # Volver la suya al provisional la deja cubierta de nuevo, y lo dice la respuesta de volver.
+    assert set(hecha) == CAMPOS_DE_LA_VISTA
+    assert hecha["subida"]["direccion"] == direccion(propia, CARA_PULPO)
+    # La misma cara en otra etapa, y en otra especie, siguen en su provisional.
+    for clave, ruta in ((PULPO, f"{PULPO}/nino/cara-feliz-se.png"),
+                        ("criaturas/dragoncito", "criaturas/dragoncito/bebe/cara-feliz-se.png")):
+        otra = _vista_de_grupo(cliente, clave, ruta)
+        assert set(otra) == CAMPOS_DE_LA_VISTA
+        assert otra["subida"] is None
+        assert otra["miniatura"] == f"{API}/provisional?ruta={ruta}&miniatura=1"
     vuelta = volver(cliente, CARA_PULPO, "provisional").json()
-    assert vuelta["cubierta"]["por"] == "especie" and vuelta["subida"] is None
-    assert _vista_de(cliente, "efectos/corazon.png")["cubierta"] is None
+    assert set(vuelta) == CAMPOS_DE_LA_VISTA and vuelta["subida"] is None
+    assert set(_vista_de(cliente, "efectos/corazon.png")) == CAMPOS_DE_LA_VISTA
 
 
 def _vista_de_grupo(cliente, clave, ruta) -> dict:
@@ -1409,7 +1404,7 @@ def _vista_de_grupo(cliente, clave, ruta) -> dict:
 
 @pytest.mark.usefixtures("provisional_barato")
 def test_los_zips_de_arriba_no_traen_criaturas(cliente, carpeta):
-    for ruta, color in ((CARA_PULPO, 30), (CARA_COMUN, 31)):
+    for ruta, color in ((CARA_PULPO, 30), ("criaturas/dragoncito/bebe/cuerpo-se.png", 31)):
         assert subir(cliente, ruta, liso(color)).status_code == 200
     assert subir(cliente, CORAZON, png(32, 32)).status_code == 200
     with zipfile.ZipFile(io.BytesIO(cliente.get(f"{API}/copia.zip").content)) as copia:
@@ -1423,14 +1418,14 @@ def test_los_zips_de_arriba_no_traen_criaturas(cliente, carpeta):
 
 def test_cada_especie_tiene_sus_dos_zips(cliente, carpeta):
     suya, otra = liso(40), liso(41)
-    for ruta, cuerpo in ((CARA_PULPO, suya), (CARA_DE_LA_ESPECIE, liso(42)),
+    for ruta, cuerpo in ((CARA_PULPO, suya), (CUERPO_PULPO, liso(42)),
                          ("criaturas/dragoncito/bebe/cara-feliz-se.png", otra), (CORAZON, png(32, 32))):
         assert subir(cliente, ruta, cuerpo).status_code == 200
     respuesta = cliente.get(f"{API}/copia.zip", params={"grupo": PULPO})
     assert respuesta.status_code == 200 and respuesta.headers["content-type"] == "application/zip"
     assert respuesta.headers["content-disposition"] == 'attachment; filename="copia-criaturas-pulpo.zip"'
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
-        assert sorted(copia.namelist()) == sorted([CARA_PULPO, CARA_DE_LA_ESPECIE])
+        assert sorted(copia.namelist()) == sorted([CARA_PULPO, CUERPO_PULPO])
         assert copia.read(CARA_PULPO) == (carpeta / nombre_original(suya, CARA_PULPO)).read_bytes()
     respuesta = cliente.get(f"{API}/provisionales.zip", params={"grupo": PULPO})
     assert respuesta.status_code == 200
@@ -1439,7 +1434,7 @@ def test_cada_especie_tiene_sus_dos_zips(cliente, carpeta):
     grupo = {g.clave: g for g in arte.grupos()}[PULPO]
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         nombres = copia.namelist()
-        assert len(nombres) == len(set(nombres)) == len(grupo.rutas) == 200
+        assert len(nombres) == len(set(nombres)) == len(grupo.rutas) == LUGARES_POR_ESPECIE
         assert all(n.startswith(f"{PULPO}/") for n in nombres)
         with Image.open(io.BytesIO(copia.read(nombres[0]))) as imagen:
             assert imagen.size == (1024, 1024)
@@ -1480,7 +1475,7 @@ def test_el_zip_de_una_especie_conserva_sus_carpetas(cliente, carpeta, monkeypat
     """Dentro del zip de una especie, cada capa va con su ruta relativa a la especie
     (`bebe/cuerpo-se.png`), igual en los dos zips; los nombres se repiten entre etapas."""
     monkeypatch.setattr(dibujante, "_el_provisional", lambda lugar: b"provisional")
-    for color, ruta in enumerate((CARA_PULPO, CARA_DE_LA_ESPECIE, CARA_COMUN), start=50):
+    for color, ruta in enumerate((CARA_PULPO, f"{PULPO}/adulto/sombrero-cinta-ne.png"), start=50):
         assert subir(cliente, ruta, liso(color)).status_code == 200
     grupos = {g.clave: g for g in arte.grupos()}
 
@@ -1493,11 +1488,6 @@ def test_el_zip_de_una_especie_conserva_sus_carpetas(cliente, carpeta, monkeypat
     provisionales = nombres("provisionales.zip", PULPO)
     assert sorted(provisionales) == sorted(grupos[PULPO].rutas)
     assert f"{PULPO}/bebe/cuerpo-se.png" in provisionales and f"{PULPO}/adulto/cuerpo-se.png" in provisionales
-    assert CARA_DE_LA_ESPECIE in provisionales
     # Lo subido de la especie va con el mismo nombre que su provisional.
-    assert sorted(nombres("copia.zip", PULPO)) == sorted([CARA_PULPO, CARA_DE_LA_ESPECIE])
+    assert sorted(nombres("copia.zip", PULPO)) == sorted([CARA_PULPO, f"{PULPO}/adulto/sombrero-cinta-ne.png"])
     assert set(nombres("copia.zip", PULPO)) <= set(provisionales)
-    # Lo común, en su carpeta, igual en los dos.
-    comunes = nombres("provisionales.zip", "criaturas/comun")
-    assert sorted(comunes) == sorted(grupos["criaturas/comun"].rutas)
-    assert nombres("copia.zip", "criaturas/comun") == [CARA_COMUN]

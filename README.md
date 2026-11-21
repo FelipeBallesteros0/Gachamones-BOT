@@ -269,7 +269,8 @@ otro, los provisionales del repo, en carpetas por grupo («Descargar los
 provisionales»). Además de las piezas del juego, la página lista lugares que el
 juego todavía no pinta, para ir adelantando el arte del ejecutable: el encendido
 de cuatro muebles, 24 objetos nuevos con sus íconos y las capas de las criaturas
-(1024 × 1024, por especie y etapa, en cuatro orientaciones). Las criaturas salen
+(1024 × 1024, cada una de una especie en una etapa, en cuatro orientaciones: 170
+por especie). Las criaturas salen
 plegadas por especie, se piden al abrirlas y cada una tiene sus propios zips; nada
 de eso lo ve quien juega ni entra en el bloque `arte-subido` de la portada. Se guardan
 las cinco últimas imágenes distintas de cada lugar, cada una con su original y su

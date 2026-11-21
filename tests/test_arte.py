@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import re
 from collections import Counter
@@ -49,7 +50,7 @@ def test_las_rutas_de_los_lugares_son_unicas():
     # El índice de `lugar_de` se arma con un diccionario: una ruta repetida pisaría a la otra sin avisar.
     rutas = [l.ruta for l in arte.lugares()]
     assert len(set(rutas)) == len(rutas)
-    assert len(rutas) == 5450
+    assert len(rutas) == 4670
 
 
 def test_un_lugar_se_busca_por_su_ruta_y_nada_mas():
@@ -220,7 +221,7 @@ def test_las_claves_de_los_grupos_son_validas_y_unicas():
     for clave in claves:
         assert re.fullmatch(r"[a-z0-9/_-]{1,64}", clave), clave
         assert not clave.endswith(".png"), clave
-    assert len(grupos) == 85  # 59 de siempre, 25 especies y lo común
+    assert len(grupos) == 84  # 59 de siempre y 25 especies
 
 
 def test_los_nombres_de_los_grupos_dicen_algo():
@@ -301,7 +302,7 @@ def test_el_encendido_no_entra_al_contrato_del_juego():
     escrito = json.loads((arte.RAIZ.parent / "datos" / "arte.json").read_text(encoding="utf-8"))
     assert escrito == arte.como_json()
     assert len([l for l in arte.lugares() if l.en_el_juego]) == 270
-    assert len(arte.lugares()) == 270 + 16 + 134 + 5030
+    assert len(arte.lugares()) == 270 + 16 + 134 + 4250
     # Los lugares nuevos van detrás de los del juego.
     assert all(l.en_el_juego for l in arte.lugares()[:270])
 
@@ -501,95 +502,92 @@ def _criaturas():
     return [l for l in arte.lugares() if l.familia == "criaturas"]
 
 
-def test_las_criaturas_tienen_5030_lugares():
+def test_las_criaturas_tienen_4250_lugares():
     lugares = _criaturas()
-    assert len(lugares) == 5030
-    assert len(arte.lugares()) == 270 + 16 + 134 + 5030
-    assert Counter(l.criatura.nivel for l in lugares) == {"forma": 4250, "especie": 750, "comun": 30}
-    assert len({l.ruta for l in lugares}) == 5030
+    assert len(lugares) == 4250 == 25 * 5 * (4 + 6 + 24)
+    assert len(arte.lugares()) == 270 + 16 + 134 + 4250 == 4670
+    assert len({l.ruta for l in lugares}) == 4250
     assert all((l.ancho, l.alto, l.reduccion, l.en_el_juego) == (1024, 1024, 4, False) for l in lugares)
-    # Van detrás de todo lo demás: primero las 30 de la especie, y al final las comunes.
-    assert arte.lugares()[-5030:] == tuple(lugares)
-    assert [l.criatura.nivel for l in lugares[-30:]] == ["comun"] * 30
+    # Van detrás de todo lo demás, y nada después: por especie, por etapa, el cuerpo, las caras y los sombreros.
+    assert arte.lugares()[-4250:] == tuple(lugares)
     primera = lugares[0]
     assert primera.ruta == "criaturas/pollito/bebe/cuerpo-se.png"
-    assert primera.criatura == arte.Capa("forma", "pollito", "bebe", "cuerpo", None, "se")
+    assert primera.criatura == arte.Capa("pollito", "bebe", "cuerpo", None, "se")
     assert [l.ruta for l in lugares[:4]] == [f"criaturas/pollito/bebe/cuerpo-{o}.png" for o in arte.ORIENTACIONES]
-    assert lugares[4].ruta == "criaturas/pollito/bebe/cara-feliz-se.png"
-    assert lugares[10].ruta == "criaturas/pollito/bebe/sombrero-corona-se.png"
+    assert [l.ruta for l in lugares[4:10]] == [f"criaturas/pollito/bebe/cara-{a}-{o}.png"
+                                               for a in ANIMOS for o in ("se", "so")]
+    assert [l.ruta for l in lugares[10:34]] == [f"criaturas/pollito/bebe/sombrero-{s}-{o}.png"
+                                                for s in SOMBREROS for o in arte.ORIENTACIONES]
+    assert [l.criatura.etapa for l in lugares[:170:34]] == list(ETAPAS)
     assert lugares[34].ruta == "criaturas/pollito/nino/cuerpo-se.png"
-    assert lugares[170].ruta == "criaturas/pollito/cara-feliz-se.png"
-    assert lugares[200].ruta == "criaturas/brote/bebe/cuerpo-se.png"
-    assert [l.criatura.especie for l in lugares[:5000:200]] == list(especies.ESPECIES)
+    assert lugares[170].ruta == "criaturas/brote/bebe/cuerpo-se.png"
+    assert [l.criatura.especie for l in lugares[::170]] == list(especies.ESPECIES)
+    ultima = list(especies.ESPECIES)[-1]
+    assert lugares[-1].ruta == f"criaturas/{ultima}/adulto_grande/sombrero-{SOMBREROS[-1]}-ne.png"
 
 
 def test_las_rutas_de_una_capa():
-    de_forma = arte.Capa("forma", "dragoncito", "adulto_grande", "cara", "mal", "so")
-    de_especie = arte.Capa("especie", "dragoncito", None, "sombrero", "laurel", "ne")
-    comun = arte.Capa("comun", None, None, "cara", "normal", "se")
-    assert arte.ruta_de_capa(de_forma) == "criaturas/dragoncito/adulto_grande/cara-mal-so.png"
-    assert arte.ruta_de_capa(de_especie) == "criaturas/dragoncito/sombrero-laurel-ne.png"
-    assert arte.ruta_de_capa(comun) == "criaturas/comun/cara-normal-se.png"
-    assert arte.ruta_de_capa(arte.Capa("forma", "dragoncito", "bebe", "cuerpo", None, "no")) == \
-        "criaturas/dragoncito/bebe/cuerpo-no.png"
-    for capa in (de_forma, de_especie, comun):
+    cara = arte.Capa("dragoncito", "adulto_grande", "cara", "mal", "so")
+    sombrero = arte.Capa("dragoncito", "bebe", "sombrero", "laurel", "ne")
+    cuerpo = arte.Capa("dragoncito", "nino", "cuerpo", None, "no")
+    assert arte.ruta_de_capa(cara) == "criaturas/dragoncito/adulto_grande/cara-mal-so.png"
+    assert arte.ruta_de_capa(sombrero) == "criaturas/dragoncito/bebe/sombrero-laurel-ne.png"
+    assert arte.ruta_de_capa(cuerpo) == "criaturas/dragoncito/nino/cuerpo-no.png"
+    for capa in (cara, sombrero, cuerpo):
         assert arte.lugar_de(arte.ruta_de_capa(capa)).criatura == capa
+    # Cada capa es de una especie en una etapa, y nada más.
+    assert [c.name for c in dataclasses.fields(arte.Capa)] == ["especie", "etapa", "capa", "cual", "orientacion"]
+    # Sólo esas tres formas de ruta.
+    forma = re.compile(r"criaturas/[a-z_]+/(bebe|nino|adolescente|adulto|adulto_grande)/"
+                       r"(cuerpo-(se|so|no|ne)|cara-(feliz|normal|mal)-(se|so)|sombrero-[a-z_]+-(se|so|no|ne))\.png")
+    assert all(forma.fullmatch(l.ruta) for l in _criaturas())
+
+
+def test_no_hay_capas_de_la_especie_ni_comunes():
+    sombrero = SOMBREROS[0]
+    for ruta in ("criaturas/pulpo/cara-feliz-se.png", f"criaturas/pulpo/sombrero-{sombrero}-se.png",
+                 "criaturas/pulpo/cuerpo-se.png", "criaturas/comun/cara-feliz-se.png",
+                 f"criaturas/comun/sombrero-{sombrero}-se.png", "criaturas/comun/cuerpo-se.png"):
+        assert arte.lugar_de(ruta) is None, ruta
+    rutas = [l.ruta for l in arte.lugares()]
+    assert not any(r.startswith("criaturas/comun/") for r in rutas)
+    # Toda capa cuelga de la carpeta de su especie y la de su etapa: nunca de sólo dos carpetas.
+    assert all(r.count("/") == 3 for r in rutas if r.startswith("criaturas/"))
 
 
 def test_de_espaldas_no_hay_cara():
     caras = [l for l in _criaturas() if l.criatura.capa == "cara"]
-    assert len(caras) == 25 * (5 + 1) * 6 + 6 == 906
+    assert len(caras) == 25 * 5 * 6 == 750
     assert {l.criatura.orientacion for l in caras} == {"se", "so"}
     assert not any(l.ruta.endswith(("-no.png", "-ne.png")) for l in caras)
     sombreros = [l for l in _criaturas() if l.criatura.capa == "sombrero"]
     assert {l.criatura.orientacion for l in sombreros} == set(arte.ORIENTACIONES)
-    assert len(sombreros) == 25 * 5 * 24 + 25 * 24 + 24 == 3624
-    assert len(caras) + len(sombreros) + len([l for l in _criaturas() if l.criatura.capa == "cuerpo"]) == 5030
-
-
-def test_el_cuerpo_no_se_comparte():
+    assert len(sombreros) == 25 * 5 * 24 == 3000
     cuerpos = [l for l in _criaturas() if l.criatura.capa == "cuerpo"]
-    assert len(cuerpos) == 25 * 5 * 4
-    assert {l.criatura.nivel for l in cuerpos} == {"forma"}
-    assert all(l.criatura.cual is None and l.criatura.etapa for l in cuerpos)
-    assert arte.lugar_de("criaturas/pulpo/cuerpo-se.png") is None
-    assert arte.lugar_de("criaturas/comun/cuerpo-se.png") is None
+    assert len(cuerpos) == 25 * 5 * 4 == 500
+    assert all(l.criatura.cual is None for l in cuerpos)
+    assert len(caras) + len(sombreros) + len(cuerpos) == 4250
 
 
-def test_una_especie_tiene_200_lugares_y_170_casillas():
+def test_una_especie_tiene_170_lugares():
     grupo = {g.clave: g for g in arte.grupos()}["criaturas/dragoncito"]
-    assert (grupo.nombre, grupo.familia, grupo.con_tarjeta) == ("Tsushimon", "criaturas", True)
-    assert len(grupo.rutas) == 200 and len(grupo.casillas) == 170
-    assert len(set(grupo.rutas)) == 200
-    # Las 170 casillas son las de forma; las 30 de especie son sólo candidatas.
-    assert [c[0] for c in grupo.casillas] == [r for r in grupo.rutas if arte.lugar_de(r).criatura.nivel == "forma"]
-    cuerpo = grupo.casillas[0]
-    assert cuerpo == ("criaturas/dragoncito/bebe/cuerpo-se.png",)
-    cara = grupo.casillas[4]
-    assert cara == ("criaturas/dragoncito/bebe/cara-feliz-se.png",
-                    "criaturas/dragoncito/cara-feliz-se.png",
-                    "criaturas/comun/cara-feliz-se.png")
-    sombrero = grupo.casillas[10]
-    assert sombrero == ("criaturas/dragoncito/bebe/sombrero-corona-se.png",
-                        "criaturas/dragoncito/sombrero-corona-se.png",
-                        "criaturas/comun/sombrero-corona-se.png")
-    asignadas = {r for casilla in grupo.casillas for r in casilla}
-    assert set(grupo.rutas) - asignadas == set()  # las de especie están en sus casillas
-    assert len([g for g in arte.grupos() if g.familia == "criaturas"]) == 25 + 1
+    assert (grupo.nombre, grupo.familia) == ("Tsushimon", "criaturas")
+    assert len(grupo.rutas) == len(set(grupo.rutas)) == 170 == 5 * (4 + 6 + 24)
+    assert list(grupo.rutas) == [l.ruta for l in _criaturas() if l.criatura.especie == "dragoncito"]
 
 
-def test_las_comunes_no_llevan_tarjeta():
-    comun = {g.clave: g for g in arte.grupos()}["criaturas/comun"]
-    assert (comun.nombre, comun.familia, comun.con_tarjeta) == ("Capas comunes a todas las especies", "criaturas", False)
-    assert len(comun.rutas) == 30
-    assert comun.casillas == tuple((r,) for r in comun.rutas)
-    assert all(g.con_tarjeta for g in arte.grupos() if g.clave != "criaturas/comun")
+def test_hay_84_grupos_y_ninguno_comun():
+    grupos = arte.grupos()
+    assert len(grupos) == 84
+    criaturas = [g for g in grupos if g.familia == "criaturas"]
+    # Un grupo por especie, en su orden, y ninguno más.
+    assert [g.clave for g in criaturas] == [f"criaturas/{clave}" for clave in especies.ESPECIES]
+    assert len(grupos) - len(criaturas) == 59
 
 
-def test_fuera_de_las_criaturas_cada_ruta_es_su_propia_casilla():
-    for g in arte.grupos():
-        if g.familia != "criaturas":
-            assert g.casillas == tuple((r,) for r in g.rutas), g.clave
+def test_un_grupo_es_sus_rutas_y_nada_mas():
+    # Lo que cuenta el avance son sus rutas: ni otra cuenta aparte, ni grupos sin tarjeta.
+    assert [c.name for c in dataclasses.fields(arte.Grupo)] == ["clave", "nombre", "familia", "rutas"]
 
 
 def test_las_capas_no_entran_al_juego_ni_a_la_portada():
@@ -620,7 +618,7 @@ def test_las_rutas_de_las_capas_pasan_el_filtro_del_cliente_y_de_la_tabla():
     if node is None:
         return
     raiz = Path(__file__).resolve().parent.parent
-    # Son 5 030 rutas: por la entrada estándar, que la línea de órdenes no las aguanta.
+    # Son 4 250 rutas: por la entrada estándar, que la línea de órdenes no las aguanta.
     programa = ("import { esRutaDeArte } from './web/static/js/arte.js';"
                 "import { readFileSync } from 'node:fs';"
                 "const rutas = JSON.parse(readFileSync(0, 'utf8'));"
@@ -632,7 +630,7 @@ def test_las_rutas_de_las_capas_pasan_el_filtro_del_cliente_y_de_la_tabla():
 
 
 def test_buscar_un_lugar_entre_miles_no_recorre_la_lista(monkeypatch):
-    rutas = [l.ruta for l in _criaturas()][::50][:100]
+    rutas = [l.ruta for l in _criaturas()][::40][:100]
     assert len(rutas) == 100
     arte.lugar_de(rutas[0])   # arma el índice
     llamadas = []

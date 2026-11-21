@@ -351,13 +351,9 @@ Todo vive bajo `criaturas/`. `<especie>` es el nombre interno de la especie, que
 
 | Qué | Archivo | Orientaciones |
 |---|---|---|
-| El cuerpo de una etapa | `criaturas/<especie>/<etapa>/cuerpo-<orientación>.png` | `se`, `so`, `no`, `ne` |
-| Una cara de una etapa | `criaturas/<especie>/<etapa>/cara-<ánimo>-<orientación>.png` | `se`, `so` |
-| Un sombrero en una etapa | `criaturas/<especie>/<etapa>/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
-| Una cara para **todas las etapas** de una especie | `criaturas/<especie>/cara-<ánimo>-<orientación>.png` | `se`, `so` |
-| Un sombrero para **todas las etapas** de una especie | `criaturas/<especie>/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
-| Una cara **común** a todas las especies | `criaturas/comun/cara-<ánimo>-<orientación>.png` | `se`, `so` |
-| Un sombrero **común** a todas las especies | `criaturas/comun/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
+| El cuerpo | `criaturas/<especie>/<etapa>/cuerpo-<orientación>.png` | `se`, `so`, `no`, `ne` |
+| Una cara | `criaturas/<especie>/<etapa>/cara-<ánimo>-<orientación>.png` | `se`, `so` |
+| Un sombrero | `criaturas/<especie>/<etapa>/sombrero-<sombrero>-<orientación>.png` | `se`, `so`, `no`, `ne` |
 
 Los nombres que van en lugar de las palabras entre `< >`:
 
@@ -366,15 +362,9 @@ Los nombres que van en lugar de las palabras entre `< >`:
 - `<sombrero>`: `corona`, `chistera`, `laurel`, `cuernos`, `aureola` y `cinta`.
 - `<orientación>`: `se`, `so`, `no` y `ne`.
 
-Ejemplos: `criaturas/pollito/bebe/cuerpo-se.png`, `criaturas/pollito/bebe/cara-feliz-so.png`, `criaturas/pollito/adulto/sombrero-corona-ne.png`, `criaturas/pollito/cara-mal-se.png`, `criaturas/comun/sombrero-cinta-no.png`.
+Ejemplos: `criaturas/pollito/bebe/cuerpo-se.png`, `criaturas/pollito/bebe/cara-feliz-so.png`, `criaturas/pollito/adulto/sombrero-corona-ne.png`.
 
-El **cuerpo** es siempre de una etapa concreta. Las caras y los sombreros se pueden dibujar de tres maneras, de lo más particular a lo más general:
-
-1. **Para una etapa de una especie** (con `<etapa>/` en la ruta): sólo esa etapa la usa.
-2. **Para todas las etapas de una especie** (sin etapa): la usan todas las etapas de esa especie que no tienen la suya.
-3. **Común** (`criaturas/comun/`): la usan todas las especies que no tienen la suya.
-
-Cuando falta la de una etapa, se usa la de toda la especie y, si tampoco está, la común. Por eso **no hace falta dibujar cada cara y cada sombrero para cada etapa de cada especie**: una cara o un sombrero común basta para todas. En la página, esa casilla se ve cubierta, con la frase «Usa la de toda la especie.» o «Usa la común.»; si subes la tuya, manda la tuya. Y si más tarde la vuelves al provisional, las casillas que dependían de ella vuelven a faltar; la página te lo pregunta antes.
+**Todo se dibuja por especie y por etapa**: cada capa es de una especie en una etapa, y sólo esa etapa la usa. Cada etapa lleva sus **4 cuerpos** (uno por orientación), sus **6 caras** (tres ánimos, de frente: `se` y `so`) y sus **24 sombreros** (seis sombreros, en las cuatro orientaciones): 34 dibujos por etapa y **170 por especie**, que es lo que cuenta su avance.
 
 ### El provisional
 
@@ -382,7 +372,7 @@ El provisional de una capa de criatura es **la capa de frente de hoy, ampliada**
 
 ### Qué ves en la página
 
-Las criaturas salen **plegadas por especie**, en una sección «Criaturas»; cada especie se abre aparte y por dentro se divide en sus etapas («Cría», «Niño», «Adolescente», «Adulto» y «Adulto grande»), en «Para todas las etapas de» la especie, y las capas «Cuerpo», «Caras» y «Sombreros». Cada especie tiene sus dos botones de descarga, «Descargar lo subido de» la especie y «Descargar los provisionales de» la especie. «Capas comunes a todas las especies» sale aparte, sin contar en el avance.
+Las criaturas salen **plegadas por especie**, en una sección «Criaturas»; cada especie se abre aparte y por dentro se divide en sus cinco etapas («Cría», «Niño», «Adolescente», «Adulto» y «Adulto grande»), y cada etapa en las capas «Cuerpo», «Caras» y «Sombreros». Cada especie tiene sus dos botones de descarga, «Descargar lo subido de» la especie y «Descargar los provisionales de» la especie.
 
 El juego de hoy sigue con sus retratos de siempre; nada de esta sección se ve todavía al jugar. Eso sí: el mapa voltea el retrato cuando el gachamon camina hacia la derecha, así que **si un retrato de hoy se dibuja de perfil, mira a la izquierda**.
 

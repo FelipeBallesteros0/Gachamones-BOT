@@ -6,7 +6,7 @@ catálogos (`pueblo`, `avatar`), así que añadir un lugar o un peinado añade s
 pieza sola. Sin `discord` ni `db`.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
@@ -70,14 +70,12 @@ class Lugar:
 
 @dataclass(frozen=True)
 class Capa:
-    """Una capa de una criatura, en una orientación.
+    """Una capa de una criatura de una especie en una etapa, en una orientación.
 
-    `nivel` dice para quién vale: `forma` (una especie en una etapa), `especie` (todas sus
-    etapas) o `comun` (todas las especies). `capa` es `cuerpo`, `cara` o `sombrero`; `cual` es el
-    ánimo o la clave del sombrero, y `None` en el cuerpo, que no se comparte."""
-    nivel: str
-    especie: str | None
-    etapa: str | None
+    `capa` es `cuerpo`, `cara` o `sombrero`; `cual` es el ánimo o la clave del sombrero, y
+    `None` en el cuerpo."""
+    especie: str
+    etapa: str
     capa: str
     cual: str | None
     orientacion: str
@@ -91,34 +89,23 @@ ORIENTACIONES_DE_CARA = ORIENTACIONES[:2]  # de espaldas no se ve la cara
 
 
 def ruta_de_capa(capa: Capa) -> str:
-    """La ruta de subida de una capa: `criaturas/<especie>[/<etapa>]/<capa>[-<cual>]-<o>.png`."""
-    base = "criaturas/comun" if capa.nivel == "comun" else f"criaturas/{capa.especie}"
-    if capa.nivel == "forma":
-        base += f"/{capa.etapa}"
+    """La ruta de subida de una capa: `criaturas/<especie>/<etapa>/<capa>[-<cual>]-<o>.png`."""
     nombre = capa.capa if capa.cual is None else f"{capa.capa}-{capa.cual}"
-    return f"{base}/{nombre}-{capa.orientacion}.png"
+    return f"criaturas/{capa.especie}/{capa.etapa}/{nombre}-{capa.orientacion}.png"
 
 
-def _capas_de(nivel: str, especie: str | None, etapa: str | None) -> list[Capa]:
-    """Las capas de un nivel, en su orden: el cuerpo (sólo el de forma), las caras por ánimo y los sombreros."""
-    capas = []
-    if nivel == "forma":
-        capas += [Capa(nivel, especie, etapa, "cuerpo", None, o) for o in ORIENTACIONES]
-    capas += [Capa(nivel, especie, etapa, "cara", animo, o) for animo in ANIMOS for o in ORIENTACIONES_DE_CARA]
-    capas += [Capa(nivel, especie, etapa, "sombrero", s.clave, o) for s in cosmeticos.SOMBREROS for o in ORIENTACIONES]
+def _capas_de(especie: str, etapa: str) -> list[Capa]:
+    """Las capas de una especie en una etapa, en su orden: el cuerpo, las caras por ánimo y los sombreros."""
+    capas = [Capa(especie, etapa, "cuerpo", None, o) for o in ORIENTACIONES]
+    capas += [Capa(especie, etapa, "cara", animo, o) for animo in ANIMOS for o in ORIENTACIONES_DE_CARA]
+    capas += [Capa(especie, etapa, "sombrero", s.clave, o) for s in cosmeticos.SOMBREROS for o in ORIENTACIONES]
     return capas
 
 
 def _lugares_de_criaturas() -> list[Lugar]:
-    """Las capas de todas las criaturas: por especie, sus etapas y luego lo de toda la especie; al final, lo común."""
-    capas = []
-    for clave in especies.ESPECIES:
-        for etapa in especies.ETAPAS:
-            capas += _capas_de("forma", clave, etapa)
-        capas += _capas_de("especie", clave, None)
-    capas += _capas_de("comun", None, None)
+    """Las capas de todas las criaturas: por especie y, dentro, por etapa."""
     return [Lugar(ruta_de_capa(c), LADO_CAPA, LADO_CAPA, "criaturas", REDUCCION_CAPA, False, criatura=c)
-            for c in capas]
+            for clave in especies.ESPECIES for etapa in especies.ETAPAS for c in _capas_de(clave, etapa)]
 
 
 # Los muebles del juego que tendrán un segundo dibujo, y cómo se llama su estado.
@@ -274,18 +261,13 @@ class Grupo:
     """Un puñado de piezas que se dibujan juntas: la tarjeta de un tablero.
 
     `clave` sale de las rutas (sin extensión), nunca del nombre; `nombre` es para
-    quien dibuja y para el dueño. `casillas` es lo que cuenta el avance: cada casilla
-    lleva sus rutas candidatas, en orden, y está hecha si lo está alguna. Fuera de las
-    criaturas cada ruta es su propia casilla; en una especie, la capa de cada forma
-    puede cubrirla la de su especie o la común. `con_tarjeta` es falso en lo común, que
-    se sube pero no tiene tarjeta propia.
+    quien dibuja y para el dueño. Cada una de sus `rutas` es un dibujo, y lo que cuenta
+    el avance.
     """
     clave: str
     nombre: str
     familia: str
     rutas: tuple[str, ...]
-    casillas: tuple[tuple[str, ...], ...]
-    con_tarjeta: bool = True
 
 
 _ICONOS = {"muebles": "Iconos de los muebles", "objetos": "Iconos de los objetos",
@@ -311,8 +293,6 @@ def _grupo_de(ruta: str, objeto: str | None = None) -> tuple[str, str]:
     if partes[0] == "escenas":
         return "escenas", "Escenas de los lugares"
     if partes[0] == "criaturas":
-        if partes[1] == "comun":
-            return "criaturas/comun", "Capas comunes a todas las especies"
         return f"criaturas/{partes[1]}", especies.ESPECIES[partes[1]].nombre
     if partes[0] == "efectos":
         return "efectos", "Efectos"
@@ -336,23 +316,6 @@ def _grupo_de(ruta: str, objeto: str | None = None) -> tuple[str, str]:
     raise ValueError(f"la pieza {ruta} no cae en ningún grupo del arte")
 
 
-def _casillas_de(rutas: list[str]) -> tuple[tuple[str, ...], ...]:
-    """Las casillas de un grupo: cada ruta es la suya, salvo en las criaturas.
-
-    Ahí cuenta la forma (el cuerpo, con su ruta; cada cara o sombrero, con la de la forma, la de
-    la especie y la común); la capa de especie sólo cubre casillas, y lo común las cuenta una a una."""
-    casillas = []
-    for ruta in rutas:
-        capa = lugar_de(ruta).criatura
-        if capa is None or capa.nivel == "comun" or capa.capa == "cuerpo":
-            casillas.append((ruta,))
-        elif capa.nivel == "forma":
-            de_especie = ruta_de_capa(replace(capa, nivel="especie", etapa=None))
-            comun = ruta_de_capa(replace(capa, nivel="comun", especie=None, etapa=None))
-            casillas.append((ruta, de_especie, comun))
-    return tuple(casillas)
-
-
 @cache
 def grupos() -> tuple[Grupo, ...]:
     """Los lugares repartidos en grupos, en el orden de `lugares()`.
@@ -366,8 +329,7 @@ def grupos() -> tuple[Grupo, ...]:
         clave, nombre = _grupo_de(lugar.ruta, lugar.objeto)
         _, _, rutas = por_clave.setdefault(clave, (nombre, lugar.familia, []))
         rutas.append(lugar.ruta)
-    return tuple(Grupo(clave, nombre, familia, tuple(rutas), _casillas_de(rutas), clave != "criaturas/comun")
-                 for clave, (nombre, familia, rutas) in por_clave.items())
+    return tuple(Grupo(clave, nombre, familia, tuple(rutas)) for clave, (nombre, familia, rutas) in por_clave.items())
 
 
 def como_json() -> dict:

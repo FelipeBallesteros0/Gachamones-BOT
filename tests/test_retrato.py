@@ -12,6 +12,7 @@ import io
 from datetime import datetime, timezone
 from typing import Any
 
+import pytest
 from PIL import Image
 
 import cosmeticos as cos
@@ -180,34 +181,32 @@ def test_una_especie_sin_dibujos_usa_el_relleno_de_retrato():
         assert imagen.size == (256, 256)
 
 
-def test_el_cuerpo_pide_especie_y_etapa():
-    for especie, etapa in ((None, "bebe"), ("dragoncito", None)):
-        try:
-            retrato.capa_de_frente(especie, etapa, "cuerpo", None)
-        except ValueError:
-            continue
-        raise AssertionError((especie, etapa))
+def test_la_capa_de_frente_pide_especie_y_etapa():
+    """Cada capa es de una especie en una etapa: sin una de las dos no hay capa que pedir."""
+    with pytest.raises(TypeError):
+        retrato.capa_de_frente(capa="cara", cual="feliz")
+    for especie, etapa in ((None, "adulto"), ("dragoncito", None), (None, None)):
+        for capa, cual in (("cuerpo", None), ("cara", "feliz"), ("sombrero", "corona")):
+            with pytest.raises(KeyError):
+                retrato.capa_de_frente(especie, etapa, capa, cual)
 
 
-def test_la_cara_y_el_sombrero_buscan_forma_especie_y_comun(tmp_path, monkeypatch):
+def test_la_cara_y_el_sombrero_son_los_que_el_juego_apila_en_esa_forma(tmp_path, monkeypatch):
     monkeypatch.setattr(retrato, "FUENTES", tmp_path)
     retrato.olvidar()
     nombre = "tsushimon"
     forma = retrato.FORMA_ARCHIVO["adulto"]
-    # Sólo la común: la usan todos.
+    # Sólo la global: el juego la usa en todas.
     _escribir(tmp_path, "caras/face_1.png", (1, 0, 0, 255))
     _escribir(tmp_path, "sombreros/corona.png", (2, 0, 0, 255))
     assert retrato.capa_de_frente("dragoncito", "adulto", "cara", "feliz") == _png_de((1, 0, 0, 255))
-    assert retrato.capa_de_frente(None, None, "cara", "feliz") == _png_de((1, 0, 0, 255))
     assert retrato.capa_de_frente("dragoncito", "adulto", "sombrero", "corona") == _png_de((2, 0, 0, 255))
-    # La de la especie gana a la común, para todas sus etapas…
+    # La de la especie gana a la global, en todas sus etapas…
     _escribir(tmp_path, f"caras/{nombre}/face_1.png", (3, 0, 0, 255))
     _escribir(tmp_path, f"sombreros/{nombre}/corona.png", (4, 0, 0, 255))
     retrato.olvidar()
     assert retrato.capa_de_frente("dragoncito", "adulto", "cara", "feliz") == _png_de((3, 0, 0, 255))
-    assert retrato.capa_de_frente("dragoncito", None, "cara", "feliz") == _png_de((3, 0, 0, 255))
     assert retrato.capa_de_frente("dragoncito", "bebe", "sombrero", "corona") == _png_de((4, 0, 0, 255))
-    assert retrato.capa_de_frente(None, None, "cara", "feliz") == _png_de((1, 0, 0, 255))
     # …y la de la forma gana a las dos, sólo en esa etapa.
     _escribir(tmp_path, f"caras/{nombre}/{forma}/face_1.png", (5, 0, 0, 255))
     _escribir(tmp_path, f"sombreros/{nombre}/{forma}/corona.png", (6, 0, 0, 255))
@@ -215,7 +214,6 @@ def test_la_cara_y_el_sombrero_buscan_forma_especie_y_comun(tmp_path, monkeypatc
     assert retrato.capa_de_frente("dragoncito", "adulto", "cara", "feliz") == _png_de((5, 0, 0, 255))
     assert retrato.capa_de_frente("dragoncito", "adulto", "sombrero", "corona") == _png_de((6, 0, 0, 255))
     assert retrato.capa_de_frente("dragoncito", "bebe", "cara", "feliz") == _png_de((3, 0, 0, 255))
-    assert retrato.capa_de_frente("dragoncito", None, "cara", "feliz") == _png_de((3, 0, 0, 255))
     retrato.olvidar()
 
 

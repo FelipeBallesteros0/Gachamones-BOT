@@ -104,27 +104,20 @@ def _ruta_del_cuerpo(clave: str, etapa: str) -> Path:
     return FUENTES / "cuerpos" / f"{nombre}_body_{FORMA_ARCHIVO[etapa]}.png"
 
 
-def _ruta_de_capa(carpeta: str, clave: str | None, archivo: str, forma: str | None = None) -> Path:
+def _ruta_de_capa(carpeta: str, clave: str, archivo: str, forma: str) -> Path:
     """La capa más concreta que exista, de las tres que puede haber.
 
     Por forma, por especie o global, en ese orden. Lo de **por forma** hace
     falta desde que los cuerpos de una misma especie dejaron de ser el mismo
     dibujo agrandado: si la cría es una bola y el adulto un pájaro con las alas
     abiertas, ni los ojos ni la coronilla caen donde antes.
-
-    Sin `forma` se salta el primer nivel (lo de toda la especie), y sin `clave`
-    sólo queda la global (lo común).
     """
-    if clave is not None:
-        nombre = _nombre_de_archivo(clave)
-        if forma is not None:
-            por_forma = FUENTES / carpeta / nombre / forma / archivo
-            if por_forma.is_file():
-                return por_forma
-        especifica = FUENTES / carpeta / nombre / archivo
-        if especifica.is_file():
-            return especifica
-    return FUENTES / carpeta / archivo
+    nombre = _nombre_de_archivo(clave)
+    por_forma = FUENTES / carpeta / nombre / forma / archivo
+    if por_forma.is_file():
+        return por_forma
+    especifica = FUENTES / carpeta / nombre / archivo
+    return especifica if especifica.is_file() else FUENTES / carpeta / archivo
 
 
 def _abrir(ruta: Path) -> Image.Image:
@@ -260,23 +253,21 @@ def relleno(clave: str, etapa: str, animo: str) -> bytes:
 
 
 @functools.lru_cache(maxsize=RECORDADOS)
-def capa_de_frente(especie: str | None, etapa: str | None, capa: str, cual: str | None) -> bytes:
-    """El PNG de 256 × 256 de una capa suelta, de frente, tal como la apila `armar` hoy.
+def capa_de_frente(especie: str, etapa: str, capa: str, cual: str | None) -> bytes:
+    """El PNG de 256 × 256 de una capa suelta de una especie en una etapa, de frente, tal
+    como la apila `armar` hoy.
 
     Es el provisional de las capas que sube el dibujante: dice dónde va y de qué tamaño, no
     cómo se ve de lado. El cuerpo es el de la forma (o el relleno, si la especie aún no
-    tiene los suyos); la cara y el sombrero, la capa más concreta de las tres, y sin etapa
-    la de la especie o la común.
+    tiene los suyos); la cara y el sombrero, la capa más concreta de las tres.
     """
     if capa == "cuerpo":
-        if especie is None or etapa is None:
-            raise ValueError("el cuerpo no se comparte: pide especie y etapa")
         if especie in CON_ETAPAS_COMPLETAS:
             return _ruta_del_cuerpo(especie, etapa).read_bytes()
         return relleno(especie, etapa, esp.NORMAL)
-    forma = FORMA_ARCHIVO[etapa] if etapa is not None else None
     archivo = CARAS[cual] if capa == "cara" else f"{cual}.png"
-    return _ruta_de_capa("caras" if capa == "cara" else "sombreros", especie, archivo, forma).read_bytes()
+    return _ruta_de_capa("caras" if capa == "cara" else "sombreros", especie, archivo,
+                         FORMA_ARCHIVO[etapa]).read_bytes()
 
 
 # El código que decide qué imagen sale: qué especies tienen dibujo y cuáles

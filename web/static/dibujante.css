@@ -262,10 +262,3 @@ span.dib-miniatura,
   color: var(--texto-suave);
   font-size: 0.875rem;
 }
-
-/* Una casilla que no tiene su capa y usa otra: se dice, pero no es un aviso. */
-.dib-cubierta {
-  color: var(--texto-suave);
-  font-size: 0.9375rem;
-  font-style: italic;
-}

@@ -1,5 +1,9 @@
 # El arte que falta — Implementation Plan
 
+> **Nota posterior (2026-11-21).** Después de aprobado esto, el dueño decidió quitar los dos niveles compartidos
+> de las capas de las criaturas: sólo quedan las de cada especie en cada etapa (4 250 lugares, 170 por especie).
+> Donde este documento hable de capas de la especie, comunes, cubiertas o de sus confirmaciones, ya no vale.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que el dibujante pueda subir, descargar y seguir en el tablero, a la medida del ejecutable, todo el arte que el juego todavía no tiene: la pieza a 1024 × 512 por casilla, los encendidos, los 24 objetos nuevos con sus íconos y las capas de las criaturas.
