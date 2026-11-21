@@ -29,7 +29,7 @@ INVENTADA = f"{API}/ruta-inventada"
 CORAZON = "efectos/corazon.png"    # 32 × 32
 ESTRELLA = "efectos/estrella.png"  # 32 × 32
 SOMBRA = "efectos/sombra.png"      # 32 × 32
-SUELO = "pieza/suelo.png"          # 512 × 256, familia `pieza`: vale también su original, 1024 × 512
+SUELO = "pieza/suelo.png"          # 512 × 256, familia `pieza`: también una sola medida
 LIMITE = 4 * 1024 * 1024
 
 # (id, usuario, bloqueada, arte_access, is_admin)
@@ -128,7 +128,7 @@ DEMAS = ["sin_sesion", "cookie_falsa", "sin_permiso", "bloqueada", "no_existe", 
 
 
 @pytest.mark.parametrize("ruta", RUTAS)
-def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, sin_ampliar, ruta):
+def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, ruta):
     for uid in (DIBUJA, ADMIN):
         entrar(cliente, uid)
         assert RUTAS[ruta](cliente).status_code == 200
@@ -137,7 +137,7 @@ def test_el_dibujante_y_el_admin_entran_en_cada_ruta(cliente, sin_ampliar, ruta)
 @pytest.mark.parametrize("ruta", RUTAS)
 @pytest.mark.parametrize("quien", DEMAS)
 def test_a_los_demas_cada_ruta_les_contesta_como_una_que_no_existe(
-        cliente, sin_ampliar, tmp_path, monkeypatch, carpeta, ruta, quien):
+        cliente, tmp_path, monkeypatch, carpeta, ruta, quien):
     if quien == "sin_sesion":
         cliente.cookies.clear()
     elif quien == "cookie_falsa":
@@ -326,7 +326,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     hecho = subir(cliente, CORAZON, v1)
     assert hecho.status_code == 200
     assert hecho.json() == {
-        "ruta": CORAZON, "ancho": 32, "alto": 32, "original": None,
+        "ruta": CORAZON, "ancho": 32, "alto": 32,
         "subida": {"direccion": d1, "quien": "dibuja", "cuando": T0.isoformat()}, "medida_cambiada": None,
     }
     assert (carpeta / nombre_limpio(v1, CORAZON)).is_file()
@@ -353,7 +353,7 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
     hecho = volver(cliente, CORAZON, "provisional")
     assert hecho.status_code == 200
     assert hecho.json() == {
-        "ruta": CORAZON, "ancho": 32, "alto": 32, "original": None, "subida": None, "medida_cambiada": None}
+        "ruta": CORAZON, "ancho": 32, "alto": 32, "subida": None, "medida_cambiada": None}
 
     al_provisional = reloj.ahora
 
@@ -389,17 +389,25 @@ def test_subir_y_volver_atras_de_punta_a_punta(cliente, carpeta, monkeypatch):
         assert {f["quien"] for f in con.execute("SELECT quien FROM arte_subido")} == {"dibuja", "admin"}
 
 
-def test_en_la_familia_de_la_pieza_vale_tambien_el_original_al_doble(cliente, carpeta):
-    original = png(1024, 512)
+def test_en_la_familia_de_la_pieza_el_doble_se_rechaza_y_la_medida_exacta_se_guarda_tal_cual(cliente, carpeta):
+    doble = png(1024, 512)
     # Más de lo que deja pasar el tope de la api del juego: aquí no se aplica.
-    assert len(original) > 16 * 1024
-    respuesta = subir(cliente, SUELO, original)
-    assert respuesta.status_code == 200
-    vista = respuesta.json()
-    assert (vista["ancho"], vista["alto"], vista["original"]) == (512, 256, {"ancho": 1024, "alto": 512})
-    assert vista["subida"]["direccion"] == direccion(original, SUELO)
-    with Image.open(carpeta / nombre_limpio(original, SUELO)) as guardada:
+    assert len(doble) > 16 * 1024
+    respuesta = subir(cliente, SUELO, doble)
+    assert respuesta.status_code == 400
+    assert respuesta.json() == {"detail": {
+        "clave": "no_vale", "mensaje": "La imagen mide 1024 × 512 px y esta pieza pide 512 × 256 px."}}
+    assert nada_guardado(carpeta)
+    exacta = png(512, 256)
+    vista = subir(cliente, SUELO, exacta).json()
+    assert (vista["ancho"], vista["alto"]) == (512, 256) and "original" not in vista
+    assert vista["subida"]["direccion"] == direccion(exacta, SUELO)
+    # Lo vigente con la medida exacta se ve y se guarda sin cambiar un píxel.
+    with Image.open(carpeta / nombre_limpio(exacta, SUELO)) as guardada:
         assert guardada.size == (512, 256)
+        assert guardada.convert("RGBA").tobytes() == Image.open(io.BytesIO(exacta)).convert("RGBA").tobytes()
+    en_la_lista = {x["ruta"]: x for g in cliente.get(f"{API}/piezas").json()["grupos"] for x in g["piezas"]}
+    assert en_la_lista[SUELO]["subida"]["direccion"] == direccion(exacta, SUELO)
 
 
 @pytest.mark.parametrize("cuerpo, mensaje", [
@@ -496,10 +504,8 @@ def test_las_piezas_van_por_grupos_con_su_medida_y_lo_que_se_ve_hoy(cliente):
     piezas = {p["ruta"]: p for g in cuerpo["grupos"] for p in g["piezas"]}
     for pieza in arte.piezas():
         vista = piezas[pieza.ruta]
-        assert set(vista) == {"ruta", "ancho", "alto", "original", "subida", "medida_cambiada"}
+        assert set(vista) == {"ruta", "ancho", "alto", "subida", "medida_cambiada"}
         assert (vista["ancho"], vista["alto"]) == (pieza.ancho, pieza.alto)
-        doble = {"ancho": pieza.ancho * arte.REDUCCION, "alto": pieza.alto * arte.REDUCCION}
-        assert vista["original"] == (doble if pieza.familia == "pieza" else None)
     assert piezas[SUELO] == subido
     assert [ruta for ruta, vista in piezas.items() if vista["subida"] is not None] == [SUELO]
     assert piezas[CORAZON]["subida"] is None
@@ -582,7 +588,7 @@ def test_la_copia_trae_lo_vigente_con_su_ruta_del_contrato(cliente, carpeta, tem
     with zipfile.ZipFile(io.BytesIO(vacia.content)) as copia:
         assert copia.namelist() == []
 
-    corazon, suelo = png(32, 32, 1), png(1024, 512)
+    corazon, suelo = png(32, 32, 1), png(512, 256)
     assert subir(cliente, CORAZON, png(32, 32, 9)).status_code == 200
     assert subir(cliente, CORAZON, corazon).status_code == 200
     assert subir(cliente, SUELO, suelo).status_code == 200
@@ -638,7 +644,7 @@ def _bajar_la_copia_y_cortar(app, abiertos):
 
 
 def test_si_la_descarga_se_corta_el_temporal_se_cierra_igual(cliente, carpeta, temporales):
-    assert subir(cliente, SUELO, png(1024, 512)).status_code == 200
+    assert subir(cliente, SUELO, png(512, 256)).status_code == 200
     # Sin el recolector: lo que se cierra tiene que cerrarse solo.
     gc.disable()
     try:
@@ -667,17 +673,6 @@ def _del_repo(ruta: str) -> bytes:
     return (arte.RAIZ / ruta).read_bytes()
 
 
-@pytest.fixture
-def sin_ampliar(monkeypatch):
-    """El zip de provisionales sin ampliar de verdad los de la familia `pieza` (lo caro: ~2,5 s).
-
-    Para las pruebas que no miran esas imágenes; la ampliación se prueba aparte, con las de verdad.
-    """
-    verdadero = dibujante._el_provisional
-    monkeypatch.setattr(dibujante, "_el_provisional",
-                        lambda pieza: b"png" if pieza.familia == "pieza" else verdadero(pieza))
-
-
 def test_el_provisional_baja_en_la_medida_de_la_pieza(cliente):
     respuesta = cliente.get(f"{API}/provisional", params={"ruta": CORAZON})
     assert respuesta.status_code == 200
@@ -700,29 +695,22 @@ def test_cada_pieza_que_no_es_de_la_pieza_baja_en_su_medida(cliente):
 
 
 @pytest.mark.parametrize("ruta", [SUELO, "pieza/pared-izquierda.png", "pieza/muebles/cama-se.png"])
-def test_el_provisional_de_un_mueble_baja_al_doble_y_subido_la_pagina_lo_acepta_y_lo_reduce(cliente, carpeta, ruta):
+def test_el_provisional_de_un_mueble_baja_en_su_medida_exacta_con_los_bytes_del_repo(cliente, carpeta, ruta):
     pieza = arte_subido.pieza_de(ruta)
     respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta})
     assert respuesta.status_code == 200
-    medida_doble = (pieza.ancho * arte.REDUCCION, pieza.alto * arte.REDUCCION)
+    assert respuesta.content == _del_repo(ruta)
     with Image.open(io.BytesIO(respuesta.content)) as imagen:
-        assert imagen.size == medida_doble
-    # Subido tal cual, la página lo acepta y lo reduce a la medida de la pieza.
-    limpio, _ = arte_subido.preparar(respuesta.content, pieza)
-    with Image.open(io.BytesIO(limpio)) as reducido:
-        assert reducido.size == (pieza.ancho, pieza.alto)
+        assert imagen.size == (pieza.ancho, pieza.alto)
+    # Y subido tal cual, la página lo acepta.
     assert subir(cliente, ruta, respuesta.content).status_code == 200
 
 
 def test_el_provisional_no_es_lo_subido(cliente, carpeta):
     assert subir(cliente, CORAZON, png(32, 32, 5)).status_code == 200
-    assert subir(cliente, SUELO, png(1024, 512, 6)).status_code == 200
-    assert cliente.get(f"{API}/provisional", params={"ruta": CORAZON}).content == _del_repo(CORAZON)
-    suelo = cliente.get(f"{API}/provisional", params={"ruta": SUELO})
-    with Image.open(io.BytesIO(suelo.content)) as imagen:
-        # El doble del archivo del repo, ampliado al vecino más próximo, no el ruido que se subió.
-        esperado = Image.open(arte.RAIZ / SUELO).convert("RGBA").resize((1024, 512), Image.NEAREST)
-        assert imagen.convert("RGBA").tobytes() == esperado.tobytes()
+    assert subir(cliente, SUELO, png(512, 256, 6)).status_code == 200
+    for ruta in (CORAZON, SUELO):
+        assert cliente.get(f"{API}/provisional", params={"ruta": ruta}).content == _del_repo(ruta)
 
 
 @pytest.mark.parametrize("ruta", [
@@ -763,18 +751,14 @@ def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente
         nombres = copia.namelist()
         assert len(nombres) == len(set(nombres)) == len(arte.piezas())
         assert set(nombres) == set(esperado)
-        # Una de cada familia: la medida de la pieza, y el doble en los muebles.
-        for ruta in (CORAZON, SUELO):
-            pieza = arte_subido.pieza_de(ruta)
-            clave = next(g.clave for g in arte.grupos() if ruta in g.rutas)
-            veces = arte.REDUCCION if pieza.familia == "pieza" else 1
-            with Image.open(io.BytesIO(copia.read(f"{clave}/{ruta.rsplit('/', 1)[1]}"))) as imagen:
-                assert imagen.size == (pieza.ancho * veces, pieza.alto * veces)
-        assert copia.read("efectos/corazon.png") == _del_repo(CORAZON)
+        # Cada uno, con los bytes del archivo del repo, en su medida exacta.
+        for grupo in arte.grupos():
+            for ruta in grupo.rutas:
+                assert copia.read(f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}") == _del_repo(ruta), ruta
     assert [archivo.closed for archivo in temporales] == [True]
 
 
-def test_el_zip_de_provisionales_no_es_lo_subido(cliente, sin_ampliar, carpeta):
+def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
     assert subir(cliente, CORAZON, png(32, 32, 7)).status_code == 200
     respuesta = cliente.get(f"{API}/provisionales.zip")
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
@@ -789,7 +773,7 @@ def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cl
         assert sorted(copia.namelist()) == ["junto/escenas-tienda.png", "junto/pueblo-lugares-tienda.png"]
 
 
-def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(cliente, sin_ampliar, monkeypatch, tmp_path, caplog):
+def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(cliente, monkeypatch, tmp_path, caplog):
     copia_del_arte = tmp_path / "arte-incompleta"
     shutil.copytree(arte.RAIZ, copia_del_arte)
     (copia_del_arte / CORAZON).unlink()
@@ -803,7 +787,7 @@ def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(client
     assert CORAZON in caplog.text
 
 
-def test_las_descargas_de_provisionales_no_se_guardan(cliente, sin_ampliar):
+def test_las_descargas_de_provisionales_no_se_guardan(cliente):
     for respuesta in (cliente.get(f"{API}/provisional", params={"ruta": CORAZON}),
                       cliente.get(f"{API}/provisionales.zip")):
         assert respuesta.status_code == 200 and respuesta.headers["cache-control"] == "no-store"

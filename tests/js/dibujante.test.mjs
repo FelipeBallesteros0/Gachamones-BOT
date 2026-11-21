@@ -122,9 +122,9 @@ const { urlDeArte } = await import('../../web/static/js/arte.js');
 const SUBIDA = (letra) => `/monsteropolis/arte-subido/${letra.repeat(64)}.png`;
 const CUANDO = '2026-11-20T15:04:00+00:00';
 
-test('la medida es la exacta y, en la familia de la pieza, también la del original', () => {
-  assert.equal(medidaDe({ ancho: 32, alto: 32, original: null }), '32 × 32 px');
-  assert.equal(medidaDe({ ancho: 512, alto: 256, original: { ancho: 1024, alto: 512 } }), '512 × 256 px o 1024 × 512 px');
+test('la medida es una sola, la exacta, también en la familia de la pieza', () => {
+  assert.equal(medidaDe({ ancho: 32, alto: 32 }), '32 × 32 px');
+  assert.equal(medidaDe({ ancho: 512, alto: 256 }), '512 × 256 px');
 });
 
 test('una pieza es provisional o dice quién la subió y cuándo', () => {
@@ -152,18 +152,18 @@ test('cada renglón del historial dice qué se hizo, quién, cuándo y lo que mi
 // --- la página ------------------------------------------------------------------------
 
 const CORAZON = {
-  ruta: 'efectos/corazon.png', ancho: 32, alto: 32, original: null, subida: null, medida_cambiada: null,
+  ruta: 'efectos/corazon.png', ancho: 32, alto: 32, subida: null, medida_cambiada: null,
 };
 const ESTRELLA = {
-  ruta: 'efectos/estrella.png', ancho: 32, alto: 32, original: null,
+  ruta: 'efectos/estrella.png', ancho: 32, alto: 32,
   subida: { direccion: SUBIDA('b'), quien: 'ana', cuando: CUANDO }, medida_cambiada: null,
 };
 const SUELO = {
-  ruta: 'pieza/suelo.png', ancho: 512, alto: 256, original: { ancho: 1024, alto: 512 },
+  ruta: 'pieza/suelo.png', ancho: 512, alto: 256,
   subida: { direccion: SUBIDA('c'), quien: 'luis', cuando: CUANDO }, medida_cambiada: null,
 };
 const MACETA = {
-  ruta: 'pieza/muebles/maceta-se.png', ancho: 512, alto: 768, original: { ancho: 1024, alto: 1536 },
+  ruta: 'pieza/muebles/maceta-se.png', ancho: 512, alto: 768,
   subida: null, medida_cambiada: { ancho: 512, alto: 640 },
 };
 const PIEZAS = {
@@ -265,7 +265,7 @@ test('las piezas van por grupos, cada una con su imagen, su nombre, su medida y 
   assert.equal(entrada.getAttribute('accept'), 'image/png');
 
   const suelo = tarjeta(raiz, 'pieza/suelo.png');
-  assert.equal(suelo.querySelector('.dib-medida').textContent, '512 × 256 px o 1024 × 512 px');
+  assert.equal(suelo.querySelector('.dib-medida').textContent, '512 × 256 px');
   assert.equal(suelo.querySelector('.dib-estado').textContent, 'Subida por luis el 20/11/2026 15:04');
   // Cada imagen dice de qué pieza es.
   for (const imagen of raiz.querySelectorAll('img')) assert.ok(imagen.getAttribute('alt'));

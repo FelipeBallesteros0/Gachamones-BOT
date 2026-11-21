@@ -28,7 +28,7 @@ from web import arte
 RAIZ = Path(__file__).resolve().parent.parent
 FIRMA = b"\x89PNG\r\n\x1a\n"
 CORAZON = "efectos/corazon.png"   # 32 × 32, familia `efectos`
-SUELO = "pieza/suelo.png"         # 512 × 256, familia `pieza`: se acepta también 1024 × 512
+SUELO = "pieza/suelo.png"         # 512 × 256, familia `pieza`: una sola medida, como el resto
 GRIS, RGB, PALETA, GRIS_Y_ALFA, RGBA = 0, 2, 3, 4, 6
 CANALES = {GRIS: 1, RGB: 3, PALETA: 1, GRIS_Y_ALFA: 2, RGBA: 4}
 
@@ -195,17 +195,7 @@ def test_cualquier_modo_de_png_sale_en_rgba_sin_perder_la_transparencia(cuerpo, 
         assert [limpia.getpixel((x, y)) for x in range(len(esperado))] == esperado
 
 
-def test_el_doble_de_una_pieza_de_la_pieza_se_reduce_como_lo_reduce_la_herramienta(tmp_path):
-    original = dibujo(1024, 512)
-    archivo = tmp_path / "suelo.png"
-    original.save(archivo)
-    datos, _ = arte_subido.preparar(archivo.read_bytes(), pieza(SUELO))
-    limpia = abierta(datos)
-    assert limpia.size == (512, 256)
-    assert limpia.tobytes() == herramienta_pieza.reducida(archivo).tobytes()
-
-
-def test_una_pieza_de_la_pieza_tambien_vale_a_su_medida_y_entonces_no_se_reduce():
+def test_una_pieza_de_la_pieza_vale_a_su_medida_y_sale_igual():
     original = dibujo(512, 256)
     datos, _ = arte_subido.preparar(png_de(original), pieza(SUELO))
     assert abierta(datos).tobytes() == original.tobytes()
@@ -234,12 +224,14 @@ def test_una_imagen_con_la_medida_de_otra_pieza_se_rechaza_diciendo_la_esperada_
     assert "48 × 48 px" in mensaje and "32 × 32 px" in mensaje
 
 
-def test_en_la_pieza_el_rechazo_dice_las_dos_medidas_que_valen():
-    mensaje = no_vale(png_de(dibujo(256, 128)), SUELO)
-    assert "256 × 128 px" in mensaje and "512 × 256 px" in mensaje and "1024 × 512 px" in mensaje
+def test_en_la_pieza_el_doble_se_rechaza_y_el_rechazo_nombra_una_sola_medida():
+    assert no_vale(png_de(dibujo(1024, 512)), SUELO) == \
+        "La imagen mide 1024 × 512 px y esta pieza pide 512 × 256 px."
+    assert no_vale(png_de(dibujo(256, 128)), SUELO) == \
+        "La imagen mide 256 × 128 px y esta pieza pide 512 × 256 px."
 
 
-def test_el_doble_solo_vale_en_la_familia_de_la_pieza():
+def test_el_doble_tampoco_vale_fuera_de_la_familia_de_la_pieza():
     mensaje = no_vale(png_de(dibujo(64, 64)))
     assert "64 × 64 px" in mensaje and "32 × 32 px" in mensaje
 

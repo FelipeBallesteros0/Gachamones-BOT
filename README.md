@@ -255,8 +255,7 @@ Quien dibuja no necesita el repositorio: el dueño y quien tenga el permiso
 no existe. La página lista las piezas por grupos plegables, cada una con su
 imagen de ahora, la medida exacta que pide el contrato, si es el recuadro
 provisional o una imagen subida, y quién y cuándo la subió. Cada pieza tiene
-«Subir» (sólo PNG, hasta 4 MB y de la medida exacta; la pieza del departamento
-admite también el doble), «Historial», «Volver a la anterior» (retrocede una
+«Subir» (sólo PNG, hasta 4 MB y de la medida exacta, también en la pieza del departamento), «Historial», «Volver a la anterior» (retrocede una
 subida cada vez, hasta el provisional; desde el provisional, vuelve a la última
 subida) y «Volver al provisional». La imagen subida se ve en el juego al
 momento, al recargar, y mientras esté puesta manda sobre el archivo del repo:

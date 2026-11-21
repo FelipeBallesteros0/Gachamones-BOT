@@ -65,14 +65,6 @@ def medidas() -> dict[str, tuple[int, int]]:
     return {p.ruta: (p.ancho, p.alto) for p in arte.piezas()}
 
 
-def _aceptadas(pieza: arte.Pieza) -> tuple[tuple[int, int], ...]:
-    """Las medidas que valen: la exacta y, en la familia `pieza`, también la del original (el doble)."""
-    exacta = (pieza.ancho, pieza.alto)
-    if pieza.familia != "pieza":
-        return (exacta,)
-    return exacta, (pieza.ancho * arte.REDUCCION, pieza.alto * arte.REDUCCION)
-
-
 def _cabecera(cuerpo: bytes) -> tuple[int, int, int, int]:
     """Ancho, alto, bits por muestra y tipo de color, leídos de la cabecera sin abrir la imagen.
 
@@ -112,10 +104,10 @@ def _a_rgba(imagen: Image.Image, profundidad: int, tipo: int) -> Image.Image:
 
 
 def a_lo_servido(original: Image.Image) -> Image.Image:
-    """Un original de la familia `pieza` (el doble), reducido a lo que sirve la página.
+    """Un original de `fuentes/pieza/` (el doble), reducido a lo que sirve la página.
 
-    A la mitad y con `LANCZOS`: es la reducción de `herramientas/pieza.py`, que la usa
-    para los originales de `fuentes/`.
+    A la mitad y con `LANCZOS`: es la reducción de `herramientas/pieza.py`. Lo que sube
+    el dibujante no pasa por aquí: sólo vale a la medida exacta de la pieza.
     """
     return original.resize((original.width // arte.REDUCCION, original.height // arte.REDUCCION),
                            Image.LANCZOS)
@@ -128,11 +120,10 @@ def _medida(ancho: int, alto: int) -> str:
 def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
     """El PNG limpio para esa pieza y su nombre (`<sha256 de los bytes limpios>.png`).
 
-    Sólo vale un PNG de hasta `LIMITE_DE_BYTES`, entero y de la medida de la pieza
-    (o el doble, en la familia `pieza`, que se reduce). Se abre de verdad, se pasa a
-    RGBA y se vuelve a escribir sin nada más que los píxeles: ni textos, ni perfil de
-    color, ni exif. Sale siempre a la medida de la pieza. Lo que no vale lanza
-    `NoVale`, sin haber escrito nada.
+    Sólo vale un PNG de hasta `LIMITE_DE_BYTES`, entero y de la medida exacta de la
+    pieza, también en la familia `pieza`. Se abre de verdad, se pasa a RGBA y se vuelve
+    a escribir sin nada más que los píxeles: ni textos, ni perfil de color, ni exif.
+    Lo que no vale lanza `NoVale`, sin haber escrito nada.
     """
     if len(cuerpo) > LIMITE_DE_BYTES:
         raise NoVale(PESA_DEMASIADO)
@@ -140,10 +131,9 @@ def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
     # Un PNG acaba en su cierre. Lo que no, llegó cortado (o trae algo pegado detrás).
     if not cuerpo.endswith(_CIERRE_PNG):
         raise NoVale("El PNG está dañado o incompleto.")
-    aceptadas = _aceptadas(pieza)
-    if (ancho, alto) not in aceptadas:
-        pedidas = " o ".join(_medida(*m) for m in aceptadas)
-        raise NoVale(f"La imagen mide {_medida(ancho, alto)} y esta pieza pide {pedidas}.")
+    if (ancho, alto) != (pieza.ancho, pieza.alto):
+        raise NoVale(f"La imagen mide {_medida(ancho, alto)} y esta pieza pide "
+                     f"{_medida(pieza.ancho, pieza.alto)}.")
     # Lo que puede fallar al decodificar un archivo dañado no es una lista cerrada
     # (Pillow lanza OSError, SyntaxError, ValueError, EOFError, struct.error…): todo
     # fallo aquí dentro es que el PNG no se puede leer.
@@ -159,8 +149,6 @@ def preparar(cuerpo: bytes, pieza: arte.Pieza) -> tuple[bytes, str]:
         raise
     except Exception as fallo:
         raise NoVale("El PNG está dañado o incompleto.") from fallo
-    if rgba.size != (pieza.ancho, pieza.alto):
-        rgba = a_lo_servido(rgba)
     # Una imagen nueva, sin el `info` de la original: lo que no son píxeles no pasa.
     limpia = Image.frombytes("RGBA", rgba.size, rgba.tobytes())
     salida = io.BytesIO()

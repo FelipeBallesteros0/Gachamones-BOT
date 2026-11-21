@@ -718,8 +718,9 @@ def test_la_pagina_del_dibujante_carga_sus_archivos_por_la_ruta_con_version():
 def test_las_frases_de_la_pagina_del_dibujante_son_las_del_plan():
     codigo = _guion("dibujante.js")
     for frase in ("Arte de Criópolis", "Sólo lo que falta", "Provisional", "Subida por ${", " el ${",
-                  " × ${", " px", "} o ${", "'Subir'", "'Historial'", "'Volver a la anterior'",
-                  "'Volver al provisional'", "Descargar lo que se ve", "Listo: ya se ve en el juego.",
+                  " × ${", " px", "'Subir'", "'Historial'", "'Volver a la anterior'",
+                  "'Volver al provisional'", "Descargar lo que se ve", "Descargar el provisional", "Descargar la imagen subida",
+                  "Descargar los provisionales", "Listo: ya se ve en el juego.",
                   "px y esta pieza ahora pide otra medida: se ve el provisional.", "Lo subido mide ${"):
         assert frase in codigo, frase
 

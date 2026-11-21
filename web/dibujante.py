@@ -20,7 +20,6 @@ la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero.
 """
 from __future__ import annotations
 
-import io
 import json
 import logging
 import tempfile
@@ -31,7 +30,6 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
-from PIL import Image
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 
@@ -161,13 +159,9 @@ def _medida_cambiada(pieza: arte.Pieza, puesto: dict[str, tuple[str, int, int]])
 def _vista(pieza: arte.Pieza, lo: _LoSubido) -> dict:
     """Una pieza como la enseña la página del dibujante.
 
-    `ancho` y `alto` son la medida que pide el contrato; en la familia `pieza` vale
-    también el original, al doble, que `arte_subido` reduce.
+    `ancho` y `alto` son la única medida que vale para esa pieza.
     """
-    original = None
-    if pieza.familia == "pieza":
-        original = {"ancho": pieza.ancho * arte.REDUCCION, "alto": pieza.alto * arte.REDUCCION}
-    return {"ruta": pieza.ruta, "ancho": pieza.ancho, "alto": pieza.alto, "original": original,
+    return {"ruta": pieza.ruta, "ancho": pieza.ancho, "alto": pieza.alto,
             "subida": _subida(pieza, lo), "medida_cambiada": _medida_cambiada(pieza, lo.puesto)}
 
 
@@ -287,20 +281,10 @@ def la_copia() -> StreamingResponse:
 def _el_provisional(pieza: arte.Pieza) -> bytes:
     """El PNG del provisional de la pieza, tal como baja el dibujante.
 
-    Sale siempre de `web/static/arte/`, nunca de lo subido. En la familia `pieza`
-    se amplía al doble sin suavizar (vecino más próximo): es el original que
-    `arte_subido` acepta y reduce otra vez al mismo provisional. Si el archivo no
-    está, lanza `FileNotFoundError`.
+    Sale siempre de `web/static/arte/`, nunca de lo subido, tal cual y en la medida
+    exacta de la pieza. Si el archivo no está, lanza `FileNotFoundError`.
     """
-    contenido = (arte.RAIZ / pieza.ruta).read_bytes()
-    if pieza.familia != "pieza":
-        return contenido
-    with Image.open(io.BytesIO(contenido)) as imagen:
-        doble = imagen.resize((imagen.width * arte.REDUCCION, imagen.height * arte.REDUCCION),
-                              Image.NEAREST)
-    salida = io.BytesIO()
-    doble.save(salida, "PNG")
-    return salida.getvalue()
+    return (arte.RAIZ / pieza.ruta).read_bytes()
 
 
 @router.get("/provisional")

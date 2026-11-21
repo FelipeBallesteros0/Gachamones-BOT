@@ -64,11 +64,9 @@ export function fecha(iso) {
     + `${dosCifras(cuando.getHours())}:${dosCifras(cuando.getMinutes())}`;
 }
 
-// Lo que tiene que medir el PNG; en la familia de la pieza vale también su original, al doble.
+// Lo que tiene que medir el PNG: una sola medida.
 export function medidaDe(pieza) {
-  const exacta = `${pieza.ancho} × ${pieza.alto} px`;
-  if (!pieza.original) return exacta;
-  return `${exacta} o ${pieza.original.ancho} × ${pieza.original.alto} px`;
+  return `${pieza.ancho} × ${pieza.alto} px`;
 }
 
 export function estadoDe(pieza) {
