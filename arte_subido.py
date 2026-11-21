@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from PIL import Image, ImageMath
+from PIL import Image, ImageCms, ImageMath
 
 import db
 from web import arte
@@ -94,6 +94,32 @@ def _a_rgba(imagen: Image.Image, profundidad: int, tipo: int) -> Image.Image:
     return imagen.convert("RGBA")
 
 
+def _a_srgb(rgba: Image.Image, perfil: bytes | None) -> Image.Image:
+    """La imagen con el color pasado de su perfil incrustado a sRGB.
+
+    Sólo los tres canales de color, con el intento colorimétrico relativo; el alfa se
+    separa antes y se vuelve a juntar intacto. Sin perfil, o con uno que no es RGB (un
+    gris, por ejemplo), la imagen vuelve igual; con uno que no se puede leer o con el
+    que no se arma la conversión, también, y queda un aviso en el registro: una subida
+    nunca falla por su perfil.
+    """
+    if not perfil:
+        return rgba
+    try:
+        origen = ImageCms.ImageCmsProfile(io.BytesIO(perfil))
+        if origen.profile.xcolor_space.strip() != "RGB":
+            return rgba
+        conversion = ImageCms.buildTransform(
+            origen, ImageCms.createProfile("sRGB"), "RGB", "RGB",
+            renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC)
+        color = ImageCms.applyTransform(rgba.convert("RGB"), conversion)
+    except Exception as fallo:
+        logger.warning("Un perfil de color ilegible se descartó sin convertir: %s", fallo)
+        return rgba
+    color.putalpha(rgba.getchannel("A"))
+    return color
+
+
 def a_lo_servido(original: Image.Image, reduccion: int = arte.REDUCCION) -> Image.Image:
     """Un original (el doble, de `fuentes/pieza/` o de lo que sube el dibujante), reducido a
     lo que sirve la página.
@@ -128,8 +154,9 @@ def preparar(cuerpo: bytes, lugar: arte.Lugar) -> tuple[Imagen, Imagen]:
     """El original limpio y la versión chica que sirve el juego, para ese lugar.
 
     Sólo vale un PNG de hasta `LIMITE_DE_BYTES`, entero y de la medida de subida del
-    lugar. Se abre de verdad, se pasa a RGBA y se vuelve a escribir sin nada más que los
-    píxeles: ni textos, ni perfil de color, ni exif. La chica es ese original reducido
+    lugar. Se abre de verdad, se pasa a RGBA, el color de un perfil RGB incrustado se pasa a
+    sRGB (`_a_srgb`) y se vuelve a escribir sin nada más que los píxeles: ni textos, ni
+    perfil de color, ni exif. La chica es ese original reducido
     (`a_lo_servido`); si el lugar no se reduce (`reduccion == 1`), es el mismo objeto.
     Lo que no vale lanza `NoVale`, sin haber escrito nada.
     """
@@ -153,12 +180,13 @@ def preparar(cuerpo: bytes, lugar: arte.Lugar) -> tuple[Imagen, Imagen]:
                 raise NoVale("El archivo no es un PNG.")
             imagen.load()
             rgba = _a_rgba(imagen, profundidad, tipo)
+            perfil = imagen.info.get("icc_profile")
     except NoVale:
         raise
     except Exception as fallo:
         raise NoVale("El PNG está dañado o incompleto.") from fallo
     # Una imagen nueva, sin el `info` de la original: lo que no son píxeles no pasa.
-    limpia = Image.frombytes("RGBA", rgba.size, rgba.tobytes())
+    limpia = Image.frombytes("RGBA", rgba.size, _a_srgb(rgba, perfil).tobytes())
     original = _como_imagen(limpia)
     if lugar.reduccion == 1:
         return original, original

@@ -6,6 +6,7 @@ el arte del repo.
 """
 import hashlib
 import io
+import logging
 import os
 import shutil
 import struct
@@ -18,11 +19,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from PIL import Image, PngImagePlugin
+from PIL import Image, ImageCms, PngImagePlugin
 
 import arte_subido
 import config
 from herramientas import pieza as herramienta_pieza
+from tests import perfiles_de_color
 from web import arte
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -530,3 +532,66 @@ def test_sin_carpeta_propia_ninguna_prueba_escribe_en_la_de_verdad():
     with pytest.raises(FileNotFoundError):
         arte_subido.guardar(config.RUTA_ARTE_SUBIDO, nombre, datos)
     assert not config.RUTA_ARTE_SUBIDO.parent.exists()
+
+
+# --- El color ---------------------------------------------------------------------
+
+P3 = ((0.680, 0.320), (0.265, 0.690), (0.150, 0.060))
+D65 = (0.3127, 0.3290)
+
+
+def _de_un_pixel(pixel, **opciones) -> Image.Image:
+    """Un RGBA de 32 × 32 de un solo color, con el alfa de `pixel` en la última columna."""
+    imagen = Image.new("RGBA", (32, 32), pixel)
+    imagen.putpixel((31, 31), pixel[:3] + (77,))
+    return imagen
+
+
+def _limpia_con_perfil(imagen, perfil) -> Image.Image:
+    return abierta(preparada(png_de(imagen, icc_profile=perfil))[0])
+
+
+def test_un_png_con_perfil_p3_sale_en_srgb_y_sin_perfil():
+    perfil = perfiles_de_color.perfil_rgb(P3, D65, 2.2)
+    cuerpo = png_de(_de_un_pixel((200, 100, 50, 255)), icc_profile=perfil)
+    datos, _ = preparada(cuerpo)
+    assert b"iCCP" not in trozos(datos)
+    salida = abierta(datos)
+    rojo, verde, azul, alfa = salida.getpixel((0, 0))
+    assert rojo >= 200 and verde <= 100 and azul <= 50
+    assert max(abs(a - b) for a, b in zip((rojo, verde, azul), (200, 100, 50))) >= 5
+    assert alfa == 255 and salida.getpixel((31, 31))[3] == 77
+
+
+def test_un_png_con_perfil_srgb_sale_casi_igual():
+    srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    original = dibujo(32, 32)
+    salida = _limpia_con_perfil(original, srgb)
+    assert salida.getchannel("A").tobytes() == original.getchannel("A").tobytes()
+    assert all(abs(a - b) <= 1 for a, b in zip(salida.convert("RGB").tobytes(), original.convert("RGB").tobytes()))
+
+
+def test_un_png_sin_perfil_sale_con_los_pixeles_intactos():
+    original = dibujo(32, 32)
+    assert abierta(preparada(png_de(original))[0]).tobytes() == original.tobytes()
+
+
+def test_un_perfil_ilegible_se_descarta_y_se_avisa(caplog):
+    original = dibujo(32, 32)
+    with caplog.at_level(logging.WARNING, logger="arte_subido"):
+        datos, _ = preparada(png_de(original, icc_profile=b"un perfil de color"))
+    assert b"iCCP" not in trozos(datos)
+    assert abierta(datos).tobytes() == original.tobytes()
+    assert [r.levelno for r in caplog.records] == [logging.WARNING]
+
+
+def test_un_gris_con_perfil_se_deja_como_hoy(caplog):
+    # Un perfil de grises (el RGB de las pruebas con el espacio cambiado): no es RGB, no se convierte.
+    perfil = bytearray(perfiles_de_color.perfil_rgb(P3, D65, 2.2))
+    perfil[16:20] = b"GRAY"
+    original = Image.new("L", (32, 32))
+    original.putdata([(x * 8) % 256 for x in range(32 * 32)])
+    with caplog.at_level(logging.WARNING, logger="arte_subido"):
+        salida = _limpia_con_perfil(original, bytes(perfil))
+    assert salida.tobytes() == original.convert("RGBA").tobytes()
+    assert not caplog.records
