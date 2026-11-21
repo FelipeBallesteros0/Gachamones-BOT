@@ -382,7 +382,8 @@ export async function montar(raiz) {
   // Las especies y las capas comunes: plegadas, sin tarjetas hasta abrirlas.
   const especies = datos.grupos.filter((g) => g.familia === 'criaturas').map((grupo) => {
     const esp = {
-      grupo: { ...grupo }, cargada: false, pidiendo: false, vistas: new Map(), tarjetas: new Map(), secciones: [],
+      grupo: { ...grupo }, cargada: false, pidiendo: false, pedidas: 0,
+      vistas: new Map(), tarjetas: new Map(), secciones: [],
     };
     esp.resumen = el('summary', {}, resumenDe(esp.grupo));
     esp.contenido = el('div', { class: 'dib-contenido' });
@@ -413,18 +414,51 @@ export async function montar(raiz) {
     return recibidos[0];
   }
 
-  // Lo que se cambió en una capa: la especie vuelve a contar sus hechas y sus casillas cubiertas,
-  // y una capa común puede cambiar lo cubierto de todas las especies ya abiertas.
-  async function alCambiarUnaCapa(esp, antes) {
-    const afectadas = antes.criatura && antes.criatura.nivel === 'comun'
-      ? especies.filter((otra) => otra.cargada) : [esp];
-    await Promise.all(afectadas.map(async (otra) => {
-      try {
-        ponerAlDia(otra, await traer(otra));
-      } catch {
-        // Lo que se cambió salió bien; los números se arreglan al volver a abrir la página.
+  // Cada petición que trae los números de una especie lleva el suyo: dos cambios seguidos
+  // pueden contestar en desorden, y sólo vale la última que se pidió.
+  const numerar = (esp) => {
+    esp.pedidas += 1;
+    return esp.pedidas;
+  };
+
+  // Una especie abierta vuelve a contar sus hechas y sus casillas cubiertas.
+  async function refrescar(esp) {
+    const numero = numerar(esp);
+    try {
+      const recibido = await traer(esp);
+      if (numero === esp.pedidas) ponerAlDia(esp, recibido);
+    } catch {
+      // Lo que se cambió salió bien; los números se arreglan al volver a abrir la página.
+    }
+  }
+
+  // Las especies sin abrir sólo tienen su resumen: lo ponen al día con la lista general, que
+  // trae `hechas` y `total` de cada grupo.
+  async function refrescarLasCerradas() {
+    const cerradas = especies.filter((esp) => !esp.cargada).map((esp) => [esp, numerar(esp)]);
+    if (!cerradas.length) return;
+    try {
+      const { grupos: recibidos } = await pedir('GET', 'piezas');
+      for (const [esp, numero] of cerradas) {
+        const g = recibidos.find((r) => r.clave === esp.grupo.clave);
+        if (!g || numero !== esp.pedidas) continue;
+        esp.grupo = { ...esp.grupo, hechas: g.hechas, total: g.total };
+        esp.resumen.textContent = resumenDe(esp.grupo);
       }
-    }));
+    } catch {
+      // Igual que arriba: lo que se cambió salió bien.
+    }
+  }
+
+  // Lo que se cambió en una capa: la especie vuelve a contar sus hechas y sus casillas cubiertas,
+  // y una capa común puede cambiar lo hecho de todas: las abiertas se vuelven a pedir enteras y
+  // las demás, su resumen.
+  async function alCambiarUnaCapa(esp, antes) {
+    if (!antes.criatura || antes.criatura.nivel !== 'comun') {
+      await refrescar(esp);
+      return;
+    }
+    await Promise.all([...especies.filter((otra) => otra.cargada).map(refrescar), refrescarLasCerradas()]);
   }
 
   function lista(esp, rutas, familia) {
@@ -442,6 +476,16 @@ export async function montar(raiz) {
     }));
   }
 
+  // Una sección plegada que se acaba de armar: con el filtro puesto, nace filtrada, y su especie
+  // se vuelve a mirar en ese momento (sin plegados abiertos y vacíos).
+  function seccionNueva(esp, nodo, rutas) {
+    const seccion = { nodo, rutas };
+    esp.secciones.push(seccion);
+    filtrarSeccion(esp, seccion);
+    filtrarEspecie(esp);
+    return nodo;
+  }
+
   // El cuerpo, las caras y los sombreros (plegados) de una lista de lugares.
   function capas(esp, rutas, cuerpo) {
     const de = (capa) => rutas.filter((ruta) => esp.vistas.get(ruta).criatura.capa === capa);
@@ -451,9 +495,9 @@ export async function montar(raiz) {
     }
     const sombreros = de('sombrero');
     if (sombreros.length) {
-      const nodo = plegado('Sombreros', (dentro) => dentro.append(lista(esp, sombreros, 'criaturas')), 'dib-sombreros');
-      esp.secciones.push({ nodo, rutas: sombreros });
-      cuerpo.append(nodo);
+      cuerpo.append(seccionNueva(esp,
+        plegado('Sombreros', (dentro) => dentro.append(lista(esp, sombreros, 'criaturas')), 'dib-sombreros'),
+        sombreros));
     }
   }
 
@@ -470,11 +514,9 @@ export async function montar(raiz) {
     const secciones = ETAPAS.map(([etapa, nombre]) => [nombre, rutas.filter((r) => criatura(r).nivel === 'forma'
       && criatura(r).etapa === etapa)]);
     secciones.push([`Para todas las etapas de ${esp.grupo.nombre}`, rutas.filter((r) => criatura(r).nivel === 'especie')]);
-    esp.contenido.replaceChildren(...notas, ...secciones.filter(([, delas]) => delas.length).map(([nombre, delas]) => {
-      const nodo = plegado(nombre, (cuerpo) => capas(esp, delas, cuerpo));
-      esp.secciones.push({ nodo, rutas: delas });
-      return nodo;
-    }));
+    esp.contenido.replaceChildren(...notas, ...secciones.filter(([, delas]) => delas.length).map(
+      ([nombre, delas]) => seccionNueva(esp, plegado(nombre, (cuerpo) => capas(esp, delas, cuerpo)), delas),
+    ));
   }
 
   async function alAbrir(esp) {
@@ -482,17 +524,34 @@ export async function montar(raiz) {
     esp.pidiendo = true;
     esp.contenido.replaceChildren(el('p', { class: 'cargando', role: 'status' }, 'Cargando las capas…'));
     try {
+      const numero = numerar(esp);
       const recibido = await traer(esp);
       ponerAlDia(esp, recibido);
-      armarEspecie(esp);
+      // Ya cargada: lo que se arma se filtra con lo que trae.
       esp.cargada = true;
+      armarEspecie(esp);
+      // Si mientras llegaba una capa común pidió otros números, lo armado puede ser viejo.
+      if (numero !== esp.pedidas) refrescar(esp);
     } catch (error) {
       // En su sitio, con el aviso de error de la página; al volver a abrirla se vuelve a pedir.
+      esp.cargada = false;
       esp.contenido.replaceChildren(el('p', { class: 'es-error', role: 'status' },
         error && error.mensaje ? error.mensaje : SIN_RESPUESTA));
     } finally {
       esp.pidiendo = false;
     }
+  }
+
+  function filtrarSeccion(esp, seccion) {
+    seccion.nodo.hidden = filtro.checked && !seccion.rutas.some((r) => sePide(esp.vistas.get(r)));
+  }
+
+  // Sin abrir no se sabe qué hay dentro: se esconde si ya está todo hecho. Las capas comunes son
+  // todas compartidas, que el filtro esconde: se esconden siempre, abiertas o no.
+  function filtrarEspecie(esp) {
+    esp.nodo.hidden = filtro.checked && (esp.grupo.clave === 'criaturas/comun' || (esp.cargada
+      ? ![...esp.vistas.values()].some(sePide)
+      : esp.grupo.hechas === esp.grupo.total));
   }
 
   function refiltrar() {
@@ -502,13 +561,8 @@ export async function montar(raiz) {
     }
     for (const esp of especies) {
       for (const t of esp.tarjetas.values()) t.nodo.hidden = escondida(t.vista());
-      for (const seccion of esp.secciones) {
-        seccion.nodo.hidden = filtro.checked && !seccion.rutas.some((r) => sePide(esp.vistas.get(r)));
-      }
-      // Sin abrir no se sabe qué hay dentro: se esconde si ya está todo hecho.
-      esp.nodo.hidden = filtro.checked && (esp.cargada
-        ? ![...esp.vistas.values()].some(sePide)
-        : esp.grupo.hechas === esp.grupo.total);
+      for (const seccion of esp.secciones) filtrarSeccion(esp, seccion);
+      filtrarEspecie(esp);
     }
   }
 
