@@ -20,6 +20,7 @@ la tabla, sin abrir imágenes, y su forma no cambia sin cambiar el tablero.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import tempfile
@@ -29,7 +30,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from PIL import Image
 from starlette.background import BackgroundTask
 from starlette.requests import ClientDisconnect
 
@@ -278,5 +280,77 @@ def la_copia() -> StreamingResponse:
     return StreamingResponse(
         _a_trozos(archivo), media_type="application/zip",
         headers={"Content-Length": str(largo), "Content-Disposition": 'attachment; filename="copia.zip"'},
+        background=BackgroundTask(archivo.close),
+    )
+
+
+def _el_provisional(pieza: arte.Pieza) -> bytes:
+    """El PNG del provisional de la pieza, tal como baja el dibujante.
+
+    Sale siempre de `web/static/arte/`, nunca de lo subido. En la familia `pieza`
+    se amplía al doble sin suavizar (vecino más próximo): es el original que
+    `arte_subido` acepta y reduce otra vez al mismo provisional. Si el archivo no
+    está, lanza `FileNotFoundError`.
+    """
+    contenido = (arte.RAIZ / pieza.ruta).read_bytes()
+    if pieza.familia != "pieza":
+        return contenido
+    with Image.open(io.BytesIO(contenido)) as imagen:
+        doble = imagen.resize((imagen.width * arte.REDUCCION, imagen.height * arte.REDUCCION),
+                              Image.NEAREST)
+    salida = io.BytesIO()
+    doble.save(salida, "PNG")
+    return salida.getvalue()
+
+
+@router.get("/provisional")
+def el_provisional(pieza: arte.Pieza = Depends(_la_pieza)) -> Response:
+    """El provisional de la pieza de `?ruta=`, como descarga."""
+    try:
+        cuerpo = _el_provisional(pieza)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404) from None
+    nombre = f"provisional-{pieza.ruta.replace('/', '-')}"
+    return Response(cuerpo, media_type="image/png",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
+def _nombres_en_el_zip(grupo: arte.Grupo) -> dict[str, str]:
+    """Ruta → nombre dentro del zip: `<clave del grupo>/<último tramo>`.
+
+    Si en el grupo se repite ese último tramo, las que lo repiten llevan la ruta
+    entera con guiones.
+    """
+    ultimos = [ruta.rsplit("/", 1)[1] for ruta in grupo.rutas]
+    return {ruta: f"{grupo.clave}/{ruta.replace('/', '-') if ultimos.count(ultimo) > 1 else ultimo}"
+            for ruta, ultimo in zip(grupo.rutas, ultimos)}
+
+
+@router.get("/provisionales.zip")
+def los_provisionales() -> StreamingResponse:
+    """Todos los provisionales en un zip, cada uno en la carpeta de su grupo.
+
+    Se arma y se manda como `la_copia`. Un provisional que falta en el repo se deja
+    fuera y se avisa en el registro.
+    """
+    por_ruta = {p.ruta: p for p in arte.piezas()}
+    archivo = tempfile.TemporaryFile()
+    try:
+        with zipfile.ZipFile(archivo, "w") as copia:
+            for grupo in arte.grupos():
+                for ruta, nombre in _nombres_en_el_zip(grupo).items():
+                    try:
+                        copia.writestr(nombre, _el_provisional(por_ruta[ruta]))
+                    except FileNotFoundError:
+                        log.warning("Falta en el repo el provisional de %s; el zip sale sin él.", ruta)
+        largo = archivo.tell()
+        archivo.seek(0)
+    except BaseException:
+        archivo.close()
+        raise
+    return StreamingResponse(
+        _a_trozos(archivo), media_type="application/zip",
+        headers={"Content-Length": str(largo),
+                 "Content-Disposition": 'attachment; filename="provisionales.zip"'},
         background=BackgroundTask(archivo.close),
     )

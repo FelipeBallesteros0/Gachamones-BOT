@@ -527,3 +527,67 @@ test('si las piezas no llegan, lo dice con la frase del servidor o la de sin red
   await montar(otra);
   assert.equal(otra.querySelector('[role="status"]').textContent, 'Eso no existe.');
 });
+
+// --- las descargas --------------------------------------------------------------------
+
+const enlaces = (nodo) => nodo.querySelectorAll('a');
+const enlace = (nodo, que) => enlaces(nodo).find((a) => a.textContent === que) || null;
+
+test('cada pieza ofrece descargar su provisional, también la que tiene una imagen subida', { timeout: 2000 }, async () => {
+  const { raiz } = await abrir();
+  for (const pieza of [CORAZON, ESTRELLA, SUELO, MACETA]) {
+    const descarga = enlace(tarjeta(raiz, pieza.ruta), 'Descargar el provisional');
+    assert.ok(descarga, pieza.ruta);
+    assert.equal(descarga.getAttribute('href'),
+      `/monsteropolis_dibujante/api/provisional?ruta=${encodeURIComponent(pieza.ruta)}`);
+    assert.ok(descarga.getAttribute('download') !== null);
+    assert.ok(descarga.classList.contains('boton'));
+  }
+});
+
+test('sólo la pieza con imagen subida ofrece descargarla, desde su misma dirección', { timeout: 2000 }, async () => {
+  const { raiz } = await abrir();
+  // Sin imagen subida el enlace no se ve ni lleva dirección.
+  for (const pieza of [CORAZON, MACETA]) {
+    const sin = enlace(tarjeta(raiz, pieza.ruta), 'Descargar la imagen subida');
+    assert.ok(sin === null || (sin.hidden && sin.getAttribute('href') === null), pieza.ruta);
+  }
+  const estrella = enlace(tarjeta(raiz, ESTRELLA.ruta), 'Descargar la imagen subida');
+  assert.equal(estrella.getAttribute('href'), SUBIDA('b'));
+  assert.equal(estrella.getAttribute('download'), 'subida-efectos-estrella.png');
+  const suelo = enlace(tarjeta(raiz, SUELO.ruta), 'Descargar la imagen subida');
+  assert.equal(suelo.getAttribute('href'), SUBIDA('c'));
+  assert.equal(suelo.getAttribute('download'), 'subida-pieza-suelo.png');
+});
+
+test('la descarga de lo subido sigue a la pieza al subir y al volver al provisional', { timeout: 2000 }, async () => {
+  const { raiz, servidor } = await abrir();
+  const corazon = tarjeta(raiz, CORAZON.ruta);
+  const nueva = { ...CORAZON, subida: { direccion: SUBIDA('d'), quien: 'ana', cuando: CUANDO } };
+  servidor.responde('POST subir?ruta=efectos%2Fcorazon.png', nueva);
+  await elegir(corazon, { name: 'x.png' });
+  const subida = enlace(corazon, 'Descargar la imagen subida');
+  assert.equal(subida.getAttribute('href'), SUBIDA('d'));
+  assert.equal(subida.hidden, false);
+  servidor.responde('POST volver', CORAZON);
+  await tocar(boton(corazon, 'Volver al provisional'));
+  const oculto = enlace(corazon, 'Descargar la imagen subida');
+  assert.equal(oculto.hidden, true);
+  assert.equal(oculto.getAttribute('href'), null);
+});
+
+test('arriba se ofrecen los provisionales, junto a lo que se ve', { timeout: 2000 }, async () => {
+  const { raiz } = await abrir();
+  const cabeza = raiz.querySelector('.dib-cabeza');
+  assert.deepEqual(enlaces(cabeza).map((a) => a.textContent),
+    ['Descargar lo que se ve', 'Descargar los provisionales']);
+  const todos = enlace(cabeza, 'Descargar los provisionales');
+  assert.equal(todos.getAttribute('href'), '/monsteropolis_dibujante/api/provisionales.zip');
+  assert.ok(todos.getAttribute('download') !== null);
+});
+
+test('las descargas son enlaces y no mandan nada con fetch', { timeout: 2000 }, async () => {
+  const { raiz, servidor } = await abrir();
+  for (const a of enlaces(raiz)) assert.ok(!/^https?:/.test(a.getAttribute('href')));
+  assert.deepEqual(servidor.pedidos.map((p) => p.ruta), ['GET piezas']);
+});

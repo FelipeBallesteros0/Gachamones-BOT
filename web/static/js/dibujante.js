@@ -2,7 +2,8 @@
 // grupos, cada una con su imagen de ahora, su nombre, lo que tiene que medir y
 // si se ve el recuadro provisional o una imagen subida (por quién y cuándo).
 // Desde cada pieza se sube un PNG, se vuelve a la anterior o al provisional y se
-// mira su historial; arriba se descarga todo lo subido. Sólo la ven el dueño y
+// mira su historial; cada una baja su provisional y, si la tiene, su imagen subida,
+// y arriba se descarga todo lo subido o todos los provisionales. Sólo la ven el dueño y
 // el dibujante: a los demás, el servidor les contesta que no existe.
 //
 // Es una herramienta para dos personas: clara antes que bonita. Qué vale, qué
@@ -89,6 +90,15 @@ export function renglonDelHistorial(renglon) {
   return partes.join(' · ');
 }
 
+const DESCARGAS = {
+  provisional: 'Descargar el provisional',
+  subida: 'Descargar la imagen subida',
+  provisionales: 'Descargar los provisionales',
+};
+
+// El nombre con que baja una pieza: su ruta, con guiones en vez de barras.
+const nombreDe = (prefijo, ruta) => `${prefijo}-${ruta.replaceAll('/', '-')}`;
+
 const imagenDe = (pieza) => (pieza.subida ? pieza.subida.direccion : urlDeArte(pieza.ruta));
 
 // --- una pieza ------------------------------------------------------------------------
@@ -127,6 +137,14 @@ function tarjeta(pieza, familia) {
   const anterior = boton(BOTONES.anterior, () => volver('anterior', anterior));
   const provisional = boton(BOTONES.provisional, () => volver('provisional', provisional));
   const queMandan = [subir, anterior, provisional];
+  // Descargar no manda nada: son enlaces de verdad, con el aspecto de los botones.
+  const bajarProvisional = el('a', {
+    class: 'boton boton-chico',
+    href: `${BASE}provisional?ruta=${encodeURIComponent(pieza.ruta)}`,
+    download: nombreDe('provisional', pieza.ruta),
+  }, DESCARGAS.provisional);
+  const bajarSubida = el('a', { class: 'boton boton-chico', download: nombreDe('subida', pieza.ruta) },
+    DESCARGAS.subida);
 
   function avisar(texto, esError) {
     aviso.textContent = texto;
@@ -139,6 +157,9 @@ function tarjeta(pieza, familia) {
     const medida = avisoDeMedida(actual);
     cambiada.textContent = medida || '';
     cambiada.hidden = !medida;
+    bajarSubida.hidden = !actual.subida;
+    if (actual.subida) bajarSubida.setAttribute('href', actual.subida.direccion);
+    else bajarSubida.removeAttribute('href');
   }
 
   // Mientras espera al servidor, lo que manda algo no se puede usar (sigue enfocable).
@@ -215,7 +236,8 @@ function tarjeta(pieza, familia) {
     el('p', { class: 'dib-ruta' }, pieza.ruta),
     el('p', { class: 'dib-medida' }, medidaDe(pieza)),
     estado, cambiada,
-    el('div', { class: 'dib-botones' }, subir, verHistorial, anterior, provisional),
+    el('div', { class: 'dib-botones' }, subir, verHistorial, anterior, provisional,
+      bajarProvisional, bajarSubida),
     archivo, aviso, lista);
   return { nodo, falta: () => !actual.subida };
 }
@@ -258,7 +280,10 @@ export async function montar(raiz) {
   raiz.replaceChildren(
     el('header', { class: 'dib-cabeza' },
       titulo,
-      el('a', { class: 'boton boton-chico', href: `${BASE}copia.zip`, download: true }, 'Descargar lo que se ve')),
+      el('div', { class: 'dib-descargas' },
+        el('a', { class: 'boton boton-chico', href: `${BASE}copia.zip`, download: true }, 'Descargar lo que se ve'),
+        el('a', { class: 'boton boton-chico', href: `${BASE}provisionales.zip`, download: true },
+          DESCARGAS.provisionales))),
     el('label', { class: 'dib-filtro' }, filtro, 'Sólo lo que falta'),
     el('div', { class: 'dib-grupos' }, grupos.map((g) => g.nodo)),
   );

@@ -121,6 +121,8 @@ RUTAS = {
     "historial": lambda c: historial(c, CORAZON),
     "avance": lambda c: c.get(f"{API}/avance"),
     "copia": lambda c: c.get(f"{API}/copia.zip"),
+    "provisional": lambda c: c.get(f"{API}/provisional", params={"ruta": CORAZON}),
+    "provisionales": lambda c: c.get(f"{API}/provisionales.zip"),
 }
 DEMAS = ["sin_sesion", "cookie_falsa", "sin_permiso", "bloqueada", "no_existe", "sin_la_columna"]
 
@@ -657,6 +659,155 @@ def test_si_falta_una_imagen_en_disco_la_copia_sale_igual_sin_ella(cliente, carp
     with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
         assert copia.namelist() == [CORAZON]
     assert [archivo.closed for archivo in temporales] == [True]
+
+
+# --- Descargar los provisionales -------------------------------------------------
+
+def _del_repo(ruta: str) -> bytes:
+    return (arte.RAIZ / ruta).read_bytes()
+
+
+HOLGURA_DEL_ALFA = 32
+
+
+def _pixeles(cuerpo: bytes) -> tuple[tuple[int, int], bytes]:
+    with Image.open(io.BytesIO(cuerpo)) as imagen:
+        imagen = imagen.convert("RGBA")
+        return imagen.size, imagen.tobytes()
+
+
+def test_el_provisional_baja_en_la_medida_de_la_pieza(cliente):
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": CORAZON})
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"] == "image/png"
+    assert respuesta.headers["content-disposition"] == 'attachment; filename="provisional-efectos-corazon.png"'
+    pieza = arte_subido.pieza_de(CORAZON)
+    with Image.open(io.BytesIO(respuesta.content)) as imagen:
+        assert imagen.format == "PNG" and imagen.size == (pieza.ancho, pieza.alto)
+    assert respuesta.content == _del_repo(CORAZON)
+
+
+def test_cada_pieza_que_no_es_de_la_pieza_baja_en_su_medida(cliente):
+    for pieza in arte.piezas():
+        if pieza.familia == "pieza":
+            continue
+        respuesta = cliente.get(f"{API}/provisional", params={"ruta": pieza.ruta})
+        assert respuesta.status_code == 200, pieza.ruta
+        with Image.open(io.BytesIO(respuesta.content)) as imagen:
+            assert imagen.size == (pieza.ancho, pieza.alto), pieza.ruta
+
+
+@pytest.mark.parametrize("ruta", [SUELO, "pieza/pared-izquierda.png", "pieza/muebles/cama-se.png"])
+def test_el_provisional_de_un_mueble_baja_al_doble_y_subido_la_pagina_lo_acepta_y_lo_reduce(cliente, carpeta, ruta):
+    pieza = arte_subido.pieza_de(ruta)
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta})
+    assert respuesta.status_code == 200
+    medida_doble = (pieza.ancho * arte.REDUCCION, pieza.alto * arte.REDUCCION)
+    with Image.open(io.BytesIO(respuesta.content)) as imagen:
+        assert imagen.size == medida_doble
+    # Subido tal cual, la página lo acepta y lo reduce a la medida del provisional. Los píxeles
+    # no vuelven idénticos: la reducción de `arte_subido` (LANCZOS) no deshace una ampliación
+    # al vecino más próximo, y deja un rastro en los bordes (el alfa, a lo sumo en `HOLGURA_DEL_ALFA`).
+    limpio, _ = arte_subido.preparar(respuesta.content, pieza)
+    (medida, reducido), (medida_original, original) = _pixeles(limpio), _pixeles(_del_repo(ruta))
+    assert medida == medida_original == (pieza.ancho, pieza.alto)
+    assert max(abs(reducido[i] - original[i]) for i in range(3, len(original), 4)) <= HOLGURA_DEL_ALFA
+    assert subir(cliente, ruta, respuesta.content).status_code == 200
+
+
+def test_el_provisional_no_es_lo_subido(cliente, carpeta):
+    assert subir(cliente, CORAZON, png(32, 32, 5)).status_code == 200
+    assert subir(cliente, SUELO, png(1024, 512, 6)).status_code == 200
+    assert cliente.get(f"{API}/provisional", params={"ruta": CORAZON}).content == _del_repo(CORAZON)
+    suelo = cliente.get(f"{API}/provisional", params={"ruta": SUELO})
+    with Image.open(io.BytesIO(suelo.content)) as imagen:
+        # El doble del archivo del repo, ampliado al vecino más próximo, no el ruido que se subió.
+        esperado = Image.open(arte.RAIZ / SUELO).convert("RGBA").resize((1024, 512), Image.NEAREST)
+        assert imagen.convert("RGBA").tobytes() == esperado.tobytes()
+
+
+@pytest.mark.parametrize("ruta", [
+    "../config.py", "efectos/../../config.py", "/etc/passwd", "efectos/inventada.png",
+    "efectos/corazon.png/", "efectos\\corazon.png", "", "efectos/corazon.png\x00.png",
+])
+def test_una_ruta_que_no_es_del_contrato_se_rechaza_sin_tocar_el_disco(cliente, monkeypatch, ruta):
+    abiertos = []
+    abrir = builtins.open
+    monkeypatch.setattr(builtins, "open", lambda *a, **k: (abiertos.append(a[0]), abrir(*a, **k))[1])
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": ruta})
+    como_una_ruta_que_no_existe(cliente, respuesta)
+    assert not [a for a in abiertos if str(arte.RAIZ) in str(a)]
+
+
+def test_un_provisional_que_falta_en_el_repo_es_404(cliente, monkeypatch, tmp_path):
+    vacia = tmp_path / "arte-vacia"
+    vacia.mkdir()
+    monkeypatch.setattr(arte, "RAIZ", vacia)
+    respuesta = cliente.get(f"{API}/provisional", params={"ruta": CORAZON})
+    assert respuesta.status_code == 404
+    assert respuesta.headers["cache-control"] == "no-store"
+
+
+def test_el_zip_de_provisionales_trae_cada_uno_en_la_carpeta_de_su_grupo(cliente, temporales):
+    respuesta = cliente.get(f"{API}/provisionales.zip")
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"] == "application/zip"
+    assert respuesta.headers["content-disposition"] == 'attachment; filename="provisionales.zip"'
+    assert int(respuesta.headers["content-length"]) == len(respuesta.content)
+    esperado = {}
+    for grupo in arte.grupos():
+        for ruta in grupo.rutas:
+            esperado[f"{grupo.clave}/{ruta.rsplit('/', 1)[1]}"] = ruta
+    assert len(esperado) == len(arte.piezas())
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        assert copia.testzip() is None
+        nombres = copia.namelist()
+        assert len(nombres) == len(set(nombres)) == len(arte.piezas())
+        assert set(nombres) == set(esperado)
+        # Una de cada familia: la medida de la pieza, y el doble en los muebles.
+        for ruta in (CORAZON, SUELO):
+            pieza = arte_subido.pieza_de(ruta)
+            clave = next(g.clave for g in arte.grupos() if ruta in g.rutas)
+            veces = arte.REDUCCION if pieza.familia == "pieza" else 1
+            with Image.open(io.BytesIO(copia.read(f"{clave}/{ruta.rsplit('/', 1)[1]}"))) as imagen:
+                assert imagen.size == (pieza.ancho * veces, pieza.alto * veces)
+        assert copia.read("efectos/corazon.png") == _del_repo(CORAZON)
+    assert [archivo.closed for archivo in temporales] == [True]
+
+
+def test_el_zip_de_provisionales_no_es_lo_subido(cliente, carpeta):
+    assert subir(cliente, CORAZON, png(32, 32, 7)).status_code == 200
+    respuesta = cliente.get(f"{API}/provisionales.zip")
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        assert copia.read("efectos/corazon.png") == _del_repo(CORAZON)
+
+
+def test_en_el_zip_un_nombre_repetido_dentro_de_un_grupo_lleva_su_ruta_entera(cliente, monkeypatch):
+    repetido = arte.Grupo("junto", "Junto", "lugares", ("pueblo/lugares/tienda.png", "escenas/tienda.png"))
+    monkeypatch.setattr(arte, "grupos", lambda: (repetido,))
+    respuesta = cliente.get(f"{API}/provisionales.zip")
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        assert sorted(copia.namelist()) == ["junto/escenas-tienda.png", "junto/pueblo-lugares-tienda.png"]
+
+
+def test_si_falta_un_provisional_en_el_repo_el_zip_sale_sin_el_y_lo_avisa(cliente, monkeypatch, tmp_path, caplog):
+    copia_del_arte = tmp_path / "arte-incompleta"
+    shutil.copytree(arte.RAIZ, copia_del_arte)
+    (copia_del_arte / CORAZON).unlink()
+    monkeypatch.setattr(arte, "RAIZ", copia_del_arte)
+    with caplog.at_level("WARNING", logger="gachamones"):
+        respuesta = cliente.get(f"{API}/provisionales.zip")
+    assert respuesta.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(respuesta.content)) as copia:
+        assert "efectos/corazon.png" not in copia.namelist()
+        assert len(copia.namelist()) == len(arte.piezas()) - 1
+    assert CORAZON in caplog.text
+
+
+def test_las_descargas_de_provisionales_no_se_guardan(cliente):
+    for respuesta in (cliente.get(f"{API}/provisional", params={"ruta": CORAZON}),
+                      cliente.get(f"{API}/provisionales.zip")):
+        assert respuesta.status_code == 200 and respuesta.headers["cache-control"] == "no-store"
 
 
 # --- Nada de esto se guarda en una caché -----------------------------------------
